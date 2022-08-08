@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
@@ -30,6 +31,8 @@ set -ex
 export DEBIAN_FRONTEND=noninteractive
 
 apt -y update && apt -y install docker.io
+
+sudo chmod o+rw /var/run/docker.sock
 `
 
 // EC2TestEnv provides an ec2 test environment
