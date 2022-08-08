@@ -56,6 +56,8 @@
 /.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 /.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
 
+/.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
+
 # @DataDog/windows-agent owns the vcpkg job
 /.gitlab/deps_build.yml                              @DataDog/agent-network @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
