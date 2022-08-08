@@ -17,6 +17,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 
 	"github.com/dustin/go-humanize"
@@ -47,10 +48,14 @@ var (
 	//go:embed templates/discovery.tmpl
 	discoveryTemplate string
 
+	//go:embed templates/events.tmpl
+	eventsTemplate string
+
 	fnMap = template.FuncMap{
 		"humanize":  humanize.Commaf,
 		"bytes":     humanize.Bytes,
 		"timeMilli": func(v int64) string { return time.UnixMilli(v).UTC().Format(time.RFC3339) },
+		"timeNano":  func(v int64) string { return time.Unix(0, v).UTC().Format(time.RFC3339) },
 		"time":      func(v int64) string { return time.Unix(v, 0).UTC().Format(time.RFC3339) },
 		"cpupct":    func(v float32) string { return humanize.FtoaWithDigits(math.Round(float64(v)*100)/100, 2) + "%" },
 		"io": func(v float32) string {
@@ -75,6 +80,8 @@ func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 		return humanFormatRealTimeContainer(msgs, w)
 	case config.DiscoveryCheckName:
 		return humanFormatProcessDiscovery(msgs, w)
+	case config.ProcessEventsCheckName:
+		return HumanFormatProcessEvents(msgs, w, true)
 	}
 	return ErrNoHumanFormat
 }
@@ -318,6 +325,49 @@ func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 		w,
 		data,
 		discoveryTemplate,
+	)
+}
+
+// HumanFormatProcessEvents takes the messages produced by a process_events run and outputs them in a human-readable format
+func HumanFormatProcessEvents(msgs []model.MessageBody, w io.Writer, checkOutput bool) error {
+	// ProcessEvent's TypedEvent is an interface
+	// As text/template does not cast an interface to the underlying concrete type, we need to perform the cast before
+	// rendering the template
+	type extendedEvent struct {
+		*model.ProcessEvent
+		Exec *model.ProcessExec
+		Exit *model.ProcessExit
+	}
+
+	var data struct {
+		CheckOutput bool
+		Hostname    string
+		Events      []*extendedEvent
+	}
+
+	data.CheckOutput = checkOutput
+	for _, m := range msgs {
+		evtMsg, ok := m.(*model.CollectorProcEvent)
+		if !ok {
+			return ErrUnexpectedMessageType
+		}
+		data.Hostname = evtMsg.Hostname
+
+		for _, e := range evtMsg.Events {
+			extended := &extendedEvent{ProcessEvent: e}
+			switch typedEvent := e.TypedEvent.(type) {
+			case *model.ProcessEvent_Exec:
+				extended.Exec = typedEvent.Exec
+			case *model.ProcessEvent_Exit:
+				extended.Exit = typedEvent.Exit
+			}
+			data.Events = append(data.Events, extended)
+		}
+	}
+	return renderTemplates(
+		w,
+		data,
+		eventsTemplate,
 	)
 }
 

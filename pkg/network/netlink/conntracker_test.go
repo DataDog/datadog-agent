@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 	"inet.af/netaddr"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestIsNat(t *testing.T) {
@@ -430,6 +431,7 @@ func newConntracker(maxSize int) *realConntracker {
 	rt := &realConntracker{
 		maxStateSize: maxSize,
 		cache:        newConntrackCache(maxSize, defaultOrphanTimeout),
+		stats:        newStats(),
 	}
 
 	return rt

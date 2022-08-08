@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -70,11 +71,13 @@ type Forwarder interface {
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
+	SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error
 }
 
@@ -262,7 +265,6 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
 	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
-	var queueDiskSpaceUsedList []retry.QueueDiskSpaceUsed
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -287,7 +289,6 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				transactionContainerSort,
 				resolver)
 			f.domainResolvers[domain] = resolver
-			queueDiskSpaceUsedList = append(queueDiskSpaceUsedList, transactionContainer)
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
@@ -308,8 +309,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			time.Duration(timeInterval)*time.Second,
 			10*time.Second,
 			options.RetryQueuePayloadsTotalMaxSize,
-			diskUsageLimit,
-			queueDiskSpaceUsedList)
+			diskUsageLimit)
 	}
 
 	if optionalRemovalPolicy != nil {
@@ -592,6 +592,11 @@ func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra 
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
+// SubmitProcessEventChecks sends process events checks
+func (f *DefaultForwarder) SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
+}
+
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
@@ -622,6 +627,11 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 	}
 
 	return f.submitProcessLikePayload(endpoint, payload, extra, true)
+}
+
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *DefaultForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(endpoints.OrchestratorManifestEndpoint, payload, extra, true)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

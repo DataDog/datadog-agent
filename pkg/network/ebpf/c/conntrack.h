@@ -2,18 +2,29 @@
 #define __CONNTRACK_H
 
 #include <net/netfilter/nf_conntrack.h>
+#include <linux/types.h>
+#include <linux/sched.h>
 #include "tracer.h"
 #include "conntrack-types.h"
 #include "conntrack-maps.h"
 #include "ip.h"
+#include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
 #endif
 
+#ifndef TASK_COMM_LEN
+#define TASK_COMM_LEN 16
+#endif
+
+typedef struct {
+    char comm[TASK_COMM_LEN];
+} proc_t;
+
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
-    bpf_probe_read(&status, sizeof(status), (void *)&ct->status);
+    bpf_probe_read_kernel(&status, sizeof(status), (void *)&ct->status);
     return status;
 }
 
@@ -86,20 +97,55 @@ static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple
     return 1;
 }
 
-static __always_inline void increment_telemetry_count(enum conntrack_telemetry_counter counter_name) {
+static __always_inline void increment_telemetry_registers_count() {
     u64 key = 0;
     conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
+    __sync_fetch_and_add(&val->registers, 1);
+}
 
-    switch (counter_name) {
-    case registers:
-        __sync_fetch_and_add(&val->registers, 1);
-        break;
-    case registers_dropped:
-        __sync_fetch_and_add(&val->registers_dropped, 1);
+static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, conntrack_tuple_t* orig, conntrack_tuple_t* reply) {
+    struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
+    __builtin_memset(tuplehash, 0, sizeof(tuplehash));
+    bpf_probe_read_kernel(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+
+    struct nf_conntrack_tuple orig_tup = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+    struct nf_conntrack_tuple reply_tup = tuplehash[IP_CT_DIR_REPLY].tuple;
+    
+    u32 netns = get_netns(&ct->ct_net);
+
+    if (!nf_conntrack_tuple_to_conntrack_tuple(orig, &orig_tup)) {
+        return 1;
     }
+    orig->netns = netns;
+
+    log_debug("orig\n");
+    print_translation(orig);
+
+    if (!nf_conntrack_tuple_to_conntrack_tuple(reply, &reply_tup)) {
+        return 1;
+    }
+    reply->netns = netns;
+
+    log_debug("reply\n");
+    print_translation(reply);
+
+    return 0;
+}
+
+static __always_inline bool proc_t_comm_prefix_equals(char* prefix, int prefix_len, proc_t c) {
+    if (prefix_len > TASK_COMM_LEN) {
+        return false;
+    }
+
+    for (int i = 0; i < prefix_len; i++) {
+        if (c.comm[i] != prefix[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 #endif

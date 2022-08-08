@@ -13,10 +13,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 const (

@@ -21,6 +21,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"google.golang.org/grpc"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -31,7 +33,6 @@ import (
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc"
 )
 
 // defaultProxyPort is the default port used for proxies.
@@ -40,13 +41,14 @@ const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName     = "process"
-	RTProcessCheckName   = "rtprocess"
-	ContainerCheckName   = "container"
-	RTContainerCheckName = "rtcontainer"
-	ConnectionsCheckName = "connections"
-	PodCheckName         = "pod"
-	DiscoveryCheckName   = "process_discovery"
+	ProcessCheckName       = "process"
+	RTProcessCheckName     = "rtprocess"
+	ContainerCheckName     = "container"
+	RTContainerCheckName   = "rtcontainer"
+	ConnectionsCheckName   = "connections"
+	PodCheckName           = "pod"
+	DiscoveryCheckName     = "process_discovery"
+	ProcessEventsCheckName = "process_events"
 
 	ProcessCheckDefaultInterval          = 10 * time.Second
 	RTProcessCheckDefaultInterval        = 2 * time.Second
@@ -133,13 +135,14 @@ func NewDefaultAgentConfig() *AgentConfig {
 
 		// Check config
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:     ProcessCheckDefaultInterval,
-			RTProcessCheckName:   RTProcessCheckDefaultInterval,
-			ContainerCheckName:   ContainerCheckDefaultInterval,
-			RTContainerCheckName: RTContainerCheckDefaultInterval,
-			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
-			PodCheckName:         PodCheckDefaultInterval,
-			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
+			ProcessCheckName:       ProcessCheckDefaultInterval,
+			RTProcessCheckName:     RTProcessCheckDefaultInterval,
+			ContainerCheckName:     ContainerCheckDefaultInterval,
+			RTContainerCheckName:   RTContainerCheckDefaultInterval,
+			ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
+			PodCheckName:           PodCheckDefaultInterval,
+			DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
+			ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words

@@ -18,8 +18,7 @@ import (
 
 func TestFileRemovalPolicyUnknownDomain(t *testing.T) {
 	a := assert.New(t)
-	root, clean := createTmpFolder(a)
-	defer clean()
+	root := t.TempDir()
 	p, err := NewFileRemovalPolicy(root, 1, FileRemovalPolicyTelemetry{})
 	a.NoError(err)
 
@@ -41,8 +40,7 @@ func TestFileRemovalPolicyUnknownDomain(t *testing.T) {
 
 func TestFileRemovalPolicyOutdatedFiles(t *testing.T) {
 	a := assert.New(t)
-	root, clean := createTmpFolder(a)
-	defer clean()
+	root := t.TempDir()
 	outDatedFileDayCount := 2
 	p, err := NewFileRemovalPolicy(root, outDatedFileDayCount, FileRemovalPolicyTelemetry{})
 	a.NoError(err)
@@ -68,8 +66,7 @@ func TestFileRemovalPolicyOutdatedFiles(t *testing.T) {
 
 func TestFileRemovalPolicyExistingDomain(t *testing.T) {
 	a := assert.New(t)
-	root, clean := createTmpFolder(a)
-	defer clean()
+	root := t.TempDir()
 	telemetry := FileRemovalPolicyTelemetry{}
 	_, err := NewFileRemovalPolicy(root, 1, telemetry)
 	a.NoError(err)

@@ -6,10 +6,9 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 var (

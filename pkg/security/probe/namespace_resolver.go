@@ -15,7 +15,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -192,7 +192,7 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.RWMutex
-	state  int64
+	state  *atomic.Int64
 	probe  *Probe
 	client statsd.ClientInterface
 
@@ -202,12 +202,14 @@ type NamespaceResolver struct {
 // NewNamespaceResolver returns a new instance of NamespaceResolver
 func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 	nr := &NamespaceResolver{
+		state:  atomic.NewInt64(0),
 		probe:  probe,
 		client: probe.statsdClient,
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(key interface{}, value interface{}) {
 		nr.flushNetworkNamespace(value.(*NetworkNamespace))
+		nr.probe.flushNetworkNamespace(value.(*NetworkNamespace))
 	})
 	if err != nil {
 		return nil, err
@@ -219,12 +221,12 @@ func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 
 // SetState sets state of the namespace resolver
 func (nr *NamespaceResolver) SetState(state int64) {
-	atomic.StoreInt64(&nr.state, state)
+	nr.state.Store(state)
 }
 
 // GetState returns the state of the namespace resolver
 func (nr *NamespaceResolver) GetState() int64 {
-	return atomic.LoadInt64(&nr.state)
+	return nr.state.Load()
 }
 
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
@@ -355,10 +357,7 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 	}
 
 	_, isNewEntry := nr.SaveNetworkNamespaceHandle(nsID, nsPath)
-	if !isNewEntry {
-		return false
-	}
-	return true
+	return isNewEntry
 }
 
 // QueueNetworkDevice adds the input device to the map of queued network devices. Once a handle for the network namespace
@@ -420,6 +419,7 @@ func (nr *NamespaceResolver) flushNamespaces(ctx context.Context) {
 }
 
 // FlushNetworkNamespace flushes the cached entries for the provided network namespace.
+// (WARNING: you probably want to use probe.FlushNetworkNamespace instead)
 func (nr *NamespaceResolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 	nr.Lock()
 	defer nr.Unlock()
@@ -429,6 +429,11 @@ func (nr *NamespaceResolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 
 // flushNetworkNamespace flushes the cached entries for the provided network namespace.
 func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
+	if _, ok := nr.networkNamespaces.Peek(netns.nsID); ok {
+		// remove the entry now, removing the entry will call this function again
+		_ = nr.networkNamespaces.Remove(netns.nsID)
+		return
+	}
 
 	// if we can, make sure the manager has a valid netlink socket to this handle before removing everything
 	handle, err := netns.getNamespaceHandleDup()
@@ -439,9 +444,6 @@ func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
 
 	// close network namespace handle to release the namespace
 	netns.close()
-
-	// delete map entry
-	nr.networkNamespaces.Remove(netns.nsID)
 
 	// remove all references to this network namespace from the manager
 	_ = nr.probe.manager.CleanupNetworkNamespace(netns.nsID)
@@ -471,6 +473,7 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 				deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 				if deviceCountNoLoopbackNoDummy == 0 {
 					nr.flushNetworkNamespace(netns)
+					nr.probe.flushNetworkNamespace(netns)
 					netns.Unlock()
 					continue
 				}

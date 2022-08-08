@@ -90,7 +90,7 @@ func (w *KMemCheck) Configure(data integration.Data, initConfig integration.Data
 		return err
 	}
 
-	if err := w.CommonConfigure(data, source); err != nil {
+	if err := w.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 	cf := Config{

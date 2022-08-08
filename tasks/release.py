@@ -57,11 +57,11 @@ def add_prelude(ctx, version):
 
 
 @task
-def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
+def add_dca_prelude(ctx, agent7_version, agent6_version=""):
     """
     Release of the Cluster Agent should be pinned to a version of the Agent.
     """
-    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
+    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{agent7_version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     if agent6_version != "":
@@ -79,7 +79,7 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
 
     ctx.run(f"git add {new_releasenote}")
     print("\nCommit this with:")
-    print(f"git commit -m \"Add prelude for {version} release\"")
+    print(f"git commit -m \"Add prelude for {agent7_version} release\"")
 
 
 @task
@@ -100,90 +100,20 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_dca_changelog(ctx, new_version, agent_version):
+def update_dca_changelog(ctx, new_version):
     """
     Quick task to generate the new CHANGELOG-DCA using reno when releasing a minor
     version (linux/macOS only).
     """
-    new_version_int = list(map(int, new_version.split(".")))
-
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(1)
-
-    agent_version_int = list(map(int, agent_version.split(".")))
-
-    if len(agent_version_int) != 3:
-        print(f"Error: invalid version: {agent_version_int}")
-        raise Exit(1)
-
-    # let's avoid losing uncommitted change with 'git reset --hard'
-    try:
-        ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure:
-        print("Error: You have uncommitted changes, please commit or stash before using update-dca-changelog")
-        return
-
-    # make sure we are up to date
-    ctx.run("git fetch")
-
-    # let's check that the tag for the new version is present (needed by reno)
-    try:
-        ctx.run(f"git tag --list | grep dca-{new_version}")
-    except Failure:
-        print(f"Missing 'dca-{new_version}' git tag: mandatory to use 'reno'")
-        raise
-
-    # Cluster agent minor releases are in sync with the agent's, bugfixes are not necessarily.
-    # We rely on the agent's devel tag to enforce the sync between both releases.
-    branching_point_agent = f"{agent_version_int[0]}.{agent_version_int[1]}.0-devel"
-    previous_minor_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1] - 1}.X"
-    log_result = ctx.run(
-        f"git log {branching_point_agent}...remotes/origin/{previous_minor_branchoff} --name-only --oneline |             grep releasenotes-dca/notes/ || true"
-    )
-    log_result = log_result.stdout.replace('\n', ' ').strip()
-
-    # Do not include release notes that were added in the previous minor release branch (previous_minor_branchoff)
-    # and the branch-off points for the current release (pined by the agent's devel tag)
-    if len(log_result) > 0:
-        ctx.run(f"git rm --ignore-unmatch {log_result}")
-
-    current_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1]}.X"
-    # generate the new changelog. Specifying branch in case this is run outside the release branch that contains the tag.
-    ctx.run(
-        f"reno --rel-notes-dir releasenotes-dca report             --ignore-cache             --branch {current_branchoff}             --version dca-{new_version}             --no-show-source > /tmp/new_changelog-dca.rst"
-    )
-
-    # reseting git
-    ctx.run("git reset --hard HEAD")
-
-    # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
-        sed_i_arg = "-i ''"
-    # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-DCA.rst")
-
-    if sys.platform != 'darwin':
-        # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
-        ctx.run(
-            "sed -z {0} -e 's/dca-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-dca.rst".format(  # noqa: FS002
-                sed_i_arg, new_version, '=' * len(new_version)
-            )
-        )
-
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
-
-    # commit new CHANGELOG
-    ctx.run("git add CHANGELOG-DCA.rst")
-
-    print("\nCommit this with:")
-    print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
+    return update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
 
 
 @task
 def update_changelog(ctx, new_version):
+    return update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+
+
+def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -217,7 +147,7 @@ def update_changelog(ctx, new_version):
     if previous_minor == "7.15":
         previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
     log_result = ctx.run(
-        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline |             grep releasenotes/notes/ || true"
+        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline | grep {changelog_dir}/notes/ || true"
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
@@ -225,15 +155,17 @@ def update_changelog(ctx, new_version):
 
     # generate the new changelog
     ctx.run(
-        f"reno report             --ignore-cache             --earliest-version {branching_point}             --version {new_version}             --no-show-source > /tmp/new_changelog.rst"
+        f"reno report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
     )
 
     # reseting git
     ctx.run("git reset --hard HEAD")
 
     # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
+    # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
+    if ctx.run("sed --version", hide='both'):
+        sed_i_arg = "-i"
+    else:
         sed_i_arg = "-i ''"
     # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
     v6_tag = ""
@@ -242,13 +174,13 @@ def update_changelog(ctx, new_version):
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG.rst")
+    ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
+    # merging to <changelog_file>
+    ctx.run(f"cat {changelog_file} >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst {changelog_file}")
 
     # commit new CHANGELOG
-    ctx.run("git add CHANGELOG.rst")
+    ctx.run(f"git add {changelog_file}.rst")
 
     print("\nCommit this with:")
     print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
@@ -849,15 +781,73 @@ def update_modules(ctx, agent_version, verify=True):
             ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
+def __get_force_option(force: bool) -> str:
+    """Get flag to pass to git tag depending on if we want forcing or not."""
+    force_option = ""
+    if force:
+        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
+        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
+        if result:
+            print("Continuing with the --force option.")
+            force_option = " --force"
+        else:
+            print("Continuing without the --force option.")
+    return force_option
+
+
+def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
+    """Tag a given module."""
+    for tag in module.tag(agent_version):
+        ok = try_git_command(
+            ctx,
+            f"git tag -m {tag} {tag} {commit}{force_option}",
+        )
+        if not ok:
+            message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+            raise Exit(color_message(message, "red"), code=1)
+        print(f"Created tag {tag}")
+        if push:
+            ctx.run(f"git push origin {tag}{force_option}")
+            print(f"Pushed tag {tag}")
+
+
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True, push=True, force=False):
+def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+    """
+    Create tags for Go nested modules for a given Datadog Agent version.
+    The version should be given as an Agent 7 version.
+
+    * --commit COMMIT will tag COMMIT with the tags (default HEAD)
+    * --verify checks for correctness on the Agent version (on by default).
+    * --push will push the tags to the origin remote (on by default).
+    * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+
+    Examples:
+    inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
+    inv -e release.tag-modules 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+    inv -e release.tag-modules 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+
+    """
+    if verify:
+        check_version(agent_version)
+
+    force_option = __get_force_option(force)
+    for module in DEFAULT_MODULES.values():
+        # Skip main module; this is tagged at tag_version via __tag_single_module.
+        if module.should_tag and module.path != ".":
+            __tag_single_module(ctx, module, agent_version, commit, push, force_option)
+
+    print(f"Created module tags for version {agent_version}")
+
+
+@task
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
-    * --tag_modules tags Go modules in addition to the agent repository
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
 
@@ -869,32 +859,10 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True
     if verify:
         check_version(agent_version)
 
-    force_option = ""
-    if force:
-        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
-        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
-        if result:
-            print("Continuing with the --force option.")
-            force_option = " --force"
-        else:
-            print("Continuing without the --force option.")
-
-    for module in DEFAULT_MODULES.values():
-        if (tag_modules or module.path == ".") and module.should_tag:
-            for tag in module.tag(agent_version):
-                ok = try_git_command(
-                    ctx,
-                    f"git tag -m {tag} {tag} {commit}{force_option}",
-                )
-                if not ok:
-                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
-                    raise Exit(color_message(message, "red"), code=1)
-                print(f"Created tag {tag}")
-                if push:
-                    ctx.run(f"git push origin {tag}{force_option}")
-                    print(f"Pushed tag {tag}")
-
-    print(f"Created all tags for version {agent_version}")
+    # Always tag the main module
+    force_option = __get_force_option(force)
+    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option)
+    print(f"Created tags for version {agent_version}")
 
 
 def current_version(ctx, major_version) -> Version:
@@ -1307,6 +1275,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     # the tags for all supported versions
     # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
     tag_version(ctx, str(new_version), force=False)
+    tag_modules(ctx, str(new_version), force=False)
 
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None

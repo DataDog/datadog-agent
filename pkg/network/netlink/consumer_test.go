@@ -10,12 +10,12 @@ package netlink
 
 import (
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/stretchr/testify/require"
+
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 )
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
@@ -39,7 +39,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	}()
 
 	isRecvLoopRunning := func() bool {
-		return atomic.LoadInt32(&c.recvLoopRunning) == 1
+		return c.recvLoopRunning.Load()
 	}
 
 	require.Eventually(t, func() bool {

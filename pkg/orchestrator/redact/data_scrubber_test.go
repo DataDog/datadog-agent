@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"testing"
 
-	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }

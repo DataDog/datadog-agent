@@ -18,9 +18,10 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"golang.org/x/sys/windows"
 )
 
 // Start starts tailing the event log.
@@ -94,7 +95,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		return
 	}
 
-	t.source.BytesRead.Add(int64(len(msg.Content)))
+	t.source.RecordBytes(int64(len(msg.Content)))
 	t.outputChan <- msg
 }
 

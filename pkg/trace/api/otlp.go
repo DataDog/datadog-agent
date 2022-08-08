@@ -254,10 +254,12 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]float64)
+	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
 		for i := 0; i < libspans.Spans().Len(); i++ {
+			spancount++
 			span := libspans.Spans().At(i)
 			traceID := traceIDToUint64(span.TraceID().Bytes())
 			if tracesByID[traceID] == nil {
@@ -291,7 +293,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		}
 	}
 	tags := tagstats.AsTags()
-	metrics.Count("datadog.trace_agent.otlp.spans", int64(rspans.ScopeSpans().Len()), tags, 1)
+	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
@@ -322,7 +324,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 			hostname = ""
 		}
 	} else {
+		// fallback hostname
 		hostname = o.conf.Hostname
+		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
@@ -336,6 +340,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
 		p.TracerPayload.Tags = map[string]string{
 			tagContainersTags: ctags,
+		}
+	} else {
+		// we couldn't obtain any container tags
+		if src.Kind == source.AWSECSFargateKind {
+			// but we have some information from the source provider that we can add
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: src.Tag(),
+			}
 		}
 	}
 	select {

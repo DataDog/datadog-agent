@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
@@ -14,7 +19,8 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		SamplingRate: aggFlow.SamplingRate,
 		Direction:    enrichment.RemapDirection(aggFlow.Direction),
 		Device: payload.Device{
-			IP: common.IPBytesToString(aggFlow.DeviceAddr),
+			IP:        common.IPBytesToString(aggFlow.DeviceAddr),
+			Namespace: aggFlow.Namespace,
 		},
 		Start:      aggFlow.StartTimestamp,
 		End:        aggFlow.EndTimestamp,
@@ -44,9 +50,8 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 				Index: aggFlow.OutputInterface,
 			},
 		},
-		Namespace: aggFlow.Namespace,
-		Host:      hostname,
-		TCPFlags:  enrichment.FormatFCPFlags(aggFlow.TCPFlags),
+		Host:     hostname,
+		TCPFlags: enrichment.FormatFCPFlags(aggFlow.TCPFlags),
 		NextHop: payload.NextHop{
 			IP: common.IPBytesToString(aggFlow.NextHop),
 		},

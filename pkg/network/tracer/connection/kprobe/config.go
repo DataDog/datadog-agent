@@ -47,6 +47,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		enableProbe(enabled, probes.TCPCleanupRBuf)
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseReturn)
+		enableProbe(enabled, probes.TCPConnect)
+		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
@@ -65,11 +67,13 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		enableProbe(enabled, probes.UDPDestroySock)
 		enableProbe(enabled, probes.UDPDestroySockReturn)
 		enableProbe(enabled, probes.IPMakeSkb)
+		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
 
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
+			enableProbe(enabled, probes.IP6MakeSkbReturn)
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
 		}

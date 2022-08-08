@@ -314,6 +314,12 @@
           "constants": ""
         },
         {
+          "name": "process.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "process.ancestors.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -590,6 +596,12 @@
           "constants": ""
         },
         {
+          "name": "process.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "process.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -644,7 +656,7 @@
           "name": "bind.addr.family",
           "type": "int",
           "definition": "Address family",
-          "constants": "Network Address Family constants"
+          "constants": ""
         },
         {
           "name": "bind.addr.ip",
@@ -1265,6 +1277,12 @@
           "constants": ""
         },
         {
+          "name": "exec.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "exec.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -1559,6 +1577,12 @@
           "name": "exit.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {
@@ -2513,6 +2537,12 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.ancestors.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -2786,6 +2816,12 @@
           "name": "ptrace.tracee.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {
@@ -3713,6 +3749,12 @@
           "constants": ""
         },
         {
+          "name": "signal.target.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
           "name": "signal.target.ancestors.is_thread",
           "type": "bool",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
@@ -3986,6 +4028,12 @@
           "name": "signal.target.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
           "constants": ""
         },
         {

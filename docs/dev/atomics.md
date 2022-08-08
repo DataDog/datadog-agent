@@ -27,7 +27,7 @@ This ensures proper alignment.
 
 ```golang
 //  global variable
-var maxFooCount *atomic.Uint64 = atomic.NewUint64(42)
+var maxFooCount = atomic.NewUint64(42)
 
 // in a struct
 type FooTracker struct {
@@ -48,8 +48,7 @@ If the additional pointer allocation poses an undue performance burden, include 
  * that it must remain in that position; and
  * why a pointer was not suitable.
 
-Note that pointers to atomic types marshal correctly to JSON as their enclosed value.
-Unmarshaling does the reverse, except that missing values are represented as nil, rather than an atomic type with zero value.
+Pointers to atomic types marshal correctly to JSON as their enclosed value. Unmarshaling does the reverse, except that missing values are represented as nil, rather than an atomic type with zero value.
 
 ### Why
 

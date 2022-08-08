@@ -1,10 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_buildPayload(t *testing.T) {
@@ -52,7 +59,8 @@ func Test_buildPayload(t *testing.T) {
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
 				Device: payload.Device{
-					IP: "127.0.0.1",
+					IP:        "127.0.0.1",
+					Namespace: "my-namespace",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -65,11 +73,10 @@ func Test_buildPayload(t *testing.T) {
 					Mac:  "00:00:00:00:00:14",
 					Mask: "10.10.0.0/20",
 				},
-				Ingress:   payload.ObservationPoint{Interface: payload.Interface{Index: 10}},
-				Egress:    payload.ObservationPoint{Interface: payload.Interface{Index: 20}},
-				Namespace: "my-namespace",
-				Host:      "my-hostname",
-				TCPFlags:  []string{"FIN", "SYN", "ACK"},
+				Ingress:  payload.ObservationPoint{Interface: payload.Interface{Index: 10}},
+				Egress:   payload.ObservationPoint{Interface: payload.Interface{Index: 20}},
+				Host:     "my-hostname",
+				TCPFlags: []string{"FIN", "SYN", "ACK"},
 				NextHop: payload.NextHop{
 					IP: "10.10.10.30",
 				},

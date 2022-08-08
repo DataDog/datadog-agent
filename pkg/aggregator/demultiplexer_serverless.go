@@ -100,7 +100,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	defer d.flushLock.Unlock()
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, logPayloads, true)
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
 
 	metrics.Serialize(
 		series,
@@ -147,8 +147,8 @@ func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, sample
 	d.statsdWorker.samplesChan <- samples
 }
 
-// AddCheckSample doesn't do anything in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+// AddLateMetrics is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

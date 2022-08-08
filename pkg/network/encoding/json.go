@@ -9,8 +9,9 @@ import (
 	"bytes"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeJSON holds the HTML content-type of a JSON payload

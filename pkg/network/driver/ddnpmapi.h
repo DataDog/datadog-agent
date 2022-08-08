@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x10
+#define DD_NPMDRIVER_VERSION       0x12
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -39,6 +39,7 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
+////// DEPRECATED
 #define DDNPMDRIVER_IOCTL_SET_FLOW_FILTER  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x804, \
                                               METHOD_BUFFERED,\
@@ -49,6 +50,7 @@ typedef unsigned char       uint8_t;
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
+///// DEPRECATED
 #define DDNPMDRIVER_IOCTL_SET_MAX_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x806, \
                                               METHOD_BUFFERED,\
@@ -64,6 +66,43 @@ typedef unsigned char       uint8_t;
                                                             METHOD_BUFFERED,\
                                                             FILE_ANY_ACCESS)
 
+#define DDNPMDRIVER_IOCTL_SET_MAX_OPEN_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x809, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_MAX_CLOSED_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80A, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_MAX_HTTP_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80B, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+
+#define DDNPMDRIVER_IOCTL_ENABLE_HTTP  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80C, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_GET_OPEN_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80D, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_GET_CLOSED_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80E, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_CLOSED_FLOWS_NOTIFY  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x80F, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+
 #pragma pack(1)
 
 /*!
@@ -71,82 +110,58 @@ typedef unsigned char       uint8_t;
 
  This structure is used to collect various types of statistics from the driver
  */
-typedef struct _handle_stats {
-    volatile LONG64		read_calls;		//! number of read calls to the driver
-
-    volatile LONG64       read_calls_outstanding;
-    volatile LONG64       read_calls_completed;
-    volatile LONG64       read_calls_cancelled;
-
-    volatile LONG64       write_calls;	//! number of write calls to the driver
-    volatile LONG64       write_bytes;
-
-    volatile LONG64		  ioctl_calls;	//! number of ioctl calls to the driver
-} HANDLE_STATS;
-
 typedef struct _flow_handle_stats {
-    volatile LONG64         packets_observed;  // number of packets through the driver
-    volatile LONG64         packets_processed;  // number of packets actually processed
-    volatile LONG64         open_flows;         // number of currently open flows
-    volatile LONG64         total_flows;        // total flows processed (open + closed)
-
-    volatile LONG64         num_flow_searches;  // number of times had to search for flow after add
-    volatile LONG64         num_flow_search_misses; // number of times we missed a flow even after searching the list
-
     volatile LONG64         num_flow_collisions;
 
-    // num_flow_structures and peak_num_flow_structures valid only on per-handle stats;
-    // will not be kept for global stats.  
-    volatile LONG64         num_flow_structures;      // total number of flow structures
+    volatile LONG64         num_flow_alloc_skipped_max_open_exceeded;
+    volatile LONG64         num_flow_closed_dropped_max_exceeded;
+
+    // these are kept in the flow_table structure itself,
+    // and copied into the stats struct when the struct is queried.
+    volatile LONG64         num_flow_structures;      // total number of open flow structures
     volatile LONG64         peak_num_flow_structures; // high water mark of numFlowStructures
-    volatile LONG64         num_flows_missed_max_exceeded;
+
+    volatile LONG64         num_flow_closed_structures;  //
+    volatile LONG64         peak_num_flow_closed_structures;
+
+    volatile LONG64         open_table_adds;
+    volatile LONG64         open_table_removes;
+    volatile LONG64         closed_table_adds;
+    volatile LONG64         closed_table_removes;
 
     // same for no_handle flows
     volatile LONG64         num_flows_no_handle;
     volatile LONG64         peak_num_flows_no_handle;
     volatile LONG64         num_flows_missed_max_no_handle_exceeded;
 
+    volatile LONG64         num_packets_after_flow_closed;
+
 } FLOW_STATS;
 
 typedef struct _transport_handle_stats {
 
-    volatile LONG64       packets_processed; // number of packets through the driver
     volatile LONG64       read_packets_skipped;
-    volatile LONG64       packets_reported; // number of packets sent up
+
+    volatile LONG64       read_calls_requested;
+    volatile LONG64       read_calls_completed;
+    volatile LONG64       read_calls_cancelled;
 
 } TRANSPORT_STATS;
 
 typedef struct _http_handle_stats {
 
-    volatile LONG64       packets_processed; // number of packets through the driver
-    volatile LONG64       num_flow_collisions;
-    volatile LONG64       num_flows_missed_max_exceeded;
-    volatile LONG64       read_batch_skipped;
-    volatile LONG64       batches_reported; // number of transaction batches setnt up
+    volatile LONG64       txns_captured;
+    volatile LONG64       txns_skipped_max_exceeded;
+    volatile LONG64       ndis_buffer_non_contiguous;
 
 } HTTP_STATS;
 
 typedef struct _stats
 {
-    HANDLE_STATS            handle_stats;
     FLOW_STATS              flow_stats;
     TRANSPORT_STATS         transport_stats;
     HTTP_STATS              http_stats;
 } STATS;
-
-/*!
- * DRIVER_STATS structure
- *
- * This structure is a rollup of the available stats.  It includes the
- * per-handle stats, and the total driver stats
- */
-typedef struct driver_stats
-{
-    uint64_t                filterVersion;
-    STATS		total;		//! stats since the driver was started
-    STATS		handle;		//! stats for the file handle in question
-} DRIVER_STATS;
-
 
 ///////////////////////////////////
 // filter definitions.
@@ -197,7 +212,7 @@ typedef struct _filterDefinition
  * PACKET_HEADER structure
  *
  * provided by the driver during the upcall with implementation specific
- * information in the header.  
+ * information in the header.
  */
 
 typedef struct _udpFlowData {
@@ -279,9 +294,9 @@ typedef struct filterPacketHeader
     uint64_t        timestamp;              // timestamp in ns since unix epoch
 
     // data follows
-} PACKET_HEADER, *PPACKET_HEADER;
+} PACKET_HEADER, * PPACKET_HEADER;
 
-
+#define USERLAND_CLOSED_FLOWS_EVENT_NAME L"\\BaseNamedObjects\\DDNPMClosedFlowsReadyEvent"
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP_BUFFER_SIZE 25
 
@@ -307,15 +322,17 @@ typedef enum _HttpMethodType {
     HTTP_PATCH
 } HTTP_METHOD_TYPE;
 
+#pragma pack(1)
+
 typedef struct _ConnTupleType {
     uint8_t  cliAddr[16]; // only first 4 bytes valid for AF_INET, in network byte order
     uint8_t  srvAddr[16]; // ditto
     uint16_t cliPort;     // host byte order
     uint16_t srvPort;     // host byte order
     uint16_t family;      // AF_INET or AF_INET6
+    uint16_t pad;         // make struct 64 bit aligned
 } CONN_TUPLE_TYPE, * PCONN_TUPLE_TYPE;
 
-#pragma pack(4)
 
 typedef struct _HttpTransactionType {
     uint64_t         requestStarted;      // in ns
@@ -323,7 +340,17 @@ typedef struct _HttpTransactionType {
     CONN_TUPLE_TYPE  tup;
     HTTP_METHOD_TYPE requestMethod;
     uint16_t         responseStatusCode;
-    unsigned char    requestFragment[HTTP_BUFFER_SIZE];
+    uint16_t         maxRequestFragment;
+    uint16_t         szRequestFragment;
+    uint8_t          pad[6];                  // make struct 64 bit byte aligned
+    unsigned char* requestFragment;
+
 } HTTP_TRANSACTION_TYPE, * PHTTP_TRANSACTION_TYPE;
 
+#define USERLAND_HTTP_EVENT_NAME L"\\BaseNamedObjects\\DDNPMHttpTxnReadyEvent"
+typedef struct _HttpConfigurationSettings {
+    uint64_t    maxTransactions;        // max list of transactions we'll keep
+    uint64_t    notificationThreshhold; // when to signal to retrieve transactions
+    uint16_t    maxRequestFragment;     // max length of request fragment
+} HTTP_CONFIGURATION_SETTINGS;
 #pragma pack()

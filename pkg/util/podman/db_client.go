@@ -32,8 +32,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

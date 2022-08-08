@@ -708,6 +708,10 @@
         "is_thread": {
           "type": "boolean",
           "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
+        "is_kworker": {
+          "type": "boolean",
+          "description": "Indicates whether the process is a kworker"
         }
       },
       "additionalProperties": false,
@@ -816,6 +820,10 @@
         "is_thread": {
           "type": "boolean",
           "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
+        "is_kworker": {
+          "type": "boolean",
+          "description": "Indicates whether the process is a kworker"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -931,7 +939,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxBoolChangeSerializer serializes a SELinux boolean change to JSON"
     },
     "SELinuxBoolCommit": {
       "properties": {
@@ -941,7 +950,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxBoolCommitSerializer serializes a SELinux boolean commit to JSON"
     },
     "SELinuxEnforceStatus": {
       "properties": {
@@ -951,7 +961,8 @@
         }
       },
       "additionalProperties": false,
-      "type": "object"
+      "type": "object",
+      "description": "SELinuxEnforceStatusSerializer serializes a SELinux enforcement status change to JSON"
     },
     "SELinuxEvent": {
       "properties": {

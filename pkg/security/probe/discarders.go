@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -18,7 +19,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -41,10 +41,14 @@ const (
 	maxParentDiscarderDepth = 3
 
 	// allEventTypes is a mask to match all the events
-	allEventTypes = 0xffffffffffffffff
+	allEventTypes = math.MaxUint32
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
+
+	// Map names for discarder stats. Discarder stats includes counts of discarders added and events discarded. Look up "multiple buffering" for more details about why there's two buffers.
+	frontBufferDiscarderStatsMapName = "discarder_stats_fb"
+	backBufferDiscarderStatsMapName  = "discarder_stats_bb"
 )
 
 var (
@@ -150,6 +154,27 @@ type inodeDiscarderEntry struct {
 	Inode     uint64
 	MountID   uint32
 	Timestamp uint64
+}
+
+type inodeDiscarderParams struct {
+	DiscarderParams discarderParams
+	Revision        uint32
+}
+
+type pidDiscarderParams struct {
+	DiscarderParams discarderParams
+}
+
+type discarderParams struct {
+	EventMask  uint64
+	Timestamps [model.LastDiscarderEventType - model.FirstDiscarderEventType]uint64
+	ExpireAt   uint64
+	IsRetained uint32
+}
+
+type discarderStats struct {
+	DiscardersAdded uint64
+	EventDiscarded  uint64
 }
 
 func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
@@ -514,7 +539,7 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 			}
 
 			if err != nil {
-				err = errors.Wrapf(err, "unable to set inode discarders for `%s` for event `%s`, inode: %d", filename, eventType, parentInode)
+				err = fmt.Errorf("unable to set inode discarders for `%s` for event `%s`, inode: %d: %w", filename, eventType, parentInode, err)
 			}
 
 			return err

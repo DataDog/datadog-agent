@@ -6,9 +6,10 @@
 package v1
 
 import (
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )

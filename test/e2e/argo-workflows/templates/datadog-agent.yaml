@@ -14,6 +14,9 @@ spec:
           - name: agent-image-tag
           - name: cluster-agent-image-repository
           - name: cluster-agent-image-tag
+          - name: ci_commit_short_sha
+          - name: ci_pipeline_id
+          - name: ci_job_id
       script:
         image: alpine/helm:3.9.0
         envFrom:
@@ -25,6 +28,10 @@ spec:
 
           cat > /tmp/values.yaml <<EOF
           datadog:
+            kubeStateMetricsEnabled: false
+            kubeStateMetricsCore:
+              enabled: true
+
             dd_url: {{inputs.parameters.dd-url}}
             site: {{inputs.parameters.site}}
             apiKey: $DD_API_KEY
@@ -32,24 +39,31 @@ spec:
             tags:
               - tag1
               - tag2
+              - app:agent-e2e-tests
+              - ci_commit_short_sha:{{inputs.parameters.ci_commit_short_sha}}
+              - ci_pipeline_id:{{inputs.parameters.ci_pipeline_id}}
+              - ci_job_id:{{inputs.parameters.ci_job_id}}
             kubelet:
               tlsVerify: false
             env:
               - name: DD_HOSTNAME
                 value: k8s-e2e-tests-control-plane
-              - name: DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT
-                value: "0.0.0.0:4317"
             leaderElection: true
             logs:
               enabled: true
               containerCollectAll: true
             apm:
               enabled: true
+            otlp:
+              receiver:
+                protocols:
+                  grpc:
+                    enabled: true
             processAgent:
               enabled: true
             systemProbe:
-              enableTCPQueueLength: true
-              enableOOMKill: true
+              enableTCPQueueLength: false
+              enableOOMKill: false
             networkMonitoring:
               enabled: true
             securityAgent:
@@ -92,12 +106,6 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
-              agent:
-                ports:
-                  - containerPort: 4317
-                    hostPort: 4317
-                    name: otlp-port
-                    protocol: TCP
               systemProbe:
                 logLevel: TRACE
                 env:
@@ -109,6 +117,16 @@ spec:
                   capabilities:
                     drop:
                       - all
+            useConfigMap: true
+            customAgentConfig:
+              additional_endpoints:
+                https://agent.datadoghq.com.: $DD_DDDEV_API_KEY
+              logs_config:
+                use_http: true
+                additional_endpoints:
+                  - host: agent-http-intake.logs.datadoghq.com.
+                    api_key: $DD_DDDEV_API_KEY
+                    is_reliable: true
 
           clusterAgent:
             enabled: true
@@ -245,7 +263,7 @@ spec:
           while (1) {
             var nb = db.series.find({
             metric: "kubernetes_state.daemonset.ready",
-            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "daemonset:datadog-agent"] },
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_daemon_set:datadog-agent"] },
             "points.0.1": { $eq: 1 } }).count();
             print("find: " + nb)
             if (nb != 0) {

@@ -135,7 +135,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	// Must be called before c.CommonConfigure
 	c.BuildID(rawInstance, rawInitConfig)
 
-	err = c.CommonConfigure(rawInstance, source)
+	err = c.CommonConfigure(rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}

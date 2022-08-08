@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// Copyright 2016-present Datadog, Inc.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 //go:build linux
 // +build linux
@@ -59,11 +59,11 @@ func NewListener(handler EventHandler) (*SysProbeListener, error) {
 	}
 
 	client := api.NewSecurityModuleClient(conn)
-	return newSysProbeListener(conn, client, handler)
+	return NewSysProbeListener(conn, client, handler)
 }
 
-// newSysProbeListener returns a new SysPobeListener
-func newSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
+// NewSysProbeListener returns a new SysPobeListener
+func NewSysProbeListener(conn *grpc.ClientConn, client api.SecurityModuleClient, handler EventHandler) (*SysProbeListener, error) {
 	if handler == nil {
 		return nil, errors.New("can't create a Listener without an EventHandler")
 	}

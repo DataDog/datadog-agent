@@ -62,34 +62,34 @@ type TracerStatus struct {
 type TracerState uint8
 
 const (
-	StateUninitialized TracerState = 0.000000
-	StateChecking      TracerState = 1.000000
-	StateChecked       TracerState = 2.000000
-	StateReady         TracerState = 3.000000
+	StateUninitialized TracerState = 0x0
+	StateChecking      TracerState = 0x1
+	StateChecked       TracerState = 0x2
+	StateReady         TracerState = 0x3
 )
 
 type GuessWhat uint64
 
 const (
-	GuessSAddr     GuessWhat = 0.000000
-	GuessDAddr     GuessWhat = 1.000000
-	GuessFamily    GuessWhat = 2.000000
-	GuessSPort     GuessWhat = 3.000000
-	GuessDPort     GuessWhat = 4.000000
-	GuessNetNS     GuessWhat = 5.000000
-	GuessRTT       GuessWhat = 6.000000
-	GuessDAddrIPv6 GuessWhat = 7.000000
+	GuessSAddr     GuessWhat = 0x0
+	GuessDAddr     GuessWhat = 0x1
+	GuessFamily    GuessWhat = 0x2
+	GuessSPort     GuessWhat = 0x3
+	GuessDPort     GuessWhat = 0x4
+	GuessNetNS     GuessWhat = 0x5
+	GuessRTT       GuessWhat = 0x6
+	GuessDAddrIPv6 GuessWhat = 0x7
 
-	GuessSAddrFl4 GuessWhat = 8.000000
-	GuessDAddrFl4 GuessWhat = 9.000000
-	GuessSPortFl4 GuessWhat = 10.000000
-	GuessDPortFl4 GuessWhat = 11.000000
+	GuessSAddrFl4 GuessWhat = 0x8
+	GuessDAddrFl4 GuessWhat = 0x9
+	GuessSPortFl4 GuessWhat = 0xa
+	GuessDPortFl4 GuessWhat = 0xb
 
-	GuessSAddrFl6 GuessWhat = 12.000000
-	GuessDAddrFl6 GuessWhat = 13.000000
-	GuessSPortFl6 GuessWhat = 14.000000
-	GuessDPortFl6 GuessWhat = 15.000000
-	GuessSocketSK GuessWhat = 16.000000
+	GuessSAddrFl6 GuessWhat = 0xc
+	GuessDAddrFl6 GuessWhat = 0xd
+	GuessSPortFl6 GuessWhat = 0xe
+	GuessDPortFl6 GuessWhat = 0xf
+	GuessSocketSK GuessWhat = 0x10
 
 	GuessNotApplicable GuessWhat = 99999
 )

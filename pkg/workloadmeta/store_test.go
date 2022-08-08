@@ -9,8 +9,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/errors"
 )
 
 const (
@@ -510,6 +511,39 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeUnset,
+							Entity: fooContainer,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:      "sets unchanged entity twice",
+			preEvents: []CollectorEvent{},
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						// DeepCopy to ensure we're not
+						// just comparing pointers, as
+						// collectors return a freshly
+						// built object every time
+						Entity: fooContainer.DeepCopy(),
+					},
+				},
+			},
+			filter: nil,
+			expected: []EventBundle{
+				{
+					Events: []Event{
+						{
+							Type:   EventTypeSet,
 							Entity: fooContainer,
 						},
 					},

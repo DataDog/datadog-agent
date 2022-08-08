@@ -218,6 +218,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `process.ancestors.gid` | int | GID of the process |  |
 | `process.ancestors.group` | string | Group of the process |  |
+| `process.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ancestors.ppid` | int | Parent process ID |  |
@@ -264,6 +265,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.fsuser` | string | FileSystem-user of the process |  |
 | `process.gid` | int | GID of the process |  |
 | `process.group` | string | Group of the process |  |
+| `process.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ppid` | int | Parent process ID |  |
@@ -280,7 +282,7 @@ A bind was executed
 
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
-| `bind.addr.family` | int | Address family | Network Address Family constants |
+| `bind.addr.family` | int | Address family |  |
 | `bind.addr.ip` | IP/CIDR | IP address |  |
 | `bind.addr.port` | int | Port number |  |
 | `bind.retval` | int | Return value of the syscall | Error Constants |
@@ -417,6 +419,7 @@ A process was executed or forked
 | `exec.fsuser` | string | FileSystem-user of the process |  |
 | `exec.gid` | int | GID of the process |  |
 | `exec.group` | string | Group of the process |  |
+| `exec.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exec.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exec.ppid` | int | Parent process ID |  |
@@ -472,6 +475,7 @@ A process was terminated
 | `exit.fsuser` | string | FileSystem-user of the process |  |
 | `exit.gid` | int | GID of the process |  |
 | `exit.group` | string | Group of the process |  |
+| `exit.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exit.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exit.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exit.ppid` | int | Parent process ID |  |
@@ -669,6 +673,7 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `ptrace.tracee.ancestors.gid` | int | GID of the process |  |
 | `ptrace.tracee.ancestors.group` | string | Group of the process |  |
+| `ptrace.tracee.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ancestors.ppid` | int | Parent process ID |  |
@@ -715,6 +720,7 @@ A ptrace command was executed
 | `ptrace.tracee.fsuser` | string | FileSystem-user of the process |  |
 | `ptrace.tracee.gid` | int | GID of the process |  |
 | `ptrace.tracee.group` | string | Group of the process |  |
+| `ptrace.tracee.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ppid` | int | Parent process ID |  |
@@ -913,6 +919,7 @@ A signal was sent
 | `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `signal.target.ancestors.gid` | int | GID of the process |  |
 | `signal.target.ancestors.group` | string | Group of the process |  |
+| `signal.target.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ancestors.ppid` | int | Parent process ID |  |
@@ -959,6 +966,7 @@ A signal was sent
 | `signal.target.fsuser` | string | FileSystem-user of the process |  |
 | `signal.target.gid` | int | GID of the process |  |
 | `signal.target.group` | string | Group of the process |  |
+| `signal.target.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ppid` | int | Parent process ID |  |
