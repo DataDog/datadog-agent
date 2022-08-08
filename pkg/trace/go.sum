@@ -213,8 +213,8 @@ github.com/yusufpapurcu/wmi v1.2.2 h1:KBNDSne4vP5mbSWnJbO+51IMOXJB67QiYCSBrubbPR
 github.com/yusufpapurcu/wmi v1.2.2/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 go.opentelemetry.io/collector/pdata v0.56.0 h1:JD8KjQ7dNZ441xMuVZVu5NRYmkA4vOYGV7w8tkCdyrE=
 go.opentelemetry.io/collector/pdata v0.56.0/go.mod h1:mYcCREWiIJyHss0dbU+GSiz2tmGZ6u09vtfkKTciog4=
-go.opentelemetry.io/collector/semconv v0.56.0 h1:zpQ6IBimBsiVsJibsSM2/13vKtaeteFFIx4bmIiOS6E=
-go.opentelemetry.io/collector/semconv v0.56.0/go.mod h1:EH1wbDvTyqKpKBBpoMIe0KQk2plCcFS66Mo17WtR7CQ=
+go.opentelemetry.io/collector/semconv v0.57.2 h1:+lcI4yi8xUzoSNZgGTs0vytZcEAH95Tb33Ig+gooBV8=
+go.opentelemetry.io/collector/semconv v0.57.2/go.mod h1:84YnUjmm+nhGu4YTDLnHCbxnL74ooWpismPG79tFD7w=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
 go.uber.org/atomic v1.9.0 h1:ECmE8Bn/WFTYwEW/bpKD3M8VtR/zQVbavAoalC1PYyE=
 go.uber.org/atomic v1.9.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=

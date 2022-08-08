@@ -25,7 +25,7 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/pdata v0.56.0
-	go.opentelemetry.io/collector/semconv v0.56.0
+	go.opentelemetry.io/collector/semconv v0.57.2
 	go.uber.org/atomic v1.9.0
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
