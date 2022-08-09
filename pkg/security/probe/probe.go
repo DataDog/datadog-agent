@@ -813,6 +813,10 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
+	if p.flushingDiscarders.Load() {
+		return nil
+	}
+
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(event.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
