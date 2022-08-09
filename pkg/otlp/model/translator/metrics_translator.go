@@ -408,7 +408,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 		rm := rms.At(i)
 
 		// Fetch tags from attributes.
-		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
+		resourceAttributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
 		src, ok := attributes.SourceFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
 		if !ok {
 			var err error
@@ -438,11 +438,11 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 
 			var additionalTags []string
 			if t.cfg.InstrumentationScopeMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+				additionalTags = append(resourceAttributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
 			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
-				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
+				additionalTags = append(resourceAttributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
 			} else {
-				additionalTags = attributeTags
+				additionalTags = resourceAttributeTags
 			}
 
 			for k := 0; k < metricsArray.Len(); k++ {
