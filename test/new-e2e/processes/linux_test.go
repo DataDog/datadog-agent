@@ -65,6 +65,11 @@ func (s *LinuxTestSuite) SetupSuite() {
 
 func (s *LinuxTestSuite) TearDownTest() {
 	killAndRemoveContainers(s.T(), s.ec2.sshClient)
+	//s.T().Log("uninstalling the datadog agent")
+	//stdout, err := clients.ExecuteCommand(s.ec2.sshClient, "sudo apt-get remove --purge datadog-agent -y")
+	//if err != nil {
+	//	s.T().Logf("error uninstalling the datadog agent. stdout:%s, err: %v", stdout, err)
+	//}
 }
 
 func (s *LinuxTestSuite) TestProcessAgentOnLinux() {
@@ -85,14 +90,17 @@ func (s *LinuxTestSuite) TestProcessAgentOnLinux() {
 	s.T().Log(stdout)
 	require.NoError(s.T(), err)
 
-	cfg := config{
-		APIKey:   s.ec2.ddAPIKey,
-		Hostname: hostName,
+	// Setup Process Config
+	ddCfg := agentConfig{
+		APIKey:      s.ec2.ddAPIKey,
+		Hostname:    hostName,
+		LogsEnabled: true,
 		ProcessCfg: ProcessConfig{
-			Enabled: "true",
+			Enabled: true,
 		},
 	}
-	cfgYaml, err := yaml.Marshal(cfg)
+
+	cfgYaml, err := yaml.Marshal(&ddCfg)
 	require.NoError(s.T(), err)
 	s.T().Logf("%s", cfgYaml)
 	_, err = clients.ExecuteCommand(s.ec2.sshClient, "sudo chmod o+rw /etc/datadog-agent/datadog.yaml")
@@ -103,6 +111,33 @@ func (s *LinuxTestSuite) TestProcessAgentOnLinux() {
 	_, err = file.Write(cfgYaml)
 	require.NoError(s.T(), err)
 
+	// Setup System Probe Config
+	sysProbeCfg := probeConfig{
+		SysProbeCfg: SystemProbeConfig{
+			Enabled: true,
+			ProcCfg: ProcessConfig{
+				Enabled: true,
+			},
+		},
+		NetworkCfg: NetworkConfig{
+			Enabled: true,
+		},
+	}
+
+	sysProbeYaml, err := yaml.Marshal(&sysProbeCfg)
+	require.NoError(s.T(), err)
+	s.T().Logf("%s", sysProbeYaml)
+	_, err = clients.ExecuteCommand(s.ec2.sshClient, "sudo touch /etc/datadog-agent/system-probe.yaml")
+	require.NoError(s.T(), err)
+	_, err = clients.ExecuteCommand(s.ec2.sshClient, "sudo chmod o+rw /etc/datadog-agent/system-probe.yaml")
+	require.NoError(s.T(), err)
+
+	file, err = s.sftpClient.OpenFile("/etc/datadog-agent/system-probe.yaml", os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	require.NoError(s.T(), err)
+	_, err = file.Write(sysProbeYaml)
+	require.NoError(s.T(), err)
+
+	// Restart Process Agent for new agentConfig
 	_, err = clients.ExecuteCommand(s.ec2.sshClient, "sudo service datadog-agent restart")
 	require.NoError(s.T(), err)
 
@@ -166,12 +201,27 @@ func (s *LinuxTestSuite) waitForProcessAgent() {
 	s.T().Log("process-agent is running")
 }
 
-type config struct {
-	APIKey     string        `yaml:"api_key"`
-	Hostname   string        `yaml:"hostname"`
-	ProcessCfg ProcessConfig `yaml:"process_config"`
+type agentConfig struct {
+	APIKey      string        `yaml:"api_key"`
+	Hostname    string        `yaml:"hostname"`
+	ProcessCfg  ProcessConfig `yaml:"process_config,omitempty"`
+	LogsEnabled bool          `yaml:"logs_enabled"`
 }
 
 type ProcessConfig struct {
-	Enabled string `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
+}
+
+type probeConfig struct {
+	NetworkCfg  NetworkConfig     `yaml:"network_config,omitempty"`
+	SysProbeCfg SystemProbeConfig `yaml:"system_probe_config,omitempty"`
+}
+
+type NetworkConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type SystemProbeConfig struct {
+	Enabled bool          `yaml:"enabled"`
+	ProcCfg ProcessConfig `yaml:"process_config,omitempty"`
 }
