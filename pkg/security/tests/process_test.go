@@ -1533,19 +1533,20 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 		scriptName      string
 		executedScript  string
 		innerScriptName string
+		check           func(event *sprobe.Event, rule *rules.Rule)
 	}{
 		{
 			name: "regular exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_regular_exec",
-				Expression: fmt.Sprintf(`exec.file.name == ~"python*"`),
+				Expression: fmt.Sprintf(`exec.file.name == ~"python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`),
 			},
 			scriptName: "regularExec.sh",
 			executedScript: `#!/bin/bash
 
 echo "Executing echo inside a bash script"
 
-python3 - << EOF
+/usr/bin/python3.8 - << EOF
 print('Executing print inside a python script')
 
 EOF
@@ -1568,12 +1569,15 @@ print "Hello from Perl\n";
 __HERE__
 
 echo "Back to bash"`,
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
+			},
 		},
 		{
 			name: "interpreted exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_interpreted_event",
-				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"python*"`),
+				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"python*" && exec.file.name == "pyscript.py"`),
 			},
 			scriptName:      "interpretedExec.sh",
 			innerScriptName: "pyscript.py",
@@ -1582,7 +1586,7 @@ echo "Back to bash"`,
 echo "Executing echo inside a bash script"
 
 cat << EOF > pyscript.py
-#!/usr/bin/python3
+#!/usr/bin/python3.8
 
 print('Executing print inside a python script')
 
@@ -1592,7 +1596,11 @@ echo "Back to bash"
 
 chmod 755 pyscript.py
 ./pyscript.py`,
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "python3.8")
+			},
 		},
+
 		// TODO: Unsupported for now
 		//		{
 		//			name: "nested interpreted exec",
@@ -1664,10 +1672,8 @@ chmod 755 pyscript.py
 				return nil
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
-				if test.name == "regular exec with interpreter rule" {
-					assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
-				} else {
-					assertFieldEqual(t, event, "exec.interpreter.file.name", "python3.8")
+				if test.check != nil {
+					test.check(event, rule)
 				}
 			})
 		})

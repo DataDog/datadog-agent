@@ -434,6 +434,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	// binrpm heuristic
+	if valueCount := len(entry.ArgsEntry.Values); valueCount > 1 {
+		if lastArg := entry.ArgsEntry.Values[valueCount-1]; path.Base(lastArg) == entry.Comm && path.IsAbs(lastArg) {
+			entry.LinuxBinprm.FileEvent = entry.FileEvent
+		}
+	}
+
 	// add netns
 	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
 
