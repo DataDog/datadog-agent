@@ -352,15 +352,18 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     struct inode *executable_inode;
     bpf_probe_read(&executable_inode, sizeof(executable_inode), &file->f_inode);
 
-    struct path *executable_path = &file->f_path;
+    struct path *executable_path;
+    bpf_probe_read(&executable_path, sizeof(executable_path), &file->f_path);
 
     syscall->exec.linux_binprm.executable = get_inode_key_path(executable_inode, executable_path);
+    syscall->exec.linux_binprm.executable.mount_id = get_file_mount_id(file);
     syscall->exec.linux_binprm.executable.path_id = get_path_id(0);
 
 #ifdef DEBUG
     bpf_printk("executable inode: %u\n", syscall->exec.linux_binprm.executable.ino);
-    bpf_printk("executable mount id: %u\n", syscall->exec.linux_binprm.executable.mount_id);
+    bpf_printk("executable mount id: %u %u\n", syscall->exec.linux_binprm.executable.mount_id, get_file_mount_id(file));
     bpf_printk("executable path id: %u\n", syscall->exec.linux_binprm.executable.path_id);
+    bpf_printk("executable file: %llx\n", file);
 #endif
 
     // Add interpreter path to map/pathnames, used by the dentry resolver. 
@@ -674,23 +677,18 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     return parse_args_and_env(ctx);
 }
 
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec(struct pt_regs *ctx) {
+SEC("kprobe/security_bprm_committed_creds")
+int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
 
-    struct linux_binprm *bprm = get_linux_binprm_obj();
-    if (bprm == NULL) {
-        return 0;
-    }
-
-    bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
+    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
 
     // The executable contains information about the interpreter
     struct file *executable;
-    bpf_probe_read(&executable, sizeof(executable), &bprm->executable);
+    bpf_probe_read(&executable, sizeof(executable), &bprm->file);
 
     // TODO: Older kernel versions
     // const char *filename;	/* Name of binary as seen by procps */
@@ -699,8 +697,14 @@ int kprobe_setup_new_exec(struct pt_regs *ctx) {
 	// 			   different for binfmt_{misc,script} */
 
 #ifdef DEBUG
-    bpf_printk("*filename from binprm: %s\n", &bprm->filename);
-    bpf_printk("*interp from binprm: %s\n", &bprm->interp);
+    bpf_printk("file %llu\n", executable);
+
+    const char *s;
+    bpf_probe_read(&s, sizeof(s), &bprm->filename);
+    bpf_printk("*filename from binprm: %s\n", s);
+
+    bpf_probe_read(&s, sizeof(s), &bprm->interp);
+    bpf_printk("*interp from binprm: %s\n", s);
 #endif
 
     return handle_interpreted_exec_event(ctx, syscall, executable);
@@ -713,8 +717,8 @@ void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, s
     event->envs_truncated = syscall->exec.envs.truncated;
 }
 
-SEC("kprobe/security_bprm_committed_creds")
-int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
+SEC("kprobe/setup_new_exec")
+int kprobe_setup_new_exec(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
@@ -734,7 +738,8 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             if (event == NULL) {
                 return 0;
             }
-            // copy proc_cache data            
+
+            // copy proc_cache data
             fill_container_context(pc, &event->container);
             copy_proc_entry_except_comm(&pc->entry, &event->proc_entry);
             bpf_get_current_comm(&event->proc_entry.comm, sizeof(event->proc_entry.comm));
