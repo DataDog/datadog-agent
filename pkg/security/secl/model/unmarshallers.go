@@ -238,9 +238,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += n
 
 	// Unmarshal linux_binprm_t
-	if len(data) < 32 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
+
 	e.LinuxBinprm.FileEvent.Inode = ByteOrder.Uint64(data[read : read+8])
 	e.LinuxBinprm.FileEvent.MountID = ByteOrder.Uint32(data[read+8 : read+12])
 	e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
