@@ -41,42 +41,39 @@ struct bpf_map_def SEC("maps/symbol_table") symbol_table = {
  * the ebpf program by interacting with procfs.
  * do_sys_open hooks helps us filter out */
 
-#define FDPATH_SZ 64
+// prefix: /proc/
+#define PREFIX_END 6
+#define MAX_UINT_LEN 10
+#define FDPATH_SZ 32
 static int __always_inline parse_fd(char* buffer) {
-    char *ptr = buffer;
-    char *fdptr = buffer;
-    int slashes_seen = 0;
+    // /proc/<MAX_UINT_LEN>/fd/<MAX_UINT_LEN>
+    char *fdptr = buffer+PREFIX_END;
+
 
 #pragma unroll
-    for (int i = 0; i < FDPATH_SZ; ++i) {
-        if (*ptr == 0)
+    for (int i = 0; i < MAX_UINT_LEN; ++i) {
+        if (*fdptr == '/')
             break;
-        
-        if (*ptr == '/')
-            slashes_seen++;
 
-        ptr++;
-        if (slashes_seen == 3)
-            fdptr = ptr;
+        if ((*fdptr < '0') || (*fdptr > '9'))
+            return -1;
+
+        fdptr++;
     }
 
-    if (slashes_seen != 3)
-        return 0;
+    if (!((fdptr[1] == 'f') && (fdptr[2] == 'd') && (fdptr[3] == '/')))
+        return -1;
 
-    if (fdptr == buffer)
-        return 0;
-
-    if ((fdptr - ptr) == 0)
-        return 0;
+    fdptr += 4;
 
     int fd = 0;
 #pragma unroll
-    for (int i = 0; i < 10; i++) {
-        if ((fdptr+i) == ptr)
+    for (int i = 0; i < MAX_UINT_LEN; i++) {
+        if (fdptr[i] == 0)
             return fd;
 
         if ((fdptr[i] < '0') || (fdptr[i] > '9'))
-            return 0;
+            return -1;
 
         fd = (fdptr[i] - '0') + (fd* 10);
     }
@@ -90,17 +87,18 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
     char buffer[FDPATH_SZ];
     __builtin_memset(buffer, 0, FDPATH_SZ);
 
-    log_info("do_sys_open\n");
     if (path == 0)
         return 0;
 
-    if (bpf_probe_read_user(&buffer, 7, path) < 0)
+    if (bpf_probe_read_user(&buffer, FDPATH_SZ, path) < 0)
         return 0;
 
     if (!((buffer[0] == '/') && (buffer[1] == 'p') && (buffer[2] == 'r') && (buffer[3] == 'o') && (buffer[4] == 'c') && (buffer[5] == '/')))
         return 0;
 
     int fd = parse_fd(buffer);
+    if (fd < 0)
+        return 0;
 
     u64 tgidpid = bpf_get_current_pid_tgid();
 
