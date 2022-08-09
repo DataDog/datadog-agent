@@ -26,6 +26,61 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+func slowRequest(t *testing.T, targetAddr string) *nethttp.Request {
+	var (
+		statusCodes = []int{200, 300, 400, 500}
+		random      = rand.New(rand.NewSource(time.Now().Unix()))
+		client      = new(nethttp.Client)
+	)
+
+	client.Timeout = time.Minute
+	status := statusCodes[random.Intn(len(statusCodes))]
+	req, err := nethttp.NewRequest("GET", fmt.Sprintf("http://%s/%d/slow-request-0", targetAddr, status), nil)
+	require.NoError(t, err)
+
+	go client.Do(req)
+	return req
+}
+
+func TestSlowRequestMonitorIntegration(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
+		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
+
+	targetAddr := "localhost:8080"
+	serverAddr := "localhost:8080"
+	numReqs := 10
+	t.Run("slow request", func(t *testing.T) {
+		srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
+
+		monitor, err := NewMonitor(config.New(), nil, nil)
+		require.NoError(t, err)
+		err = monitor.Start()
+		require.NoError(t, err)
+		defer monitor.Stop()
+
+		slowReq := slowRequest(t, targetAddr)
+		// Perform a number of random requests
+		requestFn := requestGenerator(t, targetAddr)
+		var requests []*nethttp.Request
+		for i := 0; i < numReqs; i++ {
+			requests = append(requests, requestFn())
+		}
+		srvDoneFn()
+
+		// Ensure all captured transactions get sent to user-space
+		time.Sleep(10 * time.Second)
+		stats := monitor.GetHTTPStats()
+		// Assert all requests made were correctly captured by the monitor
+		for _, req := range requests {
+			includesRequest(t, stats, req)
+		}
+		includesRequest(t, stats, slowReq)
+	})
+}
+
 func TestHTTPMonitorIntegration(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
