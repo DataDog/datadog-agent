@@ -31,6 +31,9 @@ type ConnStats struct {
 	Sent_packets uint64
 	Recv_packets uint64
 }
+type FailedConnStats struct {
+	Count uint64
+}
 type Conn struct {
 	Tup        ConnTuple
 	Conn_stats ConnStats

@@ -93,6 +93,25 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
+static __always_inline failed_conn_stats_t *get_failed_conn_stats(conn_tuple_t *t) {
+    // initialize-if-no-exist the connection stat, and load it
+    failed_conn_stats_t empty = {};
+    __builtin_memset(&empty, 0, sizeof(failed_conn_stats_t));
+    if (bpf_map_update_elem(&failed_conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
+        // TODO: telemetry for failed conn stats?
+    }
+
+    return bpf_map_lookup_elem(&failed_conn_stats, t);
+}
+
+static __always_inline void handle_failed_conn(conn_tuple_t *t) {
+    failed_conn_stats_t *stats = get_failed_conn_stats(t);
+    if (!stats)
+        return;
+
+    __sync_fetch_and_add(&stats->failure_count, 1);
+}
+
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // query stats without the PID from the tuple
     __u32 pid = t->pid;

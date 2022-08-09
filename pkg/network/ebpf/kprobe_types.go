@@ -19,6 +19,7 @@ import "C"
 type ConnTuple C.conn_tuple_t
 type TCPStats C.tcp_stats_t
 type ConnStats C.conn_stats_ts_t
+type FailedConnStats C.failed_conn_stats_t
 type Conn C.conn_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
