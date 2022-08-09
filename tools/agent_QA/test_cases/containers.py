@@ -33,7 +33,7 @@ docker run -d --name agent -e DD_API_KEY=... \\
 # Test
 
 - Once the agent is running, run `agent stream-logs`
-- in another shell, `docker run --log-driver=journald --rm -e DD_SERVICE=foo alpine:latest echo "hello, world"`
+- in another shell, `docker run --log-driver=journald --rm alpine:latest echo "hello world"`
 - Search the logs stream for the message. Make sure the source and service tags are set correctly (should be the short image name)
 """
         )
