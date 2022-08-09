@@ -81,13 +81,19 @@ func (agg *FlowAggregator) run() {
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 	for _, flow := range flows {
+		now := time.Now()
 		flowPayload := buildPayload(flow, agg.hostname)
+		log.Debugf("Time buildPayload: %s", time.Since(now))
+		now = time.Now()
 		payloadBytes, err := json.Marshal(flowPayload)
+		log.Debugf("Time json Marshall: %s", time.Since(now))
 		if err != nil {
 			log.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
+		now = time.Now()
 		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
+		log.Debugf("Time sender.EventPlatformEvent: %s", time.Since(now))
 
 		// For debug purposes print out all flows
 		if agg.logPayload {

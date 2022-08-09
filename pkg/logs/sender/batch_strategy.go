@@ -139,13 +139,14 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		log.Warnf("%p", encodedPayload)
 		return
 	}
 
-	outputChan <- &message.Payload{
-		Messages:      messages,
-		Encoded:       encodedPayload,
-		Encoding:      s.contentEncoding.name(),
-		UnencodedSize: len(serializedMessage),
-	}
+	//outputChan <- &message.Payload{
+	//	Messages:      messages,
+	//	Encoded:       encodedPayload,
+	//	Encoding:      s.contentEncoding.name(),
+	//	UnencodedSize: len(serializedMessage),
+	//}
 }

@@ -397,9 +397,9 @@ func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
 		rawEvent:  rawEvent,
 		eventType: eventType,
 	}
-	s.statsLock.Lock()
-	defer s.statsLock.Unlock()
-	s.metricStats.EventPlatformEvents[eventType] = s.metricStats.EventPlatformEvents[eventType] + 1
+	//s.statsLock.Lock()
+	//defer s.statsLock.Unlock()
+	//s.metricStats.EventPlatformEvents[eventType] = s.metricStats.EventPlatformEvents[eventType] + 1
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
