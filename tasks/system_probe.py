@@ -798,6 +798,7 @@ def generate_runtime_files(ctx):
         "./pkg/network/tracer/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/ebpf/compile.go",
+        "./pkg/network/pid-mapper/compile.go",
     ]
     for f in runtime_compiler_files:
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")

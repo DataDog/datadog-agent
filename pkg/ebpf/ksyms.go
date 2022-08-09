@@ -8,8 +8,11 @@ package ebpf
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -41,4 +44,49 @@ func VerifyKernelFuncs(path string, requiredKernelFuncs []string) (map[string]st
 		missingStrs[string(missing[i])] = struct{}{}
 	}
 	return missingStrs, nil
+}
+
+func GetSymbolsAddresses(path string, symbols []string) (map[string]uint64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading kallsyms file from %s: %w", path, err)
+	}
+	defer f.Close()
+
+	syms := make(map[string]struct{}, len(symbols))
+	for _, s := range symbols {
+		syms[s] = struct{}{}
+	}
+
+	return getSymbolAddress(syms, f)
+}
+
+func getSymbolAddress(syms map[string]struct{}, r io.Reader) (map[string]uint64, error) {
+	addrs := make(map[string]uint64, len(syms))
+
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		l := scanner.Text()
+		data := strings.Split(l, " ")
+		if len(data) != 3 {
+			continue
+		}
+
+		if _, ok := syms[data[2]]; ok {
+			addr, err := strconv.ParseUint(data[0], 16, 64)
+			if err == nil {
+				addrs[data[2]] = addr
+			}
+		}
+
+		if len(addrs) == len(syms) {
+			break
+		}
+	}
+
+	if len(addrs) != len(syms) {
+		return nil, fmt.Errorf("Failed to get all kernel symbols: %v", addrs)
+	}
+
+	return addrs, nil
 }

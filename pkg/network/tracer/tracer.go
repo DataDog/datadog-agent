@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	mapper "github.com/DataDog/datadog-agent/pkg/network/pid-mapper"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -50,6 +51,7 @@ type Tracer struct {
 	conntracker netlink.Conntracker
 	reverseDNS  dns.ReverseDNS
 	httpMonitor *http.Monitor
+	pidMapper   *mapper.PidMapper
 	ebpfTracer  connection.Tracer
 
 	// Telemetry
@@ -73,9 +75,7 @@ type Tracer struct {
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
-
-	// Internal buffer used to compute bytekeys
-	buf []byte
+	buf          []byte
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -160,6 +160,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
+		pidMapper:                  newPidMapper(config, ebpfTracer),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -319,6 +320,9 @@ func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
+	if t.pidMapper == nil {
+		t.pidMapper.Stop()
+	}
 	t.conntracker.Close()
 }
 
@@ -786,6 +790,27 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
+}
+
+func newPidMapper(c *config.Config, tracer connection.Tracer) *mapper.PidMapper {
+	if !c.EnableRuntimeCompiler {
+		return nil
+	}
+
+	sockToPidMap := tracer.GetMap(string(probes.SockToPidMap))
+	if sockToPidMap == nil {
+		log.Error("Could not get SockToPidMap\n")
+		return nil
+	}
+
+	p, err := mapper.NewPidMapper(c, sockToPidMap)
+	if err != nil {
+		log.Errorf("Could not instantiate pid mapper: %v", err)
+		return nil
+	}
+
+	log.Info("pid mapper instantiated")
+	return p
 }
 
 func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {

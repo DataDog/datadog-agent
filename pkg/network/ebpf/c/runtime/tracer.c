@@ -1,6 +1,7 @@
 #include "kconfig.h"
 #include "tracer.h"
 
+#include "pid_mapper.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"

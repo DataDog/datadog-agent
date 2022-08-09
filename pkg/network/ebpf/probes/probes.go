@@ -127,6 +127,16 @@ const (
 
 	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
+
+	DoSysOpen ProbeName = "kprobe/do_sys_open"
+
+	GetPidTaskReturn ProbeName = "kretprobe/get_pid_task"
+
+	SecuritySkAlloc ProbeName = "kprobe/security_sk_alloc"
+
+	SecuritySkFree ProbeName = "kprobe/security_sk_free"
+
+	SecuritySkClone ProbeName = "kprobe/security_sk_clone"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
@@ -151,6 +161,7 @@ const (
 	TagsMap               BPFMapName = "conn_tags"
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
 	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
+	SockToPidMap          BPFMapName = "sock_to_pid"
 )
 
 // SectionName returns the SectionName for the given BPF map
