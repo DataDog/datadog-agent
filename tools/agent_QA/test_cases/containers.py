@@ -22,7 +22,7 @@ logs:
 ```
 docker run -d --name agent -e DD_API_KEY=... \\
   -e DD_LOGS_ENABLED=true \\
-  $(pwd)/journald.d:/etc/datadog-agent/conf.d/journald.d:ro \\
+  -v $(pwd)/journald.d:/etc/datadog-agent/conf.d/journald.d:ro \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   -v /etc/machine-id:/etc/machine-id:ro \\
   -v /var/log/journal:/var/log/journal:ro \\
