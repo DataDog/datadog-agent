@@ -306,16 +306,24 @@ func processMessage(
 			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformReport {
-			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(
-				message.objectRecord.reportLogItem.initDurationMs,
-				message.objectRecord.reportLogItem.durationMs,
-				message.objectRecord.reportLogItem.billedDurationMs,
-				message.objectRecord.reportLogItem.memorySizeMB,
-				message.objectRecord.reportLogItem.maxMemoryUsedMB,
-				message.time, tags, demux)
+			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
+				InitDurationMs:   message.objectRecord.reportLogItem.initDurationMs,
+				DurationMs:       message.objectRecord.reportLogItem.durationMs,
+				BilledDurationMs: message.objectRecord.reportLogItem.billedDurationMs,
+				MemorySizeMb:     message.objectRecord.reportLogItem.memorySizeMB,
+				MaxMemoryUsedMb:  message.objectRecord.reportLogItem.maxMemoryUsedMB,
+				RuntimeStart:     ecs.StartTime,
+				RuntimeEnd:       ecs.EndTime,
+				T:                message.time,
+				Tags:             tags,
+				Demux:            demux,
+			}
+			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
 			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
+			ec.UpdateFromRuntimeDoneLog(message.time)
+			ecs = ec.GetCurrentState()
 		}
 	}
 

@@ -221,7 +221,7 @@ func TestProcessMessageValid(t *testing.T) {
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Len(t, received, 6)
+	assert.Len(t, received, 7)
 	assert.Len(t, timed, 0)
 	demux.Reset()
 
@@ -266,10 +266,11 @@ func TestProcessMessageStartValid(t *testing.T) {
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	messageTime := time.Now()
 	defer demux.Stop(false)
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
-		time:    time.Now(),
+		time:    messageTime,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 			runtimeDoneItem: runtimeDoneItem{
@@ -291,7 +292,9 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	}
 
 	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	ecs := mockExecutionContext.GetCurrentState()
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
+	assert.WithinDuration(t, messageTime, ecs.EndTime, time.Millisecond)
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
