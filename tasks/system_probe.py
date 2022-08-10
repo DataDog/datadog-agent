@@ -1080,41 +1080,31 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_releas
     build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release, debug=debug)
 
 
-def setup_clang(ctx, target):
+def setup_runtime_clang(ctx):
     # check if correct version is already present
     res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
     if res.ok:
         version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
-        if version_str == target:
+        if version_str == CLANG_VERSION:
             return
 
     arch = arch_mapping.get(platform.machine())
     if arch == "x64":
         arch = "amd64"
 
-    clang_present = ctx.run(f"stat /opt/datadog-agent/embedded/bin/clang-{target}", warn=True)
-    llc_present = ctx.run(f"stat /opt/datadog-agent/embedded/bin/llc-{target}", warn=True)
+    # download correct version from dd-agent-omnibus S3 bucket
+    clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
+    ctx.sudo(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
+    ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
 
-    if clang_present.failed or llc_present.failed:
-        # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{target}.{arch}"
-        ctx.sudo(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-{target}")
-        ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/clang-{target}")
+    llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+    ctx.sudo(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
+    ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{target}.{arch}"
-        ctx.sudo(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-{target}")
-        ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/llc-{target}")
-
-    # make symlinks to the target binary
-    ctx.sudo("rm /opt/datadog-agent/embedded/bin/clang-bpf", warn=True)
-    ctx.sudo(f"ln -s /opt/datadog-agent/embedded/bin/clang-{target} /opt/datadog-agent/embedded/bin/clang-bpf")
-    ctx.sudo("rm /opt/datadog-agent/embedded/bin/llc-bpf", warn=True)
-    ctx.sudo(f"ln -s /opt/datadog-agent/embedded/bin/llc-{target} /opt/datadog-agent/embedded/bin/llc-bpf")
 
 import os
 def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
-    """build_object_files builds only the eBPF object"""
-    setup_clang(ctx, bpf_clang_version)
+    setup_runtime_clang(ctx)
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
