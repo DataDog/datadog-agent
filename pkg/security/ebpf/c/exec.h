@@ -739,7 +739,7 @@ struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
 	// 			   different for binfmt_{misc,script} */
 
 #ifdef DEBUG
-    bpf_printk("file %llu\n", interpreter);
+    bpf_printk("file %llu\n", executable);
 
     const char *s;
     bpf_probe_read(&s, sizeof(s), &bprm->filename);
