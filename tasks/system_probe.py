@@ -436,9 +436,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=Non
 
 
 @task
-def object_files(ctx, parallel_build=True, kernel_release=None):
+def object_files(ctx, parallel_build=True, kernel_release=None, debug=False):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug)
 
 
 def get_ebpf_targets():
