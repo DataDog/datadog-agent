@@ -528,6 +528,7 @@ def get_network_agent_ebpf_build_flags(target=None, kernel_release=None):
     flags.append("-g")
     return flags
 
+
 def get_ebpf_build_flags(target=None, kernel_release=None, minimal_kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
@@ -621,15 +622,27 @@ def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
 
     build_network_ebpf_compile_file(ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags)
     build_network_ebpf_link_file(ctx, False, build_dir, "http", True, network_flags)
+    strip_network_ebpf_obj_file(ctx, False, build_dir, "http", True)
 
     build_network_ebpf_compile_file(ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags)
     build_network_ebpf_link_file(ctx, False, build_dir, "http", False, network_flags)
+    strip_network_ebpf_obj_file(ctx, False, build_dir, "http", False)
 
 
 def get_network_build_flags(network_c_dir, kernel_release=None):
     flags = get_network_agent_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     return flags
+
+
+def strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug):
+
+    if not debug:
+        obj_file = os.path.join(build_dir, f"{p}.o")
+        return ctx.run(f"llvm-strip -g {obj_file}", asynchronous=parallel_build)
+    else:
+        debug_obj_file = os.path.join(build_dir, f"{p}-debug.o")
+        return ctx.run(f"llvm-strip -g {debug_obj_file}", asynchronous=parallel_build)
 
 
 def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
@@ -665,7 +678,13 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
         (p, debug) = flavor[i]
         promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
 
-    for promise in promises_link:
+    promises_strip = []
+    for i, promise in enumerate(promises_link):
+        promise.join()
+        (p, debug) = flavor[i]
+        promises_strip.append(strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug))
+
+    for promise in promises_strip:
         promise.join()
 
 
@@ -782,6 +801,9 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
     ctx.run("which clang")
+
+    print("checking for llvm-strip...")
+    ctx.run("which llvm-strip")
 
     build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
