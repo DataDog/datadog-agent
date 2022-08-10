@@ -38,12 +38,15 @@ func (l *ProbeLoader) Close() error {
 }
 
 // Load eBPF programs
-func (l *ProbeLoader) Load() (bytecode.AssetReader, error) {
+func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	var err error
+	var runtimeCompiled bool
 	if l.config.RuntimeCompilationEnabled {
 		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper)
 		if err != nil {
 			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
+		} else {
+			runtimeCompiled = true
 		}
 	}
 
@@ -56,11 +59,11 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, error) {
 
 		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, asset+".o")
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
-	return l.bytecodeReader, nil
+	return l.bytecodeReader, runtimeCompiled, nil
 }
 
 // OffsetGuesserLoader defines an eBPF Loader

@@ -123,25 +123,34 @@ func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout u
 type pidDiscarders struct {
 	*lib.Map
 	erpc *ERPC
-	req  ERPCRequest
 }
 
-func (p *pidDiscarders) discard(eventType model.EventType, pid uint32) error {
-	offset := marshalDiscardHeader(&p.req, eventType, 0)
-	model.ByteOrder.PutUint32(p.req.Data[offset:offset+4], pid)
+func (p *pidDiscarders) discardPid(req *ERPCRequest, eventType model.EventType, pid uint32) error {
+	req.OP = DiscardPidOp
+	offset := marshalDiscardHeader(req, eventType, 0)
+	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
-	return p.erpc.Request(&p.req)
+	return p.erpc.Request(req)
 }
 
-func (p *pidDiscarders) discardWithTimeout(eventType model.EventType, pid uint32, timeout int64) error {
-	offset := marshalDiscardHeader(&p.req, eventType, uint64(timeout))
-	model.ByteOrder.PutUint32(p.req.Data[offset:offset+4], pid)
+func (p *pidDiscarders) discardWithTimeout(req *ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
+	req.OP = DiscardPidOp
+	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
+	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
-	return p.erpc.Request(&p.req)
+	return p.erpc.Request(req)
+}
+
+// expirePidDiscarder sends an eRPC request to expire a discarder
+func (p *pidDiscarders) expirePidDiscarder(req *ERPCRequest, pid uint32) error {
+	req.OP = ExpirePidDiscarderOp
+	model.ByteOrder.PutUint32(req.Data[0:4], pid)
+
+	return p.erpc.Request(req)
 }
 
 func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
-	return &pidDiscarders{Map: m, erpc: erpc, req: ERPCRequest{OP: DiscardPidOp}}
+	return &pidDiscarders{Map: m, erpc: erpc}
 }
 
 type inodeDiscarderMapEntry struct {
@@ -196,11 +205,7 @@ type inodeDiscarders struct {
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]inodeDiscarderEntry
 }
 
-func newDiscarderRequest() *ERPCRequest {
-	return &ERPCRequest{OP: DiscardInodeOp}
-}
-
-func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) (*inodeDiscarders, error) {
+func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
@@ -210,7 +215,7 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryReso
 
 	id.initParentDiscarderFncs()
 
-	return id, nil
+	return id
 }
 
 func (id *inodeDiscarders) isRecentlyAdded(mountID uint32, inode uint64, timestamp uint64) bool {
@@ -239,6 +244,8 @@ func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventT
 		isLeafInt = 1
 	}
 
+	req.OP = DiscardInodeOp
+
 	offset := marshalDiscardHeader(req, eventType, 0)
 	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
@@ -249,6 +256,7 @@ func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventT
 
 // expireInodeDiscarder sends an eRPC request to expire a discarder
 func (id *inodeDiscarders) expireInodeDiscarder(req *ERPCRequest, mountID uint32, inode uint64) error {
+	req.OP = ExpireInodeDiscarderOp
 	model.ByteOrder.PutUint64(req.Data[0:8], inode)
 	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
@@ -524,14 +532,14 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 				return nil
 			}
 
-			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.discarderReq, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
+			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
 					if !IsFakeInode(inode) {
 						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
 						// not able to discard the parent then only discard the filename
-						_ = probe.inodeDiscarders.discardInode(probe.discarderReq, eventType, mountID, inode, true)
+						_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
 					}
 				}
 			} else if !isDeleted {
@@ -587,11 +595,11 @@ func processDiscarderWrapper(eventType model.EventType, fnc onDiscarderHandler) 
 			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileEvent.Inode, event.ProcessContext.Pid)
 
 			// discard by PID for long running process
-			if err := probe.pidDiscarders.discard(eventType, event.ProcessContext.Pid); err != nil {
+			if err := probe.pidDiscarders.discardPid(probe.erpcRequest, eventType, event.ProcessContext.Pid); err != nil {
 				return err
 			}
 
-			return probe.inodeDiscarders.discardInode(probe.discarderReq, eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
+			return probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
 		}
 
 		if fnc != nil {
