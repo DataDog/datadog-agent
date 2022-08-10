@@ -1094,12 +1094,20 @@ def setup_runtime_clang(ctx):
 
     # download correct version from dd-agent-omnibus S3 bucket
     clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
-    ctx.sudo(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
-    ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
-
-    llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
-    ctx.sudo(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
-    ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+    if not is_root():
+        ctx.sudo(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
+        ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+    
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+        ctx.sudo(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
+        ctx.sudo(f"chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+    else:
+        ctx.run(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
+        ctx.run(f"chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+    
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+        ctx.run(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
+        ctx.run(f"chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 import os
