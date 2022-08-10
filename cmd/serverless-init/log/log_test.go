@@ -53,11 +53,29 @@ func TestWriteEnabled(t *testing.T) {
 		channel:   logChannel,
 		isEnabled: true,
 	}
-	go Write(config, testContent)
+	go Write(config, testContent, false)
 	select {
 	case received := <-logChannel:
 		assert.NotNil(t, received)
 		assert.Equal(t, testContent, received.Content)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
+func TestWriteEnabledIsError(t *testing.T) {
+	testContent := []byte("hello this is a log")
+	logChannel := make(chan *config.ChannelMessage)
+	config := &Config{
+		channel:   logChannel,
+		isEnabled: true,
+	}
+	go Write(config, testContent, true)
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, testContent, received.Content)
+		assert.True(t, received.IsError)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
 	}
@@ -70,7 +88,7 @@ func TestWriteDisabled(t *testing.T) {
 		channel:   logChannel,
 		isEnabled: false,
 	}
-	go Write(config, testContent)
+	go Write(config, testContent, false)
 	select {
 	case <-logChannel:
 		assert.Fail(t, "We should not have received logs")
