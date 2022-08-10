@@ -59,6 +59,8 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 		tags[key] = value
 	}
 
+	tags["origin"] = "cloudrun"
+
 	return tags
 }
 
