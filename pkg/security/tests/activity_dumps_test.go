@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -86,6 +87,10 @@ func TestActivityDumps(t *testing.T) {
 
 	test.Run(t, "activity-dump-comm-dns", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO: Oracle because we are missing offsets. See dns_test.go
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		})
 
 		expectedFormats := []string{"json", "msgp"}
 		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
