@@ -748,11 +748,11 @@ api_key:
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
   ## configs:
-  ##  - network: 10.0.0.0/24
-  ##    version: 1
-  ##    community: public
-  ##  - network: 10.0.1.0/28
-  ##    community: public
+  ##  - network_address: 10.0.0.0/24
+  ##    snmp_version: 1
+  ##    community_string: public
+  ##  - network_address: 10.0.1.0/28
+  ##    community_string: public
   ##    ignored_ip_addresses:
   ##      - 10.0.1.0
   ##      - 10.0.1.1
