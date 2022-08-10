@@ -17,12 +17,6 @@
 #define log_debug(fmt, ...)
 #endif
 
-#define log_info(fmt, ...)                                        \
-    ({                                                             \
-        char ____fmt[] = fmt;                                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-    })
-
 #ifndef __always_inline
 #define __always_inline __attribute__((always_inline))
 #endif
