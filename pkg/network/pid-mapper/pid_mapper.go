@@ -27,7 +27,7 @@ func NewPidMapper(c *config.Config, sockToPid *ebpf.Map) (*PidMapper, error) {
 		return nil, fmt.Errorf("error creating ebpf program: %w", err)
 	}
 
-	if err := p.Init(sockToPid); err != nil {
+	if err := p.Init(c, sockToPid); err != nil {
 		return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 	}
 
@@ -41,5 +41,5 @@ func NewPidMapper(c *config.Config, sockToPid *ebpf.Map) (*PidMapper, error) {
 }
 
 func (p *PidMapper) Stop() {
-	p.ebpfProgram.Stop(manager.CleanAll)
+	p.ebpfProgram.Stop(manager.CleanInternal)
 }

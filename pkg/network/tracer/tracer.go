@@ -320,7 +320,7 @@ func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
-	if t.pidMapper == nil {
+	if t.pidMapper != nil {
 		t.pidMapper.Stop()
 	}
 	t.conntracker.Close()

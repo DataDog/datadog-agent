@@ -11,8 +11,19 @@
 #define TCP_OPS_ID 2
 #define INET_OPS_ID 3
 
+// This map is used by unit tests to validate 
+// that the correct mapping was performed
+struct bpf_map_def SEC("maps/check_correctness") check_correctness = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(int),
+    .max_entries = 0,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct bpf_map_def SEC("maps/save_pid") save_pid = {
-   .type = BPF_MAP_TYPE_HASH,
+    .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(int),
     .max_entries = 1,
@@ -21,7 +32,7 @@ struct bpf_map_def SEC("maps/save_pid") save_pid = {
 };
 
 struct bpf_map_def SEC("maps/symbol_table") symbol_table = {
-   .type = BPF_MAP_TYPE_HASH,
+    .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(__u32),
     .max_entries = 3,
@@ -96,8 +107,6 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
         return 0;
 
     int pid = parse_and_check_path(buffer);
-    log_info("buffer: %s\n", buffer);
-    log_info("pid: %d\n", pid);
     if (pid == -1)
         return 0;
 
@@ -142,7 +151,7 @@ static __always_inline int is_socket_inode(struct inode* inode) {
     KERNEL_READ_FAIL(&i_op, sizeof(struct inode_operations *), &inode->i_op);
     if (!i_op)
         return 0;
-    
+
     // The inode_operations of a file wrapping a struct socket object
     // are allocated here: sock_alloc(): https://elixir.bootlin.com/linux/v4.4/source/net/socket.c#L552
     // We check the if the pointer is to the sockfs_inode_ops object to fingerprint
@@ -169,7 +178,17 @@ static __always_inline struct socket *get_socket_from_dentry(struct dentry *dent
     // See sock_alloc_inode(): https://elixir.bootlin.com/linux/latest/source/net/socket.c#L300
     return (struct socket *)container_of(inode, struct socket_alloc, vfs_inode);
 
- }
+}
+
+static __always_inline void map_inode_to_pid(struct socket* sock, int pid) {
+    u64 ino;
+    struct inode* inode = (struct inode *)(container_of(sock, struct socket_alloc, socket) + sizeof(struct socket));
+
+    if (bpf_probe_read_kernel(&ino, sizeof(u64), &inode->i_ino) < 0)
+        return;
+
+    bpf_map_update_elem(&check_correctness, &ino, &pid, BPF_NOEXIST);
+}
 
 SEC("kprobe/d_path")
 int kprobe__d_path(struct pt_regs* ctx) {
@@ -196,6 +215,7 @@ int kprobe__d_path(struct pt_regs* ctx) {
     if (!fingerprint_tcp_inet_ops(sock))
         return 0;
 
+    map_inode_to_pid(sock, pid);
     map_sock_to_pid(sock, pid);
 
     return 0;

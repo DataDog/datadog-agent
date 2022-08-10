@@ -51,10 +51,7 @@ func walkFds(pid int32, path string) error {
 	for _, fdname := range fdnames {
 		fdPath := filepath.Join(path, fdname)
 
-		fd, err := os.Open(fdPath)
-		if err == nil {
-			fd.Close()
-		}
+		os.Readlink(fdPath)
 	}
 	return nil
 }

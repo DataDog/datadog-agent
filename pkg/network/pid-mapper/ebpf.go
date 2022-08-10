@@ -13,22 +13,24 @@ import (
 	"math"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 )
 
 const (
-	tgidPidToFd    = "tgidpid_to_fd"
-	symbolTableMap = "symbol_table"
+	savePid          = "save_pid"
+	symbolTableMap   = "symbol_table"
+	checkCorrectness = "check_correctness"
 )
 
 var kernelSyms = []string{"sockfs_inode_ops", "tcp_prot", "inet_stream_ops"}
-var kernelSymIds = map[string]int{"socket_file_ops": 1, "tcp_prot": 2, "inet_stream_ops": 3}
+var kernelSymIds = map[string]int{"sockfs_inode_ops": 1, "tcp_prot": 2, "inet_stream_ops": 3}
 
 type ebpfProgram struct {
 	*manager.Manager
@@ -53,8 +55,9 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
-			{Name: tgidPidToFd},
+			{Name: savePid},
 			{Name: symbolTableMap},
+			{Name: checkCorrectness},
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UserPathAtEmpty), EBPFFuncName: "kprobe__user_path_at_empty"}},
@@ -69,17 +72,20 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		Manager:           mgr,
 		bytecode:          bc,
 		cfg:               c,
-		initializorMaps:   map[string]struct{}{tgidPidToFd: struct{}{}, symbolTableMap: struct{}{}},
+		initializorMaps:   map[string]struct{}{savePid: struct{}{}, symbolTableMap: struct{}{}},
 		initializorProbes: map[string]struct{}{string(probes.UserPathAtEmpty): struct{}{}, string(probes.DPath): struct{}{}},
 	}, nil
 }
 
-func (e *ebpfProgram) Init(sockToPidMap *ebpf.Map) error {
+func (e *ebpfProgram) Init(cfg *config.Config, sockToPidMap *ebpf.Map) error {
 	defer e.bytecode.Close()
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
+		},
+		MapSpecEditors: map[string]manager.MapSpecEditor{
+			checkCorrectness: {Type: ebpf.Hash, MaxEntries: uint32(cfg.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 		MapEditors: map[string]*ebpf.Map{
 			string(probes.SockToPidMap): sockToPidMap,
