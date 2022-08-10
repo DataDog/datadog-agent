@@ -6,7 +6,7 @@
 package flowaggregator
 
 import (
-	"encoding/json"
+	"github.com/mailru/easyjson"
 	"time"
 
 	"go.uber.org/atomic"
@@ -82,7 +82,7 @@ func (agg *FlowAggregator) run() {
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname)
-		payloadBytes, err := json.Marshal(flowPayload)
+		payloadBytes, err := easyjson.Marshal(flowPayload)
 		if err != nil {
 			log.Errorf("Error marshalling device metadata: %s", err)
 			continue
