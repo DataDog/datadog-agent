@@ -729,8 +729,8 @@ struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
 
     // The executable contains information about the interpreter
-    struct file *interpreter;
-    bpf_probe_read(&interpreter, sizeof(interpreter), &bprm->file);
+    struct file *executable;
+    bpf_probe_read(&executable, sizeof(executable), &bprm->file);
 
     // TODO: Older kernel versions
     // const char *filename;	/* Name of binary as seen by procps */
@@ -749,7 +749,7 @@ struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     bpf_printk("*interp from binprm: %s\n", s);
 #endif
 
-    return handle_interpreted_exec_event(ctx, syscall, interpreter);
+    return handle_interpreted_exec_event(ctx, syscall, executable);
 }
 
 #endif
