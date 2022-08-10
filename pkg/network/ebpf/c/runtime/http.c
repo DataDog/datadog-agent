@@ -122,8 +122,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/tcp_sendmsg")
-int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
+SEC("kretprobe/security_sock_rcv_skb")
+int kretprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
     // send batch completion notification to userspace
     // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);

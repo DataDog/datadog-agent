@@ -150,7 +150,7 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 		panic(err)
 	}
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -169,7 +169,7 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
 }
@@ -186,7 +186,7 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 2, len(checks))
 }
@@ -203,7 +203,7 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 	p, err := providers.NewEtcdConfigProvider(&config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect(ctx)
+	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
 }

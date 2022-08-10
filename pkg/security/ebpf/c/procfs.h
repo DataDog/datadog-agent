@@ -23,6 +23,7 @@ __attribute__((always_inline)) int is_snapshot_process() {
     return 0;
 }
 
+// used during the snapshot thus this kprobe will present only at the snapshot
 SEC("kprobe/security_inode_getattr")
 int kprobe_security_inode_getattr(struct pt_regs *ctx) {
     if (!is_snapshot_process()) {

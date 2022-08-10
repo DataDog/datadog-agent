@@ -204,6 +204,11 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
+fips_mode=
+if [ -n "$DD_FIPS_MODE" ]; then
+  fips_mode=$DD_FIPS_MODE
+fi
+
 agent_flavor="datadog-agent"
 if [ -n "$DD_AGENT_FLAVOR" ]; then
     agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
@@ -424,7 +429,13 @@ if [ "$OS" = "RedHat" ]; then
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
+    declare -a packages
+    packages=("$agent_flavor")
+    if [ -n "$fips_mode" ]; then
+      packages+=("datadog-fips-proxy")
+    fi
+
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "${packages[@]}" || $sudo_cmd yum -y install $dnf_flag "${packages[@]}"
 
 elif [ "$OS" = "Debian" ]; then
     apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
@@ -503,7 +514,13 @@ If the cause is unclear, please contact Datadog support.
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd apt-get install -y --force-yes "$agent_flavor" "datadog-signing-keys"
+    declare -a packages
+    packages=("$agent_flavor" "datadog-signing-keys")
+    if [ -n "$fips_mode" ]; then
+     packages+=("datadog-fips-proxy")
+    fi
+
+    $sudo_cmd apt-get install -y --force-yes "${packages[@]}"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)
@@ -614,10 +631,16 @@ elif [ "$OS" = "SUSE" ]; then
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
+  declare -a packages
+  packages=("$agent_flavor")
+  if [ -n "$fips_mode" ]; then
+    packages+=("datadog-fips-proxy")
+  fi
+
   if [ -z "$sudo_cmd" ]; then
-    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}"
   else
-    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}"
   fi
 
 else
@@ -661,13 +684,50 @@ else
       no_start=true
     fi
   fi
-  if [ "$site" ]; then
-    printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
-  fi
-  if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
+
+  if [ -z "$fips_mode" ]; then
+    if [ "$site" ]; then
+      printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
+    fi
+    if [ -n "$DD_URL" ]; then
+      printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
+    fi
+  else
+    printf "\033[34m\n* Setting $nice_flavor configuration to use FIPS proxy: $config_file\n\033[0m\n"
+    $sudo_cmd cp "$config_file" "${config_file}.orig"
+    $sudo_cmd sh -c "exec cat - '${config_file}.orig' > '$config_file'" <<EOF
+# Configuration for the agent to use datadog-fips-proxy to communicate with Datadog via FIPS-compliant channel.
+
+dd_url: http://localhost:3834
+
+apm_config:
+    apm_dd_url: http://localhost:3835
+    profiling_dd_url: http://localhost:3836
+    telemetry:
+        dd_url: http://localhost:3843
+
+process_config:
+    process_dd_url: http://localhost:3837
+
+logs_config:
+    use_http: true
+    logs_dd_url: localhost:3838
+    logs_no_ssl: true
+
+database_monitoring:
+    metrics:
+        dd_url: localhost:3839
+    activity:
+        dd_url: localhost:3839
+    samples:
+        dd_url: localhost:3840
+
+network_devices:
+    metadata:
+        dd_url: localhost:3841
+EOF
   fi
   if [ "$hostname" ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $config_file\n\033[0m\n"

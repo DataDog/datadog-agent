@@ -98,6 +98,7 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
 	pathMergedCount    *atomic.Uint64
+	lastComputedSize   uint64
 
 	// standard attributes used by the intake
 	Host    string   `msg:"host" json:"host,omitempty"`
@@ -246,6 +247,17 @@ func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
 		ad.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
 	}
 	ad.StorageRequests[request.Format] = append(ad.StorageRequests[request.Format], request)
+}
+
+func (ad *ActivityDump) computeMemorySize() uint64 {
+	ad.Lock()
+	defer ad.Unlock()
+
+	if ad.lastComputedSize == 0 {
+		stats := ad.computeSizeStats()
+		ad.lastComputedSize = stats.approximateSize()
+	}
+	return ad.lastComputedSize
 }
 
 // getTimeoutRawTimestamp returns the timeout timestamp of the current activity dump as a monolitic kernel timestamp
@@ -416,6 +428,9 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
 	ad.processedCount[event.GetEventType()].Inc()
+
+	// we invalidate the precomputed memory size
+	ad.lastComputedSize = 0
 
 	// insert the event based on its type
 	switch event.GetEventType() {

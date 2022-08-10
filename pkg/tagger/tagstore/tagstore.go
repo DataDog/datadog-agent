@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
@@ -284,7 +284,6 @@ func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) 
 
 // LookupStandard returns the standard tags recorded for a given entity
 func (s *TagStore) LookupStandard(entityID string) ([]string, error) {
-
 	storedTags, err := s.GetEntityTags(entityID)
 	if err != nil {
 		return nil, err
@@ -307,16 +306,16 @@ func (s *TagStore) GetEntityTags(entityID string) (*EntityTags, error) {
 }
 
 // List returns full list of entities and their tags per source in an API format.
-func (s *TagStore) List() response.TaggerListResponse {
-	r := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
+func (s *TagStore) List() tagger_api.TaggerListResponse {
+	r := tagger_api.TaggerListResponse{
+		Entities: make(map[string]tagger_api.TaggerListEntity),
 	}
 
 	s.RLock()
 	defer s.RUnlock()
 
 	for entityID, et := range s.store {
-		entity := response.TaggerListEntity{
+		entity := tagger_api.TaggerListEntity{
 			Tags: make(map[string][]string),
 		}
 

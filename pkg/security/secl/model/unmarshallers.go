@@ -29,7 +29,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalPrintableString(data, ContainerIDLen)
+	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
@@ -459,16 +459,17 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
 	p.Pid = ByteOrder.Uint32(data[0:4])
 	p.Tid = ByteOrder.Uint32(data[4:8])
 	p.NetNS = ByteOrder.Uint32(data[8:12])
-	// padding (4 bytes)
+	p.IsKworker = ByteOrder.Uint32(data[12:16]) > 0
+
 	return 16, nil
 }
 
@@ -881,34 +882,8 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint16(data[4:6])
 	e.Class = ByteOrder.Uint16(data[6:8])
 	e.Size = ByteOrder.Uint16(data[8:10])
-	e.Name = decodeDNS(data[10:])
+	e.Name, _ = decodeDNSName(data[10:])
 	return len(data), nil
-}
-
-func decodeDNS(raw []byte) string {
-	rawLen := len(raw)
-	rep := ""
-	i := 0
-	for {
-		// Parse label length
-		if rawLen < i+1 {
-			break
-		}
-		labelLen := int(raw[i])
-
-		if rawLen-(i+1) < labelLen || labelLen == 0 {
-			break
-		}
-		labelRaw := raw[i+1 : i+1+labelLen]
-
-		if i == 0 {
-			rep = string(labelRaw)
-		} else {
-			rep = rep + "." + string(labelRaw)
-		}
-		i += labelLen + 1
-	}
-	return rep
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

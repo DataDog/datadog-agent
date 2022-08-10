@@ -291,7 +291,7 @@ func start(cmd *cobra.Command, args []string) error {
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(mainCtx)
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery

@@ -70,7 +70,7 @@ func newPipelineStatsProxy(conf *config.AgentConfig, target *url.URL, key string
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
-		containerID := GetContainerID(req.Context(), req.Header)
+		containerID := req.Header.Get(headerContainerID)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}

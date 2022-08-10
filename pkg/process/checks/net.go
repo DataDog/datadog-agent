@@ -134,7 +134,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 
 func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
 	// Process create-times required to construct unique process hash keys on the backend
-	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
+	createTimeForPID := ProcessNotify.GetCreateTimes(connectionPIDs(conns))
 	for _, conn := range conns {
 		if _, ok := createTimeForPID[conn.Pid]; !ok {
 			createTimeForPID[conn.Pid] = 0

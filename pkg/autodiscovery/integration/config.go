@@ -464,3 +464,36 @@ func (c *Config) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("LogsExcluded: %t} (digest %s)"), c.LogsExcluded, c.Digest())
 	return b.String()
 }
+
+// ConfigChanges contains the changes that occurred due to an event in
+// AutoDiscovery.
+type ConfigChanges struct {
+	// Schedule contains configs that should be scheduled as a result of
+	// this event.
+	Schedule []Config
+
+	// Unschedule contains configs that should be unscheduled as a result of
+	// this event.
+	Unschedule []Config
+}
+
+// ScheduleConfig adds a config to `Schedule`
+func (c *ConfigChanges) ScheduleConfig(config Config) {
+	c.Schedule = append(c.Schedule, config)
+}
+
+// UnscheduleConfig adds a config to `Unschedule`
+func (c *ConfigChanges) UnscheduleConfig(config Config) {
+	c.Unschedule = append(c.Unschedule, config)
+}
+
+// IsEmpty determines whether this set of changes is empty
+func (c *ConfigChanges) IsEmpty() bool {
+	return len(c.Schedule) == 0 && len(c.Unschedule) == 0
+}
+
+// Merge merges the given ConfigChanges into this one.
+func (c *ConfigChanges) Merge(other ConfigChanges) {
+	c.Schedule = append(c.Schedule, other.Schedule...)
+	c.Unschedule = append(c.Unschedule, other.Unschedule...)
+}

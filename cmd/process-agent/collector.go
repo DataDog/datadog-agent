@@ -14,8 +14,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"go.uber.org/atomic"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -30,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -184,7 +184,12 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	} else {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
-	l.messagesToResults(start, c.Name(), messages, results)
+
+	if c.Name() == config.PodCheckName {
+		handlePodChecks(l, start, c.Name(), messages, results)
+	} else {
+		l.messagesToResults(start, c.Name(), messages, results)
+	}
 
 	if !c.RealTime() {
 		logCheckDuration(c.Name(), start, runCounter)
@@ -271,6 +276,11 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			}
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+
+			switch m.(type) {
+			case *model.CollectorManifest:
+				extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
+			}
 		}
 
 		if name == checks.ProcessEvents.Name() {
@@ -605,7 +615,13 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				// Pod check contains two parts: metadata and manifest.
+				// The manifest payload header has Content-Encoding:zstd allowing us to decompress payload in the intake
+				if payload.headers.Get(headers.ContentEncodingHeader) == headers.ZSTDContentEncoding {
+					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				} else {
+					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				}
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
@@ -765,5 +781,15 @@ func ignoreResponseBody(checkName string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// Pod check returns a list of messages can be divided into two parts : pod payloads and manifest payloads
+// By default we only send pod payloads containing pod metadata and pod manifests (yaml)
+// Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
+func handlePodChecks(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+	l.messagesToResults(start, name, messages[:len(messages)/2], results)
+	if l.cfg.Orchestrator.IsManifestCollectionEnabled {
+		l.messagesToResults(start, name, messages[len(messages)/2:], results)
 	}
 }

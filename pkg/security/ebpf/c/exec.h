@@ -109,15 +109,6 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 16738,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
     if (!cookie) {
         return NULL;
@@ -442,7 +433,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         return 0;
     }
 
-    u32 parent_pid = args->parent_pid;
+    u32 parent_pid = 0;
     bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
@@ -523,9 +514,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     bpf_map_delete_elem(&netns_cache, &pid);
 
     if (tgid == pid) {
-        if (!is_flushing_discarders()) {
-            remove_pid_discarder(tgid);
-        }
+        expire_pid_discarder(tgid);
 
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);

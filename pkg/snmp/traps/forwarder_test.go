@@ -67,9 +67,12 @@ func TestV1GenericTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	sender, ok := forwarder.sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	forwarder.trapsIn <- makeSnmpPacket(LinkDownv1GenericTrap)
+	packet := makeSnmpPacket(LinkDownv1GenericTrap)
+	rawEvent, err := forwarder.formatter.FormatPacket(packet)
+	require.NoError(t, err)
+	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, "0db8c621a456b368b4af7570211b94769376541120b4110ef08c50226fcc63b4", epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
 }
 
 func TestV1SpecificTrapAreForwarder(t *testing.T) {
@@ -77,9 +80,12 @@ func TestV1SpecificTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	sender, ok := forwarder.sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	forwarder.trapsIn <- makeSnmpPacket(AlarmActiveStatev1SpecificTrap)
+	packet := makeSnmpPacket(AlarmActiveStatev1SpecificTrap)
+	rawEvent, err := forwarder.formatter.FormatPacket(packet)
+	require.NoError(t, err)
+	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, "5605a8dd09e575df722273edc9fae2c47e4a17c9d6844ff856ad0cd5913da04d", epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
 }
 func TestV2TrapAreForwarder(t *testing.T) {
 	forwarder, err := createForwarder(t)

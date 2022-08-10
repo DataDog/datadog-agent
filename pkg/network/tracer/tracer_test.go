@@ -1796,6 +1796,8 @@ func testConfig() *config.Config {
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
 		cfg.EnableRuntimeCompiler = true
 		cfg.AllowPrecompiledFallback = false
+	} else {
+		cfg.EnableRuntimeCompiler = false
 	}
 	return cfg
 }

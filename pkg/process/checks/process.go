@@ -12,7 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -26,9 +25,7 @@ import (
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{
-	createTimes: &atomic.Value{},
-}
+var Process = &ProcessCheck{}
 
 var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
@@ -58,9 +55,6 @@ type ProcessCheck struct {
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
-
-	// Create times by PID used in the network check
-	createTimes *atomic.Value
 
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
@@ -323,18 +317,6 @@ func fmtProcesses(
 		// Hide blacklisted args if the Scrubber is enabled
 		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
 
-		var ioStat *model.IOStat
-		if fp.Stats.IORateStat != nil {
-			ioStat = &model.IOStat{
-				ReadRate:       float32(fp.Stats.IORateStat.ReadRate),
-				WriteRate:      float32(fp.Stats.IORateStat.WriteRate),
-				ReadBytesRate:  float32(fp.Stats.IORateStat.ReadBytesRate),
-				WriteBytesRate: float32(fp.Stats.IORateStat.WriteBytesRate),
-			}
-		} else {
-			ioStat = formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun)
-		}
-
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -345,7 +327,7 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 ioStat,
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
@@ -375,8 +357,11 @@ func formatCommand(fp *procutil.Process) *model.Command {
 }
 
 func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nil for Mac
-	if fp.IOStat == nil {
+	if fp.IORateStat != nil {
+		return formatIORates(fp.IORateStat)
+	}
+
+	if fp.IOStat == nil { // This will be nil for Mac
 		return &model.IOStat{}
 	}
 
@@ -384,6 +369,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
+
 	// Reading -1 as counter means the file could not be opened due to permissions.
 	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
 	readRate := float32(-1)
@@ -407,6 +393,15 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 		WriteRate:      writeRate,
 		ReadBytesRate:  readBytesRate,
 		WriteBytesRate: writeBytesRate,
+	}
+}
+
+func formatIORates(ioRateStat *procutil.IOCountersRateStat) *model.IOStat {
+	return &model.IOStat{
+		ReadRate:       float32(ioRateStat.ReadRate),
+		WriteRate:      float32(ioRateStat.WriteRate),
+		ReadBytesRate:  float32(ioRateStat.ReadBytesRate),
+		WriteBytesRate: float32(ioRateStat.WriteBytesRate),
 	}
 }
 
@@ -475,21 +470,7 @@ func (p *ProcessCheck) storeCreateTimes() {
 	for pid, proc := range p.lastProcs {
 		createTimes[pid] = proc.Stats.CreateTime
 	}
-	p.createTimes.Store(createTimes)
-}
-
-func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
-	createTimeForPID := make(map[int32]int64)
-	if result := p.createTimes.Load(); result != nil {
-		createTimesAllPIDs := result.(map[int32]int64)
-		for _, pid := range pids {
-			if ctime, ok := createTimesAllPIDs[pid]; ok {
-				createTimeForPID[pid] = ctime
-			}
-		}
-		return createTimeForPID
-	}
-	return createTimeForPID
+	ProcessNotify.UpdateCreateTimes(createTimes)
 }
 
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {

@@ -507,6 +507,10 @@ func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
 
 //nolint:deadcode,unused
 func validateProcessContext(tb testing.TB, event *sprobe.Event) {
+	if event.ProcessContext.IsKworker {
+		return
+	}
+
 	if !validateProcessContextLineage(tb, event) {
 		tb.Error(event.String())
 	}
