@@ -7,11 +7,11 @@
 #include <net/sock.h>
 #include <linux/socket.h>
 
-#define SOCKET_OPS_ID 1
+#define SOCKET_INODE_OPS_ID 1
 #define TCP_OPS_ID 2
 #define INET_OPS_ID 3
 
-struct bpf_map_def SEC("maps/tgidpid_to_proc_fd") tgidpid_to_fd = {
+struct bpf_map_def SEC("maps/save_pid") save_pid = {
    .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(int),
@@ -38,82 +38,78 @@ struct bpf_map_def SEC("maps/symbol_table") symbol_table = {
 
 /* The following hooks are used to form a mapping for the struct sock*
  * objects created before system probe was started. Userspace triggers
- * the ebpf program by interacting with procfs.
- * do_sys_open hooks helps us filter out */
+ * the ebpf program by interacting with procfs. These hooks will be removed
+ * by the userspace program once it has walked all the pids in procfs.
+ * kprobe/user_path_at_empty: filters for procfs events and parses the pid
+ * kprobe/d_path: perform the sock->pid mapping */
 
 // prefix: /proc/
+#define FDPATH_SZ 32
 #define PREFIX_END 6
 #define MAX_UINT_LEN 10
-#define FDPATH_SZ 32
-static int __always_inline parse_fd(char* buffer) {
+static int __always_inline parse_and_check_path(char* buffer) {
     // /proc/<MAX_UINT_LEN>/fd/<MAX_UINT_LEN>
-    char *fdptr = buffer+PREFIX_END;
+    char *pidptr = buffer+PREFIX_END;
+    int pid = 0;
 
-
-#pragma unroll
-    for (int i = 0; i < MAX_UINT_LEN; ++i) {
-        if (*fdptr == '/')
-            break;
-
-        if ((*fdptr < '0') || (*fdptr > '9'))
-            return -1;
-
-        fdptr++;
-    }
-
-    if (!((fdptr[1] == 'f') && (fdptr[2] == 'd') && (fdptr[3] == '/')))
+    if (!((buffer[0] == '/') && (buffer[1] == 'p') && (buffer[2] == 'r') && (buffer[3] == 'o') && (buffer[4] == 'c') && (buffer[5] == '/')))
         return -1;
 
-    fdptr += 4;
-
-    int fd = 0;
 #pragma unroll
     for (int i = 0; i < MAX_UINT_LEN; i++) {
-        if (fdptr[i] == 0)
-            return fd;
-
-        if ((fdptr[i] < '0') || (fdptr[i] > '9'))
+        if (*pidptr == '/')
+            break;
+        
+        if ((*pidptr < '0') || (*pidptr > '9'))
             return -1;
 
-        fd = (fdptr[i] - '0') + (fd* 10);
+        pid = (*pidptr - '0') + (pid * 10);
+
+        pidptr++;
     }
 
-    return fd;
+    if (!((pidptr[1] == 'f') && (pidptr[2] == 'd') && (pidptr[3] == '/')))
+        return -1;
+
+    pidptr += 4;
+
+    for (int i = 0; i < MAX_UINT_LEN; ++i) {
+        if (pidptr[i] == 0)
+            return pid;
+
+        if ((pidptr[i] < '0') || (pidptr[i] > '9'))
+            return -1;
+    }
+
+
+    return pid;
 }
 
-SEC("kprobe/do_sys_open")
-int kprobe__do_sys_open(struct pt_regs* ctx) {
+SEC("kprobe/user_path_at_empty")
+int kprobe__user_path_at_empty(struct pt_regs* ctx) {
     char* path = (char *)PT_REGS_PARM2(ctx);
     char buffer[FDPATH_SZ];
-    __builtin_memset(buffer, 0, FDPATH_SZ);
-
     if (path == 0)
         return 0;
 
     if (bpf_probe_read_user(&buffer, FDPATH_SZ, path) < 0)
         return 0;
 
-    if (!((buffer[0] == '/') && (buffer[1] == 'p') && (buffer[2] == 'r') && (buffer[3] == 'o') && (buffer[4] == 'c') && (buffer[5] == '/')))
-        return 0;
-
-    int fd = parse_fd(buffer);
-    if (fd < 0)
+    int pid = parse_and_check_path(buffer);
+    log_info("buffer: %s\n", buffer);
+    log_info("pid: %d\n", pid);
+    if (pid == -1)
         return 0;
 
     u64 tgidpid = bpf_get_current_pid_tgid();
 
-    bpf_map_update_elem(&tgidpid_to_fd, &tgidpid, &fd, BPF_NOEXIST);
+    bpf_map_update_elem(&save_pid, &tgidpid, &pid, BPF_NOEXIST);
 
     return 0;
 }
 
-static __always_inline void map_sock_to_pid(struct file* f, u32 pid) {
-    struct socket* sock;
+static __always_inline void map_sock_to_pid(struct socket* sock, u32 pid) {
     struct sock* sk;
-
-    bpf_probe_read_kernel(&sock, sizeof(struct socket *), &f->private_data);
-    if (sock == NULL)
-        return;
 
     bpf_probe_read_kernel(&sk, sizeof(struct sock *), &sock->sk);
     if (sk == NULL)
@@ -122,15 +118,12 @@ static __always_inline void map_sock_to_pid(struct file* f, u32 pid) {
     bpf_map_update_elem(&sock_to_pid, &sk, &pid, BPF_NOEXIST);
 }
 
-static __always_inline int fingerprint_tcp_inet_ops(struct file* f) {
-    struct socket* sock;
+static __always_inline int fingerprint_tcp_inet_ops(struct socket* sock) {
     struct proto_ops *pops;
 
-    KERNEL_READ_FAIL(&sock, sizeof(struct socket *), &f->private_data);
-    if (sock == NULL)
-        return 0;
-
     KERNEL_READ_FAIL(&pops, sizeof(struct proto_ops *), &sock->ops);
+    if (!pops)
+        return 0;
 
     u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &pops);
     if (!addr_id)
@@ -143,73 +136,76 @@ static __always_inline int fingerprint_tcp_inet_ops(struct file* f) {
     return 0;
 }
 
-static __always_inline int is_fd_socket(struct file* f) {
-   struct file_operations* fops;
-   KERNEL_READ_FAIL(&fops, sizeof(struct file_operations *), &f->f_op);
+static __always_inline int is_socket_inode(struct inode* inode) {
+    struct inode_operations* i_op;
 
-   u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &fops);
-   if (!addr_id)
-       return 0;
-
-   return *addr_id == SOCKET_OPS_ID;
-}
-
-SEC("kretprobe/get_pid_task")
-int kretprobe__get_pid_task(struct pt_regs* ctx) {
-    u32 tgid;
-    struct file** fdarr;
-    struct file* f;
-    struct fdtable* fdt;
-    struct task_struct* tsk;
-    struct files_struct* fs;
-
-    u64 tgidpid = bpf_get_current_pid_tgid();
-    int *fdptr = bpf_map_lookup_elem(&tgidpid_to_fd, &tgidpid);
-    if (!fdptr)
-        return 0;
-
-    tsk = (struct task_struct *)PT_REGS_RET(ctx);
-    if (!tsk)
-        return 0;
-
-    KERNEL_READ_FAIL(&fs, sizeof(struct files_struct *), &tsk->files);
-    if (!fs)
-        return 0;
-
-    KERNEL_READ_FAIL(&fdt, sizeof(struct fdtable *), &fs->fdt);
-    if (!fdt)
+    KERNEL_READ_FAIL(&i_op, sizeof(struct inode_operations *), &inode->i_op);
+    if (!i_op)
         return 0;
     
-    u32 max_fds = 0;
-    KERNEL_READ_FAIL(&max_fds, sizeof(u32), &fdt->max_fds);
-    if (*fdptr > max_fds)
+    // The inode_operations of a file wrapping a struct socket object
+    // are allocated here: sock_alloc(): https://elixir.bootlin.com/linux/v4.4/source/net/socket.c#L552
+    // We check the if the pointer is to the sockfs_inode_ops object to fingerprint
+    // a socket inode.
+    u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &i_op);
+    if (!addr_id)
         return 0;
 
-    KERNEL_READ_FAIL(&fdarr, sizeof(void *), &fdt->fd);
-    if (!fdarr)
+    return *addr_id == SOCKET_INODE_OPS_ID;
+}
+
+static __always_inline struct socket *get_socket_from_dentry(struct dentry *dentry) {
+    struct inode* inode;
+
+    KERNEL_READ_FAIL(&inode, sizeof(struct inode *), &dentry->d_inode);
+    if (!inode)
         return 0;
 
-    KERNEL_READ_FAIL(&f, sizeof(struct file *), fdarr + (*fdptr * sizeof(struct file *)));
-    if (!f)
+    if (!is_socket_inode(inode))
         return 0;
 
-    if (!is_fd_socket(f))
+    // The struct socket and struct inode are allocated together as a tuple and wrapped
+    // inside a struct socket_alloc object. 
+    // See sock_alloc_inode(): https://elixir.bootlin.com/linux/latest/source/net/socket.c#L300
+    return (struct socket *)container_of(inode, struct socket_alloc, vfs_inode);
+
+ }
+
+SEC("kprobe/d_path")
+int kprobe__d_path(struct pt_regs* ctx) {
+    struct dentry* dentry;
+    struct socket* sock;
+    
+    struct path* path = (struct path *)PT_REGS_PARM1(ctx);
+    u64 tgid = bpf_get_current_pid_tgid();
+    int* pidptr = bpf_map_lookup_elem(&save_pid, &tgid);
+    if (!pidptr)
         return 0;
 
-    if (!fingerprint_tcp_inet_ops(f))
+    int pid = *pidptr;
+    bpf_map_delete_elem(&save_pid, &tgid);
+
+    KERNEL_READ_FAIL(&dentry, sizeof(struct dentry *), &path->dentry);
+    if (!dentry)
         return 0;
 
-    KERNEL_READ_FAIL(&tgid, sizeof(u32), &tsk->tgid);
-    if (!tgid)
+    sock = get_socket_from_dentry(dentry);
+    if (!sock)
         return 0;
 
-    map_sock_to_pid(f, tgid);
+    if (!fingerprint_tcp_inet_ops(sock))
+        return 0;
+
+    map_sock_to_pid(sock, pid);
 
     return 0;
 }
 
-
 /* The following hooks are used to track the lifecycle of the process */
+
+// The audit context is used by the audit subsystem of the kernel
+// It is set per task on every syscall entry in the sysenter tracepoint
+// We use in_syscall field to filter for events originating from userspace.
 struct audit_context {
     int dummy;
     int in_syscall;

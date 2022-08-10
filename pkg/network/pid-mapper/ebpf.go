@@ -27,7 +27,7 @@ const (
 	symbolTableMap = "symbol_table"
 )
 
-var kernelSyms = []string{"socket_file_ops", "tcp_prot", "inet_stream_ops"}
+var kernelSyms = []string{"sockfs_inode_ops", "tcp_prot", "inet_stream_ops"}
 var kernelSymIds = map[string]int{"socket_file_ops": 1, "tcp_prot": 2, "inet_stream_ops": 3}
 
 type ebpfProgram struct {
@@ -57,8 +57,8 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{Name: symbolTableMap},
 		},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.DoSysOpen), EBPFFuncName: "kprobe__do_sys_open"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.GetPidTaskReturn), EBPFFuncName: "kretprobe__get_pid_task"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UserPathAtEmpty), EBPFFuncName: "kprobe__user_path_at_empty"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.DPath), EBPFFuncName: "kprobe__d_path"}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SecuritySkAlloc), EBPFFuncName: "kprobe__security_sk_alloc"}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SecuritySkFree), EBPFFuncName: "kprobe__security_sk_free"}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SecuritySkClone), EBPFFuncName: "kprobe__security_sk_clone"}},
@@ -70,7 +70,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		bytecode:          bc,
 		cfg:               c,
 		initializorMaps:   map[string]struct{}{tgidPidToFd: struct{}{}, symbolTableMap: struct{}{}},
-		initializorProbes: map[string]struct{}{string(probes.DoSysOpen): struct{}{}, string(probes.GetPidTaskReturn): struct{}{}},
+		initializorProbes: map[string]struct{}{string(probes.UserPathAtEmpty): struct{}{}, string(probes.DPath): struct{}{}},
 	}, nil
 }
 
@@ -87,14 +87,14 @@ func (e *ebpfProgram) Init(sockToPidMap *ebpf.Map) error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.DoSysOpen),
-					EBPFFuncName: "kprobe__do_sys_open",
+					EBPFSection:  string(probes.UserPathAtEmpty),
+					EBPFFuncName: "kprobe__user_path_at_empty",
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.GetPidTaskReturn),
-					EBPFFuncName: "kretprobe__get_pid_task",
+					EBPFSection:  string(probes.DPath),
+					EBPFFuncName: "kprobe__d_path",
 				},
 			},
 			&manager.ProbeSelector{
