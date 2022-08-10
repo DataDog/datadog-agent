@@ -146,8 +146,8 @@ logs:
 - `docker run -it bfloerschddog/flog -l > 3.log`
 
 # Test
-- the tag `filename` tag is set on the log metadata
-- the tag directory name tag is set on the log metadata
+- the tag `filename` is set on the log metadata
+- the tag `dirname` is set on the log metadata
 - Change the `logs_config.open_files_limit` to 1 in `datadog.yaml`, restart the agent and make sure the agent is only tailing 1 file
 """
         )
