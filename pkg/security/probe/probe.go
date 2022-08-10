@@ -478,14 +478,17 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		return
 	case model.CgroupTracingEventType:
+		if p.config.ActivityDumpEnabled {
+			log.Error("shouldn't receive Cgroup event if activity dumps are disabled")
+			return
+		}
+
 		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		if p.config.ActivityDumpEnabled {
-			p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
-		}
+		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
 	}
 
@@ -1473,7 +1476,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(areCGroupADsEnabled(p)),
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
