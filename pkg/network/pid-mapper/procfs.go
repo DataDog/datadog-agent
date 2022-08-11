@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -8,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-func WalkProcFds() error {
+func WalkProcFds(handleFd func(string) error) error {
 	procRoot := util.HostProc()
 	d, err := os.Open(procRoot)
 	if err != nil {
@@ -20,6 +21,7 @@ func WalkProcFds() error {
 	if err != nil {
 		return err
 	}
+
 	for _, fname := range fnames {
 		pid, err := strconv.ParseInt(fname, 10, 32)
 		if err != nil {
@@ -28,15 +30,16 @@ func WalkProcFds() error {
 		}
 
 		fdpath := filepath.Join(d.Name(), fname, "fd")
-		err = walkFds(int32(pid), fdpath)
+		err = walkFds(int32(pid), fdpath, handleFd)
 		if err != nil {
-			continue
+			return err
 		}
 	}
+
 	return nil
 }
 
-func walkFds(pid int32, path string) error {
+func walkFds(pid int32, path string, handleFd func(string) error) error {
 	fddir, err := os.Open(path)
 	if err != nil {
 		return err
@@ -51,7 +54,10 @@ func walkFds(pid int32, path string) error {
 	for _, fdname := range fdnames {
 		fdPath := filepath.Join(path, fdname)
 
-		os.Readlink(fdPath)
+		err = handleFd(fdPath)
+		if err != nil {
+			return fmt.Errorf("Failed to process fd at %s: %w\n", fdPath, err)
+		}
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ package mapper
 import (
 	"fmt"
 	"math"
+	"os"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -24,9 +25,9 @@ import (
 )
 
 const (
-	savePid          = "save_pid"
-	symbolTableMap   = "symbol_table"
-	checkCorrectness = "check_correctness"
+	savePid        = "save_pid"
+	symbolTableMap = "symbol_table"
+	inodePidMap    = "inode_pid_map"
 )
 
 var kernelSyms = []string{"sockfs_inode_ops", "tcp_prot", "inet_stream_ops"}
@@ -57,7 +58,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		Maps: []*manager.Map{
 			{Name: savePid},
 			{Name: symbolTableMap},
-			{Name: checkCorrectness},
+			{Name: inodePidMap},
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UserPathAtEmpty), EBPFFuncName: "kprobe__user_path_at_empty"}},
@@ -85,7 +86,7 @@ func (e *ebpfProgram) Init(cfg *config.Config, sockToPidMap *ebpf.Map) error {
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			checkCorrectness: {Type: ebpf.Hash, MaxEntries: uint32(cfg.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			inodePidMap: {Type: ebpf.Hash, MaxEntries: uint32(cfg.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 		MapEditors: map[string]*ebpf.Map{
 			string(probes.SockToPidMap): sockToPidMap,
@@ -139,9 +140,9 @@ func initializeSymbolTableMap(symbolTableMap *ebpf.Map) error {
 	return nil
 }
 
-func (e *ebpfProgram) Start() error {
+func (e *ebpfProgram) Start() (err error) {
 	symTabMap, _, _ := e.GetMap(symbolTableMap)
-	err := initializeSymbolTableMap(symTabMap)
+	err = initializeSymbolTableMap(symTabMap)
 	if err != nil {
 		return fmt.Errorf("Error starting pid mapper: %w", err)
 	}
@@ -150,8 +151,16 @@ func (e *ebpfProgram) Start() error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			e.Manager.Stop(manager.CleanInternal)
+		}
+	}()
 
-	err = WalkProcFds()
+	err = WalkProcFds(func(path string) error {
+		_, err := os.Readlink(path)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("Error triggering sock->pid mapping: %w", err)
 	}
