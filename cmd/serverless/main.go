@@ -61,6 +61,9 @@ const (
 	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
+
+	// shellTcpHostAndPort is the host and port for tcp connexion to the shell
+	shellTcpHostAndPort = "localhost:5555"
 )
 
 func main() {
@@ -177,6 +180,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			log.Info("Using API key set in Secrets Manager.")
 			os.Setenv(apiKeyEnvVar, apiKey)
 		}
+	}
+
+	// send the api key to the shell for crash reporting purpose
+	if !sendApiKeyToShell(os.Getenv(apiKeyEnvVar), shellTcpHostAndPort) {
+		log.Warn("crash reporting is disabled")
 	}
 
 	// adaptive flush configuration

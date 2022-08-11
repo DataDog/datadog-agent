@@ -8,9 +8,12 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"net"
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/stretchr/testify/assert"
@@ -103,4 +106,19 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 	result, err := extractRegionFromSecretsManagerArn(mockMalformedPrefixSecretsManagerAPIKeyArn)
 	assert.Equal(t, result, "")
 	assert.Error(t, err, "could not extract region from arn: aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret. arn: invalid prefix")
+}
+
+func TestSendApiKeyToShellSuccess(t *testing.T) {
+	port := testutil.FreeTCPPort(t)
+	hostAndPort := fmt.Sprintf("%s%d", "localhost:", port)
+	listen, err := net.Listen("tcp", hostAndPort)
+	if err != nil {
+		assert.Fail(t, "could not open tcp server")
+	}
+	defer listen.Close()
+	assert.True(t, sendApiKeyToShell("abcd", hostAndPort))
+}
+
+func TestSendApiKeyToShellError(t *testing.T) {
+	assert.False(t, sendApiKeyToShell("abcd", "localhost:invalid"))
 }

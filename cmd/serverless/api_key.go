@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 
@@ -146,4 +147,13 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	}
 
 	return arnObject.Region, nil
+}
+
+func sendApiKeyToShell(apiKey string, hostAndPort string) bool {
+	conn, err := net.Dial("tcp", hostAndPort)
+	if err != nil {
+		return false
+	}
+	n, err := conn.Write([]byte(apiKey))
+	return err == nil && n == len(apiKey)
 }
