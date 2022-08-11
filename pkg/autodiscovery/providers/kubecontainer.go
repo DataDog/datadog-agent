@@ -11,6 +11,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
@@ -163,19 +164,13 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 
 	switch entity := e.(type) {
 	case *workloadmeta.Container:
-		containerID := entity.GetID().ID
-		containerEntityName := containers.BuildEntityName(string(entity.Runtime), containerID)
-		configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, entity.Labels)
-
-		// AddContainerCollectAllConfigs is only needed when handling
-		// the container event, even when the container belongs to a
-		// pod. Calling it when handling the KubernetesPod will always
-		// result in a duplicated config, as each KubernetesPod will
-		// also generate events for each of its containers.
-		configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
-
-		for idx := range configs {
-			configs[idx].Source = names.Container + ":" + containerEntityName
+		// kubernetes containers need to be handled together with their
+		// pod, so they generate a single []integration.Config.
+		// otherwise, with container_collect_all, it's possible for a
+		// container that belongs to an AD-annotated pod to briefly
+		// have a container_collect_all when it shouldn't.
+		if !findKubernetesInLabels(entity.Labels) {
+			configs, errs = k.generateContainerConfig(entity)
 		}
 
 	case *workloadmeta.KubernetesPod:
@@ -188,13 +183,22 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 				continue
 			}
 
+			var (
+				c      []integration.Config
+				errors []error
+			)
+
+			c, errors = k.generateContainerConfig(container)
+			configs = append(configs, c...)
+			errs = append(errs, errors...)
+
 			adIdentifier := podContainer.Name
 			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(entity.Annotations, podContainer.Name); found {
 				adIdentifier = customADID
 			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors := utils.ExtractTemplatesFromPodAnnotations(
+			c, errors = utils.ExtractTemplatesFromPodAnnotations(
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,
@@ -213,7 +217,7 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 			containerNames[podContainer.Name] = struct{}{}
 
 			for idx := range c {
-				c[idx].Source = "kubelet:" + containerEntity
+				c[idx].Source = names.Container + ":" + containerEntity
 			}
 
 			configs = append(configs, c...)
@@ -236,6 +240,30 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 	}
 
 	return configs, errMsgSet
+}
+
+func (k *KubeContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {
+	var (
+		errs    []error
+		configs []integration.Config
+	)
+
+	containerID := container.ID
+	containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
+	configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
+
+	// AddContainerCollectAllConfigs is only needed when handling
+	// the container event, even when the container belongs to a
+	// pod. Calling it when handling the KubernetesPod will always
+	// result in a duplicated config, as each KubernetesPod will
+	// also generate events for each of its containers.
+	configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
+
+	for idx := range configs {
+		configs[idx].Source = names.Container + ":" + containerEntityName
+	}
+
+	return configs, errs
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod
@@ -262,6 +290,17 @@ func buildEntityName(e workloadmeta.Entity) string {
 	default:
 		return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
 	}
+}
+
+// findKubernetesInLabels traverses a map of container labels and
+// returns true if a kubernetes label is detected
+func findKubernetesInLabels(labels map[string]string) bool {
+	for name := range labels {
+		if strings.HasPrefix(name, "io.kubernetes.") {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {
