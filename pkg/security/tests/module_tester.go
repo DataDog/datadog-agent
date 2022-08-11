@@ -316,6 +316,20 @@ func which(tb testing.TB, name string) string {
 }
 
 //nolint:deadcode,unused
+func whichNoFail(tb testing.TB, name string) string {
+	executable, err := exec.LookPath(name)
+	if err != nil {
+		tb.Logf("couldn't resolve %s: %v", name, err)
+	}
+
+	if dest, err := filepath.EvalSymlinks(executable); err == nil {
+		return dest
+	}
+
+	return executable
+}
+
+//nolint:deadcode,unused
 func copyFile(src string, dst string, mode fs.FileMode) error {
 	input, err := os.ReadFile(src)
 	if err != nil {

@@ -1527,7 +1527,11 @@ func TestProcessBusybox(t *testing.T) {
 }
 
 func TestProcessIdentifyInterpreter(t *testing.T) {
-	python := which(t, "python")
+	python := whichNoFail(t, "python")
+	if python == "" {
+		python = whichNoFail(t, "python3")
+	}
+	perl := which(t, "perl")
 
 	tests := []struct {
 		name            string
@@ -1562,15 +1566,17 @@ echo "Back to bash"`, python),
 				Expression: fmt.Sprintf(`exec.file.name == "perl" && exec.interpreter.file.name == "perl"`),
 			},
 			scriptName: "regularExecWithInterpreterRule.sh",
-			executedScript: `#!/bin/bash
+			executedScript: fmt.Sprintf(`#!/bin/bash
 
 echo "Executing echo inside a bash script"
 
 perl <<__HERE__
+#!%s
+
 print "Hello from Perl\n";
 __HERE__
 
-echo "Back to bash"`,
+echo "Back to bash"`, perl),
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
 			},
