@@ -86,7 +86,7 @@ func (agg *FlowAggregator) run() {
 
 func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 	deviceAddr := common.IPBytesToString(flow.DeviceAddr)
-	deviceId := flow.Namespace + ":" + deviceAddr
+	deviceID := flow.Namespace + ":" + deviceAddr
 	// TODO: Need to include `obsDomainId`
 
 	// nfdump examples:
@@ -99,10 +99,10 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 	}
 
 	if flow.FlowType == common.TypeNetFlow5 {
-		prevSeqNum, ok := agg.lastSeqNum[deviceId]
+		prevSeqNum, ok := agg.lastSeqNum[deviceID]
 		if !ok {
-			agg.lastSeqNum[deviceId] = flow.SequenceNum
-			agg.lastCount[deviceId] += 1
+			agg.lastSeqNum[deviceID] = flow.SequenceNum
+			agg.lastCount[deviceID]++
 			return
 		}
 
@@ -114,30 +114,30 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 		distance = int64(flow.SequenceNum) - int64(prevSeqNum)
 		// TODO: Handle overflow
 
-		lastCount := int64(agg.lastCount[deviceId])
+		lastCount := int64(agg.lastCount[deviceID])
 		if distance == 0 {
-			agg.lastCount[deviceId] += 1
+			agg.lastCount[deviceID]++
 		} else if distance == lastCount {
 			// no flows dropped
-			agg.lastSeqNum[deviceId] = flow.SequenceNum
-			agg.lastCount[deviceId] = 1
+			agg.lastSeqNum[deviceID] = flow.SequenceNum
+			agg.lastCount[deviceID] = 1
 		} else {
-			droppedFlows := distance - lastCount
-			log.Warnf("Sequence Error for %s: Prev: %d, New: %d, LastCount: %d, Distance: %d, Dropped flows: %d", deviceId, prevSeqNum, flow.SequenceNum, lastCount, distance, droppedFlows)
+			log.Warnf("Sequence Error for %s: Prev: %d, New: %d, LastCount: %d, Distance: %d", deviceID, prevSeqNum, flow.SequenceNum, lastCount, distance)
 			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
 
+			droppedFlows := distance - lastCount
 			if droppedFlows > 0 {
 				// Number of NetFlow 5 flows being dropped
 				agg.sender.Count("datadog.netflow.aggregator.dropped_flows", float64(droppedFlows), "", tags)
 			}
-			agg.lastSeqNum[deviceId] = flow.SequenceNum
-			agg.lastCount[deviceId] = 1
+			agg.lastSeqNum[deviceID] = flow.SequenceNum
+			agg.lastCount[deviceID] = 1
 		}
 	}
 	if flow.FlowType == common.TypeNetFlow9 {
-		prevSeqNum, ok := agg.lastSeqNum[deviceId]
+		prevSeqNum, ok := agg.lastSeqNum[deviceID]
 		if !ok {
-			agg.lastSeqNum[deviceId] = flow.SequenceNum
+			agg.lastSeqNum[deviceID] = flow.SequenceNum
 			return
 		}
 		var distance int64
@@ -152,7 +152,7 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 			// Number of NetFlow 9 packets being dropped, one NetFlow packet might contain multiple flows
 			agg.sender.Count("datadog.netflow.aggregator.dropped_flow_packets", float64(distance-1), "", tags)
 		}
-		agg.lastSeqNum[deviceId] = flow.SequenceNum
+		agg.lastSeqNum[deviceID] = flow.SequenceNum
 	}
 }
 
