@@ -505,12 +505,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     if (event == NULL) {
         return 0;
     }
-
     event->pid_entry.fork_timestamp = ts;
 
     bpf_get_current_comm(event->proc_entry.comm, sizeof(event->proc_entry.comm));
-    struct process_context_t *on_stack_process = &event->process;
-    fill_process_context(on_stack_process);
+    fill_process_context(&event->process);
     fill_span_context(&event->span);
 
     // the `parent_pid` entry of `sched_process_fork` might point to the TID (and not PID) of the parent. Since we
@@ -535,24 +533,18 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         event->pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
-        u32 on_stack_cookie = event->pid_entry.cookie;
-        struct proc_cache_t *parent_pc = get_proc_from_cookie(on_stack_cookie);
+        struct proc_cache_t *parent_pc = get_proc_from_cookie(event->pid_entry.cookie);
         if (parent_pc) {
             fill_container_context(parent_pc, &event->container);
             copy_proc_entry_except_comm(&parent_pc->entry, &event->proc_entry);
         }
     }
 
-    struct pid_cache_t on_stack_pid_entry = event->pid_entry;
     // insert the pid cache entry for the new process
-    bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
+    bpf_map_update_elem(&pid_cache, &pid, &event->pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    char on_stack_comm[TASK_COMM_LEN];
-    bpf_probe_read_str(on_stack_comm, sizeof(on_stack_comm), event->proc_entry.comm);
-    char on_stack_cgroup[CONTAINER_ID_LEN];
-    bpf_probe_read_str(on_stack_cgroup, sizeof(on_stack_cgroup), event->container.container_id);
-    inherit_traced_state(args, ppid, pid, on_stack_cgroup, on_stack_comm);
+    inherit_traced_state(args, ppid, pid, event->container.container_id, event->proc_entry.comm);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -727,18 +719,13 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct l
             copy_pid_cache_except_exit_ts(pid_entry, &event->pid_entry);
 
             // add pid / tid context
-            struct process_context_t *on_stack_process = &event->process;
-            fill_process_context(on_stack_process);
+            fill_process_context(&event->process);
 
             copy_span_context(&syscall->exec.span_context, &event->span);
             fill_args_envs(event, syscall);
 
             // [activity_dump] check if this process should be traced
-            char on_stack_comm[TASK_COMM_LEN];
-            bpf_probe_read_str(on_stack_comm, sizeof(on_stack_comm), event->proc_entry.comm);
-            char on_stack_cgroup[CONTAINER_ID_LEN];
-            bpf_probe_read_str(on_stack_cgroup, sizeof(on_stack_cgroup), event->container.container_id);
-            should_trace_new_process(ctx, now, tgid, on_stack_cgroup, on_stack_comm);
+            should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
 
             // add interpreter path info
             event->linux_binprm.executable = syscall->exec.linux_binprm.executable;
