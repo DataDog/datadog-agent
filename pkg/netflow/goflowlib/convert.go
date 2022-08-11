@@ -16,6 +16,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 	return &common.Flow{
 		Namespace:       namespace,
 		FlowType:        convertFlowType(srcFlow.Type),
+		SequenceNum:     srcFlow.SequenceNum,
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
 		DeviceAddr:      srcFlow.SamplerAddress, // Sampler is renamed to Device since it's a device in most cases

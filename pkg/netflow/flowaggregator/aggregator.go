@@ -32,6 +32,8 @@ type FlowAggregator struct {
 	receivedFlowCount *atomic.Uint64
 	flushedFlowCount  *atomic.Uint64
 	hostname          string
+	lastSeqNum        map[string]uint32
+	lastCount         map[string]uint32
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -46,6 +48,8 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		receivedFlowCount: atomic.NewUint64(0),
 		flushedFlowCount:  atomic.NewUint64(0),
 		hostname:          hostname,
+		lastSeqNum:        make(map[string]uint32),
+		lastCount:         make(map[string]uint32),
 	}
 }
 
@@ -74,8 +78,82 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
+			agg.handleSequenceCheck(flow)
 			agg.flowAcc.add(flow)
 		}
+	}
+}
+
+func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
+	deviceAddr := common.IPBytesToString(flow.DeviceAddr)
+	deviceId := flow.Namespace + ":" + deviceAddr
+	// TODO: Need to include `obsDomainId`
+
+	// nfdump examples:
+	// https://github.com/phaag/nfdump/blob/b0c7a5ec2e11a683460b312ba192bc00590c4acd/bin/netflow_v5_v7.c#L382-L395
+	// https://github.com/phaag/nfdump/blob/28ad878ac807e82fb95a77df6fc9b98000bcc81c/bin/netflow_v9.c#L2094-L2106
+
+	tags := []string{
+		"snmp_device:" + deviceAddr,
+		"namespace:" + flow.Namespace,
+	}
+
+	if flow.FlowType == common.TypeNetFlow5 {
+		prevSeqNum, ok := agg.lastSeqNum[deviceId]
+		if !ok {
+			agg.lastSeqNum[deviceId] = flow.SequenceNum
+			agg.lastCount[deviceId] += 1
+			return
+		}
+
+		// NetFlow 5, 6, 7, and Version 8:
+		// The sequence number is equal to the sequence number of the previous datagram plus the number of flows in the
+		// previous datagram. After receiving a new datagram, the receiving application can subtract the expected
+		// sequence number from the sequence number in the header to derive the number of missed flows.
+		var distance int64
+		distance = int64(flow.SequenceNum) - int64(prevSeqNum)
+		// TODO: Handle overflow
+
+		lastCount := int64(agg.lastCount[deviceId])
+		if distance == 0 {
+			agg.lastCount[deviceId] += 1
+		} else if distance == lastCount {
+			// no flows dropped
+			agg.lastSeqNum[deviceId] = flow.SequenceNum
+			agg.lastCount[deviceId] = 1
+		} else {
+			log.Warnf("Sequence Error: Prev: %d, New: %d, LastCount: %d Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, lastCount, distance, distance-1)
+
+			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
+
+			droppedFlows := distance - lastCount
+			if droppedFlows > 0 {
+				// Number of NetFlow 5 flows being dropped
+				agg.sender.Count("datadog.netflow.aggregator.dropped_flows", float64(droppedFlows), "", tags)
+			}
+			agg.lastSeqNum[deviceId] = flow.SequenceNum
+			agg.lastCount[deviceId] = 1
+		}
+	}
+	if flow.FlowType == common.TypeNetFlow9 {
+		prevSeqNum, ok := agg.lastSeqNum[deviceId]
+		if !ok {
+			agg.lastSeqNum[deviceId] = flow.SequenceNum
+			return
+		}
+		var distance int64
+		distance = int64(flow.SequenceNum) - int64(prevSeqNum)
+		// TODO: Handle overflow
+
+		if distance > 1 {
+			log.Warnf("Sequence Error: Prev: %d, New: %d, Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, distance, distance-1)
+
+			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
+
+			// Number of NetFlow 9 packets being dropped, one NetFlow packet might contain multiple flows
+			agg.sender.Count("datadog.netflow.aggregator.dropped_flow_packets", float64(distance-1), "", tags)
+		}
+		agg.lastSeqNum[deviceId] = flow.SequenceNum
 	}
 }
 

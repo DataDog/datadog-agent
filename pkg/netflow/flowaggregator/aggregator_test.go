@@ -171,3 +171,116 @@ func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 		}
 	}
 }
+
+func TestFlowAggregator_sequenceNumberCheck_netflow9(t *testing.T) {
+	flow := &common.Flow{
+		Namespace:   "my-ns",
+		FlowType:    common.TypeNetFlow9,
+		DeviceAddr:  []byte{127, 0, 0, 1},
+		SequenceNum: 0,
+	}
+
+	conf := config.NetflowConfig{
+		StopTimeout:             10,
+		AggregatorBufferSize:    20,
+		AggregatorFlushInterval: 1,
+		LogPayloads:             true,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType: common.TypeNetFlow9,
+				BindHost: "127.0.0.1",
+				Port:     uint16(1234),
+				Workers:  10,
+			},
+		},
+	}
+	flowKey := flow.Namespace + ":" + common.IPBytesToString(flow.DeviceAddr)
+
+	sender := mocksender.NewMockSender("")
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	assert.Equal(t, uint32(0), aggregator.lastSeqNum[flowKey])
+
+	// first flow
+	flow.SequenceNum = 10
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
+
+	// second flow with consecutive seq number
+	flow.SequenceNum = 11
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(11), aggregator.lastSeqNum[flowKey])
+
+	// third flow with non-consecutive seq num
+	flow.SequenceNum = 15
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(15), aggregator.lastSeqNum[flowKey])
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence_errors", 1, "", nil)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.dropped_flow_packets", 3, "", nil)
+}
+
+func TestFlowAggregator_sequenceNumberCheck_netflow5(t *testing.T) {
+	flow := &common.Flow{
+		Namespace:   "my-ns",
+		FlowType:    common.TypeNetFlow5,
+		DeviceAddr:  []byte{127, 0, 0, 1},
+		SequenceNum: 0,
+	}
+
+	conf := config.NetflowConfig{
+		StopTimeout:             10,
+		AggregatorBufferSize:    20,
+		AggregatorFlushInterval: 1,
+		LogPayloads:             true,
+		Listeners: []config.ListenerConfig{
+			{
+				FlowType: common.TypeNetFlow5,
+				BindHost: "127.0.0.1",
+				Port:     uint16(1234),
+				Workers:  10,
+			},
+		},
+	}
+	flowKey := flow.Namespace + ":" + common.IPBytesToString(flow.DeviceAddr)
+
+	sender := mocksender.NewMockSender("")
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
+	assert.Equal(t, uint32(0), aggregator.lastSeqNum[flowKey])
+
+	// first flow
+	flow.SequenceNum = 10
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
+
+	// second flow with same seq number from same NetFlow packet
+	flow.SequenceNum = 10
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(2), aggregator.lastCount[flowKey])
+
+	// third flow with same seq number from same NetFlow packet
+	flow.SequenceNum = 10
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(3), aggregator.lastCount[flowKey])
+
+	// third flow with next seq num (previous seq num + flows count)
+	flow.SequenceNum = 13
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(13), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
+
+	// third flow with next seq num (previous seq num + flows count)
+	flow.SequenceNum = 16
+	aggregator.handleSequenceCheck(flow)
+	assert.Equal(t, uint32(16), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence_errors", 1, "", nil)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.dropped_flows", 2, "", nil)
+}

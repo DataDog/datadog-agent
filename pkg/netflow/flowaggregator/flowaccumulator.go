@@ -77,6 +77,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
+	// TODO: lock more precise near `f.flows`
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
