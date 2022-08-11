@@ -42,7 +42,7 @@ var (
 	customLibAnnotationKeyFormat  = "admission.datadoghq.com/%s-lib.custom-image"
 	supportedLanguages            = []string{
 		"java",
-		"node",
+		"js",
 	}
 )
 
@@ -104,7 +104,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 			return err
 		}
 
-	case "node":
+	case "js":
 		injectLibInitContainer(pod, image)
 		err := injectLibConfig(pod, nodeOptionsKey, nodeOptionsValue)
 		if err != nil {
