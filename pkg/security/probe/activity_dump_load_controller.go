@@ -153,7 +153,7 @@ func (lc *ActivityDumpLoadController) getCurrentConfig() *ActivityDumpLCConfig {
 	return lc.originalConfig
 }
 
-func (lc *ActivityDumpLoadController) reduceConfig() {
+func (lc *ActivityDumpLoadController) reduceConfig() bool {
 	if lc.rateLimiter.Allow() {
 		lcCfg := lc.getCurrentConfig()
 		newCfg := lcCfg.reduced()
@@ -164,7 +164,9 @@ func (lc *ActivityDumpLoadController) reduceConfig() {
 		}
 
 		lc.rateLimiter.SetLimit(rate.Every(newCfg.dumpTimeout))
+		return true
 	}
+	return false
 }
 
 func (lc *ActivityDumpLoadController) propagateLoadSettings() error {

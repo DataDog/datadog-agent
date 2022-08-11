@@ -530,10 +530,13 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
 	if totalSize > uint64(maxTotalADSize) {
-		adm.loadController.reduceConfig()
+		// we may be rate limited
+		success := adm.loadController.reduceConfig()
 
-		if err := adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, nil, 1.0); err != nil {
-			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
+		if success {
+			if err := adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, nil, 1.0); err != nil {
+				seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
+			}
 		}
 	}
 }
