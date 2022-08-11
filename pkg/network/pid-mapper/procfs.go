@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// This function walks the fd directory of each entry in
+// procfs. It executes handleFd for each entry in /proc/<pid/fd
 func WalkProcFds(handleFd func(string) error) error {
 	procRoot := util.HostProc()
 	d, err := os.Open(procRoot)

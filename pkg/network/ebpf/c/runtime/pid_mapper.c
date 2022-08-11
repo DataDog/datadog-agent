@@ -13,7 +13,7 @@
 
 // This map is used by unit tests to validate 
 // that the correct mapping was performed
-struct bpf_map_def SEC("maps/check_correctness") check_correctness = {
+struct bpf_map_def SEC("maps/inode_pid_map") inode_pid_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(int),
@@ -117,7 +117,7 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
     return 0;
 }
 
-static __always_inline void map_sock_to_pid(struct socket* sock, u32 pid) {
+static __always_inline void map_sock_to_pid(struct socket* sock, int pid) {
     struct sock* sk;
 
     bpf_probe_read_kernel(&sk, sizeof(struct sock *), &sock->sk);
@@ -181,19 +181,19 @@ static __always_inline struct socket *get_socket_from_dentry(struct dentry *dent
 }
 
 static __always_inline void map_inode_to_pid(struct socket* sock, int pid) {
-    u64 ino;
-    struct inode* inode = (struct inode *)(container_of(sock, struct socket_alloc, socket) + sizeof(struct socket));
+    u64 ino = 0;
+    struct inode *inode = (struct inode *)((u64)sock + sizeof(struct socket));
 
     if (bpf_probe_read_kernel(&ino, sizeof(u64), &inode->i_ino) < 0)
         return;
 
-    bpf_map_update_elem(&check_correctness, &ino, &pid, BPF_NOEXIST);
+    bpf_map_update_elem(&inode_pid_map, &ino, &pid, BPF_NOEXIST);
 }
 
 SEC("kprobe/d_path")
 int kprobe__d_path(struct pt_regs* ctx) {
     struct dentry* dentry;
-    struct socket* sock;
+    struct socket* socket;
     
     struct path* path = (struct path *)PT_REGS_PARM1(ctx);
     u64 tgid = bpf_get_current_pid_tgid();
@@ -208,15 +208,15 @@ int kprobe__d_path(struct pt_regs* ctx) {
     if (!dentry)
         return 0;
 
-    sock = get_socket_from_dentry(dentry);
-    if (!sock)
+    socket = get_socket_from_dentry(dentry);
+    if (!socket)
         return 0;
 
-    if (!fingerprint_tcp_inet_ops(sock))
+    if (!fingerprint_tcp_inet_ops(socket))
         return 0;
 
-    map_inode_to_pid(sock, pid);
-    map_sock_to_pid(sock, pid);
+    map_inode_to_pid(socket, pid);
+    map_sock_to_pid(socket, pid);
 
     return 0;
 }
