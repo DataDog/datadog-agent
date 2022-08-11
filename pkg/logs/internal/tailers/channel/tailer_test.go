@@ -10,11 +10,8 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-=======
->>>>>>> maxday/private-beta-cloud-run
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
