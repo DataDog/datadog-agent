@@ -664,13 +664,45 @@ void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, s
     event->envs_truncated = syscall->exec.envs.truncated;
 }
 
-SEC("kprobe/security_bprm_committed_creds")
-int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
+int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 binprm_file_offset;
+    LOAD_CONSTANT("binprm_file_offset", binprm_file_offset);
+
+    // The executable contains information about the interpreter
+    struct file *executable;
+    bpf_probe_read(&executable, sizeof(executable), (char *)bprm + binprm_file_offset);
+
+    // TODO: Older kernel versions
+    // const char *filename;	/* Name of binary as seen by procps */
+	// const char *interp;	/* Name of the binary really executed. Most
+	// 			   of the time same as filename, but could be
+	// 			   different for binfmt_{misc,script} */
+
+#ifdef DEBUG
+    bpf_printk("file %llu\n", executable);
+
+    const char *s;
+    bpf_probe_read(&s, sizeof(s), &bprm->filename);
+    bpf_printk("*filename from binprm: %s\n", s);
+
+    bpf_probe_read(&s, sizeof(s), &bprm->interp);
+    bpf_printk("*interp from binprm: %s\n", s);
+#endif
+
+    return handle_interpreted_exec_event(ctx, syscall, executable);
+}
+
+int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
-    
+
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
@@ -719,37 +751,36 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec(struct pt_regs *ctx) {
-struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall) {
-        return 0;
-    }
+SEC("kprobe/security_bprm_committed_creds")
+int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
+    u64 setup_new_exec_is_last;
+    LOAD_CONSTANT("setup_new_exec_is_last", setup_new_exec_is_last);
 
     struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
 
-    // The executable contains information about the interpreter
-    struct file *executable;
-    bpf_probe_read(&executable, sizeof(executable), &bprm->file);
+    if (setup_new_exec_is_last) {
+        fetch_interpreter(ctx, bprm);
+    } else {
+        send_exec_event(ctx, bprm);
+    }
 
-    // TODO: Older kernel versions
-    // const char *filename;	/* Name of binary as seen by procps */
-	// const char *interp;	/* Name of the binary really executed. Most
-	// 			   of the time same as filename, but could be
-	// 			   different for binfmt_{misc,script} */
+    return 0;
+}
 
-#ifdef DEBUG
-    bpf_printk("file %llu\n", executable);
+SEC("kprobe/setup_new_exec")
+int kprobe_setup_new_exec(struct pt_regs *ctx) {
+    u64 setup_new_exec_is_last;
+    LOAD_CONSTANT("setup_new_exec_is_last", setup_new_exec_is_last);
 
-    const char *s;
-    bpf_probe_read(&s, sizeof(s), &bprm->filename);
-    bpf_printk("*filename from binprm: %s\n", s);
+    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
 
-    bpf_probe_read(&s, sizeof(s), &bprm->interp);
-    bpf_printk("*interp from binprm: %s\n", s);
-#endif
+    if (setup_new_exec_is_last) {
+        send_exec_event(ctx, bprm);
+    } else {
+        fetch_interpreter(ctx, bprm);
+    }
 
-    return handle_interpreted_exec_event(ctx, syscall, executable);
+    return 0;
 }
 
 #endif

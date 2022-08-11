@@ -1490,6 +1490,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Name:  "syscall_monitor_event_period",
 			Value: uint64(p.config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
+		manager.ConstantEditor{
+			Name:  "setup_new_exec_is_last",
+			Value: utils.BoolTouint64(!p.kernelVersion.IsRH7Kernel()),
+		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -1627,6 +1631,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("flowi6_saddr_offset", "struct flowi6", "saddr", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest("flowi6_uli_offset", "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
+
+	// Interpreter constants
+	constantFetcher.AppendOffsetofRequest("binprm_file_offset", "struct linux_binprm", "file", "linux/binfmts.h")
 
 	if !kv.IsRH7Kernel() {
 		constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
