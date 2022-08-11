@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
@@ -42,7 +41,7 @@ func (c *processChk) Run() error {
 	if err == nil {
 		sender.Gauge("system.proc.count", val, "", nil)
 	} else {
-		log.Errorf("winproc.Check: Error getting number of processes %v", err)
+		c.Warnf("winproc.Check: Error getting number of processes: %v", err)
 	}
 
 	// counter ("System", "Processor Queue Length")
@@ -55,7 +54,7 @@ func (c *processChk) Run() error {
 	if err == nil {
 		sender.Gauge("system.proc.queue_length", val, "", nil)
 	} else {
-		log.Errorf("winproc.Check: Error getting processor queue length %v", err)
+		c.Warnf("winproc.Check: Error getting processor queue length: %v", err)
 	}
 
 	sender.Commit()

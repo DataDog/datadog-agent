@@ -61,7 +61,7 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 	if r != PDH_MORE_DATA {
 		log.Errorf("Failed to look up Windows performance counter (looking for index %d)", ndx)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
-		return name, fmt.Errorf("Failed to get buffer size %v", r)
+		return name, fmt.Errorf("Failed to get buffer size (%#x)", r)
 	}
 	buf := make([]uint16, len)
 	r, _, _ = procPdhLookupPerfNameByIndex.Call(uintptr(0), // machine name, for now always local
@@ -70,7 +70,7 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 		uintptr(unsafe.Pointer(&len)))
 
 	if r != ERROR_SUCCESS {
-		return name, fmt.Errorf("Error getting perf name for index %d %v", ndx, r)
+		return name, fmt.Errorf("Error getting perf name for index %d (%#x)", ndx, r)
 	}
 	name = windows.UTF16ToString(buf)
 	return name, nil
@@ -134,7 +134,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(1)) // do refresh
 	if r != PDH_MORE_DATA {
-		e := fmt.Sprintf("Failed to refresh performance counters (%v)", r)
+		e := fmt.Sprintf("Failed to refresh performance counters (%#x)", r)
 		log.Errorf(e)
 		if lock_held {
 			lock_lastPdhRefreshTime.Unlock()
@@ -183,12 +183,12 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
-		log.Errorf("Failed to enumerate windows performance counters (%v) (class %s)", r, className)
+		log.Errorf("Failed to enumerate windows performance counters (%#x) (class %s)", r, className)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		if r == PDH_CSTATUS_NO_OBJECT {
-			return nil, nil, fmt.Errorf("Object not found (%v) (class %v)", r, className)
+			return nil, nil, fmt.Errorf("Object not found (%#x) (class %v)", r, className)
 		} else {
-			return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
+			return nil, nil, fmt.Errorf("Failed to get buffer size (%#x)", r)
 		}
 	}
 	counterbuf := make([]uint16, counterlen)
@@ -210,7 +210,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != ERROR_SUCCESS {
-		err = fmt.Errorf("Error getting counter items %v", r)
+		err = fmt.Errorf("Error getting counter items (%#x)", r)
 		return
 	}
 	counters = winutil.ConvertWindowsStringList(counterbuf)
@@ -266,7 +266,7 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 	if r != PDH_MORE_DATA {
 		log.Errorf("Failed to make Windows performance counter (%s %s %s %s)", machine, object, instance, counter)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
-		err = fmt.Errorf("Failed to get buffer size %v", r)
+		err = fmt.Errorf("Failed to get buffer size (%#x)", r)
 		return
 	}
 	buf := make([]uint16, len)
@@ -276,7 +276,7 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 		uintptr(unsafe.Pointer(&len)),
 		uintptr(0))
 	if r != ERROR_SUCCESS {
-		err = fmt.Errorf("Failed to get path %v", r)
+		err = fmt.Errorf("Failed to get path (%#x)", r)
 		return
 	}
 	path = windows.UTF16ToString(buf)
@@ -297,7 +297,7 @@ func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err err
 		if ret == PDH_INVALID_DATA && pValue.CStatus == PDH_CSTATUS_NO_INSTANCE {
 			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 		}
-		return 0, fmt.Errorf("Error retrieving large value 0x%x 0x%x", ret, pValue.CStatus)
+		return 0, fmt.Errorf("Error retrieving large value %#x %#x", ret, pValue.CStatus)
 	}
 
 	return pValue.LargeValue, nil
@@ -316,7 +316,7 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 		if ret == PDH_INVALID_DATA && pValue.CStatus == PDH_CSTATUS_NO_INSTANCE {
 			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 		}
-		return 0, fmt.Errorf("Error retrieving float value 0x%x 0x%x", ret, pValue.CStatus)
+		return 0, fmt.Errorf("Error retrieving float value %#x %#x", ret, pValue.CStatus)
 	}
 
 	return pValue.DoubleValue, nil

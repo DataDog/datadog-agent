@@ -40,7 +40,7 @@ func (c *fhCheck) Run() error {
 		vals, err = c.counter.GetAllValues()
 	}
 	if err != nil {
-		log.Errorf("file_handle.Check: Error getting process handle count %v", err)
+		c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
 	} else {
 		val := vals["_Total"]
 		log.Debugf("Submitting system.fs.file_handles_in_use %v", val)

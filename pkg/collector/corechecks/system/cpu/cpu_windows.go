@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
@@ -66,7 +65,7 @@ func (c *Check) Run() error {
 		val, err = c.interruptsCounter.GetValue()
 	}
 	if err != nil {
-		log.Errorf("cpu.Check: could not establish interrupt time counter %v", err)
+		c.Warnf("cpu.Check: could not establish interrupt time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
 	}
@@ -79,7 +78,7 @@ func (c *Check) Run() error {
 		val, err = c.idleCounter.GetValue()
 	}
 	if err != nil {
-		log.Errorf("cpu.Check: could not establish idle time counter %v", err)
+		c.Warnf("cpu.Check: could not establish idle time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.idle", float64(val), "", nil)
 	}
@@ -92,7 +91,7 @@ func (c *Check) Run() error {
 		val, err = c.userCounter.GetValue()
 	}
 	if err != nil {
-		log.Errorf("cpu.Check: could not establish user time counter %v", err)
+		c.Warnf("cpu.Check: could not establish user time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.user", float64(val), "", nil)
 	}
@@ -105,7 +104,7 @@ func (c *Check) Run() error {
 		val, err = c.privilegedCounter.GetValue()
 	}
 	if err != nil {
-		log.Errorf("cpu.Check: could not establish system time counter %v", err)
+		c.Warnf("cpu.Check: could not establish system time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.system", float64(val), "", nil)
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
@@ -64,7 +63,7 @@ func (c *Check) Run() error {
 	if err == nil {
 		sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
 	} else {
-		log.Errorf("memory.Check: Could not retrieve value for system.mem.cached %v", err)
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.cached: %v", err)
 	}
 
 	// counter ("Memory", "Committed Bytes")
@@ -77,7 +76,7 @@ func (c *Check) Run() error {
 	if err == nil {
 		sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
 	} else {
-		log.Errorf("memory.Check: Could not retrieve value for system.mem.committed %v", err)
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.committed: %v", err)
 	}
 
 	// counter ("Memory", "Pool Paged Bytes")
@@ -90,7 +89,7 @@ func (c *Check) Run() error {
 	if err == nil {
 		sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
 	} else {
-		log.Errorf("memory.Check: Could not retrieve value for system.mem.paged %v", err)
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.paged: %v", err)
 	}
 
 	// counter ("Memory", "Pool Nonpaged Bytes")
@@ -103,7 +102,7 @@ func (c *Check) Run() error {
 	if err == nil {
 		sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
 	} else {
-		log.Errorf("memory.Check: Could not retrieve value for system.mem.nonpaged %v", err)
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.nonpaged: %v", err)
 	}
 
 	v, errVirt := virtualMemory()
@@ -114,7 +113,7 @@ func (c *Check) Run() error {
 		sender.Gauge("system.mem.used", float64(v.Total-v.Available)/mbSize, "", nil)
 		sender.Gauge("system.mem.pct_usable", float64(100-v.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("memory.Check: could not retrieve virtual memory stats: %s", errVirt)
+		c.Warnf("memory.Check: could not retrieve virtual memory stats: %s", errVirt)
 	}
 
 	s, errSwap := swapMemory()
@@ -124,7 +123,7 @@ func (c *Check) Run() error {
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
+		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	p, errPage := pageMemory()
@@ -134,7 +133,7 @@ func (c *Check) Run() error {
 		sender.Gauge("system.mem.pagefile.free", float64(p.Available)/mbSize, "", nil)
 		sender.Gauge("system.mem.pagefile.used", float64(p.Used)/mbSize, "", nil)
 	} else {
-		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
+		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	sender.Commit()

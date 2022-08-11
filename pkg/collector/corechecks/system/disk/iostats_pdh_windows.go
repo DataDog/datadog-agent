@@ -106,7 +106,7 @@ func (c *IOCheck) Run() error {
 		if c.counters[name] == nil {
 			c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
 			if err != nil {
-				log.Errorf("io.Check: could not establish LogicalDisk '%v' counter %v", name, err)
+				c.Warnf("io.Check: could not establish LogicalDisk '%v' counter: %v", name, err)
 			}
 		}
 	}
@@ -119,7 +119,7 @@ func (c *IOCheck) Run() error {
 		// get counter values
 		vals, err := cset.GetAllValues()
 		if err != nil {
-			log.Errorf("Error getting values %v\n", err)
+			c.Warnf("io.Check: Error getting values for %v: %v", cname, err)
 			continue
 		}
 		for inst, val := range vals {
