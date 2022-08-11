@@ -12,10 +12,11 @@ import (
 	"strings"
 	"unsafe"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {

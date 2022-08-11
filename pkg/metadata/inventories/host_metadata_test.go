@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/memory"
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -104,12 +105,10 @@ func setupHostMetadataMock() func() {
 		networkGet = network.Get
 		platformGet = platform.Get
 
-		agentMetadataMutex.Lock()
-		hostMetadataMutex.Lock()
+		inventoryMutex.Lock()
 		delete(agentMetadata, string(AgentCloudProvider))
 		delete(hostMetadata, string(HostOSVersion))
-		agentMetadataMutex.Unlock()
-		hostMetadataMutex.Unlock()
+		inventoryMutex.Unlock()
 	}
 
 	cpuGet = cpuMock

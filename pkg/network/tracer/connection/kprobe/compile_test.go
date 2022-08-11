@@ -11,8 +11,9 @@ package kprobe
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func TestTracerCompile(t *testing.T) {

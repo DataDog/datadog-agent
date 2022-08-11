@@ -9,9 +9,10 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/stretchr/testify/assert"
 )
 
 func createSpanSamplingTestSpans(serviceName, operationName string, total int, mech float64) []*pb.Span {

@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
@@ -139,7 +138,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header = http.Header{}
 
 	// Set standard headers
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}

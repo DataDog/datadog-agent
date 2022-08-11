@@ -227,7 +227,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// Serving stale data is better than serving no data at all.
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
 	forwarderOpts.DisableAPIKeyChecking = true
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
@@ -291,7 +291,7 @@ func start(cmd *cobra.Command, args []string) error {
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(mainCtx)
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
@@ -354,6 +354,7 @@ func start(cmd *cobra.Command, args []string) error {
 			server := admissioncmd.NewServer()
 			server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
 			server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
+			server.Register(config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl)
 
 			// Start the k8s admission webhook server
 			wg.Add(1)

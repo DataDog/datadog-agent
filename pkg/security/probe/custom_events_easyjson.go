@@ -474,6 +474,8 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 		switch key {
 		case "Version":
 			out.Version = string(in.String())
+		case "Source":
+			out.Source = string(in.String())
 		case "rules_loaded":
 			if in.IsNull() {
 				in.Skip()
@@ -554,6 +556,11 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		const prefix string = ",\"Version\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.Version))
+	}
+	{
+		const prefix string = ",\"Source\":"
+		out.RawString(prefix)
+		out.String(string(in.Source))
 	}
 	{
 		const prefix string = ",\"rules_loaded\":"

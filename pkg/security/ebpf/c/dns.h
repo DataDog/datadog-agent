@@ -75,12 +75,11 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     // network context
     fill_network_context(&evt->network, skb, pkt);
 
-
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     if (entry == NULL) {
         evt->container.container_id[0] = 0;
     } else {
-        fill_container_context(entry, &evt->container);
+        fill_container_context_no_tracing(entry, &evt->container);
     }
 
     return evt;

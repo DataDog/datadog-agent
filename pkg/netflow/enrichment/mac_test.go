@@ -6,8 +6,9 @@
 package enrichment
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFormatMacAddress(t *testing.T) {

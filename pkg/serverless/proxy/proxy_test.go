@@ -15,8 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 )
 
 type testProcessorResponseValid struct{}

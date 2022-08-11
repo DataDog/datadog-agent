@@ -37,7 +37,7 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	id, _ := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -212,7 +212,7 @@ func TestIsParentDiscarder(t *testing.T) {
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
-	id, _ := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -332,8 +332,62 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 	}
 }
 
+type testEventListener struct {
+	fields map[eval.Field]int
+}
+
+func (l *testEventListener) RuleMatch(rule *rules.Rule, event eval.Event) {}
+
+func (l *testEventListener) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+	if l.fields == nil {
+		l.fields = make(map[eval.Field]int)
+	}
+	l.fields[field]++
+}
+
+func TestIsDiscarderOverride(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
+		WithEventTypeEnabled(enabled).
+		WithLogger(&seclog.PatternLogger{})
+
+	var listener testEventListener
+
+	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
+	rs.AddListener(&listener)
+	addRuleExpr(t, rs, `unlink.file.path == "/var/log/httpd" && process.file.path == "/bin/touch"`)
+
+	var event Event
+	event.Init()
+
+	event.Type = uint32(model.FileUnlinkEventType)
+	event.SetFieldValue("unlink.file.path", "/var/log/httpd")
+	event.SetFieldValue("process.file.path", "/bin/touch")
+
+	rs.Evaluate(&event)
+
+	if listener.fields["process.file.path"] > 0 {
+		t.Error("shouldn't get a discarder")
+	}
+
+	event.SetFieldValue("process.file.path", "/bin/cat")
+
+	rs.Evaluate(&event)
+
+	if listener.fields["process.file.path"] == 0 {
+		t.Error("should get a discarder")
+	}
+}
+
 func BenchmarkParentDiscarder(b *testing.B) {
-	id, _ := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 

@@ -16,8 +16,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/tinylib/msgp/msgp"

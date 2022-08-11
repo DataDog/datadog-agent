@@ -262,6 +262,11 @@ func (m *ProcessActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.GenerationType != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.GenerationType))
+		i--
+		dAtA[i] = 0x40
+	}
 	if len(m.Syscalls) > 0 {
 		var pksize2 int
 		for _, num := range m.Syscalls {
@@ -329,13 +334,6 @@ func (m *ProcessActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			i--
 			dAtA[i] = 0x1a
 		}
-	}
-	if len(m.GenerationType) > 0 {
-		i -= len(m.GenerationType)
-		copy(dAtA[i:], m.GenerationType)
-		i = encodeVarint(dAtA, i, uint64(len(m.GenerationType)))
-		i--
-		dAtA[i] = 0x12
 	}
 	if m.Process != nil {
 		size, err := m.Process.MarshalToSizedBufferVT(dAtA[:i])
@@ -564,6 +562,11 @@ func (m *FileActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.GenerationType != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.GenerationType))
+		i--
+		dAtA[i] = 0x40
+	}
 	if m.IsPattern {
 		i--
 		if m.IsPattern {
@@ -600,13 +603,6 @@ func (m *FileActivityNode) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i = encodeVarint(dAtA, i, uint64(m.FirstSeen))
 		i--
 		dAtA[i] = 0x20
-	}
-	if len(m.GenerationType) > 0 {
-		i -= len(m.GenerationType)
-		copy(dAtA[i:], m.GenerationType)
-		i = encodeVarint(dAtA, i, uint64(len(m.GenerationType)))
-		i--
-		dAtA[i] = 0x1a
 	}
 	if m.File != nil {
 		size, err := m.File.MarshalToSizedBufferVT(dAtA[:i])
@@ -1349,10 +1345,6 @@ func (m *ProcessActivityNode) SizeVT() (n int) {
 		l = m.Process.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.GenerationType)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
 	if len(m.Children) > 0 {
 		for _, e := range m.Children {
 			l = e.SizeVT()
@@ -1383,6 +1375,9 @@ func (m *ProcessActivityNode) SizeVT() (n int) {
 			l += sov(uint64(e))
 		}
 		n += 1 + sov(uint64(l)) + l
+	}
+	if m.GenerationType != 0 {
+		n += 1 + sov(uint64(m.GenerationType))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -1488,10 +1483,6 @@ func (m *FileActivityNode) SizeVT() (n int) {
 		l = m.File.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.GenerationType)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
 	if m.FirstSeen != 0 {
 		n += 1 + sov(uint64(m.FirstSeen))
 	}
@@ -1507,6 +1498,9 @@ func (m *FileActivityNode) SizeVT() (n int) {
 	}
 	if m.IsPattern {
 		n += 2
+	}
+	if m.GenerationType != 0 {
+		n += 1 + sov(uint64(m.GenerationType))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -2513,38 +2507,6 @@ func (m *ProcessActivityNode) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field GenerationType", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.GenerationType = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Children", wireType)
@@ -2784,6 +2746,25 @@ func (m *ProcessActivityNode) UnmarshalVT(dAtA []byte) error {
 				}
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field Syscalls", wireType)
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GenerationType", wireType)
+			}
+			m.GenerationType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.GenerationType |= GenerationType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
 			}
 		default:
 			iNdEx = preIndex
@@ -3450,38 +3431,6 @@ func (m *FileActivityNode) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field GenerationType", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.GenerationType = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 4:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FirstSeen", wireType)
@@ -3598,6 +3547,25 @@ func (m *FileActivityNode) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.IsPattern = bool(v != 0)
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GenerationType", wireType)
+			}
+			m.GenerationType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.GenerationType |= GenerationType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

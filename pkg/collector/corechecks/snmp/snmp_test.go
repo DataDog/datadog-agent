@@ -36,8 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-func demuxOpts() aggregator.DemultiplexerOptions {
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+func demuxOpts() aggregator.AgentDemultiplexerOptions {
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	return opts

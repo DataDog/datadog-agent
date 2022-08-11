@@ -20,7 +20,7 @@ func newBenchmarkProcessEvent(argCount int) *ProcessMonitoringEvent {
 		args = append(args, fmt.Sprintf("arg_%d", i))
 	}
 
-	return NewMockedProcessMonitoringEvent(Exit, time.Now(), 42, "/usr/bin/exe", args)
+	return ProcessEventToProcessMonitoringEvent(NewMockedExitEvent(time.Now(), 42, "/usr/bin/exe", args, 0))
 }
 
 // Benchmark between JSON and messagePack serialization changing the command-line length of the collected event

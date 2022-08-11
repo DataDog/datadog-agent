@@ -189,7 +189,7 @@ func listDataToResolve(config *integration.Config) []dataToResolve {
 
 	if config.IsLogConfig() {
 		p := yamlp
-		if config.Provider == names.Container || config.Provider == names.Kubernetes {
+		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer {
 			p = jsonp
 		}
 		res = append(res, dataToResolve{

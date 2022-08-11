@@ -44,6 +44,8 @@ type CheckBase struct {
 	checkInterval  time.Duration
 	source         string
 	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -70,24 +72,7 @@ func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
 func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	commonGlobalOptions := integration.CommonGlobalConfig{}
-	err := yaml.Unmarshal(initConfig, &commonGlobalOptions)
-	if err != nil {
-		log.Errorf("invalid init_config section for check %s: %s", string(c.ID()), err)
-		return err
-	}
-
-	// Set service for this check
-	if len(commonGlobalOptions.Service) > 0 {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.SetCheckService(commonGlobalOptions.Service)
-	}
-
-	err = c.CommonConfigure(data, source)
+	err := c.CommonConfigure(initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -105,50 +90,62 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(instance integration.Data, source string) error {
-	commonOptions := integration.CommonInstanceConfig{}
-	err := yaml.Unmarshal(instance, &commonOptions)
-	if err != nil {
-		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
+func (c *CheckBase) CommonConfigure(initConfig, instanceConfig integration.Data, source string) error {
+	handleConf := func(conf integration.Data, c *CheckBase) error {
+		commonOptions := integration.CommonInstanceConfig{}
+		err := yaml.Unmarshal(conf, &commonOptions)
+		if err != nil {
+			log.Errorf("invalid configuration section for check %s: %s", string(c.ID()), err)
+			return err
+		}
+
+		// See if a collection interval was specified
+		if commonOptions.MinCollectionInterval > 0 {
+			c.checkInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+		}
+
+		// Disable default hostname if specified
+		if commonOptions.EmptyDefaultHostname {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.DisableDefaultHostname(true)
+		}
+
+		// Set custom tags configured for this check
+		if len(commonOptions.Tags) > 0 {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.SetCheckCustomTags(commonOptions.Tags)
+		}
+
+		// Set configured service for this check, overriding the one possibly defined globally
+		if len(commonOptions.Service) > 0 {
+			s, err := c.GetSender()
+			if err != nil {
+				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+				return err
+			}
+			s.SetCheckService(commonOptions.Service)
+		}
+
+		c.source = source
+		return nil
+	}
+	if err := handleConf(initConfig, c); err != nil {
+		return err
+	}
+	if err := handleConf(instanceConfig, c); err != nil {
 		return err
 	}
 
-	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
-		c.checkInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
-	}
-
-	// Disable default hostname if specified
-	if commonOptions.EmptyDefaultHostname {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.DisableDefaultHostname(true)
-	}
-
-	// Set custom tags configured for this check
-	if len(commonOptions.Tags) > 0 {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.SetCheckCustomTags(commonOptions.Tags)
-	}
-
-	// Set configured service for this check, overriding the one possibly defined globally
-	if len(commonOptions.Service) > 0 {
-		s, err := c.GetSender()
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-			return err
-		}
-		s.SetCheckService(commonOptions.Service)
-	}
-
-	c.source = source
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(instanceConfig)
 	return nil
 }
 
@@ -207,6 +204,16 @@ func (c *CheckBase) Version() string {
 // from the agent
 func (c *CheckBase) ConfigSource() string {
 	return c.source
+}
+
+// InitConfig returns the init_config configuration for the check.
+func (c *CheckBase) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance configuration for the check.
+func (c *CheckBase) InstanceConfig() string {
+	return c.instanceConfig
 }
 
 // ID returns a unique ID for that check instance

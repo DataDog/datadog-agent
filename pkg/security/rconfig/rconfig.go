@@ -14,13 +14,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Masterminds/semver"
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/Masterminds/semver"
-	"github.com/hashicorp/go-multierror"
 )
 
 const securityAgentRCPollInterval = time.Second * 1

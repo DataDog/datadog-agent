@@ -95,7 +95,7 @@ type Probe struct {
 
 	// Approvers / discarders section
 	erpc                 *ERPC
-	discarderReq         *ERPCRequest
+	erpcRequest          *ERPCRequest
 	pidDiscarders        *pidDiscarders
 	inodeDiscarders      *inodeDiscarders
 	flushingDiscarders   *atomic.Bool
@@ -107,6 +107,8 @@ type Probe struct {
 	// network section
 	tcProgramsLock sync.RWMutex
 	tcPrograms     map[NetDeviceKey]*manager.Probe
+
+	isRuntimeDiscarded bool
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -259,16 +261,14 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
+	if p.isRuntimeDiscarded {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "runtime_discarded",
 			Value: uint64(1),
 		})
 	}
 
-	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
-	}
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -290,9 +290,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver); err != nil {
-		return err
-	}
+	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -476,14 +474,17 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		return
 	case model.CgroupTracingEventType:
+		if p.config.ActivityDumpEnabled {
+			log.Error("shouldn't receive Cgroup event if activity dumps are disabled")
+			return
+		}
+
 		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		if p.config.ActivityDumpEnabled {
-			p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
-		}
+		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
 	}
 
@@ -660,6 +661,10 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+		// Use the event timestamp as exit time
+		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
+		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
+		event.ProcessCacheEntry.Process.ExitTime = event.ResolveEventTimestamp()
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
@@ -815,9 +820,11 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	fakeTime := time.Unix(0, int64(event.TimestampRaw))
-	if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
-		return nil
+	if p.isRuntimeDiscarded {
+		fakeTime := time.Unix(0, int64(event.TimestampRaw))
+		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
+			return nil
+		}
 	}
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
@@ -1000,6 +1007,93 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	return p.manager.UpdateActivatedProbes(activatedProbes)
 }
 
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	log.Debug("Dumping discarders")
+
+	dump, err := os.CreateTemp("/tmp", "discarder-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer dump.Close()
+
+	if err := os.Chmod(dump.Name(), 0400); err != nil {
+		return "", err
+	}
+
+	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
+
+	fmt.Fprintf(dump, `
+Legend:
+Discarder Count: Discardee Info
+Discarder Count: Discardee Parameters
+`)
+
+	fmt.Fprintf(dump, "\nInode Discarders\n")
+
+	discardedInodeCount := 0
+	inodeDiscardersInfo, inodeDiscardersErr := p.inodeDiscarders.Info()
+	if inodeDiscardersErr != nil {
+		log.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
+	} else {
+		var inode inodeDiscarderMapEntry
+		var inodeParams inodeDiscarderParams
+		maxInodeDiscarders := int(inodeDiscardersInfo.MaxEntries)
+
+		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+			discardedInodeCount++
+			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
+			path, err := p.resolvers.resolveFileFieldsPath(&fields)
+			if err != nil {
+				path = err.Error()
+			}
+			printDiscardee(dump, fmt.Sprintf("%s %+v", path, inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
+			if discardedInodeCount == maxInodeDiscarders {
+				log.Infof("Discarded inode count has reached max discarder map size")
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(dump, "\nProcess Discarders\n")
+
+	discardedPIDCount := 0
+	pidDiscardersInfo, pidDiscardersErr := p.pidDiscarders.Info()
+	if pidDiscardersErr != nil {
+		log.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
+	} else {
+		var pid uint32
+		var pidParams pidDiscarderParams
+		maxPIDDiscarders := int(pidDiscardersInfo.MaxEntries)
+
+		for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+			discardedPIDCount++
+			printDiscardee(dump, fmt.Sprintf("%+v", pid), fmt.Sprintf("%+v", pidParams), discardedPIDCount)
+			if discardedPIDCount == maxPIDDiscarders {
+				log.Infof("Discarded PID count has reached max discarder map size")
+				break
+			}
+		}
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats - Front Buffer\n")
+	frontBufferPrintErr := p.printDiscarderStats(dump, frontBufferDiscarderStatsMapName)
+	if frontBufferPrintErr != nil {
+		_ = log.Errorf("could not dump discarder stats map %s: %s", frontBufferDiscarderStatsMapName, frontBufferPrintErr)
+	}
+
+	fmt.Fprintf(dump, "\nDiscarder Stats - Back Buffer\n")
+	backBufferPrintErr := p.printDiscarderStats(dump, backBufferDiscarderStatsMapName)
+	if backBufferPrintErr != nil {
+		_ = log.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
+	}
+
+	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
+
+	log.Infof("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
+	return dump.Name(), nil
+}
+
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
 	log.Debug("Freezing discarders")
@@ -1055,10 +1149,10 @@ func (p *Probe) FlushDiscarders() error {
 	flushDiscarders := func() {
 		log.Debugf("Flushing discarders")
 
-		req := newDiscarderRequest()
+		var req ERPCRequest
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.expireInodeDiscarder(req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(&req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -1069,8 +1163,8 @@ func (p *Probe) FlushDiscarders() error {
 		}
 
 		for _, pid := range discardedPids {
-			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
-				seclog.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
+			if err := p.pidDiscarders.expirePidDiscarder(&req, pid); err != nil {
+				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
 			discarderCount--
@@ -1265,11 +1359,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		ctx:                  ctx,
 		cancelFnc:            cancel,
 		erpc:                 erpc,
-		discarderReq:         newDiscarderRequest(),
+		erpcRequest:          &ERPCRequest{},
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
 		flushingDiscarders:   atomic.NewBool(false),
+		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1302,7 +1397,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.config.ActivityDumpTracedCgroupsCount,
 		p.config.ActivityDumpCgroupWaitListSize,
 		useMmapableMaps,
 		useRingBuffers,
@@ -1377,12 +1471,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Value: getCheckHelperCallInputType(p),
 		},
 		manager.ConstantEditor{
-			Name:  "traced_cgroups_count",
-			Value: getTracedCgroupsCount(p),
-		},
-		manager.ConstantEditor{
-			Name:  "dump_timeout",
-			Value: getCgroupDumpTimeout(p),
+			Name:  "cgroup_activity_dumps_enabled",
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
@@ -1404,7 +1494,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "tracepoint_raw_syscall_fallback",
-				Value: uint64(1),
+				Value: utils.BoolTouint64(true),
 			},
 		)
 	}
@@ -1413,7 +1503,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
 				Name:  "use_ring_buffer",
-				Value: uint64(1),
+				Value: utils.BoolTouint64(true),
 			},
 		)
 	}
@@ -1494,6 +1584,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
+
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest("bpf_map_id_offset", "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
