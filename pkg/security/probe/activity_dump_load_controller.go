@@ -174,6 +174,13 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	lcConfig := lc.getCurrentConfig()
 
 	// traced event types
+	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
+		evtType := model.EventType(i)
+		if err := lc.tracedEventTypesMap.Delete(evtType); err != nil && err != ebpf.ErrKeyNotExist {
+			return fmt.Errorf("failed to delete old traced event type: %w", err)
+		}
+	}
+
 	isTraced := uint64(1)
 	for _, evtType := range lcConfig.tracedEventTypes {
 		if err := lc.tracedEventTypesMap.Put(evtType, isTraced); err != nil {
