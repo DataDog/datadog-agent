@@ -1,3 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+// +build linux_bpf
+
 package mapper
 
 import (
@@ -9,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// This function walks the fd directory of each entry in
+// WalkProcFds walks the fd directory of each entry in
 // procfs. It executes handleFd for each entry in /proc/<pid/fd
 func WalkProcFds(handleFd func(string) error) error {
 	procRoot := util.HostProc()
@@ -58,7 +66,7 @@ func walkFds(pid int32, path string, handleFd func(string) error) error {
 
 		err = handleFd(fdPath)
 		if err != nil {
-			return fmt.Errorf("Failed to process fd at %s: %w\n", fdPath, err)
+			return fmt.Errorf("failed to process fd at %s: %w\n", fdPath, err)
 		}
 	}
 	return nil

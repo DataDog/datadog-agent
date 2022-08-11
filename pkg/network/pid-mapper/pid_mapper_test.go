@@ -140,7 +140,7 @@ func validateInodePidMapping(validateInode uint64, pid uint32) error {
 		}
 	}
 
-	return fmt.Errorf("Could not find inode: %d, for pid: %d", validateInode, pid)
+	return fmt.Errorf("could not find inode: %d, for pid: %d", validateInode, pid)
 }
 
 func compileTestProg(r io.Reader, outputdir string) error {

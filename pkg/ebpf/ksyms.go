@@ -46,6 +46,7 @@ func VerifyKernelFuncs(path string, requiredKernelFuncs []string) (map[string]st
 	return missingStrs, nil
 }
 
+// GetSymbolsAddresses takes a list of kernel symbols and returns their addresses
 func GetSymbolsAddresses(path string, symbols []string) (map[string]uint64, error) {
 	f, err := os.Open(path)
 	if err != nil {

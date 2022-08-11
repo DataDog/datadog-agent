@@ -144,7 +144,7 @@ func (e *ebpfProgram) Start() (err error) {
 	symTabMap, _, _ := e.GetMap(symbolTableMap)
 	err = initializeSymbolTableMap(symTabMap)
 	if err != nil {
-		return fmt.Errorf("Error starting pid mapper: %w", err)
+		return fmt.Errorf("error starting pid mapper: %w", err)
 	}
 
 	err = e.Manager.Start()
@@ -162,13 +162,13 @@ func (e *ebpfProgram) Start() (err error) {
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("Error triggering sock->pid mapping: %w", err)
+		return fmt.Errorf("error triggering sock->pid mapping: %w", err)
 	}
 
 	for _, probe := range e.Probes {
 		if _, ok := e.initializorProbes[probe.EBPFSection]; ok {
 			if stopErr := probe.Stop(); stopErr != nil {
-				return fmt.Errorf("Could not stop initializor probe: %w", err)
+				return fmt.Errorf("could not stop initializor probe: %w", err)
 			}
 		}
 	}
@@ -176,7 +176,7 @@ func (e *ebpfProgram) Start() (err error) {
 	for _, m := range e.Maps {
 		if _, ok := e.initializorMaps[m.Name]; ok {
 			if stopErr := m.Close(manager.CleanInternal); stopErr != nil {
-				return fmt.Errorf("Could not close initializor map: %w", err)
+				return fmt.Errorf("could not close initializor map: %w", err)
 			}
 		}
 	}
