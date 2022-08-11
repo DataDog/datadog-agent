@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -1529,6 +1530,7 @@ func TestProcessBusybox(t *testing.T) {
 }
 
 func TestProcessIdentifyInterpreter(t *testing.T) {
+	python := which(t, "python")
 
 	tests := []struct {
 		name            string
@@ -1545,16 +1547,16 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 				Expression: fmt.Sprintf(`exec.file.name == ~"python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`),
 			},
 			scriptName: "regularExec.sh",
-			executedScript: `#!/bin/bash
+			executedScript: fmt.Sprintf(`#!/bin/bash
 
 echo "Executing echo inside a bash script"
 
-/usr/bin/python3.8 - << EOF
+%s - << EOF
 print('Executing print inside a python script')
 
 EOF
 
-echo "Back to bash"`,
+echo "Back to bash"`, python),
 		},
 		{
 			name: "regular exec with interpreter rule",
@@ -1584,12 +1586,12 @@ echo "Back to bash"`,
 			},
 			scriptName:      "interpretedExec.sh",
 			innerScriptName: "pyscript.py",
-			executedScript: `#!/bin/bash
+			executedScript: fmt.Sprintf(`#!/bin/bash
 
 echo "Executing echo inside a bash script"
 
 cat << EOF > pyscript.py
-#!/usr/bin/python3.8
+#!%s
 
 print('Executing print inside a python script')
 
@@ -1598,9 +1600,9 @@ EOF
 echo "Back to bash"
 
 chmod 755 pyscript.py
-./pyscript.py`,
+./pyscript.py`, python),
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "python3.8")
+				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
 			},
 		},
 
