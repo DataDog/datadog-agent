@@ -18,10 +18,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cihub/seelog"
 )
 
 // LoggerName specifies the name of an instantiated logger.

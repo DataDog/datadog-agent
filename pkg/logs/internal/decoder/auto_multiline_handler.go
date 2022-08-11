@@ -11,10 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/benbjohnson/clock"
 )
 
 const autoMultiLineTelemetryMetricName = "datadog.logs_agent.auto_multi_line"

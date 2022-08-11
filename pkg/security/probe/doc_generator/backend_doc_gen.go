@@ -16,9 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/invopop/jsonschema"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/invopop/jsonschema"
 )
 
 func generateBackendJSON(output string) error {

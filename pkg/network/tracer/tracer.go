@@ -17,6 +17,11 @@ import (
 	"syscall"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -35,10 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -207,10 +208,10 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
 				return netlink.NewNoOpConntracker(), nil
 			}
-			return nil, fmt.Errorf("error compiling ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+			return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 		}
 
-		log.Warnf("error compiling ebpf conntracker, falling back to netlink version: %s", err)
+		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
 	c, err = netlink.NewConntracker(cfg)

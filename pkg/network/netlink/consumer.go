@@ -15,14 +15,15 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

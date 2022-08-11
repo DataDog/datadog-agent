@@ -109,4 +109,16 @@ struct bpf_map_def SEC("maps/shared_libraries") shared_libraries = {
     .namespace = "",
 };
 
+/* Map used to store the sub program actually used by the socket filter.
+ * This is done to avoid memory limitation when attaching a filter to 
+ * a socket.
+ * See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters */
+#define HTTP_PROG 0
+struct bpf_map_def SEC("maps/http_progs") http_progs = {
+    .type = BPF_MAP_TYPE_PROG_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+};
+
 #endif

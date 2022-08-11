@@ -13,6 +13,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/hashicorp/golang-lru/simplelru"
+	"go.uber.org/atomic"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -20,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/golang-lru/simplelru"
-	"go.uber.org/atomic"
 )
 
 const maxRouteCacheSize = int(^uint(0) >> 1) // max int

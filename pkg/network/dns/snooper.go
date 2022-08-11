@@ -12,11 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/gopacket"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket"
-	"go.uber.org/atomic"
 )
 
 const (

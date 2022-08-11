@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 // DiskTransactionSerializer is an interface to serialize / deserialize transactions

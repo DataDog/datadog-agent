@@ -24,11 +24,13 @@ import (
 	"gopkg.in/yaml.v2"
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -36,7 +38,6 @@ func createTestDirStructure(
 	t *testing.T,
 	filename string,
 ) (string, string, error) {
-
 	srcDir := t.TempDir()
 	dstDir := t.TempDir()
 
@@ -60,8 +61,7 @@ func createTestDirStructure(
 }
 
 func TestArchiveName(t *testing.T) {
-
-	//test with No log level set
+	// test with No log level set
 	zipFilePath := getArchivePath()
 	assert.Contains(t, zipFilePath, "Z.zip")
 	assert.NotContains(t, zipFilePath, "info")
@@ -104,7 +104,6 @@ func TestCreateArchive(t *testing.T) {
 }
 
 func TestCreateArchiveAndGoRoutines(t *testing.T) {
-
 	contents := "No Goroutines for you, my friend!"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +131,6 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	// printing some of their contents.
 	found := false
 	for _, f := range z.File {
-
 		// find go-routine dump.
 		if path.Base(f.Name) == routineDumpFilename {
 			found = true
@@ -315,7 +313,7 @@ func TestZipLogFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0700)
+	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0o700)
 	require.NoError(t, err)
 
 	f, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
@@ -354,13 +352,13 @@ func TestZipRegistryJSON(t *testing.T) {
 }
 
 func TestZipTaggerList(t *testing.T) {
-	tagMap := make(map[string]response.TaggerListEntity)
-	tagMap["random_entity_name"] = response.TaggerListEntity{
+	tagMap := make(map[string]tagger_api.TaggerListEntity)
+	tagMap["random_entity_name"] = tagger_api.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
 	}
-	resp := response.TaggerListResponse{
+	resp := tagger_api.TaggerListResponse{
 		Entities: tagMap,
 	}
 
@@ -373,7 +371,7 @@ func TestZipTaggerList(t *testing.T) {
 	dir := t.TempDir()
 
 	taggerListURL = s.URL
-	zipTaggerList(dir, "")
+	zipAgentTaggerList(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
 	if err != nil {
 		log.Fatal(err)

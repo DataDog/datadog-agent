@@ -8,6 +8,8 @@ package common
 import (
 	"context"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -16,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 // This is due to an AD limitation that does not allow several listeners to work in parallel
@@ -99,11 +100,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 
 			pollInterval := providers.GetPollInterval(cp)
-			if cp.Polling {
-				log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
-			} else {
-				log.Infof("Registering %s config provider", cp.Name)
-			}
 			ad.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 		} else {
 			log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)

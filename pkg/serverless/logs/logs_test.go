@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {
@@ -219,15 +220,17 @@ func TestProcessMessageValid(t *testing.T) {
 
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 6)
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 6)
+	assert.Len(t, timed, 0)
 	demux.Reset()
 
 	computeEnhancedMetrics = false
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received = demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 0, "we should NOT have received metrics")
+	received, timed = demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "we should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageStartValid(t *testing.T) {
@@ -349,8 +352,9 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	computeEnhancedMetrics := true
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "We should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
@@ -372,8 +376,9 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "We should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
@@ -395,8 +400,9 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 2)
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 2)
+	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
 }

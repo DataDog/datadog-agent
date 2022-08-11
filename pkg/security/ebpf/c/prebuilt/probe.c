@@ -27,6 +27,7 @@
 #include "discarders.h"
 #include "dentry.h"
 #include "dentry_resolver.h"
+#include "pipe.h"
 #include "exec.h"
 #include "container.h"
 #include "commit_creds.h"
@@ -80,10 +81,7 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
         return;
     }
 
-    if (!is_flushing_discarders()) {
-        // remove both regular and parent discarders
-        remove_inode_discarders(mount_id, inode);
-    }
+    expire_inode_discarders(mount_id, inode);
 
     if (send_invalidate_event) {
         // invalidate dentry

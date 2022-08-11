@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestProviderExpectedTags(t *testing.T) {

@@ -35,7 +35,8 @@ message Metadata {
 
 message ProcessActivityNode {
     ProcessInfo process = 1;
-    string generation_type = 2;
+    reserved 2;
+    GenerationType generation_type = 8;
 
     repeated ProcessActivityNode children = 3;
     repeated FileActivityNode files = 4;
@@ -78,7 +79,8 @@ message FileActivityNode {
     string name = 1;
     bool is_pattern = 7;
     FileInfo file = 2;
-    string generation_type = 3;
+    reserved 3;
+    GenerationType generation_type = 8;
     uint64 first_seen = 4;
 
     OpenNode open = 5;
@@ -152,4 +154,10 @@ message SocketNode {
 message BindNode {
     uint32 port = 1;
     string ip = 2;
+}
+
+enum GenerationType {
+    UNKNOWN = 0;
+    RUNTIME = 1;
+    SNAPSHOT = 2;
 }

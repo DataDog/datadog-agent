@@ -72,7 +72,7 @@ type MetricSampleContext interface {
 	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
 	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
 	// should be appended to the metricBuffer.
-	GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator)
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator)
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
@@ -107,7 +107,7 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator) {
+func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
 	metricBuffer.Append(m.Tags...)
 	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
 }

@@ -7,8 +7,9 @@ package encoding
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/proto"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeProtobuf holds the HTML content-type of a Protobuf payload

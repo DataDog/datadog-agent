@@ -164,6 +164,12 @@ func (jc *JoinsConfig) setupGetAllLabels() {
 	}
 }
 
+var labelRegexp *regexp.Regexp
+
+func init() {
+	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
+}
+
 func init() {
 	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
@@ -172,12 +178,7 @@ func init() {
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
 	k.BuildID(config, initConfig)
 
-	err := k.CommonConfigure(config, source)
-	if err != nil {
-		return err
-	}
-
-	err = k.CommonConfigure(initConfig, source)
+	err := k.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -553,7 +554,7 @@ func (k *KSMCheck) processLabelsAsTags() {
 	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
 		labels := make([]string, 0, len(labelsMapper))
 		for label, tag := range labelsMapper {
-			label = "label_" + label
+			label = "label_" + labelRegexp.ReplaceAllString(label, "_")
 			if _, ok := k.instance.LabelsMapper[label]; !ok {
 				k.instance.LabelsMapper[label] = tag
 			}

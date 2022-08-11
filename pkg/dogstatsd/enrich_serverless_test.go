@@ -12,9 +12,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertParseDistributionServerless(t *testing.T) {

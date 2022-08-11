@@ -724,6 +724,10 @@ CWS logs have the following JSON schema:
                 "is_thread": {
                     "type": "boolean",
                     "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+                },
+                "is_kworker": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is a kworker"
                 }
             },
             "additionalProperties": false,
@@ -832,6 +836,10 @@ CWS logs have the following JSON schema:
                 "is_thread": {
                     "type": "boolean",
                     "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+                },
+                "is_kworker": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is a kworker"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -2185,6 +2193,10 @@ CWS logs have the following JSON schema:
         "is_thread": {
             "type": "boolean",
             "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
+        "is_kworker": {
+            "type": "boolean",
+            "description": "Indicates whether the process is a kworker"
         }
     },
     "additionalProperties": false,
@@ -2222,6 +2234,7 @@ CWS logs have the following JSON schema:
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| `is_kworker` | Indicates whether the process is a kworker |
 
 | References |
 | ---------- |
@@ -2332,6 +2345,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
         },
+        "is_kworker": {
+            "type": "boolean",
+            "description": "Indicates whether the process is a kworker"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -2379,6 +2396,7 @@ CWS logs have the following JSON schema:
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| `is_kworker` | Indicates whether the process is a kworker |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 

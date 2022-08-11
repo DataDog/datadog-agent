@@ -7,12 +7,12 @@ package service
 
 import (
 	"encoding/json"
-	"fmt"
+
+	"github.com/Masterminds/semver"
+	"github.com/theupdateframework/go-tuf/data"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/Masterminds/semver"
-	"github.com/theupdateframework/go-tuf/data"
 )
 
 // DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228
@@ -78,26 +78,29 @@ func parsePredicates(customJSON *json.RawMessage) (*pbgo.TracerPredicates, error
 
 func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1) (bool, error) {
 	for _, predicate := range predicates {
+		if predicate.ClientID != "" && client.Id != predicate.ClientID {
+			continue
+		}
 		if client.IsTracer {
 			tracer := client.ClientTracer
 			if predicate.RuntimeID != "" && tracer.RuntimeId != predicate.RuntimeID {
-				return false, nil
+				continue
 			}
 
 			if predicate.Service != "" && tracer.Service != predicate.Service {
-				return false, nil
+				continue
 			}
 
 			if predicate.Environment != "" && tracer.Env != predicate.Environment {
-				return false, nil
+				continue
 			}
 
 			if predicate.Language != "" && tracer.Language != predicate.Language {
-				return false, nil
+				continue
 			}
 
 			if predicate.AppVersion != "" && tracer.AppVersion != predicate.AppVersion {
-				return false, nil
+				continue
 			}
 
 			if predicate.TracerVersion != "" {
@@ -111,15 +114,14 @@ func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1)
 				}
 
 				matched, errs := versionConstraint.Validate(version)
-				if len(errs) != 0 {
-					return false, fmt.Errorf("errors: %s", errs)
-				}
+				// We don't return on error here, it's simply the version not matching
 				if !matched || len(errs) > 0 {
-					return false, nil
+					continue
 				}
 			}
 		}
+		return true, nil
 	}
 
-	return true, nil
+	return false, nil
 }

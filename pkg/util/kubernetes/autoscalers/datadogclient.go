@@ -14,10 +14,11 @@ import (
 	"os"
 	"time"
 
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 const (

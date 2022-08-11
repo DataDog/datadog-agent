@@ -6,9 +6,11 @@
 package goflowlib
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 func TestStartFlowRoutine_invalidType(t *testing.T) {
