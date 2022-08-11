@@ -316,17 +316,18 @@ func which(tb testing.TB, name string) string {
 }
 
 //nolint:deadcode,unused
-func whichNoFail(tb testing.TB, name string) string {
+// whichNotFatal returns an error instead of fatal
+func whichNotFatal(tb testing.TB, name string) (string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		tb.Logf("couldn't resolve %s: %v", name, err)
+		return "", fmt.Errorf("couldn't resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
-		return dest
+		return dest, nil
 	}
 
-	return executable
+	return executable, nil
 }
 
 //nolint:deadcode,unused

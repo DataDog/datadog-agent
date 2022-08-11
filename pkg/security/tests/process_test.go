@@ -1527,9 +1527,9 @@ func TestProcessBusybox(t *testing.T) {
 }
 
 func TestProcessIdentifyInterpreter(t *testing.T) {
-	python := whichNoFail(t, "python")
-	if python == "" {
-		python = whichNoFail(t, "python3")
+	python, whichPythonErr := whichNotFatal(t, "python")
+	if whichPythonErr != nil {
+		python = which(t, "python3")
 	}
 	perl := which(t, "perl")
 
