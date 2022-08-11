@@ -122,7 +122,7 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 			agg.lastSeqNum[deviceId] = flow.SequenceNum
 			agg.lastCount[deviceId] = 1
 		} else {
-			log.Warnf("Sequence Error: Prev: %d, New: %d, LastCount: %d Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, lastCount, distance, distance-1)
+			log.Warnf("Sequence Error for %s: Prev: %d, New: %d, LastCount: %d Distance: %d, Dropped: %d", deviceId, prevSeqNum, flow.SequenceNum, lastCount, distance, distance-1)
 
 			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
 
