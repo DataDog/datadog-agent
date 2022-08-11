@@ -143,8 +143,6 @@ build do
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
-      # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-      "EXT_CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
@@ -164,6 +162,9 @@ build do
     if linux? || windows?
       nix_build_env["CFLAGS"] += " -std=c99"
     end
+
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    nix_build_env["EXT_CFLAGS"] = nix_build_env["CFLAGS"]
 
     #
     # Prepare the requirements file containing ALL the dependencies needed by
