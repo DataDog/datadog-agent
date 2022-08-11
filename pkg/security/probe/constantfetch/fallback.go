@@ -680,7 +680,7 @@ func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) b
 }
 
 func getBinPrmFileOffset(kv *kernel.Version) uint64 {
-	if kv.IsRH7Kernel() {
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_5 {
 		return 168
 	}
 	return 64
