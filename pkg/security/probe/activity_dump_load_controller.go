@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -176,7 +177,7 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	// traced event types
 	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
 		evtType := model.EventType(i)
-		if err := lc.tracedEventTypesMap.Delete(evtType); err != nil && err != ebpf.ErrKeyNotExist {
+		if err := lc.tracedEventTypesMap.Delete(evtType); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			return fmt.Errorf("failed to delete old traced event type: %w", err)
 		}
 	}
