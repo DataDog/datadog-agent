@@ -1097,14 +1097,14 @@ def setup_runtime_clang(ctx):
     if not is_root():
         ctx.sudo(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
         ctx.sudo("chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
-    
+
         llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
         ctx.sudo(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
         ctx.sudo("chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
     else:
         ctx.run(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
         ctx.run("chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
-    
+
         llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
         ctx.run(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
         ctx.run("chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
