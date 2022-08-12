@@ -223,6 +223,7 @@ int kprobe__d_path(struct pt_regs* ctx) {
 
 /* The following hooks are used to track the lifecycle of the process */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
 // The audit context is used by the audit subsystem of the kernel
 // It is set per task on every syscall entry in the sysenter tracepoint
 // We use in_syscall field to filter for events originating from userspace.
@@ -230,10 +231,16 @@ struct audit_context {
     int dummy;
     int in_syscall;
 };
+#endif
 
-static __always_inline int is_syscall_ctx(struct task_struct *tsk) {
+static __always_inline int is_syscall_ctx() {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
+    return 1;
+#else
     int in_syscall;
     struct audit_context* actx;
+
+    struct task_struct* tsk = (struct task_struct *)bpf_get_current_task();
 
     KERNEL_READ_FAIL(&actx, sizeof(struct audit_context *), &tsk->audit_context);
     if (!actx)
@@ -241,8 +248,8 @@ static __always_inline int is_syscall_ctx(struct task_struct *tsk) {
 
     KERNEL_READ_FAIL(&in_syscall, sizeof(int), &actx->in_syscall);
     return in_syscall;
+#endif
 }
-
 
 SEC("kprobe/security_sk_alloc")
 int kprobe__security_sk_alloc(struct pt_regs *ctx) {
@@ -250,15 +257,11 @@ int kprobe__security_sk_alloc(struct pt_regs *ctx) {
     if (!sk)
         return 0;
 
-    struct task_struct *tsk = (struct task_struct *)bpf_get_current_task();
-    if (tsk == NULL)
+    if (!is_syscall_ctx())
         return 0;
 
     int family = PT_REGS_PARM2(ctx);
     if (!((family == AF_INET) || (family == AF_INET6)))
-        return 0;
-
-    if (!is_syscall_ctx(tsk))
         return 0;
 
     u64 tgid = bpf_get_current_pid_tgid() >> 32;
@@ -273,12 +276,9 @@ int kprobe__security_sk_clone(struct pt_regs *ctx) {
     if (sk == NULL)
         return 0;
 
-    struct task_struct *tsk = (struct task_struct *)bpf_get_current_task();
-    if (tsk == NULL)
+    if (!is_syscall_ctx())
         return 0;
 
-    if (!is_syscall_ctx(tsk))
-        return 0;
 
     u64 tgid = bpf_get_current_pid_tgid() >> 32;
 
