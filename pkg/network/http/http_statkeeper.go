@@ -51,7 +51,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
 	for i := range transactions {
-		tx := &transactions[i]
+		tx := transactions[i]
 		if tx.Incomplete() {
 			h.incomplete.Add(tx)
 			continue
@@ -78,7 +78,7 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx *httpTX) {
+func (h *httpStatKeeper) add(tx httpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Inc()
@@ -90,7 +90,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 		return
 	}
 
-	if Method(tx.request_method) == MethodUnknown {
+	if Method(tx.RequestMethod()) == MethodUnknown {
 		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -121,7 +121,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
+func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
 		KeyTuple: KeyTuple{
 			SrcIPHigh: tx.SrcIPHigh(),
@@ -148,7 +148,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {

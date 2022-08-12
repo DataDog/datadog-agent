@@ -49,14 +49,14 @@ type incompleteBuffer struct {
 }
 
 type txParts struct {
-	requests  []*httpTX
-	responses []*httpTX
+	requests  []httpTX
+	responses []httpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]*httpTX, 0, 5),
-		responses: make([]*httpTX, 0, 5),
+		requests:  make([]httpTX, 0, 5),
+		responses: make([]httpTX, 0, 5),
 	}
 }
 
@@ -69,11 +69,11 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 	}
 }
 
-func (b *incompleteBuffer) Add(tx *httpTX) {
+func (b *incompleteBuffer) Add(tx httpTX) {
 	key := KeyTuple{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
+		SrcIPHigh: uint64(tx.SrcIPHigh()),
+		SrcIPLow:  uint64(tx.SrcIPLow()),
+		SrcPort:   uint16(tx.SrcPort()),
 	}
 
 	parts, ok := b.data[key]
@@ -94,9 +94,9 @@ func (b *incompleteBuffer) Add(tx *httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 	var (
-		joined   []*httpTX
+		joined   []httpTX
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
@@ -113,14 +113,14 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 		for i < len(parts.requests) && j < len(parts.responses) {
 			request := parts.requests[i]
 			response := parts.responses[j]
-			if request.request_started > response.response_last_seen {
+			if request.RequestStarted() > response.ResponseLastSeen() {
 				j++
 				continue
 			}
 
 			// Merge response into request
-			request.response_status_code = response.response_status_code
-			request.response_last_seen = response.response_last_seen
+			request.SetStatusCode(response.StatusCode())
+			request.SetResponseLastSeen(response.ResponseLastSeen())
 			joined = append(joined, request)
 			i++
 			j++
@@ -143,21 +143,21 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx *httpTX, now int64) bool {
-	then := int64(tx.request_started)
+func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
+	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []*httpTX
+type byRequestTime []httpTX
 
 func (rt byRequestTime) Len() int           { return len(rt) }
 func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
-func (rt byRequestTime) Less(i, j int) bool { return rt[i].request_started < rt[j].request_started }
+func (rt byRequestTime) Less(i, j int) bool { return rt[i].RequestStarted() < rt[j].RequestStarted() }
 
-type byResponseTime []*httpTX
+type byResponseTime []httpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byResponseTime) Less(i, j int) bool {
-	return rt[i].response_last_seen < rt[j].response_last_seen
+	return rt[i].ResponseLastSeen() < rt[j].ResponseLastSeen()
 }

@@ -265,11 +265,11 @@ func (e *ebpfProgram) setupMapCleaner() {
 			return false
 		}
 
-		if updated := int64(httpTX.response_last_seen); updated > 0 {
+		if updated := int64((*httpTX).ResponseLastSeen()); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTX.request_started)
+		started := int64((*httpTX).RequestStarted())
 		return started > 0 && (now-started) > ttl
 	})
 
