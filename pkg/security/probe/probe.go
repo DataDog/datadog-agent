@@ -474,7 +474,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		return
 	case model.CgroupTracingEventType:
-		if p.config.ActivityDumpEnabled {
+		if !p.config.ActivityDumpEnabled {
 			log.Error("shouldn't receive Cgroup event if activity dumps are disabled")
 			return
 		}
