@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/etw"
@@ -22,25 +23,6 @@ import (
 
 const HTTPBufferSize = driver.HttpBufferSize
 const HTTPBatchSize = driver.HttpBatchSize
-
-type httpTX interface {
-	ReqFragment() []byte
-	StatusClass() int
-	RequestLatency() float64
-	isIPV4() bool
-	SrcIPLow() uint64
-	SrcIPHigh() uint64
-	SrcPort() uint16
-	DstIPLow() uint64
-	DstIPHigh() uint64
-	DstPort() uint16
-	Method() Method
-	StatusCode() uint16
-	StaticTags() uint64
-	DynamicTags() []string
-	String() string
-	Incomplete() bool
-}
 
 type etwHttpTX struct {
 	//	httpTX
@@ -175,6 +157,51 @@ func (tx *FullHttpTransaction) Incomplete() bool {
 	return false
 }
 
+func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.RequestFragment))
+
+	// b might contain a null terminator in the middle
+	bLen := strlen(b[:])
+
+	var i, j int
+	for i = 0; i < bLen && b[i] != ' '; i++ {
+	}
+
+	i++
+
+	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+		return nil, false
+	}
+
+	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
+	}
+
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	return buffer[:n], fullPath
+
+}
+func (tx *FullHttpTransaction) SetStatusCode(code uint16) {
+	tx.Txn.ResponseStatusCode = code
+}
+
+func (tx *FullHttpTransaction) ResponseLastSeen() uint64 {
+	return tx.Txn.ResponseLastSeen
+}
+
+func (tx *FullHttpTransaction) SetResponseLastSeen(ls uint64) {
+	tx.Txn.ResponseLastSeen = ls
+}
+
+func (tx *FullHttpTransaction) RequestStarted() uint64 {
+	return tx.Txn.RequestStarted
+}
+
+func (tx *FullHttpTransaction) RequestMethod() uint32 {
+	return tx.Txn.RequestMethod
+}
+
 // --------------------------
 //
 // etwHttpTX interface
@@ -251,6 +278,52 @@ func (tx *etwHttpTX) String() string {
 // Incomplete transactions does not apply to windows
 func (tx *etwHttpTX) Incomplete() bool {
 	return false
+}
+
+func (tx *etwHttpTX) Path(buffer []byte) ([]byte, bool) {
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.RequestFragment))
+
+	// b might contain a null terminator in the middle
+	bLen := strlen(b[:])
+
+	var i, j int
+	for i = 0; i < bLen && b[i] != ' '; i++ {
+	}
+
+	i++
+
+	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+		return nil, false
+	}
+
+	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
+	}
+
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, b[i:j])
+	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	return buffer[:n], fullPath
+
+}
+
+func (tx *etwHttpTX) SetStatusCode(code uint16) {
+	tx.Txn.ResponseStatusCode = code
+}
+
+func (tx *etwHttpTX) ResponseLastSeen() uint64 {
+	return tx.Txn.ResponseLastSeen
+}
+
+func (tx *etwHttpTX) SetResponseLastSeen(ls uint64) {
+	tx.Txn.ResponseLastSeen = ls
+}
+
+func (tx *etwHttpTX) RequestStarted() uint64 {
+	return tx.Txn.RequestStarted
+}
+
+func (tx *etwHttpTX) RequestMethod() uint32 {
+	return tx.Txn.RequestMethod
 }
 
 // below is copied from pkg/trace/stats/statsraw.go

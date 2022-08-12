@@ -23,4 +23,4 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 }
 
 func (b *incompleteBuffer) Add(tx httpTX)                 {}
-func (b *incompleteBuffer) Flush(now time.Time) []*httpTX { return nil }
+func (b *incompleteBuffer) Flush(now time.Time) []httpTX { return nil }
