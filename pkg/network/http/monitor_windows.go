@@ -73,7 +73,11 @@ func (m *DriverMonitor) Start() {
 				if !ok {
 					return
 				}
-				m.process(transactionBatch)
+				// dbtodo
+				// the linux side has an error code potentially, that
+				// gets aggregated under the hood.  Do we need somthing
+				// analogous
+				m.process(transactionBatch, nil)
 			}
 		}
 	}()
@@ -81,16 +85,17 @@ func (m *DriverMonitor) Start() {
 	return
 }
 
-func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction) {
+func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction, err error) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = &transactionBatch[i]
 
-		m.telemetry.aggregate(transactions[i])
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
+
+	m.telemetry.aggregate(transactions, err)
 
 	m.statkeeper.Process(transactions)
 }

@@ -57,25 +57,28 @@ func (m *EtwMonitor) Start() {
 				if !ok {
 					return
 				}
+				// dbtodo
+				// the linux side has an error code potentially, that
+				// gets aggregated under the hood.  Do we need somthing
+				// analogous
 				if len(transactions) > 0 {
-					m.process(transactions)
+					m.process(transactions, nil)
 				}
 			}
 		}
 	}()
 }
 
-func (m *EtwMonitor) process(transactionBatch []etw.Http) {
+func (m *EtwMonitor) process(transactionBatch []etw.Http, err error) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = &etwHttpTX{Http: &transactionBatch[i]}
-
-		m.telemetry.aggregate(transactions[i])
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
+	m.telemetry.aggregate(transactions, err)
 	m.statkeeper.Process(transactions)
 }
 
@@ -101,7 +104,9 @@ func (m *EtwMonitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	m.process(transactions)
+	// dbtodo
+	// also could there be a relevant error here
+	m.process(transactions, nil)
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
