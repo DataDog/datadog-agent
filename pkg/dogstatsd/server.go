@@ -161,7 +161,7 @@ type Server struct {
 	disableVerboseLogs bool
 
 	// cachedTlmLock must be held when accessing cachedTlmOriginIds and cachedOrder
-	cachedTlmLock      sync.Mutex
+	cachedTlmLock sync.Mutex
 	// cachedTlmOriginIds stores per-origin metric parse stats
 	// (when dogstatsd debugging is enabled)
 	cachedTlmOriginIds map[string]cachedTagsOriginMap
