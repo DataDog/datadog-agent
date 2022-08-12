@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 
@@ -67,16 +68,52 @@ var (
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 )
 
-func startHTTPServerNewProcess() (uint32, func(), error) {
+func startHTTPServerNewProcess() (int32, func(), error) {
 	pid, err := syscall.ForkExec("/usr/bin/env", []string{"/usr/bin/env", "python3", "-m", "http.server", "8888"}, nil)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return uint32(pid), func() {
+	return int32(pid), func() {
 		_ = syscall.Kill(pid, syscall.SIGKILL)
 	}, nil
 
+}
+
+func TestPidMapping(t *testing.T) {
+	cfg := config.New()
+	cfg.EnableRuntimeCompiler = true
+	cfg.MaxTrackedConnections = 1024
+
+	sockPidMap, err := initializeSockToPidMap(t, cfg)
+	require.NoError(t, err)
+
+	pidMapper, err := NewPidMapper(cfg, sockPidMap)
+	require.NoError(t, err)
+	defer pidMapper.Stop()
+
+	serverPid, serverDone, err := startHTTPServerNewProcess()
+	require.NoError(t, err)
+	defer serverDone()
+	t.Logf("server pid: %d\n", serverPid)
+
+	time.Sleep(2 * time.Second)
+
+	var sock uint64
+	var pid int32
+	iter := sockPidMap.Iterate()
+
+	present := false
+	for iter.Next(unsafe.Pointer(&sock), unsafe.Pointer(&pid)) {
+		t.Logf("%d -> %d\n", sock, pid)
+		if pid != serverPid {
+			continue
+		}
+
+		present = true
+	}
+
+	assert.True(t, present)
 }
 
 func TestPidMapperInitializor(t *testing.T) {
@@ -85,6 +122,7 @@ func TestPidMapperInitializor(t *testing.T) {
 	defer serverDone()
 
 	t.Logf("server pid: %d\n", serverPid)
+	time.Sleep(2 * time.Second)
 
 	cfg := config.New()
 	cfg.EnableRuntimeCompiler = true
@@ -105,7 +143,7 @@ func TestPidMapperInitializor(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, ok)
 
-	var pid uint32
+	var pid int32
 	checked := false
 	for _, inode := range inodes {
 		err = cmap.Lookup(inode, &pid)
@@ -127,7 +165,7 @@ func TestPidMapperInitializor(t *testing.T) {
 	assert.True(t, checked)
 }
 
-func validateInodePidMapping(validateInode uint64, pid uint32) error {
+func validateInodePidMapping(validateInode uint64, pid int32) error {
 	procRoot := util.HostProc()
 	fdpath := filepath.Join(procRoot, fmt.Sprintf("%d", pid), "fd")
 
