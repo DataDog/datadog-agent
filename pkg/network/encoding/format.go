@@ -239,7 +239,7 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamic
 	}
 
 	// Dynamic tags
-	for tag, _ := range connDynamicTags {
+	for tag := range connDynamicTags {
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
 

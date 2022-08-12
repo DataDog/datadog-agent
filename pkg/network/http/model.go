@@ -89,6 +89,10 @@ func (tx *httpTX) Incomplete() bool {
 	return tx.request_started == 0 || tx.response_status_code == 0
 }
 
+func (tx *httpTX) ReqFragment() []byte {
+	asslice := (*[1 << 30]byte)(unsafe.Pointer(&tx.request_fragment))[:int(C.HTTP_BUFFER_SIZE):int(C.HTTP_BUFFER_SIZE)]
+	return asslice
+}
 
 func (tx *httpTX) SrcIPHigh() uint64 {
 	return uint64(tx.tup.saddr_h)
@@ -169,12 +173,3 @@ func nsTimestampToFloat(ns uint64) float64 {
 	return float64(ns << shift)
 }
 
-// strlen returns the length of a null-terminated string
-func strlen(str []byte) int {
-	for i := 0; i < len(str); i++ {
-		if str[i] == 0 {
-			return i
-		}
-	}
-	return len(str)
-}
