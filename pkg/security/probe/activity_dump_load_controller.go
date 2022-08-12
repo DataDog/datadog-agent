@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,13 +21,18 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/avast/retry-go"
 	"github.com/cilium/ebpf"
+	"golang.org/x/time/rate"
 )
 
 // ActivityDumpLCConfig represents the dynamic configuration managed by the load controller
 type ActivityDumpLCConfig struct {
+	// dynamic
 	tracedEventTypes   []model.EventType
 	tracedCgroupsCount uint64
 	dumpTimeout        time.Duration
+
+	// static
+	cgroupWaitListSize int
 }
 
 // NewActivityDumpLCConfig returns a new dynamic config from user config
@@ -40,6 +46,8 @@ func NewActivityDumpLCConfig(cfg *config.Config) *ActivityDumpLCConfig {
 		tracedEventTypes:   cfg.ActivityDumpTracedEventTypes,
 		tracedCgroupsCount: tracedCgroupsCount,
 		dumpTimeout:        cfg.ActivityDumpCgroupDumpTimeout,
+
+		cgroupWaitListSize: cfg.ActivityDumpCgroupWaitListSize,
 	}
 }
 
@@ -84,6 +92,8 @@ func (lcCfg *ActivityDumpLCConfig) reduced() *ActivityDumpLCConfig {
 
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
+	rateLimiter *rate.Limiter
+
 	originalConfig *ActivityDumpLCConfig
 	currentConfig  *ActivityDumpLCConfig
 
@@ -127,8 +137,13 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager) (*A
 		return nil, fmt.Errorf("couldn't find ad_dump_timeout map")
 	}
 
+	lcConfig := NewActivityDumpLCConfig(cfg)
+
 	return &ActivityDumpLoadController{
-		originalConfig: NewActivityDumpLCConfig(cfg),
+		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
+		rateLimiter: rate.NewLimiter(rate.Every(lcConfig.dumpTimeout), 1),
+
+		originalConfig: lcConfig,
 
 		tracedEventTypesMap:     tracedEventTypesMap,
 		tracedCgroupsCounterMap: tracedCgroupsCounterMap,
@@ -144,10 +159,20 @@ func (lc *ActivityDumpLoadController) getCurrentConfig() *ActivityDumpLCConfig {
 	return lc.originalConfig
 }
 
-func (lc *ActivityDumpLoadController) reduceConfig() {
-	lcCfg := lc.getCurrentConfig()
-	newCfg := lcCfg.reduced()
-	lc.currentConfig = newCfg
+func (lc *ActivityDumpLoadController) reduceConfig() bool {
+	if lc.rateLimiter.Allow() {
+		lcCfg := lc.getCurrentConfig()
+		newCfg := lcCfg.reduced()
+		lc.currentConfig = newCfg
+
+		if err := lc.propagateLoadSettings(); err != nil {
+			log.Errorf("failed to propagate activity dump load controller settings: %v", err)
+		}
+
+		lc.rateLimiter.SetLimit(rate.Every(newCfg.dumpTimeout))
+		return true
+	}
+	return false
 }
 
 func (lc *ActivityDumpLoadController) propagateLoadSettings() error {
@@ -158,6 +183,13 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	lcConfig := lc.getCurrentConfig()
 
 	// traced event types
+	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
+		evtType := model.EventType(i)
+		if err := lc.tracedEventTypesMap.Delete(evtType); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			return fmt.Errorf("failed to delete old traced event type: %w", err)
+		}
+	}
+
 	isTraced := uint64(1)
 	for _, evtType := range lcConfig.tracedEventTypes {
 		if err := lc.tracedEventTypesMap.Put(evtType, isTraced); err != nil {
@@ -193,4 +225,9 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	}
 
 	return nil
+}
+
+func (lc *ActivityDumpLoadController) getCgroupWaitTimeout() time.Duration {
+	lcCfg := lc.getCurrentConfig()
+	return lcCfg.dumpTimeout * time.Duration(lcCfg.cgroupWaitListSize)
 }
