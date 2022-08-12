@@ -103,7 +103,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer llcCancel()
 
-	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
+	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-mcpu=probe", "-filetype=obj", "-o", outputFile, "-")
 	bcToObj.Stdin = &clangOut
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr
