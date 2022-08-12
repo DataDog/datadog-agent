@@ -26,7 +26,7 @@ struct bpf_map_def SEC("maps/save_pid") save_pid = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(int),
-    .max_entries = 1,
+    .max_entries = 0, 
     .pinning = 0,
     .namespace = "",
 };

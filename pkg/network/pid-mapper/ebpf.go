@@ -16,6 +16,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/iovisor/gobpf/pkg/cpupossible"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -79,6 +81,10 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 }
 
 func (e *ebpfProgram) Init(cfg *config.Config, sockToPidMap *ebpf.Map) error {
+	cpus, err := cpupossible.Get()
+	if err != nil {
+		return err
+	}
 	defer e.bytecode.Close()
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
@@ -87,6 +93,7 @@ func (e *ebpfProgram) Init(cfg *config.Config, sockToPidMap *ebpf.Map) error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			inodePidMap: {Type: ebpf.Hash, MaxEntries: uint32(cfg.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			savePid:     {Type: ebpf.Hash, MaxEntries: uint32(len(cpus)), EditorFlag: manager.EditMaxEntries},
 		},
 		MapEditors: map[string]*ebpf.Map{
 			string(probes.SockToPidMap): sockToPidMap,
