@@ -108,7 +108,7 @@ if node['platform_family'] != 'windows'
 
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM centos:7
+      FROM public.ecr.aws/docker/library/centos:centos7
 
       ENV DOCKER_DD_AGENT=yes
 
