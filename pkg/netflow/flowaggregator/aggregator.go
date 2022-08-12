@@ -96,6 +96,7 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 	tags := []string{
 		"snmp_device:" + deviceAddr,
 		"namespace:" + flow.Namespace,
+		"flow_type:" + string(flow.FlowType),
 	}
 
 	if flow.FlowType == common.TypeNetFlow5 {
@@ -145,7 +146,7 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 		// TODO: Handle overflow
 
 		if distance > 1 {
-			log.Warnf("Sequence Error: Prev: %d, New: %d, Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, distance, distance-1)
+			log.Debugf("Sequence Error: Prev: %d, New: %d, Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, distance, distance-1)
 
 			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
 

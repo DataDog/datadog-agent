@@ -217,8 +217,13 @@ func TestFlowAggregator_sequenceNumberCheck_netflow9(t *testing.T) {
 	flow.SequenceNum = 15
 	aggregator.handleSequenceCheck(flow)
 	assert.Equal(t, uint32(15), aggregator.lastSeqNum[flowKey])
-	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence_errors", 1, "", nil)
-	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.dropped_flow_packets", 3, "", nil)
+	tags := []string{
+		"snmp_device:127.0.0.1",
+		"namespace:my-ns",
+		"flow_type:netflow9",
+	}
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence_errors", 1, "", tags)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.dropped_flow_packets", 3, "", tags)
 }
 
 func TestFlowAggregator_sequenceNumberCheck_netflow5(t *testing.T) {
@@ -281,6 +286,11 @@ func TestFlowAggregator_sequenceNumberCheck_netflow5(t *testing.T) {
 	aggregator.handleSequenceCheck(flow)
 	assert.Equal(t, uint32(16), aggregator.lastSeqNum[flowKey])
 	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
-	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence_errors", 1, "", nil)
-	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.dropped_flows", 2, "", nil)
+	tags := []string{
+		"snmp_device:127.0.0.1",
+		"namespace:my-ns",
+		"flow_type:netflow5",
+	}
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence_errors", 1, "", tags)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.dropped_flows", 2, "", tags)
 }
