@@ -26,7 +26,7 @@ type readerV1 struct {
 	pidMapper   pidMapper
 }
 
-func newReaderV1(procPath string, mountPoints map[string]string, baseController string, filter ReaderFilter) (*readerV1, error) {
+func newReaderV1(procPath string, mountPoints map[string]string, baseController string, filter ReaderFilter, l Logger) (*readerV1, error) {
 	if baseController == "" {
 		baseController = defaultBaseController
 	}
@@ -36,7 +36,7 @@ func newReaderV1(procPath string, mountPoints map[string]string, baseController 
 			mountPoints: mountPoints,
 			cgroupRoot:  path,
 			filter:      filter,
-			pidMapper:   getPidMapper(procPath, path, baseController, filter),
+			pidMapper:   getPidMapper(procPath, path, baseController, filter, l),
 		}, nil
 	}
 

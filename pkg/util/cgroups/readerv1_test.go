@@ -17,6 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testLogger struct{}
+
+func (t testLogger) Warnf(format string, args ...interface{})  {}
+func (t testLogger) Debugf(format string, args ...interface{}) {}
+
 func TestReaderV1(t *testing.T) {
 	fakeFsPath := t.TempDir()
 	paths := []string{
@@ -41,7 +46,7 @@ func TestReaderV1(t *testing.T) {
 		defaultBaseController: filepath.Join(fakeFsPath, defaultBaseController),
 	}
 
-	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, ContainerFilter)
+	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, ContainerFilter, testLogger{})
 	r.pidMapper = nil
 	assert.NoError(t, err)
 	assert.NotNil(t, r)

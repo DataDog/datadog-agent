@@ -28,7 +28,7 @@ type readerV2 struct {
 	pidMapper         pidMapper
 }
 
-func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
+func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter, l Logger) (*readerV2, error) {
 	controllers, err := readCgroupControllers(cgroupRoot)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, e
 		cgroupRoot:        cgroupRoot,
 		cgroupControllers: controllers,
 		filter:            filter,
-		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter),
+		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter, l),
 	}, nil
 }
 

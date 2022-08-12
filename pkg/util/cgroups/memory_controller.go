@@ -10,13 +10,9 @@ package cgroups
 
 import (
 	"fmt"
-	"path/filepath"
 	"syscall"
 
 	"github.com/containerd/cgroups"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxEpollEvents = 4
@@ -64,11 +60,6 @@ type hostSubsystem struct {
 	cgroups.Subsystem
 }
 
-func (h *hostSubsystem) Path(path string) string {
-	cgroupRoot := config.Datadog.GetString("container_cgroup_root")
-	return filepath.Join(cgroupRoot, string(h.Name()), path)
-}
-
 func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
 	return func() ([]cgroups.Subsystem, error) {
 		subsystems, err := hierarchy()
@@ -87,7 +78,7 @@ func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
 }
 
 // NewMemoryController creates a new systemd cgroup based memory controller
-func NewMemoryController(kind string, monitors ...MemoryMonitor) (*MemoryController, error) {
+func NewMemoryController(kind string, containerized bool, monitors ...MemoryMonitor) (*MemoryController, error) {
 	path := cgroups.NestedPath("")
 
 	var cgroupHierarchy cgroups.Hierarchy
@@ -100,7 +91,7 @@ func NewMemoryController(kind string, monitors ...MemoryMonitor) (*MemoryControl
 		return nil, fmt.Errorf("unsupported cgroup hierarchy '%s'", kind)
 	}
 
-	if config.IsContainerized() {
+	if containerized {
 		cgroupHierarchy = hostHierarchy(cgroupHierarchy)
 	}
 
@@ -147,8 +138,15 @@ func NewMemoryController(kind string, monitors ...MemoryMonitor) (*MemoryControl
 	return mc, nil
 }
 
+// A Logger is responsible for writing log entries.
+// Most probably, this is a pkg/util/log Logger.
+type Logger interface {
+	Warnf(format string, args ...interface{})
+	Debugf(format string, args ...interface{})
+}
+
 // Start listening for events
-func (mc *MemoryController) Start() {
+func (mc *MemoryController) Start(l Logger) {
 	go func() {
 		var buf [256]byte
 		var events [maxEpollEvents]syscall.EpollEvent
@@ -157,7 +155,7 @@ func (mc *MemoryController) Start() {
 		for {
 			nevents, err := syscall.EpollWait(mc.efd, events[:], -1)
 			if err != nil {
-				log.Warnf("Error while waiting for memory controller events: %v", err)
+				l.Warnf("Error while waiting for memory controller events: %v", err)
 				break
 			}
 
@@ -165,7 +163,7 @@ func (mc *MemoryController) Start() {
 				fd := int(events[ev].Fd)
 
 				if _, err := syscall.Read(fd, buf[:]); err != nil {
-					log.Warnf("Error while reading memory controller event: %v", err)
+					l.Warnf("Error while reading memory controller event: %v", err)
 					continue EPOLLWAIT
 				}
 

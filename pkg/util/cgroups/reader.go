@@ -104,19 +104,19 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 }
 
 // NewReader returns a new cgroup reader with given options
-func NewReader(opts ...ReaderOption) (*Reader, error) {
+func NewReader(l Logger, opts ...ReaderOption) (*Reader, error) {
 	r := &Reader{}
 	for _, opt := range opts {
 		opt(r)
 	}
 
-	if err := r.init(); err != nil {
+	if err := r.init(l); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-func (r *Reader) init() error {
+func (r *Reader) init(l Logger) error {
 	if r.procPath == "" {
 		r.procPath = filepath.Join(r.hostPrefix, "/proc")
 	}
@@ -133,14 +133,14 @@ func (r *Reader) init() error {
 	if isCgroup1(cgroupMounts) {
 		r.cgroupVersion = 1
 
-		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter)
+		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter, l)
 		if err != nil {
 			return err
 		}
 	} else if isCgroup2(cgroupMounts) {
 		r.cgroupVersion = 2
 
-		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter)
+		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter, l)
 		if err != nil {
 			return err
 		}

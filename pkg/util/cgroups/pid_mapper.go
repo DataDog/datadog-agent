@@ -9,14 +9,13 @@
 package cgroups
 
 import (
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 
 	"github.com/karrick/godirwalk"
 )
@@ -60,7 +59,7 @@ type pidMapper interface {
 }
 
 // cgroupRoot is cgroup base directory (like /host/sys/fs/cgroup/<baseController>)
-func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilter) pidMapper {
+func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilter, l Logger) pidMapper {
 	// Checking if we are in host pid. If that's the case `cgroup.procs` in any controller will contain PIDs
 	// In cgroupv2, the file contains 0 values, filtering for that
 	cgroupProcsTestFilePath := filepath.Join(cgroupRoot, cgroupProcsFile)
@@ -81,7 +80,7 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 			},
 		}
 	}
-	log.Debugf("cgroup.procs file at: %s is empty or unreadable, considering we're not running in host PID namespace, err: %v", cgroupProcsTestFilePath, err)
+	l.Debugf("cgroup.procs file at: %s is empty or unreadable, considering we're not running in host PID namespace, err: %v", cgroupProcsTestFilePath, err)
 
 	// Checking if we're in host cgroup namespace, other the method below cannot be used either
 	// (we'll still return it in case the cgroup namespace detection failed but log a warning)
@@ -89,22 +88,35 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 		procPath:         procPath,
 		cgroupController: baseController,
 		readerFilter:     filter,
+		l:                l,
 	}
 
 	// In cgroupv2, checking if we run in host cgroup namespace.
 	// If not we cannot fill PIDs for containers and do PID<>CID mapping.
 	if baseController == "" {
-		cgroupInode, err := system.GetProcessNamespaceInode("/proc", "self", "cgroup")
+		cgroupInode, err := GetProcessNamespaceInode("/proc", "self", "cgroup")
 		if err == nil {
-			if isHostNs := system.IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
-				log.Warnf("Usage of cgroupv2 detected but the Agent does not seem to run in host cgroup namespace. Make sure to run with --cgroupns=host, some feature may not work otherwise")
+			if isHostNs := IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
+				l.Warnf("Usage of cgroupv2 detected but the Agent does not seem to run in host cgroup namespace. Make sure to run with --cgroupns=host, some feature may not work otherwise")
 			}
 		} else {
-			log.Debugf("Unable to get self cgroup namespace inode, err: %v", err)
+			l.Debugf("Unable to get self cgroup namespace inode, err: %v", err)
 		}
 	}
 
 	return pidMapper
+}
+
+// GetProcessNamespaceInode performs a stat() call on /proc/<pid>/ns/<namespace>
+func GetProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
+	nsPath := filepath.Join(procPath, pid, "ns", namespace)
+	fi, err := os.Stat(nsPath)
+	if err != nil {
+		return 0, err
+	}
+
+	// We are on linux, casting in safe
+	return fi.Sys().(*syscall.Stat_t).Ino, nil
 }
 
 // Mapper used if we are running in host PID namespace, faster.
@@ -142,7 +154,10 @@ type procPidMapper struct {
 	cgroupController  string
 	readerFilter      ReaderFilter
 	cgroupPidsMapping map[string][]int
+	l                 Logger
 }
+
+//var l Logger
 
 func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	if pm.refreshTimestamp.Add(cacheValidity).After(time.Now()) {
@@ -168,7 +183,7 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 
 			cgroupIdentifier, err := IdentiferFromCgroupReferences(pm.procPath, de.Name(), pm.cgroupController, pm.readerFilter)
 			if err != nil {
-				log.Debugf("Unable to parse cgroup file for pid: %s, err: %v", de.Name(), err)
+				pm.l.Debugf("Unable to parse cgroup file for pid: %s, err: %v", de.Name(), err)
 			}
 			if cgroupIdentifier != "" {
 				cgroupPidMapping[cgroupIdentifier] = append(cgroupPidMapping[cgroupIdentifier], int(pid))

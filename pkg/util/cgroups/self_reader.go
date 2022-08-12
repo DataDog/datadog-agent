@@ -58,13 +58,13 @@ func (f *selfReaderFilter) filter(path, name string) (string, error) {
 
 // NewSelfReader allows to get current process cgroup stats
 // selfProcPath should always be `/proc`, taken as parameter to allow unit testing
-func NewSelfReader(selfProcPath string, inContainer bool, opts ...ReaderOption) (*Reader, error) {
+func NewSelfReader(selfProcPath string, inContainer bool, l Logger, opts ...ReaderOption) (*Reader, error) {
 	selfFilter := selfReaderFilter{
 		procPath: selfProcPath,
 	}
 
 	opts = append(opts, WithReaderFilter(selfFilter.filter))
-	selfReader, err := NewReader(opts...)
+	selfReader, err := NewReader(l, opts...)
 	if err != nil {
 		return nil, err
 	}

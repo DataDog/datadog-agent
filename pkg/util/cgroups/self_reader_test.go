@@ -15,7 +15,7 @@ import (
 )
 
 func TestSelfReader(t *testing.T) {
-	selfReader, err := NewSelfReader("./testdata/self-reader", true)
+	selfReader, err := NewSelfReader("./testdata/self-reader", true, testLogger{})
 	assert.NoError(t, err)
 
 	assert.NotNil(t, selfReader.GetCgroup(SelfCgroupIdentifier))
