@@ -26,9 +26,13 @@ import (
 
 // ActivityDumpLCConfig represents the dynamic configuration managed by the load controller
 type ActivityDumpLCConfig struct {
+	// dynamic
 	tracedEventTypes   []model.EventType
 	tracedCgroupsCount uint64
 	dumpTimeout        time.Duration
+
+	// static
+	cgroupWaitListSize int
 }
 
 // NewActivityDumpLCConfig returns a new dynamic config from user config
@@ -42,6 +46,8 @@ func NewActivityDumpLCConfig(cfg *config.Config) *ActivityDumpLCConfig {
 		tracedEventTypes:   cfg.ActivityDumpTracedEventTypes,
 		tracedCgroupsCount: tracedCgroupsCount,
 		dumpTimeout:        cfg.ActivityDumpCgroupDumpTimeout,
+
+		cgroupWaitListSize: cfg.ActivityDumpCgroupWaitListSize,
 	}
 }
 
@@ -219,4 +225,9 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	}
 
 	return nil
+}
+
+func (lc *ActivityDumpLoadController) getCgroupWaitTimeout() time.Duration {
+	lcCfg := lc.getCurrentConfig()
+	return lcCfg.dumpTimeout * time.Duration(lcCfg.cgroupWaitListSize)
 }

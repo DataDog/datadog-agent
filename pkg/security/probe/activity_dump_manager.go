@@ -245,7 +245,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 		// put this container ID on the wait list so that we don't snapshot it again before a while
 		containerIDB := make([]byte, model.ContainerIDLen)
 		copy(containerIDB, newDump.DumpMetadata.ContainerID)
-		waitListTimeout := time.Now().Add(time.Duration(adm.probe.config.ActivityDumpCgroupWaitListSize) * adm.probe.config.ActivityDumpCgroupDumpTimeout)
+		waitListTimeout := time.Now().Add(adm.loadController.getCgroupWaitTimeout())
 		waitListTimeoutRaw := adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(waitListTimeout)
 		err := adm.cgroupWaitListMap.Put(containerIDB, waitListTimeoutRaw)
 		if err != nil {
