@@ -31,8 +31,19 @@ func NewPidMapper(c *config.Config, sockToPid *ebpf.Map) (*PidMapper, error) {
 		return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 	}
 
-	if err := p.Start(); err != nil {
+	initializor, initializorDone, err := p.Start()
+	if err != nil {
 		return nil, err
+	}
+
+	if err := initializor(); err != nil {
+		p.Stop(manager.CleanInternal)
+		return nil, fmt.Errorf("error getting existing sock->pid mappings: %w", err)
+	}
+
+	if err := initializorDone(); err != nil {
+		p.Stop(manager.CleanInternal)
+		return nil, fmt.Errorf("error cleaning up after building existing mappings: %w", err)
 	}
 
 	return &PidMapper{

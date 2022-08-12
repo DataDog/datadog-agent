@@ -140,46 +140,49 @@ func initializeSymbolTableMap(symbolTableMap *ebpf.Map) error {
 	return nil
 }
 
-func (e *ebpfProgram) Start() (err error) {
+func (e *ebpfProgram) Start() (func() error, func() error, error) {
 	symTabMap, _, _ := e.GetMap(symbolTableMap)
-	err = initializeSymbolTableMap(symTabMap)
+	err := initializeSymbolTableMap(symTabMap)
 	if err != nil {
-		return fmt.Errorf("error starting pid mapper: %w", err)
+		return nil, nil, fmt.Errorf("error starting pid mapper: %w", err)
 	}
 
 	err = e.Manager.Start()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer func() {
+
+	initializor := func() error {
+		err := WalkProcFds(func(path string) error {
+			_, err := os.Readlink(path)
+			return err
+		})
 		if err != nil {
-			e.Manager.Stop(manager.CleanInternal)
+			return fmt.Errorf("error triggering sock->pid mapping: %w", err)
 		}
-	}()
 
-	err = WalkProcFds(func(path string) error {
-		_, err := os.Readlink(path)
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("error triggering sock->pid mapping: %w", err)
+		return nil
 	}
 
-	for _, probe := range e.Probes {
-		if _, ok := e.initializorProbes[probe.EBPFSection]; ok {
-			if stopErr := probe.Stop(); stopErr != nil {
-				return fmt.Errorf("could not stop initializor probe: %w", err)
+	initializorDone := func() error {
+		for _, probe := range e.Probes {
+			if _, ok := e.initializorProbes[probe.EBPFSection]; ok {
+				if stopErr := probe.Stop(); stopErr != nil {
+					return fmt.Errorf("could not stop initializor probe: %w", err)
+				}
 			}
 		}
-	}
 
-	for _, m := range e.Maps {
-		if _, ok := e.initializorMaps[m.Name]; ok {
-			if stopErr := m.Close(manager.CleanInternal); stopErr != nil {
-				return fmt.Errorf("could not close initializor map: %w", err)
+		for _, m := range e.Maps {
+			if _, ok := e.initializorMaps[m.Name]; ok {
+				if stopErr := m.Close(manager.CleanInternal); stopErr != nil {
+					return fmt.Errorf("could not close initializor map: %w", err)
+				}
 			}
 		}
+
+		return nil
 	}
 
-	return nil
+	return initializor, initializorDone, nil
 }
