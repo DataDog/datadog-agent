@@ -160,9 +160,10 @@ type Server struct {
 	// package (pkg/trace/logutils) for a possible throttler implemetation.
 	disableVerboseLogs bool
 
-	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
-	// to avoid escaping these in the heap in this hot path.
+	// cachedTlmLock must be held when accessing cachedTlmOriginIds and cachedOrder
 	cachedTlmLock      sync.Mutex
+	// cachedTlmOriginIds stores per-origin metric parse stats
+	// (when dogstatsd debugging is enabled)
 	cachedTlmOriginIds map[string]cachedTagsOriginMap
 	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
