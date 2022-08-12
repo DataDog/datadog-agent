@@ -95,7 +95,7 @@ type Probe struct {
 
 	// Approvers / discarders section
 	erpc                 *ERPC
-	discarderReq         *ERPCRequest
+	erpcRequest          *ERPCRequest
 	pidDiscarders        *pidDiscarders
 	inodeDiscarders      *inodeDiscarders
 	flushingDiscarders   *atomic.Bool
@@ -268,9 +268,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	if selectors, exists := probes.GetSelectorsPerEventType()["*"]; exists {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, selectors...)
-	}
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -292,9 +290,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver); err != nil {
-		return err
-	}
+	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -478,14 +474,17 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		return
 	case model.CgroupTracingEventType:
+		if !p.config.ActivityDumpEnabled {
+			log.Error("shouldn't receive Cgroup event if activity dumps are disabled")
+			return
+		}
+
 		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		if p.config.ActivityDumpEnabled {
-			p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
-		}
+		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
 	}
 
@@ -1150,10 +1149,10 @@ func (p *Probe) FlushDiscarders() error {
 	flushDiscarders := func() {
 		log.Debugf("Flushing discarders")
 
-		req := newDiscarderRequest()
+		var req ERPCRequest
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.expireInodeDiscarder(req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
+			if err := p.inodeDiscarders.expireInodeDiscarder(&req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
 				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -1164,8 +1163,8 @@ func (p *Probe) FlushDiscarders() error {
 		}
 
 		for _, pid := range discardedPids {
-			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
-				seclog.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
+			if err := p.pidDiscarders.expirePidDiscarder(&req, pid); err != nil {
+				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
 			discarderCount--
@@ -1360,7 +1359,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		ctx:                  ctx,
 		cancelFnc:            cancel,
 		erpc:                 erpc,
-		discarderReq:         newDiscarderRequest(),
+		erpcRequest:          &ERPCRequest{},
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
@@ -1473,7 +1472,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(areCGroupADsEnabled(p)),
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
