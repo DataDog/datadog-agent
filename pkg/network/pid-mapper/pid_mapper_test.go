@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -67,15 +67,24 @@ var (
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 )
 
-func startHTTPServer(t *testing.T) func() {
-	return testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-		EnableTLS: false,
-	})
+func startHTTPServerNewProcess() (uint32, func(), error) {
+	pid, err := syscall.ForkExec("/usr/bin/env", []string{"/usr/bin/env", "python3", "-m", "http.server", "8888"}, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return uint32(pid), func() {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}, nil
+
 }
 
-func TestPidMapper(t *testing.T) {
-	serverDone := startHTTPServer(t)
+func TestPidMapperInitializor(t *testing.T) {
+	serverPid, serverDone, err := startHTTPServerNewProcess()
+	require.NoError(t, err)
 	defer serverDone()
+
+	t.Logf("server pid: %d\n", serverPid)
 
 	cfg := config.New()
 	cfg.EnableRuntimeCompiler = true
@@ -90,19 +99,32 @@ func TestPidMapper(t *testing.T) {
 
 	inodes, err := getAllTCPInodes("/proc/net/tcp")
 	require.NoError(t, err)
+	t.Logf("tcp inodes: %v\n", inodes)
 
 	cmap, ok, err := pidMapper.ebpfProgram.GetMap(inodePidMap)
 	require.NoError(t, err)
 	assert.True(t, ok)
+
 	var pid uint32
+	checked := false
 	for _, inode := range inodes {
 		err = cmap.Lookup(inode, &pid)
-		require.NoError(t, err)
-
-		err = validateInodePidMapping(inode, pid)
-		require.NoError(t, err)
-		t.Logf("Validated: %d -> %d\n", inode, pid)
+		// incase of a race where a socket is started after
+		// the initialization completes, we cannot assert
+		// no error
+		if err != nil {
+			continue
+		}
+		if pid == serverPid {
+			validateInodePidMapping(inode, pid)
+			require.NoError(t, err)
+			checked = true
+			t.Logf("validated mapping inode -> pid: %d -> %d\n", inode, pid)
+			break
+		}
 	}
+
+	assert.True(t, checked)
 }
 
 func validateInodePidMapping(validateInode uint64, pid uint32) error {
