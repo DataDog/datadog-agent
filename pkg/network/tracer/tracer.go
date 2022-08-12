@@ -160,7 +160,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
-		pidMapper:                  newPidMapper(config, ebpfTracer),
+		pidMapper:                  newPidMapper(!pre410Kernel, config, ebpfTracer),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -792,8 +792,13 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newPidMapper(c *config.Config, tracer connection.Tracer) *mapper.PidMapper {
+func newPidMapper(supported bool, c *config.Config, tracer connection.Tracer) *mapper.PidMapper {
 	if !c.EnableRuntimeCompiler {
+		return nil
+	}
+
+	if !supported {
+		log.Warnf("pid mapping is not supported by this kernel version.")
 		return nil
 	}
 

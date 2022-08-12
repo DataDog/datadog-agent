@@ -102,6 +102,7 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
     char buffer[FDPATH_SZ];
     if (path == 0)
         return 0;
+    __builtin_memset(buffer, 0, FDPATH_SZ);
 
     if (bpf_probe_read_user(&buffer, FDPATH_SZ, path) < 0)
         return 0;
@@ -118,7 +119,7 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
 }
 
 static __always_inline void map_sock_to_pid(struct socket* sock, int pid) {
-    struct sock* sk;
+    struct sock* sk = 0;
 
     bpf_probe_read_kernel(&sk, sizeof(struct sock *), &sock->sk);
     if (sk == NULL)
@@ -128,7 +129,7 @@ static __always_inline void map_sock_to_pid(struct socket* sock, int pid) {
 }
 
 static __always_inline int fingerprint_tcp_inet_ops(struct socket* sock) {
-    struct proto_ops *pops;
+    struct proto_ops *pops = 0;
 
     KERNEL_READ_FAIL(&pops, sizeof(struct proto_ops *), &sock->ops);
     if (!pops)
@@ -146,7 +147,7 @@ static __always_inline int fingerprint_tcp_inet_ops(struct socket* sock) {
 }
 
 static __always_inline int is_socket_inode(struct inode* inode) {
-    struct inode_operations* i_op;
+    struct inode_operations* i_op = 0;
 
     KERNEL_READ_FAIL(&i_op, sizeof(struct inode_operations *), &inode->i_op);
     if (!i_op)
@@ -164,7 +165,7 @@ static __always_inline int is_socket_inode(struct inode* inode) {
 }
 
 static __always_inline struct socket *get_socket_from_dentry(struct dentry *dentry) {
-    struct inode* inode;
+    struct inode* inode = 0;
 
     KERNEL_READ_FAIL(&inode, sizeof(struct inode *), &dentry->d_inode);
     if (!inode)
@@ -192,8 +193,8 @@ static __always_inline void map_inode_to_pid(struct socket* sock, int pid) {
 
 SEC("kprobe/d_path")
 int kprobe__d_path(struct pt_regs* ctx) {
-    struct dentry* dentry;
-    struct socket* socket;
+    struct dentry* dentry = 0;
+    struct socket* socket = 0;
     
     struct path* path = (struct path *)PT_REGS_PARM1(ctx);
     u64 tgid = bpf_get_current_pid_tgid();

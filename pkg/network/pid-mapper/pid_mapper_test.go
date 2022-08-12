@@ -80,7 +80,7 @@ func startHTTPServerNewProcess() (int32, func(), error) {
 
 }
 
-func TestPidMapping(t *testing.T) {
+func TestPidMapper(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableRuntimeCompiler = true
 	cfg.MaxTrackedConnections = 1024
