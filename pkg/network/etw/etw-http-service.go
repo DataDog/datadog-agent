@@ -129,6 +129,8 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -302,7 +304,7 @@ func completeReqRespTracking(eventInfo *C.DD_ETW_EVENT_INFO, httpConnLink *HttpC
 		// log.Infof("  ContentLength:  %v\n", httpConnLink.http.ContentLength)
 		log.Infof("\n")
 	} else if HttpServiceLogVerbosity == HttpServiceLogVerbose {
-		log.Infof("%v. %v L[%v], R[%v], F[%v], P[%v], C[%v], V[%v], H[%v], B[%v], U[%v]\n",
+		log.Infof("%v. %v L[%v], R[%v], F[%v], P[%v], C[%v], V[%v], U[%v]\n",
 			completedRequestCount,
 			formatUnixTime(httpConnLink.http.Txn.RequestStarted),
 			ipFormat(connOpen.conn.tup, true),
@@ -325,6 +327,7 @@ func completeReqRespTracking(eventInfo *C.DD_ETW_EVENT_INFO, httpConnLink *HttpC
 	defer completedHttpTxMux.Unlock()
 
 	if uint64(len(completedHttpTx)) <= completedHttpTxMaxCount {
+
 		completedHttpTx = append(completedHttpTx, httpConnLink.http)
 	} else {
 		completedHttpTxDropped++
@@ -630,7 +633,10 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *C.DD_ETW_EVENT_INFO) {
 
 	// Parse url (manual persing may be will be bit faster, we need like find 3 "/")
 	urlParsed, err := url.Parse(uri)
-	if err == nil && len(urlParsed.Path) > 0 {
+	if err == nil {
+		if len(urlParsed.Path) == 0 {
+			urlParsed.Path = "/"
+		}
 		// httpConnLink.http.RequestFragment[0] = 32 is done to simulate
 		//   func getPath(reqFragment, buffer []byte) []byte
 		// which expects something like "GET /foo?var=bar HTTP/1.1"
@@ -641,6 +647,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *C.DD_ETW_EVENT_INFO) {
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
+
 	}
 
 	// output details
@@ -1198,6 +1205,15 @@ func initializeEtwHttpServiceSubscription() {
 	completedHttpTx = make([]Http, 0, 100)
 }
 
+func (h *Http) String() string {
+	var output strings.Builder
+	output.WriteString("httpTX{")
+	output.WriteString("Method: '" + strconv.Itoa(int(h.Txn.RequestMethod)) + "', ")
+	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	output.WriteString("\n  Fragment: '" + string(h.RequestFragment[:]) + "', ")
+	output.WriteString("}")
+	return output.String()
+}
 func ReadHttpTx() (httpTxs []Http, err error) {
 	if !httpServiceSubscribed {
 		return nil, errors.New("ETW HttpService is not currently subscribed")

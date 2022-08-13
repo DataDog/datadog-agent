@@ -100,6 +100,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
+		log.Infof("latency less than zero")
 		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
@@ -166,6 +167,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 	// If the user didn't specify a rule matching this particular path, we can check for its format.
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
+		log.Infof("http path malformed")
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("http path malformed: %s", tx.String())
 		}
@@ -184,7 +186,6 @@ func (h *httpStatKeeper) intern(b []byte) string {
 	}
 	return v
 }
-
 
 // getPath returns the URL from a request fragment with GET variables excluded.
 // Example:

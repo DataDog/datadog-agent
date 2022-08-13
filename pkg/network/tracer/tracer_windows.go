@@ -128,7 +128,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	t.state.StoreClosedConnections(closedConnStats)
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
@@ -141,6 +141,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	return &network.Connections{
 		BufferedData:  delta.BufferedData,
+		HTTP:          delta.HTTP,
 		DNS:           names,
 		DNSStats:      delta.DNSStats,
 		ConnTelemetry: telemetryDelta,

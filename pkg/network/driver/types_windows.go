@@ -153,7 +153,7 @@ type HttpTransactionType struct {
 }
 type HttpConfigurationSettings struct {
 	MaxTransactions        uint64
-	NotificationThreshhold uint64
+	NotificationThreshold  uint64
 	MaxRequestFragment     uint16
 }
 type ConnTupleType struct {

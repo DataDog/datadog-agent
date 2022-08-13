@@ -251,11 +251,23 @@ func formatUnixTime(t uint64) string {
 
 func parseUnicodeString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
 	termZeroIdx := bytesIndexOfDoubleZero(data[offset:])
-	if termZeroIdx == -1 || termZeroIdx == 0 || termZeroIdx%2 == 1 {
+	var lenString int
+	var skip int
+	if termZeroIdx == 0 || termZeroIdx%2 == 1 {
 		return "", -1, false, offset + termZeroIdx
 	}
-
-	return convertWindowsString(data[offset : offset+termZeroIdx]), (offset + termZeroIdx + 2), true, (offset + termZeroIdx)
+	if termZeroIdx == -1 {
+		// wasn't null terminated.  Assume it's still a valid string though
+		lenString = len(data) - offset
+	} else {
+		lenString = termZeroIdx - offset
+		skip = 2
+	}
+	val = convertWindowsString(data[offset : offset+lenString])
+	nextOffset = offset + lenString + skip
+	valFound = true
+	foundTermZeroIdx = termZeroIdx
+	return
 }
 
 func parseAsciiString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {

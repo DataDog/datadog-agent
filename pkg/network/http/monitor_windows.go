@@ -42,7 +42,7 @@ type DriverMonitor struct {
 
 // NewDriverMonitor returns a new DriverMonitor instance
 func NewDriverMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
-	di, err := newDriverInterface(dh)
+	di, err := newDriverInterface(c, dh)
 	if err != nil {
 		return nil, err
 	}
@@ -96,14 +96,12 @@ func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction, err erro
 	defer m.mux.Unlock()
 
 	m.telemetry.aggregate(transactions, err)
-
 	m.statkeeper.Process(transactions)
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
 func (m *DriverMonitor) GetHTTPStats() map[Key]*RequestStats {
-
 	// dbtodo  This is now going to cause any pending transactions
 	// to be read and then stuffed into the channel.  Which then I think
 	// creates a race condition that there still could be some mid-

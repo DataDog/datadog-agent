@@ -18,6 +18,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
@@ -39,10 +40,19 @@ type httpDriverInterface struct {
 	dataChannel chan []FullHttpTransaction
 	eventLoopWG sync.WaitGroup
 	closed      bool
+
+	// configuration entries
+	maxTransactions        uint64
+	notificationThreshhold uint64
+	maxRequestFragment     uint64
 }
 
-func newDriverInterface(dh driver.Handle) (*httpDriverInterface, error) {
-	d := &httpDriverInterface{}
+func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterface, error) {
+	d := &httpDriverInterface{
+		maxTransactions:        uint64(c.MaxTrackedHTTPConnections),
+		notificationThreshold:  uint64(c.HTTPNotificationThreshold),
+		maxRequestFragment:     uint64(c.HTTPMaxRequestFragment),
+	}
 	err := d.setupHTTPHandle(dh)
 	if err != nil {
 		return nil, err
@@ -57,9 +67,9 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 	di.driverHTTPHandle = dh
 	// enable HTTP on this handle
 	settings := driver.HttpConfigurationSettings{
-		MaxTransactions:        driver.HttpBatchSize * 2,
-		NotificationThreshhold: driver.HttpBatchSize,
-		MaxRequestFragment:     driver.HttpBufferSize,
+		MaxTransactions:        di.maxTransactions,
+		NotificationThreshold: di.notificationThreshold,
+		MaxRequestFragment:     uint16(di.maxRequestFragment),
 	}
 
 	err := dh.DeviceIoControl(
@@ -103,7 +113,6 @@ func (di *httpDriverInterface) readAllPendingTransactions() {
 		count += len(txns)
 		di.dataChannel <- txns
 	}
-	log.Infof("Read all pending transactions read %d transactions", count)
 }
 
 func (di *httpDriverInterface) startReadingBuffers() {
@@ -115,8 +124,6 @@ func (di *httpDriverInterface) startReadingBuffers() {
 
 		for {
 			windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
-			// dbtodo -- downgrade or remove this message
-			log.Infof("Driver signalled batch is ready")
 			if di.closed {
 				break
 			}

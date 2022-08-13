@@ -10,11 +10,11 @@ package http
 
 import (
 	"encoding/binary"
-	"encoding/hex"
+	//"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/etw"
@@ -145,8 +145,10 @@ func (tx *FullHttpTransaction) DynamicTags() []string {
 func (tx *FullHttpTransaction) String() string {
 	var output strings.Builder
 	output.WriteString("httpTX{")
-	output.WriteString("Method: '" + tx.Method().String() + "', ")
-	output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	output.WriteString("\n  Method: '" + tx.Method().String() + "', ")
+	output.WriteString("\n  MaxRequest: '" + strconv.Itoa(int(tx.Txn.MaxRequestFragment)) + "', ")
+	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	output.WriteString("\n  Fragment: '" + string(tx.RequestFragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
@@ -158,7 +160,7 @@ func (tx *FullHttpTransaction) Incomplete() bool {
 }
 
 func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.RequestFragment))
+	b := tx.RequestFragment
 
 	// b might contain a null terminator in the middle
 	bLen := strlen(b[:])
@@ -270,7 +272,8 @@ func (tx *etwHttpTX) String() string {
 	var output strings.Builder
 	output.WriteString("httpTX{")
 	output.WriteString("Method: '" + tx.Method().String() + "', ")
-	output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
+	output.WriteString("\n  Fragment: '" + string(tx.RequestFragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
@@ -281,7 +284,7 @@ func (tx *etwHttpTX) Incomplete() bool {
 }
 
 func (tx *etwHttpTX) Path(buffer []byte) ([]byte, bool) {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.RequestFragment))
+	b := tx.RequestFragment
 
 	// b might contain a null terminator in the middle
 	bLen := strlen(b[:])
