@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
 )
@@ -75,7 +76,7 @@ LOOP:
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
 			continue
 		}
-		if !CheckRuleID(ruleDef.ID) {
+		if !validators.CheckRuleID(ruleDef.ID) {
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
 			continue
 		}

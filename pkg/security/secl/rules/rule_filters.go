@@ -6,8 +6,7 @@
 package rules
 
 import (
-	"strings"
-
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/Masterminds/semver"
 )
 
@@ -43,15 +42,10 @@ func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition) bool {
 		return true
 	}
 
-	constraint := strings.TrimSpace(rule.AgentVersionConstraint)
-	if constraint == "" {
-		return true
-	}
-
-	semverConstraint, err := semver.NewConstraint(constraint)
+	constraint, err := validators.ValidateAgentVersionConstraint(rule.AgentVersionConstraint)
 	if err != nil {
 		return false
 	}
 
-	return semverConstraint.Check(&cleanAgentVersion)
+	return constraint.Check(&cleanAgentVersion)
 }

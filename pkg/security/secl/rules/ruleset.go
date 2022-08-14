@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
@@ -64,8 +63,6 @@ type Macro struct {
 // RuleID represents the ID of a rule
 type RuleID = string
 
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
-
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID                     RuleID             `yaml:"id"`
@@ -78,11 +75,6 @@ type RuleDefinition struct {
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
 	Policy                 *Policy
-}
-
-// CheckRuleID validates a ruleID
-func CheckRuleID(ruleID string) bool {
-	return ruleIDPattern.MatchString(ruleID)
 }
 
 // GetTags returns the tags associated to a rule
