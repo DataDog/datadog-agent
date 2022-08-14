@@ -9,6 +9,7 @@
 package http
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math/rand"
@@ -17,6 +18,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,11 +31,135 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const (
+	kb = 1024
+	mb = 1024 * kb
+)
+
+var (
+	emptyBody = []byte(nil)
+)
+
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
 		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
+}
+
+// TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
+// we send another request. We expect to capture the another request but not the incomplete requests.
+func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	slowServerAddr := "localhost:8080"
+	fastServerAddr := "localhost:8081"
+
+	slowSrvDoneFn := testutil.HTTPServer(slowServerAddr, testutil.Options{
+		SlowResponse: time.Millisecond * 500, // Half a second.
+		WriteTimeout: time.Millisecond * 200,
+	})
+
+	fastSrvDoneFn := testutil.HTTPServer(fastServerAddr, testutil.Options{})
+
+	monitor, err := NewMonitor(config.New(), nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	wg := sync.WaitGroup{}
+	abortedRequests := make(chan *nethttp.Request, 10000)
+	defer close(abortedRequests)
+	for i := 0; i < 10000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := abortedRequestFn()
+			abortedRequests <- req
+		}()
+	}
+	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	wg.Wait()
+	slowSrvDoneFn()
+	fastSrvDoneFn()
+
+	// Ensure all captured transactions get sent to user-space
+	time.Sleep(10 * time.Millisecond)
+	stats := monitor.GetHTTPStats()
+
+	// Assert all requests made were correctly captured by the monitor
+	for req := range abortedRequests {
+		requestNotIncluded(t, stats, req)
+	}
+	requestNotIncluded(t, stats, fastReq)
+}
+
+func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	targetAddr := "localhost:8080"
+	serverAddr := "localhost:8080"
+
+	tests := []struct {
+		name            string
+		requestBodySize int
+	}{
+		{
+			name:            "no body",
+			requestBodySize: 0,
+		},
+		{
+			name:            "1kb body",
+			requestBodySize: 1 * kb,
+		},
+		{
+			name:            "10kb body",
+			requestBodySize: 10 * kb,
+		},
+		{
+			name:            "100kb body",
+			requestBodySize: 100 * kb,
+		},
+		{
+			name:            "500kb body",
+			requestBodySize: 500 * kb,
+		},
+		{
+			name:            "2mb body",
+			requestBodySize: 2 * mb,
+		},
+		{
+			name:            "10mb body",
+			requestBodySize: 10 * mb,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srvDoneFn := testutil.HTTPServer(serverAddr, testutil.Options{
+				EnableKeepAlives: true,
+			})
+
+			monitor, err := NewMonitor(config.New(), nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, monitor.Start())
+			defer monitor.Stop()
+
+			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			var requests []*nethttp.Request
+			for i := 0; i < 100; i++ {
+				requests = append(requests, requestFn())
+			}
+			srvDoneFn()
+
+			// Ensure all captured transactions get sent to user-space
+			time.Sleep(10 * time.Millisecond)
+			stats := monitor.GetHTTPStats()
+
+			// Assert all requests made were correctly captured by the monitor
+			for _, req := range requests {
+				includesRequest(t, stats, req)
+			}
+		})
 	}
 }
 
@@ -89,7 +216,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 			defer monitor.Stop()
 
 			// Perform a number of random requests
-			req := requestGenerator(t, targetAddr)()
+			req := requestGenerator(t, targetAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
@@ -163,7 +290,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	require.NoError(t, err)
 	defer monitor.Stop()
 
-	requestFn := requestGenerator(t, targetAddr)
+	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	for i := 0; i < 100; i++ {
 		requestFn()
 	}
@@ -234,7 +361,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	defer monitor.Stop()
 
 	// Perform a number of random requests
-	requestFn := requestGenerator(t, targetAddr)
+	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	var requests []*nethttp.Request
 	for i := 0; i < numReqs; i++ {
 		requests = append(requests, requestFn())
@@ -251,26 +378,47 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	}
 }
 
-func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
+var (
+	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions}
+	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
+	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
+)
+
+func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
-		methods     = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-		statusCodes = []int{200, 300, 400, 500}
-		random      = rand.New(rand.NewSource(time.Now().Unix()))
-		idx         = 0
-		client      = new(nethttp.Client)
+		random = rand.New(rand.NewSource(time.Now().Unix()))
+		idx    = 0
+		client = new(nethttp.Client)
 	)
 
 	return func() *nethttp.Request {
 		idx++
-		method := methods[random.Intn(len(methods))]
+		var method string
+		var body io.Reader
+		var finalBody []byte
+		if len(reqBody) > 0 {
+			finalBody = append([]byte(strings.Repeat(" ", idx)), reqBody...)
+			body = bytes.NewReader(finalBody)
+			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
+		} else {
+			method = httpMethods[random.Intn(len(httpMethods))]
+		}
 		status := statusCodes[random.Intn(len(statusCodes))]
 		url := fmt.Sprintf("http://%s/%d/request-%d", targetAddr, status, idx)
-		req, err := nethttp.NewRequest(method, url, nil)
+		req, err := nethttp.NewRequest(method, url, body)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
+		if strings.Contains(targetAddr, "ignore") {
+			return req
+		}
 		require.NoError(t, err)
-		resp.Body.Close()
+		if len(reqBody) > 0 {
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, finalBody, respBody)
+		}
 		return req
 	}
 }
