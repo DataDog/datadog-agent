@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
@@ -42,7 +43,7 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFilter) (*Policy, *multierror.Error) {
+func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFilter, logger log.Logger) (*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	policy := &Policy{
@@ -67,7 +68,7 @@ func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFi
 LOOP:
 	for _, ruleDef := range def.Rules {
 		for _, filter := range filters {
-			if !filter.IsAccepted(ruleDef) {
+			if !filter.IsAccepted(ruleDef, logger) {
 				continue LOOP
 			}
 		}
@@ -93,7 +94,7 @@ LOOP:
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, reader io.Reader, filters []RuleFilter) (*Policy, error) {
+func LoadPolicy(name string, source string, reader io.Reader, filters []RuleFilter, logger log.Logger) (*Policy, error) {
 	var def PolicyDef
 
 	decoder := yaml.NewDecoder(reader)
@@ -101,7 +102,9 @@ func LoadPolicy(name string, source string, reader io.Reader, filters []RuleFilt
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	policy, errs := parsePolicyDef(name, source, &def, filters)
+	logger = log.OrNullLogger(logger)
+
+	policy, errs := parsePolicyDef(name, source, &def, filters, logger)
 	if errs.ErrorOrNil() != nil {
 		return nil, errs.ErrorOrNil()
 	}

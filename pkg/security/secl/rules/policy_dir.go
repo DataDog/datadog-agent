@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/fsnotify/fsnotify"
 	"github.com/hashicorp/go-multierror"
 )
@@ -22,6 +23,7 @@ var _ PolicyProvider = (*PoliciesDirProvider)(nil)
 // PoliciesDirProvider defines a new policy dir provider
 type PoliciesDirProvider struct {
 	PoliciesDir string
+	Logger      log.Logger
 
 	onNewPoliciesReadyCb func()
 	cancelFnc            func()
@@ -46,7 +48,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, filters []RuleFilter) 
 
 	name := filepath.Base(filename)
 
-	policy, err := LoadPolicy(name, "file", f, filters)
+	policy, err := LoadPolicy(name, "file", f, filters, p.Logger)
 	if err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
@@ -176,10 +178,11 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 }
 
 // NewPoliciesDirProvider returns providers for the given policies dir
-func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvider, error) {
+func NewPoliciesDirProvider(policiesDir string, watch bool, logger log.Logger) (*PoliciesDirProvider, error) {
 
 	p := &PoliciesDirProvider{
 		PoliciesDir: policiesDir,
+		Logger:      logger,
 	}
 
 	if watch {
