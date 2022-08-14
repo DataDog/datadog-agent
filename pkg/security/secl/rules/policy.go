@@ -56,8 +56,8 @@ func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFi
 			errs = multierror.Append(errs, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
 			continue
 		}
-		if !CheckRuleID(macroDef.ID) {
-			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(macroDef.ID) {
+			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 
@@ -77,7 +77,7 @@ LOOP:
 			continue
 		}
 		if !validators.CheckRuleID(ruleDef.ID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 

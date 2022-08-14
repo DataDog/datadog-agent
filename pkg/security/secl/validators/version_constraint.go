@@ -11,7 +11,7 @@ import (
 	"github.com/Masterminds/semver"
 )
 
-// ValidateAgentVersionConstraint
+// ValidateAgentVersionConstraint validates an agent version constraint
 func ValidateAgentVersionConstraint(constraint string) (*semver.Constraints, error) {
 	trimmedConstraint := strings.TrimSpace(constraint)
 	if trimmedConstraint == "" {

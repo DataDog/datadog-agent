@@ -9,9 +9,10 @@ import (
 	"regexp"
 )
 
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
+// RuleIDPattern represents the regex that `RuleID`s must match
+var RuleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
 
 // CheckRuleID validates a ruleID
 func CheckRuleID(ruleID string) bool {
-	return ruleIDPattern.MatchString(ruleID)
+	return RuleIDPattern.MatchString(ruleID)
 }
