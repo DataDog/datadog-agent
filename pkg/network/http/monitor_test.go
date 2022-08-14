@@ -15,6 +15,8 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -26,12 +28,85 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestHTTPMonitorIntegration(t *testing.T) {
+func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
 		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
 	}
+}
+
+func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	targetAddr := "localhost:8080"
+	serverAddr := "localhost:8080"
+
+	tests := []struct {
+		name                         string
+		mapCleanerIntervalSeconds    int
+		httpIdleConnectionTTLSeconds int
+		slowResponseTime             int
+		shouldCapture                bool
+	}{
+		{
+			name:                         "response reaching after cleanup",
+			mapCleanerIntervalSeconds:    1,
+			httpIdleConnectionTTLSeconds: 1,
+			slowResponseTime:             2,
+			shouldCapture:                false,
+		},
+		{
+			name:                         "response reaching before cleanup",
+			mapCleanerIntervalSeconds:    1,
+			httpIdleConnectionTTLSeconds: 2,
+			slowResponseTime:             1,
+			shouldCapture:                true,
+		},
+		{
+			name:                         "slow response reaching after ttl but cleaner not running",
+			mapCleanerIntervalSeconds:    3,
+			httpIdleConnectionTTLSeconds: 1,
+			slowResponseTime:             2,
+			shouldCapture:                true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
+			os.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
+
+			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
+			serverTimeout := slowResponseTimeout + time.Second
+			srvDoneFn := testutil.HTTPServer(serverAddr, testutil.Options{
+				WriteTimeout: serverTimeout,
+				ReadTimeout:  serverTimeout,
+				SlowResponse: slowResponseTimeout,
+			})
+
+			monitor, err := NewMonitor(config.New(), nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, monitor.Start())
+			defer monitor.Stop()
+
+			// Perform a number of random requests
+			req := requestGenerator(t, targetAddr)()
+			srvDoneFn()
+
+			// Ensure all captured transactions get sent to user-space
+			time.Sleep(10 * time.Millisecond)
+			stats := monitor.GetHTTPStats()
+
+			if tt.shouldCapture {
+				includesRequest(t, stats, req)
+			} else {
+				requestNotIncluded(t, stats, req)
+			}
+		})
+	}
+}
+
+func TestHTTPMonitorIntegration(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
 
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
@@ -49,11 +124,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 }
 
 func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
-		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
-	}
+	skipTestIfKernelNotSupported(t)
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
@@ -73,11 +144,7 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 }
 
 func TestUnknownMethodRegression(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
-		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
-	}
+	skipTestIfKernelNotSupported(t)
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
@@ -119,11 +186,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 }
 
 func TestRSTPacketRegression(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
-		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
-	}
+	skipTestIfKernelNotSupported(t)
 
 	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
@@ -226,4 +289,18 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 		req.Method,
 		expectedStatus,
 	)
+}
+
+func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	for key, stats := range allStats {
+		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			t.Errorf(
+				"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+				req.URL.Path,
+				req.Method,
+				expectedStatus,
+			)
+		}
+	}
 }
