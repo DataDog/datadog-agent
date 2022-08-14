@@ -36,6 +36,7 @@ func (l NullLogger) Errorf(format string, params ...interface{}) {
 func (l NullLogger) Infof(format string, params ...interface{}) {
 }
 
+// OrNullLogger ensures that the provided logger is non-nil by returning a NullLogger if it is
 func OrNullLogger(potential Logger) Logger {
 	if potential != nil {
 		return potential
