@@ -31,6 +31,7 @@ type AgentVersionFilter struct {
 	Version *semver.Version
 }
 
+// NewAgentVersionFilter returns a new agent version based rule filter
 func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error) {
 	withoutPreAgentVersion, err := version.SetPrerelease("")
 	if err != nil {
