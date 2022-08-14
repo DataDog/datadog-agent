@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -43,8 +42,11 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 			time.Sleep(options.SlowResponse)
 		}
 		statusCode := StatusFromPath(req.URL.Path)
-		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(statusCode)
+
+		reqBody, _ := io.ReadAll(req.Body)
+		defer req.Body.Close()
+		w.Write(reqBody)
 	}
 
 	srv := &http.Server{
