@@ -50,21 +50,11 @@ func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error)
 
 // IsAccepted checks whether the rule is accepted
 func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition, logger log.Logger) bool {
-	withoutPreAgentVersion, err := r.Version.SetPrerelease("")
-	if err != nil {
-		return true
-	}
-
-	cleanAgentVersion, err := withoutPreAgentVersion.SetMetadata("")
-	if err != nil {
-		return true
-	}
-
 	constraint, err := validators.ValidateAgentVersionConstraint(rule.AgentVersionConstraint)
 	if err != nil {
 		logger.Errorf("failed to parse agent version constraint: %v", err)
 		return false
 	}
 
-	return constraint.Check(&cleanAgentVersion)
+	return constraint.Check(r.Version)
 }
