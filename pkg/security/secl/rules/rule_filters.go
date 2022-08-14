@@ -30,6 +30,22 @@ type AgentVersionFilter struct {
 	Version *semver.Version
 }
 
+func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error) {
+	withoutPreAgentVersion, err := version.SetPrerelease("")
+	if err != nil {
+		return nil, err
+	}
+
+	cleanAgentVersion, err := withoutPreAgentVersion.SetMetadata("")
+	if err != nil {
+		return nil, err
+	}
+
+	return &AgentVersionFilter{
+		Version: &cleanAgentVersion,
+	}, nil
+}
+
 // IsAccepted checks whether the rule is accepted
 func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition) bool {
 	withoutPreAgentVersion, err := r.Version.SetPrerelease("")
