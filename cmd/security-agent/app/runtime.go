@@ -666,7 +666,7 @@ func checkPoliciesInner(dir string) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false, seclog.DefaultLogger)
 	if err != nil {
 		return err
 	}
@@ -803,7 +803,7 @@ func evalRule(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false, seclog.DefaultLogger)
 	if err != nil {
 		return err
 	}
