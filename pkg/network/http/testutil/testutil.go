@@ -26,6 +26,9 @@ import (
 type Options struct {
 	EnableTLS        bool
 	EnableKeepAlives bool
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	SlowResponse     time.Duration
 }
 
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
@@ -36,6 +39,9 @@ type Options struct {
 // nolint
 func HTTPServer(t *testing.T, addr string, options Options) func() {
 	handler := func(w http.ResponseWriter, req *http.Request) {
+		if options.SlowResponse != 0 {
+			time.Sleep(options.SlowResponse)
+		}
 		statusCode := StatusFromPath(req.URL.Path)
 		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(statusCode)
@@ -55,6 +61,13 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 			go func() { _ = srv.Serve(ln) }()
 		}
 		return err
+	}
+	if options.ReadTimeout != 0 {
+		srv.ReadTimeout = options.ReadTimeout
+	}
+
+	if options.WriteTimeout != 0 {
+		srv.WriteTimeout = options.WriteTimeout
 	}
 
 	// If certPath is set we enabled TLS
