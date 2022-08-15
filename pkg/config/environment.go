@@ -64,3 +64,8 @@ func IsHostSysAvailable() bool {
 	}
 	return true
 }
+
+// IsServerless returns whether the Agent is running in a Lambda function
+func IsServerless() bool {
+	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != ""
+}
