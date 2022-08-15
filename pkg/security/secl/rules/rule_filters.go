@@ -6,14 +6,15 @@
 package rules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/Masterminds/semver"
 )
 
 // RuleFilter definition of a rule filter
 type RuleFilter interface {
-	IsAccepted(rule *RuleDefinition, logger log.Logger) bool
+	IsAccepted(rule *RuleDefinition) (bool, error)
 }
 
 // RuleIDFilter defines a ID based filter
@@ -22,8 +23,8 @@ type RuleIDFilter struct {
 }
 
 // IsAccepted checks whether the rule is accepted
-func (r *RuleIDFilter) IsAccepted(rule *RuleDefinition, _ log.Logger) bool {
-	return r.ID == rule.ID
+func (r *RuleIDFilter) IsAccepted(rule *RuleDefinition) (bool, error) {
+	return r.ID == rule.ID, nil
 }
 
 // AgentVersionFilter defines a agent version filter
@@ -49,12 +50,11 @@ func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error)
 }
 
 // IsAccepted checks whether the rule is accepted
-func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition, logger log.Logger) bool {
+func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition) (bool, error) {
 	constraint, err := validators.ValidateAgentVersionConstraint(rule.AgentVersionConstraint)
 	if err != nil {
-		logger.Errorf("failed to parse agent version constraint: %v", err)
-		return false
+		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
 	}
 
-	return constraint.Check(r.Version)
+	return constraint.Check(r.Version), nil
 }
