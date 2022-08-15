@@ -25,7 +25,7 @@ struct bpf_map_def SEC("maps/inode_pid_map") inode_pid_map = {
 struct bpf_map_def SEC("maps/save_pid") save_pid = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
-    .value_size = sizeof(int),
+    .value_size = sizeof(unsigned long),
     .max_entries = 0, 
     .pinning = 0,
     .namespace = "",
@@ -58,7 +58,7 @@ struct bpf_map_def SEC("maps/symbol_table") symbol_table = {
 #define FDPATH_SZ 32
 #define PREFIX_END 6
 #define MAX_UINT_LEN 10
-static int __always_inline parse_and_check_path(char* buffer) {
+static int __always_inline parse_and_check_name(char* buffer) {
     // /proc/<MAX_UINT_LEN>/fd/<MAX_UINT_LEN>
     char *pidptr = buffer+PREFIX_END;
     int pid = 0;
@@ -96,18 +96,17 @@ static int __always_inline parse_and_check_path(char* buffer) {
     return pid;
 }
 
-SEC("kprobe/user_path_at_empty")
-int kprobe__user_path_at_empty(struct pt_regs* ctx) {
-    char* path = (char *)PT_REGS_PARM2(ctx);
+static int __always_inline user_path_at_empty_x64(struct pt_regs* ctx) {
+    char* name = (char *)PT_REGS_PARM2(ctx);
     char buffer[FDPATH_SZ];
-    if (path == 0)
+    if (name == 0)
         return 0;
     __builtin_memset(buffer, 0, FDPATH_SZ);
 
-    if (bpf_probe_read_user(&buffer, FDPATH_SZ, path) < 0)
+    if (bpf_probe_read_user(&buffer, FDPATH_SZ, name) < 0)
         return 0;
 
-    int pid = parse_and_check_path(buffer);
+    int pid = parse_and_check_name(buffer);
     if (pid == -1)
         return 0;
 
@@ -116,6 +115,94 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
     bpf_map_update_elem(&save_pid, &tgidpid, &pid, BPF_NOEXIST);
 
     return 0;
+}
+
+static int __always_inline user_path_at_empty_arm64(struct pt_regs* ctx) {
+    struct path* path = (struct path *)PT_REGS_PARM4(ctx);
+    if (path == 0)
+        return 0;
+
+    u64 tgidpid = bpf_get_current_pid_tgid();
+
+    // save pointer to struct path, which will be parsed for the pid
+    // in the return probe.
+    bpf_map_update_elem(&save_pid, &tgidpid, &path, BPF_NOEXIST);
+
+    return 0;
+}
+
+SEC("kprobe/user_path_at_empty")
+int kprobe__user_path_at_empty(struct pt_regs* ctx) {
+#if defined(__aarch64__)
+    return user_path_at_empty_arm64(ctx);
+#else
+    return user_path_at_empty_x64(ctx);
+#endif
+}
+
+static int __always_inline parse_pid_from_dentry(struct pt_regs* ctx) {
+    long pid = 0;
+    struct qstr d_name = {0};
+    char name[MAX_UINT_LEN];
+    __builtin_memset(name, 0, MAX_UINT_LEN);
+
+    u64 tgidpid = bpf_get_current_pid_tgid();
+    struct path **pathptr = bpf_map_lookup_elem(&save_pid, &tgidpid);
+    if (pathptr == NULL)
+        return 0;
+
+    struct path *path = *pathptr;
+    bpf_map_delete_elem(&save_pid, &tgidpid);
+    
+    struct dentry* d1;
+    KERNEL_READ_FAIL(&d1, sizeof(struct dentry *), &path->dentry);
+    if (!d1)
+        return 0;
+
+    struct dentry* d2;
+    KERNEL_READ_FAIL(&d2, sizeof(struct dentry *), &d1->d_parent);
+    if (!d2)
+        return 0;
+
+    KERNEL_READ_FAIL(&d_name, sizeof(struct qstr), &d2->d_name);
+    if (d_name.name == 0)
+        return 0;
+
+    KERNEL_READ_FAIL(name, MAX_UINT_LEN, (void *)d_name.name);
+    if (!((name[0] == 'f') && (name[1] == 'd') && (name[2] == 0)))
+        return 0;
+
+    struct dentry* d3;
+    KERNEL_READ_FAIL(&d3, sizeof(struct dentry *), &d2->d_parent);
+    if (!d3)
+        return 0;
+    KERNEL_READ_FAIL(&d_name, sizeof(struct qstr), &d3->d_name);
+    if (d_name.name == 0)
+        return 0;
+    KERNEL_READ_FAIL(name, MAX_UINT_LEN, (void *)d_name.name);
+   
+    for (int i = 0; i < MAX_UINT_LEN; i++) {
+        if (name[i] == 0)
+            break;
+
+        if ((name[i] < '0') || (name[i] > '9'))
+            return 0;
+
+        pid = (name[i] - '0') + (pid * 10);
+    }
+
+    bpf_map_update_elem(&save_pid, &tgidpid, &pid, BPF_NOEXIST);
+
+    return 0;
+}
+
+SEC("kretprobe/user_path_at_empty")
+int kretprobe__user_path_at_empty(struct pt_regs* ctx) {
+#if defined(__aarch64__)
+    return parse_pid_from_dentry(ctx);
+#else
+    return 0;
+#endif
 }
 
 static __always_inline void map_sock_to_pid(struct socket* sock, int pid) {

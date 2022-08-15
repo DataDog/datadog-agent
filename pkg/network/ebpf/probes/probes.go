@@ -130,6 +130,8 @@ const (
 
 	UserPathAtEmpty ProbeName = "kprobe/user_path_at_empty"
 
+	UserPathAtEmptyRet ProbeName = "kretprobe/user_path_at_empty"
+
 	DPath ProbeName = "kprobe/d_path"
 
 	SecuritySkAlloc ProbeName = "kprobe/security_sk_alloc"

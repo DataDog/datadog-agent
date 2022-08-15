@@ -64,6 +64,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		},
 		Probes: []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UserPathAtEmpty), EBPFFuncName: "kprobe__user_path_at_empty"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UserPathAtEmptyRet), EBPFFuncName: "kretprobe__user_path_at_empty"}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.DPath), EBPFFuncName: "kprobe__d_path"}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SecuritySkAlloc), EBPFFuncName: "kprobe__security_sk_alloc"}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SecuritySkFree), EBPFFuncName: "kprobe__security_sk_free"}},
@@ -76,7 +77,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		bytecode:          bc,
 		cfg:               c,
 		initializorMaps:   map[string]struct{}{savePid: struct{}{}, symbolTableMap: struct{}{}},
-		initializorProbes: map[string]struct{}{string(probes.UserPathAtEmpty): struct{}{}, string(probes.DPath): struct{}{}},
+		initializorProbes: map[string]struct{}{string(probes.UserPathAtEmpty): struct{}{}, string(probes.UserPathAtEmptyRet): struct{}{}, string(probes.DPath): struct{}{}},
 	}, nil
 }
 
@@ -103,6 +104,12 @@ func (e *ebpfProgram) Init(cfg *config.Config, sockToPidMap *ebpf.Map) error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.UserPathAtEmpty),
 					EBPFFuncName: "kprobe__user_path_at_empty",
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.UserPathAtEmptyRet),
+					EBPFFuncName: "kretprobe__user_path_at_empty",
 				},
 			},
 			&manager.ProbeSelector{
