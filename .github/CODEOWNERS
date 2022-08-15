@@ -152,6 +152,10 @@
 /omnibus/config/software/snmp-traps.rb                    @DataDog/infrastructure-integrations
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
+# components
+/comp/core/                             @DataDog/agent-shared-components
+
+# pkg
 /pkg/                                   @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
