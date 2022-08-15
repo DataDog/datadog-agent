@@ -140,6 +140,7 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
 #endif
 }
 
+#if defined(__aarch64__)
 static int __always_inline parse_pid_from_dentry(struct pt_regs* ctx) {
     long pid = 0;
     struct qstr d_name = {0};
@@ -195,6 +196,7 @@ static int __always_inline parse_pid_from_dentry(struct pt_regs* ctx) {
 
     return 0;
 }
+#endif
 
 SEC("kretprobe/user_path_at_empty")
 int kretprobe__user_path_at_empty(struct pt_regs* ctx) {
