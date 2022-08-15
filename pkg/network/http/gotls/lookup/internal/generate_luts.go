@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build ignore
 // +build ignore
 
 package main
@@ -275,9 +276,9 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 	}
 
 	result := inspectionResult{
-		writePrams:  rawResult.Functions["crypto/tls.(*Conn).Write"],
-		readParams:  rawResult.Functions["crypto/tls.(*Conn).Read"],
-		closeParams: rawResult.Functions["crypto/tls.(*Conn).Close"],
+		writePrams:  rawResult.Functions["crypto/tls.(*Conn).Write"].Parameters,
+		readParams:  rawResult.Functions["crypto/tls.(*Conn).Read"].Parameters,
+		closeParams: rawResult.Functions["crypto/tls.(*Conn).Close"].Parameters,
 		tlsConnInnerConnOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
 			StructName: "crypto/tls.Conn",
 			FieldName:  "conn",
