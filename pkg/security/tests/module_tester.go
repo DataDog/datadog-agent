@@ -759,7 +759,7 @@ func (tm *testModule) reloadConfiguration() error {
 	log.Debugf("reload configuration with testDir: %s", tm.Root())
 	tm.config.PoliciesDir = tm.Root()
 
-	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false, nil)
+	provider, err := rules.NewPoliciesDirProvider(tm.config.PoliciesDir, false)
 	if err != nil {
 		return err
 	}

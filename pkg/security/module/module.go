@@ -181,7 +181,7 @@ func (m *Module) Start() error {
 	}
 
 	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir, seclog.DefaultLogger); err != nil {
+	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
 		seclog.Errorf("failed to load policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
