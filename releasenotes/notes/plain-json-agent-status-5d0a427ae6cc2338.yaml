@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    'agent status' command output is now parseable as json
+    'agent status' command output is now parseable as JSON
     directly from stdout. Before this change there was some
     logger front-matter making it hard to parse 'status'
     output directly as JSON.
