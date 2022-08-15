@@ -150,6 +150,11 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 }
 
 func sendApiKeyToShell(apiKey string, hostAndPort string) bool {
+	// TODO:maxday remove when ready for GA
+	if len(os.Getenv("DD_EXPERIMENTAL_SHELL_ENABLED")) == 0 {
+		return true
+	}
+	// END TODO
 	conn, err := net.Dial("tcp", hostAndPort)
 	if err != nil {
 		return false
