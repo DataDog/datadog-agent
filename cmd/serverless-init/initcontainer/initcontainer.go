@@ -32,12 +32,12 @@ import (
 
 // Run is the entrypoint of the init process. It will spawn the customer process
 func Run(logConfig *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) {
-	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)))
+	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
 	err := execute(logConfig, metricAgent, traceAgent, args)
 	if err != nil {
-		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)))
+		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
 	} else {
-		serverlessLog.Write(logConfig, []byte("[datadog init process] exiting successfully"))
+		serverlessLog.Write(logConfig, []byte("[datadog init process] exiting successfully"), false)
 	}
 }
 
@@ -51,6 +51,7 @@ func execute(config *serverlessLog.Config, metricAgent *metrics.ServerlessMetric
 	cmd.Stderr = &serverlessLog.CustomWriter{
 		LogConfig:  config,
 		LineBuffer: bytes.Buffer{},
+		IsError:    true,
 	}
 	handleSignals(cmd.Process, config, metricAgent, traceAgent)
 	err := cmd.Start()
@@ -80,7 +81,7 @@ func handleSignals(process *os.Process, config *serverlessLog.Config, metricAgen
 		signal.Notify(sigs)
 		for sig := range sigs {
 			if sig != syscall.SIGURG {
-				serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)))
+				serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
 			}
 			if sig != syscall.SIGCHLD {
 				if process != nil {

@@ -44,6 +44,7 @@ type Config struct {
 type CustomWriter struct {
 	LogConfig  *Config
 	LineBuffer bytes.Buffer
+	IsError    bool
 }
 
 // CreateConfig builds and returns a log config
@@ -59,10 +60,11 @@ func CreateConfig(metadata *metadata.Metadata) *Config {
 }
 
 // Write writes the log message to the log message channel for processing
-func Write(conf *Config, msgToSend []byte) {
+func Write(conf *Config, msgToSend []byte, isError bool) {
 	if conf.isEnabled {
 		logMessage := &logConfig.ChannelMessage{
 			Content: msgToSend,
+			IsError: isError,
 		}
 		conf.channel <- logMessage
 	}
@@ -96,7 +98,7 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	cw.LineBuffer.Write(p)
 	scanner := bufio.NewScanner(&cw.LineBuffer)
 	for scanner.Scan() {
-		Write(cw.LogConfig, scanner.Bytes())
+		Write(cw.LogConfig, scanner.Bytes(), cw.IsError)
 	}
 	return len(p), nil
 }

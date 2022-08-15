@@ -31,7 +31,7 @@ func main() {
 	metadata := metadata.GetMetaData(metadata.GetDefaultConfig())
 	logConfig := log.CreateConfig(metadata)
 	log.SetupLog(logConfig)
-	log.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] starting, K_SERVICE = %s, K_REVISION = %s", os.Getenv("K_SERVICE"), os.Getenv("K_REVISION"))))
+	log.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] starting, K_SERVICE = %s, K_REVISION = %s", os.Getenv("K_SERVICE"), os.Getenv("K_REVISION"))), false)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, metadata)

@@ -17,7 +17,8 @@ func TestAdd(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	timestamp := time.Now()
 	add("a.super.metric", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "a.super.metric")
@@ -31,7 +32,8 @@ func TestAddColdStartMetric(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	timestamp := time.Now()
 	AddColdStartMetric([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "gcp.run.enhanced.cold_start")
@@ -44,7 +46,8 @@ func TestAddShutdownMetric(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	timestamp := time.Now()
 	AddShutdownMetric([]string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "gcp.run.enhanced.shutdown")
