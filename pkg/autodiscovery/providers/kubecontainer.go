@@ -171,6 +171,14 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 		// have a container_collect_all when it shouldn't.
 		if !findKubernetesInLabels(entity.Labels) {
 			configs, errs = k.generateContainerConfig(entity)
+
+			containerID := entity.ID
+			containerEntityName := containers.BuildEntityName(string(entity.Runtime), containerID)
+			configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
+
+			for idx := range configs {
+				configs[idx].Source = names.Container + ":" + containerEntityName
+			}
 		}
 
 	case *workloadmeta.KubernetesPod:
@@ -203,6 +211,15 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 				entity.Annotations,
 				adIdentifier,
 			)
+
+			// container_collect_all configs must be added after
+			// configs generated from annotations, since services
+			// are reconciled against configs one-by-one instead of
+			// as a set, so if a container_collect_all config
+			// appears before an annotation one, it'll cause a logs
+			// config to be scheduled as container_collect_all,
+			// unscheduled, and then re-scheduled correctly.
+			configs = utils.AddContainerCollectAllConfigs(configs, containerEntity)
 
 			if len(errors) > 0 {
 				errs = append(errs, errors...)
@@ -251,17 +268,6 @@ func (k *KubeContainerConfigProvider) generateContainerConfig(container *workloa
 	containerID := container.ID
 	containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
 	configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
-
-	// AddContainerCollectAllConfigs is only needed when handling
-	// the container event, even when the container belongs to a
-	// pod. Calling it when handling the KubernetesPod will always
-	// result in a duplicated config, as each KubernetesPod will
-	// also generate events for each of its containers.
-	configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
-
-	for idx := range configs {
-		configs[idx].Source = names.Container + ":" + containerEntityName
-	}
 
 	return configs, errs
 }
