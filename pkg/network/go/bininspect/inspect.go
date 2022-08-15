@@ -210,7 +210,7 @@ func (i *inspectionState) findGoVersionAndABI() (goversion.GoVersion, GoABI, err
 	return parsed, abi, nil
 }
 
-func (i *inspectionState) findFunctions() ([]FunctionMetadata, error) {
+func (i *inspectionState) findFunctions() (map[string]FunctionMetadata, error) {
 	// If the binary has debug symbols, we can traverse the debug info entries (DIEs)
 	// to look for the functions.
 	// Otherwise, fall-back to a go symbol table-based implementation
@@ -222,7 +222,7 @@ func (i *inspectionState) findFunctions() ([]FunctionMetadata, error) {
 	return i.findFunctionsUsingGoSymTab()
 }
 
-func (i *inspectionState) findFunctionsUsingDWARF() ([]FunctionMetadata, error) {
+func (i *inspectionState) findFunctionsUsingDWARF() (map[string]FunctionMetadata, error) {
 	// Find each function's dwarf entry
 	functionEntries, err := i.findFunctionDebugInfoEntries()
 	if err != nil {
@@ -236,7 +236,7 @@ func (i *inspectionState) findFunctionsUsingDWARF() ([]FunctionMetadata, error) 
 	}
 
 	// Inspect each function individually
-	functions := []FunctionMetadata{}
+	functionMetadataMap := make(map[string]FunctionMetadata, len(functionEntries))
 	for functionName, entry := range functionEntries {
 		if config, ok := configsByNames[functionName]; ok {
 			metadata, err := i.inspectFunctionUsingDWARF(entry, config)
@@ -244,11 +244,11 @@ func (i *inspectionState) findFunctionsUsingDWARF() ([]FunctionMetadata, error) 
 				return nil, err
 			}
 
-			functions = append(functions, metadata)
+			functionMetadataMap[functionName] = metadata
 		}
 	}
 
-	return functions, nil
+	return functionMetadataMap, nil
 }
 
 func (i *inspectionState) findFunctionDebugInfoEntries() (map[string]*dwarf.Entry, error) {
@@ -329,7 +329,6 @@ func (i *inspectionState) inspectFunctionUsingDWARF(entry *dwarf.Entry, config F
 	}
 
 	return FunctionMetadata{
-		Name: config.Name,
 		// This should really probably be the location of the end of the prologue
 		// (which might help with parameter locations being half-spilled),
 		// but so far using the first PC position in the function has worked
@@ -439,13 +438,13 @@ func (i *inspectionState) findReturnLocations(lowPC, highPC uint64) ([]uint64, e
 	}
 }
 
-func (i *inspectionState) findFunctionsUsingGoSymTab() ([]FunctionMetadata, error) {
+func (i *inspectionState) findFunctionsUsingGoSymTab() (map[string]FunctionMetadata, error) {
 	symbolTable, err := i.parseSymbolTable()
 	if err != nil {
 		return nil, err
 	}
 
-	functionMetadata := []FunctionMetadata{}
+	functionMetadataMap := make(map[string]FunctionMetadata, len(i.config.Functions))
 	for _, config := range i.config.Functions {
 		f := symbolTable.LookupFunc(config.Name)
 		if f == nil {
@@ -467,15 +466,14 @@ func (i *inspectionState) findFunctionsUsingGoSymTab() ([]FunctionMetadata, erro
 
 		// Parameter metadata cannot be determined without DWARF symbols,
 		// so this is as much metadata as we can extract.
-		functionMetadata = append(functionMetadata, FunctionMetadata{
-			Name:            config.Name,
+		functionMetadataMap[config.Name] = FunctionMetadata{
 			EntryLocation:   lowPC,
 			Parameters:      nil,
 			ReturnLocations: returnLocations,
-		})
+		}
 	}
 
-	return functionMetadata, nil
+	return functionMetadataMap, nil
 }
 
 func (i *inspectionState) parseSymbolTable() (*gosym.Table, error) {
@@ -513,13 +511,13 @@ func (i *inspectionState) parseSymbolTable() (*gosym.Table, error) {
 	return table, nil
 }
 
-func (i *inspectionState) findStructOffsets() ([]StructOffset, error) {
+func (i *inspectionState) findStructOffsets() (map[FieldIdentifier]uint64, error) {
 	if i.dwarfInspectionState == nil {
 		// The binary has been stripped; we won't be able to find the struct offsets.
 		return nil, nil
 	}
 
-	structOffsets := []StructOffset{}
+	structOffsets := make(map[FieldIdentifier]uint64)
 
 	for _, config := range i.config.StructOffsets {
 		offset, err := i.dwarfInspectionState.typeFinder.FindStructFieldOffset(config.StructName, config.FieldName)
@@ -527,11 +525,10 @@ func (i *inspectionState) findStructOffsets() ([]StructOffset, error) {
 			return nil, fmt.Errorf("could not find offset of %q . %q: %w", config.StructName, config.FieldName, err)
 		}
 
-		structOffsets = append(structOffsets, StructOffset{
+		structOffsets[FieldIdentifier{
 			StructName: config.StructName,
 			FieldName:  config.FieldName,
-			Offset:     offset,
-		})
+		}] = offset
 	}
 
 	return structOffsets, nil

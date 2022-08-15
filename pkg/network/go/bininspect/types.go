@@ -29,10 +29,8 @@ type Result struct {
 	ABI                  GoABI
 	GoVersion            goversion.GoVersion
 	IncludesDebugSymbols bool
-	Functions            []FunctionMetadata
-	// If IncludesDebugSymbols is false, then this slice will be nil/empty
-	// (regardless of the struct offset configs).
-	StructOffsets []StructOffset
+	Functions            map[string]FunctionMetadata
+	StructOffsets        map[FieldIdentifier]uint64
 }
 
 // GoArch only includes supported architectures,
@@ -81,9 +79,6 @@ type FunctionConfig struct {
 // FunctionMetadata contains the results of the inspection process that
 // that can be used to attach an eBPF uprobe to a single function.
 type FunctionMetadata struct {
-	// The full name of the function that this metadata is for.
-	// ex: crypto/tls.(*Conn).Write
-	Name string
 	// The virtual address for the function's entrypoint for non-PIE's,
 	// or offset to the file load address for PIE's.
 	//
@@ -204,13 +199,10 @@ type StructOffsetConfig struct {
 	FieldName string
 }
 
-// StructOffset contains the result of a single struct field's offset
-// (including the original struct/field it is an offset for).
-type StructOffset struct {
+// FieldIdentifier represents a field in a struct and can be used as a map key.
+type FieldIdentifier struct {
 	// Fully-qualified name of the struct
 	StructName string
 	// Name of the field in the struct
 	FieldName string
-	// Offset (in bytes) of the field from the struct's address
-	Offset uint64
 }

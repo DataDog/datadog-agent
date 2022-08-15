@@ -274,29 +274,30 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 		return inspectionResult{}, err
 	}
 
-	result := inspectionResult{}
-	for _, s := range rawResult.StructOffsets {
-		if s.StructName == "crypto/tls.Conn" && s.FieldName == "conn" {
-			result.tlsConnInnerConnOffset = s.Offset
-		} else if s.StructName == "net.TCPConn" && s.FieldName == "conn" {
-			result.tcpConnInnerConnOffset = s.Offset
-		} else if s.StructName == "net.conn" && s.FieldName == "fd" {
-			result.connFDOffset = s.Offset
-		} else if s.StructName == "net.netFD" && s.FieldName == "pfd" {
-			result.netFD_PFDOffset = s.Offset
-		} else if s.StructName == "internal/poll.FD" && s.FieldName == "Sysfd" {
-			result.fd_SysfdOffset = s.Offset
-		}
-	}
-
-	for _, s := range rawResult.Functions {
-		if s.Name == "crypto/tls.(*Conn).Write" {
-			result.writePrams = s.Parameters
-		} else if s.Name == "crypto/tls.(*Conn).Read" {
-			result.readParams = s.Parameters
-		} else if s.Name == "crypto/tls.(*Conn).Close" {
-			result.closeParams = s.Parameters
-		}
+	result := inspectionResult{
+		writePrams:  rawResult.Functions["crypto/tls.(*Conn).Write"],
+		readParams:  rawResult.Functions["crypto/tls.(*Conn).Read"],
+		closeParams: rawResult.Functions["crypto/tls.(*Conn).Close"],
+		tlsConnInnerConnOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
+			StructName: "crypto/tls.Conn",
+			FieldName:  "conn",
+		}],
+		tcpConnInnerConnOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
+			StructName: "net.TCPConn",
+			FieldName:  "conn",
+		}],
+		connFDOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
+			StructName: "net.conn",
+			FieldName:  "fd",
+		}],
+		netFD_PFDOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
+			StructName: "net.netFD",
+			FieldName:  "pfd",
+		}],
+		fd_SysfdOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
+			StructName: "internal/poll.FD",
+			FieldName:  "Sysfd",
+		}],
 	}
 
 	log.Printf("extracted binary data for (go%s, %s)", binary.GoVersionString, binary.Architecture)
