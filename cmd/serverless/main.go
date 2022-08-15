@@ -62,8 +62,8 @@ const (
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
 
-	// shellTcpHostAndPort is the host and port for tcp connexion to the shell
-	shellTcpHostAndPort = "localhost:5555"
+	// shellTCPHostAndPort is the host and port for tcp connexion to the shell
+	shellTCPHostAndPort = "localhost:5555"
 )
 
 func main() {
