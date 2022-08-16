@@ -201,22 +201,22 @@ func TestFlowAggregator_sequenceNumberCheck_netflow9(t *testing.T) {
 	sender.On("Commit").Return()
 
 	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
-	assert.Equal(t, uint32(0), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(0), aggregator.lastSequenceNum[flowKey])
 
 	// first flow
 	flow.SequenceNum = 10
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(10), aggregator.lastSequenceNum[flowKey])
 
 	// second flow with consecutive seq number
 	flow.SequenceNum = 11
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(11), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(11), aggregator.lastSequenceNum[flowKey])
 
 	// third flow with non-consecutive seq num
 	flow.SequenceNum = 15
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(15), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(15), aggregator.lastSequenceNum[flowKey])
 	tags := []string{
 		"snmp_device:127.0.0.1",
 		"namespace:my-ns",
@@ -255,37 +255,37 @@ func TestFlowAggregator_sequenceNumberCheck_netflow5(t *testing.T) {
 	sender.On("Commit").Return()
 
 	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
-	assert.Equal(t, uint32(0), aggregator.lastSeqNum[flowKey])
+	assert.Equal(t, uint32(0), aggregator.lastSequenceNum[flowKey])
 
 	// first flow
 	flow.SequenceNum = 10
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
-	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
+	assert.Equal(t, uint32(10), aggregator.lastSequenceNum[flowKey])
+	assert.Equal(t, uint32(1), aggregator.flowCountSinceLastSequence[flowKey])
 
 	// second flow with same seq number from same NetFlow packet
 	flow.SequenceNum = 10
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
-	assert.Equal(t, uint32(2), aggregator.lastCount[flowKey])
+	assert.Equal(t, uint32(10), aggregator.lastSequenceNum[flowKey])
+	assert.Equal(t, uint32(2), aggregator.flowCountSinceLastSequence[flowKey])
 
 	// third flow with same seq number from same NetFlow packet
 	flow.SequenceNum = 10
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(10), aggregator.lastSeqNum[flowKey])
-	assert.Equal(t, uint32(3), aggregator.lastCount[flowKey])
+	assert.Equal(t, uint32(10), aggregator.lastSequenceNum[flowKey])
+	assert.Equal(t, uint32(3), aggregator.flowCountSinceLastSequence[flowKey])
 
 	// third flow with next seq num (previous seq num + flows count)
 	flow.SequenceNum = 13
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(13), aggregator.lastSeqNum[flowKey])
-	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
+	assert.Equal(t, uint32(13), aggregator.lastSequenceNum[flowKey])
+	assert.Equal(t, uint32(1), aggregator.flowCountSinceLastSequence[flowKey])
 
 	// third flow with next seq num (previous seq num + flows count)
 	flow.SequenceNum = 16
 	aggregator.handleSequenceCheck(flow)
-	assert.Equal(t, uint32(16), aggregator.lastSeqNum[flowKey])
-	assert.Equal(t, uint32(1), aggregator.lastCount[flowKey])
+	assert.Equal(t, uint32(16), aggregator.lastSequenceNum[flowKey])
+	assert.Equal(t, uint32(1), aggregator.flowCountSinceLastSequence[flowKey])
 	tags := []string{
 		"snmp_device:127.0.0.1",
 		"namespace:my-ns",

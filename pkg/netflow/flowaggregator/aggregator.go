@@ -23,33 +23,33 @@ const flowAggregatorFlushInterval = 10 * time.Second
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn            chan *common.Flow
-	flushInterval     time.Duration
-	flowAcc           *flowAccumulator
-	sender            aggregator.Sender
-	stopChan          chan struct{}
-	logPayload        bool
-	receivedFlowCount *atomic.Uint64
-	flushedFlowCount  *atomic.Uint64
-	hostname          string
-	lastSeqNum        map[string]uint32
-	lastCount         map[string]uint32
+	flowIn                     chan *common.Flow
+	flushInterval              time.Duration
+	flowAcc                    *flowAccumulator
+	sender                     aggregator.Sender
+	stopChan                   chan struct{}
+	logPayload                 bool
+	receivedFlowCount          *atomic.Uint64
+	flushedFlowCount           *atomic.Uint64
+	hostname                   string
+	lastSequenceNum            map[string]uint32
+	flowCountSinceLastSequence map[string]uint32 // used for NetFlow 5
 }
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	return &FlowAggregator{
-		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:           newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
-		flushInterval:     flowAggregatorFlushInterval,
-		sender:            sender,
-		stopChan:          make(chan struct{}),
-		logPayload:        config.LogPayloads,
-		receivedFlowCount: atomic.NewUint64(0),
-		flushedFlowCount:  atomic.NewUint64(0),
-		hostname:          hostname,
-		lastSeqNum:        make(map[string]uint32),
-		lastCount:         make(map[string]uint32),
+		flowIn:                     make(chan *common.Flow, config.AggregatorBufferSize),
+		flowAcc:                    newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
+		flushInterval:              flowAggregatorFlushInterval,
+		sender:                     sender,
+		stopChan:                   make(chan struct{}),
+		logPayload:                 config.LogPayloads,
+		receivedFlowCount:          atomic.NewUint64(0),
+		flushedFlowCount:           atomic.NewUint64(0),
+		hostname:                   hostname,
+		lastSequenceNum:            make(map[string]uint32),
+		flowCountSinceLastSequence: make(map[string]uint32),
 	}
 }
 
@@ -89,10 +89,6 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 	deviceID := flow.Namespace + ":" + deviceAddr
 	// TODO: Need to include `obsDomainId`
 
-	// nfdump examples:
-	// https://github.com/phaag/nfdump/blob/b0c7a5ec2e11a683460b312ba192bc00590c4acd/bin/netflow_v5_v7.c#L382-L395
-	// https://github.com/phaag/nfdump/blob/28ad878ac807e82fb95a77df6fc9b98000bcc81c/bin/netflow_v9.c#L2094-L2106
-
 	tags := []string{
 		"snmp_device:" + deviceAddr,
 		"namespace:" + flow.Namespace,
@@ -100,61 +96,87 @@ func (agg *FlowAggregator) handleSequenceCheck(flow *common.Flow) {
 	}
 
 	if flow.FlowType == common.TypeNetFlow5 {
-		prevSeqNum, ok := agg.lastSeqNum[deviceID]
-		if !ok {
-			agg.lastSeqNum[deviceID] = flow.SequenceNum
-			agg.lastCount[deviceID]++
+
+		if agg.handleSequenceCheckNetFlow5(flow, deviceID, tags) {
 			return
 		}
 
-		// NetFlow 5, 6, 7, and Version 8:
-		// The sequence number is equal to the sequence number of the previous datagram plus the number of flows in the
-		// previous datagram. After receiving a new datagram, the receiving application can subtract the expected
-		// sequence number from the sequence number in the header to derive the number of missed flows.
-		var distance int64
-		distance = int64(flow.SequenceNum) - int64(prevSeqNum)
-		// TODO: Handle overflow
-
-		lastCount := int64(agg.lastCount[deviceID])
-		if distance == 0 {
-			agg.lastCount[deviceID]++
-		} else if distance == lastCount {
-			// no flows dropped
-			agg.lastSeqNum[deviceID] = flow.SequenceNum
-			agg.lastCount[deviceID] = 1
-		} else {
-			log.Debugf("Sequence Error for %s: Prev: %d, New: %d, LastCount: %d, Distance: %d", deviceID, prevSeqNum, flow.SequenceNum, lastCount, distance)
-			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
-
-			droppedFlows := distance - lastCount
-			if droppedFlows > 0 {
-				// Number of NetFlow 5 flows being dropped
-				agg.sender.Count("datadog.netflow.aggregator.dropped_flows", float64(droppedFlows), "", tags)
-			}
-			agg.lastSeqNum[deviceID] = flow.SequenceNum
-			agg.lastCount[deviceID] = 1
-		}
 	}
 	if flow.FlowType == common.TypeNetFlow9 {
-		prevSeqNum, ok := agg.lastSeqNum[deviceID]
-		if !ok {
-			agg.lastSeqNum[deviceID] = flow.SequenceNum
+
+		if agg.handleSequenceCheckNetFlow9(flow, deviceID, tags) {
 			return
 		}
-		var distance int64
-		distance = int64(flow.SequenceNum) - int64(prevSeqNum)
-		// TODO: Handle overflow
 
-		if distance > 1 {
-			log.Debugf("Sequence Error: Prev: %d, New: %d, Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, distance, distance-1)
-
-			agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
-
-			// Number of NetFlow 9 packets being dropped, one NetFlow packet might contain multiple flows
-			agg.sender.Count("datadog.netflow.aggregator.dropped_flow_packets", float64(distance-1), "", tags)
-		}
-		agg.lastSeqNum[deviceID] = flow.SequenceNum
 	}
+}
+
+func (agg *FlowAggregator) handleSequenceCheckNetFlow9(flow *common.Flow, deviceID string, tags []string) bool {
+	// Sequence Number meaning in NetFlow9:
+	// Incremental sequence counter of all export packets sent by this export device;
+	// this value is cumulative, and it can be used to identify whether any export packets have been missed.
+	// Note: This is a change from the NetFlow Version 5 and Version 8 headers, where this number represented "total flows."
+	// nfdump example: https://github.com/phaag/nfdump/blob/b0c7a5ec2e11a683460b312ba192bc00590c4acd/bin/netflow_v5_v7.c#L382-L395
+	prevSeqNum, ok := agg.lastSequenceNum[deviceID]
+	if !ok {
+		agg.lastSequenceNum[deviceID] = flow.SequenceNum
+		return true
+	}
+
+	// Works even if there is an uint32 overflow of the sequence number
+	var distance uint32
+	distance = flow.SequenceNum - prevSeqNum
+
+	if distance > 1 {
+		log.Debugf("Sequence Error: Prev: %d, New: %d, Distance: %d, Dropped: %d", prevSeqNum, flow.SequenceNum, distance, distance-1)
+
+		agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
+
+		// Number of NetFlow 9 packets being dropped, one NetFlow packet might contain multiple flows
+		agg.sender.Count("datadog.netflow.aggregator.dropped_flow_packets", float64(distance-1), "", tags)
+	}
+	agg.lastSequenceNum[deviceID] = flow.SequenceNum
+	return false
+}
+
+func (agg *FlowAggregator) handleSequenceCheckNetFlow5(flow *common.Flow, deviceID string, tags []string) bool {
+	// Sequence Number in NetFlow 5, 6, 7, and Version 8:
+	// The sequence number is equal to the sequence number of the previous datagram plus the number of flows in the
+	// previous datagram. After receiving a new datagram, the receiving application can subtract the expected
+	// sequence number from the sequence number in the header to derive the number of missed flows.
+	// nfdump example: https://github.com/phaag/nfdump/blob/28ad878ac807e82fb95a77df6fc9b98000bcc81c/bin/netflow_v9.c#L2094-L2106
+	prevSeqNum, ok := agg.lastSequenceNum[deviceID]
+	if !ok {
+		agg.lastSequenceNum[deviceID] = flow.SequenceNum
+		agg.flowCountSinceLastSequence[deviceID] = 1
+		return true
+	}
+
+	var distance uint32
+
+	// Works even if there is an uint32 overflow of the sequence number
+	distance = flow.SequenceNum - prevSeqNum
+
+	lastCount := agg.flowCountSinceLastSequence[deviceID]
+	if distance == 0 {
+		agg.flowCountSinceLastSequence[deviceID]++
+	} else if distance == lastCount {
+		// no flows dropped
+		agg.lastSequenceNum[deviceID] = flow.SequenceNum
+		agg.flowCountSinceLastSequence[deviceID] = 1
+	} else {
+		log.Debugf("Sequence Error for %s: Prev: %d, New: %d, LastCount: %d, Distance: %d", deviceID, prevSeqNum, flow.SequenceNum, lastCount, distance)
+		agg.sender.Count("datadog.netflow.aggregator.sequence_errors", 1, "", tags)
+
+		droppedFlows := distance - lastCount
+		if droppedFlows > 0 {
+			// Number of NetFlow 5 flows being dropped
+			agg.sender.Count("datadog.netflow.aggregator.dropped_flows", float64(droppedFlows), "", tags)
+		}
+		agg.lastSequenceNum[deviceID] = flow.SequenceNum
+		agg.flowCountSinceLastSequence[deviceID] = 1
+	}
+	return false
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
