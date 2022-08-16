@@ -200,3 +200,11 @@ func nsTimestampToFloat(ns uint64) float64 {
 	}
 	return float64(ns << shift)
 }
+
+func requestFragment(fragment []byte) [HTTPBufferSize]C.char {
+	var b [HTTPBufferSize]C.char
+	for i := 0; i < len(b) && i < len(fragment); i++ {
+		b[i] = C.char(fragment[i])
+	}
+	return b
+}

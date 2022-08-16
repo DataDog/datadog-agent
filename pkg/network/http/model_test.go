@@ -87,11 +87,3 @@ func BenchmarkPath(b *testing.B) {
 	}
 	runtime.KeepAlive(buf)
 }
-
-func requestFragment(fragment []byte) [HTTPBufferSize]_Ctype_char {
-	var b [HTTPBufferSize]_Ctype_char
-	for i := 0; i < len(b) && i < len(fragment); i++ {
-		b[i] = _Ctype_char(fragment[i])
-	}
-	return b
-}
