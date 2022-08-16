@@ -181,12 +181,6 @@ func (ac *AutoConfig) Stop() {
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
 func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
-	if shouldPoll {
-		log.Infof("Registering %s config provider polled every %s", provider.String(), pollInterval.String())
-	} else {
-		log.Infof("Registering %s config provider", provider.String())
-	}
-
 	cp := newConfigPoller(provider, shouldPoll, pollInterval)
 
 	ac.m.Lock()
@@ -200,6 +194,11 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 	for _, cp := range ac.getConfigPollers() {
 		cp.start(ctx, ac)
+		if cp.canPoll {
+			log.Infof("Started config provider %q, polled every %s", cp.provider.String(), cp.pollInterval.String())
+		} else {
+			log.Infof("Started config provider %q", cp.provider.String())
+		}
 
 		// TODO: this probably belongs somewhere inside the file config
 		// provider itself, but since it already lived in AD it's been
@@ -213,7 +212,6 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 	}
 
 	ac.ranOnce.Store(true)
-	log.Debug("LoadAndRun done.")
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
