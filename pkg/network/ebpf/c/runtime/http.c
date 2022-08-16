@@ -280,6 +280,7 @@ int uprobe__gnutls_transport_set_int2(struct pt_regs *ctx) {
     // Use the recv_fd and ignore the send_fd;
     // in most real-world scenarios, they are the same.
     int recv_fd = (int)PT_REGS_PARM2(ctx);
+    log_debug("gnutls_transport_set_int2: ctx=%llx fd=%d\n", ssl_session, recv_fd);
 
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
@@ -292,6 +293,7 @@ int uprobe__gnutls_transport_set_ptr(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     // This is a void*, but it might contain the socket fd cast as a pointer.
     int fd = (int)PT_REGS_PARM2(ctx);
+    log_debug("gnutls_transport_set_ptr: ctx=%llx fd=%d\n", ssl_session, fd);
 
     init_ssl_sock(ssl_session, (u32)fd);
     return 0;
@@ -306,6 +308,7 @@ int uprobe__gnutls_transport_set_ptr2(struct pt_regs *ctx) {
     // in most real-world scenarios, they are the same.
     // This is a void*, but it might contain the socket fd cast as a pointer.
     int recv_fd = (int)PT_REGS_PARM2(ctx);
+    log_debug("gnutls_transport_set_ptr2: ctx=%llx fd=%d\n", ssl_session, recv_fd);
 
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
@@ -323,6 +326,7 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
         .buf = data,
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -340,6 +344,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     void *ssl_session = args->ctx;
+    log_debug("uret/gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         goto cleanup;
@@ -359,6 +364,7 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     size_t data_size = (size_t)PT_REGS_PARM3(ctx);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         return 0;
@@ -370,6 +376,7 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
 
 static __always_inline void gnutls_goodbye(void *ssl_session) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("gnutls_goodbye: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         return;
