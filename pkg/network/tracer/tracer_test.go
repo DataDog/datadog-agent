@@ -1735,6 +1735,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
+	err = tr.RegisterClient("1")
+	require.NoError(t, err)
 
 	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
 	exec.Command(fetchCmd[0]).Run()
