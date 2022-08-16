@@ -81,8 +81,8 @@ func TestProcessEvents(t *testing.T) {
 				Events: tt.events,
 			})
 
-			assert.ElementsMatch(t, tt.changes.Schedule, changes.Schedule)
-			assert.ElementsMatch(t, tt.changes.Unschedule, changes.Unschedule)
+			assert.Equal(t, tt.changes.Schedule, changes.Schedule)
+			assert.Equal(t, tt.changes.Unschedule, changes.Unschedule)
 		})
 	}
 }
