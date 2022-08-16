@@ -17,7 +17,7 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	tx := httpTX{
+	tx := ebpfHttpTx{
 		request_fragment: requestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
@@ -33,7 +33,7 @@ func TestMaximumLengthPath(t *testing.T) {
 	rep := strings.Repeat("a", HTTPBufferSize-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := httpTX{
+	tx := ebpfHttpTx{
 		request_fragment: requestFragment(
 			[]byte(str),
 		),
@@ -47,7 +47,7 @@ func TestMaximumLengthPath(t *testing.T) {
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := httpTX{
+	tx := ebpfHttpTx{
 		request_fragment: requestFragment(
 			// This probably isn't a valid HTTP request
 			// (since it's missing a version before the end),
@@ -64,7 +64,7 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 }
 
 func TestLatency(t *testing.T) {
-	tx := httpTX{
+	tx := ebpfHttpTx{
 		response_last_seen: 2e6,
 		request_started:    1e6,
 	}
@@ -73,7 +73,7 @@ func TestLatency(t *testing.T) {
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := httpTX{
+	tx := ebpfHttpTx{
 		request_fragment: requestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),

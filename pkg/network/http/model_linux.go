@@ -151,7 +151,7 @@ func (tx *ebpfHttpTx) RequestMethod() uint32 {
 }
 
 func (tx *ebpfHttpTx) SetRequestMethod(m uint32) {
-	tx.request_method = m
+	tx.request_method = C.uchar(m)
 }
 
 // Tags returns an uint64 representing the tags bitfields
