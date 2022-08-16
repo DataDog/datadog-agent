@@ -166,9 +166,9 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 	case *workloadmeta.Container:
 		// kubernetes containers need to be handled together with their
 		// pod, so they generate a single []integration.Config.
-		// otherwise, with container_collect_all, it's possible for a
-		// container that belongs to an AD-annotated pod to briefly
-		// have a container_collect_all when it shouldn't.
+		// otherwise, it's possible for a container that belongs to an
+		// AD-annotated pod to briefly be scheduled without its
+		// annotations.
 		if !findKubernetesInLabels(entity.Labels) {
 			configs, errs = k.generateContainerConfig(entity)
 

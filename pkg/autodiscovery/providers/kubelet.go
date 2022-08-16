@@ -65,6 +65,7 @@ func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Conf
 	return k.generateConfigs()
 }
 
+// listen, closing the given channel after the initial set of events are received
 func (k *KubeletConfigProvider) listen(ch chan struct{}) {
 	const name = "ad-kubeletprovider"
 
