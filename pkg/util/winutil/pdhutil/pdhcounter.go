@@ -93,6 +93,9 @@ func (p *PdhCounterSet) Initialize(className string) error {
 
 // GetUnlocalizedCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
 func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
+	// TODO (WA-52): Restructure GetUnlocalizedCounter / GetSingleInstanceCounter / GetMultiInstanceCounter
+	//               to make code more clear and deduplicate here and Initialize()
+
 	// refresh PDH object cache (refresh will only occur periodically)
 	CachedRefreshPdhObjectCache()
 
