@@ -169,49 +169,39 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | -------- | ---- | ---------- | --------- |
 | `async` | bool | True if the syscall was asynchronous |  |
 | `container.id` | string | ID of the container |  |
-| `container.id.length` | int | Length of 'container.id' string |  |
 | `container.tags` | string | Tags of the container |  |
 | `network.destination.ip` | IP/CIDR | IP address |  |
 | `network.destination.port` | int | Port number |  |
 | `network.device.ifindex` | int | interface ifindex |  |
 | `network.device.ifname` | string | interface ifname |  |
-| `network.device.ifname.length` | int | Length of 'network.device.ifname' string |  |
 | `network.l3_protocol` | int | l3 protocol of the network packet | L3 protocols |
 | `network.l4_protocol` | int | l4 protocol of the network packet | L4 protocols |
 | `network.size` | int | size in bytes of the network packet |  |
 | `network.source.ip` | IP/CIDR | IP address |  |
 | `network.source.port` | int | Port number |  |
 | `process.ancestors.args` | string | Arguments of the process (as a string) |  |
-| `process.ancestors.args.length` | int | Length of 'process.ancestors.args' string |  |
 | `process.ancestors.args_flags` | string | Arguments of the process (as an array) |  |
 | `process.ancestors.args_options` | string | Arguments of the process (as an array) |  |
 | `process.ancestors.args_truncated` | bool | Indicator of arguments truncation |  |
 | `process.ancestors.argv` | string | Arguments of the process (as an array) |  |
 | `process.ancestors.argv0` | string | First argument of the process |  |
-| `process.ancestors.argv0.length` | int | Length of 'process.ancestors.argv0' string |  |
 | `process.ancestors.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `process.ancestors.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `process.ancestors.comm` | string | Comm attribute of the process |  |
-| `process.ancestors.comm.length` | int | Comm attribute of the process |  |
 | `process.ancestors.container.id` | string | Container ID |  |
-| `process.ancestors.container.id.length` | int | Container ID |  |
 | `process.ancestors.cookie` | int | Cookie of the process |  |
 | `process.ancestors.created_at` | int | Timestamp of the creation of the process |  |
 | `process.ancestors.egid` | int | Effective GID of the process |  |
 | `process.ancestors.egroup` | string | Effective group of the process |  |
-| `process.ancestors.egroup.length` | int | Effective group of the process |  |
 | `process.ancestors.envp` | string | Environment variables of the process |  |
 | `process.ancestors.envs` | string | Environment variable names of the process |  |
 | `process.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `process.ancestors.euid` | int | Effective UID of the process |  |
 | `process.ancestors.euser` | string | Effective user of the process |  |
-| `process.ancestors.euser.length` | int | Effective user of the process |  |
 | `process.ancestors.file.change_time` | int | Change time of the file |  |
 | `process.ancestors.file.filesystem` | string | File's filesystem |  |
-| `process.ancestors.file.filesystem.length` | int | Length of 'process.ancestors.file.filesystem' string |  |
 | `process.ancestors.file.gid` | int | GID of the file's owner |  |
 | `process.ancestors.file.group` | string | Group of the file's owner |  |
-| `process.ancestors.file.group.length` | int | Length of 'process.ancestors.file.group' string |  |
 | `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `process.ancestors.file.inode` | int | Inode of the file |  |
 | `process.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -224,57 +214,43 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `process.ancestors.file.uid` | int | UID of the file's owner |  |
 | `process.ancestors.file.user` | string | User of the file's owner |  |
-| `process.ancestors.file.user.length` | int | Length of 'process.ancestors.file.user' string |  |
 | `process.ancestors.fsgid` | int | FileSystem-gid of the process |  |
 | `process.ancestors.fsgroup` | string | FileSystem-group of the process |  |
-| `process.ancestors.fsgroup.length` | int | FileSystem-group of the process |  |
 | `process.ancestors.fsuid` | int | FileSystem-uid of the process |  |
 | `process.ancestors.fsuser` | string | FileSystem-user of the process |  |
-| `process.ancestors.fsuser.length` | int | FileSystem-user of the process |  |
 | `process.ancestors.gid` | int | GID of the process |  |
 | `process.ancestors.group` | string | Group of the process |  |
-| `process.ancestors.group.length` | int | Group of the process |  |
 | `process.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ancestors.ppid` | int | Parent process ID |  |
 | `process.ancestors.tid` | int | Thread ID of the thread |  |
 | `process.ancestors.tty_name` | string | Name of the TTY associated with the process |  |
-| `process.ancestors.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `process.ancestors.uid` | int | UID of the process |  |
 | `process.ancestors.user` | string | User of the process |  |
-| `process.ancestors.user.length` | int | User of the process |  |
 | `process.args` | string | Arguments of the process (as a string) |  |
-| `process.args.length` | int | Length of 'process.args' string |  |
 | `process.args_flags` | string | Arguments of the process (as an array) |  |
 | `process.args_options` | string | Arguments of the process (as an array) |  |
 | `process.args_truncated` | bool | Indicator of arguments truncation |  |
 | `process.argv` | string | Arguments of the process (as an array) |  |
 | `process.argv0` | string | First argument of the process |  |
-| `process.argv0.length` | int | Length of 'process.argv0' string |  |
 | `process.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `process.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `process.comm` | string | Comm attribute of the process |  |
-| `process.comm.length` | int | Comm attribute of the process |  |
 | `process.container.id` | string | Container ID |  |
-| `process.container.id.length` | int | Container ID |  |
 | `process.cookie` | int | Cookie of the process |  |
 | `process.created_at` | int | Timestamp of the creation of the process |  |
 | `process.egid` | int | Effective GID of the process |  |
 | `process.egroup` | string | Effective group of the process |  |
-| `process.egroup.length` | int | Effective group of the process |  |
 | `process.envp` | string | Environment variables of the process |  |
 | `process.envs` | string | Environment variable names of the process |  |
 | `process.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `process.euid` | int | Effective UID of the process |  |
 | `process.euser` | string | Effective user of the process |  |
-| `process.euser.length` | int | Effective user of the process |  |
 | `process.file.change_time` | int | Change time of the file |  |
 | `process.file.filesystem` | string | File's filesystem |  |
-| `process.file.filesystem.length` | int | Length of 'process.file.filesystem' string |  |
 | `process.file.gid` | int | GID of the file's owner |  |
 | `process.file.group` | string | Group of the file's owner |  |
-| `process.file.group.length` | int | Length of 'process.file.group' string |  |
 | `process.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `process.file.inode` | int | Inode of the file |  |
 | `process.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -287,26 +263,20 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `process.file.uid` | int | UID of the file's owner |  |
 | `process.file.user` | string | User of the file's owner |  |
-| `process.file.user.length` | int | Length of 'process.file.user' string |  |
 | `process.fsgid` | int | FileSystem-gid of the process |  |
 | `process.fsgroup` | string | FileSystem-group of the process |  |
-| `process.fsgroup.length` | int | FileSystem-group of the process |  |
 | `process.fsuid` | int | FileSystem-uid of the process |  |
 | `process.fsuser` | string | FileSystem-user of the process |  |
-| `process.fsuser.length` | int | FileSystem-user of the process |  |
 | `process.gid` | int | GID of the process |  |
 | `process.group` | string | Group of the process |  |
-| `process.group.length` | int | Group of the process |  |
 | `process.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ppid` | int | Parent process ID |  |
 | `process.tid` | int | Thread ID of the thread |  |
 | `process.tty_name` | string | Name of the TTY associated with the process |  |
-| `process.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `process.uid` | int | UID of the process |  |
 | `process.user` | string | User of the process |  |
-| `process.user.length` | int | User of the process |  |
 
 ### Event `bind`
 
@@ -329,14 +299,11 @@ A BPF command was executed
 | -------- | ---- | ---------- | --------- |
 | `bpf.cmd` | int | BPF command name | BPF commands |
 | `bpf.map.name` | string | Name of the eBPF map (added in 7.35) |  |
-| `bpf.map.name.length` | int | Name of the eBPF map (added in 7.35) |  |
 | `bpf.map.type` | int | Type of the eBPF map | BPF map types |
 | `bpf.prog.attach_type` | int | Attach type of the eBPF program | BPF attach types |
 | `bpf.prog.helpers` | int | eBPF helpers used by the eBPF program (added in 7.35) | BPF helper functions |
 | `bpf.prog.name` | string | Name of the eBPF program (added in 7.35) |  |
-| `bpf.prog.name.length` | int | Name of the eBPF program (added in 7.35) |  |
 | `bpf.prog.tag` | string | Hash (sha1) of the eBPF program (added in 7.35) |  |
-| `bpf.prog.tag.length` | int | Hash (sha1) of the eBPF program (added in 7.35) |  |
 | `bpf.prog.type` | int | Type of the eBPF program | BPF program types |
 | `bpf.retval` | int | Return value of the syscall | Error Constants |
 
@@ -359,10 +326,8 @@ A file’s permissions were changed
 | `chmod.file.destination.mode` | int | New mode/rights of the chmod-ed file | Chmod mode constants |
 | `chmod.file.destination.rights` | int | New mode/rights of the chmod-ed file | Chmod mode constants |
 | `chmod.file.filesystem` | string | File's filesystem |  |
-| `chmod.file.filesystem.length` | int | Length of 'chmod.file.filesystem' string |  |
 | `chmod.file.gid` | int | GID of the file's owner |  |
 | `chmod.file.group` | string | Group of the file's owner |  |
-| `chmod.file.group.length` | int | Length of 'chmod.file.group' string |  |
 | `chmod.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `chmod.file.inode` | int | Inode of the file |  |
 | `chmod.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -375,7 +340,6 @@ A file’s permissions were changed
 | `chmod.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `chmod.file.uid` | int | UID of the file's owner |  |
 | `chmod.file.user` | string | User of the file's owner |  |
-| `chmod.file.user.length` | int | Length of 'chmod.file.user' string |  |
 | `chmod.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `chown`
@@ -387,15 +351,11 @@ A file’s owner was changed
 | `chown.file.change_time` | int | Change time of the file |  |
 | `chown.file.destination.gid` | int | New GID of the chown-ed file's owner |  |
 | `chown.file.destination.group` | string | New group of the chown-ed file's owner |  |
-| `chown.file.destination.group.length` | int | Length of 'chown.file.destination.group' string |  |
 | `chown.file.destination.uid` | int | New UID of the chown-ed file's owner |  |
 | `chown.file.destination.user` | string | New user of the chown-ed file's owner |  |
-| `chown.file.destination.user.length` | int | Length of 'chown.file.destination.user' string |  |
 | `chown.file.filesystem` | string | File's filesystem |  |
-| `chown.file.filesystem.length` | int | Length of 'chown.file.filesystem' string |  |
 | `chown.file.gid` | int | GID of the file's owner |  |
 | `chown.file.group` | string | Group of the file's owner |  |
-| `chown.file.group.length` | int | Length of 'chown.file.group' string |  |
 | `chown.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `chown.file.inode` | int | Inode of the file |  |
 | `chown.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -408,7 +368,6 @@ A file’s owner was changed
 | `chown.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `chown.file.uid` | int | UID of the file's owner |  |
 | `chown.file.user` | string | User of the file's owner |  |
-| `chown.file.user.length` | int | Length of 'chown.file.user' string |  |
 | `chown.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `dns`
@@ -431,36 +390,28 @@ A process was executed or forked
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
 | `exec.args` | string | Arguments of the process (as a string) |  |
-| `exec.args.length` | int | Length of 'exec.args' string |  |
 | `exec.args_flags` | string | Arguments of the process (as an array) |  |
 | `exec.args_options` | string | Arguments of the process (as an array) |  |
 | `exec.args_truncated` | bool | Indicator of arguments truncation |  |
 | `exec.argv` | string | Arguments of the process (as an array) |  |
 | `exec.argv0` | string | First argument of the process |  |
-| `exec.argv0.length` | int | Length of 'exec.argv0' string |  |
 | `exec.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `exec.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `exec.comm` | string | Comm attribute of the process |  |
-| `exec.comm.length` | int | Comm attribute of the process |  |
 | `exec.container.id` | string | Container ID |  |
-| `exec.container.id.length` | int | Container ID |  |
 | `exec.cookie` | int | Cookie of the process |  |
 | `exec.created_at` | int | Timestamp of the creation of the process |  |
 | `exec.egid` | int | Effective GID of the process |  |
 | `exec.egroup` | string | Effective group of the process |  |
-| `exec.egroup.length` | int | Effective group of the process |  |
 | `exec.envp` | string | Environment variables of the process |  |
 | `exec.envs` | string | Environment variable names of the process |  |
 | `exec.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `exec.euid` | int | Effective UID of the process |  |
 | `exec.euser` | string | Effective user of the process |  |
-| `exec.euser.length` | int | Effective user of the process |  |
 | `exec.file.change_time` | int | Change time of the file |  |
 | `exec.file.filesystem` | string | File's filesystem |  |
-| `exec.file.filesystem.length` | int | Length of 'exec.file.filesystem' string |  |
 | `exec.file.gid` | int | GID of the file's owner |  |
 | `exec.file.group` | string | Group of the file's owner |  |
-| `exec.file.group.length` | int | Length of 'exec.file.group' string |  |
 | `exec.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `exec.file.inode` | int | Inode of the file |  |
 | `exec.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -473,26 +424,20 @@ A process was executed or forked
 | `exec.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `exec.file.uid` | int | UID of the file's owner |  |
 | `exec.file.user` | string | User of the file's owner |  |
-| `exec.file.user.length` | int | Length of 'exec.file.user' string |  |
 | `exec.fsgid` | int | FileSystem-gid of the process |  |
 | `exec.fsgroup` | string | FileSystem-group of the process |  |
-| `exec.fsgroup.length` | int | FileSystem-group of the process |  |
 | `exec.fsuid` | int | FileSystem-uid of the process |  |
 | `exec.fsuser` | string | FileSystem-user of the process |  |
-| `exec.fsuser.length` | int | FileSystem-user of the process |  |
 | `exec.gid` | int | GID of the process |  |
 | `exec.group` | string | Group of the process |  |
-| `exec.group.length` | int | Group of the process |  |
 | `exec.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exec.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exec.ppid` | int | Parent process ID |  |
 | `exec.tid` | int | Thread ID of the thread |  |
 | `exec.tty_name` | string | Name of the TTY associated with the process |  |
-| `exec.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `exec.uid` | int | UID of the process |  |
 | `exec.user` | string | User of the process |  |
-| `exec.user.length` | int | User of the process |  |
 
 ### Event `exit`
 
@@ -501,38 +446,30 @@ A process was terminated
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
 | `exit.args` | string | Arguments of the process (as a string) |  |
-| `exit.args.length` | int | Length of 'exit.args' string |  |
 | `exit.args_flags` | string | Arguments of the process (as an array) |  |
 | `exit.args_options` | string | Arguments of the process (as an array) |  |
 | `exit.args_truncated` | bool | Indicator of arguments truncation |  |
 | `exit.argv` | string | Arguments of the process (as an array) |  |
 | `exit.argv0` | string | First argument of the process |  |
-| `exit.argv0.length` | int | Length of 'exit.argv0' string |  |
 | `exit.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `exit.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `exit.cause` | int | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |  |
 | `exit.code` | int | Exit code of the process or number of the signal that caused the process to terminate |  |
 | `exit.comm` | string | Comm attribute of the process |  |
-| `exit.comm.length` | int | Comm attribute of the process |  |
 | `exit.container.id` | string | Container ID |  |
-| `exit.container.id.length` | int | Container ID |  |
 | `exit.cookie` | int | Cookie of the process |  |
 | `exit.created_at` | int | Timestamp of the creation of the process |  |
 | `exit.egid` | int | Effective GID of the process |  |
 | `exit.egroup` | string | Effective group of the process |  |
-| `exit.egroup.length` | int | Effective group of the process |  |
 | `exit.envp` | string | Environment variables of the process |  |
 | `exit.envs` | string | Environment variable names of the process |  |
 | `exit.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `exit.euid` | int | Effective UID of the process |  |
 | `exit.euser` | string | Effective user of the process |  |
-| `exit.euser.length` | int | Effective user of the process |  |
 | `exit.file.change_time` | int | Change time of the file |  |
 | `exit.file.filesystem` | string | File's filesystem |  |
-| `exit.file.filesystem.length` | int | Length of 'exit.file.filesystem' string |  |
 | `exit.file.gid` | int | GID of the file's owner |  |
 | `exit.file.group` | string | Group of the file's owner |  |
-| `exit.file.group.length` | int | Length of 'exit.file.group' string |  |
 | `exit.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `exit.file.inode` | int | Inode of the file |  |
 | `exit.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -545,26 +482,20 @@ A process was terminated
 | `exit.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `exit.file.uid` | int | UID of the file's owner |  |
 | `exit.file.user` | string | User of the file's owner |  |
-| `exit.file.user.length` | int | Length of 'exit.file.user' string |  |
 | `exit.fsgid` | int | FileSystem-gid of the process |  |
 | `exit.fsgroup` | string | FileSystem-group of the process |  |
-| `exit.fsgroup.length` | int | FileSystem-group of the process |  |
 | `exit.fsuid` | int | FileSystem-uid of the process |  |
 | `exit.fsuser` | string | FileSystem-user of the process |  |
-| `exit.fsuser.length` | int | FileSystem-user of the process |  |
 | `exit.gid` | int | GID of the process |  |
 | `exit.group` | string | Group of the process |  |
-| `exit.group.length` | int | Group of the process |  |
 | `exit.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exit.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exit.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exit.ppid` | int | Parent process ID |  |
 | `exit.tid` | int | Thread ID of the thread |  |
 | `exit.tty_name` | string | Name of the TTY associated with the process |  |
-| `exit.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `exit.uid` | int | UID of the process |  |
 | `exit.user` | string | User of the process |  |
-| `exit.user.length` | int | User of the process |  |
 
 ### Event `link`
 
@@ -575,10 +506,8 @@ Create a new name/alias for a file
 | `link.file.change_time` | int | Change time of the file |  |
 | `link.file.destination.change_time` | int | Change time of the file |  |
 | `link.file.destination.filesystem` | string | File's filesystem |  |
-| `link.file.destination.filesystem.length` | int | Length of 'link.file.destination.filesystem' string |  |
 | `link.file.destination.gid` | int | GID of the file's owner |  |
 | `link.file.destination.group` | string | Group of the file's owner |  |
-| `link.file.destination.group.length` | int | Length of 'link.file.destination.group' string |  |
 | `link.file.destination.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `link.file.destination.inode` | int | Inode of the file |  |
 | `link.file.destination.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -591,12 +520,9 @@ Create a new name/alias for a file
 | `link.file.destination.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `link.file.destination.uid` | int | UID of the file's owner |  |
 | `link.file.destination.user` | string | User of the file's owner |  |
-| `link.file.destination.user.length` | int | Length of 'link.file.destination.user' string |  |
 | `link.file.filesystem` | string | File's filesystem |  |
-| `link.file.filesystem.length` | int | Length of 'link.file.filesystem' string |  |
 | `link.file.gid` | int | GID of the file's owner |  |
 | `link.file.group` | string | Group of the file's owner |  |
-| `link.file.group.length` | int | Length of 'link.file.group' string |  |
 | `link.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `link.file.inode` | int | Inode of the file |  |
 | `link.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -609,7 +535,6 @@ Create a new name/alias for a file
 | `link.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `link.file.uid` | int | UID of the file's owner |  |
 | `link.file.user` | string | User of the file's owner |  |
-| `link.file.user.length` | int | Length of 'link.file.user' string |  |
 | `link.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `load_module`
@@ -620,10 +545,8 @@ A new kernel module was loaded
 | -------- | ---- | ---------- | --------- |
 | `load_module.file.change_time` | int | Change time of the file |  |
 | `load_module.file.filesystem` | string | File's filesystem |  |
-| `load_module.file.filesystem.length` | int | Length of 'load_module.file.filesystem' string |  |
 | `load_module.file.gid` | int | GID of the file's owner |  |
 | `load_module.file.group` | string | Group of the file's owner |  |
-| `load_module.file.group.length` | int | Length of 'load_module.file.group' string |  |
 | `load_module.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `load_module.file.inode` | int | Inode of the file |  |
 | `load_module.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -636,10 +559,8 @@ A new kernel module was loaded
 | `load_module.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `load_module.file.uid` | int | UID of the file's owner |  |
 | `load_module.file.user` | string | User of the file's owner |  |
-| `load_module.file.user.length` | int | Length of 'load_module.file.user' string |  |
 | `load_module.loaded_from_memory` | bool | Indicates if the kernel module was loaded from memory |  |
 | `load_module.name` | string | Name of the new kernel module |  |
-| `load_module.name.length` | int | Name of the new kernel module |  |
 | `load_module.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `mkdir`
@@ -652,10 +573,8 @@ A directory was created
 | `mkdir.file.destination.mode` | int | Mode/rights of the new directory | Chmod mode constants |
 | `mkdir.file.destination.rights` | int | Mode/rights of the new directory | Chmod mode constants |
 | `mkdir.file.filesystem` | string | File's filesystem |  |
-| `mkdir.file.filesystem.length` | int | Length of 'mkdir.file.filesystem' string |  |
 | `mkdir.file.gid` | int | GID of the file's owner |  |
 | `mkdir.file.group` | string | Group of the file's owner |  |
-| `mkdir.file.group.length` | int | Length of 'mkdir.file.group' string |  |
 | `mkdir.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `mkdir.file.inode` | int | Inode of the file |  |
 | `mkdir.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -668,7 +587,6 @@ A directory was created
 | `mkdir.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `mkdir.file.uid` | int | UID of the file's owner |  |
 | `mkdir.file.user` | string | User of the file's owner |  |
-| `mkdir.file.user.length` | int | Length of 'mkdir.file.user' string |  |
 | `mkdir.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `mmap`
@@ -679,10 +597,8 @@ A mmap command was executed
 | -------- | ---- | ---------- | --------- |
 | `mmap.file.change_time` | int | Change time of the file |  |
 | `mmap.file.filesystem` | string | File's filesystem |  |
-| `mmap.file.filesystem.length` | int | Length of 'mmap.file.filesystem' string |  |
 | `mmap.file.gid` | int | GID of the file's owner |  |
 | `mmap.file.group` | string | Group of the file's owner |  |
-| `mmap.file.group.length` | int | Length of 'mmap.file.group' string |  |
 | `mmap.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `mmap.file.inode` | int | Inode of the file |  |
 | `mmap.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -695,7 +611,6 @@ A mmap command was executed
 | `mmap.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `mmap.file.uid` | int | UID of the file's owner |  |
 | `mmap.file.user` | string | User of the file's owner |  |
-| `mmap.file.user.length` | int | Length of 'mmap.file.user' string |  |
 | `mmap.flags` | int | memory segment flags | MMap flags |
 | `mmap.protection` | int | memory segment protection | Protection constants |
 | `mmap.retval` | int | Return value of the syscall | Error Constants |
@@ -719,10 +634,8 @@ A file was opened
 | `open.file.change_time` | int | Change time of the file |  |
 | `open.file.destination.mode` | int | Mode of the created file | Chmod mode constants |
 | `open.file.filesystem` | string | File's filesystem |  |
-| `open.file.filesystem.length` | int | Length of 'open.file.filesystem' string |  |
 | `open.file.gid` | int | GID of the file's owner |  |
 | `open.file.group` | string | Group of the file's owner |  |
-| `open.file.group.length` | int | Length of 'open.file.group' string |  |
 | `open.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `open.file.inode` | int | Inode of the file |  |
 | `open.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -735,7 +648,6 @@ A file was opened
 | `open.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `open.file.uid` | int | UID of the file's owner |  |
 | `open.file.user` | string | User of the file's owner |  |
-| `open.file.user.length` | int | Length of 'open.file.user' string |  |
 | `open.flags` | int | Flags used when opening the file | Open flags |
 | `open.retval` | int | Return value of the syscall | Error Constants |
 
@@ -748,36 +660,28 @@ A ptrace command was executed
 | `ptrace.request` | int | ptrace request | Ptrace constants |
 | `ptrace.retval` | int | Return value of the syscall | Error Constants |
 | `ptrace.tracee.ancestors.args` | string | Arguments of the process (as a string) |  |
-| `ptrace.tracee.ancestors.args.length` | int | Length of 'ptrace.tracee.ancestors.args' string |  |
 | `ptrace.tracee.ancestors.args_flags` | string | Arguments of the process (as an array) |  |
 | `ptrace.tracee.ancestors.args_options` | string | Arguments of the process (as an array) |  |
 | `ptrace.tracee.ancestors.args_truncated` | bool | Indicator of arguments truncation |  |
 | `ptrace.tracee.ancestors.argv` | string | Arguments of the process (as an array) |  |
 | `ptrace.tracee.ancestors.argv0` | string | First argument of the process |  |
-| `ptrace.tracee.ancestors.argv0.length` | int | Length of 'ptrace.tracee.ancestors.argv0' string |  |
 | `ptrace.tracee.ancestors.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `ptrace.tracee.ancestors.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `ptrace.tracee.ancestors.comm` | string | Comm attribute of the process |  |
-| `ptrace.tracee.ancestors.comm.length` | int | Comm attribute of the process |  |
 | `ptrace.tracee.ancestors.container.id` | string | Container ID |  |
-| `ptrace.tracee.ancestors.container.id.length` | int | Container ID |  |
 | `ptrace.tracee.ancestors.cookie` | int | Cookie of the process |  |
 | `ptrace.tracee.ancestors.created_at` | int | Timestamp of the creation of the process |  |
 | `ptrace.tracee.ancestors.egid` | int | Effective GID of the process |  |
 | `ptrace.tracee.ancestors.egroup` | string | Effective group of the process |  |
-| `ptrace.tracee.ancestors.egroup.length` | int | Effective group of the process |  |
 | `ptrace.tracee.ancestors.envp` | string | Environment variables of the process |  |
 | `ptrace.tracee.ancestors.envs` | string | Environment variable names of the process |  |
 | `ptrace.tracee.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `ptrace.tracee.ancestors.euid` | int | Effective UID of the process |  |
 | `ptrace.tracee.ancestors.euser` | string | Effective user of the process |  |
-| `ptrace.tracee.ancestors.euser.length` | int | Effective user of the process |  |
 | `ptrace.tracee.ancestors.file.change_time` | int | Change time of the file |  |
 | `ptrace.tracee.ancestors.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.ancestors.file.filesystem.length` | int | Length of 'ptrace.tracee.ancestors.file.filesystem' string |  |
 | `ptrace.tracee.ancestors.file.gid` | int | GID of the file's owner |  |
 | `ptrace.tracee.ancestors.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.ancestors.file.group.length` | int | Length of 'ptrace.tracee.ancestors.file.group' string |  |
 | `ptrace.tracee.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `ptrace.tracee.ancestors.file.inode` | int | Inode of the file |  |
 | `ptrace.tracee.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -790,57 +694,43 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.ancestors.file.uid` | int | UID of the file's owner |  |
 | `ptrace.tracee.ancestors.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.ancestors.file.user.length` | int | Length of 'ptrace.tracee.ancestors.file.user' string |  |
 | `ptrace.tracee.ancestors.fsgid` | int | FileSystem-gid of the process |  |
 | `ptrace.tracee.ancestors.fsgroup` | string | FileSystem-group of the process |  |
-| `ptrace.tracee.ancestors.fsgroup.length` | int | FileSystem-group of the process |  |
 | `ptrace.tracee.ancestors.fsuid` | int | FileSystem-uid of the process |  |
 | `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |  |
-| `ptrace.tracee.ancestors.fsuser.length` | int | FileSystem-user of the process |  |
 | `ptrace.tracee.ancestors.gid` | int | GID of the process |  |
 | `ptrace.tracee.ancestors.group` | string | Group of the process |  |
-| `ptrace.tracee.ancestors.group.length` | int | Group of the process |  |
 | `ptrace.tracee.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ancestors.ppid` | int | Parent process ID |  |
 | `ptrace.tracee.ancestors.tid` | int | Thread ID of the thread |  |
 | `ptrace.tracee.ancestors.tty_name` | string | Name of the TTY associated with the process |  |
-| `ptrace.tracee.ancestors.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `ptrace.tracee.ancestors.uid` | int | UID of the process |  |
 | `ptrace.tracee.ancestors.user` | string | User of the process |  |
-| `ptrace.tracee.ancestors.user.length` | int | User of the process |  |
 | `ptrace.tracee.args` | string | Arguments of the process (as a string) |  |
-| `ptrace.tracee.args.length` | int | Length of 'ptrace.tracee.args' string |  |
 | `ptrace.tracee.args_flags` | string | Arguments of the process (as an array) |  |
 | `ptrace.tracee.args_options` | string | Arguments of the process (as an array) |  |
 | `ptrace.tracee.args_truncated` | bool | Indicator of arguments truncation |  |
 | `ptrace.tracee.argv` | string | Arguments of the process (as an array) |  |
 | `ptrace.tracee.argv0` | string | First argument of the process |  |
-| `ptrace.tracee.argv0.length` | int | Length of 'ptrace.tracee.argv0' string |  |
 | `ptrace.tracee.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `ptrace.tracee.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `ptrace.tracee.comm` | string | Comm attribute of the process |  |
-| `ptrace.tracee.comm.length` | int | Comm attribute of the process |  |
 | `ptrace.tracee.container.id` | string | Container ID |  |
-| `ptrace.tracee.container.id.length` | int | Container ID |  |
 | `ptrace.tracee.cookie` | int | Cookie of the process |  |
 | `ptrace.tracee.created_at` | int | Timestamp of the creation of the process |  |
 | `ptrace.tracee.egid` | int | Effective GID of the process |  |
 | `ptrace.tracee.egroup` | string | Effective group of the process |  |
-| `ptrace.tracee.egroup.length` | int | Effective group of the process |  |
 | `ptrace.tracee.envp` | string | Environment variables of the process |  |
 | `ptrace.tracee.envs` | string | Environment variable names of the process |  |
 | `ptrace.tracee.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `ptrace.tracee.euid` | int | Effective UID of the process |  |
 | `ptrace.tracee.euser` | string | Effective user of the process |  |
-| `ptrace.tracee.euser.length` | int | Effective user of the process |  |
 | `ptrace.tracee.file.change_time` | int | Change time of the file |  |
 | `ptrace.tracee.file.filesystem` | string | File's filesystem |  |
-| `ptrace.tracee.file.filesystem.length` | int | Length of 'ptrace.tracee.file.filesystem' string |  |
 | `ptrace.tracee.file.gid` | int | GID of the file's owner |  |
 | `ptrace.tracee.file.group` | string | Group of the file's owner |  |
-| `ptrace.tracee.file.group.length` | int | Length of 'ptrace.tracee.file.group' string |  |
 | `ptrace.tracee.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `ptrace.tracee.file.inode` | int | Inode of the file |  |
 | `ptrace.tracee.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -853,26 +743,20 @@ A ptrace command was executed
 | `ptrace.tracee.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.file.uid` | int | UID of the file's owner |  |
 | `ptrace.tracee.file.user` | string | User of the file's owner |  |
-| `ptrace.tracee.file.user.length` | int | Length of 'ptrace.tracee.file.user' string |  |
 | `ptrace.tracee.fsgid` | int | FileSystem-gid of the process |  |
 | `ptrace.tracee.fsgroup` | string | FileSystem-group of the process |  |
-| `ptrace.tracee.fsgroup.length` | int | FileSystem-group of the process |  |
 | `ptrace.tracee.fsuid` | int | FileSystem-uid of the process |  |
 | `ptrace.tracee.fsuser` | string | FileSystem-user of the process |  |
-| `ptrace.tracee.fsuser.length` | int | FileSystem-user of the process |  |
 | `ptrace.tracee.gid` | int | GID of the process |  |
 | `ptrace.tracee.group` | string | Group of the process |  |
-| `ptrace.tracee.group.length` | int | Group of the process |  |
 | `ptrace.tracee.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ppid` | int | Parent process ID |  |
 | `ptrace.tracee.tid` | int | Thread ID of the thread |  |
 | `ptrace.tracee.tty_name` | string | Name of the TTY associated with the process |  |
-| `ptrace.tracee.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `ptrace.tracee.uid` | int | UID of the process |  |
 | `ptrace.tracee.user` | string | User of the process |  |
-| `ptrace.tracee.user.length` | int | User of the process |  |
 
 ### Event `removexattr`
 
@@ -882,14 +766,10 @@ Remove extended attributes
 | -------- | ---- | ---------- | --------- |
 | `removexattr.file.change_time` | int | Change time of the file |  |
 | `removexattr.file.destination.name` | string | Name of the extended attribute |  |
-| `removexattr.file.destination.name.length` | int | Length of 'removexattr.file.destination.name' string |  |
 | `removexattr.file.destination.namespace` | string | Namespace of the extended attribute |  |
-| `removexattr.file.destination.namespace.length` | int | Length of 'removexattr.file.destination.namespace' string |  |
 | `removexattr.file.filesystem` | string | File's filesystem |  |
-| `removexattr.file.filesystem.length` | int | Length of 'removexattr.file.filesystem' string |  |
 | `removexattr.file.gid` | int | GID of the file's owner |  |
 | `removexattr.file.group` | string | Group of the file's owner |  |
-| `removexattr.file.group.length` | int | Length of 'removexattr.file.group' string |  |
 | `removexattr.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `removexattr.file.inode` | int | Inode of the file |  |
 | `removexattr.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -902,7 +782,6 @@ Remove extended attributes
 | `removexattr.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `removexattr.file.uid` | int | UID of the file's owner |  |
 | `removexattr.file.user` | string | User of the file's owner |  |
-| `removexattr.file.user.length` | int | Length of 'removexattr.file.user' string |  |
 | `removexattr.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `rename`
@@ -914,10 +793,8 @@ A file/directory was renamed
 | `rename.file.change_time` | int | Change time of the file |  |
 | `rename.file.destination.change_time` | int | Change time of the file |  |
 | `rename.file.destination.filesystem` | string | File's filesystem |  |
-| `rename.file.destination.filesystem.length` | int | Length of 'rename.file.destination.filesystem' string |  |
 | `rename.file.destination.gid` | int | GID of the file's owner |  |
 | `rename.file.destination.group` | string | Group of the file's owner |  |
-| `rename.file.destination.group.length` | int | Length of 'rename.file.destination.group' string |  |
 | `rename.file.destination.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `rename.file.destination.inode` | int | Inode of the file |  |
 | `rename.file.destination.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -930,12 +807,9 @@ A file/directory was renamed
 | `rename.file.destination.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `rename.file.destination.uid` | int | UID of the file's owner |  |
 | `rename.file.destination.user` | string | User of the file's owner |  |
-| `rename.file.destination.user.length` | int | Length of 'rename.file.destination.user' string |  |
 | `rename.file.filesystem` | string | File's filesystem |  |
-| `rename.file.filesystem.length` | int | Length of 'rename.file.filesystem' string |  |
 | `rename.file.gid` | int | GID of the file's owner |  |
 | `rename.file.group` | string | Group of the file's owner |  |
-| `rename.file.group.length` | int | Length of 'rename.file.group' string |  |
 | `rename.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `rename.file.inode` | int | Inode of the file |  |
 | `rename.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -948,7 +822,6 @@ A file/directory was renamed
 | `rename.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `rename.file.uid` | int | UID of the file's owner |  |
 | `rename.file.user` | string | User of the file's owner |  |
-| `rename.file.user.length` | int | Length of 'rename.file.user' string |  |
 | `rename.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `rmdir`
@@ -959,10 +832,8 @@ A directory was removed
 | -------- | ---- | ---------- | --------- |
 | `rmdir.file.change_time` | int | Change time of the file |  |
 | `rmdir.file.filesystem` | string | File's filesystem |  |
-| `rmdir.file.filesystem.length` | int | Length of 'rmdir.file.filesystem' string |  |
 | `rmdir.file.gid` | int | GID of the file's owner |  |
 | `rmdir.file.group` | string | Group of the file's owner |  |
-| `rmdir.file.group.length` | int | Length of 'rmdir.file.group' string |  |
 | `rmdir.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `rmdir.file.inode` | int | Inode of the file |  |
 | `rmdir.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -975,7 +846,6 @@ A directory was removed
 | `rmdir.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `rmdir.file.uid` | int | UID of the file's owner |  |
 | `rmdir.file.user` | string | User of the file's owner |  |
-| `rmdir.file.user.length` | int | Length of 'rmdir.file.user' string |  |
 | `rmdir.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `selinux`
@@ -985,12 +855,9 @@ An SELinux operation was run
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
 | `selinux.bool.name` | string | SELinux boolean name |  |
-| `selinux.bool.name.length` | int | Length of 'selinux.bool.name' string |  |
 | `selinux.bool.state` | string | SELinux boolean new value |  |
-| `selinux.bool.state.length` | int | SELinux boolean new value |  |
 | `selinux.bool_commit.state` | bool | Indicator of a SELinux boolean commit operation |  |
 | `selinux.enforce.status` | string | SELinux enforcement status (one of "enforcing", "permissive", "disabled"") |  |
-| `selinux.enforce.status.length` | int | SELinux enforcement status (one of "enforcing", "permissive", "disabled"") |  |
 
 ### Event `setgid`
 
@@ -1000,13 +867,10 @@ A process changed its effective gid
 | -------- | ---- | ---------- | --------- |
 | `setgid.egid` | int | New effective GID of the process |  |
 | `setgid.egroup` | string | New effective group of the process |  |
-| `setgid.egroup.length` | int | Length of 'setgid.egroup' string |  |
 | `setgid.fsgid` | int | New FileSystem GID of the process |  |
 | `setgid.fsgroup` | string | New FileSystem group of the process |  |
-| `setgid.fsgroup.length` | int | Length of 'setgid.fsgroup' string |  |
 | `setgid.gid` | int | New GID of the process |  |
 | `setgid.group` | string | New group of the process |  |
-| `setgid.group.length` | int | Length of 'setgid.group' string |  |
 
 ### Event `setuid`
 
@@ -1016,13 +880,10 @@ A process changed its effective uid
 | -------- | ---- | ---------- | --------- |
 | `setuid.euid` | int | New effective UID of the process |  |
 | `setuid.euser` | string | New effective user of the process |  |
-| `setuid.euser.length` | int | Length of 'setuid.euser' string |  |
 | `setuid.fsuid` | int | New FileSystem UID of the process |  |
 | `setuid.fsuser` | string | New FileSystem user of the process |  |
-| `setuid.fsuser.length` | int | Length of 'setuid.fsuser' string |  |
 | `setuid.uid` | int | New UID of the process |  |
 | `setuid.user` | string | New user of the process |  |
-| `setuid.user.length` | int | Length of 'setuid.user' string |  |
 
 ### Event `setxattr`
 
@@ -1032,14 +893,10 @@ Set exteneded attributes
 | -------- | ---- | ---------- | --------- |
 | `setxattr.file.change_time` | int | Change time of the file |  |
 | `setxattr.file.destination.name` | string | Name of the extended attribute |  |
-| `setxattr.file.destination.name.length` | int | Length of 'setxattr.file.destination.name' string |  |
 | `setxattr.file.destination.namespace` | string | Namespace of the extended attribute |  |
-| `setxattr.file.destination.namespace.length` | int | Length of 'setxattr.file.destination.namespace' string |  |
 | `setxattr.file.filesystem` | string | File's filesystem |  |
-| `setxattr.file.filesystem.length` | int | Length of 'setxattr.file.filesystem' string |  |
 | `setxattr.file.gid` | int | GID of the file's owner |  |
 | `setxattr.file.group` | string | Group of the file's owner |  |
-| `setxattr.file.group.length` | int | Length of 'setxattr.file.group' string |  |
 | `setxattr.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `setxattr.file.inode` | int | Inode of the file |  |
 | `setxattr.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -1052,7 +909,6 @@ Set exteneded attributes
 | `setxattr.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `setxattr.file.uid` | int | UID of the file's owner |  |
 | `setxattr.file.user` | string | User of the file's owner |  |
-| `setxattr.file.user.length` | int | Length of 'setxattr.file.user' string |  |
 | `setxattr.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `signal`
@@ -1064,36 +920,28 @@ A signal was sent
 | `signal.pid` | int | Target PID |  |
 | `signal.retval` | int | Return value of the syscall | Error Constants |
 | `signal.target.ancestors.args` | string | Arguments of the process (as a string) |  |
-| `signal.target.ancestors.args.length` | int | Length of 'signal.target.ancestors.args' string |  |
 | `signal.target.ancestors.args_flags` | string | Arguments of the process (as an array) |  |
 | `signal.target.ancestors.args_options` | string | Arguments of the process (as an array) |  |
 | `signal.target.ancestors.args_truncated` | bool | Indicator of arguments truncation |  |
 | `signal.target.ancestors.argv` | string | Arguments of the process (as an array) |  |
 | `signal.target.ancestors.argv0` | string | First argument of the process |  |
-| `signal.target.ancestors.argv0.length` | int | Length of 'signal.target.ancestors.argv0' string |  |
 | `signal.target.ancestors.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `signal.target.ancestors.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `signal.target.ancestors.comm` | string | Comm attribute of the process |  |
-| `signal.target.ancestors.comm.length` | int | Comm attribute of the process |  |
 | `signal.target.ancestors.container.id` | string | Container ID |  |
-| `signal.target.ancestors.container.id.length` | int | Container ID |  |
 | `signal.target.ancestors.cookie` | int | Cookie of the process |  |
 | `signal.target.ancestors.created_at` | int | Timestamp of the creation of the process |  |
 | `signal.target.ancestors.egid` | int | Effective GID of the process |  |
 | `signal.target.ancestors.egroup` | string | Effective group of the process |  |
-| `signal.target.ancestors.egroup.length` | int | Effective group of the process |  |
 | `signal.target.ancestors.envp` | string | Environment variables of the process |  |
 | `signal.target.ancestors.envs` | string | Environment variable names of the process |  |
 | `signal.target.ancestors.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `signal.target.ancestors.euid` | int | Effective UID of the process |  |
 | `signal.target.ancestors.euser` | string | Effective user of the process |  |
-| `signal.target.ancestors.euser.length` | int | Effective user of the process |  |
 | `signal.target.ancestors.file.change_time` | int | Change time of the file |  |
 | `signal.target.ancestors.file.filesystem` | string | File's filesystem |  |
-| `signal.target.ancestors.file.filesystem.length` | int | Length of 'signal.target.ancestors.file.filesystem' string |  |
 | `signal.target.ancestors.file.gid` | int | GID of the file's owner |  |
 | `signal.target.ancestors.file.group` | string | Group of the file's owner |  |
-| `signal.target.ancestors.file.group.length` | int | Length of 'signal.target.ancestors.file.group' string |  |
 | `signal.target.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `signal.target.ancestors.file.inode` | int | Inode of the file |  |
 | `signal.target.ancestors.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -1106,57 +954,43 @@ A signal was sent
 | `signal.target.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.ancestors.file.uid` | int | UID of the file's owner |  |
 | `signal.target.ancestors.file.user` | string | User of the file's owner |  |
-| `signal.target.ancestors.file.user.length` | int | Length of 'signal.target.ancestors.file.user' string |  |
 | `signal.target.ancestors.fsgid` | int | FileSystem-gid of the process |  |
 | `signal.target.ancestors.fsgroup` | string | FileSystem-group of the process |  |
-| `signal.target.ancestors.fsgroup.length` | int | FileSystem-group of the process |  |
 | `signal.target.ancestors.fsuid` | int | FileSystem-uid of the process |  |
 | `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |  |
-| `signal.target.ancestors.fsuser.length` | int | FileSystem-user of the process |  |
 | `signal.target.ancestors.gid` | int | GID of the process |  |
 | `signal.target.ancestors.group` | string | Group of the process |  |
-| `signal.target.ancestors.group.length` | int | Group of the process |  |
 | `signal.target.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ancestors.ppid` | int | Parent process ID |  |
 | `signal.target.ancestors.tid` | int | Thread ID of the thread |  |
 | `signal.target.ancestors.tty_name` | string | Name of the TTY associated with the process |  |
-| `signal.target.ancestors.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `signal.target.ancestors.uid` | int | UID of the process |  |
 | `signal.target.ancestors.user` | string | User of the process |  |
-| `signal.target.ancestors.user.length` | int | User of the process |  |
 | `signal.target.args` | string | Arguments of the process (as a string) |  |
-| `signal.target.args.length` | int | Length of 'signal.target.args' string |  |
 | `signal.target.args_flags` | string | Arguments of the process (as an array) |  |
 | `signal.target.args_options` | string | Arguments of the process (as an array) |  |
 | `signal.target.args_truncated` | bool | Indicator of arguments truncation |  |
 | `signal.target.argv` | string | Arguments of the process (as an array) |  |
 | `signal.target.argv0` | string | First argument of the process |  |
-| `signal.target.argv0.length` | int | Length of 'signal.target.argv0' string |  |
 | `signal.target.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
 | `signal.target.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
 | `signal.target.comm` | string | Comm attribute of the process |  |
-| `signal.target.comm.length` | int | Comm attribute of the process |  |
 | `signal.target.container.id` | string | Container ID |  |
-| `signal.target.container.id.length` | int | Container ID |  |
 | `signal.target.cookie` | int | Cookie of the process |  |
 | `signal.target.created_at` | int | Timestamp of the creation of the process |  |
 | `signal.target.egid` | int | Effective GID of the process |  |
 | `signal.target.egroup` | string | Effective group of the process |  |
-| `signal.target.egroup.length` | int | Effective group of the process |  |
 | `signal.target.envp` | string | Environment variables of the process |  |
 | `signal.target.envs` | string | Environment variable names of the process |  |
 | `signal.target.envs_truncated` | bool | Indicator of environment variables truncation |  |
 | `signal.target.euid` | int | Effective UID of the process |  |
 | `signal.target.euser` | string | Effective user of the process |  |
-| `signal.target.euser.length` | int | Effective user of the process |  |
 | `signal.target.file.change_time` | int | Change time of the file |  |
 | `signal.target.file.filesystem` | string | File's filesystem |  |
-| `signal.target.file.filesystem.length` | int | Length of 'signal.target.file.filesystem' string |  |
 | `signal.target.file.gid` | int | GID of the file's owner |  |
 | `signal.target.file.group` | string | Group of the file's owner |  |
-| `signal.target.file.group.length` | int | Length of 'signal.target.file.group' string |  |
 | `signal.target.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `signal.target.file.inode` | int | Inode of the file |  |
 | `signal.target.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -1169,26 +1003,20 @@ A signal was sent
 | `signal.target.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.file.uid` | int | UID of the file's owner |  |
 | `signal.target.file.user` | string | User of the file's owner |  |
-| `signal.target.file.user.length` | int | Length of 'signal.target.file.user' string |  |
 | `signal.target.fsgid` | int | FileSystem-gid of the process |  |
 | `signal.target.fsgroup` | string | FileSystem-group of the process |  |
-| `signal.target.fsgroup.length` | int | FileSystem-group of the process |  |
 | `signal.target.fsuid` | int | FileSystem-uid of the process |  |
 | `signal.target.fsuser` | string | FileSystem-user of the process |  |
-| `signal.target.fsuser.length` | int | FileSystem-user of the process |  |
 | `signal.target.gid` | int | GID of the process |  |
 | `signal.target.group` | string | Group of the process |  |
-| `signal.target.group.length` | int | Group of the process |  |
 | `signal.target.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ppid` | int | Parent process ID |  |
 | `signal.target.tid` | int | Thread ID of the thread |  |
 | `signal.target.tty_name` | string | Name of the TTY associated with the process |  |
-| `signal.target.tty_name.length` | int | Name of the TTY associated with the process |  |
 | `signal.target.uid` | int | UID of the process |  |
 | `signal.target.user` | string | User of the process |  |
-| `signal.target.user.length` | int | User of the process |  |
 | `signal.type` | int | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) | Signal constants |
 
 ### Event `splice`
@@ -1199,10 +1027,8 @@ A splice command was executed
 | -------- | ---- | ---------- | --------- |
 | `splice.file.change_time` | int | Change time of the file |  |
 | `splice.file.filesystem` | string | File's filesystem |  |
-| `splice.file.filesystem.length` | int | Length of 'splice.file.filesystem' string |  |
 | `splice.file.gid` | int | GID of the file's owner |  |
 | `splice.file.group` | string | Group of the file's owner |  |
-| `splice.file.group.length` | int | Length of 'splice.file.group' string |  |
 | `splice.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `splice.file.inode` | int | Inode of the file |  |
 | `splice.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -1215,7 +1041,6 @@ A splice command was executed
 | `splice.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `splice.file.uid` | int | UID of the file's owner |  |
 | `splice.file.user` | string | User of the file's owner |  |
-| `splice.file.user.length` | int | Length of 'splice.file.user' string |  |
 | `splice.pipe_entry_flag` | int | Entry flag of the "fd_out" pipe passed to the splice syscall | Pipe buffer flags |
 | `splice.pipe_exit_flag` | int | Exit flag of the "fd_out" pipe passed to the splice syscall | Pipe buffer flags |
 | `splice.retval` | int | Return value of the syscall | Error Constants |
@@ -1228,10 +1053,8 @@ A file was deleted
 | -------- | ---- | ---------- | --------- |
 | `unlink.file.change_time` | int | Change time of the file |  |
 | `unlink.file.filesystem` | string | File's filesystem |  |
-| `unlink.file.filesystem.length` | int | Length of 'unlink.file.filesystem' string |  |
 | `unlink.file.gid` | int | GID of the file's owner |  |
 | `unlink.file.group` | string | Group of the file's owner |  |
-| `unlink.file.group.length` | int | Length of 'unlink.file.group' string |  |
 | `unlink.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `unlink.file.inode` | int | Inode of the file |  |
 | `unlink.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -1244,7 +1067,6 @@ A file was deleted
 | `unlink.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `unlink.file.uid` | int | UID of the file's owner |  |
 | `unlink.file.user` | string | User of the file's owner |  |
-| `unlink.file.user.length` | int | Length of 'unlink.file.user' string |  |
 | `unlink.flags` | int |  | Unlink flags |
 | `unlink.retval` | int | Return value of the syscall | Error Constants |
 
@@ -1255,7 +1077,6 @@ A kernel module was deleted
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
 | `unload_module.name` | string | Name of the kernel module that was deleted |  |
-| `unload_module.name.length` | int | Name of the kernel module that was deleted |  |
 | `unload_module.retval` | int | Return value of the syscall | Error Constants |
 
 ### Event `utimes`
@@ -1266,10 +1087,8 @@ Change file access/modification times
 | -------- | ---- | ---------- | --------- |
 | `utimes.file.change_time` | int | Change time of the file |  |
 | `utimes.file.filesystem` | string | File's filesystem |  |
-| `utimes.file.filesystem.length` | int | Length of 'utimes.file.filesystem' string |  |
 | `utimes.file.gid` | int | GID of the file's owner |  |
 | `utimes.file.group` | string | Group of the file's owner |  |
-| `utimes.file.group.length` | int | Length of 'utimes.file.group' string |  |
 | `utimes.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
 | `utimes.file.inode` | int | Inode of the file |  |
 | `utimes.file.mode` | int | Mode/rights of the file | Chmod mode constants |
@@ -1282,7 +1101,6 @@ Change file access/modification times
 | `utimes.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `utimes.file.uid` | int | UID of the file's owner |  |
 | `utimes.file.user` | string | User of the file's owner |  |
-| `utimes.file.user.length` | int | Length of 'utimes.file.user' string |  |
 | `utimes.retval` | int | Return value of the syscall | Error Constants |
 
 

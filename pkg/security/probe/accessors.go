@@ -118,14 +118,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "bpf.map.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).BPF.Map.Name)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "bpf.map.type":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -162,26 +154,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "bpf.prog.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).BPF.Program.Name)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "bpf.prog.tag":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).BPF.Program.Tag
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "bpf.prog.tag.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).BPF.Program.Tag)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -250,14 +226,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "chmod.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Chmod.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "chmod.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -270,14 +238,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Chmod.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "chmod.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Chmod.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -382,14 +342,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "chmod.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Chmod.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "chmod.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -422,14 +374,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "chown.file.destination.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveChownGID(&(*Event)(ctx.Object).Chown))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "chown.file.destination.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -446,26 +390,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "chown.file.destination.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveChownUID(&(*Event)(ctx.Object).Chown))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "chown.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Chown.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "chown.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Chown.File))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -482,14 +410,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Chown.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "chown.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Chown.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -594,14 +514,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "chown.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Chown.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "chown.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -614,14 +526,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveContainerID(&(*Event)(ctx.Object).ContainerContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "container.id.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveContainerID(&(*Event)(ctx.Object).ContainerContext))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -692,14 +596,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
-	case "exec.args.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgs((*Event)(ctx.Object).Exec.Process))
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -740,14 +636,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
-	case "exec.argv0.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgv0((*Event)(ctx.Object).Exec.Process))
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
 	case "exec.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -772,26 +660,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.comm.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Comm)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exec.container.id.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -824,14 +696,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exec.egroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Credentials.EGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -876,14 +740,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.euser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Credentials.EUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exec.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -900,14 +756,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "exec.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Exec.Process.FileEvent))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "exec.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -920,14 +768,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Exec.Process.FileEvent.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "exec.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Exec.Process.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1032,14 +872,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "exec.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Exec.Process.FileEvent.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "exec.fsgid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1052,14 +884,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exec.fsgroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Credentials.FSGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1080,14 +904,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.fsuser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Credentials.FSUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exec.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1100,14 +916,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exec.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Credentials.Group)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1160,14 +968,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.tty_name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.TTYName)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exec.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1184,26 +984,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exec.Process.Credentials.User)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exit.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveProcessArgs((*Event)(ctx.Object).Exit.Process)
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "exit.args.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgs((*Event)(ctx.Object).Exit.Process))
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -1248,14 +1032,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
-	case "exit.argv0.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgv0((*Event)(ctx.Object).Exit.Process))
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
 	case "exit.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1296,26 +1072,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exit.comm.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Comm)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exit.container.id.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1348,14 +1108,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exit.egroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Credentials.EGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1400,14 +1152,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exit.euser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Credentials.EUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exit.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1424,14 +1168,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "exit.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Exit.Process.FileEvent))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "exit.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1444,14 +1180,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Exit.Process.FileEvent.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "exit.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Exit.Process.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1556,14 +1284,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "exit.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Exit.Process.FileEvent.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "exit.fsgid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1576,14 +1296,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exit.fsgroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Credentials.FSGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1604,14 +1316,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exit.fsuser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Credentials.FSUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exit.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1624,14 +1328,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exit.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Credentials.Group)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1684,14 +1380,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exit.tty_name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.TTYName)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exit.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1704,14 +1392,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.Credentials.User
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "exit.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Exit.Process.Credentials.User)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1740,14 +1420,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "link.file.destination.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Link.Target))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "link.file.destination.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1760,14 +1432,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Link.Target.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "link.file.destination.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Link.Target.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1872,26 +1536,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "link.file.destination.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Link.Target.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "link.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Link.Source)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "link.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Link.Source))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1908,14 +1556,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Link.Source.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "link.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Link.Source.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2020,14 +1660,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "link.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Link.Source.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "link.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2052,14 +1684,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "load_module.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).LoadModule.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "load_module.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2072,14 +1696,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).LoadModule.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "load_module.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).LoadModule.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2184,14 +1800,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "load_module.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).LoadModule.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "load_module.loaded_from_memory":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -2204,14 +1812,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).LoadModule.Name
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "load_module.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).LoadModule.Name)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2256,14 +1856,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "mkdir.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Mkdir.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "mkdir.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2276,14 +1868,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Mkdir.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "mkdir.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Mkdir.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2388,14 +1972,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "mkdir.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Mkdir.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "mkdir.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2420,14 +1996,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "mmap.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).MMap.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "mmap.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2440,14 +2008,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).MMap.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "mmap.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).MMap.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2552,14 +2112,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "mmap.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).MMap.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "mmap.flags":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2640,14 +2192,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "network.device.ifname.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveNetworkDeviceIfName(&(*Event)(ctx.Object).NetworkContext.Device))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "network.l3_protocol":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2712,14 +2256,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "open.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Open.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "open.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2732,14 +2268,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Open.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "open.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Open.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2844,14 +2372,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "open.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Open.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "open.flags":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2882,28 +2402,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
-		}, nil
-	case "process.ancestors.args.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3022,28 +2520,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.argv0.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -3110,28 +2586,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.comm.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Comm)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -3146,28 +2600,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.ContainerID
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "process.ancestors.container.id.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.ContainerID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3256,28 +2688,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.EGroup
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "process.ancestors.egroup.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.EGroup)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3396,28 +2806,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.euser.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.EUser)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -3462,28 +2850,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.file.filesystem.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -3520,28 +2886,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "process.ancestors.file.group.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3818,28 +3162,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.file.user.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -3876,28 +3198,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.FSGroup
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "process.ancestors.fsgroup.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.FSGroup)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3950,28 +3250,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.fsuser.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.FSUser)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -4008,28 +3286,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.Group
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "process.ancestors.group.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.Group)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4170,28 +3426,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.tty_name.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.TTYName)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -4236,40 +3470,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.user.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.User)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).ProcessContext.Process)
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "process.args.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).ProcessContext.Process))
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -4314,14 +3518,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
-	case "process.argv0.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgv0(&(*Event)(ctx.Object).ProcessContext.Process))
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
 	case "process.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4346,26 +3542,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "process.comm.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Comm)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.container.id.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4398,14 +3578,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.egroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4450,14 +3622,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "process.euser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Credentials.EUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4474,14 +3638,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "process.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).ProcessContext.Process.FileEvent))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "process.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4494,14 +3650,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4606,14 +3754,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "process.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "process.fsgid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4626,14 +3766,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.fsgroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4654,14 +3786,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "process.fsuser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4674,14 +3798,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Credentials.Group)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4734,14 +3850,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "process.tty_name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.TTYName)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4754,14 +3862,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.User
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Process.Credentials.User)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4796,28 +3896,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.args.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4936,28 +4014,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.argv0.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5024,28 +4080,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.comm.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Comm)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -5060,28 +4094,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.ContainerID
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.container.id.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.ContainerID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5170,28 +4182,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.EGroup
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.egroup.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.EGroup)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5310,28 +4300,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.euser.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.EUser)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5376,28 +4344,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.file.filesystem.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5434,28 +4380,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.file.group.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5732,28 +4656,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.file.user.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5790,28 +4692,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.FSGroup
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.fsgroup.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.FSGroup)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5864,28 +4744,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.fsuser.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.FSUser)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -5922,28 +4780,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.Group
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "ptrace.tracee.ancestors.group.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.Group)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6084,28 +4920,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.tty_name.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.TTYName)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -6150,40 +4964,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "ptrace.tracee.ancestors.user.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.User)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "ptrace.tracee.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).PTrace.Tracee.Process)
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.args.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).PTrace.Tracee.Process))
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -6228,14 +5012,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
-	case "ptrace.tracee.argv0.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgv0(&(*Event)(ctx.Object).PTrace.Tracee.Process))
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
 	case "ptrace.tracee.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6260,26 +5036,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "ptrace.tracee.comm.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Comm)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "ptrace.tracee.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.container.id.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6312,14 +5072,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.egroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.EGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6364,14 +5116,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "ptrace.tracee.euser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.EUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "ptrace.tracee.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6388,14 +5132,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "ptrace.tracee.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "ptrace.tracee.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6408,14 +5144,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6520,14 +5248,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "ptrace.tracee.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "ptrace.tracee.fsgid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6540,14 +5260,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.fsgroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.FSGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6568,14 +5280,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "ptrace.tracee.fsuser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.FSUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "ptrace.tracee.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6588,14 +5292,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.Group)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6648,14 +5344,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "ptrace.tracee.tty_name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.TTYName)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "ptrace.tracee.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6668,14 +5356,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.User
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.User)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6696,14 +5376,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "removexattr.file.destination.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveXAttrName(&(*Event)(ctx.Object).RemoveXAttr))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "removexattr.file.destination.namespace":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -6712,26 +5384,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "removexattr.file.destination.namespace.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveXAttrNamespace(&(*Event)(ctx.Object).RemoveXAttr))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "removexattr.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).RemoveXAttr.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "removexattr.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).RemoveXAttr.File))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6748,14 +5404,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "removexattr.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6860,14 +5508,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "removexattr.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "removexattr.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6900,14 +5540,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "rename.file.destination.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rename.New))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "rename.file.destination.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6920,14 +5552,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rename.New.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "rename.file.destination.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rename.New.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7032,26 +5656,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "rename.file.destination.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Rename.New.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "rename.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rename.Old)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "rename.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rename.Old))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7068,14 +5676,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rename.Old.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "rename.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rename.Old.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7180,14 +5780,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "rename.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Rename.Old.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "rename.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7212,14 +5804,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "rmdir.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rmdir.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "rmdir.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7232,14 +5816,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rmdir.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "rmdir.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rmdir.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7344,14 +5920,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "rmdir.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Rmdir.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "rmdir.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7368,26 +5936,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "selinux.bool.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSELinuxBoolName(&(*Event)(ctx.Object).SELinux))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "selinux.bool.state":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).SELinux.BoolChangeValue
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "selinux.bool.state.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).SELinux.BoolChangeValue)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7408,14 +5960,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "selinux.enforce.status.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).SELinux.EnforceStatus)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "setgid.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7428,14 +5972,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveSetgidEGroup(&(*Event)(ctx.Object).SetGID)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "setgid.egroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSetgidEGroup(&(*Event)(ctx.Object).SetGID))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7456,14 +5992,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "setgid.fsgroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSetgidFSGroup(&(*Event)(ctx.Object).SetGID))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "setgid.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7476,14 +6004,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveSetgidGroup(&(*Event)(ctx.Object).SetGID)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "setgid.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSetgidGroup(&(*Event)(ctx.Object).SetGID))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7504,14 +6024,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "setuid.euser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSetuidEUser(&(*Event)(ctx.Object).SetUID))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "setuid.fsuid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7524,14 +6036,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveSetuidFSUser(&(*Event)(ctx.Object).SetUID)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "setuid.fsuser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSetuidFSUser(&(*Event)(ctx.Object).SetUID))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7552,14 +6056,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "setuid.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveSetuidUser(&(*Event)(ctx.Object).SetUID))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "setxattr.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7576,14 +6072,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "setxattr.file.destination.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveXAttrName(&(*Event)(ctx.Object).SetXAttr))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "setxattr.file.destination.namespace":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -7592,26 +6080,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "setxattr.file.destination.namespace.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveXAttrNamespace(&(*Event)(ctx.Object).SetXAttr))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "setxattr.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).SetXAttr.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "setxattr.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).SetXAttr.File))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7628,14 +6100,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "setxattr.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).SetXAttr.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7740,14 +6204,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "setxattr.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).SetXAttr.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "setxattr.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7786,28 +6242,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
-		}, nil
-	case "signal.target.ancestors.args.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7926,28 +6360,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.argv0.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8014,28 +6426,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.comm.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Comm)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -8050,28 +6440,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.ContainerID
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "signal.target.ancestors.container.id.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.ContainerID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8160,28 +6528,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.EGroup
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "signal.target.ancestors.egroup.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.EGroup)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8300,28 +6646,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.euser.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.EUser)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8366,28 +6690,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.file.filesystem.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8424,28 +6726,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "signal.target.ancestors.file.group.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8722,28 +7002,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.file.user.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields))
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8780,28 +7038,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.FSGroup
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "signal.target.ancestors.fsgroup.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.FSGroup)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8854,28 +7090,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.fsuser.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.FSUser)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8912,28 +7126,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*model.ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.Group
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-	case "signal.target.ancestors.group.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.Group)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -9074,28 +7266,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.tty_name.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.TTYName)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -9140,40 +7310,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "signal.target.ancestors.user.length":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []int
-				iterator := &model.ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len(element.ProcessContext.Process.Credentials.User)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "signal.target.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).Signal.Target.Process)
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "signal.target.args.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgs(&(*Event)(ctx.Object).Signal.Target.Process))
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -9218,14 +7358,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
-	case "signal.target.argv0.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveProcessArgv0(&(*Event)(ctx.Object).Signal.Target.Process))
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
 	case "signal.target.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9250,26 +7382,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "signal.target.comm.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Comm)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "signal.target.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.container.id.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9302,14 +7418,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.egroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Credentials.EGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9354,14 +7462,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "signal.target.euser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Credentials.EUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "signal.target.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9378,14 +7478,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "signal.target.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Signal.Target.Process.FileEvent))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "signal.target.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9398,14 +7490,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -9510,14 +7594,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "signal.target.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "signal.target.fsgid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9530,14 +7606,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.fsgroup.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Credentials.FSGroup)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9558,14 +7626,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "signal.target.fsuser.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Credentials.FSUser)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "signal.target.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9578,14 +7638,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Credentials.Group)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9638,14 +7690,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "signal.target.tty_name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.TTYName)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "signal.target.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9658,14 +7702,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.User
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Process.Credentials.User)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9694,14 +7730,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "splice.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Splice.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "splice.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9714,14 +7742,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Splice.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "splice.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Splice.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -9826,14 +7846,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "splice.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Splice.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "splice.pipe_entry_flag":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9874,14 +7886,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "unlink.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Unlink.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "unlink.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9894,14 +7898,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Unlink.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "unlink.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Unlink.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10006,14 +8002,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "unlink.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Unlink.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "unlink.flags":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10034,14 +8022,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).UnloadModule.Name
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "unload_module.name.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).UnloadModule.Name)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -10070,14 +8050,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "utimes.file.filesystem.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Utimes.File))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "utimes.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10090,14 +8062,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Utimes.File.FileFields)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "utimes.file.group.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Utimes.File.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10202,14 +8166,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
-	case "utimes.file.user.length":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Utimes.File.FileFields))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "utimes.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10230,14 +8186,11 @@ func (e *Event) GetFields() []eval.Field {
 		"bind.retval",
 		"bpf.cmd",
 		"bpf.map.name",
-		"bpf.map.name.length",
 		"bpf.map.type",
 		"bpf.prog.attach_type",
 		"bpf.prog.helpers",
 		"bpf.prog.name",
-		"bpf.prog.name.length",
 		"bpf.prog.tag",
-		"bpf.prog.tag.length",
 		"bpf.prog.type",
 		"bpf.retval",
 		"capset.cap_effective",
@@ -10246,10 +8199,8 @@ func (e *Event) GetFields() []eval.Field {
 		"chmod.file.destination.mode",
 		"chmod.file.destination.rights",
 		"chmod.file.filesystem",
-		"chmod.file.filesystem.length",
 		"chmod.file.gid",
 		"chmod.file.group",
-		"chmod.file.group.length",
 		"chmod.file.in_upper_layer",
 		"chmod.file.inode",
 		"chmod.file.mode",
@@ -10262,20 +8213,15 @@ func (e *Event) GetFields() []eval.Field {
 		"chmod.file.rights",
 		"chmod.file.uid",
 		"chmod.file.user",
-		"chmod.file.user.length",
 		"chmod.retval",
 		"chown.file.change_time",
 		"chown.file.destination.gid",
 		"chown.file.destination.group",
-		"chown.file.destination.group.length",
 		"chown.file.destination.uid",
 		"chown.file.destination.user",
-		"chown.file.destination.user.length",
 		"chown.file.filesystem",
-		"chown.file.filesystem.length",
 		"chown.file.gid",
 		"chown.file.group",
-		"chown.file.group.length",
 		"chown.file.in_upper_layer",
 		"chown.file.inode",
 		"chown.file.mode",
@@ -10288,10 +8234,8 @@ func (e *Event) GetFields() []eval.Field {
 		"chown.file.rights",
 		"chown.file.uid",
 		"chown.file.user",
-		"chown.file.user.length",
 		"chown.retval",
 		"container.id",
-		"container.id.length",
 		"container.tags",
 		"dns.question.class",
 		"dns.question.count",
@@ -10300,36 +8244,28 @@ func (e *Event) GetFields() []eval.Field {
 		"dns.question.size",
 		"dns.question.type",
 		"exec.args",
-		"exec.args.length",
 		"exec.args_flags",
 		"exec.args_options",
 		"exec.args_truncated",
 		"exec.argv",
 		"exec.argv0",
-		"exec.argv0.length",
 		"exec.cap_effective",
 		"exec.cap_permitted",
 		"exec.comm",
-		"exec.comm.length",
 		"exec.container.id",
-		"exec.container.id.length",
 		"exec.cookie",
 		"exec.created_at",
 		"exec.egid",
 		"exec.egroup",
-		"exec.egroup.length",
 		"exec.envp",
 		"exec.envs",
 		"exec.envs_truncated",
 		"exec.euid",
 		"exec.euser",
-		"exec.euser.length",
 		"exec.file.change_time",
 		"exec.file.filesystem",
-		"exec.file.filesystem.length",
 		"exec.file.gid",
 		"exec.file.group",
-		"exec.file.group.length",
 		"exec.file.in_upper_layer",
 		"exec.file.inode",
 		"exec.file.mode",
@@ -10342,59 +8278,45 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.file.rights",
 		"exec.file.uid",
 		"exec.file.user",
-		"exec.file.user.length",
 		"exec.fsgid",
 		"exec.fsgroup",
-		"exec.fsgroup.length",
 		"exec.fsuid",
 		"exec.fsuser",
-		"exec.fsuser.length",
 		"exec.gid",
 		"exec.group",
-		"exec.group.length",
 		"exec.is_kworker",
 		"exec.is_thread",
 		"exec.pid",
 		"exec.ppid",
 		"exec.tid",
 		"exec.tty_name",
-		"exec.tty_name.length",
 		"exec.uid",
 		"exec.user",
-		"exec.user.length",
 		"exit.args",
-		"exit.args.length",
 		"exit.args_flags",
 		"exit.args_options",
 		"exit.args_truncated",
 		"exit.argv",
 		"exit.argv0",
-		"exit.argv0.length",
 		"exit.cap_effective",
 		"exit.cap_permitted",
 		"exit.cause",
 		"exit.code",
 		"exit.comm",
-		"exit.comm.length",
 		"exit.container.id",
-		"exit.container.id.length",
 		"exit.cookie",
 		"exit.created_at",
 		"exit.egid",
 		"exit.egroup",
-		"exit.egroup.length",
 		"exit.envp",
 		"exit.envs",
 		"exit.envs_truncated",
 		"exit.euid",
 		"exit.euser",
-		"exit.euser.length",
 		"exit.file.change_time",
 		"exit.file.filesystem",
-		"exit.file.filesystem.length",
 		"exit.file.gid",
 		"exit.file.group",
-		"exit.file.group.length",
 		"exit.file.in_upper_layer",
 		"exit.file.inode",
 		"exit.file.mode",
@@ -10407,33 +8329,25 @@ func (e *Event) GetFields() []eval.Field {
 		"exit.file.rights",
 		"exit.file.uid",
 		"exit.file.user",
-		"exit.file.user.length",
 		"exit.fsgid",
 		"exit.fsgroup",
-		"exit.fsgroup.length",
 		"exit.fsuid",
 		"exit.fsuser",
-		"exit.fsuser.length",
 		"exit.gid",
 		"exit.group",
-		"exit.group.length",
 		"exit.is_kworker",
 		"exit.is_thread",
 		"exit.pid",
 		"exit.ppid",
 		"exit.tid",
 		"exit.tty_name",
-		"exit.tty_name.length",
 		"exit.uid",
 		"exit.user",
-		"exit.user.length",
 		"link.file.change_time",
 		"link.file.destination.change_time",
 		"link.file.destination.filesystem",
-		"link.file.destination.filesystem.length",
 		"link.file.destination.gid",
 		"link.file.destination.group",
-		"link.file.destination.group.length",
 		"link.file.destination.in_upper_layer",
 		"link.file.destination.inode",
 		"link.file.destination.mode",
@@ -10446,12 +8360,9 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.destination.rights",
 		"link.file.destination.uid",
 		"link.file.destination.user",
-		"link.file.destination.user.length",
 		"link.file.filesystem",
-		"link.file.filesystem.length",
 		"link.file.gid",
 		"link.file.group",
-		"link.file.group.length",
 		"link.file.in_upper_layer",
 		"link.file.inode",
 		"link.file.mode",
@@ -10464,14 +8375,11 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.rights",
 		"link.file.uid",
 		"link.file.user",
-		"link.file.user.length",
 		"link.retval",
 		"load_module.file.change_time",
 		"load_module.file.filesystem",
-		"load_module.file.filesystem.length",
 		"load_module.file.gid",
 		"load_module.file.group",
-		"load_module.file.group.length",
 		"load_module.file.in_upper_layer",
 		"load_module.file.inode",
 		"load_module.file.mode",
@@ -10484,19 +8392,15 @@ func (e *Event) GetFields() []eval.Field {
 		"load_module.file.rights",
 		"load_module.file.uid",
 		"load_module.file.user",
-		"load_module.file.user.length",
 		"load_module.loaded_from_memory",
 		"load_module.name",
-		"load_module.name.length",
 		"load_module.retval",
 		"mkdir.file.change_time",
 		"mkdir.file.destination.mode",
 		"mkdir.file.destination.rights",
 		"mkdir.file.filesystem",
-		"mkdir.file.filesystem.length",
 		"mkdir.file.gid",
 		"mkdir.file.group",
-		"mkdir.file.group.length",
 		"mkdir.file.in_upper_layer",
 		"mkdir.file.inode",
 		"mkdir.file.mode",
@@ -10509,14 +8413,11 @@ func (e *Event) GetFields() []eval.Field {
 		"mkdir.file.rights",
 		"mkdir.file.uid",
 		"mkdir.file.user",
-		"mkdir.file.user.length",
 		"mkdir.retval",
 		"mmap.file.change_time",
 		"mmap.file.filesystem",
-		"mmap.file.filesystem.length",
 		"mmap.file.gid",
 		"mmap.file.group",
-		"mmap.file.group.length",
 		"mmap.file.in_upper_layer",
 		"mmap.file.inode",
 		"mmap.file.mode",
@@ -10529,7 +8430,6 @@ func (e *Event) GetFields() []eval.Field {
 		"mmap.file.rights",
 		"mmap.file.uid",
 		"mmap.file.user",
-		"mmap.file.user.length",
 		"mmap.flags",
 		"mmap.protection",
 		"mmap.retval",
@@ -10540,7 +8440,6 @@ func (e *Event) GetFields() []eval.Field {
 		"network.destination.port",
 		"network.device.ifindex",
 		"network.device.ifname",
-		"network.device.ifname.length",
 		"network.l3_protocol",
 		"network.l4_protocol",
 		"network.size",
@@ -10549,10 +8448,8 @@ func (e *Event) GetFields() []eval.Field {
 		"open.file.change_time",
 		"open.file.destination.mode",
 		"open.file.filesystem",
-		"open.file.filesystem.length",
 		"open.file.gid",
 		"open.file.group",
-		"open.file.group.length",
 		"open.file.in_upper_layer",
 		"open.file.inode",
 		"open.file.mode",
@@ -10565,40 +8462,31 @@ func (e *Event) GetFields() []eval.Field {
 		"open.file.rights",
 		"open.file.uid",
 		"open.file.user",
-		"open.file.user.length",
 		"open.flags",
 		"open.retval",
 		"process.ancestors.args",
-		"process.ancestors.args.length",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
 		"process.ancestors.args_truncated",
 		"process.ancestors.argv",
 		"process.ancestors.argv0",
-		"process.ancestors.argv0.length",
 		"process.ancestors.cap_effective",
 		"process.ancestors.cap_permitted",
 		"process.ancestors.comm",
-		"process.ancestors.comm.length",
 		"process.ancestors.container.id",
-		"process.ancestors.container.id.length",
 		"process.ancestors.cookie",
 		"process.ancestors.created_at",
 		"process.ancestors.egid",
 		"process.ancestors.egroup",
-		"process.ancestors.egroup.length",
 		"process.ancestors.envp",
 		"process.ancestors.envs",
 		"process.ancestors.envs_truncated",
 		"process.ancestors.euid",
 		"process.ancestors.euser",
-		"process.ancestors.euser.length",
 		"process.ancestors.file.change_time",
 		"process.ancestors.file.filesystem",
-		"process.ancestors.file.filesystem.length",
 		"process.ancestors.file.gid",
 		"process.ancestors.file.group",
-		"process.ancestors.file.group.length",
 		"process.ancestors.file.in_upper_layer",
 		"process.ancestors.file.inode",
 		"process.ancestors.file.mode",
@@ -10611,57 +8499,43 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.file.rights",
 		"process.ancestors.file.uid",
 		"process.ancestors.file.user",
-		"process.ancestors.file.user.length",
 		"process.ancestors.fsgid",
 		"process.ancestors.fsgroup",
-		"process.ancestors.fsgroup.length",
 		"process.ancestors.fsuid",
 		"process.ancestors.fsuser",
-		"process.ancestors.fsuser.length",
 		"process.ancestors.gid",
 		"process.ancestors.group",
-		"process.ancestors.group.length",
 		"process.ancestors.is_kworker",
 		"process.ancestors.is_thread",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
 		"process.ancestors.tid",
 		"process.ancestors.tty_name",
-		"process.ancestors.tty_name.length",
 		"process.ancestors.uid",
 		"process.ancestors.user",
-		"process.ancestors.user.length",
 		"process.args",
-		"process.args.length",
 		"process.args_flags",
 		"process.args_options",
 		"process.args_truncated",
 		"process.argv",
 		"process.argv0",
-		"process.argv0.length",
 		"process.cap_effective",
 		"process.cap_permitted",
 		"process.comm",
-		"process.comm.length",
 		"process.container.id",
-		"process.container.id.length",
 		"process.cookie",
 		"process.created_at",
 		"process.egid",
 		"process.egroup",
-		"process.egroup.length",
 		"process.envp",
 		"process.envs",
 		"process.envs_truncated",
 		"process.euid",
 		"process.euser",
-		"process.euser.length",
 		"process.file.change_time",
 		"process.file.filesystem",
-		"process.file.filesystem.length",
 		"process.file.gid",
 		"process.file.group",
-		"process.file.group.length",
 		"process.file.in_upper_layer",
 		"process.file.inode",
 		"process.file.mode",
@@ -10674,59 +8548,45 @@ func (e *Event) GetFields() []eval.Field {
 		"process.file.rights",
 		"process.file.uid",
 		"process.file.user",
-		"process.file.user.length",
 		"process.fsgid",
 		"process.fsgroup",
-		"process.fsgroup.length",
 		"process.fsuid",
 		"process.fsuser",
-		"process.fsuser.length",
 		"process.gid",
 		"process.group",
-		"process.group.length",
 		"process.is_kworker",
 		"process.is_thread",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
 		"process.tty_name",
-		"process.tty_name.length",
 		"process.uid",
 		"process.user",
-		"process.user.length",
 		"ptrace.request",
 		"ptrace.retval",
 		"ptrace.tracee.ancestors.args",
-		"ptrace.tracee.ancestors.args.length",
 		"ptrace.tracee.ancestors.args_flags",
 		"ptrace.tracee.ancestors.args_options",
 		"ptrace.tracee.ancestors.args_truncated",
 		"ptrace.tracee.ancestors.argv",
 		"ptrace.tracee.ancestors.argv0",
-		"ptrace.tracee.ancestors.argv0.length",
 		"ptrace.tracee.ancestors.cap_effective",
 		"ptrace.tracee.ancestors.cap_permitted",
 		"ptrace.tracee.ancestors.comm",
-		"ptrace.tracee.ancestors.comm.length",
 		"ptrace.tracee.ancestors.container.id",
-		"ptrace.tracee.ancestors.container.id.length",
 		"ptrace.tracee.ancestors.cookie",
 		"ptrace.tracee.ancestors.created_at",
 		"ptrace.tracee.ancestors.egid",
 		"ptrace.tracee.ancestors.egroup",
-		"ptrace.tracee.ancestors.egroup.length",
 		"ptrace.tracee.ancestors.envp",
 		"ptrace.tracee.ancestors.envs",
 		"ptrace.tracee.ancestors.envs_truncated",
 		"ptrace.tracee.ancestors.euid",
 		"ptrace.tracee.ancestors.euser",
-		"ptrace.tracee.ancestors.euser.length",
 		"ptrace.tracee.ancestors.file.change_time",
 		"ptrace.tracee.ancestors.file.filesystem",
-		"ptrace.tracee.ancestors.file.filesystem.length",
 		"ptrace.tracee.ancestors.file.gid",
 		"ptrace.tracee.ancestors.file.group",
-		"ptrace.tracee.ancestors.file.group.length",
 		"ptrace.tracee.ancestors.file.in_upper_layer",
 		"ptrace.tracee.ancestors.file.inode",
 		"ptrace.tracee.ancestors.file.mode",
@@ -10739,57 +8599,43 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.file.rights",
 		"ptrace.tracee.ancestors.file.uid",
 		"ptrace.tracee.ancestors.file.user",
-		"ptrace.tracee.ancestors.file.user.length",
 		"ptrace.tracee.ancestors.fsgid",
 		"ptrace.tracee.ancestors.fsgroup",
-		"ptrace.tracee.ancestors.fsgroup.length",
 		"ptrace.tracee.ancestors.fsuid",
 		"ptrace.tracee.ancestors.fsuser",
-		"ptrace.tracee.ancestors.fsuser.length",
 		"ptrace.tracee.ancestors.gid",
 		"ptrace.tracee.ancestors.group",
-		"ptrace.tracee.ancestors.group.length",
 		"ptrace.tracee.ancestors.is_kworker",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
 		"ptrace.tracee.ancestors.tid",
 		"ptrace.tracee.ancestors.tty_name",
-		"ptrace.tracee.ancestors.tty_name.length",
 		"ptrace.tracee.ancestors.uid",
 		"ptrace.tracee.ancestors.user",
-		"ptrace.tracee.ancestors.user.length",
 		"ptrace.tracee.args",
-		"ptrace.tracee.args.length",
 		"ptrace.tracee.args_flags",
 		"ptrace.tracee.args_options",
 		"ptrace.tracee.args_truncated",
 		"ptrace.tracee.argv",
 		"ptrace.tracee.argv0",
-		"ptrace.tracee.argv0.length",
 		"ptrace.tracee.cap_effective",
 		"ptrace.tracee.cap_permitted",
 		"ptrace.tracee.comm",
-		"ptrace.tracee.comm.length",
 		"ptrace.tracee.container.id",
-		"ptrace.tracee.container.id.length",
 		"ptrace.tracee.cookie",
 		"ptrace.tracee.created_at",
 		"ptrace.tracee.egid",
 		"ptrace.tracee.egroup",
-		"ptrace.tracee.egroup.length",
 		"ptrace.tracee.envp",
 		"ptrace.tracee.envs",
 		"ptrace.tracee.envs_truncated",
 		"ptrace.tracee.euid",
 		"ptrace.tracee.euser",
-		"ptrace.tracee.euser.length",
 		"ptrace.tracee.file.change_time",
 		"ptrace.tracee.file.filesystem",
-		"ptrace.tracee.file.filesystem.length",
 		"ptrace.tracee.file.gid",
 		"ptrace.tracee.file.group",
-		"ptrace.tracee.file.group.length",
 		"ptrace.tracee.file.in_upper_layer",
 		"ptrace.tracee.file.inode",
 		"ptrace.tracee.file.mode",
@@ -10802,36 +8648,26 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.file.rights",
 		"ptrace.tracee.file.uid",
 		"ptrace.tracee.file.user",
-		"ptrace.tracee.file.user.length",
 		"ptrace.tracee.fsgid",
 		"ptrace.tracee.fsgroup",
-		"ptrace.tracee.fsgroup.length",
 		"ptrace.tracee.fsuid",
 		"ptrace.tracee.fsuser",
-		"ptrace.tracee.fsuser.length",
 		"ptrace.tracee.gid",
 		"ptrace.tracee.group",
-		"ptrace.tracee.group.length",
 		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
 		"ptrace.tracee.tty_name",
-		"ptrace.tracee.tty_name.length",
 		"ptrace.tracee.uid",
 		"ptrace.tracee.user",
-		"ptrace.tracee.user.length",
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
-		"removexattr.file.destination.name.length",
 		"removexattr.file.destination.namespace",
-		"removexattr.file.destination.namespace.length",
 		"removexattr.file.filesystem",
-		"removexattr.file.filesystem.length",
 		"removexattr.file.gid",
 		"removexattr.file.group",
-		"removexattr.file.group.length",
 		"removexattr.file.in_upper_layer",
 		"removexattr.file.inode",
 		"removexattr.file.mode",
@@ -10844,15 +8680,12 @@ func (e *Event) GetFields() []eval.Field {
 		"removexattr.file.rights",
 		"removexattr.file.uid",
 		"removexattr.file.user",
-		"removexattr.file.user.length",
 		"removexattr.retval",
 		"rename.file.change_time",
 		"rename.file.destination.change_time",
 		"rename.file.destination.filesystem",
-		"rename.file.destination.filesystem.length",
 		"rename.file.destination.gid",
 		"rename.file.destination.group",
-		"rename.file.destination.group.length",
 		"rename.file.destination.in_upper_layer",
 		"rename.file.destination.inode",
 		"rename.file.destination.mode",
@@ -10865,12 +8698,9 @@ func (e *Event) GetFields() []eval.Field {
 		"rename.file.destination.rights",
 		"rename.file.destination.uid",
 		"rename.file.destination.user",
-		"rename.file.destination.user.length",
 		"rename.file.filesystem",
-		"rename.file.filesystem.length",
 		"rename.file.gid",
 		"rename.file.group",
-		"rename.file.group.length",
 		"rename.file.in_upper_layer",
 		"rename.file.inode",
 		"rename.file.mode",
@@ -10883,14 +8713,11 @@ func (e *Event) GetFields() []eval.Field {
 		"rename.file.rights",
 		"rename.file.uid",
 		"rename.file.user",
-		"rename.file.user.length",
 		"rename.retval",
 		"rmdir.file.change_time",
 		"rmdir.file.filesystem",
-		"rmdir.file.filesystem.length",
 		"rmdir.file.gid",
 		"rmdir.file.group",
-		"rmdir.file.group.length",
 		"rmdir.file.in_upper_layer",
 		"rmdir.file.inode",
 		"rmdir.file.mode",
@@ -10903,43 +8730,29 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.rights",
 		"rmdir.file.uid",
 		"rmdir.file.user",
-		"rmdir.file.user.length",
 		"rmdir.retval",
 		"selinux.bool.name",
-		"selinux.bool.name.length",
 		"selinux.bool.state",
-		"selinux.bool.state.length",
 		"selinux.bool_commit.state",
 		"selinux.enforce.status",
-		"selinux.enforce.status.length",
 		"setgid.egid",
 		"setgid.egroup",
-		"setgid.egroup.length",
 		"setgid.fsgid",
 		"setgid.fsgroup",
-		"setgid.fsgroup.length",
 		"setgid.gid",
 		"setgid.group",
-		"setgid.group.length",
 		"setuid.euid",
 		"setuid.euser",
-		"setuid.euser.length",
 		"setuid.fsuid",
 		"setuid.fsuser",
-		"setuid.fsuser.length",
 		"setuid.uid",
 		"setuid.user",
-		"setuid.user.length",
 		"setxattr.file.change_time",
 		"setxattr.file.destination.name",
-		"setxattr.file.destination.name.length",
 		"setxattr.file.destination.namespace",
-		"setxattr.file.destination.namespace.length",
 		"setxattr.file.filesystem",
-		"setxattr.file.filesystem.length",
 		"setxattr.file.gid",
 		"setxattr.file.group",
-		"setxattr.file.group.length",
 		"setxattr.file.in_upper_layer",
 		"setxattr.file.inode",
 		"setxattr.file.mode",
@@ -10952,41 +8765,32 @@ func (e *Event) GetFields() []eval.Field {
 		"setxattr.file.rights",
 		"setxattr.file.uid",
 		"setxattr.file.user",
-		"setxattr.file.user.length",
 		"setxattr.retval",
 		"signal.pid",
 		"signal.retval",
 		"signal.target.ancestors.args",
-		"signal.target.ancestors.args.length",
 		"signal.target.ancestors.args_flags",
 		"signal.target.ancestors.args_options",
 		"signal.target.ancestors.args_truncated",
 		"signal.target.ancestors.argv",
 		"signal.target.ancestors.argv0",
-		"signal.target.ancestors.argv0.length",
 		"signal.target.ancestors.cap_effective",
 		"signal.target.ancestors.cap_permitted",
 		"signal.target.ancestors.comm",
-		"signal.target.ancestors.comm.length",
 		"signal.target.ancestors.container.id",
-		"signal.target.ancestors.container.id.length",
 		"signal.target.ancestors.cookie",
 		"signal.target.ancestors.created_at",
 		"signal.target.ancestors.egid",
 		"signal.target.ancestors.egroup",
-		"signal.target.ancestors.egroup.length",
 		"signal.target.ancestors.envp",
 		"signal.target.ancestors.envs",
 		"signal.target.ancestors.envs_truncated",
 		"signal.target.ancestors.euid",
 		"signal.target.ancestors.euser",
-		"signal.target.ancestors.euser.length",
 		"signal.target.ancestors.file.change_time",
 		"signal.target.ancestors.file.filesystem",
-		"signal.target.ancestors.file.filesystem.length",
 		"signal.target.ancestors.file.gid",
 		"signal.target.ancestors.file.group",
-		"signal.target.ancestors.file.group.length",
 		"signal.target.ancestors.file.in_upper_layer",
 		"signal.target.ancestors.file.inode",
 		"signal.target.ancestors.file.mode",
@@ -10999,57 +8803,43 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.file.rights",
 		"signal.target.ancestors.file.uid",
 		"signal.target.ancestors.file.user",
-		"signal.target.ancestors.file.user.length",
 		"signal.target.ancestors.fsgid",
 		"signal.target.ancestors.fsgroup",
-		"signal.target.ancestors.fsgroup.length",
 		"signal.target.ancestors.fsuid",
 		"signal.target.ancestors.fsuser",
-		"signal.target.ancestors.fsuser.length",
 		"signal.target.ancestors.gid",
 		"signal.target.ancestors.group",
-		"signal.target.ancestors.group.length",
 		"signal.target.ancestors.is_kworker",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
 		"signal.target.ancestors.tid",
 		"signal.target.ancestors.tty_name",
-		"signal.target.ancestors.tty_name.length",
 		"signal.target.ancestors.uid",
 		"signal.target.ancestors.user",
-		"signal.target.ancestors.user.length",
 		"signal.target.args",
-		"signal.target.args.length",
 		"signal.target.args_flags",
 		"signal.target.args_options",
 		"signal.target.args_truncated",
 		"signal.target.argv",
 		"signal.target.argv0",
-		"signal.target.argv0.length",
 		"signal.target.cap_effective",
 		"signal.target.cap_permitted",
 		"signal.target.comm",
-		"signal.target.comm.length",
 		"signal.target.container.id",
-		"signal.target.container.id.length",
 		"signal.target.cookie",
 		"signal.target.created_at",
 		"signal.target.egid",
 		"signal.target.egroup",
-		"signal.target.egroup.length",
 		"signal.target.envp",
 		"signal.target.envs",
 		"signal.target.envs_truncated",
 		"signal.target.euid",
 		"signal.target.euser",
-		"signal.target.euser.length",
 		"signal.target.file.change_time",
 		"signal.target.file.filesystem",
-		"signal.target.file.filesystem.length",
 		"signal.target.file.gid",
 		"signal.target.file.group",
-		"signal.target.file.group.length",
 		"signal.target.file.in_upper_layer",
 		"signal.target.file.inode",
 		"signal.target.file.mode",
@@ -11062,33 +8852,25 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.file.rights",
 		"signal.target.file.uid",
 		"signal.target.file.user",
-		"signal.target.file.user.length",
 		"signal.target.fsgid",
 		"signal.target.fsgroup",
-		"signal.target.fsgroup.length",
 		"signal.target.fsuid",
 		"signal.target.fsuser",
-		"signal.target.fsuser.length",
 		"signal.target.gid",
 		"signal.target.group",
-		"signal.target.group.length",
 		"signal.target.is_kworker",
 		"signal.target.is_thread",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
 		"signal.target.tty_name",
-		"signal.target.tty_name.length",
 		"signal.target.uid",
 		"signal.target.user",
-		"signal.target.user.length",
 		"signal.type",
 		"splice.file.change_time",
 		"splice.file.filesystem",
-		"splice.file.filesystem.length",
 		"splice.file.gid",
 		"splice.file.group",
-		"splice.file.group.length",
 		"splice.file.in_upper_layer",
 		"splice.file.inode",
 		"splice.file.mode",
@@ -11101,16 +8883,13 @@ func (e *Event) GetFields() []eval.Field {
 		"splice.file.rights",
 		"splice.file.uid",
 		"splice.file.user",
-		"splice.file.user.length",
 		"splice.pipe_entry_flag",
 		"splice.pipe_exit_flag",
 		"splice.retval",
 		"unlink.file.change_time",
 		"unlink.file.filesystem",
-		"unlink.file.filesystem.length",
 		"unlink.file.gid",
 		"unlink.file.group",
-		"unlink.file.group.length",
 		"unlink.file.in_upper_layer",
 		"unlink.file.inode",
 		"unlink.file.mode",
@@ -11123,18 +8902,14 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.rights",
 		"unlink.file.uid",
 		"unlink.file.user",
-		"unlink.file.user.length",
 		"unlink.flags",
 		"unlink.retval",
 		"unload_module.name",
-		"unload_module.name.length",
 		"unload_module.retval",
 		"utimes.file.change_time",
 		"utimes.file.filesystem",
-		"utimes.file.filesystem.length",
 		"utimes.file.gid",
 		"utimes.file.group",
-		"utimes.file.group.length",
 		"utimes.file.in_upper_layer",
 		"utimes.file.inode",
 		"utimes.file.mode",
@@ -11147,7 +8922,6 @@ func (e *Event) GetFields() []eval.Field {
 		"utimes.file.rights",
 		"utimes.file.uid",
 		"utimes.file.user",
-		"utimes.file.user.length",
 		"utimes.retval",
 	}
 }
@@ -11167,8 +8941,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.BPF.Cmd), nil
 	case "bpf.map.name":
 		return e.BPF.Map.Name, nil
-	case "bpf.map.name.length":
-		return len(e.BPF.Map.Name), nil
 	case "bpf.map.type":
 		return int(e.BPF.Map.Type), nil
 	case "bpf.prog.attach_type":
@@ -11181,12 +8953,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return result, nil
 	case "bpf.prog.name":
 		return e.BPF.Program.Name, nil
-	case "bpf.prog.name.length":
-		return len(e.BPF.Program.Name), nil
 	case "bpf.prog.tag":
 		return e.BPF.Program.Tag, nil
-	case "bpf.prog.tag.length":
-		return len(e.BPF.Program.Tag), nil
 	case "bpf.prog.type":
 		return int(e.BPF.Program.Type), nil
 	case "bpf.retval":
@@ -11203,13 +8971,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Chmod.Mode), nil
 	case "chmod.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Chmod.File), nil
-	case "chmod.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Chmod.File), nil
 	case "chmod.file.gid":
 		return int(e.Chmod.File.FileFields.GID), nil
 	case "chmod.file.group":
-		return e.ResolveFileFieldsGroup(&e.Chmod.File.FileFields), nil
-	case "chmod.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Chmod.File.FileFields), nil
 	case "chmod.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Chmod.File.FileFields), nil
@@ -11235,8 +8999,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Chmod.File.FileFields.UID), nil
 	case "chmod.file.user":
 		return e.ResolveFileFieldsUser(&e.Chmod.File.FileFields), nil
-	case "chmod.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Chmod.File.FileFields), nil
 	case "chmod.retval":
 		return int(e.Chmod.SyscallEvent.Retval), nil
 	case "chown.file.change_time":
@@ -11245,23 +9007,15 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Chown.GID), nil
 	case "chown.file.destination.group":
 		return e.ResolveChownGID(&e.Chown), nil
-	case "chown.file.destination.group.length":
-		return e.ResolveChownGID(&e.Chown), nil
 	case "chown.file.destination.uid":
 		return int(e.Chown.UID), nil
 	case "chown.file.destination.user":
 		return e.ResolveChownUID(&e.Chown), nil
-	case "chown.file.destination.user.length":
-		return e.ResolveChownUID(&e.Chown), nil
 	case "chown.file.filesystem":
-		return e.ResolveFileFilesystem(&e.Chown.File), nil
-	case "chown.file.filesystem.length":
 		return e.ResolveFileFilesystem(&e.Chown.File), nil
 	case "chown.file.gid":
 		return int(e.Chown.File.FileFields.GID), nil
 	case "chown.file.group":
-		return e.ResolveFileFieldsGroup(&e.Chown.File.FileFields), nil
-	case "chown.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Chown.File.FileFields), nil
 	case "chown.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Chown.File.FileFields), nil
@@ -11287,13 +9041,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Chown.File.FileFields.UID), nil
 	case "chown.file.user":
 		return e.ResolveFileFieldsUser(&e.Chown.File.FileFields), nil
-	case "chown.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Chown.File.FileFields), nil
 	case "chown.retval":
 		return int(e.Chown.SyscallEvent.Retval), nil
 	case "container.id":
-		return e.ResolveContainerID(&e.ContainerContext), nil
-	case "container.id.length":
 		return e.ResolveContainerID(&e.ContainerContext), nil
 	case "container.tags":
 		return e.ResolveContainerTags(&e.ContainerContext), nil
@@ -11311,8 +9061,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.DNS.Type), nil
 	case "exec.args":
 		return e.ResolveProcessArgs(e.Exec.Process), nil
-	case "exec.args.length":
-		return e.ResolveProcessArgs(e.Exec.Process), nil
 	case "exec.args_flags":
 		return e.ResolveProcessArgsFlags(e.Exec.Process), nil
 	case "exec.args_options":
@@ -11323,20 +9071,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ResolveProcessArgv(e.Exec.Process), nil
 	case "exec.argv0":
 		return e.ResolveProcessArgv0(e.Exec.Process), nil
-	case "exec.argv0.length":
-		return e.ResolveProcessArgv0(e.Exec.Process), nil
 	case "exec.cap_effective":
 		return int(e.Exec.Process.Credentials.CapEffective), nil
 	case "exec.cap_permitted":
 		return int(e.Exec.Process.Credentials.CapPermitted), nil
 	case "exec.comm":
 		return e.Exec.Process.Comm, nil
-	case "exec.comm.length":
-		return len(e.Exec.Process.Comm), nil
 	case "exec.container.id":
 		return e.Exec.Process.ContainerID, nil
-	case "exec.container.id.length":
-		return len(e.Exec.Process.ContainerID), nil
 	case "exec.cookie":
 		return int(e.Exec.Process.Cookie), nil
 	case "exec.created_at":
@@ -11345,8 +9087,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.Credentials.EGID), nil
 	case "exec.egroup":
 		return e.Exec.Process.Credentials.EGroup, nil
-	case "exec.egroup.length":
-		return len(e.Exec.Process.Credentials.EGroup), nil
 	case "exec.envp":
 		return e.ResolveProcessEnvp(e.Exec.Process), nil
 	case "exec.envs":
@@ -11357,19 +9097,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.Credentials.EUID), nil
 	case "exec.euser":
 		return e.Exec.Process.Credentials.EUser, nil
-	case "exec.euser.length":
-		return len(e.Exec.Process.Credentials.EUser), nil
 	case "exec.file.change_time":
 		return int(e.Exec.Process.FileEvent.FileFields.CTime), nil
 	case "exec.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Exec.Process.FileEvent), nil
-	case "exec.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Exec.Process.FileEvent), nil
 	case "exec.file.gid":
 		return int(e.Exec.Process.FileEvent.FileFields.GID), nil
 	case "exec.file.group":
-		return e.ResolveFileFieldsGroup(&e.Exec.Process.FileEvent.FileFields), nil
-	case "exec.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Exec.Process.FileEvent.FileFields), nil
 	case "exec.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Exec.Process.FileEvent.FileFields), nil
@@ -11395,26 +9129,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.FileEvent.FileFields.UID), nil
 	case "exec.file.user":
 		return e.ResolveFileFieldsUser(&e.Exec.Process.FileEvent.FileFields), nil
-	case "exec.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Exec.Process.FileEvent.FileFields), nil
 	case "exec.fsgid":
 		return int(e.Exec.Process.Credentials.FSGID), nil
 	case "exec.fsgroup":
 		return e.Exec.Process.Credentials.FSGroup, nil
-	case "exec.fsgroup.length":
-		return len(e.Exec.Process.Credentials.FSGroup), nil
 	case "exec.fsuid":
 		return int(e.Exec.Process.Credentials.FSUID), nil
 	case "exec.fsuser":
 		return e.Exec.Process.Credentials.FSUser, nil
-	case "exec.fsuser.length":
-		return len(e.Exec.Process.Credentials.FSUser), nil
 	case "exec.gid":
 		return int(e.Exec.Process.Credentials.GID), nil
 	case "exec.group":
 		return e.Exec.Process.Credentials.Group, nil
-	case "exec.group.length":
-		return len(e.Exec.Process.Credentials.Group), nil
 	case "exec.is_kworker":
 		return e.Exec.Process.PIDContext.IsKworker, nil
 	case "exec.is_thread":
@@ -11427,17 +9153,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.PIDContext.Tid), nil
 	case "exec.tty_name":
 		return e.Exec.Process.TTYName, nil
-	case "exec.tty_name.length":
-		return len(e.Exec.Process.TTYName), nil
 	case "exec.uid":
 		return int(e.Exec.Process.Credentials.UID), nil
 	case "exec.user":
 		return e.Exec.Process.Credentials.User, nil
-	case "exec.user.length":
-		return len(e.Exec.Process.Credentials.User), nil
 	case "exit.args":
-		return e.ResolveProcessArgs(e.Exit.Process), nil
-	case "exit.args.length":
 		return e.ResolveProcessArgs(e.Exit.Process), nil
 	case "exit.args_flags":
 		return e.ResolveProcessArgsFlags(e.Exit.Process), nil
@@ -11449,8 +9169,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ResolveProcessArgv(e.Exit.Process), nil
 	case "exit.argv0":
 		return e.ResolveProcessArgv0(e.Exit.Process), nil
-	case "exit.argv0.length":
-		return e.ResolveProcessArgv0(e.Exit.Process), nil
 	case "exit.cap_effective":
 		return int(e.Exit.Process.Credentials.CapEffective), nil
 	case "exit.cap_permitted":
@@ -11461,12 +9179,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Code), nil
 	case "exit.comm":
 		return e.Exit.Process.Comm, nil
-	case "exit.comm.length":
-		return len(e.Exit.Process.Comm), nil
 	case "exit.container.id":
 		return e.Exit.Process.ContainerID, nil
-	case "exit.container.id.length":
-		return len(e.Exit.Process.ContainerID), nil
 	case "exit.cookie":
 		return int(e.Exit.Process.Cookie), nil
 	case "exit.created_at":
@@ -11475,8 +9189,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Process.Credentials.EGID), nil
 	case "exit.egroup":
 		return e.Exit.Process.Credentials.EGroup, nil
-	case "exit.egroup.length":
-		return len(e.Exit.Process.Credentials.EGroup), nil
 	case "exit.envp":
 		return e.ResolveProcessEnvp(e.Exit.Process), nil
 	case "exit.envs":
@@ -11487,19 +9199,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Process.Credentials.EUID), nil
 	case "exit.euser":
 		return e.Exit.Process.Credentials.EUser, nil
-	case "exit.euser.length":
-		return len(e.Exit.Process.Credentials.EUser), nil
 	case "exit.file.change_time":
 		return int(e.Exit.Process.FileEvent.FileFields.CTime), nil
 	case "exit.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Exit.Process.FileEvent), nil
-	case "exit.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Exit.Process.FileEvent), nil
 	case "exit.file.gid":
 		return int(e.Exit.Process.FileEvent.FileFields.GID), nil
 	case "exit.file.group":
-		return e.ResolveFileFieldsGroup(&e.Exit.Process.FileEvent.FileFields), nil
-	case "exit.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Exit.Process.FileEvent.FileFields), nil
 	case "exit.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Exit.Process.FileEvent.FileFields), nil
@@ -11525,26 +9231,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Process.FileEvent.FileFields.UID), nil
 	case "exit.file.user":
 		return e.ResolveFileFieldsUser(&e.Exit.Process.FileEvent.FileFields), nil
-	case "exit.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Exit.Process.FileEvent.FileFields), nil
 	case "exit.fsgid":
 		return int(e.Exit.Process.Credentials.FSGID), nil
 	case "exit.fsgroup":
 		return e.Exit.Process.Credentials.FSGroup, nil
-	case "exit.fsgroup.length":
-		return len(e.Exit.Process.Credentials.FSGroup), nil
 	case "exit.fsuid":
 		return int(e.Exit.Process.Credentials.FSUID), nil
 	case "exit.fsuser":
 		return e.Exit.Process.Credentials.FSUser, nil
-	case "exit.fsuser.length":
-		return len(e.Exit.Process.Credentials.FSUser), nil
 	case "exit.gid":
 		return int(e.Exit.Process.Credentials.GID), nil
 	case "exit.group":
 		return e.Exit.Process.Credentials.Group, nil
-	case "exit.group.length":
-		return len(e.Exit.Process.Credentials.Group), nil
 	case "exit.is_kworker":
 		return e.Exit.Process.PIDContext.IsKworker, nil
 	case "exit.is_thread":
@@ -11557,27 +9255,19 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Process.PIDContext.Tid), nil
 	case "exit.tty_name":
 		return e.Exit.Process.TTYName, nil
-	case "exit.tty_name.length":
-		return len(e.Exit.Process.TTYName), nil
 	case "exit.uid":
 		return int(e.Exit.Process.Credentials.UID), nil
 	case "exit.user":
 		return e.Exit.Process.Credentials.User, nil
-	case "exit.user.length":
-		return len(e.Exit.Process.Credentials.User), nil
 	case "link.file.change_time":
 		return int(e.Link.Source.FileFields.CTime), nil
 	case "link.file.destination.change_time":
 		return int(e.Link.Target.FileFields.CTime), nil
 	case "link.file.destination.filesystem":
 		return e.ResolveFileFilesystem(&e.Link.Target), nil
-	case "link.file.destination.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Link.Target), nil
 	case "link.file.destination.gid":
 		return int(e.Link.Target.FileFields.GID), nil
 	case "link.file.destination.group":
-		return e.ResolveFileFieldsGroup(&e.Link.Target.FileFields), nil
-	case "link.file.destination.group.length":
 		return e.ResolveFileFieldsGroup(&e.Link.Target.FileFields), nil
 	case "link.file.destination.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Link.Target.FileFields), nil
@@ -11603,17 +9293,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Link.Target.FileFields.UID), nil
 	case "link.file.destination.user":
 		return e.ResolveFileFieldsUser(&e.Link.Target.FileFields), nil
-	case "link.file.destination.user.length":
-		return e.ResolveFileFieldsUser(&e.Link.Target.FileFields), nil
 	case "link.file.filesystem":
-		return e.ResolveFileFilesystem(&e.Link.Source), nil
-	case "link.file.filesystem.length":
 		return e.ResolveFileFilesystem(&e.Link.Source), nil
 	case "link.file.gid":
 		return int(e.Link.Source.FileFields.GID), nil
 	case "link.file.group":
-		return e.ResolveFileFieldsGroup(&e.Link.Source.FileFields), nil
-	case "link.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Link.Source.FileFields), nil
 	case "link.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Link.Source.FileFields), nil
@@ -11639,21 +9323,15 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Link.Source.FileFields.UID), nil
 	case "link.file.user":
 		return e.ResolveFileFieldsUser(&e.Link.Source.FileFields), nil
-	case "link.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Link.Source.FileFields), nil
 	case "link.retval":
 		return int(e.Link.SyscallEvent.Retval), nil
 	case "load_module.file.change_time":
 		return int(e.LoadModule.File.FileFields.CTime), nil
 	case "load_module.file.filesystem":
 		return e.ResolveFileFilesystem(&e.LoadModule.File), nil
-	case "load_module.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.LoadModule.File), nil
 	case "load_module.file.gid":
 		return int(e.LoadModule.File.FileFields.GID), nil
 	case "load_module.file.group":
-		return e.ResolveFileFieldsGroup(&e.LoadModule.File.FileFields), nil
-	case "load_module.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.LoadModule.File.FileFields), nil
 	case "load_module.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.LoadModule.File.FileFields), nil
@@ -11679,14 +9357,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.LoadModule.File.FileFields.UID), nil
 	case "load_module.file.user":
 		return e.ResolveFileFieldsUser(&e.LoadModule.File.FileFields), nil
-	case "load_module.file.user.length":
-		return e.ResolveFileFieldsUser(&e.LoadModule.File.FileFields), nil
 	case "load_module.loaded_from_memory":
 		return e.LoadModule.LoadedFromMemory, nil
 	case "load_module.name":
 		return e.LoadModule.Name, nil
-	case "load_module.name.length":
-		return len(e.LoadModule.Name), nil
 	case "load_module.retval":
 		return int(e.LoadModule.SyscallEvent.Retval), nil
 	case "mkdir.file.change_time":
@@ -11697,13 +9371,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Mkdir.Mode), nil
 	case "mkdir.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Mkdir.File), nil
-	case "mkdir.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Mkdir.File), nil
 	case "mkdir.file.gid":
 		return int(e.Mkdir.File.FileFields.GID), nil
 	case "mkdir.file.group":
-		return e.ResolveFileFieldsGroup(&e.Mkdir.File.FileFields), nil
-	case "mkdir.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Mkdir.File.FileFields), nil
 	case "mkdir.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Mkdir.File.FileFields), nil
@@ -11729,21 +9399,15 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Mkdir.File.FileFields.UID), nil
 	case "mkdir.file.user":
 		return e.ResolveFileFieldsUser(&e.Mkdir.File.FileFields), nil
-	case "mkdir.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Mkdir.File.FileFields), nil
 	case "mkdir.retval":
 		return int(e.Mkdir.SyscallEvent.Retval), nil
 	case "mmap.file.change_time":
 		return int(e.MMap.File.FileFields.CTime), nil
 	case "mmap.file.filesystem":
 		return e.ResolveFileFilesystem(&e.MMap.File), nil
-	case "mmap.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.MMap.File), nil
 	case "mmap.file.gid":
 		return int(e.MMap.File.FileFields.GID), nil
 	case "mmap.file.group":
-		return e.ResolveFileFieldsGroup(&e.MMap.File.FileFields), nil
-	case "mmap.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.MMap.File.FileFields), nil
 	case "mmap.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.MMap.File.FileFields), nil
@@ -11769,8 +9433,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.MMap.File.FileFields.UID), nil
 	case "mmap.file.user":
 		return e.ResolveFileFieldsUser(&e.MMap.File.FileFields), nil
-	case "mmap.file.user.length":
-		return e.ResolveFileFieldsUser(&e.MMap.File.FileFields), nil
 	case "mmap.flags":
 		return e.MMap.Flags, nil
 	case "mmap.protection":
@@ -11791,8 +9453,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.NetworkContext.Device.IfIndex), nil
 	case "network.device.ifname":
 		return e.ResolveNetworkDeviceIfName(&e.NetworkContext.Device), nil
-	case "network.device.ifname.length":
-		return e.ResolveNetworkDeviceIfName(&e.NetworkContext.Device), nil
 	case "network.l3_protocol":
 		return int(e.NetworkContext.L3Protocol), nil
 	case "network.l4_protocol":
@@ -11809,13 +9469,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Open.Mode), nil
 	case "open.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Open.File), nil
-	case "open.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Open.File), nil
 	case "open.file.gid":
 		return int(e.Open.File.FileFields.GID), nil
 	case "open.file.group":
-		return e.ResolveFileFieldsGroup(&e.Open.File.FileFields), nil
-	case "open.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Open.File.FileFields), nil
 	case "open.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Open.File.FileFields), nil
@@ -11841,8 +9497,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Open.File.FileFields.UID), nil
 	case "open.file.user":
 		return e.ResolveFileFieldsUser(&e.Open.File.FileFields), nil
-	case "open.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Open.File.FileFields), nil
 	case "open.flags":
 		return int(e.Open.Flags), nil
 	case "open.retval":
@@ -11855,18 +9509,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.args.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11931,18 +9573,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.argv0.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.cap_effective":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -11979,18 +9609,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.comm.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Comm)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.container.id":
 		var values []string
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -11999,18 +9617,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.container.id.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.ContainerID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12059,18 +9665,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.EGroup
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.egroup.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.EGroup)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12135,18 +9729,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.euser.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.EUser)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.file.change_time":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12171,18 +9753,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.file.filesystem.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.file.gid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12203,18 +9773,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.file.group.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12363,18 +9921,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.file.user.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.fsgid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12395,18 +9941,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.FSGroup
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.fsgroup.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.FSGroup)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12435,18 +9969,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.fsuser.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.FSUser)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.gid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12467,18 +9989,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.Group
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.group.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.Group)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12555,18 +10065,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.tty_name.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.TTYName)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.ancestors.uid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12591,21 +10089,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.user.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.User)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.args":
-		return e.ResolveProcessArgs(&e.ProcessContext.Process), nil
-	case "process.args.length":
 		return e.ResolveProcessArgs(&e.ProcessContext.Process), nil
 	case "process.args_flags":
 		return e.ResolveProcessArgsFlags(&e.ProcessContext.Process), nil
@@ -12617,20 +10101,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ResolveProcessArgv(&e.ProcessContext.Process), nil
 	case "process.argv0":
 		return e.ResolveProcessArgv0(&e.ProcessContext.Process), nil
-	case "process.argv0.length":
-		return e.ResolveProcessArgv0(&e.ProcessContext.Process), nil
 	case "process.cap_effective":
 		return int(e.ProcessContext.Process.Credentials.CapEffective), nil
 	case "process.cap_permitted":
 		return int(e.ProcessContext.Process.Credentials.CapPermitted), nil
 	case "process.comm":
 		return e.ProcessContext.Process.Comm, nil
-	case "process.comm.length":
-		return len(e.ProcessContext.Process.Comm), nil
 	case "process.container.id":
 		return e.ProcessContext.Process.ContainerID, nil
-	case "process.container.id.length":
-		return len(e.ProcessContext.Process.ContainerID), nil
 	case "process.cookie":
 		return int(e.ProcessContext.Process.Cookie), nil
 	case "process.created_at":
@@ -12639,8 +10117,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.Credentials.EGID), nil
 	case "process.egroup":
 		return e.ProcessContext.Process.Credentials.EGroup, nil
-	case "process.egroup.length":
-		return len(e.ProcessContext.Process.Credentials.EGroup), nil
 	case "process.envp":
 		return e.ResolveProcessEnvp(&e.ProcessContext.Process), nil
 	case "process.envs":
@@ -12651,19 +10127,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.Credentials.EUID), nil
 	case "process.euser":
 		return e.ProcessContext.Process.Credentials.EUser, nil
-	case "process.euser.length":
-		return len(e.ProcessContext.Process.Credentials.EUser), nil
 	case "process.file.change_time":
 		return int(e.ProcessContext.Process.FileEvent.FileFields.CTime), nil
 	case "process.file.filesystem":
 		return e.ResolveFileFilesystem(&e.ProcessContext.Process.FileEvent), nil
-	case "process.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.ProcessContext.Process.FileEvent), nil
 	case "process.file.gid":
 		return int(e.ProcessContext.Process.FileEvent.FileFields.GID), nil
 	case "process.file.group":
-		return e.ResolveFileFieldsGroup(&e.ProcessContext.Process.FileEvent.FileFields), nil
-	case "process.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.ProcessContext.Process.FileEvent.FileFields), nil
 	case "process.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.ProcessContext.Process.FileEvent.FileFields), nil
@@ -12689,26 +10159,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.FileEvent.FileFields.UID), nil
 	case "process.file.user":
 		return e.ResolveFileFieldsUser(&e.ProcessContext.Process.FileEvent.FileFields), nil
-	case "process.file.user.length":
-		return e.ResolveFileFieldsUser(&e.ProcessContext.Process.FileEvent.FileFields), nil
 	case "process.fsgid":
 		return int(e.ProcessContext.Process.Credentials.FSGID), nil
 	case "process.fsgroup":
 		return e.ProcessContext.Process.Credentials.FSGroup, nil
-	case "process.fsgroup.length":
-		return len(e.ProcessContext.Process.Credentials.FSGroup), nil
 	case "process.fsuid":
 		return int(e.ProcessContext.Process.Credentials.FSUID), nil
 	case "process.fsuser":
 		return e.ProcessContext.Process.Credentials.FSUser, nil
-	case "process.fsuser.length":
-		return len(e.ProcessContext.Process.Credentials.FSUser), nil
 	case "process.gid":
 		return int(e.ProcessContext.Process.Credentials.GID), nil
 	case "process.group":
 		return e.ProcessContext.Process.Credentials.Group, nil
-	case "process.group.length":
-		return len(e.ProcessContext.Process.Credentials.Group), nil
 	case "process.is_kworker":
 		return e.ProcessContext.Process.PIDContext.IsKworker, nil
 	case "process.is_thread":
@@ -12721,14 +10183,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.PIDContext.Tid), nil
 	case "process.tty_name":
 		return e.ProcessContext.Process.TTYName, nil
-	case "process.tty_name.length":
-		return len(e.ProcessContext.Process.TTYName), nil
 	case "process.uid":
 		return int(e.ProcessContext.Process.Credentials.UID), nil
 	case "process.user":
 		return e.ProcessContext.Process.Credentials.User, nil
-	case "process.user.length":
-		return len(e.ProcessContext.Process.Credentials.User), nil
 	case "ptrace.request":
 		return int(e.PTrace.Request), nil
 	case "ptrace.retval":
@@ -12741,18 +10199,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.args.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12817,18 +10263,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.argv0.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12865,18 +10299,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.comm.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Comm)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.container.id":
 		var values []string
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -12885,18 +10307,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.container.id.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.ContainerID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12945,18 +10355,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.EGroup
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.egroup.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.EGroup)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13021,18 +10419,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.euser.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.EUser)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -13057,18 +10443,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.file.filesystem.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.file.gid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -13089,18 +10463,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.file.group.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13249,18 +10611,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.file.user.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.fsgid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -13281,18 +10631,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.FSGroup
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.fsgroup.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.FSGroup)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13321,18 +10659,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.fsuser.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.FSUser)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.gid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -13353,18 +10679,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.Group
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "ptrace.tracee.ancestors.group.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.Group)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13441,18 +10755,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.tty_name.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.TTYName)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.ancestors.uid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -13477,21 +10779,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "ptrace.tracee.ancestors.user.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.User)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "ptrace.tracee.args":
-		return e.ResolveProcessArgs(&e.PTrace.Tracee.Process), nil
-	case "ptrace.tracee.args.length":
 		return e.ResolveProcessArgs(&e.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.args_flags":
 		return e.ResolveProcessArgsFlags(&e.PTrace.Tracee.Process), nil
@@ -13503,20 +10791,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ResolveProcessArgv(&e.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.argv0":
 		return e.ResolveProcessArgv0(&e.PTrace.Tracee.Process), nil
-	case "ptrace.tracee.argv0.length":
-		return e.ResolveProcessArgv0(&e.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.cap_effective":
 		return int(e.PTrace.Tracee.Process.Credentials.CapEffective), nil
 	case "ptrace.tracee.cap_permitted":
 		return int(e.PTrace.Tracee.Process.Credentials.CapPermitted), nil
 	case "ptrace.tracee.comm":
 		return e.PTrace.Tracee.Process.Comm, nil
-	case "ptrace.tracee.comm.length":
-		return len(e.PTrace.Tracee.Process.Comm), nil
 	case "ptrace.tracee.container.id":
 		return e.PTrace.Tracee.Process.ContainerID, nil
-	case "ptrace.tracee.container.id.length":
-		return len(e.PTrace.Tracee.Process.ContainerID), nil
 	case "ptrace.tracee.cookie":
 		return int(e.PTrace.Tracee.Process.Cookie), nil
 	case "ptrace.tracee.created_at":
@@ -13525,8 +10807,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.Credentials.EGID), nil
 	case "ptrace.tracee.egroup":
 		return e.PTrace.Tracee.Process.Credentials.EGroup, nil
-	case "ptrace.tracee.egroup.length":
-		return len(e.PTrace.Tracee.Process.Credentials.EGroup), nil
 	case "ptrace.tracee.envp":
 		return e.ResolveProcessEnvp(&e.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.envs":
@@ -13537,19 +10817,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.Credentials.EUID), nil
 	case "ptrace.tracee.euser":
 		return e.PTrace.Tracee.Process.Credentials.EUser, nil
-	case "ptrace.tracee.euser.length":
-		return len(e.PTrace.Tracee.Process.Credentials.EUser), nil
 	case "ptrace.tracee.file.change_time":
 		return int(e.PTrace.Tracee.Process.FileEvent.FileFields.CTime), nil
 	case "ptrace.tracee.file.filesystem":
 		return e.ResolveFileFilesystem(&e.PTrace.Tracee.Process.FileEvent), nil
-	case "ptrace.tracee.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.PTrace.Tracee.Process.FileEvent), nil
 	case "ptrace.tracee.file.gid":
 		return int(e.PTrace.Tracee.Process.FileEvent.FileFields.GID), nil
 	case "ptrace.tracee.file.group":
-		return e.ResolveFileFieldsGroup(&e.PTrace.Tracee.Process.FileEvent.FileFields), nil
-	case "ptrace.tracee.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.PTrace.Tracee.Process.FileEvent.FileFields), nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.PTrace.Tracee.Process.FileEvent.FileFields), nil
@@ -13575,26 +10849,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.FileEvent.FileFields.UID), nil
 	case "ptrace.tracee.file.user":
 		return e.ResolveFileFieldsUser(&e.PTrace.Tracee.Process.FileEvent.FileFields), nil
-	case "ptrace.tracee.file.user.length":
-		return e.ResolveFileFieldsUser(&e.PTrace.Tracee.Process.FileEvent.FileFields), nil
 	case "ptrace.tracee.fsgid":
 		return int(e.PTrace.Tracee.Process.Credentials.FSGID), nil
 	case "ptrace.tracee.fsgroup":
 		return e.PTrace.Tracee.Process.Credentials.FSGroup, nil
-	case "ptrace.tracee.fsgroup.length":
-		return len(e.PTrace.Tracee.Process.Credentials.FSGroup), nil
 	case "ptrace.tracee.fsuid":
 		return int(e.PTrace.Tracee.Process.Credentials.FSUID), nil
 	case "ptrace.tracee.fsuser":
 		return e.PTrace.Tracee.Process.Credentials.FSUser, nil
-	case "ptrace.tracee.fsuser.length":
-		return len(e.PTrace.Tracee.Process.Credentials.FSUser), nil
 	case "ptrace.tracee.gid":
 		return int(e.PTrace.Tracee.Process.Credentials.GID), nil
 	case "ptrace.tracee.group":
 		return e.PTrace.Tracee.Process.Credentials.Group, nil
-	case "ptrace.tracee.group.length":
-		return len(e.PTrace.Tracee.Process.Credentials.Group), nil
 	case "ptrace.tracee.is_kworker":
 		return e.PTrace.Tracee.Process.PIDContext.IsKworker, nil
 	case "ptrace.tracee.is_thread":
@@ -13607,33 +10873,21 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.PIDContext.Tid), nil
 	case "ptrace.tracee.tty_name":
 		return e.PTrace.Tracee.Process.TTYName, nil
-	case "ptrace.tracee.tty_name.length":
-		return len(e.PTrace.Tracee.Process.TTYName), nil
 	case "ptrace.tracee.uid":
 		return int(e.PTrace.Tracee.Process.Credentials.UID), nil
 	case "ptrace.tracee.user":
 		return e.PTrace.Tracee.Process.Credentials.User, nil
-	case "ptrace.tracee.user.length":
-		return len(e.PTrace.Tracee.Process.Credentials.User), nil
 	case "removexattr.file.change_time":
 		return int(e.RemoveXAttr.File.FileFields.CTime), nil
 	case "removexattr.file.destination.name":
 		return e.ResolveXAttrName(&e.RemoveXAttr), nil
-	case "removexattr.file.destination.name.length":
-		return e.ResolveXAttrName(&e.RemoveXAttr), nil
 	case "removexattr.file.destination.namespace":
 		return e.ResolveXAttrNamespace(&e.RemoveXAttr), nil
-	case "removexattr.file.destination.namespace.length":
-		return e.ResolveXAttrNamespace(&e.RemoveXAttr), nil
 	case "removexattr.file.filesystem":
-		return e.ResolveFileFilesystem(&e.RemoveXAttr.File), nil
-	case "removexattr.file.filesystem.length":
 		return e.ResolveFileFilesystem(&e.RemoveXAttr.File), nil
 	case "removexattr.file.gid":
 		return int(e.RemoveXAttr.File.FileFields.GID), nil
 	case "removexattr.file.group":
-		return e.ResolveFileFieldsGroup(&e.RemoveXAttr.File.FileFields), nil
-	case "removexattr.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.RemoveXAttr.File.FileFields), nil
 	case "removexattr.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.RemoveXAttr.File.FileFields), nil
@@ -13659,8 +10913,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.RemoveXAttr.File.FileFields.UID), nil
 	case "removexattr.file.user":
 		return e.ResolveFileFieldsUser(&e.RemoveXAttr.File.FileFields), nil
-	case "removexattr.file.user.length":
-		return e.ResolveFileFieldsUser(&e.RemoveXAttr.File.FileFields), nil
 	case "removexattr.retval":
 		return int(e.RemoveXAttr.SyscallEvent.Retval), nil
 	case "rename.file.change_time":
@@ -13669,13 +10921,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rename.New.FileFields.CTime), nil
 	case "rename.file.destination.filesystem":
 		return e.ResolveFileFilesystem(&e.Rename.New), nil
-	case "rename.file.destination.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Rename.New), nil
 	case "rename.file.destination.gid":
 		return int(e.Rename.New.FileFields.GID), nil
 	case "rename.file.destination.group":
-		return e.ResolveFileFieldsGroup(&e.Rename.New.FileFields), nil
-	case "rename.file.destination.group.length":
 		return e.ResolveFileFieldsGroup(&e.Rename.New.FileFields), nil
 	case "rename.file.destination.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Rename.New.FileFields), nil
@@ -13701,17 +10949,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rename.New.FileFields.UID), nil
 	case "rename.file.destination.user":
 		return e.ResolveFileFieldsUser(&e.Rename.New.FileFields), nil
-	case "rename.file.destination.user.length":
-		return e.ResolveFileFieldsUser(&e.Rename.New.FileFields), nil
 	case "rename.file.filesystem":
-		return e.ResolveFileFilesystem(&e.Rename.Old), nil
-	case "rename.file.filesystem.length":
 		return e.ResolveFileFilesystem(&e.Rename.Old), nil
 	case "rename.file.gid":
 		return int(e.Rename.Old.FileFields.GID), nil
 	case "rename.file.group":
-		return e.ResolveFileFieldsGroup(&e.Rename.Old.FileFields), nil
-	case "rename.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Rename.Old.FileFields), nil
 	case "rename.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Rename.Old.FileFields), nil
@@ -13737,21 +10979,15 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rename.Old.FileFields.UID), nil
 	case "rename.file.user":
 		return e.ResolveFileFieldsUser(&e.Rename.Old.FileFields), nil
-	case "rename.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Rename.Old.FileFields), nil
 	case "rename.retval":
 		return int(e.Rename.SyscallEvent.Retval), nil
 	case "rmdir.file.change_time":
 		return int(e.Rmdir.File.FileFields.CTime), nil
 	case "rmdir.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Rmdir.File), nil
-	case "rmdir.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Rmdir.File), nil
 	case "rmdir.file.gid":
 		return int(e.Rmdir.File.FileFields.GID), nil
 	case "rmdir.file.group":
-		return e.ResolveFileFieldsGroup(&e.Rmdir.File.FileFields), nil
-	case "rmdir.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Rmdir.File.FileFields), nil
 	case "rmdir.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Rmdir.File.FileFields), nil
@@ -13777,79 +11013,51 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rmdir.File.FileFields.UID), nil
 	case "rmdir.file.user":
 		return e.ResolveFileFieldsUser(&e.Rmdir.File.FileFields), nil
-	case "rmdir.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Rmdir.File.FileFields), nil
 	case "rmdir.retval":
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 	case "selinux.bool.name":
 		return e.ResolveSELinuxBoolName(&e.SELinux), nil
-	case "selinux.bool.name.length":
-		return e.ResolveSELinuxBoolName(&e.SELinux), nil
 	case "selinux.bool.state":
 		return e.SELinux.BoolChangeValue, nil
-	case "selinux.bool.state.length":
-		return len(e.SELinux.BoolChangeValue), nil
 	case "selinux.bool_commit.state":
 		return e.SELinux.BoolCommitValue, nil
 	case "selinux.enforce.status":
 		return e.SELinux.EnforceStatus, nil
-	case "selinux.enforce.status.length":
-		return len(e.SELinux.EnforceStatus), nil
 	case "setgid.egid":
 		return int(e.SetGID.EGID), nil
 	case "setgid.egroup":
-		return e.ResolveSetgidEGroup(&e.SetGID), nil
-	case "setgid.egroup.length":
 		return e.ResolveSetgidEGroup(&e.SetGID), nil
 	case "setgid.fsgid":
 		return int(e.SetGID.FSGID), nil
 	case "setgid.fsgroup":
 		return e.ResolveSetgidFSGroup(&e.SetGID), nil
-	case "setgid.fsgroup.length":
-		return e.ResolveSetgidFSGroup(&e.SetGID), nil
 	case "setgid.gid":
 		return int(e.SetGID.GID), nil
 	case "setgid.group":
-		return e.ResolveSetgidGroup(&e.SetGID), nil
-	case "setgid.group.length":
 		return e.ResolveSetgidGroup(&e.SetGID), nil
 	case "setuid.euid":
 		return int(e.SetUID.EUID), nil
 	case "setuid.euser":
 		return e.ResolveSetuidEUser(&e.SetUID), nil
-	case "setuid.euser.length":
-		return e.ResolveSetuidEUser(&e.SetUID), nil
 	case "setuid.fsuid":
 		return int(e.SetUID.FSUID), nil
 	case "setuid.fsuser":
-		return e.ResolveSetuidFSUser(&e.SetUID), nil
-	case "setuid.fsuser.length":
 		return e.ResolveSetuidFSUser(&e.SetUID), nil
 	case "setuid.uid":
 		return int(e.SetUID.UID), nil
 	case "setuid.user":
 		return e.ResolveSetuidUser(&e.SetUID), nil
-	case "setuid.user.length":
-		return e.ResolveSetuidUser(&e.SetUID), nil
 	case "setxattr.file.change_time":
 		return int(e.SetXAttr.File.FileFields.CTime), nil
 	case "setxattr.file.destination.name":
 		return e.ResolveXAttrName(&e.SetXAttr), nil
-	case "setxattr.file.destination.name.length":
-		return e.ResolveXAttrName(&e.SetXAttr), nil
 	case "setxattr.file.destination.namespace":
 		return e.ResolveXAttrNamespace(&e.SetXAttr), nil
-	case "setxattr.file.destination.namespace.length":
-		return e.ResolveXAttrNamespace(&e.SetXAttr), nil
 	case "setxattr.file.filesystem":
-		return e.ResolveFileFilesystem(&e.SetXAttr.File), nil
-	case "setxattr.file.filesystem.length":
 		return e.ResolveFileFilesystem(&e.SetXAttr.File), nil
 	case "setxattr.file.gid":
 		return int(e.SetXAttr.File.FileFields.GID), nil
 	case "setxattr.file.group":
-		return e.ResolveFileFieldsGroup(&e.SetXAttr.File.FileFields), nil
-	case "setxattr.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.SetXAttr.File.FileFields), nil
 	case "setxattr.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.SetXAttr.File.FileFields), nil
@@ -13875,8 +11083,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.SetXAttr.File.FileFields.UID), nil
 	case "setxattr.file.user":
 		return e.ResolveFileFieldsUser(&e.SetXAttr.File.FileFields), nil
-	case "setxattr.file.user.length":
-		return e.ResolveFileFieldsUser(&e.SetXAttr.File.FileFields), nil
 	case "setxattr.retval":
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 	case "signal.pid":
@@ -13891,18 +11097,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.args.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13967,18 +11161,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.argv0.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.cap_effective":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14015,18 +11197,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.comm.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Comm)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.container.id":
 		var values []string
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14035,18 +11205,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.container.id.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.ContainerID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14095,18 +11253,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.EGroup
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.egroup.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.EGroup)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14171,18 +11317,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.euser.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.EUser)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.file.change_time":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14207,18 +11341,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.file.filesystem.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.file.gid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14239,18 +11361,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.file.group.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14399,18 +11509,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.file.user.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.fsgid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14431,18 +11529,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.FSGroup
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.fsgroup.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.FSGroup)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14471,18 +11557,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.fsuser.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.FSUser)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.gid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14503,18 +11577,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*model.ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.Group
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "signal.target.ancestors.group.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.Group)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14591,18 +11653,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.tty_name.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.TTYName)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.ancestors.uid":
 		var values []int
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -14627,21 +11677,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "signal.target.ancestors.user.length":
-		var values []int
-		ctx := eval.NewContext(unsafe.Pointer(e))
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len(element.ProcessContext.Process.Credentials.User)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "signal.target.args":
-		return e.ResolveProcessArgs(&e.Signal.Target.Process), nil
-	case "signal.target.args.length":
 		return e.ResolveProcessArgs(&e.Signal.Target.Process), nil
 	case "signal.target.args_flags":
 		return e.ResolveProcessArgsFlags(&e.Signal.Target.Process), nil
@@ -14653,20 +11689,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ResolveProcessArgv(&e.Signal.Target.Process), nil
 	case "signal.target.argv0":
 		return e.ResolveProcessArgv0(&e.Signal.Target.Process), nil
-	case "signal.target.argv0.length":
-		return e.ResolveProcessArgv0(&e.Signal.Target.Process), nil
 	case "signal.target.cap_effective":
 		return int(e.Signal.Target.Process.Credentials.CapEffective), nil
 	case "signal.target.cap_permitted":
 		return int(e.Signal.Target.Process.Credentials.CapPermitted), nil
 	case "signal.target.comm":
 		return e.Signal.Target.Process.Comm, nil
-	case "signal.target.comm.length":
-		return len(e.Signal.Target.Process.Comm), nil
 	case "signal.target.container.id":
 		return e.Signal.Target.Process.ContainerID, nil
-	case "signal.target.container.id.length":
-		return len(e.Signal.Target.Process.ContainerID), nil
 	case "signal.target.cookie":
 		return int(e.Signal.Target.Process.Cookie), nil
 	case "signal.target.created_at":
@@ -14675,8 +11705,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.Credentials.EGID), nil
 	case "signal.target.egroup":
 		return e.Signal.Target.Process.Credentials.EGroup, nil
-	case "signal.target.egroup.length":
-		return len(e.Signal.Target.Process.Credentials.EGroup), nil
 	case "signal.target.envp":
 		return e.ResolveProcessEnvp(&e.Signal.Target.Process), nil
 	case "signal.target.envs":
@@ -14687,19 +11715,13 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.Credentials.EUID), nil
 	case "signal.target.euser":
 		return e.Signal.Target.Process.Credentials.EUser, nil
-	case "signal.target.euser.length":
-		return len(e.Signal.Target.Process.Credentials.EUser), nil
 	case "signal.target.file.change_time":
 		return int(e.Signal.Target.Process.FileEvent.FileFields.CTime), nil
 	case "signal.target.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Signal.Target.Process.FileEvent), nil
-	case "signal.target.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Signal.Target.Process.FileEvent), nil
 	case "signal.target.file.gid":
 		return int(e.Signal.Target.Process.FileEvent.FileFields.GID), nil
 	case "signal.target.file.group":
-		return e.ResolveFileFieldsGroup(&e.Signal.Target.Process.FileEvent.FileFields), nil
-	case "signal.target.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Signal.Target.Process.FileEvent.FileFields), nil
 	case "signal.target.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Signal.Target.Process.FileEvent.FileFields), nil
@@ -14725,26 +11747,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.FileEvent.FileFields.UID), nil
 	case "signal.target.file.user":
 		return e.ResolveFileFieldsUser(&e.Signal.Target.Process.FileEvent.FileFields), nil
-	case "signal.target.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Signal.Target.Process.FileEvent.FileFields), nil
 	case "signal.target.fsgid":
 		return int(e.Signal.Target.Process.Credentials.FSGID), nil
 	case "signal.target.fsgroup":
 		return e.Signal.Target.Process.Credentials.FSGroup, nil
-	case "signal.target.fsgroup.length":
-		return len(e.Signal.Target.Process.Credentials.FSGroup), nil
 	case "signal.target.fsuid":
 		return int(e.Signal.Target.Process.Credentials.FSUID), nil
 	case "signal.target.fsuser":
 		return e.Signal.Target.Process.Credentials.FSUser, nil
-	case "signal.target.fsuser.length":
-		return len(e.Signal.Target.Process.Credentials.FSUser), nil
 	case "signal.target.gid":
 		return int(e.Signal.Target.Process.Credentials.GID), nil
 	case "signal.target.group":
 		return e.Signal.Target.Process.Credentials.Group, nil
-	case "signal.target.group.length":
-		return len(e.Signal.Target.Process.Credentials.Group), nil
 	case "signal.target.is_kworker":
 		return e.Signal.Target.Process.PIDContext.IsKworker, nil
 	case "signal.target.is_thread":
@@ -14757,27 +11771,19 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.PIDContext.Tid), nil
 	case "signal.target.tty_name":
 		return e.Signal.Target.Process.TTYName, nil
-	case "signal.target.tty_name.length":
-		return len(e.Signal.Target.Process.TTYName), nil
 	case "signal.target.uid":
 		return int(e.Signal.Target.Process.Credentials.UID), nil
 	case "signal.target.user":
 		return e.Signal.Target.Process.Credentials.User, nil
-	case "signal.target.user.length":
-		return len(e.Signal.Target.Process.Credentials.User), nil
 	case "signal.type":
 		return int(e.Signal.Type), nil
 	case "splice.file.change_time":
 		return int(e.Splice.File.FileFields.CTime), nil
 	case "splice.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Splice.File), nil
-	case "splice.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Splice.File), nil
 	case "splice.file.gid":
 		return int(e.Splice.File.FileFields.GID), nil
 	case "splice.file.group":
-		return e.ResolveFileFieldsGroup(&e.Splice.File.FileFields), nil
-	case "splice.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Splice.File.FileFields), nil
 	case "splice.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Splice.File.FileFields), nil
@@ -14803,8 +11809,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Splice.File.FileFields.UID), nil
 	case "splice.file.user":
 		return e.ResolveFileFieldsUser(&e.Splice.File.FileFields), nil
-	case "splice.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Splice.File.FileFields), nil
 	case "splice.pipe_entry_flag":
 		return int(e.Splice.PipeEntryFlag), nil
 	case "splice.pipe_exit_flag":
@@ -14815,13 +11819,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Unlink.File.FileFields.CTime), nil
 	case "unlink.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Unlink.File), nil
-	case "unlink.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Unlink.File), nil
 	case "unlink.file.gid":
 		return int(e.Unlink.File.FileFields.GID), nil
 	case "unlink.file.group":
-		return e.ResolveFileFieldsGroup(&e.Unlink.File.FileFields), nil
-	case "unlink.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Unlink.File.FileFields), nil
 	case "unlink.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Unlink.File.FileFields), nil
@@ -14847,29 +11847,21 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Unlink.File.FileFields.UID), nil
 	case "unlink.file.user":
 		return e.ResolveFileFieldsUser(&e.Unlink.File.FileFields), nil
-	case "unlink.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Unlink.File.FileFields), nil
 	case "unlink.flags":
 		return int(e.Unlink.Flags), nil
 	case "unlink.retval":
 		return int(e.Unlink.SyscallEvent.Retval), nil
 	case "unload_module.name":
 		return e.UnloadModule.Name, nil
-	case "unload_module.name.length":
-		return len(e.UnloadModule.Name), nil
 	case "unload_module.retval":
 		return int(e.UnloadModule.SyscallEvent.Retval), nil
 	case "utimes.file.change_time":
 		return int(e.Utimes.File.FileFields.CTime), nil
 	case "utimes.file.filesystem":
 		return e.ResolveFileFilesystem(&e.Utimes.File), nil
-	case "utimes.file.filesystem.length":
-		return e.ResolveFileFilesystem(&e.Utimes.File), nil
 	case "utimes.file.gid":
 		return int(e.Utimes.File.FileFields.GID), nil
 	case "utimes.file.group":
-		return e.ResolveFileFieldsGroup(&e.Utimes.File.FileFields), nil
-	case "utimes.file.group.length":
 		return e.ResolveFileFieldsGroup(&e.Utimes.File.FileFields), nil
 	case "utimes.file.in_upper_layer":
 		return e.ResolveFileFieldsInUpperLayer(&e.Utimes.File.FileFields), nil
@@ -14895,8 +11887,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Utimes.File.FileFields.UID), nil
 	case "utimes.file.user":
 		return e.ResolveFileFieldsUser(&e.Utimes.File.FileFields), nil
-	case "utimes.file.user.length":
-		return e.ResolveFileFieldsUser(&e.Utimes.File.FileFields), nil
 	case "utimes.retval":
 		return int(e.Utimes.SyscallEvent.Retval), nil
 	}
@@ -14918,8 +11908,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "bpf", nil
 	case "bpf.map.name":
 		return "bpf", nil
-	case "bpf.map.name.length":
-		return "bpf", nil
 	case "bpf.map.type":
 		return "bpf", nil
 	case "bpf.prog.attach_type":
@@ -14928,11 +11916,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "bpf", nil
 	case "bpf.prog.name":
 		return "bpf", nil
-	case "bpf.prog.name.length":
-		return "bpf", nil
 	case "bpf.prog.tag":
-		return "bpf", nil
-	case "bpf.prog.tag.length":
 		return "bpf", nil
 	case "bpf.prog.type":
 		return "bpf", nil
@@ -14950,13 +11934,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chmod", nil
 	case "chmod.file.filesystem":
 		return "chmod", nil
-	case "chmod.file.filesystem.length":
-		return "chmod", nil
 	case "chmod.file.gid":
 		return "chmod", nil
 	case "chmod.file.group":
-		return "chmod", nil
-	case "chmod.file.group.length":
 		return "chmod", nil
 	case "chmod.file.in_upper_layer":
 		return "chmod", nil
@@ -14982,8 +11962,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chmod", nil
 	case "chmod.file.user":
 		return "chmod", nil
-	case "chmod.file.user.length":
-		return "chmod", nil
 	case "chmod.retval":
 		return "chmod", nil
 	case "chown.file.change_time":
@@ -14992,23 +11970,15 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chown", nil
 	case "chown.file.destination.group":
 		return "chown", nil
-	case "chown.file.destination.group.length":
-		return "chown", nil
 	case "chown.file.destination.uid":
 		return "chown", nil
 	case "chown.file.destination.user":
 		return "chown", nil
-	case "chown.file.destination.user.length":
-		return "chown", nil
 	case "chown.file.filesystem":
-		return "chown", nil
-	case "chown.file.filesystem.length":
 		return "chown", nil
 	case "chown.file.gid":
 		return "chown", nil
 	case "chown.file.group":
-		return "chown", nil
-	case "chown.file.group.length":
 		return "chown", nil
 	case "chown.file.in_upper_layer":
 		return "chown", nil
@@ -15034,13 +12004,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chown", nil
 	case "chown.file.user":
 		return "chown", nil
-	case "chown.file.user.length":
-		return "chown", nil
 	case "chown.retval":
 		return "chown", nil
 	case "container.id":
-		return "*", nil
-	case "container.id.length":
 		return "*", nil
 	case "container.tags":
 		return "*", nil
@@ -15058,8 +12024,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "exec.args":
 		return "exec", nil
-	case "exec.args.length":
-		return "exec", nil
 	case "exec.args_flags":
 		return "exec", nil
 	case "exec.args_options":
@@ -15070,19 +12034,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.argv0":
 		return "exec", nil
-	case "exec.argv0.length":
-		return "exec", nil
 	case "exec.cap_effective":
 		return "exec", nil
 	case "exec.cap_permitted":
 		return "exec", nil
 	case "exec.comm":
 		return "exec", nil
-	case "exec.comm.length":
-		return "exec", nil
 	case "exec.container.id":
-		return "exec", nil
-	case "exec.container.id.length":
 		return "exec", nil
 	case "exec.cookie":
 		return "exec", nil
@@ -15091,8 +12049,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.egid":
 		return "exec", nil
 	case "exec.egroup":
-		return "exec", nil
-	case "exec.egroup.length":
 		return "exec", nil
 	case "exec.envp":
 		return "exec", nil
@@ -15104,19 +12060,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.euser":
 		return "exec", nil
-	case "exec.euser.length":
-		return "exec", nil
 	case "exec.file.change_time":
 		return "exec", nil
 	case "exec.file.filesystem":
 		return "exec", nil
-	case "exec.file.filesystem.length":
-		return "exec", nil
 	case "exec.file.gid":
 		return "exec", nil
 	case "exec.file.group":
-		return "exec", nil
-	case "exec.file.group.length":
 		return "exec", nil
 	case "exec.file.in_upper_layer":
 		return "exec", nil
@@ -15142,25 +12092,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.file.user":
 		return "exec", nil
-	case "exec.file.user.length":
-		return "exec", nil
 	case "exec.fsgid":
 		return "exec", nil
 	case "exec.fsgroup":
-		return "exec", nil
-	case "exec.fsgroup.length":
 		return "exec", nil
 	case "exec.fsuid":
 		return "exec", nil
 	case "exec.fsuser":
 		return "exec", nil
-	case "exec.fsuser.length":
-		return "exec", nil
 	case "exec.gid":
 		return "exec", nil
 	case "exec.group":
-		return "exec", nil
-	case "exec.group.length":
 		return "exec", nil
 	case "exec.is_kworker":
 		return "exec", nil
@@ -15174,17 +12116,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.tty_name":
 		return "exec", nil
-	case "exec.tty_name.length":
-		return "exec", nil
 	case "exec.uid":
 		return "exec", nil
 	case "exec.user":
 		return "exec", nil
-	case "exec.user.length":
-		return "exec", nil
 	case "exit.args":
-		return "exit", nil
-	case "exit.args.length":
 		return "exit", nil
 	case "exit.args_flags":
 		return "exit", nil
@@ -15196,8 +12132,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.argv0":
 		return "exit", nil
-	case "exit.argv0.length":
-		return "exit", nil
 	case "exit.cap_effective":
 		return "exit", nil
 	case "exit.cap_permitted":
@@ -15208,11 +12142,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.comm":
 		return "exit", nil
-	case "exit.comm.length":
-		return "exit", nil
 	case "exit.container.id":
-		return "exit", nil
-	case "exit.container.id.length":
 		return "exit", nil
 	case "exit.cookie":
 		return "exit", nil
@@ -15221,8 +12151,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.egid":
 		return "exit", nil
 	case "exit.egroup":
-		return "exit", nil
-	case "exit.egroup.length":
 		return "exit", nil
 	case "exit.envp":
 		return "exit", nil
@@ -15234,19 +12162,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.euser":
 		return "exit", nil
-	case "exit.euser.length":
-		return "exit", nil
 	case "exit.file.change_time":
 		return "exit", nil
 	case "exit.file.filesystem":
 		return "exit", nil
-	case "exit.file.filesystem.length":
-		return "exit", nil
 	case "exit.file.gid":
 		return "exit", nil
 	case "exit.file.group":
-		return "exit", nil
-	case "exit.file.group.length":
 		return "exit", nil
 	case "exit.file.in_upper_layer":
 		return "exit", nil
@@ -15272,25 +12194,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.file.user":
 		return "exit", nil
-	case "exit.file.user.length":
-		return "exit", nil
 	case "exit.fsgid":
 		return "exit", nil
 	case "exit.fsgroup":
-		return "exit", nil
-	case "exit.fsgroup.length":
 		return "exit", nil
 	case "exit.fsuid":
 		return "exit", nil
 	case "exit.fsuser":
 		return "exit", nil
-	case "exit.fsuser.length":
-		return "exit", nil
 	case "exit.gid":
 		return "exit", nil
 	case "exit.group":
-		return "exit", nil
-	case "exit.group.length":
 		return "exit", nil
 	case "exit.is_kworker":
 		return "exit", nil
@@ -15304,13 +12218,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.tty_name":
 		return "exit", nil
-	case "exit.tty_name.length":
-		return "exit", nil
 	case "exit.uid":
 		return "exit", nil
 	case "exit.user":
-		return "exit", nil
-	case "exit.user.length":
 		return "exit", nil
 	case "link.file.change_time":
 		return "link", nil
@@ -15318,13 +12228,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.file.destination.filesystem":
 		return "link", nil
-	case "link.file.destination.filesystem.length":
-		return "link", nil
 	case "link.file.destination.gid":
 		return "link", nil
 	case "link.file.destination.group":
-		return "link", nil
-	case "link.file.destination.group.length":
 		return "link", nil
 	case "link.file.destination.in_upper_layer":
 		return "link", nil
@@ -15350,17 +12256,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.file.destination.user":
 		return "link", nil
-	case "link.file.destination.user.length":
-		return "link", nil
 	case "link.file.filesystem":
-		return "link", nil
-	case "link.file.filesystem.length":
 		return "link", nil
 	case "link.file.gid":
 		return "link", nil
 	case "link.file.group":
-		return "link", nil
-	case "link.file.group.length":
 		return "link", nil
 	case "link.file.in_upper_layer":
 		return "link", nil
@@ -15386,21 +12286,15 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.file.user":
 		return "link", nil
-	case "link.file.user.length":
-		return "link", nil
 	case "link.retval":
 		return "link", nil
 	case "load_module.file.change_time":
 		return "load_module", nil
 	case "load_module.file.filesystem":
 		return "load_module", nil
-	case "load_module.file.filesystem.length":
-		return "load_module", nil
 	case "load_module.file.gid":
 		return "load_module", nil
 	case "load_module.file.group":
-		return "load_module", nil
-	case "load_module.file.group.length":
 		return "load_module", nil
 	case "load_module.file.in_upper_layer":
 		return "load_module", nil
@@ -15426,13 +12320,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "load_module", nil
 	case "load_module.file.user":
 		return "load_module", nil
-	case "load_module.file.user.length":
-		return "load_module", nil
 	case "load_module.loaded_from_memory":
 		return "load_module", nil
 	case "load_module.name":
-		return "load_module", nil
-	case "load_module.name.length":
 		return "load_module", nil
 	case "load_module.retval":
 		return "load_module", nil
@@ -15444,13 +12334,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mkdir", nil
 	case "mkdir.file.filesystem":
 		return "mkdir", nil
-	case "mkdir.file.filesystem.length":
-		return "mkdir", nil
 	case "mkdir.file.gid":
 		return "mkdir", nil
 	case "mkdir.file.group":
-		return "mkdir", nil
-	case "mkdir.file.group.length":
 		return "mkdir", nil
 	case "mkdir.file.in_upper_layer":
 		return "mkdir", nil
@@ -15476,21 +12362,15 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mkdir", nil
 	case "mkdir.file.user":
 		return "mkdir", nil
-	case "mkdir.file.user.length":
-		return "mkdir", nil
 	case "mkdir.retval":
 		return "mkdir", nil
 	case "mmap.file.change_time":
 		return "mmap", nil
 	case "mmap.file.filesystem":
 		return "mmap", nil
-	case "mmap.file.filesystem.length":
-		return "mmap", nil
 	case "mmap.file.gid":
 		return "mmap", nil
 	case "mmap.file.group":
-		return "mmap", nil
-	case "mmap.file.group.length":
 		return "mmap", nil
 	case "mmap.file.in_upper_layer":
 		return "mmap", nil
@@ -15516,8 +12396,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mmap", nil
 	case "mmap.file.user":
 		return "mmap", nil
-	case "mmap.file.user.length":
-		return "mmap", nil
 	case "mmap.flags":
 		return "mmap", nil
 	case "mmap.protection":
@@ -15538,8 +12416,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "network.device.ifname":
 		return "*", nil
-	case "network.device.ifname.length":
-		return "*", nil
 	case "network.l3_protocol":
 		return "*", nil
 	case "network.l4_protocol":
@@ -15556,13 +12432,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.file.filesystem":
 		return "open", nil
-	case "open.file.filesystem.length":
-		return "open", nil
 	case "open.file.gid":
 		return "open", nil
 	case "open.file.group":
-		return "open", nil
-	case "open.file.group.length":
 		return "open", nil
 	case "open.file.in_upper_layer":
 		return "open", nil
@@ -15588,15 +12460,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.file.user":
 		return "open", nil
-	case "open.file.user.length":
-		return "open", nil
 	case "open.flags":
 		return "open", nil
 	case "open.retval":
 		return "open", nil
 	case "process.ancestors.args":
-		return "*", nil
-	case "process.ancestors.args.length":
 		return "*", nil
 	case "process.ancestors.args_flags":
 		return "*", nil
@@ -15608,19 +12476,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.argv0":
 		return "*", nil
-	case "process.ancestors.argv0.length":
-		return "*", nil
 	case "process.ancestors.cap_effective":
 		return "*", nil
 	case "process.ancestors.cap_permitted":
 		return "*", nil
 	case "process.ancestors.comm":
 		return "*", nil
-	case "process.ancestors.comm.length":
-		return "*", nil
 	case "process.ancestors.container.id":
-		return "*", nil
-	case "process.ancestors.container.id.length":
 		return "*", nil
 	case "process.ancestors.cookie":
 		return "*", nil
@@ -15629,8 +12491,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.egid":
 		return "*", nil
 	case "process.ancestors.egroup":
-		return "*", nil
-	case "process.ancestors.egroup.length":
 		return "*", nil
 	case "process.ancestors.envp":
 		return "*", nil
@@ -15642,19 +12502,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.euser":
 		return "*", nil
-	case "process.ancestors.euser.length":
-		return "*", nil
 	case "process.ancestors.file.change_time":
 		return "*", nil
 	case "process.ancestors.file.filesystem":
 		return "*", nil
-	case "process.ancestors.file.filesystem.length":
-		return "*", nil
 	case "process.ancestors.file.gid":
 		return "*", nil
 	case "process.ancestors.file.group":
-		return "*", nil
-	case "process.ancestors.file.group.length":
 		return "*", nil
 	case "process.ancestors.file.in_upper_layer":
 		return "*", nil
@@ -15680,25 +12534,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.file.user":
 		return "*", nil
-	case "process.ancestors.file.user.length":
-		return "*", nil
 	case "process.ancestors.fsgid":
 		return "*", nil
 	case "process.ancestors.fsgroup":
-		return "*", nil
-	case "process.ancestors.fsgroup.length":
 		return "*", nil
 	case "process.ancestors.fsuid":
 		return "*", nil
 	case "process.ancestors.fsuser":
 		return "*", nil
-	case "process.ancestors.fsuser.length":
-		return "*", nil
 	case "process.ancestors.gid":
 		return "*", nil
 	case "process.ancestors.group":
-		return "*", nil
-	case "process.ancestors.group.length":
 		return "*", nil
 	case "process.ancestors.is_kworker":
 		return "*", nil
@@ -15712,17 +12558,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.tty_name":
 		return "*", nil
-	case "process.ancestors.tty_name.length":
-		return "*", nil
 	case "process.ancestors.uid":
 		return "*", nil
 	case "process.ancestors.user":
 		return "*", nil
-	case "process.ancestors.user.length":
-		return "*", nil
 	case "process.args":
-		return "*", nil
-	case "process.args.length":
 		return "*", nil
 	case "process.args_flags":
 		return "*", nil
@@ -15734,19 +12574,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.argv0":
 		return "*", nil
-	case "process.argv0.length":
-		return "*", nil
 	case "process.cap_effective":
 		return "*", nil
 	case "process.cap_permitted":
 		return "*", nil
 	case "process.comm":
 		return "*", nil
-	case "process.comm.length":
-		return "*", nil
 	case "process.container.id":
-		return "*", nil
-	case "process.container.id.length":
 		return "*", nil
 	case "process.cookie":
 		return "*", nil
@@ -15755,8 +12589,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.egid":
 		return "*", nil
 	case "process.egroup":
-		return "*", nil
-	case "process.egroup.length":
 		return "*", nil
 	case "process.envp":
 		return "*", nil
@@ -15768,19 +12600,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.euser":
 		return "*", nil
-	case "process.euser.length":
-		return "*", nil
 	case "process.file.change_time":
 		return "*", nil
 	case "process.file.filesystem":
 		return "*", nil
-	case "process.file.filesystem.length":
-		return "*", nil
 	case "process.file.gid":
 		return "*", nil
 	case "process.file.group":
-		return "*", nil
-	case "process.file.group.length":
 		return "*", nil
 	case "process.file.in_upper_layer":
 		return "*", nil
@@ -15806,25 +12632,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.file.user":
 		return "*", nil
-	case "process.file.user.length":
-		return "*", nil
 	case "process.fsgid":
 		return "*", nil
 	case "process.fsgroup":
-		return "*", nil
-	case "process.fsgroup.length":
 		return "*", nil
 	case "process.fsuid":
 		return "*", nil
 	case "process.fsuser":
 		return "*", nil
-	case "process.fsuser.length":
-		return "*", nil
 	case "process.gid":
 		return "*", nil
 	case "process.group":
-		return "*", nil
-	case "process.group.length":
 		return "*", nil
 	case "process.is_kworker":
 		return "*", nil
@@ -15838,21 +12656,15 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.tty_name":
 		return "*", nil
-	case "process.tty_name.length":
-		return "*", nil
 	case "process.uid":
 		return "*", nil
 	case "process.user":
-		return "*", nil
-	case "process.user.length":
 		return "*", nil
 	case "ptrace.request":
 		return "ptrace", nil
 	case "ptrace.retval":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.args":
-		return "ptrace", nil
-	case "ptrace.tracee.ancestors.args.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.args_flags":
 		return "ptrace", nil
@@ -15864,19 +12676,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.argv0":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.argv0.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.comm":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.comm.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.container.id":
-		return "ptrace", nil
-	case "ptrace.tracee.ancestors.container.id.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cookie":
 		return "ptrace", nil
@@ -15885,8 +12691,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.egid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.egroup":
-		return "ptrace", nil
-	case "ptrace.tracee.ancestors.egroup.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.envp":
 		return "ptrace", nil
@@ -15898,19 +12702,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.euser":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.euser.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.file.filesystem.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.group":
-		return "ptrace", nil
-	case "ptrace.tracee.ancestors.file.group.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return "ptrace", nil
@@ -15936,25 +12734,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.user":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.file.user.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.fsgid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.fsgroup":
-		return "ptrace", nil
-	case "ptrace.tracee.ancestors.fsgroup.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.fsuid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.fsuser":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.fsuser.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.group":
-		return "ptrace", nil
-	case "ptrace.tracee.ancestors.group.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return "ptrace", nil
@@ -15968,17 +12758,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.tty_name":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.tty_name.length":
-		return "ptrace", nil
 	case "ptrace.tracee.ancestors.uid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.user":
 		return "ptrace", nil
-	case "ptrace.tracee.ancestors.user.length":
-		return "ptrace", nil
 	case "ptrace.tracee.args":
-		return "ptrace", nil
-	case "ptrace.tracee.args.length":
 		return "ptrace", nil
 	case "ptrace.tracee.args_flags":
 		return "ptrace", nil
@@ -15990,19 +12774,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.argv0":
 		return "ptrace", nil
-	case "ptrace.tracee.argv0.length":
-		return "ptrace", nil
 	case "ptrace.tracee.cap_effective":
 		return "ptrace", nil
 	case "ptrace.tracee.cap_permitted":
 		return "ptrace", nil
 	case "ptrace.tracee.comm":
 		return "ptrace", nil
-	case "ptrace.tracee.comm.length":
-		return "ptrace", nil
 	case "ptrace.tracee.container.id":
-		return "ptrace", nil
-	case "ptrace.tracee.container.id.length":
 		return "ptrace", nil
 	case "ptrace.tracee.cookie":
 		return "ptrace", nil
@@ -16011,8 +12789,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.egid":
 		return "ptrace", nil
 	case "ptrace.tracee.egroup":
-		return "ptrace", nil
-	case "ptrace.tracee.egroup.length":
 		return "ptrace", nil
 	case "ptrace.tracee.envp":
 		return "ptrace", nil
@@ -16024,19 +12800,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.euser":
 		return "ptrace", nil
-	case "ptrace.tracee.euser.length":
-		return "ptrace", nil
 	case "ptrace.tracee.file.change_time":
 		return "ptrace", nil
 	case "ptrace.tracee.file.filesystem":
 		return "ptrace", nil
-	case "ptrace.tracee.file.filesystem.length":
-		return "ptrace", nil
 	case "ptrace.tracee.file.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.file.group":
-		return "ptrace", nil
-	case "ptrace.tracee.file.group.length":
 		return "ptrace", nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return "ptrace", nil
@@ -16062,25 +12832,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.file.user":
 		return "ptrace", nil
-	case "ptrace.tracee.file.user.length":
-		return "ptrace", nil
 	case "ptrace.tracee.fsgid":
 		return "ptrace", nil
 	case "ptrace.tracee.fsgroup":
-		return "ptrace", nil
-	case "ptrace.tracee.fsgroup.length":
 		return "ptrace", nil
 	case "ptrace.tracee.fsuid":
 		return "ptrace", nil
 	case "ptrace.tracee.fsuser":
 		return "ptrace", nil
-	case "ptrace.tracee.fsuser.length":
-		return "ptrace", nil
 	case "ptrace.tracee.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.group":
-		return "ptrace", nil
-	case "ptrace.tracee.group.length":
 		return "ptrace", nil
 	case "ptrace.tracee.is_kworker":
 		return "ptrace", nil
@@ -16094,33 +12856,21 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.tty_name":
 		return "ptrace", nil
-	case "ptrace.tracee.tty_name.length":
-		return "ptrace", nil
 	case "ptrace.tracee.uid":
 		return "ptrace", nil
 	case "ptrace.tracee.user":
-		return "ptrace", nil
-	case "ptrace.tracee.user.length":
 		return "ptrace", nil
 	case "removexattr.file.change_time":
 		return "removexattr", nil
 	case "removexattr.file.destination.name":
 		return "removexattr", nil
-	case "removexattr.file.destination.name.length":
-		return "removexattr", nil
 	case "removexattr.file.destination.namespace":
 		return "removexattr", nil
-	case "removexattr.file.destination.namespace.length":
-		return "removexattr", nil
 	case "removexattr.file.filesystem":
-		return "removexattr", nil
-	case "removexattr.file.filesystem.length":
 		return "removexattr", nil
 	case "removexattr.file.gid":
 		return "removexattr", nil
 	case "removexattr.file.group":
-		return "removexattr", nil
-	case "removexattr.file.group.length":
 		return "removexattr", nil
 	case "removexattr.file.in_upper_layer":
 		return "removexattr", nil
@@ -16146,8 +12896,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "removexattr", nil
 	case "removexattr.file.user":
 		return "removexattr", nil
-	case "removexattr.file.user.length":
-		return "removexattr", nil
 	case "removexattr.retval":
 		return "removexattr", nil
 	case "rename.file.change_time":
@@ -16156,13 +12904,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.destination.filesystem":
 		return "rename", nil
-	case "rename.file.destination.filesystem.length":
-		return "rename", nil
 	case "rename.file.destination.gid":
 		return "rename", nil
 	case "rename.file.destination.group":
-		return "rename", nil
-	case "rename.file.destination.group.length":
 		return "rename", nil
 	case "rename.file.destination.in_upper_layer":
 		return "rename", nil
@@ -16188,17 +12932,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.destination.user":
 		return "rename", nil
-	case "rename.file.destination.user.length":
-		return "rename", nil
 	case "rename.file.filesystem":
-		return "rename", nil
-	case "rename.file.filesystem.length":
 		return "rename", nil
 	case "rename.file.gid":
 		return "rename", nil
 	case "rename.file.group":
-		return "rename", nil
-	case "rename.file.group.length":
 		return "rename", nil
 	case "rename.file.in_upper_layer":
 		return "rename", nil
@@ -16224,21 +12962,15 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.user":
 		return "rename", nil
-	case "rename.file.user.length":
-		return "rename", nil
 	case "rename.retval":
 		return "rename", nil
 	case "rmdir.file.change_time":
 		return "rmdir", nil
 	case "rmdir.file.filesystem":
 		return "rmdir", nil
-	case "rmdir.file.filesystem.length":
-		return "rmdir", nil
 	case "rmdir.file.gid":
 		return "rmdir", nil
 	case "rmdir.file.group":
-		return "rmdir", nil
-	case "rmdir.file.group.length":
 		return "rmdir", nil
 	case "rmdir.file.in_upper_layer":
 		return "rmdir", nil
@@ -16264,79 +12996,51 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rmdir", nil
 	case "rmdir.file.user":
 		return "rmdir", nil
-	case "rmdir.file.user.length":
-		return "rmdir", nil
 	case "rmdir.retval":
 		return "rmdir", nil
 	case "selinux.bool.name":
 		return "selinux", nil
-	case "selinux.bool.name.length":
-		return "selinux", nil
 	case "selinux.bool.state":
-		return "selinux", nil
-	case "selinux.bool.state.length":
 		return "selinux", nil
 	case "selinux.bool_commit.state":
 		return "selinux", nil
 	case "selinux.enforce.status":
 		return "selinux", nil
-	case "selinux.enforce.status.length":
-		return "selinux", nil
 	case "setgid.egid":
 		return "setgid", nil
 	case "setgid.egroup":
-		return "setgid", nil
-	case "setgid.egroup.length":
 		return "setgid", nil
 	case "setgid.fsgid":
 		return "setgid", nil
 	case "setgid.fsgroup":
 		return "setgid", nil
-	case "setgid.fsgroup.length":
-		return "setgid", nil
 	case "setgid.gid":
 		return "setgid", nil
 	case "setgid.group":
-		return "setgid", nil
-	case "setgid.group.length":
 		return "setgid", nil
 	case "setuid.euid":
 		return "setuid", nil
 	case "setuid.euser":
 		return "setuid", nil
-	case "setuid.euser.length":
-		return "setuid", nil
 	case "setuid.fsuid":
 		return "setuid", nil
 	case "setuid.fsuser":
-		return "setuid", nil
-	case "setuid.fsuser.length":
 		return "setuid", nil
 	case "setuid.uid":
 		return "setuid", nil
 	case "setuid.user":
 		return "setuid", nil
-	case "setuid.user.length":
-		return "setuid", nil
 	case "setxattr.file.change_time":
 		return "setxattr", nil
 	case "setxattr.file.destination.name":
 		return "setxattr", nil
-	case "setxattr.file.destination.name.length":
-		return "setxattr", nil
 	case "setxattr.file.destination.namespace":
 		return "setxattr", nil
-	case "setxattr.file.destination.namespace.length":
-		return "setxattr", nil
 	case "setxattr.file.filesystem":
-		return "setxattr", nil
-	case "setxattr.file.filesystem.length":
 		return "setxattr", nil
 	case "setxattr.file.gid":
 		return "setxattr", nil
 	case "setxattr.file.group":
-		return "setxattr", nil
-	case "setxattr.file.group.length":
 		return "setxattr", nil
 	case "setxattr.file.in_upper_layer":
 		return "setxattr", nil
@@ -16362,8 +13066,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "setxattr", nil
 	case "setxattr.file.user":
 		return "setxattr", nil
-	case "setxattr.file.user.length":
-		return "setxattr", nil
 	case "setxattr.retval":
 		return "setxattr", nil
 	case "signal.pid":
@@ -16371,8 +13073,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.retval":
 		return "signal", nil
 	case "signal.target.ancestors.args":
-		return "signal", nil
-	case "signal.target.ancestors.args.length":
 		return "signal", nil
 	case "signal.target.ancestors.args_flags":
 		return "signal", nil
@@ -16384,19 +13084,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.argv0":
 		return "signal", nil
-	case "signal.target.ancestors.argv0.length":
-		return "signal", nil
 	case "signal.target.ancestors.cap_effective":
 		return "signal", nil
 	case "signal.target.ancestors.cap_permitted":
 		return "signal", nil
 	case "signal.target.ancestors.comm":
 		return "signal", nil
-	case "signal.target.ancestors.comm.length":
-		return "signal", nil
 	case "signal.target.ancestors.container.id":
-		return "signal", nil
-	case "signal.target.ancestors.container.id.length":
 		return "signal", nil
 	case "signal.target.ancestors.cookie":
 		return "signal", nil
@@ -16405,8 +13099,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.ancestors.egid":
 		return "signal", nil
 	case "signal.target.ancestors.egroup":
-		return "signal", nil
-	case "signal.target.ancestors.egroup.length":
 		return "signal", nil
 	case "signal.target.ancestors.envp":
 		return "signal", nil
@@ -16418,19 +13110,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.euser":
 		return "signal", nil
-	case "signal.target.ancestors.euser.length":
-		return "signal", nil
 	case "signal.target.ancestors.file.change_time":
 		return "signal", nil
 	case "signal.target.ancestors.file.filesystem":
 		return "signal", nil
-	case "signal.target.ancestors.file.filesystem.length":
-		return "signal", nil
 	case "signal.target.ancestors.file.gid":
 		return "signal", nil
 	case "signal.target.ancestors.file.group":
-		return "signal", nil
-	case "signal.target.ancestors.file.group.length":
 		return "signal", nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return "signal", nil
@@ -16456,25 +13142,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.file.user":
 		return "signal", nil
-	case "signal.target.ancestors.file.user.length":
-		return "signal", nil
 	case "signal.target.ancestors.fsgid":
 		return "signal", nil
 	case "signal.target.ancestors.fsgroup":
-		return "signal", nil
-	case "signal.target.ancestors.fsgroup.length":
 		return "signal", nil
 	case "signal.target.ancestors.fsuid":
 		return "signal", nil
 	case "signal.target.ancestors.fsuser":
 		return "signal", nil
-	case "signal.target.ancestors.fsuser.length":
-		return "signal", nil
 	case "signal.target.ancestors.gid":
 		return "signal", nil
 	case "signal.target.ancestors.group":
-		return "signal", nil
-	case "signal.target.ancestors.group.length":
 		return "signal", nil
 	case "signal.target.ancestors.is_kworker":
 		return "signal", nil
@@ -16488,17 +13166,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.tty_name":
 		return "signal", nil
-	case "signal.target.ancestors.tty_name.length":
-		return "signal", nil
 	case "signal.target.ancestors.uid":
 		return "signal", nil
 	case "signal.target.ancestors.user":
 		return "signal", nil
-	case "signal.target.ancestors.user.length":
-		return "signal", nil
 	case "signal.target.args":
-		return "signal", nil
-	case "signal.target.args.length":
 		return "signal", nil
 	case "signal.target.args_flags":
 		return "signal", nil
@@ -16510,19 +13182,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.argv0":
 		return "signal", nil
-	case "signal.target.argv0.length":
-		return "signal", nil
 	case "signal.target.cap_effective":
 		return "signal", nil
 	case "signal.target.cap_permitted":
 		return "signal", nil
 	case "signal.target.comm":
 		return "signal", nil
-	case "signal.target.comm.length":
-		return "signal", nil
 	case "signal.target.container.id":
-		return "signal", nil
-	case "signal.target.container.id.length":
 		return "signal", nil
 	case "signal.target.cookie":
 		return "signal", nil
@@ -16531,8 +13197,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.egid":
 		return "signal", nil
 	case "signal.target.egroup":
-		return "signal", nil
-	case "signal.target.egroup.length":
 		return "signal", nil
 	case "signal.target.envp":
 		return "signal", nil
@@ -16544,19 +13208,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.euser":
 		return "signal", nil
-	case "signal.target.euser.length":
-		return "signal", nil
 	case "signal.target.file.change_time":
 		return "signal", nil
 	case "signal.target.file.filesystem":
 		return "signal", nil
-	case "signal.target.file.filesystem.length":
-		return "signal", nil
 	case "signal.target.file.gid":
 		return "signal", nil
 	case "signal.target.file.group":
-		return "signal", nil
-	case "signal.target.file.group.length":
 		return "signal", nil
 	case "signal.target.file.in_upper_layer":
 		return "signal", nil
@@ -16582,25 +13240,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.file.user":
 		return "signal", nil
-	case "signal.target.file.user.length":
-		return "signal", nil
 	case "signal.target.fsgid":
 		return "signal", nil
 	case "signal.target.fsgroup":
-		return "signal", nil
-	case "signal.target.fsgroup.length":
 		return "signal", nil
 	case "signal.target.fsuid":
 		return "signal", nil
 	case "signal.target.fsuser":
 		return "signal", nil
-	case "signal.target.fsuser.length":
-		return "signal", nil
 	case "signal.target.gid":
 		return "signal", nil
 	case "signal.target.group":
-		return "signal", nil
-	case "signal.target.group.length":
 		return "signal", nil
 	case "signal.target.is_kworker":
 		return "signal", nil
@@ -16614,13 +13264,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.tty_name":
 		return "signal", nil
-	case "signal.target.tty_name.length":
-		return "signal", nil
 	case "signal.target.uid":
 		return "signal", nil
 	case "signal.target.user":
-		return "signal", nil
-	case "signal.target.user.length":
 		return "signal", nil
 	case "signal.type":
 		return "signal", nil
@@ -16628,13 +13274,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "splice", nil
 	case "splice.file.filesystem":
 		return "splice", nil
-	case "splice.file.filesystem.length":
-		return "splice", nil
 	case "splice.file.gid":
 		return "splice", nil
 	case "splice.file.group":
-		return "splice", nil
-	case "splice.file.group.length":
 		return "splice", nil
 	case "splice.file.in_upper_layer":
 		return "splice", nil
@@ -16660,8 +13302,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "splice", nil
 	case "splice.file.user":
 		return "splice", nil
-	case "splice.file.user.length":
-		return "splice", nil
 	case "splice.pipe_entry_flag":
 		return "splice", nil
 	case "splice.pipe_exit_flag":
@@ -16672,13 +13312,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "unlink", nil
 	case "unlink.file.filesystem":
 		return "unlink", nil
-	case "unlink.file.filesystem.length":
-		return "unlink", nil
 	case "unlink.file.gid":
 		return "unlink", nil
 	case "unlink.file.group":
-		return "unlink", nil
-	case "unlink.file.group.length":
 		return "unlink", nil
 	case "unlink.file.in_upper_layer":
 		return "unlink", nil
@@ -16704,15 +13340,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "unlink", nil
 	case "unlink.file.user":
 		return "unlink", nil
-	case "unlink.file.user.length":
-		return "unlink", nil
 	case "unlink.flags":
 		return "unlink", nil
 	case "unlink.retval":
 		return "unlink", nil
 	case "unload_module.name":
-		return "unload_module", nil
-	case "unload_module.name.length":
 		return "unload_module", nil
 	case "unload_module.retval":
 		return "unload_module", nil
@@ -16720,13 +13352,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "utimes", nil
 	case "utimes.file.filesystem":
 		return "utimes", nil
-	case "utimes.file.filesystem.length":
-		return "utimes", nil
 	case "utimes.file.gid":
 		return "utimes", nil
 	case "utimes.file.group":
-		return "utimes", nil
-	case "utimes.file.group.length":
 		return "utimes", nil
 	case "utimes.file.in_upper_layer":
 		return "utimes", nil
@@ -16751,8 +13379,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "utimes.file.uid":
 		return "utimes", nil
 	case "utimes.file.user":
-		return "utimes", nil
-	case "utimes.file.user.length":
 		return "utimes", nil
 	case "utimes.retval":
 		return "utimes", nil
@@ -16775,8 +13401,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "bpf.map.name":
 		return reflect.String, nil
-	case "bpf.map.name.length":
-		return reflect.Int, nil
 	case "bpf.map.type":
 		return reflect.Int, nil
 	case "bpf.prog.attach_type":
@@ -16785,12 +13409,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "bpf.prog.name":
 		return reflect.String, nil
-	case "bpf.prog.name.length":
-		return reflect.Int, nil
 	case "bpf.prog.tag":
 		return reflect.String, nil
-	case "bpf.prog.tag.length":
-		return reflect.Int, nil
 	case "bpf.prog.type":
 		return reflect.Int, nil
 	case "bpf.retval":
@@ -16807,14 +13427,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chmod.file.filesystem":
 		return reflect.String, nil
-	case "chmod.file.filesystem.length":
-		return reflect.Int, nil
 	case "chmod.file.gid":
 		return reflect.Int, nil
 	case "chmod.file.group":
 		return reflect.String, nil
-	case "chmod.file.group.length":
-		return reflect.Int, nil
 	case "chmod.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "chmod.file.inode":
@@ -16839,8 +13455,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chmod.file.user":
 		return reflect.String, nil
-	case "chmod.file.user.length":
-		return reflect.Int, nil
 	case "chmod.retval":
 		return reflect.Int, nil
 	case "chown.file.change_time":
@@ -16849,24 +13463,16 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chown.file.destination.group":
 		return reflect.String, nil
-	case "chown.file.destination.group.length":
-		return reflect.Int, nil
 	case "chown.file.destination.uid":
 		return reflect.Int, nil
 	case "chown.file.destination.user":
 		return reflect.String, nil
-	case "chown.file.destination.user.length":
-		return reflect.Int, nil
 	case "chown.file.filesystem":
 		return reflect.String, nil
-	case "chown.file.filesystem.length":
-		return reflect.Int, nil
 	case "chown.file.gid":
 		return reflect.Int, nil
 	case "chown.file.group":
 		return reflect.String, nil
-	case "chown.file.group.length":
-		return reflect.Int, nil
 	case "chown.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "chown.file.inode":
@@ -16891,14 +13497,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chown.file.user":
 		return reflect.String, nil
-	case "chown.file.user.length":
-		return reflect.Int, nil
 	case "chown.retval":
 		return reflect.Int, nil
 	case "container.id":
 		return reflect.String, nil
-	case "container.id.length":
-		return reflect.Int, nil
 	case "container.tags":
 		return reflect.String, nil
 	case "dns.question.class":
@@ -16915,8 +13517,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.args":
 		return reflect.String, nil
-	case "exec.args.length":
-		return reflect.Int, nil
 	case "exec.args_flags":
 		return reflect.String, nil
 	case "exec.args_options":
@@ -16927,20 +13527,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exec.argv0":
 		return reflect.String, nil
-	case "exec.argv0.length":
-		return reflect.Int, nil
 	case "exec.cap_effective":
 		return reflect.Int, nil
 	case "exec.cap_permitted":
 		return reflect.Int, nil
 	case "exec.comm":
 		return reflect.String, nil
-	case "exec.comm.length":
-		return reflect.Int, nil
 	case "exec.container.id":
 		return reflect.String, nil
-	case "exec.container.id.length":
-		return reflect.Int, nil
 	case "exec.cookie":
 		return reflect.Int, nil
 	case "exec.created_at":
@@ -16949,8 +13543,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.egroup":
 		return reflect.String, nil
-	case "exec.egroup.length":
-		return reflect.Int, nil
 	case "exec.envp":
 		return reflect.String, nil
 	case "exec.envs":
@@ -16961,20 +13553,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.euser":
 		return reflect.String, nil
-	case "exec.euser.length":
-		return reflect.Int, nil
 	case "exec.file.change_time":
 		return reflect.Int, nil
 	case "exec.file.filesystem":
 		return reflect.String, nil
-	case "exec.file.filesystem.length":
-		return reflect.Int, nil
 	case "exec.file.gid":
 		return reflect.Int, nil
 	case "exec.file.group":
 		return reflect.String, nil
-	case "exec.file.group.length":
-		return reflect.Int, nil
 	case "exec.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "exec.file.inode":
@@ -16999,26 +13585,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.file.user":
 		return reflect.String, nil
-	case "exec.file.user.length":
-		return reflect.Int, nil
 	case "exec.fsgid":
 		return reflect.Int, nil
 	case "exec.fsgroup":
 		return reflect.String, nil
-	case "exec.fsgroup.length":
-		return reflect.Int, nil
 	case "exec.fsuid":
 		return reflect.Int, nil
 	case "exec.fsuser":
 		return reflect.String, nil
-	case "exec.fsuser.length":
-		return reflect.Int, nil
 	case "exec.gid":
 		return reflect.Int, nil
 	case "exec.group":
 		return reflect.String, nil
-	case "exec.group.length":
-		return reflect.Int, nil
 	case "exec.is_kworker":
 		return reflect.Bool, nil
 	case "exec.is_thread":
@@ -17031,18 +13609,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.tty_name":
 		return reflect.String, nil
-	case "exec.tty_name.length":
-		return reflect.Int, nil
 	case "exec.uid":
 		return reflect.Int, nil
 	case "exec.user":
 		return reflect.String, nil
-	case "exec.user.length":
-		return reflect.Int, nil
 	case "exit.args":
 		return reflect.String, nil
-	case "exit.args.length":
-		return reflect.Int, nil
 	case "exit.args_flags":
 		return reflect.String, nil
 	case "exit.args_options":
@@ -17053,8 +13625,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exit.argv0":
 		return reflect.String, nil
-	case "exit.argv0.length":
-		return reflect.Int, nil
 	case "exit.cap_effective":
 		return reflect.Int, nil
 	case "exit.cap_permitted":
@@ -17065,12 +13635,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.comm":
 		return reflect.String, nil
-	case "exit.comm.length":
-		return reflect.Int, nil
 	case "exit.container.id":
 		return reflect.String, nil
-	case "exit.container.id.length":
-		return reflect.Int, nil
 	case "exit.cookie":
 		return reflect.Int, nil
 	case "exit.created_at":
@@ -17079,8 +13645,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.egroup":
 		return reflect.String, nil
-	case "exit.egroup.length":
-		return reflect.Int, nil
 	case "exit.envp":
 		return reflect.String, nil
 	case "exit.envs":
@@ -17091,20 +13655,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.euser":
 		return reflect.String, nil
-	case "exit.euser.length":
-		return reflect.Int, nil
 	case "exit.file.change_time":
 		return reflect.Int, nil
 	case "exit.file.filesystem":
 		return reflect.String, nil
-	case "exit.file.filesystem.length":
-		return reflect.Int, nil
 	case "exit.file.gid":
 		return reflect.Int, nil
 	case "exit.file.group":
 		return reflect.String, nil
-	case "exit.file.group.length":
-		return reflect.Int, nil
 	case "exit.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "exit.file.inode":
@@ -17129,26 +13687,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.file.user":
 		return reflect.String, nil
-	case "exit.file.user.length":
-		return reflect.Int, nil
 	case "exit.fsgid":
 		return reflect.Int, nil
 	case "exit.fsgroup":
 		return reflect.String, nil
-	case "exit.fsgroup.length":
-		return reflect.Int, nil
 	case "exit.fsuid":
 		return reflect.Int, nil
 	case "exit.fsuser":
 		return reflect.String, nil
-	case "exit.fsuser.length":
-		return reflect.Int, nil
 	case "exit.gid":
 		return reflect.Int, nil
 	case "exit.group":
 		return reflect.String, nil
-	case "exit.group.length":
-		return reflect.Int, nil
 	case "exit.is_kworker":
 		return reflect.Bool, nil
 	case "exit.is_thread":
@@ -17161,28 +13711,20 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.tty_name":
 		return reflect.String, nil
-	case "exit.tty_name.length":
-		return reflect.Int, nil
 	case "exit.uid":
 		return reflect.Int, nil
 	case "exit.user":
 		return reflect.String, nil
-	case "exit.user.length":
-		return reflect.Int, nil
 	case "link.file.change_time":
 		return reflect.Int, nil
 	case "link.file.destination.change_time":
 		return reflect.Int, nil
 	case "link.file.destination.filesystem":
 		return reflect.String, nil
-	case "link.file.destination.filesystem.length":
-		return reflect.Int, nil
 	case "link.file.destination.gid":
 		return reflect.Int, nil
 	case "link.file.destination.group":
 		return reflect.String, nil
-	case "link.file.destination.group.length":
-		return reflect.Int, nil
 	case "link.file.destination.in_upper_layer":
 		return reflect.Bool, nil
 	case "link.file.destination.inode":
@@ -17207,18 +13749,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "link.file.destination.user":
 		return reflect.String, nil
-	case "link.file.destination.user.length":
-		return reflect.Int, nil
 	case "link.file.filesystem":
 		return reflect.String, nil
-	case "link.file.filesystem.length":
-		return reflect.Int, nil
 	case "link.file.gid":
 		return reflect.Int, nil
 	case "link.file.group":
 		return reflect.String, nil
-	case "link.file.group.length":
-		return reflect.Int, nil
 	case "link.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "link.file.inode":
@@ -17243,22 +13779,16 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "link.file.user":
 		return reflect.String, nil
-	case "link.file.user.length":
-		return reflect.Int, nil
 	case "link.retval":
 		return reflect.Int, nil
 	case "load_module.file.change_time":
 		return reflect.Int, nil
 	case "load_module.file.filesystem":
 		return reflect.String, nil
-	case "load_module.file.filesystem.length":
-		return reflect.Int, nil
 	case "load_module.file.gid":
 		return reflect.Int, nil
 	case "load_module.file.group":
 		return reflect.String, nil
-	case "load_module.file.group.length":
-		return reflect.Int, nil
 	case "load_module.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "load_module.file.inode":
@@ -17283,14 +13813,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "load_module.file.user":
 		return reflect.String, nil
-	case "load_module.file.user.length":
-		return reflect.Int, nil
 	case "load_module.loaded_from_memory":
 		return reflect.Bool, nil
 	case "load_module.name":
 		return reflect.String, nil
-	case "load_module.name.length":
-		return reflect.Int, nil
 	case "load_module.retval":
 		return reflect.Int, nil
 	case "mkdir.file.change_time":
@@ -17301,14 +13827,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mkdir.file.filesystem":
 		return reflect.String, nil
-	case "mkdir.file.filesystem.length":
-		return reflect.Int, nil
 	case "mkdir.file.gid":
 		return reflect.Int, nil
 	case "mkdir.file.group":
 		return reflect.String, nil
-	case "mkdir.file.group.length":
-		return reflect.Int, nil
 	case "mkdir.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "mkdir.file.inode":
@@ -17333,22 +13855,16 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mkdir.file.user":
 		return reflect.String, nil
-	case "mkdir.file.user.length":
-		return reflect.Int, nil
 	case "mkdir.retval":
 		return reflect.Int, nil
 	case "mmap.file.change_time":
 		return reflect.Int, nil
 	case "mmap.file.filesystem":
 		return reflect.String, nil
-	case "mmap.file.filesystem.length":
-		return reflect.Int, nil
 	case "mmap.file.gid":
 		return reflect.Int, nil
 	case "mmap.file.group":
 		return reflect.String, nil
-	case "mmap.file.group.length":
-		return reflect.Int, nil
 	case "mmap.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "mmap.file.inode":
@@ -17373,8 +13889,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mmap.file.user":
 		return reflect.String, nil
-	case "mmap.file.user.length":
-		return reflect.Int, nil
 	case "mmap.flags":
 		return reflect.Int, nil
 	case "mmap.protection":
@@ -17395,8 +13909,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "network.device.ifname":
 		return reflect.String, nil
-	case "network.device.ifname.length":
-		return reflect.Int, nil
 	case "network.l3_protocol":
 		return reflect.Int, nil
 	case "network.l4_protocol":
@@ -17413,14 +13925,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.file.filesystem":
 		return reflect.String, nil
-	case "open.file.filesystem.length":
-		return reflect.Int, nil
 	case "open.file.gid":
 		return reflect.Int, nil
 	case "open.file.group":
 		return reflect.String, nil
-	case "open.file.group.length":
-		return reflect.Int, nil
 	case "open.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "open.file.inode":
@@ -17445,16 +13953,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.file.user":
 		return reflect.String, nil
-	case "open.file.user.length":
-		return reflect.Int, nil
 	case "open.flags":
 		return reflect.Int, nil
 	case "open.retval":
 		return reflect.Int, nil
 	case "process.ancestors.args":
 		return reflect.String, nil
-	case "process.ancestors.args.length":
-		return reflect.Int, nil
 	case "process.ancestors.args_flags":
 		return reflect.String, nil
 	case "process.ancestors.args_options":
@@ -17465,20 +13969,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.ancestors.argv0":
 		return reflect.String, nil
-	case "process.ancestors.argv0.length":
-		return reflect.Int, nil
 	case "process.ancestors.cap_effective":
 		return reflect.Int, nil
 	case "process.ancestors.cap_permitted":
 		return reflect.Int, nil
 	case "process.ancestors.comm":
 		return reflect.String, nil
-	case "process.ancestors.comm.length":
-		return reflect.Int, nil
 	case "process.ancestors.container.id":
 		return reflect.String, nil
-	case "process.ancestors.container.id.length":
-		return reflect.Int, nil
 	case "process.ancestors.cookie":
 		return reflect.Int, nil
 	case "process.ancestors.created_at":
@@ -17487,8 +13985,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.egroup":
 		return reflect.String, nil
-	case "process.ancestors.egroup.length":
-		return reflect.Int, nil
 	case "process.ancestors.envp":
 		return reflect.String, nil
 	case "process.ancestors.envs":
@@ -17499,20 +13995,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.euser":
 		return reflect.String, nil
-	case "process.ancestors.euser.length":
-		return reflect.Int, nil
 	case "process.ancestors.file.change_time":
 		return reflect.Int, nil
 	case "process.ancestors.file.filesystem":
 		return reflect.String, nil
-	case "process.ancestors.file.filesystem.length":
-		return reflect.Int, nil
 	case "process.ancestors.file.gid":
 		return reflect.Int, nil
 	case "process.ancestors.file.group":
 		return reflect.String, nil
-	case "process.ancestors.file.group.length":
-		return reflect.Int, nil
 	case "process.ancestors.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "process.ancestors.file.inode":
@@ -17537,26 +14027,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.file.user":
 		return reflect.String, nil
-	case "process.ancestors.file.user.length":
-		return reflect.Int, nil
 	case "process.ancestors.fsgid":
 		return reflect.Int, nil
 	case "process.ancestors.fsgroup":
 		return reflect.String, nil
-	case "process.ancestors.fsgroup.length":
-		return reflect.Int, nil
 	case "process.ancestors.fsuid":
 		return reflect.Int, nil
 	case "process.ancestors.fsuser":
 		return reflect.String, nil
-	case "process.ancestors.fsuser.length":
-		return reflect.Int, nil
 	case "process.ancestors.gid":
 		return reflect.Int, nil
 	case "process.ancestors.group":
 		return reflect.String, nil
-	case "process.ancestors.group.length":
-		return reflect.Int, nil
 	case "process.ancestors.is_kworker":
 		return reflect.Bool, nil
 	case "process.ancestors.is_thread":
@@ -17569,18 +14051,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.tty_name":
 		return reflect.String, nil
-	case "process.ancestors.tty_name.length":
-		return reflect.Int, nil
 	case "process.ancestors.uid":
 		return reflect.Int, nil
 	case "process.ancestors.user":
 		return reflect.String, nil
-	case "process.ancestors.user.length":
-		return reflect.Int, nil
 	case "process.args":
 		return reflect.String, nil
-	case "process.args.length":
-		return reflect.Int, nil
 	case "process.args_flags":
 		return reflect.String, nil
 	case "process.args_options":
@@ -17591,20 +14067,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.argv0":
 		return reflect.String, nil
-	case "process.argv0.length":
-		return reflect.Int, nil
 	case "process.cap_effective":
 		return reflect.Int, nil
 	case "process.cap_permitted":
 		return reflect.Int, nil
 	case "process.comm":
 		return reflect.String, nil
-	case "process.comm.length":
-		return reflect.Int, nil
 	case "process.container.id":
 		return reflect.String, nil
-	case "process.container.id.length":
-		return reflect.Int, nil
 	case "process.cookie":
 		return reflect.Int, nil
 	case "process.created_at":
@@ -17613,8 +14083,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.egroup":
 		return reflect.String, nil
-	case "process.egroup.length":
-		return reflect.Int, nil
 	case "process.envp":
 		return reflect.String, nil
 	case "process.envs":
@@ -17625,20 +14093,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.euser":
 		return reflect.String, nil
-	case "process.euser.length":
-		return reflect.Int, nil
 	case "process.file.change_time":
 		return reflect.Int, nil
 	case "process.file.filesystem":
 		return reflect.String, nil
-	case "process.file.filesystem.length":
-		return reflect.Int, nil
 	case "process.file.gid":
 		return reflect.Int, nil
 	case "process.file.group":
 		return reflect.String, nil
-	case "process.file.group.length":
-		return reflect.Int, nil
 	case "process.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "process.file.inode":
@@ -17663,26 +14125,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.file.user":
 		return reflect.String, nil
-	case "process.file.user.length":
-		return reflect.Int, nil
 	case "process.fsgid":
 		return reflect.Int, nil
 	case "process.fsgroup":
 		return reflect.String, nil
-	case "process.fsgroup.length":
-		return reflect.Int, nil
 	case "process.fsuid":
 		return reflect.Int, nil
 	case "process.fsuser":
 		return reflect.String, nil
-	case "process.fsuser.length":
-		return reflect.Int, nil
 	case "process.gid":
 		return reflect.Int, nil
 	case "process.group":
 		return reflect.String, nil
-	case "process.group.length":
-		return reflect.Int, nil
 	case "process.is_kworker":
 		return reflect.Bool, nil
 	case "process.is_thread":
@@ -17695,22 +14149,16 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.tty_name":
 		return reflect.String, nil
-	case "process.tty_name.length":
-		return reflect.Int, nil
 	case "process.uid":
 		return reflect.Int, nil
 	case "process.user":
 		return reflect.String, nil
-	case "process.user.length":
-		return reflect.Int, nil
 	case "ptrace.request":
 		return reflect.Int, nil
 	case "ptrace.retval":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.args":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.args.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.args_flags":
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.args_options":
@@ -17721,20 +14169,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.argv0":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.argv0.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.comm":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.comm.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.container.id":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.container.id.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cookie":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.created_at":
@@ -17743,8 +14185,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.egroup":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.egroup.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.envp":
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.envs":
@@ -17755,20 +14195,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.euser":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.euser.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.filesystem.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.group":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.group.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.file.inode":
@@ -17793,26 +14227,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.user":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.file.user.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.fsgid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.fsgroup":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.fsgroup.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.fsuid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.fsuser":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.fsuser.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.group":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.group.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.is_thread":
@@ -17825,18 +14251,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.tty_name":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.tty_name.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.uid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.user":
 		return reflect.String, nil
-	case "ptrace.tracee.ancestors.user.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.args":
 		return reflect.String, nil
-	case "ptrace.tracee.args.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.args_flags":
 		return reflect.String, nil
 	case "ptrace.tracee.args_options":
@@ -17847,20 +14267,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.argv0":
 		return reflect.String, nil
-	case "ptrace.tracee.argv0.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.cap_effective":
 		return reflect.Int, nil
 	case "ptrace.tracee.cap_permitted":
 		return reflect.Int, nil
 	case "ptrace.tracee.comm":
 		return reflect.String, nil
-	case "ptrace.tracee.comm.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.container.id":
 		return reflect.String, nil
-	case "ptrace.tracee.container.id.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.cookie":
 		return reflect.Int, nil
 	case "ptrace.tracee.created_at":
@@ -17869,8 +14283,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.egroup":
 		return reflect.String, nil
-	case "ptrace.tracee.egroup.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.envp":
 		return reflect.String, nil
 	case "ptrace.tracee.envs":
@@ -17881,20 +14293,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.euser":
 		return reflect.String, nil
-	case "ptrace.tracee.euser.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.file.change_time":
 		return reflect.Int, nil
 	case "ptrace.tracee.file.filesystem":
 		return reflect.String, nil
-	case "ptrace.tracee.file.filesystem.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.file.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.file.group":
 		return reflect.String, nil
-	case "ptrace.tracee.file.group.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "ptrace.tracee.file.inode":
@@ -17919,26 +14325,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.file.user":
 		return reflect.String, nil
-	case "ptrace.tracee.file.user.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.fsgid":
 		return reflect.Int, nil
 	case "ptrace.tracee.fsgroup":
 		return reflect.String, nil
-	case "ptrace.tracee.fsgroup.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.fsuid":
 		return reflect.Int, nil
 	case "ptrace.tracee.fsuser":
 		return reflect.String, nil
-	case "ptrace.tracee.fsuser.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.group":
 		return reflect.String, nil
-	case "ptrace.tracee.group.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.is_kworker":
 		return reflect.Bool, nil
 	case "ptrace.tracee.is_thread":
@@ -17951,34 +14349,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.tty_name":
 		return reflect.String, nil
-	case "ptrace.tracee.tty_name.length":
-		return reflect.Int, nil
 	case "ptrace.tracee.uid":
 		return reflect.Int, nil
 	case "ptrace.tracee.user":
 		return reflect.String, nil
-	case "ptrace.tracee.user.length":
-		return reflect.Int, nil
 	case "removexattr.file.change_time":
 		return reflect.Int, nil
 	case "removexattr.file.destination.name":
 		return reflect.String, nil
-	case "removexattr.file.destination.name.length":
-		return reflect.Int, nil
 	case "removexattr.file.destination.namespace":
 		return reflect.String, nil
-	case "removexattr.file.destination.namespace.length":
-		return reflect.Int, nil
 	case "removexattr.file.filesystem":
 		return reflect.String, nil
-	case "removexattr.file.filesystem.length":
-		return reflect.Int, nil
 	case "removexattr.file.gid":
 		return reflect.Int, nil
 	case "removexattr.file.group":
 		return reflect.String, nil
-	case "removexattr.file.group.length":
-		return reflect.Int, nil
 	case "removexattr.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "removexattr.file.inode":
@@ -18003,8 +14389,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "removexattr.file.user":
 		return reflect.String, nil
-	case "removexattr.file.user.length":
-		return reflect.Int, nil
 	case "removexattr.retval":
 		return reflect.Int, nil
 	case "rename.file.change_time":
@@ -18013,14 +14397,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rename.file.destination.filesystem":
 		return reflect.String, nil
-	case "rename.file.destination.filesystem.length":
-		return reflect.Int, nil
 	case "rename.file.destination.gid":
 		return reflect.Int, nil
 	case "rename.file.destination.group":
 		return reflect.String, nil
-	case "rename.file.destination.group.length":
-		return reflect.Int, nil
 	case "rename.file.destination.in_upper_layer":
 		return reflect.Bool, nil
 	case "rename.file.destination.inode":
@@ -18045,18 +14425,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rename.file.destination.user":
 		return reflect.String, nil
-	case "rename.file.destination.user.length":
-		return reflect.Int, nil
 	case "rename.file.filesystem":
 		return reflect.String, nil
-	case "rename.file.filesystem.length":
-		return reflect.Int, nil
 	case "rename.file.gid":
 		return reflect.Int, nil
 	case "rename.file.group":
 		return reflect.String, nil
-	case "rename.file.group.length":
-		return reflect.Int, nil
 	case "rename.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "rename.file.inode":
@@ -18081,22 +14455,16 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rename.file.user":
 		return reflect.String, nil
-	case "rename.file.user.length":
-		return reflect.Int, nil
 	case "rename.retval":
 		return reflect.Int, nil
 	case "rmdir.file.change_time":
 		return reflect.Int, nil
 	case "rmdir.file.filesystem":
 		return reflect.String, nil
-	case "rmdir.file.filesystem.length":
-		return reflect.Int, nil
 	case "rmdir.file.gid":
 		return reflect.Int, nil
 	case "rmdir.file.group":
 		return reflect.String, nil
-	case "rmdir.file.group.length":
-		return reflect.Int, nil
 	case "rmdir.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "rmdir.file.inode":
@@ -18121,80 +14489,52 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rmdir.file.user":
 		return reflect.String, nil
-	case "rmdir.file.user.length":
-		return reflect.Int, nil
 	case "rmdir.retval":
 		return reflect.Int, nil
 	case "selinux.bool.name":
 		return reflect.String, nil
-	case "selinux.bool.name.length":
-		return reflect.Int, nil
 	case "selinux.bool.state":
 		return reflect.String, nil
-	case "selinux.bool.state.length":
-		return reflect.Int, nil
 	case "selinux.bool_commit.state":
 		return reflect.Bool, nil
 	case "selinux.enforce.status":
 		return reflect.String, nil
-	case "selinux.enforce.status.length":
-		return reflect.Int, nil
 	case "setgid.egid":
 		return reflect.Int, nil
 	case "setgid.egroup":
 		return reflect.String, nil
-	case "setgid.egroup.length":
-		return reflect.Int, nil
 	case "setgid.fsgid":
 		return reflect.Int, nil
 	case "setgid.fsgroup":
 		return reflect.String, nil
-	case "setgid.fsgroup.length":
-		return reflect.Int, nil
 	case "setgid.gid":
 		return reflect.Int, nil
 	case "setgid.group":
 		return reflect.String, nil
-	case "setgid.group.length":
-		return reflect.Int, nil
 	case "setuid.euid":
 		return reflect.Int, nil
 	case "setuid.euser":
 		return reflect.String, nil
-	case "setuid.euser.length":
-		return reflect.Int, nil
 	case "setuid.fsuid":
 		return reflect.Int, nil
 	case "setuid.fsuser":
 		return reflect.String, nil
-	case "setuid.fsuser.length":
-		return reflect.Int, nil
 	case "setuid.uid":
 		return reflect.Int, nil
 	case "setuid.user":
 		return reflect.String, nil
-	case "setuid.user.length":
-		return reflect.Int, nil
 	case "setxattr.file.change_time":
 		return reflect.Int, nil
 	case "setxattr.file.destination.name":
 		return reflect.String, nil
-	case "setxattr.file.destination.name.length":
-		return reflect.Int, nil
 	case "setxattr.file.destination.namespace":
 		return reflect.String, nil
-	case "setxattr.file.destination.namespace.length":
-		return reflect.Int, nil
 	case "setxattr.file.filesystem":
 		return reflect.String, nil
-	case "setxattr.file.filesystem.length":
-		return reflect.Int, nil
 	case "setxattr.file.gid":
 		return reflect.Int, nil
 	case "setxattr.file.group":
 		return reflect.String, nil
-	case "setxattr.file.group.length":
-		return reflect.Int, nil
 	case "setxattr.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "setxattr.file.inode":
@@ -18219,8 +14559,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "setxattr.file.user":
 		return reflect.String, nil
-	case "setxattr.file.user.length":
-		return reflect.Int, nil
 	case "setxattr.retval":
 		return reflect.Int, nil
 	case "signal.pid":
@@ -18229,8 +14567,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.args":
 		return reflect.String, nil
-	case "signal.target.ancestors.args.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.args_flags":
 		return reflect.String, nil
 	case "signal.target.ancestors.args_options":
@@ -18241,20 +14577,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.ancestors.argv0":
 		return reflect.String, nil
-	case "signal.target.ancestors.argv0.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.cap_effective":
 		return reflect.Int, nil
 	case "signal.target.ancestors.cap_permitted":
 		return reflect.Int, nil
 	case "signal.target.ancestors.comm":
 		return reflect.String, nil
-	case "signal.target.ancestors.comm.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.container.id":
 		return reflect.String, nil
-	case "signal.target.ancestors.container.id.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.cookie":
 		return reflect.Int, nil
 	case "signal.target.ancestors.created_at":
@@ -18263,8 +14593,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.egroup":
 		return reflect.String, nil
-	case "signal.target.ancestors.egroup.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.envp":
 		return reflect.String, nil
 	case "signal.target.ancestors.envs":
@@ -18275,20 +14603,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.euser":
 		return reflect.String, nil
-	case "signal.target.ancestors.euser.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.file.change_time":
 		return reflect.Int, nil
 	case "signal.target.ancestors.file.filesystem":
 		return reflect.String, nil
-	case "signal.target.ancestors.file.filesystem.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.file.gid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.file.group":
 		return reflect.String, nil
-	case "signal.target.ancestors.file.group.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "signal.target.ancestors.file.inode":
@@ -18313,26 +14635,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.file.user":
 		return reflect.String, nil
-	case "signal.target.ancestors.file.user.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.fsgid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.fsgroup":
 		return reflect.String, nil
-	case "signal.target.ancestors.fsgroup.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.fsuid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.fsuser":
 		return reflect.String, nil
-	case "signal.target.ancestors.fsuser.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.gid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.group":
 		return reflect.String, nil
-	case "signal.target.ancestors.group.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.is_kworker":
 		return reflect.Bool, nil
 	case "signal.target.ancestors.is_thread":
@@ -18345,18 +14659,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.tty_name":
 		return reflect.String, nil
-	case "signal.target.ancestors.tty_name.length":
-		return reflect.Int, nil
 	case "signal.target.ancestors.uid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.user":
 		return reflect.String, nil
-	case "signal.target.ancestors.user.length":
-		return reflect.Int, nil
 	case "signal.target.args":
 		return reflect.String, nil
-	case "signal.target.args.length":
-		return reflect.Int, nil
 	case "signal.target.args_flags":
 		return reflect.String, nil
 	case "signal.target.args_options":
@@ -18367,20 +14675,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.argv0":
 		return reflect.String, nil
-	case "signal.target.argv0.length":
-		return reflect.Int, nil
 	case "signal.target.cap_effective":
 		return reflect.Int, nil
 	case "signal.target.cap_permitted":
 		return reflect.Int, nil
 	case "signal.target.comm":
 		return reflect.String, nil
-	case "signal.target.comm.length":
-		return reflect.Int, nil
 	case "signal.target.container.id":
 		return reflect.String, nil
-	case "signal.target.container.id.length":
-		return reflect.Int, nil
 	case "signal.target.cookie":
 		return reflect.Int, nil
 	case "signal.target.created_at":
@@ -18389,8 +14691,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.egroup":
 		return reflect.String, nil
-	case "signal.target.egroup.length":
-		return reflect.Int, nil
 	case "signal.target.envp":
 		return reflect.String, nil
 	case "signal.target.envs":
@@ -18401,20 +14701,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.euser":
 		return reflect.String, nil
-	case "signal.target.euser.length":
-		return reflect.Int, nil
 	case "signal.target.file.change_time":
 		return reflect.Int, nil
 	case "signal.target.file.filesystem":
 		return reflect.String, nil
-	case "signal.target.file.filesystem.length":
-		return reflect.Int, nil
 	case "signal.target.file.gid":
 		return reflect.Int, nil
 	case "signal.target.file.group":
 		return reflect.String, nil
-	case "signal.target.file.group.length":
-		return reflect.Int, nil
 	case "signal.target.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "signal.target.file.inode":
@@ -18439,26 +14733,18 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.file.user":
 		return reflect.String, nil
-	case "signal.target.file.user.length":
-		return reflect.Int, nil
 	case "signal.target.fsgid":
 		return reflect.Int, nil
 	case "signal.target.fsgroup":
 		return reflect.String, nil
-	case "signal.target.fsgroup.length":
-		return reflect.Int, nil
 	case "signal.target.fsuid":
 		return reflect.Int, nil
 	case "signal.target.fsuser":
 		return reflect.String, nil
-	case "signal.target.fsuser.length":
-		return reflect.Int, nil
 	case "signal.target.gid":
 		return reflect.Int, nil
 	case "signal.target.group":
 		return reflect.String, nil
-	case "signal.target.group.length":
-		return reflect.Int, nil
 	case "signal.target.is_kworker":
 		return reflect.Bool, nil
 	case "signal.target.is_thread":
@@ -18471,28 +14757,20 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.tty_name":
 		return reflect.String, nil
-	case "signal.target.tty_name.length":
-		return reflect.Int, nil
 	case "signal.target.uid":
 		return reflect.Int, nil
 	case "signal.target.user":
 		return reflect.String, nil
-	case "signal.target.user.length":
-		return reflect.Int, nil
 	case "signal.type":
 		return reflect.Int, nil
 	case "splice.file.change_time":
 		return reflect.Int, nil
 	case "splice.file.filesystem":
 		return reflect.String, nil
-	case "splice.file.filesystem.length":
-		return reflect.Int, nil
 	case "splice.file.gid":
 		return reflect.Int, nil
 	case "splice.file.group":
 		return reflect.String, nil
-	case "splice.file.group.length":
-		return reflect.Int, nil
 	case "splice.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "splice.file.inode":
@@ -18517,8 +14795,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "splice.file.user":
 		return reflect.String, nil
-	case "splice.file.user.length":
-		return reflect.Int, nil
 	case "splice.pipe_entry_flag":
 		return reflect.Int, nil
 	case "splice.pipe_exit_flag":
@@ -18529,14 +14805,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "unlink.file.filesystem":
 		return reflect.String, nil
-	case "unlink.file.filesystem.length":
-		return reflect.Int, nil
 	case "unlink.file.gid":
 		return reflect.Int, nil
 	case "unlink.file.group":
 		return reflect.String, nil
-	case "unlink.file.group.length":
-		return reflect.Int, nil
 	case "unlink.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "unlink.file.inode":
@@ -18561,30 +14833,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "unlink.file.user":
 		return reflect.String, nil
-	case "unlink.file.user.length":
-		return reflect.Int, nil
 	case "unlink.flags":
 		return reflect.Int, nil
 	case "unlink.retval":
 		return reflect.Int, nil
 	case "unload_module.name":
 		return reflect.String, nil
-	case "unload_module.name.length":
-		return reflect.Int, nil
 	case "unload_module.retval":
 		return reflect.Int, nil
 	case "utimes.file.change_time":
 		return reflect.Int, nil
 	case "utimes.file.filesystem":
 		return reflect.String, nil
-	case "utimes.file.filesystem.length":
-		return reflect.Int, nil
 	case "utimes.file.gid":
 		return reflect.Int, nil
 	case "utimes.file.group":
 		return reflect.String, nil
-	case "utimes.file.group.length":
-		return reflect.Int, nil
 	case "utimes.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "utimes.file.inode":
@@ -18609,8 +14873,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "utimes.file.user":
 		return reflect.String, nil
-	case "utimes.file.user.length":
-		return reflect.Int, nil
 	case "utimes.retval":
 		return reflect.Int, nil
 	}
@@ -18666,8 +14928,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.BPF.Map.Name = str
 		return nil
-	case "bpf.map.name.length":
-		return &eval.ErrFieldReadOnly{Field: "BPF.Map.Name.length"}
 	case "bpf.map.type":
 		v, ok := value.(int)
 		if !ok {
@@ -18696,8 +14956,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.BPF.Program.Name = str
 		return nil
-	case "bpf.prog.name.length":
-		return &eval.ErrFieldReadOnly{Field: "BPF.Program.Name.length"}
 	case "bpf.prog.tag":
 		str, ok := value.(string)
 		if !ok {
@@ -18705,8 +14963,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.BPF.Program.Tag = str
 		return nil
-	case "bpf.prog.tag.length":
-		return &eval.ErrFieldReadOnly{Field: "BPF.Program.Tag.length"}
 	case "bpf.prog.type":
 		v, ok := value.(int)
 		if !ok {
@@ -18763,7 +15019,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chmod.File.Filesystem = str
 		return nil
-	case "chmod.file.filesystem.length":
 	case "chmod.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -18778,7 +15033,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chmod.File.FileFields.Group = str
 		return nil
-	case "chmod.file.group.length":
 	case "chmod.file.in_upper_layer":
 		var ok bool
 		if e.Chmod.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -18850,7 +15104,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chmod.File.FileFields.User = str
 		return nil
-	case "chmod.file.user.length":
 	case "chmod.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -18879,7 +15132,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.Group = str
 		return nil
-	case "chown.file.destination.group.length":
 	case "chown.file.destination.uid":
 		v, ok := value.(int)
 		if !ok {
@@ -18894,7 +15146,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.User = str
 		return nil
-	case "chown.file.destination.user.length":
 	case "chown.file.filesystem":
 		str, ok := value.(string)
 		if !ok {
@@ -18902,7 +15153,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.File.Filesystem = str
 		return nil
-	case "chown.file.filesystem.length":
 	case "chown.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -18917,7 +15167,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.File.FileFields.Group = str
 		return nil
-	case "chown.file.group.length":
 	case "chown.file.in_upper_layer":
 		var ok bool
 		if e.Chown.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -18989,7 +15238,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.File.FileFields.User = str
 		return nil
-	case "chown.file.user.length":
 	case "chown.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -19004,7 +15252,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ContainerContext.ID = str
 		return nil
-	case "container.id.length":
 	case "container.tags":
 		str, ok := value.(string)
 		if !ok {
@@ -19059,10 +15306,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Args = str
 		return nil
-	case "exec.args.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
 	case "exec.args_flags":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19112,10 +15355,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Argv0 = str
 		return nil
-	case "exec.argv0.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
 	case "exec.cap_effective":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19146,11 +15385,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Comm = str
 		return nil
-	case "exec.comm.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Comm.length"}
 	case "exec.container.id":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19161,11 +15395,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.ContainerID = str
 		return nil
-	case "exec.container.id.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.ContainerID.length"}
 	case "exec.cookie":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19206,11 +15435,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Credentials.EGroup = str
 		return nil
-	case "exec.egroup.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Credentials.EGroup.length"}
 	case "exec.envp":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19260,11 +15484,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Credentials.EUser = str
 		return nil
-	case "exec.euser.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Credentials.EUser.length"}
 	case "exec.file.change_time":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19285,10 +15504,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.FileEvent.Filesystem = str
 		return nil
-	case "exec.file.filesystem.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
 	case "exec.file.gid":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19309,10 +15524,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "exec.file.group.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
 	case "exec.file.in_upper_layer":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19420,10 +15631,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.FileEvent.FileFields.User = str
 		return nil
-	case "exec.file.user.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
 	case "exec.fsgid":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19444,11 +15651,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Credentials.FSGroup = str
 		return nil
-	case "exec.fsgroup.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Credentials.FSGroup.length"}
 	case "exec.fsuid":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19469,11 +15671,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Credentials.FSUser = str
 		return nil
-	case "exec.fsuser.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Credentials.FSUser.length"}
 	case "exec.gid":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19494,11 +15691,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Credentials.Group = str
 		return nil
-	case "exec.group.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Credentials.Group.length"}
 	case "exec.is_kworker":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19557,11 +15749,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.TTYName = str
 		return nil
-	case "exec.tty_name.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.TTYName.length"}
 	case "exec.uid":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -19582,11 +15769,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.Credentials.User = str
 		return nil
-	case "exec.user.length":
-		if e.Exec.Process == nil {
-			e.Exec.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exec.Process.Credentials.User.length"}
 	case "exit.args":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19597,10 +15779,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Args = str
 		return nil
-	case "exit.args.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
 	case "exit.args_flags":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19650,10 +15828,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Argv0 = str
 		return nil
-	case "exit.argv0.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
 	case "exit.cap_effective":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19698,11 +15872,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Comm = str
 		return nil
-	case "exit.comm.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Comm.length"}
 	case "exit.container.id":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19713,11 +15882,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.ContainerID = str
 		return nil
-	case "exit.container.id.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.ContainerID.length"}
 	case "exit.cookie":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19758,11 +15922,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Credentials.EGroup = str
 		return nil
-	case "exit.egroup.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Credentials.EGroup.length"}
 	case "exit.envp":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19812,11 +15971,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Credentials.EUser = str
 		return nil
-	case "exit.euser.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Credentials.EUser.length"}
 	case "exit.file.change_time":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19837,10 +15991,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.FileEvent.Filesystem = str
 		return nil
-	case "exit.file.filesystem.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
 	case "exit.file.gid":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19861,10 +16011,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "exit.file.group.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
 	case "exit.file.in_upper_layer":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19972,10 +16118,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.FileEvent.FileFields.User = str
 		return nil
-	case "exit.file.user.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
 	case "exit.fsgid":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -19996,11 +16138,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Credentials.FSGroup = str
 		return nil
-	case "exit.fsgroup.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Credentials.FSGroup.length"}
 	case "exit.fsuid":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -20021,11 +16158,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Credentials.FSUser = str
 		return nil
-	case "exit.fsuser.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Credentials.FSUser.length"}
 	case "exit.gid":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -20046,11 +16178,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Credentials.Group = str
 		return nil
-	case "exit.group.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Credentials.Group.length"}
 	case "exit.is_kworker":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -20109,11 +16236,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.TTYName = str
 		return nil
-	case "exit.tty_name.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.TTYName.length"}
 	case "exit.uid":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -20134,11 +16256,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.Credentials.User = str
 		return nil
-	case "exit.user.length":
-		if e.Exit.Process == nil {
-			e.Exit.Process = &model.Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Exit.Process.Credentials.User.length"}
 	case "link.file.change_time":
 		v, ok := value.(int)
 		if !ok {
@@ -20160,7 +16277,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Target.Filesystem = str
 		return nil
-	case "link.file.destination.filesystem.length":
 	case "link.file.destination.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -20175,7 +16291,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Target.FileFields.Group = str
 		return nil
-	case "link.file.destination.group.length":
 	case "link.file.destination.in_upper_layer":
 		var ok bool
 		if e.Link.Target.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -20247,7 +16362,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Target.FileFields.User = str
 		return nil
-	case "link.file.destination.user.length":
 	case "link.file.filesystem":
 		str, ok := value.(string)
 		if !ok {
@@ -20255,7 +16369,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Source.Filesystem = str
 		return nil
-	case "link.file.filesystem.length":
 	case "link.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -20270,7 +16383,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Source.FileFields.Group = str
 		return nil
-	case "link.file.group.length":
 	case "link.file.in_upper_layer":
 		var ok bool
 		if e.Link.Source.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -20342,7 +16454,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Source.FileFields.User = str
 		return nil
-	case "link.file.user.length":
 	case "link.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -20364,7 +16475,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.LoadModule.File.Filesystem = str
 		return nil
-	case "load_module.file.filesystem.length":
 	case "load_module.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -20379,7 +16489,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.LoadModule.File.FileFields.Group = str
 		return nil
-	case "load_module.file.group.length":
 	case "load_module.file.in_upper_layer":
 		var ok bool
 		if e.LoadModule.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -20451,7 +16560,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.LoadModule.File.FileFields.User = str
 		return nil
-	case "load_module.file.user.length":
 	case "load_module.loaded_from_memory":
 		var ok bool
 		if e.LoadModule.LoadedFromMemory, ok = value.(bool); !ok {
@@ -20465,8 +16573,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.LoadModule.Name = str
 		return nil
-	case "load_module.name.length":
-		return &eval.ErrFieldReadOnly{Field: "LoadModule.Name.length"}
 	case "load_module.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -20502,7 +16608,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Mkdir.File.Filesystem = str
 		return nil
-	case "mkdir.file.filesystem.length":
 	case "mkdir.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -20517,7 +16622,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Mkdir.File.FileFields.Group = str
 		return nil
-	case "mkdir.file.group.length":
 	case "mkdir.file.in_upper_layer":
 		var ok bool
 		if e.Mkdir.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -20589,7 +16693,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Mkdir.File.FileFields.User = str
 		return nil
-	case "mkdir.file.user.length":
 	case "mkdir.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -20611,7 +16714,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.MMap.File.Filesystem = str
 		return nil
-	case "mmap.file.filesystem.length":
 	case "mmap.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -20626,7 +16728,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.MMap.File.FileFields.Group = str
 		return nil
-	case "mmap.file.group.length":
 	case "mmap.file.in_upper_layer":
 		var ok bool
 		if e.MMap.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -20698,7 +16799,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.MMap.File.FileFields.User = str
 		return nil
-	case "mmap.file.user.length":
 	case "mmap.flags":
 		v, ok := value.(int)
 		if !ok {
@@ -20769,7 +16869,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.NetworkContext.Device.IfName = str
 		return nil
-	case "network.device.ifname.length":
 	case "network.l3_protocol":
 		v, ok := value.(int)
 		if !ok {
@@ -20826,7 +16925,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Open.File.Filesystem = str
 		return nil
-	case "open.file.filesystem.length":
 	case "open.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -20841,7 +16939,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Open.File.FileFields.Group = str
 		return nil
-	case "open.file.group.length":
 	case "open.file.in_upper_layer":
 		var ok bool
 		if e.Open.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -20913,7 +17010,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Open.File.FileFields.User = str
 		return nil
-	case "open.file.user.length":
 	case "open.flags":
 		v, ok := value.(int)
 		if !ok {
@@ -20941,13 +17037,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Args = str
 		return nil
-	case "process.ancestors.args.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "process.ancestors.args_flags":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21012,13 +17101,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = str
 		return nil
-	case "process.ancestors.argv0.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "process.ancestors.cap_effective":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21058,14 +17140,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Comm = str
 		return nil
-	case "process.ancestors.comm.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Comm.length"}
 	case "process.ancestors.container.id":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21079,14 +17153,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = str
 		return nil
-	case "process.ancestors.container.id.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerID.length"}
 	case "process.ancestors.cookie":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21139,14 +17205,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = str
 		return nil
-	case "process.ancestors.egroup.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup.length"}
 	case "process.ancestors.envp":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21211,14 +17269,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = str
 		return nil
-	case "process.ancestors.euser.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser.length"}
 	case "process.ancestors.file.change_time":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21245,13 +17295,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
-	case "process.ancestors.file.filesystem.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "process.ancestors.file.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21278,13 +17321,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "process.ancestors.file.group.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "process.ancestors.file.in_upper_layer":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21428,13 +17464,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
-	case "process.ancestors.file.user.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "process.ancestors.fsgid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21461,14 +17490,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
-	case "process.ancestors.fsgroup.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup.length"}
 	case "process.ancestors.fsuid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21495,14 +17516,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = str
 		return nil
-	case "process.ancestors.fsuser.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser.length"}
 	case "process.ancestors.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21529,14 +17542,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = str
 		return nil
-	case "process.ancestors.group.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group.length"}
 	case "process.ancestors.is_kworker":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21613,14 +17618,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.TTYName = str
 		return nil
-	case "process.ancestors.tty_name.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.TTYName.length"}
 	case "process.ancestors.uid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21647,14 +17644,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
-	case "process.ancestors.user.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.User.length"}
 	case "process.args":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21665,10 +17654,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Args = str
 		return nil
-	case "process.args.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
 	case "process.args_flags":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21718,10 +17703,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Argv0 = str
 		return nil
-	case "process.argv0.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
 	case "process.cap_effective":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21752,11 +17733,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Comm = str
 		return nil
-	case "process.comm.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Comm.length"}
 	case "process.container.id":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21767,11 +17743,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.ContainerID = str
 		return nil
-	case "process.container.id.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.ContainerID.length"}
 	case "process.cookie":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21812,11 +17783,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Credentials.EGroup = str
 		return nil
-	case "process.egroup.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Credentials.EGroup.length"}
 	case "process.envp":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21866,11 +17832,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Credentials.EUser = str
 		return nil
-	case "process.euser.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Credentials.EUser.length"}
 	case "process.file.change_time":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21891,10 +17852,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
-	case "process.file.filesystem.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
 	case "process.file.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -21915,10 +17872,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "process.file.group.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
 	case "process.file.in_upper_layer":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -22026,10 +17979,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
-	case "process.file.user.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
 	case "process.fsgid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -22050,11 +17999,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
-	case "process.fsgroup.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Credentials.FSGroup.length"}
 	case "process.fsuid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -22075,11 +18019,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Credentials.FSUser = str
 		return nil
-	case "process.fsuser.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Credentials.FSUser.length"}
 	case "process.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -22100,11 +18039,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Credentials.Group = str
 		return nil
-	case "process.group.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Credentials.Group.length"}
 	case "process.is_kworker":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -22163,11 +18097,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.TTYName = str
 		return nil
-	case "process.tty_name.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.TTYName.length"}
 	case "process.uid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -22188,11 +18117,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.Credentials.User = str
 		return nil
-	case "process.user.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ProcessContext.Process.Credentials.User.length"}
 	case "ptrace.request":
 		v, ok := value.(int)
 		if !ok {
@@ -22220,13 +18144,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Args = str
 		return nil
-	case "ptrace.tracee.ancestors.args.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "ptrace.tracee.ancestors.args_flags":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22291,13 +18208,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = str
 		return nil
-	case "ptrace.tracee.ancestors.argv0.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "ptrace.tracee.ancestors.cap_effective":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22337,14 +18247,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Comm = str
 		return nil
-	case "ptrace.tracee.ancestors.comm.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Comm.length"}
 	case "ptrace.tracee.ancestors.container.id":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22358,14 +18260,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = str
 		return nil
-	case "ptrace.tracee.ancestors.container.id.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID.length"}
 	case "ptrace.tracee.ancestors.cookie":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22418,14 +18312,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = str
 		return nil
-	case "ptrace.tracee.ancestors.egroup.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup.length"}
 	case "ptrace.tracee.ancestors.envp":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22490,14 +18376,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser = str
 		return nil
-	case "ptrace.tracee.ancestors.euser.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser.length"}
 	case "ptrace.tracee.ancestors.file.change_time":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22524,13 +18402,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
-	case "ptrace.tracee.ancestors.file.filesystem.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "ptrace.tracee.ancestors.file.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22557,13 +18428,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "ptrace.tracee.ancestors.file.group.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22707,13 +18571,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
-	case "ptrace.tracee.ancestors.file.user.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "ptrace.tracee.ancestors.fsgid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22740,14 +18597,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
-	case "ptrace.tracee.ancestors.fsgroup.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup.length"}
 	case "ptrace.tracee.ancestors.fsuid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22774,14 +18623,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser = str
 		return nil
-	case "ptrace.tracee.ancestors.fsuser.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser.length"}
 	case "ptrace.tracee.ancestors.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22808,14 +18649,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group = str
 		return nil
-	case "ptrace.tracee.ancestors.group.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group.length"}
 	case "ptrace.tracee.ancestors.is_kworker":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22892,14 +18725,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName = str
 		return nil
-	case "ptrace.tracee.ancestors.tty_name.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName.length"}
 	case "ptrace.tracee.ancestors.uid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22926,14 +18751,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
-	case "ptrace.tracee.ancestors.user.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User.length"}
 	case "ptrace.tracee.args":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22944,10 +18761,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Args = str
 		return nil
-	case "ptrace.tracee.args.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
 	case "ptrace.tracee.args_flags":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -22997,10 +18810,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Argv0 = str
 		return nil
-	case "ptrace.tracee.argv0.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
 	case "ptrace.tracee.cap_effective":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23031,11 +18840,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Comm = str
 		return nil
-	case "ptrace.tracee.comm.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Comm.length"}
 	case "ptrace.tracee.container.id":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23046,11 +18850,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.ContainerID = str
 		return nil
-	case "ptrace.tracee.container.id.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.ContainerID.length"}
 	case "ptrace.tracee.cookie":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23091,11 +18890,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Credentials.EGroup = str
 		return nil
-	case "ptrace.tracee.egroup.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Credentials.EGroup.length"}
 	case "ptrace.tracee.envp":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23145,11 +18939,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Credentials.EUser = str
 		return nil
-	case "ptrace.tracee.euser.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Credentials.EUser.length"}
 	case "ptrace.tracee.file.change_time":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23170,10 +18959,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.FileEvent.Filesystem = str
 		return nil
-	case "ptrace.tracee.file.filesystem.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
 	case "ptrace.tracee.file.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23194,10 +18979,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "ptrace.tracee.file.group.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
 	case "ptrace.tracee.file.in_upper_layer":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23305,10 +19086,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.FileEvent.FileFields.User = str
 		return nil
-	case "ptrace.tracee.file.user.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
 	case "ptrace.tracee.fsgid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23329,11 +19106,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Credentials.FSGroup = str
 		return nil
-	case "ptrace.tracee.fsgroup.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Credentials.FSGroup.length"}
 	case "ptrace.tracee.fsuid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23354,11 +19126,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Credentials.FSUser = str
 		return nil
-	case "ptrace.tracee.fsuser.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Credentials.FSUser.length"}
 	case "ptrace.tracee.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23379,11 +19146,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Credentials.Group = str
 		return nil
-	case "ptrace.tracee.group.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Credentials.Group.length"}
 	case "ptrace.tracee.is_kworker":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23442,11 +19204,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.TTYName = str
 		return nil
-	case "ptrace.tracee.tty_name.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.TTYName.length"}
 	case "ptrace.tracee.uid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -23467,11 +19224,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.Credentials.User = str
 		return nil
-	case "ptrace.tracee.user.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "PTrace.Tracee.Process.Credentials.User.length"}
 	case "removexattr.file.change_time":
 		v, ok := value.(int)
 		if !ok {
@@ -23486,7 +19238,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.Name = str
 		return nil
-	case "removexattr.file.destination.name.length":
 	case "removexattr.file.destination.namespace":
 		str, ok := value.(string)
 		if !ok {
@@ -23494,7 +19245,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.Namespace = str
 		return nil
-	case "removexattr.file.destination.namespace.length":
 	case "removexattr.file.filesystem":
 		str, ok := value.(string)
 		if !ok {
@@ -23502,7 +19252,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.File.Filesystem = str
 		return nil
-	case "removexattr.file.filesystem.length":
 	case "removexattr.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -23517,7 +19266,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.File.FileFields.Group = str
 		return nil
-	case "removexattr.file.group.length":
 	case "removexattr.file.in_upper_layer":
 		var ok bool
 		if e.RemoveXAttr.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -23589,7 +19337,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.File.FileFields.User = str
 		return nil
-	case "removexattr.file.user.length":
 	case "removexattr.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -23618,7 +19365,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.New.Filesystem = str
 		return nil
-	case "rename.file.destination.filesystem.length":
 	case "rename.file.destination.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -23633,7 +19379,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.New.FileFields.Group = str
 		return nil
-	case "rename.file.destination.group.length":
 	case "rename.file.destination.in_upper_layer":
 		var ok bool
 		if e.Rename.New.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -23705,7 +19450,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.New.FileFields.User = str
 		return nil
-	case "rename.file.destination.user.length":
 	case "rename.file.filesystem":
 		str, ok := value.(string)
 		if !ok {
@@ -23713,7 +19457,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.Old.Filesystem = str
 		return nil
-	case "rename.file.filesystem.length":
 	case "rename.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -23728,7 +19471,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.Old.FileFields.Group = str
 		return nil
-	case "rename.file.group.length":
 	case "rename.file.in_upper_layer":
 		var ok bool
 		if e.Rename.Old.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -23800,7 +19542,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.Old.FileFields.User = str
 		return nil
-	case "rename.file.user.length":
 	case "rename.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -23822,7 +19563,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rmdir.File.Filesystem = str
 		return nil
-	case "rmdir.file.filesystem.length":
 	case "rmdir.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -23837,7 +19577,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rmdir.File.FileFields.Group = str
 		return nil
-	case "rmdir.file.group.length":
 	case "rmdir.file.in_upper_layer":
 		var ok bool
 		if e.Rmdir.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -23909,7 +19648,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rmdir.File.FileFields.User = str
 		return nil
-	case "rmdir.file.user.length":
 	case "rmdir.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -23924,7 +19662,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SELinux.BoolName = str
 		return nil
-	case "selinux.bool.name.length":
 	case "selinux.bool.state":
 		str, ok := value.(string)
 		if !ok {
@@ -23932,8 +19669,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SELinux.BoolChangeValue = str
 		return nil
-	case "selinux.bool.state.length":
-		return &eval.ErrFieldReadOnly{Field: "SELinux.BoolChangeValue.length"}
 	case "selinux.bool_commit.state":
 		var ok bool
 		if e.SELinux.BoolCommitValue, ok = value.(bool); !ok {
@@ -23947,8 +19682,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SELinux.EnforceStatus = str
 		return nil
-	case "selinux.enforce.status.length":
-		return &eval.ErrFieldReadOnly{Field: "SELinux.EnforceStatus.length"}
 	case "setgid.egid":
 		v, ok := value.(int)
 		if !ok {
@@ -23963,7 +19696,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetGID.EGroup = str
 		return nil
-	case "setgid.egroup.length":
 	case "setgid.fsgid":
 		v, ok := value.(int)
 		if !ok {
@@ -23978,7 +19710,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetGID.FSGroup = str
 		return nil
-	case "setgid.fsgroup.length":
 	case "setgid.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -23993,7 +19724,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetGID.Group = str
 		return nil
-	case "setgid.group.length":
 	case "setuid.euid":
 		v, ok := value.(int)
 		if !ok {
@@ -24008,7 +19738,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetUID.EUser = str
 		return nil
-	case "setuid.euser.length":
 	case "setuid.fsuid":
 		v, ok := value.(int)
 		if !ok {
@@ -24023,7 +19752,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetUID.FSUser = str
 		return nil
-	case "setuid.fsuser.length":
 	case "setuid.uid":
 		v, ok := value.(int)
 		if !ok {
@@ -24038,7 +19766,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetUID.User = str
 		return nil
-	case "setuid.user.length":
 	case "setxattr.file.change_time":
 		v, ok := value.(int)
 		if !ok {
@@ -24053,7 +19780,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.Name = str
 		return nil
-	case "setxattr.file.destination.name.length":
 	case "setxattr.file.destination.namespace":
 		str, ok := value.(string)
 		if !ok {
@@ -24061,7 +19787,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.Namespace = str
 		return nil
-	case "setxattr.file.destination.namespace.length":
 	case "setxattr.file.filesystem":
 		str, ok := value.(string)
 		if !ok {
@@ -24069,7 +19794,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.File.Filesystem = str
 		return nil
-	case "setxattr.file.filesystem.length":
 	case "setxattr.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -24084,7 +19808,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.File.FileFields.Group = str
 		return nil
-	case "setxattr.file.group.length":
 	case "setxattr.file.in_upper_layer":
 		var ok bool
 		if e.SetXAttr.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -24156,7 +19879,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.File.FileFields.User = str
 		return nil
-	case "setxattr.file.user.length":
 	case "setxattr.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -24191,13 +19913,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Args = str
 		return nil
-	case "signal.target.ancestors.args.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "signal.target.ancestors.args_flags":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24262,13 +19977,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = str
 		return nil
-	case "signal.target.ancestors.argv0.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "signal.target.ancestors.cap_effective":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24308,14 +20016,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Comm = str
 		return nil
-	case "signal.target.ancestors.comm.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Comm.length"}
 	case "signal.target.ancestors.container.id":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24329,14 +20029,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = str
 		return nil
-	case "signal.target.ancestors.container.id.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID.length"}
 	case "signal.target.ancestors.cookie":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24389,14 +20081,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = str
 		return nil
-	case "signal.target.ancestors.egroup.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup.length"}
 	case "signal.target.ancestors.envp":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24461,14 +20145,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser = str
 		return nil
-	case "signal.target.ancestors.euser.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser.length"}
 	case "signal.target.ancestors.file.change_time":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24495,13 +20171,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
 		return nil
-	case "signal.target.ancestors.file.filesystem.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "signal.target.ancestors.file.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24528,13 +20197,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "signal.target.ancestors.file.group.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "signal.target.ancestors.file.in_upper_layer":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24678,13 +20340,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
 		return nil
-	case "signal.target.ancestors.file.user.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
 	case "signal.target.ancestors.fsgid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24711,14 +20366,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
 		return nil
-	case "signal.target.ancestors.fsgroup.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup.length"}
 	case "signal.target.ancestors.fsuid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24745,14 +20392,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = str
 		return nil
-	case "signal.target.ancestors.fsuser.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser.length"}
 	case "signal.target.ancestors.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24779,14 +20418,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = str
 		return nil
-	case "signal.target.ancestors.group.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group.length"}
 	case "signal.target.ancestors.is_kworker":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24863,14 +20494,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.TTYName = str
 		return nil
-	case "signal.target.ancestors.tty_name.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.TTYName.length"}
 	case "signal.target.ancestors.uid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24897,14 +20520,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = str
 		return nil
-	case "signal.target.ancestors.user.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.User.length"}
 	case "signal.target.args":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24915,10 +20530,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Args = str
 		return nil
-	case "signal.target.args.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
 	case "signal.target.args_flags":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -24968,10 +20579,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Argv0 = str
 		return nil
-	case "signal.target.argv0.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
 	case "signal.target.cap_effective":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25002,11 +20609,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Comm = str
 		return nil
-	case "signal.target.comm.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Comm.length"}
 	case "signal.target.container.id":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25017,11 +20619,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.ContainerID = str
 		return nil
-	case "signal.target.container.id.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.ContainerID.length"}
 	case "signal.target.cookie":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25062,11 +20659,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Credentials.EGroup = str
 		return nil
-	case "signal.target.egroup.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Credentials.EGroup.length"}
 	case "signal.target.envp":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25116,11 +20708,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Credentials.EUser = str
 		return nil
-	case "signal.target.euser.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Credentials.EUser.length"}
 	case "signal.target.file.change_time":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25141,10 +20728,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.FileEvent.Filesystem = str
 		return nil
-	case "signal.target.file.filesystem.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
 	case "signal.target.file.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25165,10 +20748,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.FileEvent.FileFields.Group = str
 		return nil
-	case "signal.target.file.group.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
 	case "signal.target.file.in_upper_layer":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25276,10 +20855,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.FileEvent.FileFields.User = str
 		return nil
-	case "signal.target.file.user.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
 	case "signal.target.fsgid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25300,11 +20875,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Credentials.FSGroup = str
 		return nil
-	case "signal.target.fsgroup.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Credentials.FSGroup.length"}
 	case "signal.target.fsuid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25325,11 +20895,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Credentials.FSUser = str
 		return nil
-	case "signal.target.fsuser.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Credentials.FSUser.length"}
 	case "signal.target.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25350,11 +20915,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Credentials.Group = str
 		return nil
-	case "signal.target.group.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Credentials.Group.length"}
 	case "signal.target.is_kworker":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25413,11 +20973,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.TTYName = str
 		return nil
-	case "signal.target.tty_name.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.TTYName.length"}
 	case "signal.target.uid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -25438,11 +20993,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.Credentials.User = str
 		return nil
-	case "signal.target.user.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &model.ProcessContext{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "Signal.Target.Process.Credentials.User.length"}
 	case "signal.type":
 		v, ok := value.(int)
 		if !ok {
@@ -25464,7 +21014,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Splice.File.Filesystem = str
 		return nil
-	case "splice.file.filesystem.length":
 	case "splice.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -25479,7 +21028,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Splice.File.FileFields.Group = str
 		return nil
-	case "splice.file.group.length":
 	case "splice.file.in_upper_layer":
 		var ok bool
 		if e.Splice.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -25551,7 +21099,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Splice.File.FileFields.User = str
 		return nil
-	case "splice.file.user.length":
 	case "splice.pipe_entry_flag":
 		v, ok := value.(int)
 		if !ok {
@@ -25587,7 +21134,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Unlink.File.Filesystem = str
 		return nil
-	case "unlink.file.filesystem.length":
 	case "unlink.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -25602,7 +21148,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Unlink.File.FileFields.Group = str
 		return nil
-	case "unlink.file.group.length":
 	case "unlink.file.in_upper_layer":
 		var ok bool
 		if e.Unlink.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -25674,7 +21219,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Unlink.File.FileFields.User = str
 		return nil
-	case "unlink.file.user.length":
 	case "unlink.flags":
 		v, ok := value.(int)
 		if !ok {
@@ -25696,8 +21240,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.UnloadModule.Name = str
 		return nil
-	case "unload_module.name.length":
-		return &eval.ErrFieldReadOnly{Field: "UnloadModule.Name.length"}
 	case "unload_module.retval":
 		v, ok := value.(int)
 		if !ok {
@@ -25719,7 +21261,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Utimes.File.Filesystem = str
 		return nil
-	case "utimes.file.filesystem.length":
 	case "utimes.file.gid":
 		v, ok := value.(int)
 		if !ok {
@@ -25734,7 +21275,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Utimes.File.FileFields.Group = str
 		return nil
-	case "utimes.file.group.length":
 	case "utimes.file.in_upper_layer":
 		var ok bool
 		if e.Utimes.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
@@ -25806,7 +21346,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Utimes.File.FileFields.User = str
 		return nil
-	case "utimes.file.user.length":
 	case "utimes.retval":
 		v, ok := value.(int)
 		if !ok {

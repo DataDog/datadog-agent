@@ -20,12 +20,6 @@
           "constants": ""
         },
         {
-          "name": "container.id.length",
-          "type": "int",
-          "definition": "Length of 'container.id' string",
-          "constants": ""
-        },
-        {
           "name": "container.tags",
           "type": "string",
           "definition": "Tags of the container",
@@ -53,12 +47,6 @@
           "name": "network.device.ifname",
           "type": "string",
           "definition": "interface ifname",
-          "constants": ""
-        },
-        {
-          "name": "network.device.ifname.length",
-          "type": "int",
-          "definition": "Length of 'network.device.ifname' string",
           "constants": ""
         },
         {
@@ -98,12 +86,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.args.length",
-          "type": "int",
-          "definition": "Length of 'process.ancestors.args' string",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.args_flags",
           "type": "string",
           "definition": "Arguments of the process (as an array)",
@@ -134,12 +116,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.argv0.length",
-          "type": "int",
-          "definition": "Length of 'process.ancestors.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -158,20 +134,8 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "process.ancestors.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -196,12 +160,6 @@
         {
           "name": "process.ancestors.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.ancestors.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -236,12 +194,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -254,12 +206,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'process.ancestors.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -269,12 +215,6 @@
           "name": "process.ancestors.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "process.ancestors.file.group.length",
-          "type": "int",
-          "definition": "Length of 'process.ancestors.file.group' string",
           "constants": ""
         },
         {
@@ -350,12 +290,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.file.user.length",
-          "type": "int",
-          "definition": "Length of 'process.ancestors.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -364,12 +298,6 @@
         {
           "name": "process.ancestors.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.ancestors.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -386,12 +314,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -400,12 +322,6 @@
         {
           "name": "process.ancestors.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.ancestors.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -446,12 +362,6 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "process.ancestors.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -464,21 +374,9 @@
           "constants": ""
         },
         {
-          "name": "process.ancestors.user.length",
-          "type": "int",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
           "name": "process.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)",
-          "constants": ""
-        },
-        {
-          "name": "process.args.length",
-          "type": "int",
-          "definition": "Length of 'process.args' string",
           "constants": ""
         },
         {
@@ -512,12 +410,6 @@
           "constants": ""
         },
         {
-          "name": "process.argv0.length",
-          "type": "int",
-          "definition": "Length of 'process.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "process.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -536,20 +428,8 @@
           "constants": ""
         },
         {
-          "name": "process.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "process.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "process.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -574,12 +454,6 @@
         {
           "name": "process.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -614,12 +488,6 @@
           "constants": ""
         },
         {
-          "name": "process.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "process.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -632,12 +500,6 @@
           "constants": ""
         },
         {
-          "name": "process.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'process.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "process.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -647,12 +509,6 @@
           "name": "process.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "process.file.group.length",
-          "type": "int",
-          "definition": "Length of 'process.file.group' string",
           "constants": ""
         },
         {
@@ -728,12 +584,6 @@
           "constants": ""
         },
         {
-          "name": "process.file.user.length",
-          "type": "int",
-          "definition": "Length of 'process.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "process.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -742,12 +592,6 @@
         {
           "name": "process.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -764,12 +608,6 @@
           "constants": ""
         },
         {
-          "name": "process.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "process.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -778,12 +616,6 @@
         {
           "name": "process.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -824,12 +656,6 @@
           "constants": ""
         },
         {
-          "name": "process.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "process.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -838,12 +664,6 @@
         {
           "name": "process.user",
           "type": "string",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
-          "name": "process.user.length",
-          "type": "int",
           "definition": "User of the process",
           "constants": ""
         }
@@ -902,12 +722,6 @@
           "constants": ""
         },
         {
-          "name": "bpf.map.name.length",
-          "type": "int",
-          "definition": "Name of the eBPF map (added in 7.35)",
-          "constants": ""
-        },
-        {
           "name": "bpf.map.type",
           "type": "int",
           "definition": "Type of the eBPF map",
@@ -932,20 +746,8 @@
           "constants": ""
         },
         {
-          "name": "bpf.prog.name.length",
-          "type": "int",
-          "definition": "Name of the eBPF program (added in 7.35)",
-          "constants": ""
-        },
-        {
           "name": "bpf.prog.tag",
           "type": "string",
-          "definition": "Hash (sha1) of the eBPF program (added in 7.35)",
-          "constants": ""
-        },
-        {
-          "name": "bpf.prog.tag.length",
-          "type": "int",
           "definition": "Hash (sha1) of the eBPF program (added in 7.35)",
           "constants": ""
         },
@@ -1016,12 +818,6 @@
           "constants": ""
         },
         {
-          "name": "chmod.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'chmod.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "chmod.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -1031,12 +827,6 @@
           "name": "chmod.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "chmod.file.group.length",
-          "type": "int",
-          "definition": "Length of 'chmod.file.group' string",
           "constants": ""
         },
         {
@@ -1112,12 +902,6 @@
           "constants": ""
         },
         {
-          "name": "chmod.file.user.length",
-          "type": "int",
-          "definition": "Length of 'chmod.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "chmod.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -1151,12 +935,6 @@
           "constants": ""
         },
         {
-          "name": "chown.file.destination.group.length",
-          "type": "int",
-          "definition": "Length of 'chown.file.destination.group' string",
-          "constants": ""
-        },
-        {
           "name": "chown.file.destination.uid",
           "type": "int",
           "definition": "New UID of the chown-ed file's owner",
@@ -1169,21 +947,9 @@
           "constants": ""
         },
         {
-          "name": "chown.file.destination.user.length",
-          "type": "int",
-          "definition": "Length of 'chown.file.destination.user' string",
-          "constants": ""
-        },
-        {
           "name": "chown.file.filesystem",
           "type": "string",
           "definition": "File's filesystem",
-          "constants": ""
-        },
-        {
-          "name": "chown.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'chown.file.filesystem' string",
           "constants": ""
         },
         {
@@ -1196,12 +962,6 @@
           "name": "chown.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "chown.file.group.length",
-          "type": "int",
-          "definition": "Length of 'chown.file.group' string",
           "constants": ""
         },
         {
@@ -1277,12 +1037,6 @@
           "constants": ""
         },
         {
-          "name": "chown.file.user.length",
-          "type": "int",
-          "definition": "Length of 'chown.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "chown.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -1349,12 +1103,6 @@
           "constants": ""
         },
         {
-          "name": "exec.args.length",
-          "type": "int",
-          "definition": "Length of 'exec.args' string",
-          "constants": ""
-        },
-        {
           "name": "exec.args_flags",
           "type": "string",
           "definition": "Arguments of the process (as an array)",
@@ -1385,12 +1133,6 @@
           "constants": ""
         },
         {
-          "name": "exec.argv0.length",
-          "type": "int",
-          "definition": "Length of 'exec.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "exec.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -1409,20 +1151,8 @@
           "constants": ""
         },
         {
-          "name": "exec.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "exec.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "exec.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -1447,12 +1177,6 @@
         {
           "name": "exec.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exec.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -1487,12 +1211,6 @@
           "constants": ""
         },
         {
-          "name": "exec.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "exec.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -1505,12 +1223,6 @@
           "constants": ""
         },
         {
-          "name": "exec.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'exec.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "exec.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -1520,12 +1232,6 @@
           "name": "exec.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "exec.file.group.length",
-          "type": "int",
-          "definition": "Length of 'exec.file.group' string",
           "constants": ""
         },
         {
@@ -1601,12 +1307,6 @@
           "constants": ""
         },
         {
-          "name": "exec.file.user.length",
-          "type": "int",
-          "definition": "Length of 'exec.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "exec.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -1615,12 +1315,6 @@
         {
           "name": "exec.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exec.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -1637,12 +1331,6 @@
           "constants": ""
         },
         {
-          "name": "exec.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "exec.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -1651,12 +1339,6 @@
         {
           "name": "exec.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exec.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -1697,12 +1379,6 @@
           "constants": ""
         },
         {
-          "name": "exec.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "exec.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -1711,12 +1387,6 @@
         {
           "name": "exec.user",
           "type": "string",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
-          "name": "exec.user.length",
-          "type": "int",
           "definition": "User of the process",
           "constants": ""
         }
@@ -1733,12 +1403,6 @@
           "name": "exit.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)",
-          "constants": ""
-        },
-        {
-          "name": "exit.args.length",
-          "type": "int",
-          "definition": "Length of 'exit.args' string",
           "constants": ""
         },
         {
@@ -1772,12 +1436,6 @@
           "constants": ""
         },
         {
-          "name": "exit.argv0.length",
-          "type": "int",
-          "definition": "Length of 'exit.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "exit.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -1808,20 +1466,8 @@
           "constants": ""
         },
         {
-          "name": "exit.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "exit.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "exit.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -1846,12 +1492,6 @@
         {
           "name": "exit.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exit.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -1886,12 +1526,6 @@
           "constants": ""
         },
         {
-          "name": "exit.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "exit.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -1904,12 +1538,6 @@
           "constants": ""
         },
         {
-          "name": "exit.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'exit.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "exit.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -1919,12 +1547,6 @@
           "name": "exit.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "exit.file.group.length",
-          "type": "int",
-          "definition": "Length of 'exit.file.group' string",
           "constants": ""
         },
         {
@@ -2000,12 +1622,6 @@
           "constants": ""
         },
         {
-          "name": "exit.file.user.length",
-          "type": "int",
-          "definition": "Length of 'exit.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "exit.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -2014,12 +1630,6 @@
         {
           "name": "exit.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exit.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -2036,12 +1646,6 @@
           "constants": ""
         },
         {
-          "name": "exit.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "exit.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -2050,12 +1654,6 @@
         {
           "name": "exit.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "exit.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -2096,12 +1694,6 @@
           "constants": ""
         },
         {
-          "name": "exit.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "exit.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -2110,12 +1702,6 @@
         {
           "name": "exit.user",
           "type": "string",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
-          "name": "exit.user.length",
-          "type": "int",
           "definition": "User of the process",
           "constants": ""
         }
@@ -2147,12 +1733,6 @@
           "constants": ""
         },
         {
-          "name": "link.file.destination.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'link.file.destination.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "link.file.destination.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -2162,12 +1742,6 @@
           "name": "link.file.destination.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "link.file.destination.group.length",
-          "type": "int",
-          "definition": "Length of 'link.file.destination.group' string",
           "constants": ""
         },
         {
@@ -2243,21 +1817,9 @@
           "constants": ""
         },
         {
-          "name": "link.file.destination.user.length",
-          "type": "int",
-          "definition": "Length of 'link.file.destination.user' string",
-          "constants": ""
-        },
-        {
           "name": "link.file.filesystem",
           "type": "string",
           "definition": "File's filesystem",
-          "constants": ""
-        },
-        {
-          "name": "link.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'link.file.filesystem' string",
           "constants": ""
         },
         {
@@ -2270,12 +1832,6 @@
           "name": "link.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "link.file.group.length",
-          "type": "int",
-          "definition": "Length of 'link.file.group' string",
           "constants": ""
         },
         {
@@ -2351,12 +1907,6 @@
           "constants": ""
         },
         {
-          "name": "link.file.user.length",
-          "type": "int",
-          "definition": "Length of 'link.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "link.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -2384,12 +1934,6 @@
           "constants": ""
         },
         {
-          "name": "load_module.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'load_module.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "load_module.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -2399,12 +1943,6 @@
           "name": "load_module.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "load_module.file.group.length",
-          "type": "int",
-          "definition": "Length of 'load_module.file.group' string",
           "constants": ""
         },
         {
@@ -2480,12 +2018,6 @@
           "constants": ""
         },
         {
-          "name": "load_module.file.user.length",
-          "type": "int",
-          "definition": "Length of 'load_module.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "load_module.loaded_from_memory",
           "type": "bool",
           "definition": "Indicates if the kernel module was loaded from memory",
@@ -2494,12 +2026,6 @@
         {
           "name": "load_module.name",
           "type": "string",
-          "definition": "Name of the new kernel module",
-          "constants": ""
-        },
-        {
-          "name": "load_module.name.length",
-          "type": "int",
           "definition": "Name of the new kernel module",
           "constants": ""
         },
@@ -2543,12 +2069,6 @@
           "constants": ""
         },
         {
-          "name": "mkdir.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'mkdir.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "mkdir.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -2558,12 +2078,6 @@
           "name": "mkdir.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "mkdir.file.group.length",
-          "type": "int",
-          "definition": "Length of 'mkdir.file.group' string",
           "constants": ""
         },
         {
@@ -2639,12 +2153,6 @@
           "constants": ""
         },
         {
-          "name": "mkdir.file.user.length",
-          "type": "int",
-          "definition": "Length of 'mkdir.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "mkdir.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -2672,12 +2180,6 @@
           "constants": ""
         },
         {
-          "name": "mmap.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'mmap.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "mmap.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -2687,12 +2189,6 @@
           "name": "mmap.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "mmap.file.group.length",
-          "type": "int",
-          "definition": "Length of 'mmap.file.group' string",
           "constants": ""
         },
         {
@@ -2768,12 +2264,6 @@
           "constants": ""
         },
         {
-          "name": "mmap.file.user.length",
-          "type": "int",
-          "definition": "Length of 'mmap.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "mmap.flags",
           "type": "int",
           "definition": "memory segment flags",
@@ -2846,12 +2336,6 @@
           "constants": ""
         },
         {
-          "name": "open.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'open.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "open.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -2861,12 +2345,6 @@
           "name": "open.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "open.file.group.length",
-          "type": "int",
-          "definition": "Length of 'open.file.group' string",
           "constants": ""
         },
         {
@@ -2942,12 +2420,6 @@
           "constants": ""
         },
         {
-          "name": "open.file.user.length",
-          "type": "int",
-          "definition": "Length of 'open.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "open.flags",
           "type": "int",
           "definition": "Flags used when opening the file",
@@ -2987,12 +2459,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.args.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.ancestors.args' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.args_flags",
           "type": "string",
           "definition": "Arguments of the process (as an array)",
@@ -3023,12 +2489,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.argv0.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.ancestors.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -3047,20 +2507,8 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.ancestors.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -3085,12 +2533,6 @@
         {
           "name": "ptrace.tracee.ancestors.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.ancestors.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -3125,12 +2567,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -3143,12 +2579,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.ancestors.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -3158,12 +2588,6 @@
           "name": "ptrace.tracee.ancestors.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.ancestors.file.group.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.ancestors.file.group' string",
           "constants": ""
         },
         {
@@ -3239,12 +2663,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.file.user.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.ancestors.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -3253,12 +2671,6 @@
         {
           "name": "ptrace.tracee.ancestors.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.ancestors.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -3275,12 +2687,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -3289,12 +2695,6 @@
         {
           "name": "ptrace.tracee.ancestors.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.ancestors.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -3335,12 +2735,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.ancestors.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -3353,21 +2747,9 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.ancestors.user.length",
-          "type": "int",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.args.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.args' string",
           "constants": ""
         },
         {
@@ -3401,12 +2783,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.argv0.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -3425,20 +2801,8 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -3463,12 +2827,6 @@
         {
           "name": "ptrace.tracee.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -3503,12 +2861,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -3521,12 +2873,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -3536,12 +2882,6 @@
           "name": "ptrace.tracee.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.file.group.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.file.group' string",
           "constants": ""
         },
         {
@@ -3617,12 +2957,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.file.user.length",
-          "type": "int",
-          "definition": "Length of 'ptrace.tracee.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -3631,12 +2965,6 @@
         {
           "name": "ptrace.tracee.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -3653,12 +2981,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -3667,12 +2989,6 @@
         {
           "name": "ptrace.tracee.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -3713,12 +3029,6 @@
           "constants": ""
         },
         {
-          "name": "ptrace.tracee.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "ptrace.tracee.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -3727,12 +3037,6 @@
         {
           "name": "ptrace.tracee.user",
           "type": "string",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
-          "name": "ptrace.tracee.user.length",
-          "type": "int",
           "definition": "User of the process",
           "constants": ""
         }
@@ -3758,33 +3062,15 @@
           "constants": ""
         },
         {
-          "name": "removexattr.file.destination.name.length",
-          "type": "int",
-          "definition": "Length of 'removexattr.file.destination.name' string",
-          "constants": ""
-        },
-        {
           "name": "removexattr.file.destination.namespace",
           "type": "string",
           "definition": "Namespace of the extended attribute",
           "constants": ""
         },
         {
-          "name": "removexattr.file.destination.namespace.length",
-          "type": "int",
-          "definition": "Length of 'removexattr.file.destination.namespace' string",
-          "constants": ""
-        },
-        {
           "name": "removexattr.file.filesystem",
           "type": "string",
           "definition": "File's filesystem",
-          "constants": ""
-        },
-        {
-          "name": "removexattr.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'removexattr.file.filesystem' string",
           "constants": ""
         },
         {
@@ -3797,12 +3083,6 @@
           "name": "removexattr.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "removexattr.file.group.length",
-          "type": "int",
-          "definition": "Length of 'removexattr.file.group' string",
           "constants": ""
         },
         {
@@ -3878,12 +3158,6 @@
           "constants": ""
         },
         {
-          "name": "removexattr.file.user.length",
-          "type": "int",
-          "definition": "Length of 'removexattr.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "removexattr.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -3917,12 +3191,6 @@
           "constants": ""
         },
         {
-          "name": "rename.file.destination.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'rename.file.destination.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "rename.file.destination.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -3932,12 +3200,6 @@
           "name": "rename.file.destination.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "rename.file.destination.group.length",
-          "type": "int",
-          "definition": "Length of 'rename.file.destination.group' string",
           "constants": ""
         },
         {
@@ -4013,21 +3275,9 @@
           "constants": ""
         },
         {
-          "name": "rename.file.destination.user.length",
-          "type": "int",
-          "definition": "Length of 'rename.file.destination.user' string",
-          "constants": ""
-        },
-        {
           "name": "rename.file.filesystem",
           "type": "string",
           "definition": "File's filesystem",
-          "constants": ""
-        },
-        {
-          "name": "rename.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'rename.file.filesystem' string",
           "constants": ""
         },
         {
@@ -4040,12 +3290,6 @@
           "name": "rename.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "rename.file.group.length",
-          "type": "int",
-          "definition": "Length of 'rename.file.group' string",
           "constants": ""
         },
         {
@@ -4121,12 +3365,6 @@
           "constants": ""
         },
         {
-          "name": "rename.file.user.length",
-          "type": "int",
-          "definition": "Length of 'rename.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "rename.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -4154,12 +3392,6 @@
           "constants": ""
         },
         {
-          "name": "rmdir.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'rmdir.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "rmdir.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -4169,12 +3401,6 @@
           "name": "rmdir.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "rmdir.file.group.length",
-          "type": "int",
-          "definition": "Length of 'rmdir.file.group' string",
           "constants": ""
         },
         {
@@ -4250,12 +3476,6 @@
           "constants": ""
         },
         {
-          "name": "rmdir.file.user.length",
-          "type": "int",
-          "definition": "Length of 'rmdir.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "rmdir.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -4277,20 +3497,8 @@
           "constants": ""
         },
         {
-          "name": "selinux.bool.name.length",
-          "type": "int",
-          "definition": "Length of 'selinux.bool.name' string",
-          "constants": ""
-        },
-        {
           "name": "selinux.bool.state",
           "type": "string",
-          "definition": "SELinux boolean new value",
-          "constants": ""
-        },
-        {
-          "name": "selinux.bool.state.length",
-          "type": "int",
           "definition": "SELinux boolean new value",
           "constants": ""
         },
@@ -4303,12 +3511,6 @@
         {
           "name": "selinux.enforce.status",
           "type": "string",
-          "definition": "SELinux enforcement status (one of \"enforcing\", \"permissive\", \"disabled\"\")",
-          "constants": ""
-        },
-        {
-          "name": "selinux.enforce.status.length",
-          "type": "int",
           "definition": "SELinux enforcement status (one of \"enforcing\", \"permissive\", \"disabled\"\")",
           "constants": ""
         }
@@ -4334,12 +3536,6 @@
           "constants": ""
         },
         {
-          "name": "setgid.egroup.length",
-          "type": "int",
-          "definition": "Length of 'setgid.egroup' string",
-          "constants": ""
-        },
-        {
           "name": "setgid.fsgid",
           "type": "int",
           "definition": "New FileSystem GID of the process",
@@ -4352,12 +3548,6 @@
           "constants": ""
         },
         {
-          "name": "setgid.fsgroup.length",
-          "type": "int",
-          "definition": "Length of 'setgid.fsgroup' string",
-          "constants": ""
-        },
-        {
           "name": "setgid.gid",
           "type": "int",
           "definition": "New GID of the process",
@@ -4367,12 +3557,6 @@
           "name": "setgid.group",
           "type": "string",
           "definition": "New group of the process",
-          "constants": ""
-        },
-        {
-          "name": "setgid.group.length",
-          "type": "int",
-          "definition": "Length of 'setgid.group' string",
           "constants": ""
         }
       ]
@@ -4397,12 +3581,6 @@
           "constants": ""
         },
         {
-          "name": "setuid.euser.length",
-          "type": "int",
-          "definition": "Length of 'setuid.euser' string",
-          "constants": ""
-        },
-        {
           "name": "setuid.fsuid",
           "type": "int",
           "definition": "New FileSystem UID of the process",
@@ -4415,12 +3593,6 @@
           "constants": ""
         },
         {
-          "name": "setuid.fsuser.length",
-          "type": "int",
-          "definition": "Length of 'setuid.fsuser' string",
-          "constants": ""
-        },
-        {
           "name": "setuid.uid",
           "type": "int",
           "definition": "New UID of the process",
@@ -4430,12 +3602,6 @@
           "name": "setuid.user",
           "type": "string",
           "definition": "New user of the process",
-          "constants": ""
-        },
-        {
-          "name": "setuid.user.length",
-          "type": "int",
-          "definition": "Length of 'setuid.user' string",
           "constants": ""
         }
       ]
@@ -4460,33 +3626,15 @@
           "constants": ""
         },
         {
-          "name": "setxattr.file.destination.name.length",
-          "type": "int",
-          "definition": "Length of 'setxattr.file.destination.name' string",
-          "constants": ""
-        },
-        {
           "name": "setxattr.file.destination.namespace",
           "type": "string",
           "definition": "Namespace of the extended attribute",
           "constants": ""
         },
         {
-          "name": "setxattr.file.destination.namespace.length",
-          "type": "int",
-          "definition": "Length of 'setxattr.file.destination.namespace' string",
-          "constants": ""
-        },
-        {
           "name": "setxattr.file.filesystem",
           "type": "string",
           "definition": "File's filesystem",
-          "constants": ""
-        },
-        {
-          "name": "setxattr.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'setxattr.file.filesystem' string",
           "constants": ""
         },
         {
@@ -4499,12 +3647,6 @@
           "name": "setxattr.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "setxattr.file.group.length",
-          "type": "int",
-          "definition": "Length of 'setxattr.file.group' string",
           "constants": ""
         },
         {
@@ -4580,12 +3722,6 @@
           "constants": ""
         },
         {
-          "name": "setxattr.file.user.length",
-          "type": "int",
-          "definition": "Length of 'setxattr.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "setxattr.retval",
           "type": "int",
           "definition": "Return value of the syscall",
@@ -4619,12 +3755,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.args.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.ancestors.args' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.args_flags",
           "type": "string",
           "definition": "Arguments of the process (as an array)",
@@ -4655,12 +3785,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.argv0.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.ancestors.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -4679,20 +3803,8 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.ancestors.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -4717,12 +3829,6 @@
         {
           "name": "signal.target.ancestors.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.ancestors.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -4757,12 +3863,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -4775,12 +3875,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.ancestors.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -4790,12 +3884,6 @@
           "name": "signal.target.ancestors.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.ancestors.file.group.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.ancestors.file.group' string",
           "constants": ""
         },
         {
@@ -4871,12 +3959,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.file.user.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.ancestors.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -4885,12 +3967,6 @@
         {
           "name": "signal.target.ancestors.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.ancestors.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -4907,12 +3983,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -4921,12 +3991,6 @@
         {
           "name": "signal.target.ancestors.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.ancestors.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -4967,12 +4031,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.ancestors.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -4985,21 +4043,9 @@
           "constants": ""
         },
         {
-          "name": "signal.target.ancestors.user.length",
-          "type": "int",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.args",
           "type": "string",
           "definition": "Arguments of the process (as a string)",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.args.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.args' string",
           "constants": ""
         },
         {
@@ -5033,12 +4079,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.argv0.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.argv0' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.cap_effective",
           "type": "int",
           "definition": "Effective capability set of the process",
@@ -5057,20 +4097,8 @@
           "constants": ""
         },
         {
-          "name": "signal.target.comm.length",
-          "type": "int",
-          "definition": "Comm attribute of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.container.id",
           "type": "string",
-          "definition": "Container ID",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.container.id.length",
-          "type": "int",
           "definition": "Container ID",
           "constants": ""
         },
@@ -5095,12 +4123,6 @@
         {
           "name": "signal.target.egroup",
           "type": "string",
-          "definition": "Effective group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.egroup.length",
-          "type": "int",
           "definition": "Effective group of the process",
           "constants": ""
         },
@@ -5135,12 +4157,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.euser.length",
-          "type": "int",
-          "definition": "Effective user of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.file.change_time",
           "type": "int",
           "definition": "Change time of the file",
@@ -5153,12 +4169,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -5168,12 +4178,6 @@
           "name": "signal.target.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.file.group.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.file.group' string",
           "constants": ""
         },
         {
@@ -5249,12 +4253,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.file.user.length",
-          "type": "int",
-          "definition": "Length of 'signal.target.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "signal.target.fsgid",
           "type": "int",
           "definition": "FileSystem-gid of the process",
@@ -5263,12 +4261,6 @@
         {
           "name": "signal.target.fsgroup",
           "type": "string",
-          "definition": "FileSystem-group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.fsgroup.length",
-          "type": "int",
           "definition": "FileSystem-group of the process",
           "constants": ""
         },
@@ -5285,12 +4277,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.fsuser.length",
-          "type": "int",
-          "definition": "FileSystem-user of the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.gid",
           "type": "int",
           "definition": "GID of the process",
@@ -5299,12 +4285,6 @@
         {
           "name": "signal.target.group",
           "type": "string",
-          "definition": "Group of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.group.length",
-          "type": "int",
           "definition": "Group of the process",
           "constants": ""
         },
@@ -5345,12 +4325,6 @@
           "constants": ""
         },
         {
-          "name": "signal.target.tty_name.length",
-          "type": "int",
-          "definition": "Name of the TTY associated with the process",
-          "constants": ""
-        },
-        {
           "name": "signal.target.uid",
           "type": "int",
           "definition": "UID of the process",
@@ -5359,12 +4333,6 @@
         {
           "name": "signal.target.user",
           "type": "string",
-          "definition": "User of the process",
-          "constants": ""
-        },
-        {
-          "name": "signal.target.user.length",
-          "type": "int",
           "definition": "User of the process",
           "constants": ""
         },
@@ -5396,12 +4364,6 @@
           "constants": ""
         },
         {
-          "name": "splice.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'splice.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "splice.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -5411,12 +4373,6 @@
           "name": "splice.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "splice.file.group.length",
-          "type": "int",
-          "definition": "Length of 'splice.file.group' string",
           "constants": ""
         },
         {
@@ -5492,12 +4448,6 @@
           "constants": ""
         },
         {
-          "name": "splice.file.user.length",
-          "type": "int",
-          "definition": "Length of 'splice.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "splice.pipe_entry_flag",
           "type": "int",
           "definition": "Entry flag of the \"fd_out\" pipe passed to the splice syscall",
@@ -5537,12 +4487,6 @@
           "constants": ""
         },
         {
-          "name": "unlink.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'unlink.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "unlink.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -5552,12 +4496,6 @@
           "name": "unlink.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "unlink.file.group.length",
-          "type": "int",
-          "definition": "Length of 'unlink.file.group' string",
           "constants": ""
         },
         {
@@ -5633,12 +4571,6 @@
           "constants": ""
         },
         {
-          "name": "unlink.file.user.length",
-          "type": "int",
-          "definition": "Length of 'unlink.file.user' string",
-          "constants": ""
-        },
-        {
           "name": "unlink.flags",
           "type": "int",
           "definition": "",
@@ -5662,12 +4594,6 @@
         {
           "name": "unload_module.name",
           "type": "string",
-          "definition": "Name of the kernel module that was deleted",
-          "constants": ""
-        },
-        {
-          "name": "unload_module.name.length",
-          "type": "int",
           "definition": "Name of the kernel module that was deleted",
           "constants": ""
         },
@@ -5699,12 +4625,6 @@
           "constants": ""
         },
         {
-          "name": "utimes.file.filesystem.length",
-          "type": "int",
-          "definition": "Length of 'utimes.file.filesystem' string",
-          "constants": ""
-        },
-        {
           "name": "utimes.file.gid",
           "type": "int",
           "definition": "GID of the file's owner",
@@ -5714,12 +4634,6 @@
           "name": "utimes.file.group",
           "type": "string",
           "definition": "Group of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "utimes.file.group.length",
-          "type": "int",
-          "definition": "Length of 'utimes.file.group' string",
           "constants": ""
         },
         {
@@ -5792,12 +4706,6 @@
           "name": "utimes.file.user",
           "type": "string",
           "definition": "User of the file's owner",
-          "constants": ""
-        },
-        {
-          "name": "utimes.file.user.length",
-          "type": "int",
-          "definition": "Length of 'utimes.file.user' string",
           "constants": ""
         },
         {

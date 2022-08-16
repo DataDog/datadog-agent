@@ -103,7 +103,7 @@ func handleBasic(module *common.Module, name, alias, kind, event string, iterato
 	return module.Fields[alias]
 }
 
-func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, constants string, commentText string) error {
+func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType string, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, constants string, commentText string, field seclField) error {
 	if verbose {
 		fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 	}
@@ -115,7 +115,7 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 			alias = aliasPrefix + "." + alias
 		}
 		handleBasic(module, name, alias, fieldType, event, iterator, isArray, opOverride, constants, commentText)
-		if fieldType == "string" {
+		if field.lengthField {
 			field := handleBasic(module, name+".length", alias+".length", "int", event, iterator, isArray, opOverride, constants, commentText)
 			field.IsLength = true
 		}
@@ -175,6 +175,7 @@ type seclField struct {
 	iterator            string
 	handler             string
 	cachelessResolution bool
+	lengthField         bool
 	weight              int64
 }
 
@@ -212,6 +213,8 @@ func parseFieldDef(def string) (seclField, error) {
 					switch opt {
 					case "cacheless_resolution":
 						field.cachelessResolution = true
+					case "length":
+						field.lengthField = true
 					}
 				}
 			}
@@ -356,7 +359,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								IsOrigTypePtr:       isPointer,
 							}
 
-							if fieldType == "string" && !isArray {
+							if seclField.lengthField {
 								var lengthField common.StructField = *module.Fields[fieldAlias]
 								lengthField.IsLength = true
 								lengthField.Name += ".length"
@@ -379,7 +382,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						dejavu[fieldName] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText); err != nil {
+							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText, seclField); err != nil {
 								log.Print(err)
 							}
 
