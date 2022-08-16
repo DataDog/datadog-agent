@@ -140,12 +140,12 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	lastPdhRefreshTime.Store(time.Now())
 	return true, nil
 }
-func ForceRefreshPdhObjectCache() (didrefresh bool, err error) {
+func forceRefreshPdhObjectCache() (didrefresh bool, err error) {
 	// Refresh the Windows internal PDH Object cache
 	// see refreshPdhObjectCache() for details
 	return refreshPdhObjectCache(true)
 }
-func CachedRefreshPdhObjectCache() (didrefresh bool, err error) {
+func tryRefreshPdhObjectCache() (didrefresh bool, err error) {
 	// Attempt to refresh the Windows internal PDH Object cache
 	// may be skipped if cache was refreshed recently.
 	// see refreshPdhObjectCache() for details
