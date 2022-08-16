@@ -47,6 +47,8 @@ var cryptoProbes = map[string]string{
 }
 
 var gnuTLSProbes = map[string]string{
+	"uprobe/gnutls_handshake":          "uprobe__gnutls_handshake",
+	"uretprobe/gnutls_handshake":       "uretprobe__gnutls_handshake",
 	"uprobe/gnutls_transport_set_int2": "uprobe__gnutls_transport_set_int2",
 	"uprobe/gnutls_transport_set_ptr":  "uprobe__gnutls_transport_set_ptr",
 	"uprobe/gnutls_transport_set_ptr2": "uprobe__gnutls_transport_set_ptr2",

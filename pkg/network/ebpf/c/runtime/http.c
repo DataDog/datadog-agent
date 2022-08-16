@@ -269,6 +269,21 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("uprobe/gnutls_handshake")
+int uprobe__gnutls_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/gnutls_handshake")
+int uretprobe__gnutls_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    return 0;
+}
+
 // void gnutls_transport_set_int (gnutls_session_t session, int fd)
 // Note: this function is implemented as a macro in gnutls
 // that calls gnutls_transport_set_int2, so no uprobe is needed
