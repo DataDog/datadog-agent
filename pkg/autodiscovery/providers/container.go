@@ -75,6 +75,7 @@ func (d *ContainerConfigProvider) Collect(ctx context.Context) ([]integration.Co
 	return d.generateConfigs()
 }
 
+// listen, closing the given channel after the initial set of events are received
 func (d *ContainerConfigProvider) listen(ch chan struct{}) {
 	d.Lock()
 	d.streaming = true
