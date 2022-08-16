@@ -71,6 +71,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
+			{Name: string(probes.FailedConnMap)},
 			{Name: string(probes.TCPStatsMap)},
 			{Name: string(probes.TCPConnectSockPidMap)},
 			{Name: string(probes.ConnCloseBatchMap)},

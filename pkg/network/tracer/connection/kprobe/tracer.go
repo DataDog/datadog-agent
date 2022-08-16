@@ -41,9 +41,10 @@ const (
 type kprobeTracer struct {
 	m *manager.Manager
 
-	conns    *ebpf.Map
-	tcpStats *ebpf.Map
-	config   *config.Config
+	conns       *ebpf.Map
+	failedConns *ebpf.Map
+	tcpStats    *ebpf.Map
+	config      *config.Config
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
@@ -83,6 +84,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.FailedConnMap):      {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
@@ -170,6 +172,12 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
+	}
+
+	tr.failedConns, _, err = m.GetMap(string(probes.FailedConnMap))
+	if err != nil {
+		tr.Stop()
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.FailedConnMap, err)
 	}
 
 	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
