@@ -33,6 +33,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 )
 
 require (
@@ -78,7 +81,7 @@ require (
 	github.com/cilium/ebpf v0.9.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
-	github.com/containerd/cgroups v1.0.3
+	github.com/containerd/cgroups v1.0.4
 	github.com/containerd/containerd v1.6.6
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.1
@@ -122,7 +125,7 @@ require (
 	github.com/itchyny/gojq v0.12.8
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/karrick/godirwalk v1.16.1
+	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.7.7
@@ -165,7 +168,7 @@ require (
 	go.opentelemetry.io/collector/pdata v0.56.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
-	go.uber.org/zap v1.21.0
+	go.uber.org/zap v1.22.0
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
@@ -409,6 +412,9 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1
 	github.com/go-delve/delve v1.9.0
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )

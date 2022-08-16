@@ -162,7 +162,7 @@ func StartSystemProbe() error {
 		if err != nil {
 			log.Warnf("Can't set up memory controller: %v", err)
 		} else {
-			memoryMonitor.Start(log.Logger{})
+			memoryMonitor.Start()
 		}
 	}
 

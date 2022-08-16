@@ -101,7 +101,6 @@ func TestProcPidMapperCgroupV1(t *testing.T) {
 		procPath:         filepath.Join(fakeFsPath, "/proc"),
 		cgroupController: defaultBaseController,
 		readerFilter:     ContainerFilter,
-		l:                testLogger{},
 	}
 
 	cgCgroupV1 := cgroupV1{
@@ -153,7 +152,6 @@ func TestProcPidMapperCgroupV2(t *testing.T) {
 			procPath:         filepath.Join(fakeFsPath, "/proc"),
 			cgroupController: "",
 			readerFilter:     ContainerFilter,
-			l:                testLogger{},
 		},
 	}
 	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeFsPath, "/proc/420/cgroup"), []byte(cgroupV2ProcCgroup), 0o640))

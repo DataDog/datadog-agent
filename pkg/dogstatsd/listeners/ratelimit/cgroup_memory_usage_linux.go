@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ memoryUsage = (*hostMemoryUsage)(nil)
@@ -24,7 +23,7 @@ type cgroupMemoryUsage struct {
 }
 
 func newCgroupMemoryUsage() (*cgroupMemoryUsage, error) {
-	selfReader, err := cgroups.NewSelfReader("/proc", config.IsContainerized(), &log.Logger{})
+	selfReader, err := cgroups.NewSelfReader("/proc", config.IsContainerized())
 	if err != nil {
 		return nil, err
 	}

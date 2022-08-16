@@ -17,7 +17,7 @@ func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string
 }
 
 // Start monitoring memory
-func (mm *MemoryMonitor) Start(_ interface{}) {}
+func (mm *MemoryMonitor) Start() {}
 
 // Stop monitoring memory
 func (mm *MemoryMonitor) Stop() {}

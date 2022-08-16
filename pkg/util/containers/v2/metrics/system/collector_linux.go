@@ -59,7 +59,6 @@ func newSystemCollector() (*systemCollector, error) {
 	}
 
 	reader, err := cgroups.NewReader(
-		log.Logger{},
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),

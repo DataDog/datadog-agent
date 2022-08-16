@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/cgroups"
 )
 
@@ -138,15 +139,8 @@ func NewMemoryController(kind string, containerized bool, monitors ...MemoryMoni
 	return mc, nil
 }
 
-// A Logger is responsible for writing log entries.
-// Most probably, this is a pkg/util/log Logger.
-type Logger interface {
-	Warnf(format string, args ...interface{})
-	Debugf(format string, args ...interface{})
-}
-
 // Start listening for events
-func (mc *MemoryController) Start(l Logger) {
+func (mc *MemoryController) Start() {
 	go func() {
 		var buf [256]byte
 		var events [maxEpollEvents]syscall.EpollEvent
@@ -155,7 +149,7 @@ func (mc *MemoryController) Start(l Logger) {
 		for {
 			nevents, err := syscall.EpollWait(mc.efd, events[:], -1)
 			if err != nil {
-				l.Warnf("Error while waiting for memory controller events: %v", err)
+				log.Warnf("Error while waiting for memory controller events: %v", err)
 				break
 			}
 
@@ -163,7 +157,7 @@ func (mc *MemoryController) Start(l Logger) {
 				fd := int(events[ev].Fd)
 
 				if _, err := syscall.Read(fd, buf[:]); err != nil {
-					l.Warnf("Error while reading memory controller event: %v", err)
+					log.Warnf("Error while reading memory controller event: %v", err)
 					continue EPOLLWAIT
 				}
 
