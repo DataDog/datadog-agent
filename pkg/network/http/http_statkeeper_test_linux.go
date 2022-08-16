@@ -11,15 +11,8 @@ package http
 import (
 	"encoding/binary"
 	"fmt"
-	"regexp"
-	"strconv"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -27,7 +20,7 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	var tx ebpfHttpTx
 
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := C.ulonglong(uint64(latency))
+	latencyNS := _Ctype_ulonglong(uint64(latency))
 	tx.request_started = 1
 	tx.request_method = 1
 	tx.response_last_seen = tx.request_started + latencyNS
@@ -39,5 +32,5 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	tx.tup.dport = _Ctype_ushort(destPort)
 	tx.tup.metadata = 1
 
-	return tx
+	return &tx
 }
