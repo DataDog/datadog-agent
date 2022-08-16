@@ -21,12 +21,20 @@ build do
 
     env = with_standard_compiler_flags
 
-    # This builds libcrypt.so.1
-    # To build libcrypt.so.2, the --disable-obsolete-api option
-    # needs to be passed to the ./configure script.
+    if redhat?
+        # On the CentOS 6 builder, use gcc 4.9.2 in the devtoolset-3 env,
+        # and ignore sign conversion warnings.
+        env["CC"] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"
+        env["CPP"] = "/opt/rh/devtoolset-3/root/usr/bin/cpp"
+        env["CFLAGS"] += " -Wno-sign-conversion"
+    end
+
+    # This builds libcrypt.so.2
+    # To build libcrypt.so.1, the --disable-obsolete-api option
+    # needs to be removed.
     command ["./configure",
         "--prefix=#{install_dir}/embedded",
-        ].join(" "), env: env
+        "--disable-obsolete-api"].join(" "), env: env
     command "make -j #{workers}", env: env
     command "make -j #{workers} install"
 end
