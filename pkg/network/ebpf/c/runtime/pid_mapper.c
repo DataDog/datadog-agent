@@ -58,7 +58,7 @@ struct bpf_map_def SEC("maps/symbol_table") symbol_table = {
 #define FDPATH_SZ 32
 #define PREFIX_END 6
 #define MAX_UINT_LEN 10
-static int __always_inline parse_and_check_name(char* buffer) {
+__maybe_unused static int __always_inline parse_and_check_name(char* buffer) {
     // /proc/<MAX_UINT_LEN>/fd/<MAX_UINT_LEN>
     char *pidptr = buffer+PREFIX_END;
     int pid = 0;
@@ -96,7 +96,7 @@ static int __always_inline parse_and_check_name(char* buffer) {
     return pid;
 }
 
-static int __always_inline user_path_at_empty_x64(struct pt_regs* ctx) {
+__maybe_unused static int __always_inline user_path_at_empty_x64(struct pt_regs* ctx) {
     char* name = (char *)PT_REGS_PARM2(ctx);
     char buffer[FDPATH_SZ];
     if (name == 0)
@@ -117,7 +117,7 @@ static int __always_inline user_path_at_empty_x64(struct pt_regs* ctx) {
     return 0;
 }
 
-static int __always_inline user_path_at_empty_arm64(struct pt_regs* ctx) {
+__maybe_unused static int __always_inline user_path_at_empty_arm64(struct pt_regs* ctx) {
     struct path* path = (struct path *)PT_REGS_PARM4(ctx);
     if (path == 0)
         return 0;
@@ -140,8 +140,7 @@ int kprobe__user_path_at_empty(struct pt_regs* ctx) {
 #endif
 }
 
-#if defined(__aarch64__)
-static int __always_inline parse_pid_from_dentry(struct pt_regs* ctx) {
+__maybe_unused static int __always_inline parse_pid_from_dentry(struct pt_regs* ctx) {
     long pid = 0;
     struct qstr d_name = {0};
     char name[MAX_UINT_LEN];
@@ -196,7 +195,6 @@ static int __always_inline parse_pid_from_dentry(struct pt_regs* ctx) {
 
     return 0;
 }
-#endif
 
 SEC("kretprobe/user_path_at_empty")
 int kretprobe__user_path_at_empty(struct pt_regs* ctx) {
