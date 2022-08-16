@@ -77,10 +77,10 @@ func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integra
 					return
 				}
 
-				changes := k.processEvents(evBundle)
-				if !changes.IsEmpty() {
-					outCh <- changes
-				}
+				// send changes even when they're empty, as we
+				// need to signal that an event has been
+				// received, for flow control reasons
+				outCh <- k.processEvents(evBundle)
 
 				close(evBundle.Ch)
 			}
