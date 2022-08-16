@@ -84,7 +84,8 @@ const (
 // is running concurrently
 var lock_lastPdhRefreshTime sync.Mutex
 // tracks last time a refresh was successful
-// initialize with process init time
+// initialize with process init time as that is when
+// the PDH object cache is implicitly created/refreshed.
 var lastPdhRefreshTime = atomic.NewTime(time.Now())
 func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// Refresh the Windows internal PDH Object cache
@@ -98,11 +99,6 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	//
 
 	var len uint32
-	var lock_held bool
-
-	// forceRefresh can trigger a refresh without taking the lock
-	// so we track if we need to unlock or not
-	lock_held = false
 
 	// Only refresh at most every PDH_REFRESH_INTERVAL seconds
 	// or when forceRefresh=true
@@ -111,12 +107,11 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		//       we don't need to block here
 		//       worst case the counter is skipped again until next interval.
 		lock_lastPdhRefreshTime.Lock()
-		lock_held = true
+		defer lock_lastPdhRefreshTime.Unlock()
 		timenow := time.Now()
 		// time.Time.Sub() uses a monotonic clock
 		if timenow.Sub(lastPdhRefreshTime.Load()).Seconds() < PDH_REFRESH_INTERVAL {
 			// too soon, skip refresh
-			lock_lastPdhRefreshTime.Unlock()
 			return false, nil
 		}
 	}
@@ -136,9 +131,6 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	if r != PDH_MORE_DATA {
 		e := fmt.Sprintf("Failed to refresh performance counters (%#x)", r)
 		log.Errorf(e)
-		if lock_held {
-			lock_lastPdhRefreshTime.Unlock()
-		}
 		return false, fmt.Errorf(e)
 	}
 
@@ -146,9 +138,6 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	log.Infof("Successfully refreshed performance counters!")
 	// update time
 	lastPdhRefreshTime.Store(time.Now())
-	if lock_held {
-		lock_lastPdhRefreshTime.Unlock()
-	}
 	return true, nil
 }
 func ForceRefreshPdhObjectCache() (didrefresh bool, err error) {
