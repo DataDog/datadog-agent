@@ -32,8 +32,8 @@ const (
 	inodePidMap    = "inode_pid_map"
 )
 
-var kernelSyms = []string{"sockfs_inode_ops", "tcp_prot", "inet_stream_ops"}
-var kernelSymIds = map[string]int{"sockfs_inode_ops": 1, "tcp_prot": 2, "inet_stream_ops": 3}
+var kernelSyms = []string{"sockfs_listxattr", "inet_stream_connect"}
+var kernelSymIds = map[string]int{"sockfs_listxattr": 1, "inet_stream_connect": 2}
 
 type ebpfProgram struct {
 	*manager.Manager

@@ -7,9 +7,8 @@
 #include <net/sock.h>
 #include <linux/socket.h>
 
-#define SOCKET_INODE_OPS_ID 1
-#define TCP_OPS_ID 2
-#define INET_OPS_ID 3
+#define SOCKET_INODE_FS_FN 1
+#define INET_STREAM_CONNECT 2
 
 // This map is used by unit tests to validate 
 // that the correct mapping was performed
@@ -215,18 +214,23 @@ static __always_inline void map_sock_to_pid(struct socket* sock, int pid) {
     bpf_map_update_elem(&sock_to_pid, &sk, &pid, BPF_NOEXIST);
 }
 
-static __always_inline int fingerprint_tcp_inet_ops(struct socket* sock) {
-    struct proto_ops *pops = 0;
+static __always_inline int fingerprint_inet_socket(struct socket* sock) {
+    struct proto_ops *inet_ops = 0;
+    void *connect_fn = 0;
 
-    KERNEL_READ_FAIL(&pops, sizeof(struct proto_ops *), &sock->ops);
-    if (!pops)
+    KERNEL_READ_FAIL(&inet_ops, sizeof(struct proto_ops *), &sock->ops);
+    if (!inet_ops)
         return 0;
 
-    u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &pops);
+    KERNEL_READ_FAIL(&connect_fn, sizeof(void *), &inet_ops->connect);
+    if (!connect_fn)
+        return 0;
+
+    u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &connect_fn);
     if (!addr_id)
         return 0;
 
-    if ((*addr_id == TCP_OPS_ID) || (*addr_id == INET_OPS_ID)) {
+    if (*addr_id == INET_STREAM_CONNECT) {
         return 1;
     }
 
@@ -235,20 +239,24 @@ static __always_inline int fingerprint_tcp_inet_ops(struct socket* sock) {
 
 static __always_inline int is_socket_inode(struct inode* inode) {
     struct inode_operations* i_op = 0;
+    void* listxattr_fn = 0;
 
     KERNEL_READ_FAIL(&i_op, sizeof(struct inode_operations *), &inode->i_op);
     if (!i_op)
         return 0;
 
+    KERNEL_READ_FAIL(&listxattr_fn, sizeof(void *), &i_op->listxattr);
+    if (!listxattr_fn)
+        return 0;
+
     // The inode_operations of a file wrapping a struct socket object
     // are allocated here: sock_alloc(): https://elixir.bootlin.com/linux/v4.4/source/net/socket.c#L552
-    // We check the if the pointer is to the sockfs_inode_ops object to fingerprint
-    // a socket inode.
-    u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &i_op);
+    // We check the if the listxattr function is sockfs_listxattr
+    u32 *addr_id = bpf_map_lookup_elem(&symbol_table, &listxattr_fn);
     if (!addr_id)
         return 0;
 
-    return *addr_id == SOCKET_INODE_OPS_ID;
+    return *addr_id == SOCKET_INODE_FS_FN;
 }
 
 static __always_inline struct socket *get_socket_from_dentry(struct dentry *dentry) {
@@ -300,7 +308,7 @@ int kprobe__d_path(struct pt_regs* ctx) {
     if (!socket)
         return 0;
 
-    if (!fingerprint_tcp_inet_ops(socket))
+    if (!fingerprint_inet_socket(socket))
         return 0;
 
     map_inode_to_pid(socket, pid);

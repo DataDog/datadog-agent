@@ -105,7 +105,7 @@ func TestPidMapper(t *testing.T) {
 
 	present := false
 	for iter.Next(unsafe.Pointer(&sock), unsafe.Pointer(&pid)) {
-		t.Logf("%d -> %d\n", sock, pid)
+		t.Logf("%x -> %d\n", sock, pid)
 		if pid != serverPid {
 			continue
 		}
