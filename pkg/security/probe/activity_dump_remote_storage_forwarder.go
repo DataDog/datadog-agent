@@ -10,11 +10,7 @@ package probe
 
 import (
 	"bytes"
-	"compress/gzip"
-	"fmt"
 	"path"
-	strings "strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -43,20 +39,11 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() dump.Storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 
 	if request.Compression {
-		var tmpBuf bytes.Buffer
-		zw := gzip.NewWriter(&tmpBuf)
-		zw.Name = strings.TrimSuffix(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), ".gz")
-		zw.ModTime = time.Now()
-		if _, err := zw.Write(raw.Bytes()); err != nil {
-			return fmt.Errorf("couldn't compress activity dump: %w", err)
+		tmpRaw, err := doGZipCompression(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), raw.Bytes())
+		if err != nil {
+			return err
 		}
-		if err := zw.Flush(); err != nil {
-			return fmt.Errorf("couldn't compress activity dump: %w", err)
-		}
-		if err := zw.Close(); err != nil {
-			return fmt.Errorf("couldn't compress activity dump: %w", err)
-		}
-		raw = &tmpBuf
+		raw = tmpRaw
 	}
 
 	// set activity dump size for current encoding
