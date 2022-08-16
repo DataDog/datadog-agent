@@ -62,6 +62,8 @@
 # ----------------------------------------------
 
 kitchen_ubuntu_install_script_agent-a6_x64:
+  rules:
+    !reference [.on_default_kitchen_tests_a6]
   extends:
     - .kitchen_scenario_ubuntu_a6_x64
     - .kitchen_test_install_script_agent
