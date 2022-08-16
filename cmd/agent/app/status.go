@@ -153,10 +153,8 @@ func requestStatus() error {
 		if err != nil {
 			return err
 		}
-		s = formattedStatus
+		s = scrubMessage(formattedStatus)
 	}
-
-	s = scrubMessage(s)
 
 	if statusFilePath != "" {
 		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
@@ -210,10 +208,8 @@ func componentStatus(component string) error {
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else {
-		s = string(r)
+		s = scrubMessage(string(r))
 	}
-
-	s = scrubMessage(s)
 
 	if statusFilePath != "" {
 		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
