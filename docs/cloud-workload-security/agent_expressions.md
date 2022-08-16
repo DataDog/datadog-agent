@@ -378,9 +378,9 @@ A DNS request was sent
 | -------- | ---- | ---------- | --------- |
 | `dns.question.class` | int | the class looked up by the DNS question | DNS qclasses |
 | `dns.question.count` | int | the total count of questions in the DNS request |  |
+| `dns.question.length` | int | the total DNS request size in bytes |  |
 | `dns.question.name` | string | the queried domain name |  |
 | `dns.question.name.length` | int | the queried domain name |  |
-| `dns.question.size` | int | the total DNS request size in bytes |  |
 | `dns.question.type` | int | a two octet code which specifies the DNS question type | DNS qtypes |
 
 ### Event `exec`

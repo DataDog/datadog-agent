@@ -554,6 +554,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "dns.question.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).DNS.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.DNSNameCmp,
@@ -568,14 +576,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: eval.DNSNameCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				return len((*Event)(ctx.Object).DNS.Name)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "dns.question.size":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).DNS.Size)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -8239,9 +8239,9 @@ func (e *Event) GetFields() []eval.Field {
 		"container.tags",
 		"dns.question.class",
 		"dns.question.count",
+		"dns.question.length",
 		"dns.question.name",
 		"dns.question.name.length",
-		"dns.question.size",
 		"dns.question.type",
 		"exec.args",
 		"exec.args_flags",
@@ -9051,12 +9051,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.DNS.Class), nil
 	case "dns.question.count":
 		return int(e.DNS.Count), nil
+	case "dns.question.length":
+		return int(e.DNS.Size), nil
 	case "dns.question.name":
 		return e.DNS.Name, nil
 	case "dns.question.name.length":
 		return len(e.DNS.Name), nil
-	case "dns.question.size":
-		return int(e.DNS.Size), nil
 	case "dns.question.type":
 		return int(e.DNS.Type), nil
 	case "exec.args":
@@ -12014,11 +12014,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "dns.question.count":
 		return "dns", nil
+	case "dns.question.length":
+		return "dns", nil
 	case "dns.question.name":
 		return "dns", nil
 	case "dns.question.name.length":
-		return "dns", nil
-	case "dns.question.size":
 		return "dns", nil
 	case "dns.question.type":
 		return "dns", nil
@@ -13507,11 +13507,11 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "dns.question.count":
 		return reflect.Int, nil
+	case "dns.question.length":
+		return reflect.Int, nil
 	case "dns.question.name":
 		return reflect.String, nil
 	case "dns.question.name.length":
-		return reflect.Int, nil
-	case "dns.question.size":
 		return reflect.Int, nil
 	case "dns.question.type":
 		return reflect.Int, nil
@@ -15273,6 +15273,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.DNS.Count = uint16(v)
 		return nil
+	case "dns.question.length":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
+		}
+		e.DNS.Size = uint16(v)
+		return nil
 	case "dns.question.name":
 		str, ok := value.(string)
 		if !ok {
@@ -15282,13 +15289,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "dns.question.name.length":
 		return &eval.ErrFieldReadOnly{Field: "DNS.Name.length"}
-	case "dns.question.size":
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
-		}
-		e.DNS.Size = uint16(v)
-		return nil
 	case "dns.question.type":
 		v, ok := value.(int)
 		if !ok {

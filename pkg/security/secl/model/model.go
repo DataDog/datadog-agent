@@ -876,7 +876,7 @@ type DNSEvent struct {
 	Name  string `field:"question.name,opts:length" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
 	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`                    // a two octet code which specifies the DNS question type
 	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`                // the class looked up by the DNS question
-	Size  uint16 `field:"question.size" msg:"size"`                                           // the total DNS request size in bytes
+	Size  uint16 `field:"question.length" msg:"length"`                                       // the total DNS request size in bytes
 	Count uint16 `field:"question.count" msg:"count"`                                         // the total count of questions in the DNS request
 }
 
