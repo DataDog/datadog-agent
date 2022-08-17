@@ -102,7 +102,7 @@
     <SetProperty Id="PROJECTLOCATIONONCMDLINESLASH" Value="[PROJECTLOCATION]\" Before="AppSearch">PROJECTLOCATION </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINE" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
-    
+
     <!--
       The following property is set to either C:\ProgramData\Datadog or to the value of [APPLICATIONDATADIRECTORY]
       if it is provided as installation parameter. This property will be used during AppSearch phase to detect
@@ -118,7 +118,7 @@
       "3" refers to the action state "on the local computer" (which is the only one we support besides "not present", which happens to be "2")
 
       So, the NPMFEATURESTATE property will be set to "off" if the NPM feature is no installed on the local computer
-      and will be set to "on" if it is used on the local computer.  
+      and will be set to "on" if it is used on the local computer.
 
       This flag will be used in the custom action to decide what service dependencies need to be set
 
@@ -174,7 +174,7 @@
       </Directory>
     </Directory>
 
-    <!-- Detect existence of datadog.yaml file -->    
+    <!-- Detect existence of datadog.yaml file -->
     <Property Id="DATADOGYAMLEXISTS">
       <DirectorySearch Id="DatadogYamlSearchDirId" Path="[APPLICATIONDATADIRECTORY_BEFORE_APPSEARCH]" Depth="0" AssignToProperty="yes">
         <FileSearch Id="DatadogYamlSearchFileId" Name="datadog.yaml"/>
@@ -466,8 +466,8 @@
            installer is called twice; the existing (previously installed)
            installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
-      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
-      <Custom Action='FinalizeInstall' Before='StartServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
+      <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE<>"ALL" ]]> </Custom>
+      <Custom Action='FinalizeInstall' Before='StartServices'>       <![CDATA[Installed="" OR REMOVE<>"ALL" ]]> </Custom>
 
       <!-- Same deal here -->
       <Custom Action='StartDDServices' After='StartServices'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
@@ -678,7 +678,7 @@
       This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
       At runtime this limitation doesn\'t seem to apply.
     -->
-    
+
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
             UILevel=[UILevel]
