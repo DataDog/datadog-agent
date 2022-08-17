@@ -616,7 +616,7 @@ def generate_ad_proto(ctx):
 @task
 def generate_cws_proto(ctx):
     # API
-    ctx.run(f"protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto")
+    ctx.run("protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto")
 
     # Activity Dumps
     generate_ad_proto(ctx)
