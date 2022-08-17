@@ -517,19 +517,22 @@ func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.ctxSwitches.Involuntary = v
 		}
 	case "VmRSS":
-		value := strings.TrimSuffix(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.RSS = v * 1024
 		}
 	case "VmSize":
-		value := strings.TrimSuffix(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.VMS = v * 1024
 		}
 	case "VmSwap":
-		value := strings.TrimSuffix(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.Swap = v * 1024
