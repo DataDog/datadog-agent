@@ -647,7 +647,6 @@ class FailingTask:
 def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
-        [generate_cws_proto],
         [generate_cws_documentation],
         [gen_mocks],
         [generate_runtime_files],
