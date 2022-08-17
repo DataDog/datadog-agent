@@ -332,7 +332,7 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 .on_deploy_a6_manual:
   - <<: *if_not_version_6
@@ -349,7 +349,7 @@ variables:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 # Same as on_deploy_a6_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
@@ -370,7 +370,7 @@ variables:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 # This rule is a variation of on_deploy_a6_manual where
 # the job is usually run manually, except when the pipeline
@@ -393,12 +393,12 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 .on_deploy_a7:
   - <<: *if_not_version_7
@@ -415,7 +415,7 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 .on_deploy_a7_manual:
   - <<: *if_not_version_7
@@ -434,7 +434,7 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 # Same as on_deploy_a7_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
@@ -457,7 +457,7 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 # This rule is a variation of on_deploy_a7_manual where
 # the job is usually run manually, except when the pipeline
@@ -481,13 +481,13 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
+      IMG_REGISTRIES: internal-aws-ddbuild,public
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
