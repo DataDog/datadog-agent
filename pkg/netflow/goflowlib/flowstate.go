@@ -7,6 +7,7 @@ package goflowlib
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 
 	"github.com/netsampler/goflow2/utils"
 
@@ -36,10 +37,10 @@ type FlowRunnableState interface {
 }
 
 // StartFlowRoutine starts one of the goflow flow routine depending on the flow type
-func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow) (*FlowStateWrapper, error) {
+func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, sender aggregator.Sender, agentHost string) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
-	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace)
+	formatDriver := NewAggregatorFormatDriver(sender, namespace, agentHost)
 	logger := GetLogrusLevel()
 
 	switch flowType {

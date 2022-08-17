@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
 
-func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
+func BuildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos
 		FlowType:     string(aggFlow.FlowType),

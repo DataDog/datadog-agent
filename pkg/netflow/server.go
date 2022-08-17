@@ -44,12 +44,12 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 		hostnameDetected = ""
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostnameDetected)
-	go flowAgg.Start()
+	//flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostnameDetected)
+	//go flowAgg.Start()
 
 	for _, listenerConfig := range mainConfig.Listeners {
 		log.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
-		listener, err := startFlowListener(listenerConfig, flowAgg)
+		listener, err := startFlowListener(listenerConfig, sender, hostnameDetected)
 		if err != nil {
 			log.Warnf("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d): %s", listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, err)
 			continue
@@ -60,7 +60,7 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 	return &Server{
 		listeners: listeners,
 		config:    mainConfig,
-		flowAgg:   flowAgg,
+		//flowAgg:   flowAgg,
 	}, nil
 }
 
@@ -68,7 +68,7 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 func (s *Server) stop() {
 	log.Infof("Stop NetFlow Server")
 
-	s.flowAgg.Stop()
+	//s.flowAgg.Stop()
 
 	for _, listener := range s.listeners {
 		stopped := make(chan interface{})
