@@ -21,7 +21,6 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -142,7 +141,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 	// push a temporary discarder on the noisiest process & event type tuple
 	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
 	if err := lc.probe.pidDiscarders.discardWithTimeout(&erpcRequest, allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
-		log.Warnf("couldn't insert temporary discarder: %v", err)
+		seclog.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
 
@@ -157,7 +156,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 	if lc.NoisyProcessCustomEventRate.Allow() {
 		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 		if process == nil {
-			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
+			seclog.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
 			return
 		}
 
