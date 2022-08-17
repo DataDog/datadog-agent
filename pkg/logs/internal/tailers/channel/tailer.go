@@ -81,12 +81,20 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		if logline.Lambda != nil {
-			t.outputChan <- message.NewMessageFromLambda(logline.Content, origin, message.StatusInfo, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
-		} else {
-			t.outputChan <- message.NewMessage(logline.Content, origin, message.StatusInfo, time.Now().UnixNano())
-		}
+		t.outputChan <- buildMessage(logline, origin)
 	}
+}
+
+func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *message.Message {
+	status := message.StatusInfo
+	if logline.IsError {
+		status = message.StatusError
+	}
+
+	if logline.Lambda != nil {
+		return message.NewMessageFromLambda(logline.Content, origin, status, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
+	}
+	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano())
 }
 
 func computeServiceName(lambdaConfig *config.Lambda, serviceName string) string {
