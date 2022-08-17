@@ -9,4 +9,4 @@
 enhancements:
   - |
     Add `CreateContainerError` and `InvalidImageName` to waiting reasons
-    for `kubernetes.container.status_report.count.waiting`.
+    for `kubernetes_state.container.status_report.count.waiting`.
