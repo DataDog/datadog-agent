@@ -248,7 +248,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper)
+	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper, p.statsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()

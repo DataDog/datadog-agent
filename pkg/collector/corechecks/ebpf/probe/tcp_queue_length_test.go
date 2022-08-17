@@ -32,7 +32,7 @@ func TestTCPQueueLengthCompile(t *testing.T) {
 
 	cfg := ebpf.NewConfig()
 	cfg.BPFDebug = true
-	_, err = runtime.TcpQueueLength.Compile(cfg, nil)
+	_, err = runtime.TcpQueueLength.Compile(cfg, nil, nil)
 	require.NoError(t, err)
 }
 
