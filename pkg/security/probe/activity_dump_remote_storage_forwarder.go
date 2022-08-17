@@ -10,7 +10,6 @@ package probe
 
 import (
 	"bytes"
-	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -37,23 +36,13 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() dump.Storage
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
-
-	if request.Compression {
-		tmpRaw, err := doGZipCompression(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), raw.Bytes())
-		if err != nil {
-			return err
-		}
-		raw = tmpRaw
-	}
-
 	// set activity dump size for current encoding
-	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
+	ad.DumpMetadata.Size = uint64(raw.Len())
 
 	// generate stream message
 	msg := &api.ActivityDumpStreamMessage{
-		Dump:         ad.ToSecurityActivityDumpMessage(),
-		IsCompressed: request.Compression,
-		Data:         raw.Bytes(),
+		Dump: ad.ToSecurityActivityDumpMessage(),
+		Data: raw.Bytes(),
 	}
 
 	// override storage request so that it contains only the current persisted data
