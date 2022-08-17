@@ -600,7 +600,7 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
 
 def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    flags = get_ebpf_build_flags(target=["-target", "bpf"], kernel_release=kernel_release)
+    flags = get_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     flags.append(f"-D__{uname_m}__")
     flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
@@ -614,12 +614,11 @@ def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
 
     network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
 
-    build_network_ebpf_compile_file(
-        ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
-    )
-    build_network_ebpf_compile_file(
-        ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
-    )
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", True, network_flags)
+
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", False, network_flags)
 
 
 def get_network_build_flags(network_c_dir, kernel_release=None):
