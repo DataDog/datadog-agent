@@ -34,7 +34,7 @@ const (
 
 	// Node config
 	nodeOptionsKey   = "NODE_OPTIONS"
-	nodeOptionsValue = " --require=/autoinstrumentation/node_modules/dd-trace/init"
+	nodeOptionsValue = " --require=/datadog-lib/node_modules/dd-trace/init"
 )
 
 var (

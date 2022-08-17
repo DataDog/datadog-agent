@@ -11,6 +11,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
@@ -76,10 +77,10 @@ func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integra
 					return
 				}
 
-				changes := k.processEvents(evBundle)
-				if !changes.IsEmpty() {
-					outCh <- changes
-				}
+				// send changes even when they're empty, as we
+				// need to signal that an event has been
+				// received, for flow control reasons
+				outCh <- k.processEvents(evBundle)
 
 				close(evBundle.Ch)
 			}
@@ -108,28 +109,30 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 				delete(k.configErrors, entityName)
 			}
 
-			configsToAdd := make(map[string]integration.Config)
+			configCache, ok := k.configCache[entityName]
+			if !ok {
+				configCache = make(map[string]integration.Config)
+				k.configCache[entityName] = configCache
+			}
+
+			configsToUnschedule := make(map[string]integration.Config)
+			for digest, config := range configCache {
+				configsToUnschedule[digest] = config
+			}
+
 			for _, config := range configs {
-				configsToAdd[config.Digest()] = config
-			}
-
-			oldConfigs, found := k.configCache[entityName]
-			if found {
-				for digest, config := range oldConfigs {
-					_, ok := configsToAdd[digest]
-					if ok {
-						delete(configsToAdd, digest)
-					} else {
-						delete(k.configCache[entityName], digest)
-						changes.Unschedule = append(changes.Unschedule, config)
-					}
+				digest := config.Digest()
+				if _, ok := configCache[digest]; ok {
+					delete(configsToUnschedule, digest)
+				} else {
+					configCache[digest] = config
+					changes.ScheduleConfig(config)
 				}
-			} else {
-				k.configCache[entityName] = configsToAdd
 			}
 
-			for _, config := range configsToAdd {
-				changes.Schedule = append(changes.Schedule, config)
+			for oldDigest, oldConfig := range configsToUnschedule {
+				delete(configCache, oldDigest)
+				changes.UnscheduleConfig(oldConfig)
 			}
 
 		case workloadmeta.EventTypeUnset:
@@ -163,19 +166,21 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 
 	switch entity := e.(type) {
 	case *workloadmeta.Container:
-		containerID := entity.GetID().ID
-		containerEntityName := containers.BuildEntityName(string(entity.Runtime), containerID)
-		configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, entity.Labels)
+		// kubernetes containers need to be handled together with their
+		// pod, so they generate a single []integration.Config.
+		// otherwise, it's possible for a container that belongs to an
+		// AD-annotated pod to briefly be scheduled without its
+		// annotations.
+		if !findKubernetesInLabels(entity.Labels) {
+			configs, errs = k.generateContainerConfig(entity)
 
-		// AddContainerCollectAllConfigs is only needed when handling
-		// the container event, even when the container belongs to a
-		// pod. Calling it when handling the KubernetesPod will always
-		// result in a duplicated config, as each KubernetesPod will
-		// also generate events for each of its containers.
-		configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
+			containerID := entity.ID
+			containerEntityName := containers.BuildEntityName(string(entity.Runtime), containerID)
+			configs = utils.AddContainerCollectAllConfigs(configs, containerEntityName)
 
-		for idx := range configs {
-			configs[idx].Source = names.Container + ":" + containerEntityName
+			for idx := range configs {
+				configs[idx].Source = names.Container + ":" + containerEntityName
+			}
 		}
 
 	case *workloadmeta.KubernetesPod:
@@ -188,17 +193,35 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 				continue
 			}
 
+			var (
+				c      []integration.Config
+				errors []error
+			)
+
+			c, errors = k.generateContainerConfig(container)
+			configs = append(configs, c...)
+			errs = append(errs, errors...)
+
 			adIdentifier := podContainer.Name
 			if customADID, found := utils.ExtractCheckIDFromPodAnnotations(entity.Annotations, podContainer.Name); found {
 				adIdentifier = customADID
 			}
 
 			containerEntity := containers.BuildEntityName(string(container.Runtime), container.ID)
-			c, errors := utils.ExtractTemplatesFromPodAnnotations(
+			c, errors = utils.ExtractTemplatesFromPodAnnotations(
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,
 			)
+
+			// container_collect_all configs must be added after
+			// configs generated from annotations, since services
+			// are reconciled against configs one-by-one instead of
+			// as a set, so if a container_collect_all config
+			// appears before an annotation one, it'll cause a logs
+			// config to be scheduled as container_collect_all,
+			// unscheduled, and then re-scheduled correctly.
+			c = utils.AddContainerCollectAllConfigs(c, containerEntity)
 
 			if len(errors) > 0 {
 				errs = append(errs, errors...)
@@ -213,7 +236,7 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 			containerNames[podContainer.Name] = struct{}{}
 
 			for idx := range c {
-				c[idx].Source = "kubelet:" + containerEntity
+				c[idx].Source = names.Container + ":" + containerEntity
 			}
 
 			configs = append(configs, c...)
@@ -236,6 +259,19 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 	}
 
 	return configs, errMsgSet
+}
+
+func (k *KubeContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {
+	var (
+		errs    []error
+		configs []integration.Config
+	)
+
+	containerID := container.ID
+	containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
+	configs, errs = utils.ExtractTemplatesFromContainerLabels(containerEntityName, container.Labels)
+
+	return configs, errs
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod
@@ -262,6 +298,17 @@ func buildEntityName(e workloadmeta.Entity) string {
 	default:
 		return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
 	}
+}
+
+// findKubernetesInLabels traverses a map of container labels and
+// returns true if a kubernetes label is detected
+func findKubernetesInLabels(labels map[string]string) bool {
+	for name := range labels {
+		if strings.HasPrefix(name, "io.kubernetes.") {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

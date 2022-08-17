@@ -60,7 +60,97 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
-	go GenerateEnhancedMetricsFromReportLog(100.0, 1000.0, 800.0, 1024.0, 256.0, reportLogTime, tags, demux)
+	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
+	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
+	args := GenerateEnhancedMetricsFromReportLogArgs{
+		InitDurationMs:   100.0,
+		DurationMs:       1000.0,
+		BilledDurationMs: 800.0,
+		MemorySizeMb:     1024.0,
+		MaxMemoryUsedMb:  256.0,
+		RuntimeStart:     runtimeStartTime,
+		RuntimeEnd:       runtimeEndTime,
+		T:                reportLogTime,
+		Tags:             tags,
+		Demux:            demux,
+	}
+	go GenerateEnhancedMetricsFromReportLog(args)
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+
+	assert.Equal(t, generatedMetrics[:7], []metrics.MetricSample{{
+		Name:       maxMemoryUsedMetric,
+		Value:      256.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}, {
+		Name:       memorySizeMetric,
+		Value:      1024.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}, {
+		Name:       billedDurationMetric,
+		Value:      0.80,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}, {
+		Name:       durationMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}, {
+		Name:       estimatedCostMetric,
+		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}, {
+		Name:       postRuntimeDurationMetric,
+		Value:      990.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}, {
+		Name:       initDurationMetric,
+		Value:      0.1,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+	}})
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	tags := []string{"functionname:test-function"}
+	reportLogTime := time.Now()
+	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
+	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
+	args := GenerateEnhancedMetricsFromReportLogArgs{
+		InitDurationMs:   0,
+		DurationMs:       1000.0,
+		BilledDurationMs: 800.0,
+		MemorySizeMb:     1024.0,
+		MaxMemoryUsedMb:  256.0,
+		RuntimeStart:     runtimeStartTime,
+		RuntimeEnd:       runtimeEndTime,
+		T:                reportLogTime,
+		Tags:             tags,
+		Demux:            demux,
+	}
+	go GenerateEnhancedMetricsFromReportLog(args)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -100,57 +190,8 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
 	}, {
-		Name:       initDurationMetric,
-		Value:      0.1,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
-	}})
-	assert.Len(t, timedMetrics, 0)
-}
-
-func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
-	defer demux.Stop(false)
-	tags := []string{"functionname:test-function"}
-	reportLogTime := time.Now()
-
-	go GenerateEnhancedMetricsFromReportLog(0, 1000.0, 800.0, 1024.0, 256.0, reportLogTime, tags, demux)
-
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
-
-	assert.Equal(t, generatedMetrics[:5], []metrics.MetricSample{{
-		Name:       maxMemoryUsedMetric,
-		Value:      256.0,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
-	}, {
-		Name:       memorySizeMetric,
-		Value:      1024.0,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
-	}, {
-		Name:       billedDurationMetric,
-		Value:      0.80,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
-	}, {
-		Name:       durationMetric,
-		Value:      1.0,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
-	}, {
-		Name:       estimatedCostMetric,
-		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
+		Name:       postRuntimeDurationMetric,
+		Value:      990.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
