@@ -9,165 +9,177 @@ package kubernetesapiserver
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
-	cache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason, message, typ string, timestamp int64) *v1.Event {
+	return &v1.Event{
+		InvolvedObject: v1.ObjectReference{
+			Name:      objname,
+			Kind:      objkind,
+			UID:       types.UID(objuid),
+			Namespace: namespace,
+		},
+		Count: count,
+		Source: v1.EventSource{
+			Component: component,
+			Host:      hostname,
+		},
+		Reason: reason,
+		FirstTimestamp: metav1.Time{
+			Time: time.Unix(timestamp, 0),
+		},
+		LastTimestamp: metav1.Time{
+			Time: time.Unix(timestamp, 0),
+		},
+		Message: message,
+		Type:    typ,
+	}
+}
+
 func TestFormatEvent(t *testing.T) {
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", 709662600)
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", 709662600)
+	objUID := "e6417a7f-f566-11e7-9749-0e4863e1cbf4"
+	podName := "dca-789976f5d7-2ljx6"
+	timestamp := int64(709662600)
+	nodeName := "machine-blue"
+	clusterName := "test-cluster"
 
-	eventList := []*v1.Event{
-		ev1,
-		ev2,
-	}
-	b := &kubernetesEventBundle{
-		name:          "dca-789976f5d7-2ljx6",
-		events:        eventList,
-		objUID:        types.UID("some_id"),
-		component:     "Pod",
-		kind:          "Pod",
-		countByAction: make(map[string]int),
-	}
-
-	expectedOutput := metrics.Event{
-		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
-		Priority:       metrics.EventPriorityNormal,
-		Host:           "",
-		SourceTypeName: "kubernetes",
-		EventType:      kubernetesAPIServerCheckName,
-		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("pod_name:%s", b.name)},
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
-	}
-	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
-
-	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
-	output, err := b.formatEvents("", providerIDCache)
-
-	assert.Nil(t, err, "not nil")
-	assert.Equal(t, expectedOutput.Text, output.Text)
-	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
-}
-
-func TestFormatEventEscapeCharacter(t *testing.T) {
-	event := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Failed", "Error: error response: filepath: ~file~", "Normal", 709662600)
-
-	b := &kubernetesEventBundle{
-		name:          "dca-789976f5d7-2ljx6",
-		objUID:        types.UID("e6417a7f-f566-11e7-9749-0e4863e1cbf4"),
-		component:     "Pod",
-		kind:          "Pod",
-		countByAction: make(map[string]int),
-	}
-
-	assert.NoError(t, b.addEvent(event))
-
-	expectedOutput := metrics.Event{
-		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
-		Priority:       metrics.EventPriorityNormal,
-		Host:           "",
-		SourceTypeName: "kubernetes",
-		EventType:      kubernetesAPIServerCheckName,
-		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("pod_name:%s", b.name), fmt.Sprintf("namespace:%s", "default"), fmt.Sprintf("kube_namespace:%s", "default")},
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
-	}
-	expectedOutput.Text = "%%% \n" +
-		"3 **Failed**: Error: error response: filepath: \\~file\\~\n" +
-		fmt.Sprintf(" \n _Events emitted by the %s seen at %s since %s_ \n", b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n" +
-		" %%%"
-
-	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
-	output, err := b.formatEvents("", providerIDCache)
-
-	assert.Nil(t, err, "not nil")
-	assert.Equal(t, expectedOutput.Text, output.Text)
-	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
-}
-
-func TestFormatEventWithNodename(t *testing.T) {
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", 709662600)
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", 709662600)
-
-	eventList := []*v1.Event{
-		ev1,
-		ev2,
-	}
-
-	clusterName := "test_cluster"
-	nodename := "test_nodename"
-	providerID := "test_provider_ID"
-
-	b := &kubernetesEventBundle{
-		events:        eventList,
-		objUID:        types.UID("some_id"),
-		component:     "Pod",
-		kind:          "Pod",
-		name:          "dca-789976f5d7-2ljx6",
-		countByAction: make(map[string]int),
-		nodename:      nodename,
-	}
-
-	expectedOutput := metrics.Event{
-		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
-		Priority:       metrics.EventPriorityNormal,
-		Host:           nodename + "-" + clusterName,
-		SourceTypeName: "kubernetes",
-		EventType:      kubernetesAPIServerCheckName,
-		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("pod_name:%s", b.name), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("host_provider_id:%s", providerID)},
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
-	}
-	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
-
-	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
-	providerIDCache.Set(nodename, providerID, cache.NoExpiration)
-	output, err := b.formatEvents(clusterName, providerIDCache)
-
-	assert.Nil(t, err, "not nil")
-	assert.Equal(t, expectedOutput.Text, output.Text)
-	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
-}
-
-func Test_getDDAlertType(t *testing.T) {
 	tests := []struct {
-		name    string
-		k8sType string
-		want    metrics.EventAlertType
+		name           string
+		clusterName    string
+		hostProviderID string
+		events         []*v1.Event
+		expected       metrics.Event
 	}{
 		{
-			name:    "normal",
-			k8sType: "Normal",
-			want:    metrics.EventAlertTypeInfo,
+			name: "basic event",
+			events: []*v1.Event{
+				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
+				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Started", "Started container", "Normal", timestamp),
+			},
+			expected: metrics.Event{
+				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
+				Priority:       metrics.EventPriorityNormal,
+				SourceTypeName: "kubernetes",
+				EventType:      kubernetesAPIServerCheckName,
+				Ts:             timestamp,
+				Host:           nodeName,
+				Tags: []string{
+					"kube_namespace:default",
+					"kubernetes_kind:Pod",
+					"namespace:default",
+					"source_component:default-scheduler",
+					fmt.Sprintf("name:%s", podName),
+					fmt.Sprintf("pod_name:%s", podName),
+				},
+				AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", objUID),
+				Text: "%%% \n" + fmt.Sprintf(
+					"%s \n _Events emitted by the %s seen at %s since %s_ \n",
+					"2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n "+
+						"3 **Started**: Started container\n",
+					"default-scheduler",
+					time.Unix(timestamp, 0),
+					time.Unix(timestamp, 0),
+				) + "\n %%%",
+			},
 		},
 		{
-			name:    "warning",
-			k8sType: "Warning",
-			want:    metrics.EventAlertTypeWarning,
+			name: "event text escaping",
+			events: []*v1.Event{
+				createEvent(1, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Failed", "Error: error response: filepath: ~file~", "Normal", timestamp),
+			},
+			expected: metrics.Event{
+				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
+				Priority:       metrics.EventPriorityNormal,
+				SourceTypeName: "kubernetes",
+				EventType:      kubernetesAPIServerCheckName,
+				Ts:             timestamp,
+				Host:           nodeName,
+				Tags: []string{
+					"kube_namespace:default",
+					"kubernetes_kind:Pod",
+					"namespace:default",
+					"source_component:default-scheduler",
+					fmt.Sprintf("name:%s", podName),
+					fmt.Sprintf("pod_name:%s", podName),
+				},
+				AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", objUID),
+				Text: "%%% \n" + fmt.Sprintf(
+					"%s \n _Events emitted by the %s seen at %s since %s_ \n",
+					"1 **Failed**: Error: error response: filepath: \\~file\\~\n",
+					"default-scheduler",
+					time.Unix(timestamp, 0),
+					time.Unix(timestamp, 0),
+				) + "\n %%%",
+			},
 		},
 		{
-			name:    "unknown",
-			k8sType: "Unknown",
-			want:    metrics.EventAlertTypeInfo,
+			name:           "basic event with host info",
+			clusterName:    clusterName,
+			hostProviderID: "test-host-provider-id",
+			events: []*v1.Event{
+				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
+				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", "machine-blue", "Started", "Started container", "Normal", timestamp),
+			},
+			expected: metrics.Event{
+				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
+				Priority:       metrics.EventPriorityNormal,
+				SourceTypeName: "kubernetes",
+				EventType:      kubernetesAPIServerCheckName,
+				Ts:             timestamp,
+				Host:           fmt.Sprintf("%s-%s", nodeName, clusterName),
+				Tags: []string{
+					"kube_namespace:default",
+					"kubernetes_kind:Pod",
+					"namespace:default",
+					"source_component:default-scheduler",
+					"host_provider_id:test-host-provider-id",
+					fmt.Sprintf("name:%s", podName),
+					fmt.Sprintf("pod_name:%s", podName),
+				},
+				AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", objUID),
+				Text: "%%% \n" + fmt.Sprintf(
+					"%s \n _Events emitted by the %s seen at %s since %s_ \n",
+					"2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n "+
+						"3 **Started**: Started container\n",
+					"default-scheduler",
+					time.Unix(timestamp, 0),
+					time.Unix(timestamp, 0),
+				) + "\n %%%",
+			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getDDAlertType(tt.k8sType); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getDDAlertType() = %v, want %v", got, tt.want)
+			firstEv := tt.events[0]
+
+			hostProviderIDCache[firstEv.Source.Host] = tt.hostProviderID
+			defer delete(hostProviderIDCache, firstEv.Source.Host)
+
+			b := newKubernetesEventBundler(tt.clusterName, firstEv)
+
+			for _, ev := range tt.events {
+				b.addEvent(ev)
 			}
+
+			output, err := b.formatEvents()
+
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected.Text, output.Text)
+			assert.Equal(t, tt.expected.Host, output.Host)
+			assert.ElementsMatch(t, tt.expected.Tags, output.Tags)
 		})
 	}
+
 }
 
 func TestEventsTagging(t *testing.T) {
@@ -219,36 +231,11 @@ func TestEventsTagging(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bundle := newKubernetesEventBundler(tt.k8sEvent)
+			bundle := newKubernetesEventBundler("", tt.k8sEvent)
 			bundle.addEvent(tt.k8sEvent)
-			got, err := bundle.formatEvents("", cache.New(defaultCacheExpire, defaultCachePurge))
+			got, err := bundle.formatEvents()
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedTags, got.Tags)
 		})
 	}
 }
-
-func benchmarkEscapeEventMessage(nbEvents int, b *testing.B) {
-	eventMessage := "~" + strings.Repeat("event message ", 10) + "~"
-
-	var bundle *kubernetesEventBundle
-
-	for i := 0; i < nbEvents; i++ {
-		eventReason := fmt.Sprintf("Reason %d", i)
-		event := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", eventReason, eventMessage, "Normal", 709662600)
-
-		if i == 0 {
-			bundle = newKubernetesEventBundler(event)
-		}
-		bundle.addEvent(event)
-	}
-
-	for n := 0; n < b.N; n++ {
-		bundle.formatEventText()
-	}
-}
-
-func BenchmarkEscapeEventMessage1(b *testing.B)  { benchmarkEscapeEventMessage(1, b) }
-func BenchmarkEscapeEventMessage2(b *testing.B)  { benchmarkEscapeEventMessage(2, b) }
-func BenchmarkEscapeEventMessage5(b *testing.B)  { benchmarkEscapeEventMessage(5, b) }
-func BenchmarkEscapeEventMessage10(b *testing.B) { benchmarkEscapeEventMessage(10, b) }
