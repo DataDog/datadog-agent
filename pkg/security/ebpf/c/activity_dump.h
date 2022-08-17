@@ -177,12 +177,10 @@ __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAI
 
     u32 key = 0;
     struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
-    if (!counter) {
-        unlock_cgroups_counter();
-        return;
+    if (counter && counter->counter > 0) {
+        counter->counter -= 1;
     }
 
-    counter->counter -= 1;
     unlock_cgroups_counter();
 }
 

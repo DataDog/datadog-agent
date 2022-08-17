@@ -326,3 +326,46 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
 	})
 }
+
+func TestMaxHTTPStatsBuffered(t *testing.T) {
+	newConfig()
+	t.Cleanup(restoreGlobalConfig)
+
+	t.Run("value set through env var", func(t *testing.T) {
+		v := os.Getenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+		defer func() {
+			os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", v)
+		}()
+
+		err := os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
+		require.NoError(t, err)
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		cfg := configurationFromYAML(t, `
+network_config:
+  max_http_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
+	})
+}
+
+func configurationFromYAML(t *testing.T, yaml string) *Config {
+	f, err := os.CreateTemp("", "system-probe.*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	b := []byte(yaml)
+	n, err := f.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, len(b), n)
+	f.Sync()
+
+	_, err = sysconfig.New(f.Name())
+	require.NoError(t, err)
+	return New()
+}

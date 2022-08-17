@@ -257,7 +257,9 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 		return nil
 	}
 
-	socketNode := NewSocketNode(sn.Family)
+	socketNode := &SocketNode{
+		Family: sn.Family,
+	}
 
 	for _, bindNode := range sn.GetBind() {
 		socketNode.Bind = append(socketNode.Bind, &BindNode{

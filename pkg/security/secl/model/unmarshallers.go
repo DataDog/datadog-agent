@@ -29,7 +29,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalPrintableString(data, ContainerIDLen)
+	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
@@ -882,7 +882,11 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint16(data[4:6])
 	e.Class = ByteOrder.Uint16(data[6:8])
 	e.Size = ByteOrder.Uint16(data[8:10])
-	e.Name, _ = decodeDNSName(data[10:])
+	var err error
+	e.Name, err = decodeDNSName(data[10:])
+	if err != nil {
+		return 0, err
+	}
 	return len(data), nil
 }
 

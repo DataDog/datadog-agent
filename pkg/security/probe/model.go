@@ -212,14 +212,13 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 // UnmarshalProcessCacheEntry unmarshal a Process
 func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
 	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
+	ev.ProcessCacheEntry = entry
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
-
-	ev.ProcessCacheEntry = entry
 
 	return n, nil
 }

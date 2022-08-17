@@ -9,6 +9,8 @@ const (
 	// Below are used for inferred span tagging and enrichment
 	apiID            = "apiid"
 	apiName          = "apiname"
+	bucketARN        = "bucket_arn"
+	bucketName       = "bucketname"
 	connectionID     = "connection_id"
 	detailType       = "detail_type"
 	endpoint         = "endpoint"
@@ -24,9 +26,13 @@ const (
 	httpUserAgent    = "http.user_agent"
 	messageDirection = "message_direction"
 	messageID        = "message_id"
+	metadataType     = "type"
+	objectKey        = "object_key"
+	objectSize       = "object_size"
+	objectETag       = "object_etag"
 	operationName    = "operation_name"
-	queueName        = "queuename"
 	partitionKey     = "partition_key"
+	queueName        = "queuename"
 	receiptHandle    = "receipt_handle"
 	requestID        = "request_id"
 	resourceNames    = "resource_names"
@@ -41,7 +47,6 @@ const (
 	tableName        = "tablename"
 	topicName        = "topicname"
 	topicARN         = "topic_arn"
-	metadataType     = "type"
 
 	// Below are used for parsing and setting the event sources
 	sns = "sns"

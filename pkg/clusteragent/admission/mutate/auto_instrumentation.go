@@ -34,15 +34,15 @@ const (
 
 	// Node config
 	nodeOptionsKey   = "NODE_OPTIONS"
-	nodeOptionsValue = " --require=/autoinstrumentation/node_modules/dd-trace/init"
+	nodeOptionsValue = " --require=/datadog-lib/node_modules/dd-trace/init"
 )
 
 var (
-	tracerVersionAnnotationKeyFormat = "admission.datadoghq.com/%s-tracer.version"
-	customTracerAnnotationKeyFormat  = "admission.datadoghq.com/%s-tracer.custom-image"
-	supportedLanguages               = []string{
+	libVersionAnnotationKeyFormat = "admission.datadoghq.com/%s-lib.version"
+	customLibAnnotationKeyFormat  = "admission.datadoghq.com/%s-lib.custom-image"
+	supportedLanguages            = []string{
 		"java",
-		"node",
+		"js",
 	}
 )
 
@@ -76,12 +76,12 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 func extractLibInfo(pod *corev1.Pod, containerRegistry string) (string, string, bool) {
 	podAnnotations := pod.GetAnnotations()
 	for _, lang := range supportedLanguages {
-		if image, found := podAnnotations[fmt.Sprintf(customTracerAnnotationKeyFormat, lang)]; found {
+		if image, found := podAnnotations[fmt.Sprintf(customLibAnnotationKeyFormat, lang)]; found {
 			return lang, image, true
 		}
 
-		if version, found := podAnnotations[fmt.Sprintf(tracerVersionAnnotationKeyFormat, lang)]; found {
-			image := fmt.Sprintf("%s/dd-%s-agent-init:%s", containerRegistry, lang, version)
+		if version, found := podAnnotations[fmt.Sprintf(libVersionAnnotationKeyFormat, lang)]; found {
+			image := fmt.Sprintf("%s/dd-lib-%s-init:%s", containerRegistry, lang, version)
 			return lang, image, true
 		}
 	}
@@ -104,7 +104,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, language, image string) error {
 			return err
 		}
 
-	case "node":
+	case "js":
 		injectLibInitContainer(pod, image)
 		err := injectLibConfig(pod, nodeOptionsKey, nodeOptionsValue)
 		if err != nil {
