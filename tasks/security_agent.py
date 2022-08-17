@@ -612,6 +612,16 @@ def generate_ad_proto(ctx):
                 f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
 
+@task
+def generate_cws_proto(ctx):
+    # API
+    ctx.run(
+        f"protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto"
+    )
+
+    # Activity Dumps
+    generate_ad_proto(ctx)
+
 
 def get_git_dirty_files():
     dirty_stats = check_output(["git", "status", "--porcelain=v1"]).decode('utf-8')
