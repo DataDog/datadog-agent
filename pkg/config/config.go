@@ -1362,7 +1362,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
-			log.Debugf("Running in serverless environment - config file is expectedly missing: %v", err)
+			log.Debugf("No config file detected, using environment variable based configuration")
 			return &warnings, err
 		}
 		if errors.Is(err, os.ErrPermission) {
