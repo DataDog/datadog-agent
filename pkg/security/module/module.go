@@ -334,7 +334,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 				}, nil)
 			},
 		}).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	// approver ruleset
 	model := &model.Model{}
