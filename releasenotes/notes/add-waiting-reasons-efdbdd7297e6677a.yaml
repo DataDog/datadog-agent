@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Add CreateContainerError and InvalidImageName to waiting reasons for
-    kubernetes_state.container.status_report.count.waiting in the Kubernetes
-    State Core check.
