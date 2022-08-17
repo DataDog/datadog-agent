@@ -94,7 +94,7 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	// In cgroupv2, checking if we run in host cgroup namespace.
 	// If not we cannot fill PIDs for containers and do PID<>CID mapping.
 	if baseController == "" {
-		cgroupInode, err := GetProcessNamespaceInode("/proc", "self", "cgroup")
+		cgroupInode, err := getProcessNamespaceInode("/proc", "self", "cgroup")
 		if err == nil {
 			if isHostNs := IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
 				log.Warnf("Usage of cgroupv2 detected but the Agent does not seem to run in host cgroup namespace. Make sure to run with --cgroupns=host, some feature may not work otherwise")
@@ -107,8 +107,9 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	return pidMapper
 }
 
-// GetProcessNamespaceInode performs a stat() call on /proc/<pid>/ns/<namespace>
-func GetProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
+// getProcessNamespaceInode performs a stat() call on /proc/<pid>/ns/<namespace>
+// This has been copied from pkg/util/system/namespace_linux.go's GetProcessNamespaceInode
+func getProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
 	nsPath := filepath.Join(procPath, pid, "ns", namespace)
 	fi, err := os.Stat(nsPath)
 	if err != nil {
