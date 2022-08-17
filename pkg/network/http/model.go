@@ -10,6 +10,7 @@ package http
 
 import (
 	"encoding/hex"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -100,6 +101,7 @@ func (tx *httpTX) String() string {
 	fragment := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
 	output.WriteString("httpTX{")
 	output.WriteString("Method: '" + Method(tx.request_method).String() + "', ")
+	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags(), 16) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
