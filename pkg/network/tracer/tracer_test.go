@@ -1665,7 +1665,7 @@ func TestHTTPStats(t *testing.T) {
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpSupported(t) {
-		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
+		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
 	}
 	if !httpsSupported(t) {
 		t.Skip("HTTPS feature not available on ARM pre 5.5.0 kernels")
