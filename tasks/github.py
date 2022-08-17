@@ -25,7 +25,7 @@ def trigger_macos_build(
         major_version=major_version,
         python_runtimes=python_runtimes,
     )
-
+    print(f"trigger_macos_workflow returned run_id={run_id}")
     follow_workflow_run(run_id)
 
     download_artifacts(run_id, destination)
@@ -48,5 +48,5 @@ def trigger_macos_test(
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
     )
-
+    print(f"trigger_macos_workflow returned run_id={run_id}")
     follow_workflow_run(run_id)

@@ -72,7 +72,7 @@ def trigger_macos_workflow(
         run_date_filter = (datetime.utcnow() - delta_time).strftime("%Y-%m-%dT%H:%M")
         inputs_with_id = dict(inputs)
         inputs_with_id["id"] = run_id
-        worfklow.trigger_workflow(workflow, github_action_ref, inputs)
+        worfklow.trigger_workflow(workflow, github_action_ref, inputs_with_id)
         workflow_id = ""
         try_number = 0
         while not workflow_id and try_number < MAX_RETRIES:
@@ -85,8 +85,8 @@ def trigger_macos_workflow(
                     print(f"{run_id}: Requesting jobs_url {jobs_url}")
                     jobs = worfklow.make_request(jobs_url.path, method="GET", json_output=True)
                     if 'jobs' in jobs and len(jobs['jobs']) >= 2:
-                        # The first job is the setup, the ID job should be the next one
-                        job = jobs['jobs'][1]
+                        # ID job should be first
+                        job = jobs['jobs'][0]
                         steps = job["steps"]
                         if len(steps) >= 2:
                             second_step = steps[1]  # run_id is at second position, setup job is always first
