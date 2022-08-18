@@ -10,7 +10,19 @@ class TailFile(TestCase):
         self.append("# Setup")
         self.append(confDir(config))
 
-        path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
+        if config.platform == Platform.windows:
+            path = "C:\\tmp\\hello-world.log"
+            genlogs = "`echo foo >> hello-world.log`"
+            blockPermissions = "right-click on the file; properties; security; advanced; disable inheritance; convert; remove all but yourself; ok; ok"
+            restorePermissions = "right-click on the file; properties; security; advanced; enable inheritance; ok; ok"
+            rotate = f"`move hello-world.log hello-world.old` {genlogs}"
+        else:
+            path = "/var/log/hello-world.log"
+            genlogs = "`docker run -it bfloerschddog/flog -l > hello-world.log`"
+            blockPermissions = "`chmod 000 hello-world.log`"
+            restorePermissions = "`chmod 755 hello-world.log`"
+            rotate = "`mv hello-world.log hello-world.log.old && touch hello-world.log`"
+
         self.append(
             f"""
 ```
@@ -20,20 +32,15 @@ logs:
     service: test-file-tailing
     source: hello-world
 ``` 
-"""
-        )
-
-        self.append(
-            """
-- Start the agent")
-- generate some logs `docker run -it bfloerschddog/flog -l > hello-world.log`
+- Start the agent
+- generate some logs ({genlogs})
 
 # Test
 - Validate the logs show up in app with the correct `source` and `service` tags
-- Block permission to the file (`chmod 000 hello-world.log`) and check that the Agent status shows that it is inaccessible. 
-- Chang the permissions back so it is accessible again. 
+- Block permission to the file ({blockPermissions}) and check that the Agent status shows that it is inaccessible. 
+- Change the permissions back ({restorePermissions}) so it is accessible again. 
 - Stop the agent, generate new logs, start the agent and make sure those are sent.
-- Rotate the log file (`mv hello-world.log hello-world.log.old && touch hello-world.log`), ensure that logs continue to send after rotation. 
+- Rotate the log file ({rotate}), ensure that logs continue to send after rotation. 
 """
         )
 
@@ -139,8 +146,8 @@ logs:
 - `docker run -it bfloerschddog/flog -l > 3.log`
 
 # Test
-- the tag `filename` tag is set on the log metadata
-- the tag directory name tag is set on the log metadata
+- the tag `filename` is set on the log metadata
+- the tag `dirname` is set on the log metadata
 - Change the `logs_config.open_files_limit` to 1 in `datadog.yaml`, restart the agent and make sure the agent is only tailing 1 file
 """
         )
