@@ -226,7 +226,6 @@ func (m *Monitor) Stop() {
 	m.stopped = true
 }
 
-
 func (m *Monitor) process(transactions []httpTX, err error) {
 	m.telemetry.aggregate(transactions, err)
 

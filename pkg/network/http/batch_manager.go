@@ -86,7 +86,8 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 
 	txns := make([]httpTX, len(batch.Transactions()[offset:]))
 	for idx, tx := range batch.Transactions()[offset:] {
-		txns[idx] = &tx
+		newtx := tx
+		txns[idx] = &newtx
 	}
 	return txns, nil
 }
@@ -116,7 +117,8 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 			all := batch.Transactions()
 			pending := all[usrState.pos:krnStatePos]
 			for _, tx := range pending {
-				transactions = append(transactions, &tx)
+				var newtx = tx
+				transactions = append(transactions, &newtx)
 			}
 
 			if krnStatePos == HTTPBatchSize {
