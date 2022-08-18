@@ -34,6 +34,13 @@ func IsProcessHostCgroupNamespace(procPath string, namespaceID uint64) *bool {
 // should ideally live only in pkg/util/system, but currently must be duplicated since the
 // pkg/util/cgroups module needs to be isolated from (not require)
 // github.com/DataDog/datadog-agent, which is the module where pkg/util/system lives.
+//
+// This is, in turn, necessary because modules that will use pkg/util/cgroups must not inherit
+// github.com/DataDog/datadog-agent as a dependency, since github.com/DataDog/datadog-agent
+// requires many replacements in order to work correctly.
+//
+// For example, pkg/trace needs pkg/util/cgroups, and OpenTelemetry uses pkg/trace. We do not want
+// OpenTelemetry to have an indirect dependency on github.com/DataDog/datadog-agent
 func getProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
 	nsPath := filepath.Join(procPath, pid, "ns", namespace)
 	fi, err := os.Stat(nsPath)
