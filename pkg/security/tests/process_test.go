@@ -922,10 +922,13 @@ func TestProcessMetadata(t *testing.T) {
 	}
 	defer test.Close()
 
-	fileMode := 0o777
-	expectedMode := applyUmask(fileMode)
-	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, fileMode)
+	fileMode := uint16(0o777)
+	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, int(fileMode))
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = os.Chmod(testFile, os.FileMode(fileMode)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -942,7 +945,7 @@ func TestProcessMetadata(t *testing.T) {
 			return cmd.Run()
 		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
-			assertRights(t, event.Exec.FileEvent.Mode, uint16(expectedMode))
+			assertRights(t, event.Exec.FileEvent.Mode, fileMode)
 			assertNearTime(t, event.Exec.FileEvent.MTime)
 			assertNearTime(t, event.Exec.FileEvent.CTime)
 		}))

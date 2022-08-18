@@ -110,14 +110,14 @@ func parseLinuxFile(url string, perLine func(string) (*syscallDefinition, error)
 	return syscalls, nil
 }
 
-var unistdDefinedRe = regexp.MustCompile(`#define __NR_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
+var unistdDefinedRe = regexp.MustCompile(`#define __NR(3264)?_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
 
 func parseUnistdTable(url string) ([]*syscallDefinition, error) {
 	return parseLinuxFile(url, func(line string) (*syscallDefinition, error) {
 		subs := unistdDefinedRe.FindStringSubmatch(line)
 		if subs != nil {
-			name := subs[1]
-			nr, err := strconv.ParseInt(subs[2], 10, 0)
+			name := subs[2]
+			nr, err := strconv.ParseInt(subs[3], 10, 0)
 			if err != nil {
 				return nil, err
 			}

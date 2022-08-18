@@ -60,12 +60,6 @@ static void __attribute__((always_inline)) fill_container_context(struct proc_ca
     }
 }
 
-static void __attribute__((always_inline)) fill_container_context_no_tracing(struct proc_cache_t *entry, struct container_context_t *context) {
-    if (entry) {
-        copy_container_id_no_tracing(entry->container.container_id, context->container_id);
-    }
-}
-
 struct credentials_t {
     u32 uid;
     u32 gid;
@@ -281,9 +275,13 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
         return inum;
     }
 
+#ifndef DO_NOT_USE_TC
     struct ns_common ns;
     bpf_probe_read(&ns, sizeof(ns), (void*)net + net_ns_offset);
     return ns.inum;
+#else
+    return 0;
+#endif
 }
 
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {

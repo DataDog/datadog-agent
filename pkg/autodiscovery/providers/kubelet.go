@@ -53,7 +53,9 @@ func (k *KubeletConfigProvider) String() string {
 // Collect retrieves all running pods and extract AD templates from their annotations.
 func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	k.once.Do(func() {
-		go k.listen()
+		ch := make(chan struct{})
+		go k.listen(ch)
+		<-ch
 	})
 
 	k.Lock()
@@ -63,7 +65,8 @@ func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Conf
 	return k.generateConfigs()
 }
 
-func (k *KubeletConfigProvider) listen() {
+// listen, closing the given channel after the initial set of events are received
+func (k *KubeletConfigProvider) listen(ch chan struct{}) {
 	const name = "ad-kubeletprovider"
 
 	k.Lock()
@@ -77,7 +80,9 @@ func (k *KubeletConfigProvider) listen() {
 	}()
 	k.Unlock()
 
-	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
+	var ranOnce bool
+
+	wlmetaCh := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
 		workloadmeta.EventTypeAll,
@@ -85,12 +90,17 @@ func (k *KubeletConfigProvider) listen() {
 
 	for {
 		select {
-		case evBundle, ok := <-ch:
+		case evBundle, ok := <-wlmetaCh:
 			if !ok {
 				return
 			}
 
 			k.processEvents(evBundle)
+
+			if !ranOnce {
+				close(ch)
+				ranOnce = true
+			}
 
 		case <-health.C:
 

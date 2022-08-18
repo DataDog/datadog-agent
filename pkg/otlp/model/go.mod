@@ -5,7 +5,7 @@ go 1.17
 replace github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.39.0-rc.3
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.8.0

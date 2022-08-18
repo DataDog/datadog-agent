@@ -525,11 +525,12 @@ func TestRuleAgentConstraint(t *testing.T) {
 			agentVersion, err := semver.NewVersion(entry.agentVersion)
 			assert.Nil(t, err)
 
+			agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
+			assert.Nil(t, err)
+
 			policyOpts := PolicyLoaderOpts{
 				RuleFilters: []RuleFilter{
-					&AgentVersionFilter{
-						Version: agentVersion,
-					},
+					agentVersionFilter,
 				},
 			}
 

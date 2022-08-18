@@ -112,8 +112,7 @@ type Config struct {
 	ActivityDumpLoadControlMaxTotalSize int
 	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
 	ActivityDumpPathMergeEnabled bool
-	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Set
-	// this parameter to -1 to monitor all cgroups at the same time. Leave this parameter to 0 to prevent the generation
+	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
@@ -246,7 +245,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpLoadControlMaxTotalSize:   coreconfig.Datadog.GetInt(" runtime_security_config.activity_dump.load_controller_max_total_size"),
+		ActivityDumpLoadControlMaxTotalSize:   coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_max_total_size"),
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
@@ -325,6 +324,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.remote_storage.formats: %w", err)
 		}
+	}
+
+	if c.ActivityDumpCgroupWaitListSize <= 0 {
+		c.ActivityDumpCgroupWaitListSize = c.ActivityDumpTracedCgroupsCount
 	}
 
 	lazyInterfaces := make(map[string]bool)

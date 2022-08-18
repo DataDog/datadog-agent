@@ -312,7 +312,7 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 			}
 		}
 
-		newModule.Address, err = strconv.ParseInt(strings.Trim(split[5], "0x"), 16, 64)
+		newModule.Address, err = strconv.ParseInt(strings.TrimPrefix(split[5], "0x"), 16, 64)
 		if err != nil {
 			// set to 0 by default
 			newModule.Address = 0

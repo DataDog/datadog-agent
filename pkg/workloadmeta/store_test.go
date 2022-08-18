@@ -227,6 +227,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -292,6 +293,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -340,6 +342,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -388,6 +391,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -427,7 +431,9 @@ func TestSubscribe(t *testing.T) {
 					},
 				},
 			},
-			expected: []EventBundle{},
+			expected: []EventBundle{
+				{},
+			},
 		},
 		{
 			// unsetting an entity with a non-empty state (as in,
@@ -451,6 +457,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -473,21 +480,6 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			// unsetting an unknown entity should generate no events
-			name:   "unsets unknown entity",
-			filter: nil,
-			postEvents: [][]CollectorEvent{
-				{
-					{
-						Type:   EventTypeUnset,
-						Source: fooSource,
-						Entity: fooContainer,
-					},
-				},
-			},
-			expected: []EventBundle{},
-		},
-		{
 			name:   "filters by event type",
 			filter: NewFilter(nil, SourceAll, EventTypeUnset),
 			postEvents: [][]CollectorEvent{
@@ -507,6 +499,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -540,6 +533,7 @@ func TestSubscribe(t *testing.T) {
 			},
 			filter: nil,
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{

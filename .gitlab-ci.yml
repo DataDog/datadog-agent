@@ -18,6 +18,7 @@ include:
   - /.gitlab/dev_container_deploy.yml
   - /.gitlab/deploy_6.yml
   - /.gitlab/deploy_7.yml
+  - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
   - /.gitlab/deploy_invalidate.yml
@@ -46,7 +47,7 @@ default:
 
 workflow:
   rules:
-    - if: $CI_COMMIT_TAG =~ /^dca-/ || $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
+    - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
 
 stages:
   - maintenance_jobs
@@ -67,6 +68,7 @@ stages:
   - dev_container_deploy
   - deploy6
   - deploy7
+  - deploy_dca
   - choco_build
   - choco_deploy
   - deploy_invalidate
