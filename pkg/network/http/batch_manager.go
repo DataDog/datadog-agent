@@ -85,9 +85,9 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 	state.pos = 0
 
 	txns := make([]httpTX, len(batch.Transactions()[offset:]))
-	for idx, tx := range batch.Transactions()[offset:] {
-		newtx := tx
-		txns[idx] = &newtx
+	tocopy := batch.Transactions()[offset:]
+	for idx := range tocopy {
+		txns[idx] = &tocopy[idx]
 	}
 	return txns, nil
 }
