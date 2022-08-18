@@ -8,12 +8,12 @@ import (
 )
 
 type VaultSessionBackendConfig struct {
-	VaultRoleId       string          `mapstructure:"vault_role_id"`
-	VaultSecretId     string          `mapstructure:"vault_secret_id"`
-	VaultUserName     string          `mapstructure:"vault_username"`
-	VaultPassword     string          `mapstructure:"vault_password"`
-	VaultLDAPUserName string          `mapstructure:"vault_ldap_username"`
-	VaultLDAPPassword string          `mapstructure:"vault_ldap_password"`
+	VaultRoleId       string `mapstructure:"vault_role_id"`
+	VaultSecretId     string `mapstructure:"vault_secret_id"`
+	VaultUserName     string `mapstructure:"vault_username"`
+	VaultPassword     string `mapstructure:"vault_password"`
+	VaultLDAPUserName string `mapstructure:"vault_ldap_username"`
+	VaultLDAPPassword string `mapstructure:"vault_ldap_password"`
 }
 
 func NewVaultConfigFromBackendConfig(backendId string, sessionConfig VaultSessionBackendConfig) (api.AuthMethod, error) {

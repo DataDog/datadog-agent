@@ -23,6 +23,8 @@ backends:
   {backendId}:
     backend_type: azure.keyvault
     keyvaulturl: https://mykeyvault.vault.azure.net
+    # interpret contents of secret as string
+    force_string: [true|false]
     azure_session:
       azure_client_id: {clientId}
       # ... additional session settings
@@ -50,6 +52,10 @@ Azure Keyvault can hold multiple secret keys and values. For example, assuming a
 }
 ```
 
+Support for simple string values can be defined adding the config variable `force_string: true`. This will interpret the contents of secret as a string regardless of input.
+
+This will allow for generating simple string values with or without JSON parsing using the _ secretID. All input will be interpreted as a single string and if it fails to unmarshal the JSON, it will grab the raw string from the input. The secretId then gets coerced as _ and will access DD with the backendID and its secret using the ENC[] notation.
+
 ```yaml
 # /opt/datadog-secret-backend/datadog-secret-backend.yaml
 ---
@@ -58,6 +64,8 @@ backends:
     backend_type: azure.keyvault
     secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
+    # interpret contents of secret as string
+    force_string: true
     azure_session:
       azure_tenant_id: abcdef-*****
       azure_client_id: 123456-*****
@@ -72,6 +80,7 @@ property3: "ENC[MySecretBackend:ddorgname]"
 ```
 
 Multiple secret backends, of the same or different types, can be defined in your `datadog-secret-backend` yaml configuration. As a result, you can leverage multiple supported backends (file.yaml, file.json, aws.ssm, and aws.secrets, azure.keyvault) in your Datadog Agent configuration.
+
 
 ## Configuration Examples
 
@@ -110,6 +119,8 @@ backends:
     backend_type: azure.keyvault
     secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
+    # interpret contents of secret as string
+    force_string: true
     azure_session:
       azure_tenant_id: abcdef-*****
       azure_client_id: 123456-*****
@@ -126,6 +137,8 @@ backends:
     backend_type: azure.keyvault
     secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
+    # interpret contents of secret as string
+    force_string: true
     azure_session:
       azure_tenant_id: abcdef-*****
       azure_client_id: 123456-*****
@@ -142,6 +155,8 @@ backends:
     backend_type: azure.keyvault
     secret_id: my_azure_secret_id
     keyvaulturl: https://mykeyvault.vault.azure.net
+    # interpret contents of secret as string
+    force_string: true
     azure_session:
       azure_tenant_id: abcdef-*****
       azure_client_id: 123456-*****

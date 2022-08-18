@@ -15,6 +15,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.10.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
+	github.com/hashicorp/vault/api v1.4.1
+	github.com/hashicorp/vault/api/auth/approle v0.1.1
+	github.com/hashicorp/vault/api/auth/ldap v0.1.0
+	github.com/hashicorp/vault/api/auth/userpass v0.1.0
 	github.com/mitchellh/mapstructure v1.4.2
 	github.com/rs/zerolog v1.25.0
 	github.com/sirupsen/logrus v1.8.1
@@ -67,10 +71,6 @@ require (
 	github.com/hashicorp/go-version v1.2.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/hashicorp/vault/api v1.4.1 // indirect
-	github.com/hashicorp/vault/api/auth/approle v0.1.1 // indirect
-	github.com/hashicorp/vault/api/auth/ldap v0.1.0 // indirect
-	github.com/hashicorp/vault/api/auth/userpass v0.1.0 // indirect
 	github.com/hashicorp/vault/sdk v0.4.1 // indirect
 	github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect

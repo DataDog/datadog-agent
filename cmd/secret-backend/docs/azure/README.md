@@ -31,7 +31,11 @@ The following `azure_session` settings are available on all supported Azure Serv
 | azure_certificate_path | Path to Application Azure Certificate |
 | azure_certificate_password | Password for Azure Certificate |
 
-In all cases you'll need to specify `keyvaulturl`, and in any service princiapal based authentication, `azure_tenant_id` and `azure_client_id` to correspond to the Azure KeyVault reasource and the application definition being used to authenticate to Azure.
+In all cases, you will need to specify `keyvaulturl` and with service principal based authentication, the `azure_tenant_id` and `azure_client_id` corresponding to the Azure KeyVault resource.
+
+Simple string values can be defined adding the config variable `force_string: true`. The `force_string: true` backend configuration setting will interpret the contents of the Azure Key Vault Secret as a string, even if the stored secret value is valid JSON.
+
+When `force_string: false` is defined, or when the backend setting `force_string` is not defined, then the secret value will be interpreted as JSON with simple depth of one (1) and create a secretId with each field name. If the secret value is not valid JSON, then it will behave as if `force_string: true` was defined and will return the full contents of the secret value with secretId `_`.
 
 ## Example Session Configurations
 
@@ -43,6 +47,7 @@ backends:
     secret_id: apikey
     backend_type: azure.keyvault
     keyvaulturl: "https://my-keyvault.vault.azure.net"
+    force_string: true
     azure_session:
       azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
       azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
@@ -57,6 +62,7 @@ backends:
     secret_id: apikey
     backend_type: azure.keyvault
     keyvaulturl: "https://my-keyvault.vault.azure.net"
+    force_string: true
     azure_session:
       azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
       azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
@@ -72,6 +78,7 @@ backends:
     secret_id: apikey
     backend_type: azure.keyvault
     keyvaulturl: "https://my-keyvault.vault.azure.net"
+    force_string: true
     azure_session:
       azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
       azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"

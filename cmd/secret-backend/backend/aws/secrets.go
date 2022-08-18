@@ -15,6 +15,7 @@ import (
 type AwsSecretsManagerBackendConfig struct {
 	AwsSession  AwsSessionBackendConfig `mapstructure:"aws_session"`
 	BackendType string                  `mapstructure:"backend_type"`
+	ForceString bool                    `mapstructure:"force_string"`
 	SecretId    string                  `mapstructure:"secret_id"`
 }
 
@@ -62,15 +63,12 @@ func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 	}
 
 	secretValue := make(map[string]string, 0)
-	if err := json.Unmarshal([]byte(*out.SecretString), &secretValue); err != nil {
-		log.Error().Err(err).
-			Str("backend_id", backendId).
-			Str("backend_type", backendConfig.BackendType).
-			Str("secret_id", backendConfig.SecretId).
-			Str("aws_access_key_id", backendConfig.AwsSession.AwsAccessKeyId).
-			Str("aws_profile", backendConfig.AwsSession.AwsProfile).
-			Msg("failed to unmarshal secret value")			
-		return nil, err
+	if backendConfig.ForceString {
+		secretValue["_"] = *out.SecretString
+	} else {
+		if err := json.Unmarshal([]byte(*out.SecretString), &secretValue); err != nil {
+			secretValue["_"] = *out.SecretString
+		}
 	}
 
 	backend := &AwsSecretsManagerBackend{

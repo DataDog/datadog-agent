@@ -116,13 +116,13 @@ func (b *VaultBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
 		return secret.SecretOutput{Value: &val, Error: nil}
 	}
 	es := errors.New("backend does not provide secret key").Error()
-	
+
 	log.Error().
-		Str("backend_id",   b.BackendId).
+		Str("backend_id", b.BackendId).
 		Str("backend_type", b.Config.BackendType).
-		Strs("secrets",     b.Config.Secrets).
-		Str("secret_path",  b.Config.SecretPath).
-		Str("secret_key",   secretKey).
-		Msg("failed to retrieve secrets")	
+		Strs("secrets", b.Config.Secrets).
+		Str("secret_path", b.Config.SecretPath).
+		Str("secret_key", secretKey).
+		Msg("failed to retrieve secrets")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }

@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
 	"github.com/mitchellh/mapstructure"
@@ -10,10 +11,11 @@ import (
 )
 
 type AzureKeyVaultBackendConfig struct {
-	AzureSession AzureSessionBackendConfig   `mapstructure:"azure_session"`
-	BackendType  string                      `mapstructure:"backend_type"`
-	KeyVaultURL  string                      `mapstructure:"keyvaulturl"`
-	SecretId     string                      `mapstructure:"secret_id"`
+	AzureSession AzureSessionBackendConfig `mapstructure:"azure_session"`
+	BackendType  string                    `mapstructure:"backend_type"`
+	ForceString  bool                      `mapstructure:"force_string"`
+	KeyVaultURL  string                    `mapstructure:"keyvaulturl"`
+	SecretId     string                    `mapstructure:"secret_id"`
 }
 
 type AzureKeyVaultBackend struct {
@@ -43,23 +45,29 @@ func NewAzureKeyVaultBackend(backendId string, bc map[string]interface{}) (*Azur
 	out, err := client.GetSecret(context.Background(), backendConfig.KeyVaultURL, backendConfig.SecretId, "")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"backend_id": backendId,
+			"backend_id":   backendId,
 			"backend_type": backendConfig.BackendType,
-			"secret_id": backendConfig.SecretId,
-			"keyvaulturl": backendConfig.KeyVaultURL,
+			"secret_id":    backendConfig.SecretId,
+			"keyvaulturl":  backendConfig.KeyVaultURL,
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
 
 	secretValue := make(map[string]string, 0)
-	secretValue[backendConfig.SecretId] = *out.Value
+	if backendConfig.ForceString {
+		secretValue["_"] = *out.Value
+	} else {
+		if err := json.Unmarshal([]byte(*out.Value), &secretValue); err != nil {
+			// assume: not json, store as single key -> string value
+			secretValue["_"] = *out.Value
+		}
+	}
 
 	backend := &AzureKeyVaultBackend{
 		BackendId: backendId,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
-
 	return backend, nil
 }
 
@@ -68,7 +76,7 @@ func (b *AzureKeyVaultBackend) GetSecretOutput(secretKey string) secret.SecretOu
 		return secret.SecretOutput{Value: &val, Error: nil}
 	}
 	es := errors.New("backend does not provide secret key").Error()
-	
+
 	log.WithFields(log.Fields{
 		"backend_id":   b.BackendId,
 		"backend_type": b.Config.BackendType,

@@ -78,7 +78,7 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 	// GetParameters
 	if len(backendConfig.Parameters) > 0 {
 		input := &ssm.GetParametersInput{
-			Names: backendConfig.Parameters, 
+			Names:          backendConfig.Parameters,
 			WithDecryption: true,
 		}
 		out, err := client.GetParameters(context.TODO(), input)
@@ -90,7 +90,7 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 				Str("aws_access_key_id", backendConfig.AwsSession.AwsAccessKeyId).
 				Str("aws_profile", backendConfig.AwsSession.AwsProfile).
 				Str("aws_region", backendConfig.AwsSession.AwsRegion).
-				Msg("failed to retrieve parameters")			
+				Msg("failed to retrieve parameters")
 			return nil, err
 		}
 
@@ -120,6 +120,6 @@ func (b *AwsSsmParameterStoreBackend) GetSecretOutput(secretKey string) secret.S
 		Strs("parameters", b.Config.Parameters).
 		Str("parameter_path", b.Config.ParameterPath).
 		Str("secret_key", secretKey).
-		Msg("failed to retrieve parameters")	
+		Msg("failed to retrieve parameters")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }

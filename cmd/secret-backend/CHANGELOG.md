@@ -1,6 +1,10 @@
 # CHANGELOG - datadog-secret-backend
 
-## 1.7.0 / 2021-10-20
+## 0.1.7 / 2021-10-20
 
 * [Added] zerolog logger, replacing logrus.
 * [Fixed] documentation, adding usage of aws.ssm and aws.secrets backends.
+
+## 0.1.10 / 2022-08-17
+
+* [Added] support for simple string value secrets in AWS Secrets Manager and Azure Key Vault.
