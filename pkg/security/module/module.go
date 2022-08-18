@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -171,7 +170,7 @@ func (m *Module) Start() error {
 	filters := make([]rules.RuleFilter, 0, 1)
 	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
 	if err != nil {
-		log.Errorf("failed to create agent version filter: %v", err)
+		seclog.Errorf("failed to create agent version filter: %v", err)
 	} else {
 		filters = append(filters, agentVersionFilter)
 	}
