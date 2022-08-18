@@ -3139,7 +3139,7 @@ api_key:
     # stop_timeout: 5.0
 
 {{end -}}
-
+{{- if .OTLP }}
 ###################################
 ## OpenTelemetry Configuration   ##
 ###################################
@@ -3340,3 +3340,4 @@ api_key:
     ## Options are disabled, debug, info, error, warn.
     #
     # loglevel: info
+{{end -}}
