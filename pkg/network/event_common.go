@@ -460,10 +460,10 @@ func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
 func HTTPKeyTupleFromConnTuple(laddr, raddr util.Address, lport, rport uint16) http.KeyTuple {
 	// HTTP data is always indexed as (client, server), so we account for that when generating the
 	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
+	// In the rare cases where both ports are within the same range we ensure that sport > dport
 	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
 	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
-		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport < rport) {
+		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport > rport) {
 		return http.NewKeyTuple(laddr, raddr, lport, rport)
 	}
 

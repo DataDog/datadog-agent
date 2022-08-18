@@ -1,6 +1,8 @@
 #ifndef _BPF_MONITORING_H_
 #define _BPF_MONITORING_H_
 
+#include "syscalls.h"
+
 #define CHECK_HELPER_CALL_FUNC_ID 1
 #define CHECK_HELPER_CALL_INSN 2
 

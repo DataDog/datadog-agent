@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package rules
+package log
 
 // Logger interface used to remove the dependency of this package to the logger of the agent
 type Logger interface {
@@ -34,4 +34,12 @@ func (l NullLogger) Errorf(format string, params ...interface{}) {
 
 // Infof is used to print an info
 func (l NullLogger) Infof(format string, params ...interface{}) {
+}
+
+// OrNullLogger ensures that the provided logger is non-nil by returning a NullLogger if it is
+func OrNullLogger(potential Logger) Logger {
+	if potential != nil {
+		return potential
+	}
+	return &NullLogger{}
 }

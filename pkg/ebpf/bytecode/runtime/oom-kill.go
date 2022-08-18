@@ -4,4 +4,4 @@
 
 package runtime
 
-var OomKill = NewRuntimeAsset("oom-kill.c", "1946f3793d38d2adc4af6fafbfdc90b7a63b31511de629fd8b62c1aa605a418a")
+var OomKill = NewRuntimeAsset("oom-kill.c", "08385fe12ddc9dc767fbeb4bc3b1ccb23be5466a5cba04ac8abcc6dd74eb745c")

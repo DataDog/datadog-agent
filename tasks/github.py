@@ -37,6 +37,7 @@ def trigger_macos_test(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     python_runtimes="3",
+    destination=".",
 ):
 
     env = load_release_versions(ctx, release_version)
@@ -50,3 +51,5 @@ def trigger_macos_test(
     )
 
     follow_workflow_run(run_id)
+
+    download_artifacts(run_id, destination)

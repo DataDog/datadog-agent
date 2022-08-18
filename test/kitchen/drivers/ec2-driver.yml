@@ -5,6 +5,10 @@ provisioner:
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
   product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
+  product_version: 14.15.6
   <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
   <% end %>
@@ -18,7 +22,9 @@ provisioner:
 
 driver:
   name: ec2
+  <% if ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
   aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
+  <% end %>
   security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
@@ -55,6 +61,7 @@ platforms:
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
+      al2022 = platform_name.include?("amazonlinux2022")
       windows2008 = windows && platform_name.include?("2008")
 
       if windows
@@ -92,12 +99,39 @@ platforms:
           volume_type: gp2
           volume_size: 40
           delete_on_termination: true
-    <% if allow_rsa_key %>
+    <% if allow_rsa_key || al2022 %>
     user_data: |
       #!/bin/sh
+    <% end %>
+    <% if allow_rsa_key %>
       echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
       service ssh reload
     <% end %>
+    <% if al2022 %>
+      sudo dnf install -y libxcrypt-compat
+    <% end %>
+  <% if al2022 %>
+  # Add a hook after creating the host, to make sure we wait until the user_data
+  # script has been run.
+  # Snippet taken from the kitchen docs: https://kitchen.ci/docs/reference/lifecycle-hooks/
+  lifecycle:
+    post_create:
+    - local: echo 'Awaiting cloud-init completion'
+    - remote: |
+        declare i=0;
+        declare wait=5;
+        declare timeout=300;
+        while true; do
+          [ -f /var/lib/cloud/instance/boot-finished ] && break;
+          if [ ${i} -ge ${timeout} ]; then
+            echo "Timed out after ${i}s waiting for cloud-init to complete";
+            exit 1;
+          fi;
+          echo "Waited ${i}/${timeout}s for cloud-init to complete, retrying in ${wait} seconds"
+          sleep ${wait};
+          let i+=${wait};
+        done;
+  <% end %>
 
   transport:
     <% if windows %>
@@ -107,8 +141,13 @@ platforms:
     connection_retries: 30
     connection_retry_sleep: 2
     <% end %>
-    <% if sles15 %>
+    <% if sles15 || al2022 %>
+    # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,
+    # therefore it doesn't know that it needs to use ec2-user.
     username: ec2-user
+    <% end %>
+    <% if ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
     <% end %>
 
 <% end %>

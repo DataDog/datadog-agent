@@ -18,6 +18,6 @@ import (
 
 func TestLoaderCompile(t *testing.T) {
 	cfg := ebpf.NewConfig()
-	_, err := getRuntimeCompiledProbe(cfg, false)
+	_, err := getRuntimeCompiledProbe(cfg, false, nil)
 	require.NoError(t, err)
 }
