@@ -114,7 +114,7 @@ type ActivityDump struct {
 	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `msg:"storage_requests,omitempty" json:"-"`
 
 	// Dump metadata
-	DumpMetadata `msg:"metadata"`
+	DumpMetadata `msg:"metadata" json:"DumpMetadata"`
 }
 
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
