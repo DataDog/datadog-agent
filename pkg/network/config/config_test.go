@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -352,6 +353,50 @@ network_config:
 
 		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
 	})
+}
+
+func TestNetworkConfigEnabled(t *testing.T) {
+	ys := true
+
+	for i, tc := range []struct {
+		sysIn, npmIn, usmIn    *bool
+		npmEnabled, usmEnabled bool
+	}{
+		{sysIn: nil, npmIn: nil, usmIn: nil, npmEnabled: false, usmEnabled: false},
+		{sysIn: nil, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
+		{sysIn: nil, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
+		{sysIn: nil, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
+		{sysIn: &ys, npmIn: nil, usmIn: nil, npmEnabled: true, usmEnabled: false},
+		// only set NPM enabled flag is sysprobe enabled and !USM
+		{sysIn: &ys, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
+		{sysIn: &ys, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
+		{sysIn: &ys, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			if tc.sysIn != nil {
+				os.Setenv("DD_SYSTEM_PROBE_ENABLED", strconv.FormatBool(*tc.sysIn))
+			}
+			if tc.npmIn != nil {
+				os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(*tc.npmIn))
+			}
+			if tc.usmIn != nil {
+				os.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
+			}
+
+			defer os.Unsetenv("DD_SYSTEM_PROBE_ENABLED")
+			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+			defer os.Unsetenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+
+			newConfig()
+			t.Cleanup(restoreGlobalConfig)
+
+			_, err := sysconfig.New("")
+			require.NoError(t, err)
+			cfg := New()
+			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")
+			assert.Equal(t, tc.usmEnabled, cfg.ServiceMonitoringEnabled, "usm state")
+		})
+	}
 }
 
 func configurationFromYAML(t *testing.T, yaml string) *Config {
