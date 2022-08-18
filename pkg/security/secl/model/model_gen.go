@@ -470,7 +470,7 @@ func (z *DNSEvent) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Class")
 				return
 			}
-		case "size":
+		case "length":
 			z.Size, err = dc.ReadUint16()
 			if err != nil {
 				err = msgp.WrapError(err, "Size")
@@ -526,8 +526,8 @@ func (z *DNSEvent) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Class")
 		return
 	}
-	// write "size"
-	err = en.Append(0xa4, 0x73, 0x69, 0x7a, 0x65)
+	// write "length"
+	err = en.Append(0xa6, 0x6c, 0x65, 0x6e, 0x67, 0x74, 0x68)
 	if err != nil {
 		return
 	}
@@ -562,8 +562,8 @@ func (z *DNSEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "class"
 	o = append(o, 0xa5, 0x63, 0x6c, 0x61, 0x73, 0x73)
 	o = msgp.AppendUint16(o, z.Class)
-	// string "size"
-	o = append(o, 0xa4, 0x73, 0x69, 0x7a, 0x65)
+	// string "length"
+	o = append(o, 0xa6, 0x6c, 0x65, 0x6e, 0x67, 0x74, 0x68)
 	o = msgp.AppendUint16(o, z.Size)
 	// string "count"
 	o = append(o, 0xa5, 0x63, 0x6f, 0x75, 0x6e, 0x74)
@@ -607,7 +607,7 @@ func (z *DNSEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Class")
 				return
 			}
-		case "size":
+		case "length":
 			z.Size, bts, err = msgp.ReadUint16Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Size")
@@ -633,7 +633,7 @@ func (z *DNSEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *DNSEvent) Msgsize() (s int) {
-	s = 1 + 5 + msgp.StringPrefixSize + len(z.Name) + 5 + msgp.Uint16Size + 6 + msgp.Uint16Size + 5 + msgp.Uint16Size + 6 + msgp.Uint16Size
+	s = 1 + 5 + msgp.StringPrefixSize + len(z.Name) + 5 + msgp.Uint16Size + 6 + msgp.Uint16Size + 7 + msgp.Uint16Size + 6 + msgp.Uint16Size
 	return
 }
 

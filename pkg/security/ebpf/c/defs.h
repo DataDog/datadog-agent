@@ -459,6 +459,7 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         }                                                                                                              \
     }                                                                                                                  \
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define send_event(ctx, event_type, kernel_event)                                                                      \
     u64 size = sizeof(kernel_event);                                                                                   \
     u64 use_ring_buffer;                                                                                               \
@@ -478,8 +479,18 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         send_event_with_size_ringbuf(ctx, event_type, kernel_event, size)                                              \
     } else {                                                                                                           \
         send_event_with_size_perf(ctx, event_type, kernel_event, size)                                                 \
-    }                                                                                                                  \
+    }
+#else
+#define send_event(ctx, event_type, kernel_event)                                                                      \
+    int perf_ret;                                                                                                      \
+    send_event_with_size_perf(ctx, event_type, kernel_event, sizeof(kernel_event))
 
+#define send_event_with_size(ctx, event_type, kernel_event, size)                                                      \
+    int perf_ret;                                                                                                      \
+    send_event_with_size_perf(ctx, event_type, kernel_event, size)
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define send_event_ptr(ctx, event_type, kernel_event)                                                                  \
     u64 size = sizeof(*kernel_event);                                                                                  \
     u64 use_ring_buffer;                                                                                               \
@@ -489,8 +500,14 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         send_event_with_size_ptr_ringbuf(ctx, event_type, kernel_event, size)                                          \
     } else {                                                                                                           \
         send_event_with_size_ptr_perf(ctx, event_type, kernel_event, size)                                             \
-    }                                                                                                                  \
+    }
+#else
+#define send_event_ptr(ctx, event_type, kernel_event)                                                                  \
+    int perf_ret;                                                                                                      \
+    send_event_with_size_ptr_perf(ctx, event_type, kernel_event, sizeof(*kernel_event))
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define send_event_with_size_ptr(ctx, event_type, kernel_event, size)                                                  \
     u64 use_ring_buffer;                                                                                               \
     int perf_ret;                                                                                                      \
@@ -499,7 +516,12 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
         send_event_with_size_ptr_ringbuf(ctx, event_type, kernel_event, size)                                          \
     } else {                                                                                                           \
         send_event_with_size_ptr_perf(ctx, event_type, kernel_event, size)                                             \
-    }                                                                                                                  \
+    }
+#else
+#define send_event_with_size_ptr(ctx, event_type, kernel_event, size)                                                  \
+    int perf_ret;                                                                                                      \
+    send_event_with_size_ptr_perf(ctx, event_type, kernel_event, size)
+#endif
 
 // implemented in the discarder.h file
 int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id);
@@ -718,6 +740,25 @@ struct is_discarded_by_inode_t {
     u64 now;
     u32 tgid;
     u32 activity_dump_state;
+};
+
+struct pid_route_t {
+    u64 addr[2];
+    u32 netns;
+    u16 port;
+};
+
+struct flow_t {
+    u64 saddr[2];
+    u64 daddr[2];
+    u16 sport;
+    u16 dport;
+    u32 padding;
+};
+
+struct namespaced_flow_t {
+    struct flow_t flow;
+    u32 netns;
 };
 
 #endif

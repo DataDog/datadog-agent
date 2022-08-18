@@ -79,7 +79,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     if (entry == NULL) {
         evt->container.container_id[0] = 0;
     } else {
-        fill_container_context_no_tracing(entry, &evt->container);
+        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
     }
 
     return evt;

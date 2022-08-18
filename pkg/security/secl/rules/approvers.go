@@ -6,6 +6,8 @@
 package rules
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -14,7 +16,11 @@ type Approvers map[eval.Field]FilterValues
 
 // isAnApprover returns whether the given value is an approver for the given rule
 func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Field, value interface{}) (bool, error) {
+	var readOnlyError *eval.ErrFieldReadOnly
 	if err := event.SetFieldValue(field, value); err != nil {
+		if errors.As(err, &readOnlyError) {
+			return false, nil
+		}
 		return false, err
 	}
 	origResult, err := rule.PartialEval(ctx, field)
@@ -28,6 +34,9 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fi
 	}
 
 	if err := event.SetFieldValue(field, notValue); err != nil {
+		if errors.As(err, &readOnlyError) {
+			return false, nil
+		}
 		return false, err
 	}
 	notResult, err := rule.PartialEval(ctx, field)
