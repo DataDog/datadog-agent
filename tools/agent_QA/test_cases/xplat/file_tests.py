@@ -27,7 +27,7 @@ class TailFile(TestCase):
             f"""
 ```
 logs: 
-- type: file
+  - type: file
     path: {path}
     service: test-file-tailing
     source: hello-world
@@ -58,7 +58,7 @@ class TailFileMultiLine(TestCase):
             f"""
 ```
 logs: 
-- type: file
+  - type: file
     path: {path}
     service: test-file-tailing
     source: multiline
@@ -71,9 +71,9 @@ logs:
         )
 
         self.append(
-            """
+            f"""
 - Start the agent
-- generate some multi-line logs `docker run -it bfloerschddog/java-excepton-logger` > hello-world.log`
+- generate some multi-line logs `docker run -it bfloerschddog/java-excepton-logger > {path}`
 
 # Test
 - Validate that the logs show up in app correctly. Look for the multi-line exception logs and ensure they are combined into a single log line. 
@@ -94,7 +94,7 @@ class TailFileUTF16(TestCase):
             f"""
 ```
 logs: 
-- type: file
+  - type: file
     path: {path}
     service: test-file-tailing
     source: hello-world
@@ -104,14 +104,14 @@ logs:
         )
 
         self.append(
-            """
+            f"""
 - Start the agent
 
 # Test
-- Generate UTF16-le logs `python -c "f = open('hello-utf16.log', 'ab'); t='This is just sample text2\n'.encode('utf-16'); f.write(t); f.close()"`
+- Generate UTF16-le logs `python -c "f = open('{path}', 'ab'); t='This is just sample text2\n'.encode('utf-16'); f.write(t); f.close()"`
 - check that the logs look correct in app
 - delete the log file, change the config to `encoding: utf-16-be`, and restart the agent
-- Generate UTF16-be logs `python -c "f = open('hello-utf16.log', 'ab'); t='This is just sample text2\n'.encode('utf-16be'); f.write(t); f.close()"`
+- Generate UTF16-be logs `python -c "f = open('{path}', 'ab'); t='This is just sample text2\n'.encode('utf-16be'); f.write(t); f.close()"`
 - check that the logs look correct in app
 """
         )
@@ -130,7 +130,7 @@ class TailFileWildcard(TestCase):
             f"""
 ```
 logs:
-  -type: file
+  - type: file
     path: {path}
     service: test-wildcard
     source: wildcard
