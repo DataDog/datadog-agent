@@ -665,7 +665,7 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 	}
 
 	// TODO: Is there a better way to determine if there's no interpreter?
-	if entry.LinuxBinprm.FileEvent.Inode != 0 && entry.LinuxBinprm.FileEvent.MountID != 0 {
+	if (entry.LinuxBinprm.FileEvent.Inode != 0 && entry.LinuxBinprm.FileEvent.MountID != 0) && (entry.LinuxBinprm.FileEvent.Inode != entry.FileEvent.Inode) {
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
