@@ -658,16 +658,15 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
-	filters := make([]rules.RuleFilter, 0, 1)
 	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
 	if err != nil {
 		return fmt.Errorf("failed to create agent version filter: %w", err)
-	} else {
-		filters = append(filters, agentVersionFilter)
 	}
 
 	loaderOpts := rules.PolicyLoaderOpts{
-		RuleFilters: filters,
+		RuleFilters: []rules.RuleFilter{
+			agentVersionFilter,
+		},
 	}
 
 	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
