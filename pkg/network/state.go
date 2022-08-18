@@ -324,8 +324,8 @@ func (ns *networkState) RegisterClient(id string) {
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
-	for i, c := range conns {
-		key := string(c.ByteKey(buf))
+	for i := range conns {
+		key := string(conns[i].ByteKey(buf))
 		var c *ConnectionStats
 		if c = connsByKey[key]; c == nil {
 			connsByKey[key] = &conns[i]

@@ -48,7 +48,7 @@ func (a Address) Len() int {
 	return int(a.BitLen()) / 8
 }
 
-// AddressFromNetIP returns an Address from a provided net.IPb
+// AddressFromNetIP returns an Address from a provided net.IP
 func AddressFromNetIP(ip net.IP) Address {
 	addr, _ := netaddr.FromStdIP(ip)
 	return Address{addr}
