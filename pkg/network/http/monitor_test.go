@@ -58,6 +58,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	slowSrvDoneFn := testutil.HTTPServer(slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
+		ReadTimeout:  time.Millisecond * 200,
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(fastServerAddr, testutil.Options{})
@@ -69,9 +70,8 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 
 	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
-	abortedRequests := make(chan *nethttp.Request, 10000)
-	defer close(abortedRequests)
-	for i := 0; i < 10000; i++ {
+	abortedRequests := make(chan *nethttp.Request, 100)
+	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -81,6 +81,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	}
 	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
 	wg.Wait()
+	close(abortedRequests)
 	slowSrvDoneFn()
 	fastSrvDoneFn()
 
@@ -92,7 +93,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	for req := range abortedRequests {
 		requestNotIncluded(t, stats, req)
 	}
-	requestNotIncluded(t, stats, fastReq)
+	includesRequest(t, stats, fastReq)
 }
 
 func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
