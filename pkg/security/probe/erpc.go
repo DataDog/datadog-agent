@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"errors"
 	"syscall"
 	"unsafe"
 )
@@ -35,6 +36,8 @@ const (
 	RegisterSpanTLSOP //nolint:deadcode,unused
 	// ExpireInodeDiscarderOp is used to expire an inode discarder
 	ExpireInodeDiscarderOp
+	// ExpirePidDiscarderOp is used to expire a pid discarder
+	ExpirePidDiscarderOp
 )
 
 // ERPC defines a krpc object
@@ -50,6 +53,10 @@ type ERPCRequest struct {
 
 // Request generates an ioctl syscall with the required request
 func (k *ERPC) Request(req *ERPCRequest) error {
+	if req.OP == 0 {
+		return errors.New("no op provided")
+	}
+
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(k.fd), rpcCmd, uintptr(unsafe.Pointer(req))); errno != 0 {
 		if errno != syscall.ENOTTY {
 			return errno

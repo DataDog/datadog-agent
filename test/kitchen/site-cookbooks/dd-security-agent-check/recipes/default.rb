@@ -8,8 +8,16 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  directory wrk_dir do
-    recursive true
+  remote_directory wrk_dir do
+    cookbook 'dd-system-probe-check'
+    source 'tests'
+    mode '755'
+    files_mode '755'
+    sensitive true
+    case
+    when !platform?('windows')
+      files_owner 'root'
+    end
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
@@ -108,7 +116,7 @@ if node['platform_family'] != 'windows'
 
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM centos:7
+      FROM public.ecr.aws/docker/library/centos:centos7
 
       ENV DOCKER_DD_AGENT=yes
 

@@ -203,6 +203,30 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	assert.True(t, inferredSpan.IsAsync)
 }
 
+func TestEnrichInferredSpanForS3Event(t *testing.T) {
+	var s3Request events.S3Event
+	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Request)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithS3Event(s3Request)
+
+	span := inferredSpan.Span
+
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
+	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, formatISOStartTime("1970-01-01T00:00:00.000Z"), span.Start)
+	assert.Equal(t, "s3", span.Service)
+	assert.Equal(t, "aws.s3", span.Name)
+	assert.Equal(t, "example-bucket", span.Resource)
+	assert.Equal(t, "web", span.Type)
+	assert.Equal(t, "aws.s3", span.Meta[operationName])
+	assert.Equal(t, "example-bucket", span.Meta[resourceNames])
+	assert.Equal(t, "ObjectCreated:Put", span.Meta[eventName])
+	assert.Equal(t, "example-bucket", span.Meta[bucketName])
+	assert.Equal(t, "arn:aws:s3:::example-bucket", span.Meta[bucketARN])
+	assert.Equal(t, "test/key", span.Meta[objectKey])
+	assert.Equal(t, "1024", span.Meta[objectSize])
+	assert.Equal(t, "0123456789abcdef0123456789abcdef", span.Meta[objectETag])
+}
 func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 	var eventBridgeEvent EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)

@@ -33,6 +33,7 @@ func _() {
 	_ = x[SysEpollPwait-22]
 	_ = x[SysDup-23]
 	_ = x[SysDup3-24]
+	_ = x[SysFcntl-25]
 	_ = x[SysInotifyInit1-26]
 	_ = x[SysInotifyAddWatch-27]
 	_ = x[SysInotifyRmWatch-28]
@@ -50,6 +51,10 @@ func _() {
 	_ = x[SysMount-40]
 	_ = x[SysPivotRoot-41]
 	_ = x[SysNfsservctl-42]
+	_ = x[SysStatfs-43]
+	_ = x[SysFstatfs-44]
+	_ = x[SysTruncate-45]
+	_ = x[SysFtruncate-46]
 	_ = x[SysFallocate-47]
 	_ = x[SysFaccessat-48]
 	_ = x[SysChdir-49]
@@ -65,6 +70,7 @@ func _() {
 	_ = x[SysPipe2-59]
 	_ = x[SysQuotactl-60]
 	_ = x[SysGetdents64-61]
+	_ = x[SysLseek-62]
 	_ = x[SysRead-63]
 	_ = x[SysWrite-64]
 	_ = x[SysReadv-65]
@@ -73,6 +79,7 @@ func _() {
 	_ = x[SysPwrite64-68]
 	_ = x[SysPreadv-69]
 	_ = x[SysPwritev-70]
+	_ = x[SysSendfile-71]
 	_ = x[SysPselect6-72]
 	_ = x[SysPpoll-73]
 	_ = x[SysSignalfd4-74]
@@ -80,6 +87,8 @@ func _() {
 	_ = x[SysSplice-76]
 	_ = x[SysTee-77]
 	_ = x[SysReadlinkat-78]
+	_ = x[SysFstatat-79]
+	_ = x[SysFstat-80]
 	_ = x[SysSync-81]
 	_ = x[SysFsync-82]
 	_ = x[SysFdatasync-83]
@@ -222,6 +231,8 @@ func _() {
 	_ = x[SysKeyctl-219]
 	_ = x[SysClone-220]
 	_ = x[SysExecve-221]
+	_ = x[SysMmap-222]
+	_ = x[SysFadvise64-223]
 	_ = x[SysSwapon-224]
 	_ = x[SysSwapoff-225]
 	_ = x[SysMprotect-226]
@@ -329,62 +340,32 @@ func _() {
 }
 
 const (
-	_Syscall_name_0 = "SysIoSetupSysIoDestroySysIoSubmitSysIoCancelSysIoGeteventsSysSetxattrSysLsetxattrSysFsetxattrSysGetxattrSysLgetxattrSysFgetxattrSysListxattrSysLlistxattrSysFlistxattrSysRemovexattrSysLremovexattrSysFremovexattrSysGetcwdSysLookupDcookieSysEventfd2SysEpollCreate1SysEpollCtlSysEpollPwaitSysDupSysDup3"
-	_Syscall_name_1 = "SysInotifyInit1SysInotifyAddWatchSysInotifyRmWatchSysIoctlSysIoprioSetSysIoprioGetSysFlockSysMknodatSysMkdiratSysUnlinkatSysSymlinkatSysLinkatSysRenameatSysUmount2SysMountSysPivotRootSysNfsservctl"
-	_Syscall_name_2 = "SysFallocateSysFaccessatSysChdirSysFchdirSysChrootSysFchmodSysFchmodatSysFchownatSysFchownSysOpenatSysCloseSysVhangupSysPipe2SysQuotactlSysGetdents64"
-	_Syscall_name_3 = "SysReadSysWriteSysReadvSysWritevSysPread64SysPwrite64SysPreadvSysPwritev"
-	_Syscall_name_4 = "SysPselect6SysPpollSysSignalfd4SysVmspliceSysSpliceSysTeeSysReadlinkat"
-	_Syscall_name_5 = "SysSyncSysFsyncSysFdatasyncSysSyncFileRange2SysTimerfdCreateSysTimerfdSettimeSysTimerfdGettimeSysUtimensatSysAcctSysCapgetSysCapsetSysPersonalitySysExitSysExitGroupSysWaitidSysSetTidAddressSysUnshareSysFutexSysSetRobustListSysGetRobustListSysNanosleepSysGetitimerSysSetitimerSysKexecLoadSysInitModuleSysDeleteModuleSysTimerCreateSysTimerGettimeSysTimerGetoverrunSysTimerSettimeSysTimerDeleteSysClockSettimeSysClockGettimeSysClockGetresSysClockNanosleepSysSyslogSysPtraceSysSchedSetparamSysSchedSetschedulerSysSchedGetschedulerSysSchedGetparamSysSchedSetaffinitySysSchedGetaffinitySysSchedYieldSysSchedGetPriorityMaxSysSchedGetPriorityMinSysSchedRrGetIntervalSysRestartSyscallSysKillSysTkillSysTgkillSysSigaltstackSysRtSigsuspendSysRtSigactionSysRtSigprocmaskSysRtSigpendingSysRtSigtimedwaitSysRtSigqueueinfoSysRtSigreturnSysSetprioritySysGetprioritySysRebootSysSetregidSysSetgidSysSetreuidSysSetuidSysSetresuidSysGetresuidSysSetresgidSysGetresgidSysSetfsuidSysSetfsgidSysTimesSysSetpgidSysGetpgidSysGetsidSysSetsidSysGetgroupsSysSetgroupsSysUnameSysSethostnameSysSetdomainnameSysGetrlimitSysSetrlimitSysGetrusageSysUmaskSysPrctlSysGetcpuSysGettimeofdaySysSettimeofdaySysAdjtimexSysGetpidSysGetppidSysGetuidSysGeteuidSysGetgidSysGetegidSysGettidSysSysinfoSysMqOpenSysMqUnlinkSysMqTimedsendSysMqTimedreceiveSysMqNotifySysMqGetsetattrSysMsggetSysMsgctlSysMsgrcvSysMsgsndSysSemgetSysSemctlSysSemtimedopSysSemopSysShmgetSysShmctlSysShmatSysShmdtSysSocketSysSocketpairSysBindSysListenSysAcceptSysConnectSysGetsocknameSysGetpeernameSysSendtoSysRecvfromSysSetsockoptSysGetsockoptSysShutdownSysSendmsgSysRecvmsgSysReadaheadSysBrkSysMunmapSysMremapSysAddKeySysRequestKeySysKeyctlSysCloneSysExecve"
-	_Syscall_name_6 = "SysSwaponSysSwapoffSysMprotectSysMsyncSysMlockSysMunlockSysMlockallSysMunlockallSysMincoreSysMadviseSysRemapFilePagesSysMbindSysGetMempolicySysSetMempolicySysMigratePagesSysMovePagesSysRtTgsigqueueinfoSysPerfEventOpenSysAccept4SysRecvmmsgSysArchSpecificSyscall"
-	_Syscall_name_7 = "SysWait4SysPrlimit64SysFanotifyInitSysFanotifyMarkSysNameToHandleAtSysOpenByHandleAtSysClockAdjtimeSysSyncfsSysSetnsSysSendmmsgSysProcessVmReadvSysProcessVmWritevSysKcmpSysFinitModuleSysSchedSetattrSysSchedGetattrSysRenameat2SysSeccompSysGetrandomSysMemfdCreateSysBpfSysExecveatSysUserfaultfdSysMembarrierSysMlock2SysCopyFileRangeSysPreadv2SysPwritev2SysPkeyMprotectSysPkeyAllocSysPkeyFreeSysStatxSysIoPgeteventsSysRseqSysKexecFileLoad"
-	_Syscall_name_8 = "SysClockGettime64SysClockSettime64SysClockAdjtime64SysClockGetresTime64SysClockNanosleepTime64SysTimerGettime64SysTimerSettime64SysTimerfdGettime64SysTimerfdSettime64SysUtimensatTime64SysPselect6Time64SysPpollTime64"
-	_Syscall_name_9 = "SysIoPgeteventsTime64SysRecvmmsgTime64SysMqTimedsendTime64SysMqTimedreceiveTime64SysSemtimedopTime64SysRtSigtimedwaitTime64SysFutexTime64SysSchedRrGetIntervalTime64SysPidfdSendSignalSysIoUringSetupSysIoUringEnterSysIoUringRegisterSysOpenTreeSysMoveMountSysFsopenSysFsconfigSysFsmountSysFspickSysPidfdOpenSysClone3SysCloseRangeSysOpenat2SysPidfdGetfdSysFaccessat2SysProcessMadviseSysEpollPwait2SysMountSetattrSysQuotactlFdSysLandlockCreateRulesetSysLandlockAddRuleSysLandlockRestrictSelfSysMemfdSecretSysProcessMreleaseSysFutexWaitvSysSetMempolicyHomeNodeSysSyscalls"
+	_Syscall_name_0 = "SysIoSetupSysIoDestroySysIoSubmitSysIoCancelSysIoGeteventsSysSetxattrSysLsetxattrSysFsetxattrSysGetxattrSysLgetxattrSysFgetxattrSysListxattrSysLlistxattrSysFlistxattrSysRemovexattrSysLremovexattrSysFremovexattrSysGetcwdSysLookupDcookieSysEventfd2SysEpollCreate1SysEpollCtlSysEpollPwaitSysDupSysDup3SysFcntlSysInotifyInit1SysInotifyAddWatchSysInotifyRmWatchSysIoctlSysIoprioSetSysIoprioGetSysFlockSysMknodatSysMkdiratSysUnlinkatSysSymlinkatSysLinkatSysRenameatSysUmount2SysMountSysPivotRootSysNfsservctlSysStatfsSysFstatfsSysTruncateSysFtruncateSysFallocateSysFaccessatSysChdirSysFchdirSysChrootSysFchmodSysFchmodatSysFchownatSysFchownSysOpenatSysCloseSysVhangupSysPipe2SysQuotactlSysGetdents64SysLseekSysReadSysWriteSysReadvSysWritevSysPread64SysPwrite64SysPreadvSysPwritevSysSendfileSysPselect6SysPpollSysSignalfd4SysVmspliceSysSpliceSysTeeSysReadlinkatSysFstatatSysFstatSysSyncSysFsyncSysFdatasyncSysSyncFileRange2SysTimerfdCreateSysTimerfdSettimeSysTimerfdGettimeSysUtimensatSysAcctSysCapgetSysCapsetSysPersonalitySysExitSysExitGroupSysWaitidSysSetTidAddressSysUnshareSysFutexSysSetRobustListSysGetRobustListSysNanosleepSysGetitimerSysSetitimerSysKexecLoadSysInitModuleSysDeleteModuleSysTimerCreateSysTimerGettimeSysTimerGetoverrunSysTimerSettimeSysTimerDeleteSysClockSettimeSysClockGettimeSysClockGetresSysClockNanosleepSysSyslogSysPtraceSysSchedSetparamSysSchedSetschedulerSysSchedGetschedulerSysSchedGetparamSysSchedSetaffinitySysSchedGetaffinitySysSchedYieldSysSchedGetPriorityMaxSysSchedGetPriorityMinSysSchedRrGetIntervalSysRestartSyscallSysKillSysTkillSysTgkillSysSigaltstackSysRtSigsuspendSysRtSigactionSysRtSigprocmaskSysRtSigpendingSysRtSigtimedwaitSysRtSigqueueinfoSysRtSigreturnSysSetprioritySysGetprioritySysRebootSysSetregidSysSetgidSysSetreuidSysSetuidSysSetresuidSysGetresuidSysSetresgidSysGetresgidSysSetfsuidSysSetfsgidSysTimesSysSetpgidSysGetpgidSysGetsidSysSetsidSysGetgroupsSysSetgroupsSysUnameSysSethostnameSysSetdomainnameSysGetrlimitSysSetrlimitSysGetrusageSysUmaskSysPrctlSysGetcpuSysGettimeofdaySysSettimeofdaySysAdjtimexSysGetpidSysGetppidSysGetuidSysGeteuidSysGetgidSysGetegidSysGettidSysSysinfoSysMqOpenSysMqUnlinkSysMqTimedsendSysMqTimedreceiveSysMqNotifySysMqGetsetattrSysMsggetSysMsgctlSysMsgrcvSysMsgsndSysSemgetSysSemctlSysSemtimedopSysSemopSysShmgetSysShmctlSysShmatSysShmdtSysSocketSysSocketpairSysBindSysListenSysAcceptSysConnectSysGetsocknameSysGetpeernameSysSendtoSysRecvfromSysSetsockoptSysGetsockoptSysShutdownSysSendmsgSysRecvmsgSysReadaheadSysBrkSysMunmapSysMremapSysAddKeySysRequestKeySysKeyctlSysCloneSysExecveSysMmapSysFadvise64SysSwaponSysSwapoffSysMprotectSysMsyncSysMlockSysMunlockSysMlockallSysMunlockallSysMincoreSysMadviseSysRemapFilePagesSysMbindSysGetMempolicySysSetMempolicySysMigratePagesSysMovePagesSysRtTgsigqueueinfoSysPerfEventOpenSysAccept4SysRecvmmsgSysArchSpecificSyscall"
+	_Syscall_name_1 = "SysWait4SysPrlimit64SysFanotifyInitSysFanotifyMarkSysNameToHandleAtSysOpenByHandleAtSysClockAdjtimeSysSyncfsSysSetnsSysSendmmsgSysProcessVmReadvSysProcessVmWritevSysKcmpSysFinitModuleSysSchedSetattrSysSchedGetattrSysRenameat2SysSeccompSysGetrandomSysMemfdCreateSysBpfSysExecveatSysUserfaultfdSysMembarrierSysMlock2SysCopyFileRangeSysPreadv2SysPwritev2SysPkeyMprotectSysPkeyAllocSysPkeyFreeSysStatxSysIoPgeteventsSysRseqSysKexecFileLoad"
+	_Syscall_name_2 = "SysClockGettime64SysClockSettime64SysClockAdjtime64SysClockGetresTime64SysClockNanosleepTime64SysTimerGettime64SysTimerSettime64SysTimerfdGettime64SysTimerfdSettime64SysUtimensatTime64SysPselect6Time64SysPpollTime64"
+	_Syscall_name_3 = "SysIoPgeteventsTime64SysRecvmmsgTime64SysMqTimedsendTime64SysMqTimedreceiveTime64SysSemtimedopTime64SysRtSigtimedwaitTime64SysFutexTime64SysSchedRrGetIntervalTime64SysPidfdSendSignalSysIoUringSetupSysIoUringEnterSysIoUringRegisterSysOpenTreeSysMoveMountSysFsopenSysFsconfigSysFsmountSysFspickSysPidfdOpenSysClone3SysCloseRangeSysOpenat2SysPidfdGetfdSysFaccessat2SysProcessMadviseSysEpollPwait2SysMountSetattrSysQuotactlFdSysLandlockCreateRulesetSysLandlockAddRuleSysLandlockRestrictSelfSysMemfdSecretSysProcessMreleaseSysFutexWaitvSysSetMempolicyHomeNodeSysSyscalls"
 )
 
 var (
-	_Syscall_index_0 = [...]uint16{0, 10, 22, 33, 44, 58, 69, 81, 93, 104, 116, 128, 140, 153, 166, 180, 195, 210, 219, 235, 246, 261, 272, 285, 291, 298}
-	_Syscall_index_1 = [...]uint8{0, 15, 33, 50, 58, 70, 82, 90, 100, 110, 121, 133, 142, 153, 163, 171, 183, 196}
-	_Syscall_index_2 = [...]uint8{0, 12, 24, 32, 41, 50, 59, 70, 81, 90, 99, 107, 117, 125, 136, 149}
-	_Syscall_index_3 = [...]uint8{0, 7, 15, 23, 32, 42, 53, 62, 72}
-	_Syscall_index_4 = [...]uint8{0, 11, 19, 31, 42, 51, 57, 70}
-	_Syscall_index_5 = [...]uint16{0, 7, 15, 27, 44, 60, 77, 94, 106, 113, 122, 131, 145, 152, 164, 173, 189, 199, 207, 223, 239, 251, 263, 275, 287, 300, 315, 329, 344, 362, 377, 391, 406, 421, 435, 452, 461, 470, 486, 506, 526, 542, 561, 580, 593, 615, 637, 658, 675, 682, 690, 699, 713, 728, 742, 758, 773, 790, 807, 821, 835, 849, 858, 869, 878, 889, 898, 910, 922, 934, 946, 957, 968, 976, 986, 996, 1005, 1014, 1026, 1038, 1046, 1060, 1076, 1088, 1100, 1112, 1120, 1128, 1137, 1152, 1167, 1178, 1187, 1197, 1206, 1216, 1225, 1235, 1244, 1254, 1263, 1274, 1288, 1305, 1316, 1331, 1340, 1349, 1358, 1367, 1376, 1385, 1398, 1406, 1415, 1424, 1432, 1440, 1449, 1462, 1469, 1478, 1487, 1497, 1511, 1525, 1534, 1545, 1558, 1571, 1582, 1592, 1602, 1614, 1620, 1629, 1638, 1647, 1660, 1669, 1677, 1686}
-	_Syscall_index_6 = [...]uint16{0, 9, 19, 30, 38, 46, 56, 67, 80, 90, 100, 117, 125, 140, 155, 170, 182, 201, 217, 227, 238, 260}
-	_Syscall_index_7 = [...]uint16{0, 8, 20, 35, 50, 67, 84, 99, 108, 116, 127, 144, 162, 169, 183, 198, 213, 225, 235, 247, 261, 267, 278, 292, 305, 314, 330, 340, 351, 366, 378, 389, 397, 412, 419, 435}
-	_Syscall_index_8 = [...]uint8{0, 17, 34, 51, 71, 94, 111, 128, 147, 166, 184, 201, 215}
-	_Syscall_index_9 = [...]uint16{0, 21, 38, 58, 81, 100, 123, 137, 164, 182, 197, 212, 230, 241, 253, 262, 273, 283, 292, 304, 313, 326, 336, 349, 362, 379, 393, 408, 421, 445, 463, 486, 500, 518, 531, 554, 565}
+	_Syscall_index_0 = [...]uint16{0, 10, 22, 33, 44, 58, 69, 81, 93, 104, 116, 128, 140, 153, 166, 180, 195, 210, 219, 235, 246, 261, 272, 285, 291, 298, 306, 321, 339, 356, 364, 376, 388, 396, 406, 416, 427, 439, 448, 459, 469, 477, 489, 502, 511, 521, 532, 544, 556, 568, 576, 585, 594, 603, 614, 625, 634, 643, 651, 661, 669, 680, 693, 701, 708, 716, 724, 733, 743, 754, 763, 773, 784, 795, 803, 815, 826, 835, 841, 854, 864, 872, 879, 887, 899, 916, 932, 949, 966, 978, 985, 994, 1003, 1017, 1024, 1036, 1045, 1061, 1071, 1079, 1095, 1111, 1123, 1135, 1147, 1159, 1172, 1187, 1201, 1216, 1234, 1249, 1263, 1278, 1293, 1307, 1324, 1333, 1342, 1358, 1378, 1398, 1414, 1433, 1452, 1465, 1487, 1509, 1530, 1547, 1554, 1562, 1571, 1585, 1600, 1614, 1630, 1645, 1662, 1679, 1693, 1707, 1721, 1730, 1741, 1750, 1761, 1770, 1782, 1794, 1806, 1818, 1829, 1840, 1848, 1858, 1868, 1877, 1886, 1898, 1910, 1918, 1932, 1948, 1960, 1972, 1984, 1992, 2000, 2009, 2024, 2039, 2050, 2059, 2069, 2078, 2088, 2097, 2107, 2116, 2126, 2135, 2146, 2160, 2177, 2188, 2203, 2212, 2221, 2230, 2239, 2248, 2257, 2270, 2278, 2287, 2296, 2304, 2312, 2321, 2334, 2341, 2350, 2359, 2369, 2383, 2397, 2406, 2417, 2430, 2443, 2454, 2464, 2474, 2486, 2492, 2501, 2510, 2519, 2532, 2541, 2549, 2558, 2565, 2577, 2586, 2596, 2607, 2615, 2623, 2633, 2644, 2657, 2667, 2677, 2694, 2702, 2717, 2732, 2747, 2759, 2778, 2794, 2804, 2815, 2837}
+	_Syscall_index_1 = [...]uint16{0, 8, 20, 35, 50, 67, 84, 99, 108, 116, 127, 144, 162, 169, 183, 198, 213, 225, 235, 247, 261, 267, 278, 292, 305, 314, 330, 340, 351, 366, 378, 389, 397, 412, 419, 435}
+	_Syscall_index_2 = [...]uint8{0, 17, 34, 51, 71, 94, 111, 128, 147, 166, 184, 201, 215}
+	_Syscall_index_3 = [...]uint16{0, 21, 38, 58, 81, 100, 123, 137, 164, 182, 197, 212, 230, 241, 253, 262, 273, 283, 292, 304, 313, 326, 336, 349, 362, 379, 393, 408, 421, 445, 463, 486, 500, 518, 531, 554, 565}
 )
 
 func (i Syscall) String() string {
 	switch {
-	case 0 <= i && i <= 24:
+	case 0 <= i && i <= 244:
 		return _Syscall_name_0[_Syscall_index_0[i]:_Syscall_index_0[i+1]]
-	case 26 <= i && i <= 42:
-		i -= 26
-		return _Syscall_name_1[_Syscall_index_1[i]:_Syscall_index_1[i+1]]
-	case 47 <= i && i <= 61:
-		i -= 47
-		return _Syscall_name_2[_Syscall_index_2[i]:_Syscall_index_2[i+1]]
-	case 63 <= i && i <= 70:
-		i -= 63
-		return _Syscall_name_3[_Syscall_index_3[i]:_Syscall_index_3[i+1]]
-	case 72 <= i && i <= 78:
-		i -= 72
-		return _Syscall_name_4[_Syscall_index_4[i]:_Syscall_index_4[i+1]]
-	case 81 <= i && i <= 221:
-		i -= 81
-		return _Syscall_name_5[_Syscall_index_5[i]:_Syscall_index_5[i+1]]
-	case 224 <= i && i <= 244:
-		i -= 224
-		return _Syscall_name_6[_Syscall_index_6[i]:_Syscall_index_6[i+1]]
 	case 260 <= i && i <= 294:
 		i -= 260
-		return _Syscall_name_7[_Syscall_index_7[i]:_Syscall_index_7[i+1]]
+		return _Syscall_name_1[_Syscall_index_1[i]:_Syscall_index_1[i+1]]
 	case 403 <= i && i <= 414:
 		i -= 403
-		return _Syscall_name_8[_Syscall_index_8[i]:_Syscall_index_8[i+1]]
+		return _Syscall_name_2[_Syscall_index_2[i]:_Syscall_index_2[i+1]]
 	case 416 <= i && i <= 451:
 		i -= 416
-		return _Syscall_name_9[_Syscall_index_9[i]:_Syscall_index_9[i+1]]
+		return _Syscall_name_3[_Syscall_index_3[i]:_Syscall_index_3[i+1]]
 	default:
 		return "Syscall(" + strconv.FormatInt(int64(i), 10) + ")"
 	}

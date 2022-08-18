@@ -39,6 +39,7 @@ const (
 	SysEpollPwait               Syscall = 22
 	SysDup                      Syscall = 23
 	SysDup3                     Syscall = 24
+	SysFcntl                    Syscall = 25
 	SysInotifyInit1             Syscall = 26
 	SysInotifyAddWatch          Syscall = 27
 	SysInotifyRmWatch           Syscall = 28
@@ -56,6 +57,10 @@ const (
 	SysMount                    Syscall = 40
 	SysPivotRoot                Syscall = 41
 	SysNfsservctl               Syscall = 42
+	SysStatfs                   Syscall = 43
+	SysFstatfs                  Syscall = 44
+	SysTruncate                 Syscall = 45
+	SysFtruncate                Syscall = 46
 	SysFallocate                Syscall = 47
 	SysFaccessat                Syscall = 48
 	SysChdir                    Syscall = 49
@@ -71,6 +76,7 @@ const (
 	SysPipe2                    Syscall = 59
 	SysQuotactl                 Syscall = 60
 	SysGetdents64               Syscall = 61
+	SysLseek                    Syscall = 62
 	SysRead                     Syscall = 63
 	SysWrite                    Syscall = 64
 	SysReadv                    Syscall = 65
@@ -79,6 +85,7 @@ const (
 	SysPwrite64                 Syscall = 68
 	SysPreadv                   Syscall = 69
 	SysPwritev                  Syscall = 70
+	SysSendfile                 Syscall = 71
 	SysPselect6                 Syscall = 72
 	SysPpoll                    Syscall = 73
 	SysSignalfd4                Syscall = 74
@@ -86,6 +93,8 @@ const (
 	SysSplice                   Syscall = 76
 	SysTee                      Syscall = 77
 	SysReadlinkat               Syscall = 78
+	SysFstatat                  Syscall = 79
+	SysFstat                    Syscall = 80
 	SysSync                     Syscall = 81
 	SysFsync                    Syscall = 82
 	SysFdatasync                Syscall = 83
@@ -228,6 +237,8 @@ const (
 	SysKeyctl                   Syscall = 219
 	SysClone                    Syscall = 220
 	SysExecve                   Syscall = 221
+	SysMmap                     Syscall = 222
+	SysFadvise64                Syscall = 223
 	SysSwapon                   Syscall = 224
 	SysSwapoff                  Syscall = 225
 	SysMprotect                 Syscall = 226

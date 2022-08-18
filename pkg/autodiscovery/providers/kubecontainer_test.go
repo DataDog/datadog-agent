@@ -81,8 +81,8 @@ func TestProcessEvents(t *testing.T) {
 				Events: tt.events,
 			})
 
-			assert.ElementsMatch(t, tt.changes.Schedule, changes.Schedule)
-			assert.ElementsMatch(t, tt.changes.Unschedule, changes.Unschedule)
+			assert.Equal(t, tt.changes.Schedule, changes.Schedule)
+			assert.Equal(t, tt.changes.Unschedule, changes.Unschedule)
 		})
 	}
 }
@@ -145,7 +145,7 @@ func TestGenerateConfig(t *testing.T) {
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:docker://3b8efe0c50e8",
+					Source:        "container:docker://3b8efe0c50e8",
 				},
 			},
 			expectedErr: nil,
@@ -176,7 +176,7 @@ func TestGenerateConfig(t *testing.T) {
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:docker://3b8efe0c50e8",
+					Source:        "container:docker://3b8efe0c50e8",
 				},
 			},
 			expectedErr: nil,
@@ -211,14 +211,14 @@ func TestGenerateConfig(t *testing.T) {
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:docker://3b8efe0c50e8",
+					Source:        "container:docker://3b8efe0c50e8",
 				},
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
-					Source:        "kubelet:docker://4ac8352d70bf1",
+					Source:        "container:docker://4ac8352d70bf1",
 				},
 			},
 			expectedErr: nil,
@@ -246,14 +246,14 @@ func TestGenerateConfig(t *testing.T) {
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
-					Source:        "kubelet:docker://3b8efe0c50e8",
+					Source:        "container:docker://3b8efe0c50e8",
 				},
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:docker://3b8efe0c50e8",
+					Source:        "container:docker://3b8efe0c50e8",
 				},
 			},
 			expectedErr: nil,
@@ -282,7 +282,7 @@ func TestGenerateConfig(t *testing.T) {
 					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
-					Source:        "kubelet:docker://4ac8352d70bf1",
+					Source:        "container:docker://4ac8352d70bf1",
 				},
 			},
 			expectedErr: nil,
@@ -340,7 +340,7 @@ func TestGenerateConfig(t *testing.T) {
 					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data("{\"name\":\"nginx\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					Source:        "kubelet:docker://4ac8352d70bf1",
+					Source:        "container:docker://4ac8352d70bf1",
 				},
 			},
 			expectedErr: ErrorMsgSet{

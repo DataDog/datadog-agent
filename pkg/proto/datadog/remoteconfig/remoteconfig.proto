@@ -146,12 +146,13 @@ message GetStateConfigResponse {
 
 
 message TracerPredicateV1 {
-	string runtimeID = 1;
+	string clientID = 1;
 	string service = 2;
 	string environment = 3;
 	string appVersion = 4;
 	string tracerVersion = 5;
 	string language = 6;
+        string runtimeID = 7;
 }
 
 message TracerPredicates {

@@ -8,6 +8,7 @@ package logs
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
@@ -41,18 +43,18 @@ func TestUnmarshalExtensionLog(t *testing.T) {
 
 func TestShouldProcessLog(t *testing.T) {
 
-	validLog := logMessage{
+	validLog := &logMessage{
 		logType: logTypePlatformReport,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
 	}
 
-	invalidLog0 := logMessage{
+	invalidLog0 := &logMessage{
 		logType: logTypePlatformLogsSubscription,
 	}
 
-	invalidLog1 := logMessage{
+	invalidLog1 := &logMessage{
 		logType: logTypePlatformExtension,
 	}
 
@@ -84,7 +86,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
-		logMessage{
+		&logMessage{
 			stringRecord: "aaa",
 			objectRecord: platformObjectRecord{
 				requestID: "",
@@ -96,7 +98,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
-		logMessage{
+		&logMessage{
 			stringRecord: "",
 			objectRecord: platformObjectRecord{
 				requestID: "aaa",
@@ -108,7 +110,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
-		logMessage{
+		&logMessage{
 			stringRecord: "",
 			objectRecord: platformObjectRecord{
 				requestID: "",
@@ -117,7 +119,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 	)
 }
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
-	var sampleLogMessage = logMessage{
+	var sampleLogMessage = &logMessage{
 		objectRecord: platformObjectRecord{
 			requestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
 			reportLogItem: reportLogMetrics{
@@ -129,13 +131,20 @@ func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 			},
 		},
 	}
-	output := createStringRecordForReportLog(&sampleLogMessage)
-	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tInit Duration: 50.00 ms"
+
+	now := time.Now()
+	ecs := executioncontext.State{
+		StartTime: now,
+		EndTime:   now.Add(10 * time.Millisecond),
+	}
+
+	output := createStringRecordForReportLog(sampleLogMessage, ecs)
+	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tRuntime Duration: 10.00 ms\tPost Runtime Duration: 90.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tInit Duration: 50.00 ms"
 	assert.Equal(t, expectedOutput, output)
 }
 
 func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
-	var sampleLogMessage = logMessage{
+	var sampleLogMessage = &logMessage{
 		objectRecord: platformObjectRecord{
 			requestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
 			reportLogItem: reportLogMetrics{
@@ -147,8 +156,15 @@ func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 			},
 		},
 	}
-	output := createStringRecordForReportLog(&sampleLogMessage)
-	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
+
+	now := time.Now()
+	ecs := executioncontext.State{
+		StartTime: now,
+		EndTime:   now.Add(10 * time.Millisecond),
+	}
+
+	output := createStringRecordForReportLog(sampleLogMessage, ecs)
+	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tRuntime Duration: 10.00 ms\tPost Runtime Duration: 90.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
 	assert.Equal(t, expectedOutput, output)
 }
 
@@ -218,15 +234,15 @@ func TestProcessMessageValid(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Len(t, received, 6)
+	assert.Len(t, received, 7)
 	assert.Len(t, timed, 0)
 	demux.Reset()
 
 	computeEnhancedMetrics = false
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
 	received, timed = demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, received, 0, "we should NOT have received metrics")
@@ -237,7 +253,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformStart,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -266,10 +282,11 @@ func TestProcessMessageStartValid(t *testing.T) {
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	messageTime := time.Now()
 	defer demux.Stop(false)
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
-		time:    time.Now(),
+		time:    messageTime,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 			runtimeDoneItem: runtimeDoneItem{
@@ -290,8 +307,10 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	ecs := mockExecutionContext.GetCurrentState()
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
+	assert.WithinDuration(t, messageTime, ecs.EndTime, time.Millisecond)
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
@@ -300,7 +319,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 
 	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
 	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -331,7 +350,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -360,7 +379,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
-	message := logMessage{
+	message := &logMessage{
 		logType:      logTypePlatformLogsDropped,
 		time:         time.Now(),
 		stringRecord: "bla bla bla",
@@ -384,7 +403,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
-	message := logMessage{
+	message := &logMessage{
 		logType:      logTypeFunction,
 		time:         time.Now(),
 		stringRecord: "fatal error: runtime: out of memory",
@@ -698,4 +717,78 @@ func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
+}
+
+func TestRuntimeMetricsMatchLogs(t *testing.T) {
+	// The test ensures that the values listed in the report log statement
+	// matches the values of the metrics being reported.
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	runtimeDurationMs := 10.0
+	postRuntimeDurationMs := 90.0
+	durationMs := runtimeDurationMs + postRuntimeDurationMs
+
+	startTime := time.Now()
+	endTime := startTime.Add(time.Duration(runtimeDurationMs) * time.Millisecond)
+	reportLogTime := endTime.Add(time.Duration(postRuntimeDurationMs) * time.Millisecond)
+
+	requestID := "13dee504-0d50-4c86-8d82-efd20693afc9"
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("arn not used", requestID)
+	mockExecutionContext.UpdateFromStartLog(requestID, startTime)
+	computeEnhancedMetrics := true
+
+	doneMessage := &logMessage{
+		time:    endTime,
+		logType: logTypePlatformRuntimeDone,
+		objectRecord: platformObjectRecord{
+			requestID:       requestID,
+			runtimeDoneItem: runtimeDoneItem{},
+		},
+	}
+	reportMessage := &logMessage{
+		time:    reportLogTime,
+		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+			reportLogItem: reportLogMetrics{
+				durationMs: durationMs,
+			},
+		},
+	}
+
+	processMessage(doneMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+	processMessage(reportMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
+	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
+	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      runtimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  runtimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[4], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      durationMs / 1000, // in seconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[6], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.post_runtime_duration",
+		Value:      postRuntimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
+	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
+	assert.Len(t, timedMetrics, 0)
 }
