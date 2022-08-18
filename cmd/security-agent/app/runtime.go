@@ -648,7 +648,7 @@ func checkPoliciesInner(dir string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
@@ -780,7 +780,7 @@ func evalRule(cmd *cobra.Command, args []string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
