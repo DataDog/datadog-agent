@@ -309,6 +309,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
 		{{- if eq $Field.OrigType "string"}}
+			{{if $Field.IsLength}}
+				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
+			{{else}}
 			str, ok := value.(string)
 			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
@@ -319,9 +322,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				{{$FieldName}} = str
 			{{end}}
 			return nil
+			{{end}}
 		{{else if eq $Field.BasicType "int"}}
 			{{if $Field.IsLength}}
-				return &eval.ErrFieldReadOnly{Field: "{{$Field.Name}}"}
+				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
 			v, ok := value.(int)
 			if !ok {

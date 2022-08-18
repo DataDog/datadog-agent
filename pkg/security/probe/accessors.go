@@ -15075,6 +15075,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.BasenameStr = str
 		return nil
 	case "chmod.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "chmod.file.name.length"}
 	case "chmod.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -15083,6 +15084,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.PathnameStr = str
 		return nil
 	case "chmod.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "chmod.file.path.length"}
 	case "chmod.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -15209,6 +15211,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.BasenameStr = str
 		return nil
 	case "chown.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "chown.file.name.length"}
 	case "chown.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -15217,6 +15220,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chown.File.PathnameStr = str
 		return nil
 	case "chown.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "chown.file.path.length"}
 	case "chown.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -15288,7 +15292,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.DNS.Name = str
 		return nil
 	case "dns.question.name.length":
-		return &eval.ErrFieldReadOnly{Field: "DNS.Name.length"}
+		return &eval.ErrFieldReadOnly{Field: "dns.question.name.length"}
 	case "dns.question.type":
 		v, ok := value.(int)
 		if !ok {
@@ -15587,6 +15591,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "exec.file.name.length"}
 	case "exec.file.path":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -15601,6 +15606,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "exec.file.path.length"}
 	case "exec.file.rights":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &model.Process{}
@@ -16074,6 +16080,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
 	case "exit.file.path":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -16088,6 +16095,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
 	case "exit.file.rights":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &model.Process{}
@@ -16333,6 +16341,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.BasenameStr = str
 		return nil
 	case "link.file.destination.name.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.destination.name.length"}
 	case "link.file.destination.path":
 		str, ok := value.(string)
 		if !ok {
@@ -16341,6 +16350,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Target.PathnameStr = str
 		return nil
 	case "link.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.destination.path.length"}
 	case "link.file.destination.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -16425,6 +16435,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.BasenameStr = str
 		return nil
 	case "link.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.name.length"}
 	case "link.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -16433,6 +16444,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.PathnameStr = str
 		return nil
 	case "link.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.path.length"}
 	case "link.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -16531,6 +16543,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.BasenameStr = str
 		return nil
 	case "load_module.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "load_module.file.name.length"}
 	case "load_module.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -16539,6 +16552,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.LoadModule.File.PathnameStr = str
 		return nil
 	case "load_module.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "load_module.file.path.length"}
 	case "load_module.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -16664,6 +16678,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.BasenameStr = str
 		return nil
 	case "mkdir.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "mkdir.file.name.length"}
 	case "mkdir.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -16672,6 +16687,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.PathnameStr = str
 		return nil
 	case "mkdir.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "mkdir.file.path.length"}
 	case "mkdir.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -16770,6 +16786,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.BasenameStr = str
 		return nil
 	case "mmap.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "mmap.file.name.length"}
 	case "mmap.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -16778,6 +16795,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.MMap.File.PathnameStr = str
 		return nil
 	case "mmap.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "mmap.file.path.length"}
 	case "mmap.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -16981,6 +16999,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.BasenameStr = str
 		return nil
 	case "open.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "open.file.name.length"}
 	case "open.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -16989,6 +17008,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Open.File.PathnameStr = str
 		return nil
 	case "open.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "open.file.path.length"}
 	case "open.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -17405,6 +17425,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
 	case "process.ancestors.file.path":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -17425,6 +17446,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext.Ancestor == nil {
 			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
 	case "process.ancestors.file.rights":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -17935,6 +17957,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
 	case "process.file.path":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -17949,6 +17972,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "process.file.path.length"}
 	case "process.file.rights":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
@@ -18512,6 +18536,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.name.length"}
 	case "ptrace.tracee.ancestors.file.path":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -18532,6 +18557,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Ancestor == nil {
 			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.path.length"}
 	case "ptrace.tracee.ancestors.file.rights":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -19042,6 +19068,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.name.length"}
 	case "ptrace.tracee.file.path":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -19056,6 +19083,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.path.length"}
 	case "ptrace.tracee.file.rights":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
@@ -19308,6 +19336,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.BasenameStr = str
 		return nil
 	case "removexattr.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "removexattr.file.name.length"}
 	case "removexattr.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19316,6 +19345,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.PathnameStr = str
 		return nil
 	case "removexattr.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "removexattr.file.path.length"}
 	case "removexattr.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -19421,6 +19451,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.BasenameStr = str
 		return nil
 	case "rename.file.destination.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
 	case "rename.file.destination.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19429,6 +19460,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.New.PathnameStr = str
 		return nil
 	case "rename.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
 	case "rename.file.destination.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -19513,6 +19545,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.BasenameStr = str
 		return nil
 	case "rename.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
 	case "rename.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19521,6 +19554,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.PathnameStr = str
 		return nil
 	case "rename.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
 	case "rename.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -19619,6 +19653,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.BasenameStr = str
 		return nil
 	case "rmdir.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rmdir.file.name.length"}
 	case "rmdir.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19627,6 +19662,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.File.PathnameStr = str
 		return nil
 	case "rmdir.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rmdir.file.path.length"}
 	case "rmdir.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -19850,6 +19886,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.BasenameStr = str
 		return nil
 	case "setxattr.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "setxattr.file.name.length"}
 	case "setxattr.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19858,6 +19895,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.PathnameStr = str
 		return nil
 	case "setxattr.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "setxattr.file.path.length"}
 	case "setxattr.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -20281,6 +20319,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.name.length"}
 	case "signal.target.ancestors.file.path":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -20301,6 +20340,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Ancestor == nil {
 			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.path.length"}
 	case "signal.target.ancestors.file.rights":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -20811,6 +20851,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.file.name.length"}
 	case "signal.target.file.path":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -20825,6 +20866,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.file.path.length"}
 	case "signal.target.file.rights":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
@@ -21070,6 +21112,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.BasenameStr = str
 		return nil
 	case "splice.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "splice.file.name.length"}
 	case "splice.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -21078,6 +21121,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Splice.File.PathnameStr = str
 		return nil
 	case "splice.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "splice.file.path.length"}
 	case "splice.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -21190,6 +21234,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.BasenameStr = str
 		return nil
 	case "unlink.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "unlink.file.name.length"}
 	case "unlink.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -21198,6 +21243,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.File.PathnameStr = str
 		return nil
 	case "unlink.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "unlink.file.path.length"}
 	case "unlink.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -21317,6 +21363,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.BasenameStr = str
 		return nil
 	case "utimes.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "utimes.file.name.length"}
 	case "utimes.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -21325,6 +21372,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Utimes.File.PathnameStr = str
 		return nil
 	case "utimes.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "utimes.file.path.length"}
 	case "utimes.file.rights":
 		v, ok := value.(int)
 		if !ok {

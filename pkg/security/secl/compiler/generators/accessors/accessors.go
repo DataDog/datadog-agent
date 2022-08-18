@@ -118,6 +118,7 @@ func handleField(module *common.Module, astFile *ast.File, name, alias, prefix, 
 		if field.lengthField {
 			field := handleBasic(module, name+".length", alias+".length", "int", event, iterator, isArray, opOverride, constants, commentText)
 			field.IsLength = true
+			field.OrigType = "int"
 		}
 
 	default:
@@ -364,6 +365,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								lengthField.IsLength = true
 								lengthField.Name += ".length"
 								lengthField.OrigType = "int"
+								lengthField.BasicType = "int"
 								lengthField.ReturnType = "int"
 								module.Fields[fieldAlias+".length"] = &lengthField
 								lengthField.CommentText = "Length of '" + fieldAlias + "' string"
