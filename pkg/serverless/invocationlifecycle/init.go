@@ -95,6 +95,9 @@ func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEve
 }
 
 func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
+	}
 	lp.addTag("function_trigger.event_source", "s3")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractS3EventArn(event))
 }

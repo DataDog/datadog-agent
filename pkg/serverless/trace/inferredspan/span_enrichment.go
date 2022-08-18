@@ -140,6 +140,30 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	}
 }
 
+// EnrichInferredSpanWithS3Event uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from an S3 event.
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload events.S3Event) {
+	eventRecord := eventPayload.Records[0]
+
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.Name = "aws.s3"
+	inferredSpan.Span.Service = "s3"
+	inferredSpan.Span.Start = eventRecord.EventTime.UnixNano()
+	inferredSpan.Span.Resource = eventRecord.S3.Bucket.Name
+	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Meta = map[string]string{
+		operationName: "aws.s3",
+		resourceNames: eventRecord.S3.Bucket.Name,
+		eventName:     eventRecord.EventName,
+		bucketName:    eventRecord.S3.Bucket.Name,
+		bucketARN:     eventRecord.S3.Bucket.Arn,
+		objectKey:     eventRecord.S3.Object.Key,
+		objectSize:    strconv.FormatInt(eventRecord.S3.Object.Size, 10),
+		objectETag:    eventRecord.S3.Object.ETag,
+	}
+}
+
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
