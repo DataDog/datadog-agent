@@ -32,6 +32,7 @@ KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 
 is_windows = sys.platform == "win32"
 
@@ -448,10 +449,18 @@ def get_ebpf_targets():
     return files
 
 
-def get_linux_header_dirs(kernel_release=None):
+def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
     if not kernel_release:
         os_info = os.uname()
         kernel_release = os_info.release
+
+    if kernel_release and minimal_kernel_release:
+        match = re.compile(r'(\d+)\.(\d+)(\.(\d+))?').match(kernel_release)
+        version_tuple = list(map(int, map(lambda x: x or '0', match.group(1, 2, 4))))
+        if version_tuple < minimal_kernel_release:
+            print(
+                f"You need to have kernel headers for at least {'.'.join(map(lambda x: str(x), minimal_kernel_release))} to enable all system-probe features"
+            )
 
     src_kernels_dir = "/usr/src/kernels"
     src_dir = "/usr/src"
@@ -514,7 +523,7 @@ def get_linux_header_dirs(kernel_release=None):
     return dirs
 
 
-def get_ebpf_build_flags(target=None, kernel_release=None):
+def get_ebpf_build_flags(target=None, kernel_release=None, minimal_kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
     if not target:
@@ -547,7 +556,7 @@ def get_ebpf_build_flags(target=None, kernel_release=None):
         ]
     )
 
-    header_dirs = get_linux_header_dirs(kernel_release=kernel_release)
+    header_dirs = get_linux_header_dirs(kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release)
     for d in header_dirs:
         flags.extend(["-isystem", d])
 
@@ -591,7 +600,7 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
 
 def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
     uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    flags = get_ebpf_build_flags(target=["-target", "bpf"], kernel_release=kernel_release)
+    flags = get_ebpf_build_flags(kernel_release=kernel_release)
     flags.append(f"-I{network_c_dir}")
     flags.append(f"-D__{uname_m}__")
     flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
@@ -605,12 +614,11 @@ def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
 
     network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
 
-    build_network_ebpf_compile_file(
-        ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
-    )
-    build_network_ebpf_compile_file(
-        ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
-    )
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", True, network_flags)
+
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", False, network_flags)
 
 
 def get_network_build_flags(network_c_dir, kernel_release=None):
@@ -656,8 +664,8 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
         promise.join()
 
 
-def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, debug=False):
-    security_flags = get_ebpf_build_flags(kernel_release=kernel_release)
+def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, minimal_kernel_release=None, debug=False):
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release)
     security_flags.append(f"-I{security_agent_c_dir}")
     if debug:
         security_flags.append("-DDEBUG=1")
@@ -671,7 +679,12 @@ def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None
     security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
 
-    security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
+    security_flags = get_security_agent_build_flags(
+        security_agent_c_dir,
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        debug=debug,
+    )
 
     ctx.run(
         CLANG_CMD.format(
@@ -692,7 +705,12 @@ def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
-    security_flags = get_security_agent_build_flags(security_agent_c_dir, kernel_release=kernel_release, debug=debug)
+    security_flags = get_security_agent_build_flags(
+        security_agent_c_dir,
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        debug=debug,
+    )
 
     # compile
     promises = []

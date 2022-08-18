@@ -11,7 +11,6 @@ package kubelet
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
@@ -63,11 +62,7 @@ func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (strin
 
 // makeClusterNameRFC1123Compliant returns the compliant cluster name and as the second return value the initial clusterName
 func makeClusterNameRFC1123Compliant(clusterName string) (string, string) {
-	if strings.Contains(clusterName, "_") {
-		finalName := strings.ReplaceAll(clusterName, "_", "-")
-		return finalName, clusterName
-	}
-	return clusterName, clusterName
+	return clustername.MakeClusterNameRFC1123Compliant(clusterName), clusterName
 }
 
 // IsAgentKubeHostNetwork returns true if the agent is running on a POD with hostNetwork

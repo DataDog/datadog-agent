@@ -46,7 +46,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			case "java":
 				assertLibConfig(t, tt.pod, tt.image, "JAVA_TOOL_OPTIONS", " -javaagent:/datadog-lib/dd-java-agent.jar", []string{"sh", "copy-lib.sh", "/datadog-lib"})
 			case "js":
-				assertLibConfig(t, tt.pod, tt.image, "NODE_OPTIONS", " --require=/autoinstrumentation/node_modules/dd-trace/init", []string{"sh", "copy-lib.sh", "/datadog-lib"})
+				assertLibConfig(t, tt.pod, tt.image, "NODE_OPTIONS", " --require=/datadog-lib/node_modules/dd-trace/init", []string{"sh", "copy-lib.sh", "/datadog-lib"})
 			default:
 				t.Fatalf("Unknown language %q", tt.language)
 			}
