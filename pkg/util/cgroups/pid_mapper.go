@@ -9,12 +9,10 @@
 package cgroups
 
 import (
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -105,19 +103,6 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	}
 
 	return pidMapper
-}
-
-// getProcessNamespaceInode performs a stat() call on /proc/<pid>/ns/<namespace>
-// This has been copied from pkg/util/system/namespace_linux.go's GetProcessNamespaceInode
-func getProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
-	nsPath := filepath.Join(procPath, pid, "ns", namespace)
-	fi, err := os.Stat(nsPath)
-	if err != nil {
-		return 0, err
-	}
-
-	// We are on linux, casting in safe
-	return fi.Sys().(*syscall.Stat_t).Ino, nil
 }
 
 // Mapper used if we are running in host PID namespace, faster.
