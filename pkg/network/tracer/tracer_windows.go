@@ -103,6 +103,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
+	if t.httpMonitor != nil {
+		t.httpMonitor.Stop()
+	}
 	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
 	if err != nil {
@@ -128,7 +131,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	t.state.StoreClosedConnections(closedConnStats)
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+
+	var delta network.Delta
+	if t.httpMonitor != nil {
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	} else {
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+	}
 
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
