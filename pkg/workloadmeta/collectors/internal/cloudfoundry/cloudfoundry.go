@@ -8,6 +8,8 @@ package cloudfoundry
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -49,6 +51,17 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 	c.store = store
 
+	// Detect if we're on a PCF container by checking the cloud_foundry_buildpack property
+	if config.Datadog.GetBool("cloud_foundry_buildpack") {
+		log.Debugf("[PCF] Buildpack Container detected")
+		hostname, err := os.Hostname()
+		if err != nil {
+			return nil
+		}
+		c.nodeName = hostname
+		return nil
+	}
+
 	// Detect if we're on a compute VM by trying to connect to the local garden API
 	var err error
 	c.gardenUtil, err = cloudfoundry.GetGardenUtil()
@@ -66,6 +79,49 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 }
 
 func (c *collector) Pull(ctx context.Context) error {
+	// Detect if we're on a PCF container by checking the cloud_foundry_buildpack property
+	if config.Datadog.GetBool("cloudfoundry_buildpack") {
+		// In PCF, the container_id is the hostname
+		id, err := os.Hostname()
+		if err != nil {
+			return nil
+		}
+		events := make([]workloadmeta.CollectorEvent, 0, 1)
+		entityID := workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   id,
+		}
+		containerEntity := &workloadmeta.Container{
+			EntityID: entityID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: id,
+			},
+			Runtime: workloadmeta.ContainerRuntimeGarden,
+			State: workloadmeta.ContainerState{
+				Running: false, // TODO: Noueman - check the behavior of this property
+			},
+		}
+
+		containerEntity.CollectorTags = []string{
+			fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, id),
+			fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, id),
+		}
+
+		if dd_tags, ok := os.LookupEnv("DD_TAGS"); ok {
+			custom_dd_tags := strings.Split(dd_tags, ",")
+			containerEntity.CollectorTags = append(containerEntity.CollectorTags, custom_dd_tags...)
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Entity: containerEntity,
+		})
+
+		c.store.Notify(events)
+		return nil
+	}
+
 	containers, err := c.gardenUtil.ListContainers()
 	if err != nil {
 		return err
