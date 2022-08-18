@@ -99,7 +99,7 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 	case "flowi6_uli_offset":
 		value = getFlowi6ULIOffset(f.kernelVersion)
 	case "binprm_file_offset":
-		value = getBinPrmFileOffset(f.kernelVersion)
+		value = getBinPrmFileFieldOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -679,7 +679,8 @@ func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) b
 	return ukv.Abi >= minAbi
 }
 
-func getBinPrmFileOffset(kv *kernel.Version) uint64 {
+// getBinPrmFileFieldOffset returns the offset of the file field in the linux_binprm struct depending on the kernel version that the system probe is running on
+func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_5 {
 		return 168
 	}
