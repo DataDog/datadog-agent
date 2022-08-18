@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -105,7 +104,7 @@ func (m *Module) Init() error {
 		defer m.wg.Done()
 
 		if err := m.grpcServer.Serve(ln); err != nil {
-			log.Error(err)
+			seclog.Errorf("error launching the grpc server: %v", err)
 		}
 	}()
 
@@ -165,7 +164,7 @@ func (m *Module) Start() error {
 
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
-		log.Errorf("failed to parse agent version: %v", err)
+		seclog.Errorf("failed to parse agent version: %v", err)
 	}
 
 	m.policyOpts = rules.PolicyLoaderOpts{
@@ -178,7 +177,7 @@ func (m *Module) Start() error {
 
 	// directory policy provider
 	if provider, err := rules.NewPoliciesDirProvider(m.config.PoliciesDir, m.config.WatchPoliciesDir); err != nil {
-		log.Errorf("failed to load policies: %s", err)
+		seclog.Errorf("failed to load policies: %s", err)
 	} else {
 		policyProviders = append(policyProviders, provider)
 	}
@@ -187,14 +186,14 @@ func (m *Module) Start() error {
 	if m.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
 		if err != nil {
-			log.Errorf("will be unable to load remote policy: %s", err)
+			seclog.Errorf("will be unable to load remote policy: %s", err)
 		} else {
 			policyProviders = append(policyProviders, rcPolicyProvider)
 		}
 	}
 
 	if err := m.LoadPolicies(policyProviders, true); err != nil {
-		log.Errorf("failed to load policies: %s", err)
+		seclog.Errorf("failed to load policies: %s", err)
 	}
 
 	m.wg.Add(1)
@@ -208,7 +207,7 @@ func (m *Module) Start() error {
 
 		for range m.sigupChan {
 			if err := m.ReloadPolicies(); err != nil {
-				log.Errorf("failed to reload policies: %s", err)
+				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
 	}()
@@ -219,7 +218,7 @@ func (m *Module) Start() error {
 
 		for range m.policyLoader.NewPolicyReady() {
 			if err := m.ReloadPolicies(); err != nil {
-				log.Errorf("failed to reload policies: %s", err)
+				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
 	}()
@@ -233,7 +232,7 @@ func (m *Module) Start() error {
 
 func (m *Module) displayReport(report *sprobe.Report) {
 	content, _ := json.Marshal(report)
-	log.Debugf("Policy report: %s", content)
+	seclog.Debugf("Policy report: %s", content)
 }
 
 func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
@@ -294,14 +293,14 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 
 // ReloadPolicies reloads the policies
 func (m *Module) ReloadPolicies() error {
-	log.Info("reload policies")
+	seclog.Infof("reload policies")
 
 	return m.LoadPolicies(m.policyProviders, true)
 }
 
 // LoadPolicies loads the policies
 func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
-	log.Info("load policies")
+	seclog.Infof("load policies")
 
 	m.Lock()
 	defer m.Unlock()
@@ -334,7 +333,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 				}, nil)
 			},
 		}).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	// approver ruleset
 	model := &model.Model{}
@@ -527,13 +526,13 @@ func (m *Module) metricsSender() {
 			}
 
 			if err := m.probe.SendStats(); err != nil {
-				log.Debug(err)
+				seclog.Debugf("failed to send probe stats: %s", err)
 			}
 			if err := m.rateLimiter.SendStats(); err != nil {
-				log.Debug(err)
+				seclog.Debugf("failed to send rate limiter stats: %s", err)
 			}
 			if err := m.apiServer.SendStats(); err != nil {
-				log.Debug(err)
+				seclog.Debugf("failed to send api server stats: %s", err)
 			}
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
@@ -623,7 +622,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
-		log.Errorf("unable to instantiate self tests: %s", err)
+		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
 
 	m := &Module{
@@ -657,7 +656,7 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 	if len(prevProviders) > 0 {
 		defer func() {
 			if err := m.LoadPolicies(prevProviders, false); err != nil {
-				log.Errorf("failed to load policies: %s", err)
+				seclog.Errorf("failed to load policies: %s", err)
 			}
 		}()
 	}
@@ -674,7 +673,7 @@ func (m *Module) RunSelfTest(sendLoadedReport bool) error {
 		return err
 	}
 
-	log.Debugf("self-test results : success : %v, failed : %v", success, fails)
+	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 
 	// send the report
 	if m.config.SelfTestSendReport {
@@ -696,8 +695,8 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	}
 
 	if errorLevel {
-		log.Errorf(msg, m.Error())
+		seclog.Errorf(msg, m.Error())
 	} else {
-		log.Warnf(msg, m.Error())
+		seclog.Warnf(msg, m.Error())
 	}
 }
