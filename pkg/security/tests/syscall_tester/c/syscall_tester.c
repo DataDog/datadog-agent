@@ -511,7 +511,6 @@ int test_open(int argc, char **argv) {
             return EXIT_FAILURE;
         }
         close(fd);
-        unlink(filename);
     }
 
     return EXIT_SUCCESS;
