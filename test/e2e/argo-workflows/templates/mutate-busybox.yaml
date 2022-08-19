@@ -531,7 +531,7 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
                 - name: envValue
-                  value: "/datadog-lib/:/datadog-lib"
+                  value: "/datadog-lib/"
                 - name: envKey
                   value: PYTHONPATH
                 - name: target

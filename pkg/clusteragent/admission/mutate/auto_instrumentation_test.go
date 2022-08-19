@@ -67,7 +67,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			lang:           "python",
 			image:          "gcr.io/datadoghq/dd-lib-python-init:v1",
 			expectedEnvKey: "PYTHONPATH",
-			expectedEnvVal: "/datadog-lib/:/datadog-lib",
+			expectedEnvVal: "/datadog-lib/",
 			wantErr:        false,
 		},
 		{
@@ -76,7 +76,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			lang:           "python",
 			image:          "gcr.io/datadoghq/dd-lib-python-init:v1",
 			expectedEnvKey: "PYTHONPATH",
-			expectedEnvVal: "/datadog-lib/:predefined:/datadog-lib",
+			expectedEnvVal: "/datadog-lib/:predefined",
 			wantErr:        false,
 		},
 	}
@@ -122,7 +122,7 @@ func assertLibConfig(t *testing.T, pod *corev1.Pod, image, envKey, envVal string
 	envFound := false
 	for _, env := range container.Env {
 		if env.Name == envKey {
-			require.Contains(t, envVal, env.Value)
+			require.Equal(t, envVal, env.Value)
 			envFound = true
 			break
 		}

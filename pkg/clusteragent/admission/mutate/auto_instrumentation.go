@@ -37,9 +37,8 @@ const (
 	nodeOptionsValue = " --require=/datadog-lib/node_modules/dd-trace/init"
 
 	// Python config
-	pythonPathKey         = "PYTHONPATH"
-	pythonPathValuePrefix = "/datadog-lib/"
-	pythonPathValueSuffix = "/datadog-lib"
+	pythonPathKey   = "PYTHONPATH"
+	pythonPathValue = "/datadog-lib/"
 )
 
 type language string
@@ -214,7 +213,7 @@ func jsEnvValFunc(predefinedVal string) string {
 
 func pythonEnvValFunc(predefinedVal string) string {
 	if predefinedVal == "" {
-		return fmt.Sprintf("%s:%s", pythonPathValuePrefix, pythonPathValueSuffix)
+		return pythonPathValue
 	}
-	return fmt.Sprintf("%s:%s:%s", pythonPathValuePrefix, predefinedVal, pythonPathValueSuffix)
+	return fmt.Sprintf("%s:%s", pythonPathValue, predefinedVal)
 }
