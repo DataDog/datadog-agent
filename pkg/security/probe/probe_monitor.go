@@ -10,12 +10,12 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -29,7 +29,6 @@ type Monitor struct {
 
 	loadController      *LoadController
 	perfBufferMonitor   *PerfBufferMonitor
-	syscallMonitor      *SyscallMonitor
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
@@ -51,21 +50,13 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	// instantiate a new event statistics monitor
 	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
-		return nil, errors.Wrap(err, "couldn't create the events statistics monitor")
+		return nil, fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
 	if p.config.ActivityDumpEnabled {
 		m.activityDumpManager, err = NewActivityDumpManager(p)
 		if err != nil {
-			return nil, errors.Wrap(err, "couldn't create the activity dump manager")
-		}
-	}
-
-	// create a new syscall monitor if requested
-	if p.config.SyscallMonitor {
-		m.syscallMonitor, err = NewSyscallMonitor(p.manager)
-		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 	}
 
@@ -75,7 +66,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 
 	m.discarderMonitor, err = NewDiscarderMonitor(p)
 	if err != nil {
-		return nil, errors.Wrap(err, "couldn't create the discarder monitor")
+		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
 	return m, nil
@@ -84,6 +75,11 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 // GetPerfBufferMonitor returns the perf buffer monitor
 func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 	return m.perfBufferMonitor
+}
+
+// GetActivityDumpManager returns the activity dump manager
+func (m *Monitor) GetActivityDumpManager() *ActivityDumpManager {
+	return m.activityDumpManager
 }
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
@@ -106,72 +102,48 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 func (m *Monitor) SendStats() error {
 	// delay between to send in order to reduce the statsd pool presure
 	const delay = time.Second
-
-	if m.syscallMonitor != nil {
-		if err := m.syscallMonitor.SendStats(m.probe.statsdClient); err != nil {
-			return errors.Wrap(err, "failed to send syscall monitor stats")
-		}
-	}
 	time.Sleep(delay)
 
 	if resolvers := m.probe.GetResolvers(); resolvers != nil {
 		if err := resolvers.ProcessResolver.SendStats(); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver stats")
+			return fmt.Errorf("failed to send process_resolver stats: %w", err)
 		}
 		time.Sleep(delay)
 
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
-			return errors.Wrap(err, "failed to send process_resolver stats")
+			return fmt.Errorf("failed to send process_resolver stats: %w", err)
 		}
 		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
-			return errors.Wrap(err, "failed to send namespace_resolver stats")
+			return fmt.Errorf("failed to send namespace_resolver stats: %w", err)
 		}
 	}
 
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
-		return errors.Wrap(err, "failed to send events stats")
+		return fmt.Errorf("failed to send events stats: %w", err)
 	}
 	time.Sleep(delay)
 
 	if err := m.loadController.SendStats(); err != nil {
-		return errors.Wrap(err, "failed to send load controller stats")
+		return fmt.Errorf("failed to send load controller stats: %w", err)
 	}
 
 	if m.activityDumpManager != nil {
 		if err := m.activityDumpManager.SendStats(); err != nil {
-			return errors.Wrap(err, "failed to send activity dump maanger stats")
+			return fmt.Errorf("failed to send activity dump maanger stats: %w", err)
 		}
 	}
 
 	if m.probe.config.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
-			return errors.Wrap(err, "failed to send runtime monitor stats")
+			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
 		}
 	}
 
 	if err := m.discarderMonitor.SendStats(); err != nil {
-		return errors.Wrap(err, "failed to send discarder stats")
+		return fmt.Errorf("failed to send discarder stats: %w", err)
 	}
 
 	return nil
-}
-
-// GetStats returns Stats according to the system-probe module format
-func (m *Monitor) GetStats() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-
-	var syscalls *SyscallStats
-	var err error
-
-	if m.syscallMonitor != nil {
-		syscalls, err = m.syscallMonitor.GetStats()
-	}
-
-	stats["events"] = map[string]interface{}{
-		"perf_buffer": 0,
-		"syscalls":    syscalls,
-	}
-	return stats, err
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
@@ -205,7 +177,7 @@ func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multie
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	if err := m.probe.statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
-		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
+		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
@@ -225,7 +197,7 @@ func (m *Monitor) ReportSelfTest(success []string, fails []string) {
 		fmt.Sprintf("fails:%d", len(fails)),
 	}
 	if err := m.probe.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
-		log.Error(errors.Wrap(err, "failed to send self_test metric"))
+		log.Error(fmt.Errorf("failed to send self_test metric: %w", err))
 	}
 
 	// send the custom event with the list of succeed and failed self tests

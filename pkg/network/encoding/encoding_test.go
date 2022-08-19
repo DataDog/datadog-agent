@@ -14,14 +14,15 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type connTag = uint64
@@ -85,7 +86,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
-					ReplSrcPort: int32(40),
+					ReplSrcPort: int32(40000),
 					ReplDstPort: int32(80),
 				},
 
@@ -163,7 +164,7 @@ func TestSerialization(t *testing.T) {
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
-						ReplSrcPort: 40,
+						ReplSrcPort: 40000,
 						ReplDstPort: 80,
 					},
 
@@ -212,7 +213,7 @@ func TestSerialization(t *testing.T) {
 			http.NewKey(
 				util.AddressFromString("20.1.1.1"),
 				util.AddressFromString("20.1.1.1"),
-				40,
+				40000,
 				80,
 				"/testpath",
 				true,

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package main
 
 import (
@@ -34,7 +39,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 			log.Debugf("Retrieving %v from secrets manager", envVar)
 			secretVal, err := smFunc(envVal)
 			if err != nil {
-				log.Debugf("Couldn't read API key from KMS: %v", err)
+				log.Debugf("Couldn't read API key from Secrets Manager: %v", err)
 				continue
 			}
 			decryptedEnvVars[strings.TrimSuffix(envKey, secretArnSuffix)] = secretVal
@@ -52,7 +57,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
 func setSecretsFromEnv(envVars []string) {
-	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromSecretsManager, readAPIKeyFromKMS) {
+	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
 		os.Setenv(envKey, envVal)
 	}
 }

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -22,7 +24,6 @@ import (
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -86,9 +87,12 @@ func (c *ConnectionsCheck) Name() string { return config.ConnectionsCheckName }
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ConnectionsCheck) RealTime() bool { return false }
 
-// Run runs the ConnectionsCheck to collect the live TCP connections on the
-// system. Currently only linux systems are supported as eBPF is used to gather
-// this information. For each connection we'll return a `model.Connection`
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
+
+// Run runs the ConnectionsCheck to collect the active network connections
+// and any closed network connections since the last Run.
+// For each connection we'll return a `model.Connection`
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
@@ -130,7 +134,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 
 func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
 	// Process create-times required to construct unique process hash keys on the backend
-	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
+	createTimeForPID := ProcessNotify.GetCreateTimes(connectionPIDs(conns))
 	for _, conn := range conns {
 		if _, ok := createTimeForPID[conn.Pid]; !ok {
 			createTimeForPID[conn.Pid] = 0

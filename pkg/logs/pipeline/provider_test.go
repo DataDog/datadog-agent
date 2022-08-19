@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/stretchr/testify/suite"
 

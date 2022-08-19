@@ -27,20 +27,22 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"golang.org/x/sys/unix"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	vnetns "github.com/vishvananda/netns"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	vnetns "github.com/vishvananda/netns"
 )
 
 func runningOnARM() bool {
@@ -50,7 +52,7 @@ func runningOnARM() bool {
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
+	return currKernelVersion >= kernel.VersionCode(4, 14, 0)
 }
 
 func httpsSupported(t *testing.T) bool {

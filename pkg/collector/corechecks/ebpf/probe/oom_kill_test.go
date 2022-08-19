@@ -17,11 +17,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const oomKilledPython = `
@@ -60,7 +62,7 @@ func TestOOMKillCompile(t *testing.T) {
 
 	cfg := ebpf.NewConfig()
 	cfg.BPFDebug = true
-	_, err = runtime.OomKill.Compile(cfg, nil)
+	_, err = runtime.OomKill.Compile(cfg, nil, statsd.Client)
 	require.NoError(t, err)
 }
 

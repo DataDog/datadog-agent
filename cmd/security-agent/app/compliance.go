@@ -12,6 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -24,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var (

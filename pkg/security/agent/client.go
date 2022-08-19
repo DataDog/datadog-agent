@@ -23,6 +23,16 @@ type RuntimeSecurityClient struct {
 	conn      *grpc.ClientConn
 }
 
+// DumpDiscarders sends a request to dump discarders
+func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
+	response, err := c.apiClient.DumpDiscarders(context.Background(), &api.DumpDiscardersParams{})
+	if err != nil {
+		return "", err
+	}
+
+	return response.DumpFilename, nil
+}
+
 // DumpProcessCache sends a process cache dump request
 func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
 	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})

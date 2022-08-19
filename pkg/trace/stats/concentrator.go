@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -46,6 +45,7 @@ type Concentrator struct {
 	mu            sync.Mutex
 	agentEnv      string
 	agentHostname string
+	agentVersion  string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -64,6 +64,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		exit:          make(chan struct{}),
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
+		agentVersion:  conf.AgentVersion,
 	}
 	return &c
 }
@@ -224,7 +225,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		}
 		sb = append(sb, p)
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: info.Version}
+	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.

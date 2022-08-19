@@ -9,6 +9,7 @@
 package kernel
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,10 +19,10 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/btf-internals/sys"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"

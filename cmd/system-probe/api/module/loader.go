@@ -6,14 +6,15 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 )
 
 var l *loader

@@ -15,6 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+func validateReadSize(size, read int) (int, error) {
+	if size != read {
+		return 0, ErrIncorrectDataSize
+	}
+	return read, nil
+}
+
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
@@ -144,16 +151,16 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	// Unmarshal proc_cache_t
+// UnmarshalProcEntryBinary unmarshalls Unmarshal proc_entry_t
+func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
+	const size = 160
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
 	read, err := UnmarshalBinary(data, &e.FileEvent)
 	if err != nil {
 		return 0, err
-	}
-
-	if len(data[read:]) < 112 {
-		return 0, ErrNotEnoughData
 	}
 
 	e.ExecTime = unmarshalTime(data[read : read+8])
@@ -178,27 +185,57 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 	read += 16
 
+	return validateReadSize(size, read)
+}
+
+// UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
+func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
+	const size = 64
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
+	var read int
+
 	// Unmarshal pid_cache_t
-	cookie := ByteOrder.Uint32(data[read : read+4])
+	cookie := ByteOrder.Uint32(data[0:4])
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
+	e.PPid = ByteOrder.Uint32(data[4:8])
 
-	e.ForkTime = unmarshalTime(data[read+8 : read+16])
-	e.ExitTime = unmarshalTime(data[read+16 : read+24])
-	read += 24
+	e.ForkTime = unmarshalTime(data[8:16])
+	e.ExitTime = unmarshalTime(data[16:24])
 
 	// Unmarshal the credentials contained in pid_cache_t
-	n, err := UnmarshalBinary(data[read:], &e.Credentials)
+	read, err := UnmarshalBinary(data[24:], &e.Credentials)
+	if err != nil {
+		return 0, err
+	}
+	read += 24
+
+	return validateReadSize(size, read)
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *Process) UnmarshalBinary(data []byte) (int, error) {
+	const size = 240
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+	var read int
+
+	n, err := e.UnmarshalProcEntryBinary((data))
 	if err != nil {
 		return 0, err
 	}
 	read += n
 
-	if len(data[read:]) < 16 {
-		return 0, ErrNotEnoughData
+	n, err = e.UnmarshalPidCacheBinary((data[read:]))
+	if err != nil {
+		return 0, err
 	}
+	read += n
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
@@ -208,7 +245,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
-	return read, nil
+	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -422,16 +459,17 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
 	p.Pid = ByteOrder.Uint32(data[0:4])
 	p.Tid = ByteOrder.Uint32(data[4:8])
 	p.NetNS = ByteOrder.Uint32(data[8:12])
-	// padding (4 bytes)
+	p.IsKworker = ByteOrder.Uint32(data[12:16]) > 0
+
 	return 16, nil
 }
 
@@ -844,34 +882,12 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint16(data[4:6])
 	e.Class = ByteOrder.Uint16(data[6:8])
 	e.Size = ByteOrder.Uint16(data[8:10])
-	e.Name = decodeDNS(data[10:])
-	return len(data), nil
-}
-
-func decodeDNS(raw []byte) string {
-	rawLen := len(raw)
-	rep := ""
-	i := 0
-	for {
-		// Parse label length
-		if rawLen < i+1 {
-			break
-		}
-		labelLen := int(raw[i])
-
-		if rawLen-(i+1) < labelLen || labelLen == 0 {
-			break
-		}
-		labelRaw := raw[i+1 : i+1+labelLen]
-
-		if i == 0 {
-			rep = string(labelRaw)
-		} else {
-			rep = rep + "." + string(labelRaw)
-		}
-		i += labelLen + 1
+	var err error
+	e.Name, err = decodeDNSName(data[10:])
+	if err != nil {
+		return 0, err
 	}
-	return rep
+	return len(data), nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -931,7 +947,7 @@ func (e *VethPairEvent) UnmarshalBinary(data []byte) (int, error) {
 	return cursor, nil
 }
 
-// UnmarshalBinary unmarshals a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
@@ -956,4 +972,21 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return read + 20, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 64 {
+		return 0, ErrNotEnoughData
+	}
+
+	for i, b := range data[:64] {
+		// compute the ID of the syscall
+		for j := 0; j < 8; j++ {
+			if b&(1<<j) > 0 {
+				e.Syscalls = append(e.Syscalls, Syscall(i*8+j))
+			}
+		}
+	}
+	return 64, nil
 }

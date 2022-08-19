@@ -12,16 +12,19 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 type wrapperType string
 
 const (
+	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
 	multiWrapperType  wrapperType = "multi"
 
-	defaultDockerImage = "ubuntu:focal"
+	defaultDockerImage = "public.ecr.aws/ubuntu/ubuntu:20.04"
 )
 
 type cmdWrapper interface {
@@ -75,7 +78,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
+	d.containerName = fmt.Sprintf("docker-wrapper-%s", eval.RandString(6))
 	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, d.image, "sleep", "600")
 	return cmd.CombinedOutput()
 }

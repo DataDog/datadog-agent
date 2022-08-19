@@ -126,6 +126,8 @@ platforms:
 %>
 
 - name: <%= platform_name %>
+  attributes:
+    color_idx: <%= idx %>
   driver_config:
     machine_size: <%= size %>
     <% if platform[1] == "urn" %>

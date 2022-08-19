@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
@@ -113,7 +112,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -122,9 +121,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
 // HTTP headers containing version and state information.
-func replyWithVersion(hash string, h http.Handler) http.Handler {
+func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Datadog-Agent-Version", info.Version)
+		w.Header().Set("Datadog-Agent-Version", version)
 		w.Header().Set("Datadog-Agent-State", hash)
 		h.ServeHTTP(w, r)
 	})
@@ -516,7 +515,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
-		atomic.AddInt64(&ts.PayloadRefused, 1)
+		ts.PayloadRefused.Inc()
 		return
 	}
 	if err == errInvalidHeaderTraceCountValue {
@@ -533,14 +532,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
 		case apiutil.ErrLimitedReaderLimitReached:
-			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
 		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
-			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
+			ts.TracesDropped.EOF.Add(tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {
-				atomic.AddInt64(&ts.TracesDropped.Timeout, tracen)
+				ts.TracesDropped.Timeout.Add(tracen)
 			} else {
-				atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
+				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
@@ -561,9 +560,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	atomic.AddInt64(&ts.TracesReceived, int64(len(tp.Chunks)))
-	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
-	atomic.AddInt64(&ts.PayloadAccepted, 1)
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
 
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
@@ -620,13 +619,13 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
-			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
+			ts.ClientDroppedP0Traces.Add(count)
 		}
 	}
 	if v := h.Get(headerDroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
-			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
+			ts.ClientDroppedP0Spans.Add(count)
 		}
 	}
 	return dropped

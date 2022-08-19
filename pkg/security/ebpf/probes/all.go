@@ -12,10 +12,11 @@ import (
 	"math"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -81,28 +82,15 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getNetDeviceProbes()...)
 	allProbes = append(allProbes, GetTCProbes()...)
 	allProbes = append(allProbes, getBindProbes()...)
+	allProbes = append(allProbes, getSyscallMonitorProbes()...)
+	allProbes = append(allProbes, getPipeProbes()...)
 
 	allProbes = append(allProbes,
-		// Syscall monitor
-		&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
-				EBPFFuncName: "sys_enter",
-			},
-		},
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
-			},
-		},
-		&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/sched/sched_process_exec",
-				EBPFFuncName: "sched_process_exec",
 			},
 		},
 		// Snapshot probe
@@ -121,6 +109,8 @@ func AllProbes() []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
+		// Syscall table map
+		getSyscallTableMap(),
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
@@ -141,10 +131,6 @@ func AllMaps() []*manager.Map {
 		// SELinux tables
 		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
-		// Syscall monitor tables
-		{Name: "buffer_selector"},
-		{Name: "noisy_processes_fb"},
-		{Name: "noisy_processes_bb"},
 		// Flushing discarders boolean
 		{Name: "flushing_discarders"},
 		// Enabled event mask
@@ -154,7 +140,7 @@ func AllMaps() []*manager.Map {
 
 const (
 	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
-	MaxTracedCgroupsCount = 1000
+	MaxTracedCgroupsCount = 128
 )
 
 func getMaxEntries(numCPU int, min int, max int) uint32 {
@@ -167,10 +153,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
-	if tracedCgroupsCount <= 0 || tracedCgroupsCount > MaxTracedCgroupsCount {
-		tracedCgroupsCount = MaxTracedCgroupsCount
-	}
+func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
 	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
 		cgroupWaitListSize = MaxTracedCgroupsCount
 	}
@@ -188,7 +171,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupsCount int, cgroupWaitListSize in
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
-			MaxEntries: uint32(tracedCgroupsCount),
+			MaxEntries: MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"cgroup_wait_list": {

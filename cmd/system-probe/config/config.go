@@ -13,11 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/viper"
+
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -188,19 +189,23 @@ func load(configPath string) (*Config, error) {
 	}
 
 	// this check must come first so we can accurately tell if system_probe was explicitly enabled
-	if cfg.GetBool("network_config.enabled") {
+	npmEnabled := cfg.GetBool("network_config.enabled")
+	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+
+	if npmEnabled {
 		log.Info("network_config.enabled detected: enabling system-probe with network module running.")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
-	} else if c.Enabled && !cfg.IsSet("network_config.enabled") {
+	} else if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set("network_config.enabled", true)
+		npmEnabled = true
 	}
 
-	if !cfg.GetBool("network_config.enabled") && cfg.GetBool("service_monitoring_config.enabled") {
+	if !npmEnabled && usmEnabled {
 		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}

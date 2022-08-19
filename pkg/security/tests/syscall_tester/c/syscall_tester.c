@@ -57,12 +57,13 @@ void *register_tls() {
         return NULL;
     tls->max_threads = max_threads;
     tls->base = base;
+    tls->format = 0; // format is not needed
 
     uint8_t request[257];
     bzero(request, sizeof(request));
 
-    memcpy(&request[sizeof(uint8_t)], tls, sizeof(struct span_tls_t));
     request[0] = REGISTER_SPAN_TLS_OP;
+    memcpy(&request[1], tls, sizeof(struct span_tls_t));
     ioctl(0, RPC_CMD, &request);
 
     return tls;
@@ -112,13 +113,14 @@ static void *thread_open(void *data) {
         return NULL;
     }
     close(fd);
+    unlink(opts->argv[3]);
 
     return NULL;
 }
 
 int span_open(int argc, char **argv) {
     if (argc < 4) {
-        fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
+        fprintf(stderr, "Please pass a span Id, a trace Id and a file path to span-open\n");
         return EXIT_FAILURE;
     }
 
@@ -457,6 +459,45 @@ int test_forkexec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_multi_open(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please speficy at least a file name \n");
+        return EXIT_FAILURE;
+    }
+
+    for (int i = 1; i != argc; i++) {
+        getchar();
+
+        char *filename = argv[i];
+        int fd = open(filename, O_RDONLY | O_CREAT, 0400);
+        if (fd <= 0) {
+            return EXIT_FAILURE;
+        }
+        close(fd);
+        unlink(filename);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_pipe_chown(void) {
+    int fds[2] = { 0, 0 };
+
+    if (pipe(fds)) {
+        perror("pipe");
+        return EXIT_FAILURE;
+    }
+
+    if (fchown(fds[0], 100, 200) || fchown(fds[1], 100, 200)) {
+        perror("fchown");
+        return EXIT_FAILURE;
+    }
+    close(fds[0]);
+    close(fds[1]);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -487,6 +528,10 @@ int main(int argc, char **argv) {
         return test_bind(argc - 1, argv + 1);
     } else if (strcmp(cmd, "fork") == 0) {
         return test_forkexec(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "multi-open") == 0) {
+        return test_multi_open(argc - 1, argv + 1);
+    } else if (strcmp(cmd, "pipe-chown") == 0) {
+        return test_pipe_chown();
     } else {
         fprintf(stderr, "Unknown command `%s`\n", cmd);
         return EXIT_FAILURE;

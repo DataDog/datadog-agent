@@ -3,14 +3,17 @@
 
 package driver
 
-const Signature = 0xddfd00000010
+const Signature = 0xddfd00000012
 
 const (
 	GetStatsIOCTL             = 0x122004
 	SetFlowFilterIOCTL        = 0x122010
 	SetDataFilterIOCTL        = 0x12200c
-	SetMaxFlowsIOCTL          = 0x122018
+	GetFlowsIOCTL             = 0x122014
+	SetMaxOpenFlowsIOCTL      = 0x122024
+	SetMaxClosedFlowsIOCTL    = 0x122028
 	FlushPendingHttpTxnsIOCTL = 0x122020
+	EnableHttpIOCTL           = 0x122030
 )
 
 type FilterAddress struct {
@@ -51,55 +54,41 @@ type FilterPacketHeader struct {
 
 const FilterPacketHeaderSize = 0x48
 
-type HandleStats struct {
-	Read_calls             int64
-	Read_calls_outstanding int64
-	Read_calls_completed   int64
-	Read_calls_cancelled   int64
-	Write_calls            int64
-	Write_bytes            int64
-	Ioctl_calls            int64
-}
 type FlowStats struct {
-	Packets_observed                        int64
-	Packets_processed                       int64
-	Open_flows                              int64
-	Total_flows                             int64
-	Num_flow_searches                       int64
-	Num_flow_search_misses                  int64
-	Num_flow_collisions                     int64
-	Num_flow_structures                     int64
-	Peak_num_flow_structures                int64
-	Num_flows_missed_max_exceeded           int64
-	Num_flows_no_handle                     int64
-	Peak_num_flows_no_handle                int64
-	Num_flows_missed_max_no_handle_exceeded int64
+	Num_flow_collisions                      int64
+	Num_flow_alloc_skipped_max_open_exceeded int64
+	Num_flow_closed_dropped_max_exceeded     int64
+	Num_flow_structures                      int64
+	Peak_num_flow_structures                 int64
+	Num_flow_closed_structures               int64
+	Peak_num_flow_closed_structures          int64
+	Open_table_adds                          int64
+	Open_table_removes                       int64
+	Closed_table_adds                        int64
+	Closed_table_removes                     int64
+	Num_flows_no_handle                      int64
+	Peak_num_flows_no_handle                 int64
+	Num_flows_missed_max_no_handle_exceeded  int64
+	Num_packets_after_flow_closed            int64
 }
 type TransportStats struct {
-	Packets_processed    int64
-	Read_packets_skipped int64
-	Packets_reported     int64
+	Packets_skipped int64
+	Calls_requested int64
+	Calls_completed int64
+	Calls_cancelled int64
 }
 type HttpStats struct {
-	Packets_processed             int64
-	Num_flow_collisions           int64
-	Num_flows_missed_max_exceeded int64
-	Read_batch_skipped            int64
-	Batches_reported              int64
+	Txns_captured              int64
+	Txns_skipped_max_exceeded  int64
+	Ndis_buffer_non_contiguous int64
 }
 type Stats struct {
-	Handle_stats    HandleStats
 	Flow_stats      FlowStats
 	Transport_stats TransportStats
 	Http_stats      HttpStats
 }
-type DriverStats struct {
-	FilterVersion uint64
-	Total         Stats
-	Handle        Stats
-}
 
-const DriverStatsSize = 0x1c8
+const StatsSize = 0xb0
 
 type PerFlowData struct {
 	FlowHandle         uint64
@@ -157,8 +146,10 @@ type HttpTransactionType struct {
 	Tup                ConnTupleType
 	RequestMethod      uint32
 	ResponseStatusCode uint16
-	RequestFragment    [25]uint8
-	Pad_cgo_0          [1]byte
+	MaxRequestFragment uint16
+	SzRequestFragment  uint16
+	Pad                [6]uint8
+	RequestFragment    *uint8
 }
 type ConnTupleType struct {
 	CliAddr [16]uint8
@@ -166,11 +157,12 @@ type ConnTupleType struct {
 	CliPort uint16
 	SrvPort uint16
 	Family  uint16
+	Pad     uint16
 }
 type HttpMethodType uint32
 
 const (
 	HttpBatchSize           = 0xf
 	HttpBufferSize          = 0x19
-	HttpTransactionTypeSize = 0x58
+	HttpTransactionTypeSize = 0x50
 )

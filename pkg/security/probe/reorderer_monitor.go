@@ -12,26 +12,29 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 )
 
 // ReordererMonitor represents a reorderer monitor
 type ReordererMonitor struct {
+	ctx          context.Context
 	statsdClient statsd.ClientInterface
 	reOrderer    *ReOrderer
 }
 
 // NewReOrderMonitor instantiates a new reorder statistics counter
-func NewReOrderMonitor(statsdClient statsd.ClientInterface, reOrderer *ReOrderer) (*ReordererMonitor, error) {
+func NewReOrderMonitor(ctx context.Context, statsdClient statsd.ClientInterface, reOrderer *ReOrderer) (*ReordererMonitor, error) {
 	return &ReordererMonitor{
+		ctx:          ctx,
 		statsdClient: statsdClient,
 		reOrderer:    reOrderer,
 	}, nil
 }
 
 // Start the reorderer monitor
-func (r *ReordererMonitor) Start(ctx context.Context, wg *sync.WaitGroup) {
+func (r *ReordererMonitor) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -43,7 +46,7 @@ func (r *ReordererMonitor) Start(ctx context.Context, wg *sync.WaitGroup) {
 				avg = float64(metric.TotalDepth) / float64(metric.TotalOp)
 			}
 			_ = r.statsdClient.Gauge(metrics.MetricPerfBufferSortingAvgOp, avg, []string{}, 1.0)
-		case <-ctx.Done():
+		case <-r.ctx.Done():
 			return
 		}
 	}

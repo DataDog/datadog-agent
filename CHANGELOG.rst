@@ -2,6 +2,157 @@
 Release Notes
 =============
 
+.. _Release Notes_7.38.1:
+
+7.38.1 / 6.38.1
+======
+
+.. _Release Notes_7.38.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-08-02
+
+
+.. _Release Notes_7.38.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes CWS rules with 'process.file.name !=""' expression.
+
+
+.. _Release Notes_7.38.0:
+
+7.38.0 / 6.38.0
+======
+
+.. _Release Notes_7.38.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-07-25
+
+- Please refer to the `7.38.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7380>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.38.0_New Features:
+
+New Features
+------------
+
+
+- Add NetFlow feature to listen to NetFlow traffic and forward them to Datadog.
+
+- The CWS agent now supports filtering events depending on whether they are performed by a thread.
+  A process is considered a thread if it's a child process that hasn't executed another program.
+
+- Adds a `diagnose datadog-connectivity` command that displays information about connectivity issues between the Agent and Datadog intake.
+
+- Adds support for tailing modes in the journald logs tailer.
+
+- The CWS agent now supports writing rules on processes termination.
+
+- Add support for new types of CI Visibility payloads to the Trace Agent, so
+  features that until now were Agentless-only are available as well when using
+  the Agent.
+
+
+.. _Release Notes_7.38.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Tags configured with `DD_TAGS` or `DD_EXTRA_TAGS` in an EKS Fargate environment are now attached to OTLP metrics.
+
+- Add NetFlow static enrichments (TCP flags, IP Protocol, EtherType, and more).
+
+- Report lines matched by auto multiline detection as metrics
+  and show on the status page. 
+
+- Add a `containerd_exclude_namespaces` configuration option for the Agent to
+  ignore containers from specific containerd namespaces.
+
+- The `log_level` of the agent is now appended
+  to the flare archive name upon its creation.
+
+- The metrics reported by KSM core now include the tags "kube_app_name",
+  "kube_app_instance", and so on, if they're related to a Kubernetes entity
+  that has a standard label like "app.kubernetes.io/name",
+  "app.kubernetes.io/instance", etc.
+
+- The Kubernetes State Metrics Core check now collects two ingress metrics:
+  ``kubernetes_state.ingress.count`` and ``kubernetes_state.ingress.path``.
+
+- Move process chunking code to util package to avoid cycle import when using it in orchestrator check.
+
+- APM: Add support for PostgreSQL JSON operators in the SQL obfuscate package.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.54.0 (OTLP v0.18.0).
+
+- The Agent now embeds Python-3.8.13, an upgrade from
+  Python-3.8.11.
+
+- APM: Updated Rare Sampler default configuration values to sample traces more uniformly across environments and services.
+
+- The OTLP ingest endpoint now supports Exponential Histograms with delta aggregation temporality.
+
+- The Windows installer now supports grouped Managed Service Accounts.
+
+- Enable https monitoring on arm64 with kernel >= 5.5.0.
+
+- Add ``otlp_config.debug.loglevel`` to determine log level when the OTLP Agent receives metrics/traces for debugging use cases.
+
+
+.. _Release Notes_7.38.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Deprecate``otlp_config.metrics.instrumentation_library_metadata_as_tags`` in 
+  in favor of ``otlp_config.metrics.instrumentation_scope_metadata_as_tags``.
+
+
+.. _Release Notes_7.38.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- When ``enable_payloads.series`` or ``enable_payloads.sketches`` are set to 
+  false, don't log the error ``Cannot append a metric in a closed buffered channel``.
+
+- Restrict permissions for the entrypoint executables of the Dockerfiles.
+
+- Revert `docker.mem.in_use` calculation to use RSS Memory instead of total memory.
+
+- Add missing telemetry metrics for HTTP log bytes sent.
+
+- Fix `panic` in `container`, `containerd`, and `docker` when container stats are temporarily not available
+
+- Fix prometheus check Metrics parsing by not enforcing a list of strings.
+
+- Fix potential deadlock when shutting down an Agent with a log TCP listener.
+
+- APM: Fixed trace rare sampler's oversampling behavior. With this fix, the rare sampler will sample rare traces more accurately.
+
+- Fix journald byte count on the status page. 
+
+- APM: Fixes an issue where certain (#> and #>>) PostgreSQL JSON operators were
+  being interpreted as comments and removed by the obfuscate package.
+
+- Scrubs HTTP Bearer tokens out of log output
+
+- Fixed the triggered "svType != tvType; key=containerd_namespace, st=[]interface
+  {}, tt=[]string, sv=[], tv=[]" error when using a secret backend
+  reader.
+
+- Fixed an issue that made the container check to show an error in the "agent
+  status" output when it was working properly but there were no containers
+  deployed.
+
+
 .. _Release Notes_7.37.1:
 
 7.37.1 / 6.37.1

@@ -14,8 +14,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
@@ -32,7 +33,7 @@ const defaultBackendAddress = "localhost:8888"
 const defaultChannelSize = 100
 
 type fakeBackend struct {
-	started uint64           // 0 if server is stopped
+	started *atomic.Bool
 	out     chan interface{} // payload output
 	srv     http.Server
 }
@@ -43,7 +44,8 @@ func newFakeBackend(channelSize int) *fakeBackend {
 		size = channelSize
 	}
 	fb := fakeBackend{
-		out: make(chan interface{}, size),
+		started: atomic.NewBool(false),
+		out:     make(chan interface{}, size),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v0.2/traces", fb.handleTraces)
@@ -58,13 +60,13 @@ func newFakeBackend(channelSize int) *fakeBackend {
 }
 
 func (s *fakeBackend) Start() error {
-	if atomic.LoadUint64(&s.started) > 0 {
+	if s.started.Load() {
 		// already running
 		return nil
 	}
 	go func() {
-		atomic.StoreUint64(&s.started, 1)
-		defer atomic.StoreUint64(&s.started, 0)
+		s.started.Store(true)
+		defer s.started.Store(false)
 		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
@@ -77,8 +79,11 @@ func (s *fakeBackend) Start() error {
 			return errors.New("server: timed out out waiting for start")
 		default:
 			resp, err := http.Get(fmt.Sprintf("http://%s/_health", s.srv.Addr))
-			if err == nil && resp.StatusCode == http.StatusOK {
-				return nil
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					return nil
+				}
 			}
 			time.Sleep(5 * time.Millisecond)
 		}

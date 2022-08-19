@@ -16,6 +16,7 @@ import (
 	strings "strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -44,7 +45,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageR
 	if request.Compression {
 		var tmpBuf bytes.Buffer
 		zw := gzip.NewWriter(&tmpBuf)
-		zw.Name = strings.Trim(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), ".gz")
+		zw.Name = strings.TrimSuffix(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), ".gz")
 		zw.ModTime = time.Now()
 		if _, err := zw.Write(raw.Bytes()); err != nil {
 			return fmt.Errorf("couldn't compress activity dump: %w", err)
@@ -76,3 +77,6 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageR
 	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, ad.GetSelectorStr())
 	return nil
 }
+
+// SendTelemetry sends telemetry for the current storage
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender aggregator.Sender) {}

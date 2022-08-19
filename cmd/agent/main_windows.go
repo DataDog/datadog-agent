@@ -14,11 +14,12 @@ import (
 	_ "net/http/pprof"
 	"os"
 
+	"golang.org/x/sys/windows/svc"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows/svc"
 )
 
 func main() {

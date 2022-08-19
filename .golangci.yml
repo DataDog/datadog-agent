@@ -4,8 +4,6 @@ run:
     - cmd/agent/app/listchecks.go  # ignore unused command for now
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
     - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
-    - pkg/security/rconfig/rconfig.go # TODO: fix revive error (comment on RCPolicyProvider.Close)
-    - pkg/security/probe/selftests/tester.go # TODO: fix revive error (comment on Start)
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
 
 issues:
@@ -20,7 +18,6 @@ issues:
     - "`RandomString|TimeNowNano|InitLogging|SetHostname` is unused" # 'deadcode' errors in test/benchmarks/util.go
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
-    - "exported: exported type EasyjsonTime|NewEasyjsonTime|EasyjsonTime.MarshalEasyJSON|EasyjsonTime.UnmarshalJSON should have comment or be unexported" # 'revive' errors in pkg/security/utils/json.go
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
@@ -69,8 +66,14 @@ linters:
     - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
     - staticcheck # staticcheck is a go vet on steroids, applying a ton of static analysis checks
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
+    - depguard    # Depguard is useful for preventing specific packages from being used
+    - bodyclose   # checks whether HTTP response body is closed successfully
 
 linters-settings:
+  depguard:
+    include-go-root: true
+    packages-with-error-message:
+      - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
   errcheck:
     # Disable warnings for `fmt` and `log` packages. Also ignore `Write` functions from `net/http` package.
     ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,net/http:Write,github.com/DataDog/datadog-agent/pkg/trace/metrics:.*

@@ -28,9 +28,7 @@ import (
 )
 
 func TestCollectNetworkStats(t *testing.T) {
-	dummyProcDir, err := newTempFolder("test-find-docker-networks")
-	assert.Nil(t, err)
-	defer dummyProcDir.removeAll() // clean up
+	dummyProcDir := newTempFolder(t)
 	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
 	defer config.Datadog.SetDefault("container_proc_root", "/proc")
 
@@ -172,7 +170,7 @@ func TestCollectNetworkStats(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "dev"), tc.dev)
+			err := dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "dev"), tc.dev)
 			assert.NoError(t, err)
 
 			stat, err := collectNetworkStats(tc.pid, tc.networks)
@@ -184,9 +182,7 @@ func TestCollectNetworkStats(t *testing.T) {
 }
 
 func TestDetectNetworkDestinations(t *testing.T) {
-	dummyProcDir, err := newTempFolder("test-find-docker-networks")
-	assert.Nil(t, err)
-	defer dummyProcDir.removeAll() // clean up
+	dummyProcDir := newTempFolder(t)
 	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
 
 	for _, tc := range []struct {
@@ -245,7 +241,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			// Create temporary files on disk with the routes and stats.
-			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
+			err := dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
 			dest, err := detectNetworkDestinations(tc.pid)

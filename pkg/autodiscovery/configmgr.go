@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -15,40 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// configChanges contains the changes that occurred due to an event in a
-// configManager.
-type configChanges struct {
-
-	// schedule contains configs that should be scheduled as a result of this
-	// event.
-	schedule []integration.Config
-
-	// unschedule contains configs that should be unscheduled as a result of
-	// this event.
-	unschedule []integration.Config
-}
-
-// scheduleConfig adds a config to `schedule`
-func (c *configChanges) scheduleConfig(config integration.Config) {
-	c.schedule = append(c.schedule, config)
-}
-
-// unscheduleConfig adds a config to `unschedule`
-func (c *configChanges) unscheduleConfig(config integration.Config) {
-	c.unschedule = append(c.unschedule, config)
-}
-
-// isEmpty determines whether this set of changes is empty
-func (c *configChanges) isEmpty() bool {
-	return len(c.schedule) == 0 && len(c.unschedule) == 0
-}
-
-// merge merges the given configChanges into this one.
-func (c *configChanges) merge(other configChanges) {
-	c.schedule = append(c.schedule, other.schedule...)
-	c.unschedule = append(c.unschedule, other.unschedule...)
-}
-
 // configManager implememnts the logic of handling additions and removals of
 // configs (which may or may not be templates) and services, and reconciling
 // those together to resolve templates.
@@ -56,20 +23,20 @@ func (c *configChanges) merge(other configChanges) {
 // This type is threadsafe, internally using a mutex to serialize operations.
 type configManager interface {
 	// processNewService handles a new service, with the given AD identifiers
-	processNewService(adIdentifiers []string, svc listeners.Service) configChanges
+	processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges
 
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
-	processDelService(svc listeners.Service) configChanges
+	processDelService(ctx context.Context, svc listeners.Service) integration.ConfigChanges
 
 	// processNewConfig handles a new config
-	processNewConfig(config integration.Config) configChanges
+	processNewConfig(config integration.Config) integration.ConfigChanges
 
 	// processDelConfigs handles removal of a config, unscheduling the config
 	// itself or, if it is a template, any configs resolved from it.  Note that
 	// this applies to a slice of configs, where the other methods in this
 	// interface apply to only one config.
-	processDelConfigs(configs []integration.Config) configChanges
+	processDelConfigs(configs []integration.Config) integration.ConfigChanges
 
 	// mapOverLoadedConfigs calls the given function with a map of all
 	// loaded configs (those which have been scheduled but not unscheduled).
@@ -122,10 +89,10 @@ type reconcilingConfigManager struct {
 	// that service: serviceID -> template digest -> resolved config digest.
 	serviceResolutions map[string]map[string]string
 
-	// scheduledConfigs contains an entry for each scheduled config, keyed by
-	// its digest.  This is a mix of resolved templates and non-template
-	// configs.  The returned configChanges from interface methods correspond
-	// exactly to changes in this map.
+	// scheduledConfigs contains an entry for each scheduled config, keyed
+	// by its digest.  This is a mix of resolved templates and non-template
+	// configs.  The returned integration.ConfigChanges from interface
+	// methods correspond exactly to changes in this map.
 	scheduledConfigs map[string]integration.Config
 }
 
@@ -144,14 +111,14 @@ func newReconcilingConfigManager() configManager {
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) configChanges {
+func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
 	svcID := svc.GetServiceID()
 	if _, found := cm.activeServices[svcID]; found {
 		log.Debugf("Service %s is already tracked by autodiscovery", svcID)
-		return configChanges{}
+		return integration.ConfigChanges{}
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -175,7 +142,7 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) configChanges {
+func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc listeners.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -183,7 +150,7 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) con
 	svcAndADIDs, found := cm.activeServices[svcID]
 	if !found {
 		log.Debugf("Service %s is not tracked by autodiscovery", svcID)
-		return configChanges{}
+		return integration.ConfigChanges{}
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -204,14 +171,14 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) con
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) configChanges {
+func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
 	digest := config.Digest()
 	if _, found := cm.activeConfigs[digest]; found {
-		log.Debug("Config %v is already tracked by autodiscovery", config.Name)
-		return configChanges{}
+		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
+		return integration.ConfigChanges{}
 	}
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
@@ -219,7 +186,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 	//  1. update orctiveConfigs / activeServices
 	cm.activeConfigs[digest] = config
 
-	var changes configChanges
+	var changes integration.ConfigChanges
 	if config.IsTemplate() {
 		//  2. update templatesByADID or servicesByADID to match
 		matchingServices := map[string]struct{}{}
@@ -232,10 +199,16 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 
 		//  3. update serviceResolutions, generating changes
 		for svcID := range matchingServices {
-			changes.merge(cm.reconcileService(svcID))
+			changes.Merge(cm.reconcileService(svcID))
 		}
 	} else {
-		changes.scheduleConfig(config)
+		// Secrets always need to be resolved (done in reconcileService if template)
+		config, err := decryptConfig(config)
+		if err != nil {
+			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+		}
+
+		changes.ScheduleConfig(config)
 	}
 
 	//  4. update scheduledConfigs
@@ -243,11 +216,11 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) configChanges {
+func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Config) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
-	var allChanges configChanges
+	var allChanges integration.ConfigChanges
 	for _, config := range configs {
 		digest := config.Digest()
 		if _, found := cm.activeConfigs[digest]; !found {
@@ -260,7 +233,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
 
-		var changes configChanges
+		var changes integration.ConfigChanges
 		if config.IsTemplate() {
 			//  2. update templatesByADID or servicesByADID to match
 			matchingServices := map[string]struct{}{}
@@ -273,14 +246,21 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 
 			//  3. update serviceResolutions, generating changes
 			for svcID := range matchingServices {
-				changes.merge(cm.reconcileService(svcID))
+				changes.Merge(cm.reconcileService(svcID))
 			}
 		} else {
-			changes.unscheduleConfig(config)
+			// Secrets need to be resolved before being unscheduled as otherwise
+			// the computed hashes can be different from the ones computed at schedule time.
+			config, err := decryptConfig(config)
+			if err != nil {
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
+			}
+
+			changes.UnscheduleConfig(config)
 		}
 
 		//  4. update scheduledConfigs
-		allChanges.merge(cm.applyChanges(changes))
+		allChanges.Merge(cm.applyChanges(changes))
 	}
 
 	return allChanges
@@ -299,8 +279,8 @@ func (cm *reconcilingConfigManager) mapOverLoadedConfigs(f func(map[string]integ
 // changes.
 //
 // This method must be called with cm.m locked.
-func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges {
-	var changes configChanges
+func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.ConfigChanges {
+	var changes integration.ConfigChanges
 
 	// note that this method can be called in a case where svcID is not in the
 	// activeServices: this occurs when the service is removed.
@@ -335,7 +315,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 	// existingResolutions in-place
 	for templateDigest, resolvedDigest := range existingResolutions {
 		if _, found = expectedResolutions[templateDigest]; !found {
-			changes.unscheduleConfig(cm.scheduledConfigs[resolvedDigest])
+			changes.UnscheduleConfig(cm.scheduledConfigs[resolvedDigest])
 			delete(existingResolutions, templateDigest)
 		}
 	}
@@ -348,7 +328,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) configChanges
 			if !ok {
 				continue
 			}
-			changes.scheduleConfig(resolved)
+			changes.ScheduleConfig(resolved)
 			existingResolutions[digest] = resolved.Digest()
 		}
 	}
@@ -385,12 +365,12 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 // applyChanges applies the given changes to cm.scheduledConfigs
 //
 // This method must be called with cm.m locked.
-func (cm *reconcilingConfigManager) applyChanges(changes configChanges) configChanges {
-	for _, cfg := range changes.unschedule {
+func (cm *reconcilingConfigManager) applyChanges(changes integration.ConfigChanges) integration.ConfigChanges {
+	for _, cfg := range changes.Unschedule {
 		digest := cfg.Digest()
 		delete(cm.scheduledConfigs, digest)
 	}
-	for _, cfg := range changes.schedule {
+	for _, cfg := range changes.Schedule {
 		digest := cfg.Digest()
 		cm.scheduledConfigs[digest] = cfg
 	}

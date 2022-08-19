@@ -7,8 +7,9 @@ package sampler
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
@@ -35,9 +36,9 @@ type RemoteRates struct {
 	// tpsTargets contains the latest tps targets available per (env, service)
 	// this map may include signatures (env, service) not seen by this agent.
 	tpsTargets         map[Signature]apmsampling.TargetTPS
-	mu                 sync.RWMutex // protects concurrent access to samplers and tpsTargets
-	tpsVersion         uint64       // version of the loaded tpsTargets
-	duplicateTargetTPS uint64       // count of duplicate received targetTPS
+	mu                 sync.RWMutex   // protects concurrent access to samplers and tpsTargets
+	tpsVersion         *atomic.Uint64 // version of the loaded tpsTargets
+	duplicateTargetTPS *atomic.Uint64 // count of duplicate received targetTPS
 
 	client config.RemoteClient
 }
@@ -52,9 +53,11 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 		return nil
 	}
 	return &RemoteRates{
-		client:    client,
-		maxSigTPS: maxTPS,
-		samplers:  make(map[Signature]*remoteSampler),
+		client:             client,
+		maxSigTPS:          maxTPS,
+		samplers:           make(map[Signature]*remoteSampler),
+		tpsVersion:         atomic.NewUint64(0),
+		duplicateTargetTPS: atomic.NewUint64(0),
 	}
 }
 
@@ -83,7 +86,7 @@ func (r *RemoteRates) onUpdate(update map[string]state.APMSamplingConfig) {
 		}
 	}
 	r.updateTPS(tpsTargets)
-	atomic.StoreUint64(&r.tpsVersion, version)
+	r.tpsVersion.Store(version)
 }
 
 // addTargetTPS keeping the highest rank if 2 targetTPS of the same signature are added
@@ -99,7 +102,7 @@ func (r *RemoteRates) addTargetTPS(tpsTargets map[Signature]apmsampling.TargetTP
 		return
 	}
 	if new.Rank == stored.Rank {
-		atomic.AddUint64(&r.duplicateTargetTPS, 1)
+		r.duplicateTargetTPS.Inc()
 	}
 }
 
@@ -184,7 +187,7 @@ func (r *RemoteRates) countSample(root *pb.Span, sig Signature) {
 	}
 	s.countSample()
 	root.Metrics[tagRemoteTPS] = s.targetTPS.Load()
-	root.Metrics[tagRemoteVersion] = float64(atomic.LoadUint64(&r.tpsVersion))
+	root.Metrics[tagRemoteVersion] = float64(r.tpsVersion.Load())
 }
 
 // getSignatureSampleRate returns the sampling rate to apply for a registered signature.
@@ -215,7 +218,7 @@ func (r *RemoteRates) report() {
 	defer r.mu.RUnlock()
 	metrics.Gauge("datadog.trace_agent.remote.samplers", float64(len(r.samplers)), nil, 1)
 	metrics.Gauge("datadog.trace_agent.remote.sig_targets", float64(len(r.tpsTargets)), nil, 1)
-	if duplicateTargetTPS := atomic.SwapUint64(&r.duplicateTargetTPS, 0); duplicateTargetTPS != 0 {
+	if duplicateTargetTPS := r.duplicateTargetTPS.Swap(0); duplicateTargetTPS != 0 {
 		metrics.Count("datadog.trace_agent.remote.duplicate_target_tps", int64(duplicateTargetTPS), nil, 1)
 	}
 }

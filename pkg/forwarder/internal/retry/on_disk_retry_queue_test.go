@@ -6,23 +6,21 @@
 package retry
 
 import (
-	"io/ioutil"
-	"os"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/stretchr/testify/assert"
 )
 
 const domainName = "domain"
 
 func TestOnDiskRetryQueue(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
-	defer clean()
+	path := t.TempDir()
 
 	q := newTestOnDiskRetryQueue(a, path, 1000)
 	err := q.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
@@ -45,8 +43,7 @@ func TestOnDiskRetryQueue(t *testing.T) {
 
 func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
-	defer clean()
+	path := t.TempDir()
 
 	maxSizeInBytes := int64(100)
 	q := newTestOnDiskRetryQueue(a, path, maxSizeInBytes)
@@ -76,8 +73,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 
 func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
-	defer clean()
+	path := t.TempDir()
 
 	retryQueue := newTestOnDiskRetryQueue(a, path, 1000)
 	err := retryQueue.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
@@ -101,12 +97,6 @@ func createHTTPTransactionCollectionTests(endpoints ...string) []transaction.Tra
 		transactions = append(transactions, t)
 	}
 	return transactions
-}
-
-func createTmpFolder(a *assert.Assertions) (string, func()) {
-	path, err := ioutil.TempDir("", "tests")
-	a.NoError(err)
-	return path, func() { _ = os.Remove(path) }
 }
 
 func getEndpointsFromTransactions(transactions []transaction.Transaction) []string {
