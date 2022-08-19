@@ -108,7 +108,7 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 	assert.Error(t, err, "could not extract region from arn: aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret. arn: invalid prefix")
 }
 
-func TestSendApiKeyToShellSuccess(t *testing.T) {
+func TestSendAPIKeyToShellSuccess(t *testing.T) {
 	// TODO:maxday remove when ready for GA
 	os.Setenv("DD_EXPERIMENTAL_SHELL_ENABLED", "true")
 	defer os.Unsetenv("DD_EXPERIMENTAL_SHELL_ENABLED")
@@ -120,7 +120,7 @@ func TestSendApiKeyToShellSuccess(t *testing.T) {
 		assert.Fail(t, "could not open tcp server")
 	}
 	defer listen.Close()
-	assert.True(t, sendApiKeyToShell("abcd", hostAndPort))
+	assert.True(t, sendAPIKeyToShell("abcd", hostAndPort))
 }
 
 func TestSendApiKeyToShellError(t *testing.T) {
@@ -128,12 +128,12 @@ func TestSendApiKeyToShellError(t *testing.T) {
 	os.Setenv("DD_EXPERIMENTAL_SHELL_ENABLED", "true")
 	defer os.Unsetenv("DD_EXPERIMENTAL_SHELL_ENABLED")
 	// END TODO
-	assert.False(t, sendApiKeyToShell("abcd", "localhost:invalid"))
+	assert.False(t, sendAPIKeyToShell("abcd", "localhost:invalid"))
 }
 
 // TODO:maxday remove when ready for GA
 func TestSendApiKeyToShellIsDisabledByDefault(t *testing.T) {
-	assert.True(t, sendApiKeyToShell("abcd", "localhost:1234"))
+	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
 }
 
 // END TODO

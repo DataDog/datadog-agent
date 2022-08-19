@@ -183,7 +183,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}
 
 	// send the api key to the shell for crash reporting purpose
-	if !sendApiKeyToShell(os.Getenv(apiKeyEnvVar), shellTCPHostAndPort) {
+	if !sendAPIKeyToShell(os.Getenv(apiKeyEnvVar), shellTCPHostAndPort) {
 		log.Warn("crash reporting is disabled")
 	}
 

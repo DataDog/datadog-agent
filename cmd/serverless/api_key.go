@@ -149,7 +149,7 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	return arnObject.Region, nil
 }
 
-func sendApiKeyToShell(apiKey string, hostAndPort string) bool {
+func sendAPIKeyToShell(apiKey string, hostAndPort string) bool {
 	// TODO:maxday remove when ready for GA
 	if len(os.Getenv("DD_EXPERIMENTAL_SHELL_ENABLED")) == 0 {
 		return true
