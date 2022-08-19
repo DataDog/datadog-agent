@@ -252,7 +252,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(httpTX))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -260,16 +260,16 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := maxRequestLinger.Nanoseconds()
 	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
-		httpTX, ok := val.(*httpTX)
+		httpTxn, ok := val.(*ebpfHttpTx)
 		if !ok {
 			return false
 		}
 
-		if updated := int64((*httpTX).ResponseLastSeen()); updated > 0 {
+		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64((*httpTX).RequestStarted())
+		started := int64(httpTxn.RequestStarted())
 		return started > 0 && (now-started) > ttl
 	})
 
