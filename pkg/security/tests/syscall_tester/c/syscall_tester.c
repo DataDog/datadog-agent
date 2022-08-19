@@ -365,7 +365,7 @@ int test_bind_af_inet(int argc, char** argv) {
         }
         addr.sin_addr.s_addr = htonl(ip32);
     } else {
-        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -384,7 +384,7 @@ int test_bind_af_inet6(int argc, char** argv) {
     }
 
     if (argc != 2) {
-        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -398,7 +398,7 @@ int test_bind_af_inet6(int argc, char** argv) {
     } else if (!strcmp(ip, "custom_ip")) {
         inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
     } else {
-        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -434,7 +434,7 @@ int test_bind_af_unix(void) {
 
 int test_bind(int argc, char** argv) {
     if (argc <= 1) {
-        fprintf(stderr, "Please speficy an addr_type\n");
+        fprintf(stderr, "Please specify an addr_type\n");
         return EXIT_FAILURE;
     }
 
@@ -500,7 +500,7 @@ int test_getchar(int argc, char **argv) {
 
 int test_open(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "Please speficy at least a file name \n");
+        fprintf(stderr, "Please specify at least a file name \n");
         return EXIT_FAILURE;
     }
 
