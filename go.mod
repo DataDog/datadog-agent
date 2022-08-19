@@ -401,8 +401,11 @@ require (
 	github.com/agnivade/levenshtein v1.0.1 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
+	github.com/fogleman/gg v1.3.0 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.6 // indirect
+	golang.org/x/image v0.0.0-20200119044424-58c23975cae1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
@@ -410,6 +413,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.39.0-rc.3
 	github.com/go-delve/delve v1.9.0
+	github.com/goccy/go-graphviz v0.0.9
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )
 
