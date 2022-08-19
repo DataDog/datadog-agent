@@ -1360,11 +1360,12 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		applyOverrideFuncs(config)
 	}()
 
+	if IsServerless() {
+		log.Debug("No config file detected, using environment variable based configuration")
+		return &warnings, nil
+	}
+
 	if err := config.ReadInConfig(); err != nil {
-		if IsServerless() {
-			log.Debug("No config file detected, using environment variable based configuration")
-			return &warnings, err
-		}
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		} else {
