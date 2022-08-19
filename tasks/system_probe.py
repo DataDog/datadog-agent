@@ -87,7 +87,13 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug, strip_object_files=strip_object_files)
+        build_object_files(
+            ctx,
+            parallel_build=parallel_build,
+            kernel_release=kernel_release,
+            debug=debug,
+            strip_object_files=strip_object_files,
+        )
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -681,7 +687,6 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
         (p, debug) = flavor[i]
         promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
 
-
     if not strip_object_files:
         return
 
@@ -819,8 +824,16 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, st
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
-    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, strip_object_files=strip_object_files)
-    build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release, strip_object_files=strip_object_files)
+    build_network_ebpf_files(
+        ctx,
+        build_dir=build_dir,
+        parallel_build=parallel_build,
+        kernel_release=kernel_release,
+        strip_object_files=strip_object_files,
+    )
+    build_http_ebpf_files(
+        ctx, build_dir=build_dir, kernel_release=kernel_release, strip_object_files=strip_object_files
+    )
     build_security_ebpf_files(
         ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
     )
