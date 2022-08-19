@@ -212,6 +212,14 @@ int kprobe___io_openat_prep(struct pt_regs *ctx) {
     return 0;
 }
 
+#ifndef VALID_OPEN_FLAGS
+#define VALID_OPEN_FLAGS \
+        (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | \
+         O_APPEND | O_NDELAY | O_NONBLOCK | __O_SYNC | O_DSYNC | \
+         FASYNC | O_DIRECT | O_LARGEFILE | O_DIRECTORY | O_NOFOLLOW | \
+         O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
+#endif
+
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
     struct io_open req;

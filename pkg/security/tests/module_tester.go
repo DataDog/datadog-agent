@@ -71,6 +71,7 @@ system_probe_config:
   enabled: true
   sysprobe_socket: /tmp/test-sysprobe.sock
   enable_kernel_header_download: true
+  enable_runtime_compiler: true
 
 runtime_security_config:
   enabled: true
@@ -731,6 +732,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := testMod.module.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
+	}
+
+	kv, _ := kernel.NewKernelVersion()
+
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+		return nil, errors.New("failed to runtime compile module")
 	}
 
 	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)

@@ -55,7 +55,7 @@ spec:
                 image: busybox
                 name: busybox
 
-    - name: create-busybox-with-auto-instru
+    - name: create-busybox-with-auto-instru-java
       inputs:
         parameters:
           - name: namespace
@@ -65,13 +65,63 @@ spec:
           apiVersion: v1
           kind: Pod
           metadata:
-            name: busybox-auto-instru
+            name: busybox-auto-instru-java
             namespace: {{inputs.parameters.namespace}}
             labels:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
               admission.datadoghq.com/java-lib.custom-image: "gcr.io/datadoghq/dd-java-agent-init:latest"  # TODO: Use the default repo when ready
+          spec:
+            containers:
+              - command:
+                  - sleep
+                  - "3600"
+                image: busybox
+                name: busybox
+
+    - name: create-busybox-with-auto-instru-js
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: busybox-auto-instru-js
+            namespace: {{inputs.parameters.namespace}}
+            labels:
+              "app": "busybox"
+              "admission.datadoghq.com/enabled": "true"
+            annotations:
+              admission.datadoghq.com/js-lib.custom-image: "ghcr.io/datadog/dd-trace-js/dd-lib-js-init:e1043d06c7b25f5494a80d3c95e43029ac5cefff"  # TODO: Use the default repo when ready
+          spec:
+            containers:
+              - command:
+                  - sleep
+                  - "3600"
+                image: busybox
+                name: busybox
+
+    - name: create-busybox-with-auto-instru-python
+      inputs:
+        parameters:
+          - name: namespace
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: busybox-auto-instru-python
+            namespace: {{inputs.parameters.namespace}}
+            labels:
+              "app": "busybox"
+              "admission.datadoghq.com/enabled": "true"
+            annotations:
+              admission.datadoghq.com/python-lib.custom-image: "ghcr.io/datadog/dd-trace-py/dd-python-agent-init:latest"  # TODO: Use the default repo when ready
           spec:
             containers:
               - command:
@@ -115,8 +165,20 @@ spec:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
-          - name: busybox-auto-instru
-            template: create-busybox-with-auto-instru
+          - name: busybox-auto-instru-java
+            template: create-busybox-with-auto-instru-java
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: busybox-auto-instru-js
+            template: create-busybox-with-auto-instru-js
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+          - name: busybox-auto-instru-python
+            template: create-busybox-with-auto-instru-python
             arguments:
               parameters:
                 - name: namespace
@@ -386,7 +448,7 @@ spec:
                   value: DD_VERSION
                 - name: target
                   value: busybox-tags
-          - name: env-auto-instru
+          - name: env-auto-instru-java
             template: test-env-value
             arguments:
               parameters:
@@ -397,8 +459,8 @@ spec:
                 - name: envKey
                   value: JAVA_TOOL_OPTIONS
                 - name: target
-                  value: busybox-auto-instru
-          - name: volume-mount-auto-instru
+                  value: busybox-auto-instru-java
+          - name: volume-mount-auto-instru-java
             template: test-volume-mount
             arguments:
               parameters:
@@ -411,8 +473,8 @@ spec:
                 - name: withInitContainers
                   value: "true"
                 - name: target
-                  value: busybox-auto-instru
-          - name: empty-dir-auto-instru
+                  value: busybox-auto-instru-java
+          - name: empty-dir-auto-instru-java
             template: test-empty-dir
             arguments:
               parameters:
@@ -423,7 +485,83 @@ spec:
                 - name: volumePath
                   value: "/datadog-lib"
                 - name: target
-                  value: busybox-auto-instru
+                  value: busybox-auto-instru-java
+          - name: env-auto-instru-js
+            template: test-env-value
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: envValue
+                  value: " --require=/datadog-lib/node_modules/dd-trace/init"
+                - name: envKey
+                  value: NODE_OPTIONS
+                - name: target
+                  value: busybox-auto-instru-js
+          - name: volume-mount-auto-instru-js
+            template: test-volume-mount
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog-lib"
+                - name: withInitContainers
+                  value: "true"
+                - name: target
+                  value: busybox-auto-instru-js
+          - name: empty-dir-auto-instru-js
+            template: test-empty-dir
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog-lib"
+                - name: target
+                  value: busybox-auto-instru-js
+          - name: env-auto-instru-python
+            template: test-env-value
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: envValue
+                  value: "/datadog-lib/"
+                - name: envKey
+                  value: PYTHONPATH
+                - name: target
+                  value: busybox-auto-instru-python
+          - name: volume-mount-auto-instru-python
+            template: test-volume-mount
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog-lib"
+                - name: withInitContainers
+                  value: "true"
+                - name: target
+                  value: busybox-auto-instru-python
+          - name: empty-dir-auto-instru-python
+            template: test-empty-dir
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{inputs.parameters.namespace}}"
+                - name: volumeName
+                  value: datadog-auto-instrumentation
+                - name: volumePath
+                  value: "/datadog-lib"
+                - name: target
+                  value: busybox-auto-instru-python
 
     - name: diagnose
       inputs:

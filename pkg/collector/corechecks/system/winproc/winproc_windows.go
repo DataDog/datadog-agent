@@ -29,13 +29,35 @@ func (c *processChk) Run() error {
 		return err
 	}
 
-	procQueueLength, _ := c.pql.GetValue()
-	procCount, _ := c.numprocs.GetValue()
+	var val float64
 
-	sender.Gauge("system.proc.queue_length", procQueueLength, "", nil)
-	sender.Gauge("system.proc.count", procCount, "", nil)
+	// counter ("System", "Processes")
+	if c.numprocs == nil {
+		c.numprocs, err = pdhutil.GetSingleInstanceCounter("System", "Processes")
+	}
+	if c.numprocs != nil {
+		val, err = c.numprocs.GetValue()
+	}
+	if err == nil {
+		sender.Gauge("system.proc.count", val, "", nil)
+	} else {
+		c.Warnf("winproc.Check: Error getting number of processes: %v", err)
+	}
+
+	// counter ("System", "Processor Queue Length")
+	if c.pql == nil {
+		c.pql, err = pdhutil.GetSingleInstanceCounter("System", "Processor Queue Length")
+	}
+	if c.pql != nil {
+		val, err = c.pql.GetValue()
+	}
+	if err == nil {
+		sender.Gauge("system.proc.queue_length", val, "", nil)
+	} else {
+		c.Warnf("winproc.Check: Error getting processor queue length: %v", err)
+	}
+
 	sender.Commit()
-
 	return nil
 }
 
@@ -44,12 +66,6 @@ func (c *processChk) Configure(data integration.Data, initConfig integration.Dat
 	if err != nil {
 		return err
 	}
-
-	c.numprocs, err = pdhutil.GetSingleInstanceCounter("System", "Processes")
-	if err != nil {
-		return err
-	}
-	c.pql, err = pdhutil.GetSingleInstanceCounter("System", "Processor Queue Length")
 
 	return err
 }

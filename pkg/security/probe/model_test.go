@@ -9,16 +9,19 @@
 package probe
 
 import (
+	"errors"
 	"net"
 	"reflect"
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestSetFieldValue(t *testing.T) {
 	event := &Event{}
+	var readOnlyError *eval.ErrFieldReadOnly
 
 	for _, field := range event.GetFields() {
 		kind, err := event.GetFieldType(field)
@@ -28,15 +31,15 @@ func TestSetFieldValue(t *testing.T) {
 
 		switch kind {
 		case reflect.String:
-			if err = event.SetFieldValue(field, "aaa"); err != nil {
+			if err = event.SetFieldValue(field, "aaa"); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Int:
-			if err = event.SetFieldValue(field, 123); err != nil {
+			if err = event.SetFieldValue(field, 123); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Bool:
-			if err = event.SetFieldValue(field, true); err != nil {
+			if err = event.SetFieldValue(field, true); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Struct:
