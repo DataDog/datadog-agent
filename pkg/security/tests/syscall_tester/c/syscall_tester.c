@@ -534,6 +534,20 @@ int test_pipe_chown(void) {
     return EXIT_SUCCESS;
 }
 
+int test_unlink(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify at least a file name \n");
+        return EXIT_FAILURE;
+    }
+
+    for (int i = 1; i != argc; i++) {
+        if (unlink(argv[i]) < 0)
+            return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int test_set_signal_handler(int argc, char** argv) {
     sigset_t set;
     int sig;
@@ -617,6 +631,8 @@ int main(int argc, char **argv) {
             exit_code = test_getchar(sub_argc, sub_argv);
         } else if (strcmp(cmd, "open") == 0) {
             exit_code = test_open(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "unlink") == 0) {
+            exit_code = test_unlink(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
