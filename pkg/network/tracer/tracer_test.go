@@ -1741,10 +1741,6 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	err = tr.RegisterClient("1")
 	require.NoError(t, err)
 
-	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(fetchCmd[0]).Run()
-	time.Sleep(2 * time.Second)
-
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL or GnuTLS
