@@ -157,11 +157,47 @@ func Test_injectVolume(t *testing.T) {
 		{
 			name: "volume exists",
 			args: args{
-				pod:         fakePodWithVolume("podfoo", "volumefoo"),
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
 				volume:      corev1.Volume{Name: "volumefoo"},
 				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
 			},
 			injected: false,
+		},
+		{
+			name: "volume mount exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: false,
+		},
+		{
+			name: "mount path exists in one container",
+			args: args{
+				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "second-container"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: true,
+		},
+		{
+			name: "mount path exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "differentName", MountPath: "/foo"},
+			},
+			injected: false,
+		},
+		{
+			name: "mount path exists in one container",
+			args: args{
+				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "-second-container"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "differentName", MountPath: "/foo"},
+			},
+			injected: true,
 		},
 	}
 	for _, tt := range tests {
