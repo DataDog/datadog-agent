@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -1546,15 +1547,34 @@ func TestProcessResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var cmd *exec.Cmd
+	var stdin io.WriteCloser
+	defer func() {
+		if cmd != nil {
+			if stdin != nil {
+				stdin.Close()
+			}
+
+			if err := cmd.Wait(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}()
+
 	test.WaitSignal(t, func() error {
 		var err error
 
 		args := []string{"open", "/tmp/test-process-resolution", ";",
+			"getchar", ";",
 			"open", "/tmp/test-process-resolution"}
 
 		cmd := exec.Command(syscallTester, args...)
+		stdin, err = cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
 
-		if err := cmd.Run(); err != nil {
+		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1574,6 +1594,7 @@ func TestProcessResolution(t *testing.T) {
 		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
 			t.Helper()
 
+			assert.NotNil(t, entry1)
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
@@ -1592,11 +1613,15 @@ func TestProcessResolution(t *testing.T) {
 
 		equals(t, cacheEntry, mapsEntry)
 
+		// This makes use of the cache and do not parse /proc
+		// it still checks the ResolveFromProcfs returns the correct entry
 		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
 		if procEntry == nil {
-			t.Errorf("not able to resolve the entry")
+			t.Fatalf("not able to resolve the entry")
 		}
 
 		equals(t, cacheEntry, procEntry)
+
+		_, err = io.WriteString(stdin, "\n")
 	})
 }
