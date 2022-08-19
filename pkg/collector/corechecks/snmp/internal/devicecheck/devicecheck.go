@@ -120,6 +120,11 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
+	if d.config.CollectTopology {
+		// TODO: Implement d.sender.ReportTopology
+		log.Errorf("=== REPORT TOPOLOGY ===")
+	}
+
 	d.submitTelemetryMetrics(startTime, tags)
 	d.setDeviceHostExternalTags()
 	return checkErr
