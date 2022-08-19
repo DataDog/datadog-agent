@@ -85,15 +85,21 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	slowSrvDoneFn()
 	fastSrvDoneFn()
 
-	// Ensure all captured transactions get sent to user-space
-	time.Sleep(10 * time.Millisecond)
-	stats := monitor.GetHTTPStats()
+	foundFastReq := false
+	// We are iterating for a couple of iterations and making sure the aborted requests will never be found.
+	// Since the every call for monitor.GetHTTPStats will delete the pop all entries, and we want to find fastReq
+	// then we are using a variable to check if "we ever found it" among the iterations.
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		stats := monitor.GetHTTPStats()
+		for req := range abortedRequests {
+			requestNotIncluded(t, stats, req)
+		}
 
-	// Assert all requests made were correctly captured by the monitor
-	for req := range abortedRequests {
-		requestNotIncluded(t, stats, req)
+		foundFastReq = foundFastReq || isRequestIncluded(stats, fastReq)
 	}
-	includesRequest(t, stats, fastReq)
+
+	require.True(t, foundFastReq)
 }
 
 func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
@@ -425,31 +431,36 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 }
 
 func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
-	expectedStatus := testutil.StatusFromPath(req.URL.Path)
-	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
-			return
-		}
+	if !isRequestIncluded(allStats, req) {
+		expectedStatus := testutil.StatusFromPath(req.URL.Path)
+		t.Errorf(
+			"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+			req.URL.Path,
+			req.Method,
+			expectedStatus,
+		)
 	}
-
-	t.Errorf(
-		"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-		req.URL.Path,
-		req.Method,
-		expectedStatus,
-	)
 }
 
 func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+	if isRequestIncluded(allStats, req) {
+		expectedStatus := testutil.StatusFromPath(req.URL.Path)
+		t.Errorf(
+			"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+			req.URL.Path,
+			req.Method,
+			expectedStatus,
+		)
+	}
+}
+
+func isRequestIncluded(allStats map[Key]*RequestStats, req *nethttp.Request) bool {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
 		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
-			t.Errorf(
-				"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-				req.URL.Path,
-				req.Method,
-				expectedStatus,
-			)
+			return true
 		}
 	}
+
+	return false
 }
