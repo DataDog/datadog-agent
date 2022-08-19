@@ -4,8 +4,4 @@
 
 package runtime
 
-<<<<<<< HEAD
-var TcpQueueLength = NewRuntimeAsset("tcp-queue-length.c", "fc16a8c7c1906a09b7f3e133225250f9f90d1a9a1c1ccae4b6f84815e8028924")
-=======
-var TcpQueueLength = NewRuntimeAsset("tcp-queue-length.c", "78bdeb8d04095255029487ac1bd10aac28d74aa14675df3e607392a1872599ab")
->>>>>>> 45ee5c67c (btf-map defs added for collectors)
+var TcpQueueLength = NewRuntimeAsset("tcp-queue-length.c", "7367457a07a36f7248270dbbc5a9d7fb8757fb28c5693163a7aa51a1569e5c61")

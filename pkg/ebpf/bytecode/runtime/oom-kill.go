@@ -4,8 +4,4 @@
 
 package runtime
 
-<<<<<<< HEAD
-var OomKill = NewRuntimeAsset("oom-kill.c", "08385fe12ddc9dc767fbeb4bc3b1ccb23be5466a5cba04ac8abcc6dd74eb745c")
-=======
-var OomKill = NewRuntimeAsset("oom-kill.c", "19dd13e4527927c3f891b12f63462a9e4f575723c53737ef1ffb65300860f51a")
->>>>>>> 45ee5c67c (btf-map defs added for collectors)
+var OomKill = NewRuntimeAsset("oom-kill.c", "a6f49fea42fb2fbb121bad7180d3ad4ed7e00a6d338ea9f52cadbd6051d34638")
