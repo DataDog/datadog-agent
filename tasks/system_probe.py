@@ -64,6 +64,7 @@ def build(
     parallel_build=True,
     kernel_release=None,
     debug=False,
+    strip_object_files=False,
 ):
     """
     Build the system_probe
@@ -86,7 +87,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug, strip_object_files=strip_object_files)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -613,7 +614,7 @@ def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
     return flags
 
 
-def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
+def build_http_ebpf_files(ctx, build_dir, kernel_release=None, strip_object_files=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
@@ -622,11 +623,13 @@ def build_http_ebpf_files(ctx, build_dir, kernel_release=None):
 
     build_network_ebpf_compile_file(ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags)
     build_network_ebpf_link_file(ctx, False, build_dir, "http", True, network_flags)
-    strip_network_ebpf_obj_file(ctx, False, build_dir, "http", True)
+    if strip_object_files:
+        strip_network_ebpf_obj_file(ctx, False, build_dir, "http", True)
 
     build_network_ebpf_compile_file(ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags)
     build_network_ebpf_link_file(ctx, False, build_dir, "http", False, network_flags)
-    strip_network_ebpf_obj_file(ctx, False, build_dir, "http", False)
+    if strip_object_files:
+        strip_network_ebpf_obj_file(ctx, False, build_dir, "http", False)
 
 
 def get_network_build_flags(network_c_dir, kernel_release=None):
@@ -645,7 +648,7 @@ def strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug):
         return ctx.run(f"llvm-strip -g {debug_obj_file}", asynchronous=parallel_build)
 
 
-def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None):
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, strip_object_files=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
@@ -677,6 +680,10 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release
         promise.join()
         (p, debug) = flavor[i]
         promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
+
+
+    if not strip_object_files:
+        return
 
     promises_strip = []
     for i, promise in enumerate(promises_link):
@@ -795,15 +802,16 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_releas
     build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release, debug=debug)
 
 
-def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
+def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
     ctx.run("which clang")
 
-    print("checking for llvm-strip...")
-    ctx.run("which llvm-strip")
+    if strip_object_files:
+        print("checking for llvm-strip...")
+        ctx.run("which llvm-strip")
 
     build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
@@ -811,8 +819,8 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False):
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
-    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release)
-    build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release)
+    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, strip_object_files=strip_object_files)
+    build_http_ebpf_files(ctx, build_dir=build_dir, kernel_release=kernel_release, strip_object_files=strip_object_files)
     build_security_ebpf_files(
         ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
     )

@@ -16,7 +16,7 @@
     - mkdir -p $NIKOS_EMBEDDED_PATH
     - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
   script:
-    - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
+    - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH --strip-object-files
     # fail if references to glibc >= 2.18
     - objdump -p $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
