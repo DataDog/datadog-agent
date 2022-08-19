@@ -111,8 +111,9 @@ func (e EphemeralPortType) String() string {
 
 // BufferedData encapsulates data whose underlying memory can be recycled
 type BufferedData struct {
-	Conns  []ConnectionStats
-	buffer *clientBuffer
+	Conns       []ConnectionStats
+	FailedConns []FailedConnStats
+	buffer      *clientBuffer
 }
 
 // Connections wraps a collection of ConnectionStats
@@ -292,6 +293,22 @@ type ConnectionStats struct {
 	IsAssured bool
 }
 
+type FailedConnStats struct {
+	Source util.Address
+	Dest   util.Address
+	SPort  uint16
+	DPort  uint16
+
+	Pid   uint32
+	NetNS uint32
+
+	Type      ConnectionType
+	Family    ConnectionFamily
+	Direction ConnectionDirection
+
+	FailureCount uint64
+}
+
 // Via has info about the routing decision for a flow
 type Via struct {
 	Subnet Subnet
@@ -322,8 +339,9 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
-//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
-//    32b     16b     16b      4b      4b     32/128b      32/128b
+//	 4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
+//	32b     16b     16b      4b      4b     32/128b      32/128b
+//
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)

@@ -77,3 +77,77 @@ func (b *ConnectionBuffer) Reset() {
 	}
 	b.off = 0
 }
+
+// FailedConnBuffer encapsulates a resizing buffer for FailedConnStat objects
+// TODO: Make this generic once we get Go >= 1.18
+type FailedConnBuffer struct {
+	buf           []FailedConnStats
+	off           int
+	minBufferSize int
+}
+
+// NewConnectionBuffer creates a FailedConnBuffer with initial size `size`.
+func NewFailedConnBuffer(initSize, minSize int) *FailedConnBuffer {
+	return &FailedConnBuffer{
+		buf:           make([]FailedConnStats, initSize),
+		minBufferSize: minSize,
+	}
+}
+
+// Next returns the next `FailedConnStats` object available for writing.
+// It will resize the internal buffer if necessary.
+func (b *FailedConnBuffer) Next() *FailedConnStats {
+	if b.off >= len(b.buf) {
+		b.buf = append(b.buf, FailedConnStats{})
+	}
+	c := &b.buf[b.off]
+	b.off++
+	return c
+}
+
+// Append slice to FailedConnBuffer
+func (b *FailedConnBuffer) Append(slice []FailedConnStats) {
+	b.buf = append(b.buf[:b.off], slice...)
+	b.off += len(slice)
+}
+
+// Reclaim captures the last n entries for usage again.
+func (b *FailedConnBuffer) Reclaim(n int) {
+	b.off -= n
+	if b.off < 0 {
+		b.off = 0
+	}
+}
+
+// Connections returns a slice of all the `FailedConnStats` objects returned via `Next`
+// since the last `Reset`.
+func (b *FailedConnBuffer) Connections() []FailedConnStats {
+	return b.buf[:b.off]
+}
+
+// Len returns the count of the number of written `FailedConnStats` objects since last `Reset`.
+func (b *FailedConnBuffer) Len() int {
+	return b.off
+}
+
+// Capacity returns the current capacity of the buffer
+func (b *FailedConnBuffer) Capacity() int {
+	return cap(b.buf)
+}
+
+// Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.
+func (b *FailedConnBuffer) Reset() {
+	// shrink buffer if less than half used
+	half := cap(b.buf) / 2
+	if b.off <= half && half >= b.minBufferSize {
+		b.buf = make([]FailedConnStats, half)
+		b.off = 0
+		return
+	}
+
+	zero := FailedConnStats{}
+	for i := 0; i < b.off; i++ {
+		b.buf[i] = zero
+	}
+	b.off = 0
+}

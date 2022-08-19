@@ -215,7 +215,7 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	ns.mergeConnections(id, connsByKey, clientBuffer)
 
-	conns := clientBuffer.Connections()
+	conns := clientBuffer.connsBuf.Connections()
 	ns.determineConnectionIntraHost(conns)
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -508,7 +508,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		if closedConn.Last.IsZero() {
 			continue
 		}
-		*buffer.Next() = *closedConn
+		*buffer.connsBuf.Next() = *closedConn
 	}
 
 	// Active connections
@@ -524,7 +524,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		if c.Last.IsZero() {
 			continue
 		}
-		*buffer.Next() = *c
+		*buffer.connsBuf.Next() = *c
 	}
 }
 

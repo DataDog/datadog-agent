@@ -14,8 +14,9 @@ const defaultClientBufferSize = 1024
 // clientBuffer amortizes the allocations of objects generated when a client
 // calls `GetConnections`.
 type clientBuffer struct {
-	clientID string
-	*ConnectionBuffer
+	clientID       string
+	connsBuf       *ConnectionBuffer
+	failedConnsBuf *FailedConnBuffer
 	// TODO: consider recycling objects for HTTP and DNS data as well
 }
 
@@ -35,8 +36,9 @@ func (p *clientBufferPool) Get(clientID string) *clientBuffer {
 	}
 
 	return &clientBuffer{
-		clientID:         clientID,
-		ConnectionBuffer: NewConnectionBuffer(defaultClientBufferSize, 256),
+		clientID:       clientID,
+		connsBuf:       NewConnectionBuffer(defaultClientBufferSize, 256),
+		failedConnsBuf: NewFailedConnBuffer(defaultClientBufferSize, 256),
 	}
 }
 
@@ -44,7 +46,7 @@ func (p *clientBufferPool) Put(b *clientBuffer) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 
-	b.Reset()
+	b.connsBuf.Reset()
 	p.bufferByClient[b.clientID] = b
 }
 
