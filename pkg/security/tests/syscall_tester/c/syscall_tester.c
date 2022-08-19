@@ -614,9 +614,9 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "setreuid") == 0) {
             exit_code = test_setreuid(sub_argc, sub_argv);
         } else if (strcmp(cmd, "getchar") == 0) {
-            return test_getchar(sub_argc, sub_argv);
+            exit_code = test_getchar(sub_argc, sub_argv);
         } else if (strcmp(cmd, "open") == 0) {
-            return test_open(sub_argc, sub_argv);
+            exit_code = test_open(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
