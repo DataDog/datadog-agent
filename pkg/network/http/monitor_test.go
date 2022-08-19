@@ -55,13 +55,13 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	slowSrvDoneFn := testutil.HTTPServer(slowServerAddr, testutil.Options{
+	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
 		ReadTimeout:  time.Millisecond * 200,
 	})
 
-	fastSrvDoneFn := testutil.HTTPServer(fastServerAddr, testutil.Options{})
+	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
 	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srvDoneFn := testutil.HTTPServer(serverAddr, testutil.Options{
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlives: true,
 			})
 
@@ -205,7 +205,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
-			srvDoneFn := testutil.HTTPServer(serverAddr, testutil.Options{
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				WriteTimeout: serverTimeout,
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
