@@ -15,9 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cilium/ebpf/perf"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf/perf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -96,7 +97,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 		ExtractEventInfo,
 		ReOrdererOpts{
 			QueueSize:       10000,
-			Rate:            50 * time.Millisecond,
+			Rate:            1 * time.Second,
 			Retention:       5,
 			MetricRate:      5 * time.Second,
 			HeapShrinkDelta: 1000,
