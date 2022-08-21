@@ -11,8 +11,6 @@ import (
 	"github.com/go-delve/delve/pkg/dwarf/loclist"
 )
 
-// TODO DOCS
-
 // dwarfInspector is used to keep common data for the dwarf inspection functions.
 type dwarfInspector struct {
 	elfFile   *elf.File
@@ -20,6 +18,8 @@ type dwarfInspector struct {
 	dwarfData *dwarf.Data
 }
 
+// InspectWithDWARF returns the offsets of the given functions and fields in the given elf file.
+// It also returns some additional relevant metadata about the given file.
 func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")

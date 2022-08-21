@@ -39,6 +39,7 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 	return nil, false
 }
 
+// GetAllSymbolsByName returns all the elf file's symbols mapped by their name.
 func GetAllSymbolsByName(elfFile *elf.File) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := elfFile.Symbols()
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
