@@ -8,8 +8,6 @@ package asmscan
 import (
 	"debug/elf"
 	"fmt"
-	"log"
-
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 )
@@ -43,10 +41,6 @@ func ScanFunction(textSection *elf.Section, sym elf.Symbol, scanInstructions fun
 	highPC := lowPC + sym.Size
 	offset := lowPC - textSection.Addr
 	buf := make([]byte, int(highPC-lowPC))
-
-	log.Printf("######################")
-	log.Printf("%d", offset)
-	log.Printf("###################### ")
 
 	readBytes, err := textSection.ReadAt(buf, int64(offset))
 	if err != nil {
