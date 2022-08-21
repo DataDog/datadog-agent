@@ -36,6 +36,17 @@ var (
 	sharedBuildDirFlag = flag.String("shared-build-dir", "", "shared directory to cache Go versions")
 )
 
+type inspectionResult struct {
+	writePrams             []bininspect.ParameterMetadata
+	readParams             []bininspect.ParameterMetadata
+	closeParams            []bininspect.ParameterMetadata
+	tlsConnInnerConnOffset uint64
+	tcpConnInnerConnOffset uint64
+	connFDOffset           uint64
+	netFD_PFDOffset        uint64
+	fd_SysfdOffset         uint64
+}
+
 // This program is intended to be called from go generate.
 // It generates the following lookup tables:
 // - `func GetWriteParams(version goversion.GoVersion, goarch string) ([]bininspect.ParameterMetadata, error)`
@@ -87,17 +98,6 @@ func main() {
 	}
 
 	fmt.Printf("successfully generated lookup table at %s\n", outputFile)
-}
-
-type inspectionResult struct {
-	writePrams             []bininspect.ParameterMetadata
-	readParams             []bininspect.ParameterMetadata
-	closeParams            []bininspect.ParameterMetadata
-	tlsConnInnerConnOffset uint64
-	tcpConnInnerConnOffset uint64
-	connFDOffset           uint64
-	netFD_PFDOffset        uint64
-	fd_SysfdOffset         uint64
 }
 
 func run(
@@ -232,22 +232,11 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 	}
 
 	// Inspect the binary using `binspect`
-	config := bininspect.Config{
-		Functions: []bininspect.FunctionConfig{
-			{
-				Name:                   "crypto/tls.(*Conn).Write",
-				IncludeReturnLocations: false,
-			},
-			{
-				Name:                   "crypto/tls.(*Conn).Read",
-				IncludeReturnLocations: false,
-			},
-			{
-				Name:                   "crypto/tls.(*Conn).Close",
-				IncludeReturnLocations: false,
-			},
-		},
-		StructOffsets: []bininspect.StructOffsetConfig{
+	rawResult, err := bininspect.InspectWithDWARF(elfFile,
+		[]string{"crypto/tls.(*Conn).Write",
+			"crypto/tls.(*Conn).Read",
+			"crypto/tls.(*Conn).Close"},
+		[]bininspect.FieldIdentifier{
 			{
 				StructName: "crypto/tls.Conn",
 				FieldName:  "conn",
@@ -268,9 +257,7 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 				StructName: "internal/poll.FD",
 				FieldName:  "Sysfd",
 			},
-		},
-	}
-	rawResult, err := bininspect.Inspect(elfFile, config)
+		})
 	if err != nil {
 		return inspectionResult{}, err
 	}
