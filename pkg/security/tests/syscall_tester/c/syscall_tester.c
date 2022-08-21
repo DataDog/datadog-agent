@@ -57,12 +57,13 @@ void *register_tls() {
         return NULL;
     tls->max_threads = max_threads;
     tls->base = base;
+    tls->format = 0; // format is not needed
 
     uint8_t request[257];
     bzero(request, sizeof(request));
 
-    memcpy(&request[sizeof(uint8_t)], tls, sizeof(struct span_tls_t));
     request[0] = REGISTER_SPAN_TLS_OP;
+    memcpy(&request[1], tls, sizeof(struct span_tls_t));
     ioctl(0, RPC_CMD, &request);
 
     return tls;
@@ -112,13 +113,14 @@ static void *thread_open(void *data) {
         return NULL;
     }
     close(fd);
+    unlink(opts->argv[3]);
 
     return NULL;
 }
 
 int span_open(int argc, char **argv) {
     if (argc < 4) {
-        fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
+        fprintf(stderr, "Please pass a span Id, a trace Id and a file path to span-open\n");
         return EXIT_FAILURE;
     }
 

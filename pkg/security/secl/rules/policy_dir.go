@@ -177,7 +177,6 @@ func (p *PoliciesDirProvider) watch(ctx context.Context) {
 
 // NewPoliciesDirProvider returns providers for the given policies dir
 func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvider, error) {
-
 	p := &PoliciesDirProvider{
 		PoliciesDir: policiesDir,
 	}

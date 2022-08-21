@@ -15,6 +15,7 @@ import (
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {
+    {{ $uniqueResolvers := dict }}
     // resolve context fields that are not related to any event type
 {{- range $Key, $Field := .Fields}}
     {{- if and (eq $Field.Event "*") (ne $Field.Handler "") (not $Field.Iterator) (eq $Field.CachelessResolution false) }}
@@ -27,7 +28,11 @@ func (ev *Event) ResolveFields() {
                 {{$Ptr = ""}}
             {{end}}
 
-            _ = {{ print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")"}}
+            {{ $resolver := print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")" }}
+            {{ if not (hasKey $uniqueResolvers $resolver) }}
+            _ = {{ print $resolver }}
+            {{ $_ := set $uniqueResolvers $resolver "" }}
+            {{ end }}
         {{- end}}
     {{- end -}}
 {{end}}

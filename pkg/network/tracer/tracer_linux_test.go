@@ -52,7 +52,7 @@ func runningOnARM() bool {
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
+	return currKernelVersion >= kernel.VersionCode(4, 14, 0)
 }
 
 func httpsSupported(t *testing.T) bool {

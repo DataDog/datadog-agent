@@ -118,7 +118,7 @@ func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarder
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), "serverless", forwarderTimeout)
+	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {

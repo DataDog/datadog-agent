@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
 )
@@ -55,8 +56,8 @@ func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFi
 			errs = multierror.Append(errs, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
 			continue
 		}
-		if !CheckRuleID(macroDef.ID) {
-			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(macroDef.ID) {
+			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 
@@ -66,7 +67,11 @@ func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFi
 LOOP:
 	for _, ruleDef := range def.Rules {
 		for _, filter := range filters {
-			if !filter.IsAccepted(ruleDef) {
+			isAccepted, err := filter.IsAccepted(ruleDef)
+			if err != nil {
+				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("error when evaluating one of the rules filters: %w", err)})
+			}
+			if !isAccepted {
 				continue LOOP
 			}
 		}
@@ -75,8 +80,8 @@ LOOP:
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
 			continue
 		}
-		if !CheckRuleID(ruleDef.ID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(ruleDef.ID) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 

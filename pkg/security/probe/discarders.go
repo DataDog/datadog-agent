@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -279,7 +278,7 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 	id.revisionCache[key] = revision
 
 	if err := id.revisions.Put(ebpf.Uint32MapItem(key), ebpf.Uint32MapItem(revision)); err != nil {
-		log.Errorf("unable to initialize discarder revisions: %s", err)
+		seclog.Errorf("unable to initialize discarder revisions: %s", err)
 	}
 }
 
