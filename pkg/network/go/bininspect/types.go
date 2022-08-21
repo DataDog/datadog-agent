@@ -11,15 +11,6 @@ import (
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
-// Config contains options for controlling what is included
-// in the results of the binary inspection process,
-// such as the struct offsets to obtain
-// and the functions to examine.
-type Config struct {
-	Functions     []FunctionConfig
-	StructOffsets []StructOffsetConfig
-}
-
 // Result is the result of the binary inspection process.
 type Result struct {
 	Arch                 GoArch
@@ -179,21 +170,6 @@ type ParameterPiece struct {
 	// Register number of the piece.
 	// Only given if the piece resides in registers.
 	Register int
-}
-
-// StructOffsetConfig controls the extraction
-// of a single struct field's offset from the binary's debug information.
-type StructOffsetConfig struct {
-	// Fully-qualified name of the struct
-	// Ex.
-	// - `crypto/tls.Conn`
-	// - `internal/poll.FD`
-	// - `net.TCPConn`
-	// - `main.Foo`
-	// - `github.com/user/repo/cmd/test-cmd/foo.Bar`
-	StructName string
-	// Name of the field in the struct
-	FieldName string
 }
 
 // FieldIdentifier represents a field in a struct and can be used as a map key.
