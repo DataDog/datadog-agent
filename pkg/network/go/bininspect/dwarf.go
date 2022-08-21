@@ -13,13 +13,13 @@ import (
 
 // dwarfInspector is used to keep common data for the dwarf inspection functions.
 type dwarfInspector struct {
-	elfFile   *elf.File
-	arch      GoArch
+	elf       elfMetadata
 	dwarfData *dwarf.Data
 }
 
 // InspectWithDWARF returns the offsets of the given functions and fields in the given elf file.
 // It also returns some additional relevant metadata about the given file.
+// This function is meant to be used on binaries that contain dwarf data, like our test binary for creating a lookup table.
 func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")
@@ -38,8 +38,10 @@ func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []Fiel
 	}
 
 	inspector := dwarfInspector{
-		elfFile:   elfFile,
-		arch:      arch,
+		elf: elfMetadata{
+			file: elfFile,
+			arch: arch,
+		},
 		dwarfData: dwarfData,
 	}
 
@@ -174,7 +176,7 @@ func (d dwarfInspector) inspectFunctionUsingDWARF(entry *dwarf.Entry) (FunctionM
 func (d dwarfInspector) getParameterLocationAtPC(parameterDIE *dwarf.Entry, pc uint64) (ParameterMetadata, error) {
 	// Determine the architecture of the binary
 
-	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elfFile, "info")
+	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elf.file, "info")
 	if err != nil {
 		return ParameterMetadata{}, err
 	}
@@ -184,11 +186,11 @@ func (d dwarfInspector) getParameterLocationAtPC(parameterDIE *dwarf.Entry, pc u
 		return ParameterMetadata{}, err
 	}
 
-	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "loc")
-	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.arch.PointerSize()))
-	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "loclists")
+	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loc")
+	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.elf.arch.PointerSize()))
+	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loclists")
 	loclist5 := loclist.NewDwarf5Reader(debugLoclistBytes)
-	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "addr")
+	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "addr")
 	debugAddr := godwarf.ParseAddr(debugAddrBytes)
 
 	typeOffset, ok := parameterDIE.Val(dwarf.AttrType).(dwarf.Offset)
@@ -243,7 +245,7 @@ func (d dwarfInspector) getParameterLocationAtPC(parameterDIE *dwarf.Entry, pc u
 	}
 
 	totalSize := typ.Size()
-	pieces, err := locexpr.Exec(locationExpression, totalSize, int(d.arch.PointerSize()))
+	pieces, err := locexpr.Exec(locationExpression, totalSize, int(d.elf.arch.PointerSize()))
 	if err != nil {
 		return ParameterMetadata{}, fmt.Errorf("error executing location expression for parameter: %w", err)
 	}
