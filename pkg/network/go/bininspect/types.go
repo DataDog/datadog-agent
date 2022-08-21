@@ -203,3 +203,12 @@ type GoroutineIDMetadata struct {
 	// The offset of the `runtime.g` value within thread-local-storage.
 	RuntimeGTLSAddrOffset uint64
 }
+
+type ParameterLookupFunction func(goversion.GoVersion, string) ([]ParameterMetadata, error)
+
+type StructLookupFunction func(goversion.GoVersion, string) (uint64, error)
+
+type FunctionConfiguration struct {
+	includeReturnLocations bool
+	paramLookupFunction    ParameterLookupFunction
+}

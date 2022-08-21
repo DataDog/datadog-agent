@@ -9,11 +9,14 @@ import (
 )
 
 type newProcessBinaryInspector struct {
-	elf     elfMetadata
-	symbols map[string]elf.Symbol
+	elf       elfMetadata
+	symbols   map[string]elf.Symbol
+	goVersion goversion.GoVersion
 }
 
-func InspectNewProcessBinary(elfFile *elf.File, functions, includeReturnLocationsFunctions []string) (*Result, error) {
+// TODO DOCS
+
+func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")
 	}
@@ -35,8 +38,7 @@ func InspectNewProcessBinary(elfFile *elf.File, functions, includeReturnLocation
 	// This might fail if the binary was stripped.
 	symbols, err := GetAllSymbolsByName(elfFile)
 	if err != nil {
-		// TODO handle this (should we exit?)
-		symbols = nil
+		return nil, fmt.Errorf("failed retrieving symbols: %+v", err)
 	}
 
 	inspector := newProcessBinaryInspector{
@@ -44,18 +46,25 @@ func InspectNewProcessBinary(elfFile *elf.File, functions, includeReturnLocation
 			file: elfFile,
 			arch: arch,
 		},
-		symbols: symbols,
+		symbols:   symbols,
+		goVersion: goVersion,
 	}
 
-	functionsData, err := inspector.findFunctions(functions, includeReturnLocationsFunctions)
+	functionsData, err := inspector.findFunctions(functions)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO use lookup table
-	structOffsets := nil
+	structOffsets := make(map[FieldIdentifier]uint64, len(structs))
+	for structID, lookupFunc := range structs {
+		structOffset, err := lookupFunc(goVersion, string(arch))
+		if err != nil {
+			return nil, err
+		}
+		structOffsets[structID] = structOffset
+	}
 
-	goroutineIDMetadata, err := inspector.getGoroutineIDMetadata(goVersion, abi)
+	goroutineIDMetadata, err := inspector.getGoroutineIDMetadata(abi)
 	if err != nil {
 		return nil, err
 	}
@@ -72,41 +81,36 @@ func InspectNewProcessBinary(elfFile *elf.File, functions, includeReturnLocation
 
 }
 
-func (i *newProcessBinaryInspector) findFunctions(functions, includeReturnLocationsFunctions []string) (map[string]FunctionMetadata, error) {
+func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionConfiguration) (map[string]FunctionMetadata, error) {
 	functionMetadata := make(map[string]FunctionMetadata, len(functions))
 
-	// Convert to set for quicker lookup
-	includeReturnLocationsFunctionsSet := make(map[string]struct{}, len(includeReturnLocationsFunctions))
-	for _, function := range includeReturnLocationsFunctions {
-		includeReturnLocationsFunctionsSet[function] = struct{}{}
-	}
-
-	for _, function := range functions {
-		offset, err := SymbolToOffset(i.elf.file, function)
+	for funcName, funcConfig := range functions {
+		offset, err := SymbolToOffset(i.elf.file, funcName)
 		if err != nil {
-			return nil, fmt.Errorf("could not find location for function %q: %w", function, err)
+			return nil, fmt.Errorf("could not find location for function %q: %w", funcName, err)
 		}
 
 		var returnLocations []uint64
-		if _, ok := includeReturnLocationsFunctionsSet[function]; ok {
-			symbol, ok := i.symbols[function]
+		if funcConfig.includeReturnLocations {
+			symbol, ok := i.symbols[funcName]
 			if !ok {
-				return nil, fmt.Errorf("could not find function %q in symbols", function)
+				return nil, fmt.Errorf("could not find function %q in symbols", funcName)
 			}
 
 			locations, err := FindReturnLocations(i.elf.file, symbol)
 			if err != nil {
-				return nil, fmt.Errorf("could not find return locations for function %q: %w", function, err)
+				return nil, fmt.Errorf("could not find return locations for function %q: %w", funcName, err)
 			}
 
 			returnLocations = locations
 		}
 
-		functionMetadata[function] = FunctionMetadata{
+		parameters, err := funcConfig.paramLookupFunction(i.goVersion, string(i.elf.arch))
+
+		functionMetadata[funcName] = FunctionMetadata{
 			EntryLocation:   uint64(offset),
 			ReturnLocations: returnLocations,
-			// TODO handle parameters using lookup table
-			Parameters: nil,
+			Parameters:      parameters,
 		}
 	}
 
@@ -185,8 +189,8 @@ func (i *newProcessBinaryInspector) getRuntimeGAddrTLSOffset() (uint64, error) {
 // - https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md#amd64-architecture
 // - https://github.com/golang/go/blob/61011de1af0bc6ab286c4722632719d3da2cf746/src/runtime/runtime2.go#L403
 // - https://github.com/golang/go/blob/61011de1af0bc6ab286c4722632719d3da2cf746/src/runtime/runtime2.go#L436
-func (i *newProcessBinaryInspector) getGoroutineIDMetadata(goVersion goversion.GoVersion, abi GoABI) (GoroutineIDMetadata, error) {
-	goroutineIDOffset, err := goid.GetGoroutineIDOffset(goVersion, string(i.elf.arch))
+func (i *newProcessBinaryInspector) getGoroutineIDMetadata(abi GoABI) (GoroutineIDMetadata, error) {
+	goroutineIDOffset, err := goid.GetGoroutineIDOffset(i.goVersion, string(i.elf.arch))
 	if err != nil {
 		return GoroutineIDMetadata{}, fmt.Errorf("could not find goroutine ID offset in goroutine context struct: %w", err)
 	}
