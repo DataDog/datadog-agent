@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'kernel_out_spec_helper'
 require 'open3'
 
