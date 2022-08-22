@@ -276,7 +276,7 @@ func (d dwarfInspector) findStructOffsets(structFields []FieldIdentifier) (map[F
 // starting at offset, for address pc.
 // Adapted from github.com/go-delve/delve/pkg/proc.(*BinaryInfo).loclistEntry
 func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry, error) {
-	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elfFile, "info")
+	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elf.file, "info")
 	if err != nil {
 		return nil, err
 	}
@@ -286,11 +286,11 @@ func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry
 		return nil, err
 	}
 
-	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "loc")
-	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.arch.PointerSize()))
-	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "loclists")
+	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loc")
+	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.elf.arch.PointerSize()))
+	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loclists")
 	loclist5 := loclist.NewDwarf5Reader(debugLoclistBytes)
-	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "addr")
+	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "addr")
 	debugAddrSection := godwarf.ParseAddr(debugAddrBytes)
 
 	var base uint64
