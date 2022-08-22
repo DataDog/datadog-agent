@@ -92,9 +92,9 @@ func TestUDPReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.SetDefault("dogstatsd_no_aggregation_pipeline", true)
+	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
 	defer func() {
-		config.Datadog.SetDefault("dogstatsd_no_aggregation_pipeline", false)
+		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
 	}()
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
