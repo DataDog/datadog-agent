@@ -20,7 +20,7 @@ if node['platform_family'] != 'windows'
     end
   end
 
-  execute do
+  execute "dbg" do
     command "ls #{wrk_dir}"
   end
 
