@@ -4,121 +4,40 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "http-types.h"
+#include "map-defs.h"
 
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
-struct bpf_map_def SEC("maps/http_in_flight") http_in_flight = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(http_transaction_t),
-    .max_entries = 1, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 1)
+    
 /* This map used for notifying userspace that a HTTP batch is ready to be consumed */
-struct bpf_map_def SEC("maps/http_notifications") http_notifications = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(__u32),
-    .max_entries = 0, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_PERF_EVENT_ARRAY_MAP(http_notifications, __u32, 0)
 
 /* This map stores finished HTTP transactions in batches so they can be consumed by userspace*/
-struct bpf_map_def SEC("maps/http_batches") http_batches = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(http_batch_key_t),
-    .value_size = sizeof(http_batch_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_HASH_MAP(http_batches, http_batch_key_t, http_batch_t, 1024)
 
 /* This map holds one entry per CPU storing state associated to current http batch*/
-struct bpf_map_def SEC("maps/http_batch_state") http_batch_state = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(http_batch_state_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_HASH_MAP(http_batch_state, __u32, http_batch_state_t, 1024)
+    
+BPF_HASH_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 1)
 
-struct bpf_map_def SEC("maps/ssl_sock_by_ctx") ssl_sock_by_ctx = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(void *),
-    .value_size = sizeof(ssl_sock_t),
-    .max_entries = 1, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/ssl_read_args") ssl_read_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(ssl_read_args_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/bio_new_socket_args") bio_new_socket_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64), // pid_tgid
-    .value_size = sizeof(__u32), // socket_fd
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/fd_by_ssl_bio") fd_by_ssl_bio = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(void *),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/ssl_ctx_by_pid_tgid") ssl_ctx_by_pid_tgid = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(void *),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/open_at_args") open_at_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64), // pid_tgid
-    .value_size = sizeof(lib_path_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This map used for notifying userspace of a shared library being loaded */
-struct bpf_map_def SEC("maps/shared_libraries") shared_libraries = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(__u32),
-    .max_entries = 0, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(ssl_read_args, u64, ssl_read_args_t, 1024)
+    
+BPF_HASH_MAP(bio_new_socket_args, __u64, __u32, 1024)
+    
+BPF_HASH_MAP(fd_by_ssl_bio, __u32, void *, 1024)
+    
+BPF_HASH_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
+    
+BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 1024)
+    
 /* Map used to store the sub program actually used by the socket filter.
  * This is done to avoid memory limitation when attaching a filter to 
  * a socket.
  * See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters */
 #define HTTP_PROG 0
-struct bpf_map_def SEC("maps/http_progs") http_progs = {
-    .type = BPF_MAP_TYPE_PROG_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 1,
-};
+BPF_PROG_ARRAY(http_progs, 1)
 
+/* This map used for notifying userspace of a shared library being loaded */
+BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32, 0)
+    
 #endif
