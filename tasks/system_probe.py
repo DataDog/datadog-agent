@@ -452,8 +452,8 @@ def object_files(ctx, parallel_build=True, kernel_release=None):
 
 def get_ebpf_targets():
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
-    files.extend(glob.glob("pkg/network/ebpf/c/*.[c,h]"))
-    files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
+    files.extend(glob.glob("pkg/network/ebpf/c/**/*.[c,h]", recursive=True))
+    files.extend(glob.glob("pkg/security/ebpf/c/**/*.[c,h]", recursive=True))
     return files
 
 
