@@ -145,11 +145,11 @@ func TestGetStats(t *testing.T) {
       "http": {
         "aggregations": 0,
         "dropped": 0,
-        "hits1_xx": 0,
-        "hits2_xx": 0,
-        "hits3_xx": 0,
-        "hits4_xx": 0,
-        "hits5_xx": 0,
+        "hits1xx": 0,
+        "hits2xx": 0,
+        "hits3xx": 0,
+        "hits4xx": 0,
+        "hits5xx": 0,
         "misses": 0,
         "rejected": 0
       },

@@ -303,13 +303,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
-
-	telemetry := monitor.GetStats()
-	require.NotEmpty(t, telemetry)
-	_, ok := telemetry["dropped"]
-	require.True(t, ok)
-	_, ok = telemetry["misses"]
-	require.True(t, ok)
 }
 
 func TestRSTPacketRegression(t *testing.T) {
