@@ -825,9 +825,7 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, st
 
     promises_check = []
     for f in get_ebpf_targets():
-        promises_check.append(
-            ebpf_check_source_file(ctx, parallel_build, f)
-        )
+        promises_check.append(ebpf_check_source_file(ctx, parallel_build, f))
 
     if parallel_build:
         for promise in promises_check:
