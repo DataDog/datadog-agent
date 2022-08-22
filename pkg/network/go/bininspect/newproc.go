@@ -14,8 +14,6 @@ type newProcessBinaryInspector struct {
 	goVersion goversion.GoVersion
 }
 
-// TODO DOCS
-
 func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")
@@ -27,7 +25,15 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 		return nil, err
 	}
 
-	goVersion, abi, err := FindGoVersionAndABI(elfFile, arch)
+	goVersion, err := FindGoVersion(elfFile)
+	if err != nil {
+		return nil, err
+	}
+
+	abi, err := FindABI(goVersion, arch)
+	if err != nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -47,7 +47,7 @@ type inspectionResult struct {
 	fd_SysfdOffset         uint64
 }
 
-const (
+var (
 	// List of functions to look for in the binary.
 	functionsToFind = []string{
 		"crypto/tls.(*Conn).Write",
