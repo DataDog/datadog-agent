@@ -47,6 +47,37 @@ type inspectionResult struct {
 	fd_SysfdOffset         uint64
 }
 
+const (
+	// List of functions to look for in the binary.
+	functionsToFind = []string{
+		"crypto/tls.(*Conn).Write",
+		"crypto/tls.(*Conn).Read",
+		"crypto/tls.(*Conn).Close"}
+	// List of struct field to look for in the binary.
+	FieldsToFind = []bininspect.FieldIdentifier{
+		{
+			StructName: "crypto/tls.Conn",
+			FieldName:  "conn",
+		},
+		{
+			StructName: "net.TCPConn",
+			FieldName:  "conn",
+		},
+		{
+			StructName: "net.conn",
+			FieldName:  "fd",
+		},
+		{
+			StructName: "net.netFD",
+			FieldName:  "pfd",
+		},
+		{
+			StructName: "internal/poll.FD",
+			FieldName:  "Sysfd",
+		},
+	}
+)
+
 // This program is intended to be called from go generate.
 // It generates the following lookup tables:
 // - `func GetWriteParams(version goversion.GoVersion, goarch string) ([]bininspect.ParameterMetadata, error)`
@@ -232,32 +263,7 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 	}
 
 	// Inspect the binary using `binspect`
-	rawResult, err := bininspect.InspectWithDWARF(elfFile,
-		[]string{"crypto/tls.(*Conn).Write",
-			"crypto/tls.(*Conn).Read",
-			"crypto/tls.(*Conn).Close"},
-		[]bininspect.FieldIdentifier{
-			{
-				StructName: "crypto/tls.Conn",
-				FieldName:  "conn",
-			},
-			{
-				StructName: "net.TCPConn",
-				FieldName:  "conn",
-			},
-			{
-				StructName: "net.conn",
-				FieldName:  "fd",
-			},
-			{
-				StructName: "net.netFD",
-				FieldName:  "pfd",
-			},
-			{
-				StructName: "internal/poll.FD",
-				FieldName:  "Sysfd",
-			},
-		})
+	rawResult, err := bininspect.InspectWithDWARF(elfFile, functionsToFind, FieldsToFind)
 	if err != nil {
 		return inspectionResult{}, err
 	}

@@ -6,6 +6,7 @@
 package bininspect
 
 import (
+	"errors"
 	"reflect"
 
 	"github.com/go-delve/delve/pkg/goversion"
@@ -179,3 +180,7 @@ type FieldIdentifier struct {
 	// Name of the field in the struct
 	FieldName string
 }
+
+var ErrNilElf = errors.New("got nil elf file")
+
+var ErrUnsupportedArch = errors.New("got unsupported arch")
