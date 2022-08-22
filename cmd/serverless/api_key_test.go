@@ -130,3 +130,9 @@ func TestSendApiKeyToShellError(t *testing.T) {
 func TestSendApiKeyToShellIsDisabledByDefault(t *testing.T) {
 	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
 }
+
+func TestSendApiKeyToShellIsDisabledBecauseNotTrue(t *testing.T) {
+	os.Setenv("DD_SHELL_ENABLED", "false")
+	defer os.Unsetenv("DD_SHELL_ENABLED")
+	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
+}
