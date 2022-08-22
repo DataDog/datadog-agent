@@ -56,7 +56,7 @@ type ConnectionsCheck struct {
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.probe = getProcessProbe()
+	c.probe = newProcessProbe()
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
