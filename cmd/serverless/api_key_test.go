@@ -109,10 +109,8 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 }
 
 func TestSendAPIKeyToShellSuccess(t *testing.T) {
-	// TODO:maxday remove when ready for GA
-	os.Setenv("DD_EXPERIMENTAL_SHELL_ENABLED", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_SHELL_ENABLED")
-	// END TODO
+	os.Setenv("DD_SHELL_ENABLED", "true")
+	defer os.Unsetenv("DD_SHELL_ENABLED")
 	port := testutil.FreeTCPPort(t)
 	hostAndPort := fmt.Sprintf("%s%d", "localhost:", port)
 	listen, err := net.Listen("tcp", hostAndPort)
@@ -124,16 +122,11 @@ func TestSendAPIKeyToShellSuccess(t *testing.T) {
 }
 
 func TestSendApiKeyToShellError(t *testing.T) {
-	// TODO:maxday remove when ready for GA
-	os.Setenv("DD_EXPERIMENTAL_SHELL_ENABLED", "true")
-	defer os.Unsetenv("DD_EXPERIMENTAL_SHELL_ENABLED")
-	// END TODO
+	os.Setenv("DD_SHELL_ENABLED", "true")
+	defer os.Unsetenv("DD_SHELL_ENABLED")
 	assert.False(t, sendAPIKeyToShell("abcd", "localhost:invalid"))
 }
 
-// TODO:maxday remove when ready for GA
 func TestSendApiKeyToShellIsDisabledByDefault(t *testing.T) {
 	assert.True(t, sendAPIKeyToShell("abcd", "localhost:1234"))
 }
-
-// END TODO

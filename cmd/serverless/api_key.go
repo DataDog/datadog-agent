@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -39,7 +40,7 @@ const secretArnSuffix = "_SECRET_ARN"
 func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	decodedBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", fmt.Errorf("Failed to decode ciphertext from base64: %v", err)
+		return "", fmt.Errorf("failed to decode ciphertext from base64: %v", err)
 	}
 
 	// When the API key is encrypted using the AWS console, the function name is added as an
@@ -64,7 +65,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 		}
 		response, err = kmsClient.Decrypt(params)
 		if err != nil {
-			return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
+			return "", fmt.Errorf("failed to decrypt ciphertext with kms: %v", err)
 		}
 	}
 
@@ -114,7 +115,7 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 
 	output, err := secretsManagerClient.GetSecretValue(secret)
 	if err != nil {
-		return "", fmt.Errorf("Secrets Manager read error: %s", err)
+		return "", fmt.Errorf("secrets Manager read error: %s", err)
 	}
 
 	if output.SecretString != nil {
@@ -150,11 +151,9 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 }
 
 func sendAPIKeyToShell(apiKey string, hostAndPort string) bool {
-	// TODO:maxday remove when ready for GA
-	if len(os.Getenv("DD_EXPERIMENTAL_SHELL_ENABLED")) == 0 {
+	if strings.ToLower(os.Getenv("DD_SHELL_ENABLED")) != "true" {
 		return true
 	}
-	// END TODO
 	conn, err := net.Dial("tcp", hostAndPort)
 	if err != nil {
 		return false
