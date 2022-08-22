@@ -20,6 +20,10 @@ if node['platform_family'] != 'windows'
     end
   end
 
+  execute do
+    command "ls #{wrk_dir}"
+  end
+
   cookbook_file "#{wrk_dir}/testsuite" do
     source "testsuite"
     mode '755'
