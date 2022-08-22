@@ -262,6 +262,29 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	return nil
 }
 
+func (t *kprobeTracer) GetFailedConnections(buffer *network.FailedConnBuffer, filter func(*network.FailedConnStats) bool) error {
+	key, stats := &netebpf.ConnTuple{}, &netebpf.FailedConnStats{}
+
+	conn := new(network.FailedConnStats)
+
+	entries := t.failedConns.Iterate()
+	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
+		populateFailedConnStats(conn, key, stats)
+
+		if filter != nil && !filter(conn) {
+			continue
+		}
+
+		*buffer.Next() = *conn
+	}
+
+	if err := entries.Err(); err != nil {
+		return fmt.Errorf("unable to iterate failed connections map: %w", err)
+	}
+
+	return nil
+}
+
 func (t *telemetry) assign(other telemetry) {
 	t.tcpConns4.Store(other.tcpConns4.Load())
 	t.tcpConns6.Store(other.tcpConns6.Load())
@@ -514,4 +537,29 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	default:
 		stats.Direction = network.OUTGOING
 	}
+}
+
+func populateFailedConnStats(stats *network.FailedConnStats, t *netebpf.ConnTuple, s *netebpf.FailedConnStats) {
+	*stats = network.FailedConnStats{
+		Source: t.SourceAddress(),
+		Dest:   t.DestAddress(),
+		SPort:  t.Sport,
+		DPort:  t.Dport,
+
+		Pid:   t.Pid,
+		NetNS: t.Netns,
+
+		// We only report failed connections for TCP
+		Type:         network.TCP,
+		FailureCount: s.Count,
+	}
+
+	switch t.Family() {
+	case netebpf.IPv4:
+		stats.Family = network.AFINET
+	case netebpf.IPv6:
+		stats.Family = network.AFINET6
+	}
+
+	return &stats
 }
