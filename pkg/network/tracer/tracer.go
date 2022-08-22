@@ -74,6 +74,7 @@ type Tracer struct {
 	lastCheck        *atomic.Int64 `stats:""`
 
 	activeBuffer *network.ConnectionBuffer
+	failedBuffer *network.FailedConnBuffer
 	bufferLock   sync.Mutex
 
 	// Internal buffer used to compute bytekeys
@@ -171,6 +172,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(config, ebpfTracer, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
+		failedBuffer:               network.NewFailedConnBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -340,14 +342,16 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
 	t.ebpfTracer.FlushPending()
-	latestTime, err := t.getConnections(t.activeBuffer)
+	latestTime, err := t.getConnections(t.activeBuffer, t.failedBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 	active := t.activeBuffer.Connections()
+	failed := t.failedBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, failed, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
+	t.failedBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
@@ -469,7 +473,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, err error) {
+func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer, failedBuffer *network.FailedConnBuffer) (latestUint uint64, err error) {
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
@@ -508,6 +512,11 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// since gateway resolution connects to the ec2 metadata
 		// endpoint)
 		t.connVia(&active[i])
+	}
+
+	err = t.ebpfTracer.GetFailedConnections(failedBuffer, nil)
+	if err != nil {
+		return 0, fmt.Errorf("could not get failed connection from eBPF tracer: %w", err)
 	}
 
 	entryCount := len(active)

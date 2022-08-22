@@ -41,6 +41,7 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		active []ConnectionStats,
+		failed []FailedConnStats,
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]*http.RequestStats,
 	) Delta
@@ -198,6 +199,7 @@ func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	active []ConnectionStats,
+	failed []FailedConnStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]*http.RequestStats,
 ) Delta {
@@ -224,10 +226,16 @@ func (ns *networkState) GetDelta(
 		ns.storeHTTPStats(httpStats)
 	}
 
+	for _, failedConn := range failed {
+		*clientBuffer.failedConnsBuf.Next() = failedConn
+	}
+	failedConns := clientBuffer.failedConnsBuf.Connections()
+
 	return Delta{
 		BufferedData: BufferedData{
-			Conns:  conns,
-			buffer: clientBuffer,
+			Conns:       conns,
+			FailedConns: failedConns,
+			buffer:      clientBuffer,
 		},
 		HTTP:     client.httpStatsDelta,
 		DNSStats: client.dnsStats,
