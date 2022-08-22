@@ -29,5 +29,6 @@ func getCFlags(config *config.Config) []string {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
+	cflags = append(cflags, "-g")
 	return cflags
 }
