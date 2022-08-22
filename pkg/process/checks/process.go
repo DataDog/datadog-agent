@@ -66,7 +66,7 @@ type ProcessCheck struct {
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
-	p.probe = getProcessProbe()
+	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
