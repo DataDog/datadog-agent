@@ -70,6 +70,8 @@ To start working on the Agent, you can build the `main` branch:
 
      If you built an older version of the agent, you may have the error `make: *** No targets specified and no makefile found.  Stop.`. To solve the issue, you should remove `CMakeCache.txt` from `rtloader` folder with `rm rtloader/CMakeCache.txt`.
 
+     Please note that the [trace agent](./docs/trace-agent/README.md) needs to be built and run separately.
+
 
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details. For instructions
