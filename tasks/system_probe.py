@@ -27,6 +27,7 @@ DNF_TAG = "dnf"
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
+CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
@@ -576,6 +577,10 @@ def get_ebpf_build_flags(target=None, kernel_release=None, minimal_kernel_releas
     return flags
 
 
+def ebpf_check_source_file(ctx, parallel_build, src_file):
+    return ctx.run(CHECK_SOURCE_CMD.format(src_file=src_file), echo=False, asynchronous=parallel_build)
+
+
 def build_network_ebpf_compile_file(
     ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags, extension=".bc"
 ):
@@ -817,6 +822,16 @@ def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, st
     if strip_object_files:
         print("checking for llvm-strip...")
         ctx.run("which llvm-strip")
+
+    promises_check = []
+    for f in get_ebpf_targets():
+        promises_check.append(
+            ebpf_check_source_file(ctx, parallel_build, f)
+        )
+
+    if parallel_build:
+        for promise in promises_check:
+            promise.join()
 
     build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
