@@ -130,3 +130,7 @@ updates:
     milestone: 22
     schedule:
       interval: "monthly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
