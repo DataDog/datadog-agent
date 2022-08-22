@@ -249,6 +249,19 @@ type ConnectionStats struct {
 	IPTranslation *IPTranslation
 	Via           *Via
 
+	// Monotonic stores a list of StatCounters
+	// each identified by a unique "cookie"
+	//
+	// this is necessary because we use connection
+	// info like src/dst address/port to uniquely
+	// identify a connection and port reuse or
+	// races in the ebpf code may occur that would
+	// make conflicts in the stats per connection
+	// impossible to resolve/detect
+	//
+	// the "cookie" is generated in the ebpf code
+	// when we first create counters for a connection;
+	// see the get_conn_stats() function
 	Monotonic StatCountersByCookie
 
 	Last StatCounters
