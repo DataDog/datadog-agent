@@ -103,7 +103,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 				return nil, fmt.Errorf("could not find function %q in symbols", funcName)
 			}
 
-			locations, err := FindReturnLocations(i.elf.file, symbol)
+			locations, err := FindReturnLocations(i.elf.file, symbol, uint64(offset))
 			if err != nil {
 				return nil, fmt.Errorf("could not find return locations for function %q: %w", funcName, err)
 			}
@@ -139,7 +139,7 @@ func (i *newProcessBinaryInspector) getRuntimeGAddrTLSOffset() (uint64, error) {
 	//   emitting runtime.tlsg, a TLS symbol, which is relocated to the chosen
 	//   offset in libc's TLS block.
 	// - On ARM64 (but really, any architecture other than i386 and 86x64) the
-	//   offset is calculate using runtime.tls_g and the formula is different.
+	//   offset is calculated using runtime.tls_g and the formula is different.
 
 	var tls *elf.Prog
 	for _, prog := range i.elf.file.Progs {
