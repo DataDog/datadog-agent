@@ -10,7 +10,6 @@ package probe
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -27,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/zstd"
 )
 
 func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
@@ -146,9 +146,9 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest,
 	var multipartWriter *multipart.Writer
 
 	if request.Compression {
-		gzipWriter := gzip.NewWriter(body)
-		defer gzipWriter.Close()
-		multipartWriter = multipart.NewWriter(gzipWriter)
+		zstdWriter := zstd.NewWriter(body)
+		defer zstdWriter.Close()
+		multipartWriter = multipart.NewWriter(zstdWriter)
 	} else {
 		multipartWriter = multipart.NewWriter(body)
 	}
@@ -176,7 +176,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 	r.Header.Add("dd-api-key", apiKey)
 
 	if request.Compression {
-		r.Header.Set("Content-Encoding", "gzip")
+		r.Header.Set("Content-Encoding", "zstd")
 	}
 
 	resp, err := storage.client.Do(r)
