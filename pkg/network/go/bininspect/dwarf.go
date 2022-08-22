@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package bininspect
 
 import (
@@ -19,10 +24,11 @@ type dwarfInspector struct {
 
 // InspectWithDWARF returns the offsets of the given functions and fields in the given elf file.
 // It also returns some additional relevant metadata about the given file.
-// This function is meant to be used on binaries that contain dwarf data, like our test binary for creating a lookup table.
+// It is using the DWARF debug data to obtain information, and therefore should be run on elf files that contain debug
+// data, like our test binaries.
 func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
 	if elfFile == nil {
-		return nil, errors.New("got nil elf file")
+		return nil, ErrNilElf
 	}
 
 	// Determine the architecture of the binary
@@ -32,7 +38,7 @@ func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []Fiel
 	}
 
 	dwarfData, ok := HasDwarfInfo(elfFile)
-	// We run on a pre-compiled program on our control; We expect it to have DWARF data.
+
 	if !ok || dwarfData == nil {
 		return nil, errors.New("expected dwarf data")
 	}
@@ -46,7 +52,7 @@ func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []Fiel
 	}
 
 	// Scan for functions and struct offsets
-	functionsData, err := inspector.findFunctionsUsingDWARF(functions)
+	functionsMetadata, err := inspector.findFunctionsUsingDWARF(functions)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +62,12 @@ func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []Fiel
 		return nil, err
 	}
 
-	goVersion, abi, err := FindGoVersionAndABI(elfFile, arch)
+	goVersion, err := FindGoVersion(elfFile)
+	if err != nil {
+		return nil, err
+	}
+
+	abi, err := FindABI(goVersion, arch)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +77,7 @@ func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []Fiel
 		ABI:                  abi,
 		GoVersion:            goVersion,
 		IncludesDebugSymbols: true,
-		Functions:            functionsData,
+		Functions:            functionsMetadata,
 		StructOffsets:        structOffsets,
 	}, nil
 
@@ -82,7 +93,7 @@ func (d dwarfInspector) findFunctionsUsingDWARF(functions []string) (map[string]
 	// Inspect each function individually
 	functionMetadataMap := make(map[string]FunctionMetadata, len(functionEntries))
 	for functionName, entry := range functionEntries {
-		metadata, err := d.inspectFunctionUsingDWARF(entry)
+		metadata, err := d.inspectSingleFunctionUsingDWARF(entry)
 		if err != nil {
 			return nil, err
 		}
@@ -95,9 +106,9 @@ func (d dwarfInspector) findFunctionsUsingDWARF(functions []string) (map[string]
 
 func (d dwarfInspector) findFunctionDebugInfoEntries(functions []string) (map[string]*dwarf.Entry, error) {
 	// Convert the function config slice to a set of names
-	searchFunctions := make(map[string]struct{}, len(functions))
+	functionsToSearch := make(map[string]struct{}, len(functions))
 	for _, function := range functions {
-		searchFunctions[function] = struct{}{}
+		functionsToSearch[function] = struct{}{}
 	}
 
 	functionEntries := make(map[string]*dwarf.Entry)
@@ -115,18 +126,20 @@ func (d dwarfInspector) findFunctionDebugInfoEntries(functions []string) (map[st
 		funcName, _ := entry.Val(dwarf.AttrName).(string)
 
 		// See if the func name is one of the search functions
-		if _, ok := searchFunctions[funcName]; !ok {
+		if _, ok := functionsToSearch[funcName]; !ok {
 			continue
 		}
 
-		delete(searchFunctions, funcName)
+		delete(functionsToSearch, funcName)
 		functionEntries[funcName] = entry
 	}
 
 	return functionEntries, nil
 }
 
-func (d dwarfInspector) inspectFunctionUsingDWARF(entry *dwarf.Entry) (FunctionMetadata, error) {
+// inspectSingleFunctionUsingDWARF receives a DWARf entry representing a function and extracts its address in the binary
+// and the parameters locations.
+func (d dwarfInspector) inspectSingleFunctionUsingDWARF(entry *dwarf.Entry) (FunctionMetadata, error) {
 	lowPC, _ := entry.Val(dwarf.AttrLowpc).(uint64)
 
 	// Get all child leaf entries of the function entry
@@ -174,25 +187,6 @@ func (d dwarfInspector) inspectFunctionUsingDWARF(entry *dwarf.Entry) (FunctionM
 }
 
 func (d dwarfInspector) getParameterLocationAtPC(parameterDIE *dwarf.Entry, pc uint64) (ParameterMetadata, error) {
-	// Determine the architecture of the binary
-
-	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elf.file, "info")
-	if err != nil {
-		return ParameterMetadata{}, err
-	}
-
-	compileUnits, err := dwarfutils.LoadCompileUnits(d.dwarfData, debugInfoBytes)
-	if err != nil {
-		return ParameterMetadata{}, err
-	}
-
-	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loc")
-	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.elf.arch.PointerSize()))
-	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loclists")
-	loclist5 := loclist.NewDwarf5Reader(debugLoclistBytes)
-	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "addr")
-	debugAddr := godwarf.ParseAddr(debugAddrBytes)
-
 	typeOffset, ok := parameterDIE.Val(dwarf.AttrType).(dwarf.Offset)
 	if !ok {
 		return ParameterMetadata{}, fmt.Errorf("no type offset attribute in parameter entry")
@@ -235,7 +229,7 @@ func (d dwarfInspector) getParameterLocationAtPC(parameterDIE *dwarf.Entry, pc u
 			return ParameterMetadata{}, fmt.Errorf("could not interpret location attribute in formal parameter entry as location list pointer: locationField=%#v", locationField)
 		}
 
-		loclistEntry, err := getLoclistEntry(locationAsLocListIndex, pc, compileUnits, loclist2, loclist5, debugAddr)
+		loclistEntry, err := d.getLoclistEntry(locationAsLocListIndex, pc)
 		if err != nil {
 			return ParameterMetadata{}, fmt.Errorf("could not find loclist entry at %#x for PC %#x: %w", locationAsLocListIndex, pc, err)
 		}
@@ -267,8 +261,9 @@ func (d dwarfInspector) getParameterLocationAtPC(parameterDIE *dwarf.Entry, pc u
 
 func (d dwarfInspector) findStructOffsets(structFields []FieldIdentifier) (map[FieldIdentifier]uint64, error) {
 	structOffsets := make(map[FieldIdentifier]uint64)
+	typeReader := dwarfutils.NewTypeFinder(d.dwarfData)
 	for _, fieldID := range structFields {
-		offset, err := dwarfutils.NewTypeFinder(d.dwarfData).FindStructFieldOffset(fieldID.StructName, fieldID.FieldName)
+		offset, err := typeReader.FindStructFieldOffset(fieldID.StructName, fieldID.FieldName)
 		if err != nil {
 			return nil, fmt.Errorf("could not find offset of \"%s.%s\": %w", fieldID.StructName, fieldID.FieldName, err)
 		}
@@ -280,7 +275,24 @@ func (d dwarfInspector) findStructOffsets(structFields []FieldIdentifier) (map[F
 // getLoclistEntry returns the loclist entry in the loclist
 // starting at offset, for address pc.
 // Adapted from github.com/go-delve/delve/pkg/proc.(*BinaryInfo).loclistEntry
-func getLoclistEntry(offset int64, pc uint64, compileUnits *dwarfutils.CompileUnits, loclist2 *loclist.Dwarf2Reader, loclist5 *loclist.Dwarf5Reader, debugAddrSection *godwarf.DebugAddrSection) (*loclist.Entry, error) {
+func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry, error) {
+	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elfFile, "info")
+	if err != nil {
+		return nil, err
+	}
+
+	compileUnits, err := dwarfutils.LoadCompileUnits(d.dwarfData, debugInfoBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "loc")
+	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.arch.PointerSize()))
+	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "loclists")
+	loclist5 := loclist.NewDwarf5Reader(debugLoclistBytes)
+	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elfFile, "addr")
+	debugAddrSection := godwarf.ParseAddr(debugAddrBytes)
+
 	var base uint64
 	compileUnit := compileUnits.FindCompileUnit(pc)
 	if compileUnit != nil {
@@ -302,12 +314,12 @@ func getLoclistEntry(offset int64, pc uint64, compileUnits *dwarfutils.CompileUn
 
 	// Use 0x0 as the static base
 	var staticBase uint64 = 0x0
-	e, err := loclist.Find(int(offset), staticBase, base, pc, debugAddr)
+	entry, err := loclist.Find(int(offset), staticBase, base, pc, debugAddr)
 	if err != nil {
 		return nil, fmt.Errorf("error reading loclist section: %w", err)
 	}
-	if e != nil {
-		return e, nil
+	if entry != nil {
+		return entry, nil
 	}
 
 	return nil, fmt.Errorf("no loclist entry found")

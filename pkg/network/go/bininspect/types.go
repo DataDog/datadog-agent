@@ -7,6 +7,7 @@ package bininspect
 
 import (
 	"debug/elf"
+	"errors"
 	"reflect"
 
 	"github.com/go-delve/delve/pkg/goversion"
@@ -212,3 +213,7 @@ type FunctionConfiguration struct {
 	includeReturnLocations bool
 	paramLookupFunction    ParameterLookupFunction
 }
+
+var ErrNilElf = errors.New("got nil elf file")
+
+var ErrUnsupportedArch = errors.New("got unsupported arch")
