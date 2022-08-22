@@ -157,24 +157,25 @@ type PoliciesIgnored struct {
 	Errors *multierror.Error
 }
 
+type policiesIgnoredReason struct {
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
+}
+
 // MarshalJSON custom marshaller
 func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
 	if r.Errors == nil {
 		return nil, nil
 	}
 
-	var errs []interface{}
+	var errs []policiesIgnoredReason
 
 	for _, err := range r.Errors.Errors {
 		if perr, ok := err.(*rules.ErrPolicyLoad); ok {
-			errs = append(errs,
-				struct {
-					Name   string `json:"name"`
-					Reason string `json:"reason"`
-				}{
-					Name:   perr.Name,
-					Reason: perr.Err.Error(),
-				})
+			errs = append(errs, policiesIgnoredReason{
+				Name:   perr.Name,
+				Reason: perr.Err.Error(),
+			})
 		}
 	}
 
