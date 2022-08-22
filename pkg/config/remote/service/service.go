@@ -309,6 +309,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	}
 
 	if !s.clients.active(request.Client) {
+		s.clients.seen(request.Client)
 		s.Unlock()
 		response := make(chan struct{})
 		s.newActiveClients.requests <- response
