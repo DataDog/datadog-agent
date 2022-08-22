@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix duplicated check or logs configuration targeting dead containers when containers are re-created by Docker Compose.
