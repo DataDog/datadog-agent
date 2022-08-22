@@ -111,7 +111,7 @@ func FindABI(version goversion.GoVersion, arch GoArch) (GoABI, error) {
 // - https://github.com/go-delve/delve/pull/2704/files#diff-fb7b7a020e32bf8bf477c052ac2d2857e7e587478be6039aebc7135c658417b2R769
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/breakpoints.go#L86-L95
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/breakpoints.go#L374
-func FindReturnLocations(elfFile *elf.File, sym elf.Symbol) ([]uint64, error) {
+func FindReturnLocations(elfFile *elf.File, sym elf.Symbol, functionOffset uint64) ([]uint64, error) {
 	arch, err := GetArchitecture(elfFile)
 	if err != nil {
 		return nil, err
@@ -124,9 +124,9 @@ func FindReturnLocations(elfFile *elf.File, sym elf.Symbol) ([]uint64, error) {
 
 	switch arch {
 	case GoArchX86_64:
-		return asmscan.ScanFunction(textSection, sym, asmscan.FindX86_64ReturnInstructions)
+		return asmscan.ScanFunction(textSection, sym, functionOffset, asmscan.FindX86_64ReturnInstructions)
 	case GoArchARM64:
-		return asmscan.ScanFunction(textSection, sym, asmscan.FindARM64ReturnInstructions)
+		return asmscan.ScanFunction(textSection, sym, functionOffset, asmscan.FindARM64ReturnInstructions)
 	default:
 		return nil, ErrUnsupportedArch
 	}

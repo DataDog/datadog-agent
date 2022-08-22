@@ -36,7 +36,7 @@ import (
 // - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
 //   (which describes how this approach works as a workaround)
 // - https://github.com/golang/go/issues/22008
-func ScanFunction(textSection *elf.Section, sym elf.Symbol, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
+func ScanFunction(textSection *elf.Section, sym elf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
 	// Determine the offset in the section that the function starts at
 	lowPC := sym.Value
 	highPC := lowPC + sym.Size
@@ -58,7 +58,7 @@ func ScanFunction(textSection *elf.Section, sym elf.Symbol, scanInstructions fun
 	// Add the function lowPC to each index to obtain the actual locations
 	adjustedLocations := make([]uint64, len(instructionIndices))
 	for i, instructionIndex := range instructionIndices {
-		adjustedLocations[i] = instructionIndex + offset
+		adjustedLocations[i] = instructionIndex + functionOffset
 	}
 
 	return adjustedLocations, nil
