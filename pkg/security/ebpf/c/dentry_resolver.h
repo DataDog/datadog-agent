@@ -17,7 +17,7 @@
 
 #define DR_MAX_TAIL_CALL          30
 #define DR_MAX_ITERATION_DEPTH    45
-#define DR_MAX_SEGMENT_LENGTH     255
+#define DR_MAX_SEGMENT_LENGTH     (255-10)
 
 struct path_leaf_t {
   struct path_key_t parent;
