@@ -133,6 +133,10 @@ func (d dwarfInspector) findFunctionDebugInfoEntries(functions []string) (map[st
 		functionEntries[funcName] = entry
 	}
 
+	if len(functionsToSearch) != 0 {
+		return nil, errors.New("not all functions found")
+	}
+
 	return functionEntries, nil
 }
 

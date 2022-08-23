@@ -24,7 +24,7 @@ func GetArchitecture(elfFile *elf.File) (GoArch, error) {
 		return GoArchARM64, nil
 	}
 
-	return "", fmt.Errorf("unsupported architecture")
+	return "", ErrUnsupportedArch
 }
 
 // HasDwarfInfo attempts to parse the DWARF data and look for any records.
@@ -50,7 +50,7 @@ func GetAllSymbolsByName(elfFile *elf.File) (map[string]elf.Symbol, error) {
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
-	if regularSymbolsErr != nil || dynamicSymbolsErr != nil {
+	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
 		return nil, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
 	}
 
