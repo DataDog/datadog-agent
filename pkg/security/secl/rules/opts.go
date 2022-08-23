@@ -7,6 +7,7 @@ package rules
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 )
 
 // VariableProvider is the interface implemented by SECL variable providers
@@ -23,7 +24,7 @@ type Opts struct {
 	ReservedRuleIDs     []RuleID
 	EventTypeEnabled    map[eval.EventType]bool
 	StateScopes         map[Scope]VariableProviderFactory
-	Logger              Logger
+	Logger              log.Logger
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -45,7 +46,7 @@ func (o *Opts) WithReservedRuleIDs(ruleIds []RuleID) *Opts {
 }
 
 // WithLogger set logger
-func (o *Opts) WithLogger(logger Logger) *Opts {
+func (o *Opts) WithLogger(logger log.Logger) *Opts {
 	o.Logger = logger
 	return o
 }

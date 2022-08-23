@@ -6,8 +6,9 @@
 package encoding
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
@@ -92,10 +93,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		keys := network.HTTPKeyTuplesFromConn(conn)
-		for _, key := range keys {
-			encoder.aggregations[key] = nil
-		}
+		encoder.aggregations[network.HTTPKeyTupleFromConn(conn)] = nil
 	}
 
 	encoder.buildAggregations(payload)

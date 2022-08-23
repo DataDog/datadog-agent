@@ -613,6 +613,15 @@ def generate_ad_proto(ctx):
             )
 
 
+@task
+def generate_cws_proto(ctx):
+    # API
+    ctx.run("protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto")
+
+    # Activity Dumps
+    generate_ad_proto(ctx)
+
+
 def get_git_dirty_files():
     dirty_stats = check_output(["git", "status", "--porcelain=v1"]).decode('utf-8')
     paths = []
@@ -636,7 +645,12 @@ class FailingTask:
 
 @task
 def go_generate_check(ctx):
-    tasks = [[cws_go_generate], [generate_cws_documentation], [gen_mocks], [generate_runtime_files]]
+    tasks = [
+        [cws_go_generate],
+        [generate_cws_documentation],
+        [gen_mocks],
+        [generate_runtime_files],
+    ]
     failing_tasks = []
 
     for task_entry in tasks:

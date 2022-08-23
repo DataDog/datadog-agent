@@ -44,6 +44,7 @@ class CustomFormatter
 
   def dump_summary(notification)
     @output << KernelOut.format("Finished in #{RSpec::Core::Formatters::Helpers.format_duration(notification.duration)}.\n")
+    @output << KernelOut.format("#{notification.totals_line}\n")
     @output << KernelOut.format("Platform: #{`uname -a`}\n\n")
   end
 

@@ -254,9 +254,21 @@
           "constants": ""
         },
         {
+          "name": "process.ancestors.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "process.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.file.path' string",
           "constants": ""
         },
         {
@@ -536,9 +548,21 @@
           "constants": ""
         },
         {
+          "name": "process.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "process.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.file.path' string",
           "constants": ""
         },
         {
@@ -842,9 +866,21 @@
           "constants": ""
         },
         {
+          "name": "chmod.file.name.length",
+          "type": "int",
+          "definition": "Length of 'chmod.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "chmod.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "chmod.file.path.length",
+          "type": "int",
+          "definition": "Length of 'chmod.file.path' string",
           "constants": ""
         },
         {
@@ -965,9 +1001,21 @@
           "constants": ""
         },
         {
+          "name": "chown.file.name.length",
+          "type": "int",
+          "definition": "Length of 'chown.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "chown.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.path.length",
+          "type": "int",
+          "definition": "Length of 'chown.file.path' string",
           "constants": ""
         },
         {
@@ -1016,15 +1064,21 @@
           "constants": ""
         },
         {
+          "name": "dns.question.length",
+          "type": "int",
+          "definition": "the total DNS request size in bytes",
+          "constants": ""
+        },
+        {
           "name": "dns.question.name",
           "type": "string",
           "definition": "the queried domain name",
           "constants": ""
         },
         {
-          "name": "dns.question.size",
+          "name": "dns.question.name.length",
           "type": "int",
-          "definition": "the total DNS request size in bytes",
+          "definition": "the queried domain name",
           "constants": ""
         },
         {
@@ -1217,9 +1271,21 @@
           "constants": ""
         },
         {
+          "name": "exec.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exec.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "exec.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exec.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exec.file.path' string",
           "constants": ""
         },
         {
@@ -1520,9 +1586,21 @@
           "constants": ""
         },
         {
+          "name": "exit.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exit.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "exit.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exit.file.path' string",
           "constants": ""
         },
         {
@@ -1703,9 +1781,21 @@
           "constants": ""
         },
         {
+          "name": "link.file.destination.name.length",
+          "type": "int",
+          "definition": "Length of 'link.file.destination.name' string",
+          "constants": ""
+        },
+        {
           "name": "link.file.destination.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "link.file.destination.path.length",
+          "type": "int",
+          "definition": "Length of 'link.file.destination.path' string",
           "constants": ""
         },
         {
@@ -1781,9 +1871,21 @@
           "constants": ""
         },
         {
+          "name": "link.file.name.length",
+          "type": "int",
+          "definition": "Length of 'link.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "link.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "link.file.path.length",
+          "type": "int",
+          "definition": "Length of 'link.file.path' string",
           "constants": ""
         },
         {
@@ -1880,9 +1982,21 @@
           "constants": ""
         },
         {
+          "name": "load_module.file.name.length",
+          "type": "int",
+          "definition": "Length of 'load_module.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "load_module.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.path.length",
+          "type": "int",
+          "definition": "Length of 'load_module.file.path' string",
           "constants": ""
         },
         {
@@ -2003,9 +2117,21 @@
           "constants": ""
         },
         {
+          "name": "mkdir.file.name.length",
+          "type": "int",
+          "definition": "Length of 'mkdir.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "mkdir.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "mkdir.file.path.length",
+          "type": "int",
+          "definition": "Length of 'mkdir.file.path' string",
           "constants": ""
         },
         {
@@ -2102,9 +2228,21 @@
           "constants": ""
         },
         {
+          "name": "mmap.file.name.length",
+          "type": "int",
+          "definition": "Length of 'mmap.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "mmap.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.path.length",
+          "type": "int",
+          "definition": "Length of 'mmap.file.path' string",
           "constants": ""
         },
         {
@@ -2246,9 +2384,21 @@
           "constants": ""
         },
         {
+          "name": "open.file.name.length",
+          "type": "int",
+          "definition": "Length of 'open.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "open.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "open.file.path.length",
+          "type": "int",
+          "definition": "Length of 'open.file.path' string",
           "constants": ""
         },
         {
@@ -2477,9 +2627,21 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.ancestors.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.file.path' string",
           "constants": ""
         },
         {
@@ -2759,9 +2921,21 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.file.path' string",
           "constants": ""
         },
         {
@@ -2948,9 +3122,21 @@
           "constants": ""
         },
         {
+          "name": "removexattr.file.name.length",
+          "type": "int",
+          "definition": "Length of 'removexattr.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "removexattr.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "removexattr.file.path.length",
+          "type": "int",
+          "definition": "Length of 'removexattr.file.path' string",
           "constants": ""
         },
         {
@@ -3053,9 +3239,21 @@
           "constants": ""
         },
         {
+          "name": "rename.file.destination.name.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.destination.name' string",
+          "constants": ""
+        },
+        {
           "name": "rename.file.destination.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.destination.path.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.destination.path' string",
           "constants": ""
         },
         {
@@ -3131,9 +3329,21 @@
           "constants": ""
         },
         {
+          "name": "rename.file.name.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "rename.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.path.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.path' string",
           "constants": ""
         },
         {
@@ -3230,9 +3440,21 @@
           "constants": ""
         },
         {
+          "name": "rmdir.file.name.length",
+          "type": "int",
+          "definition": "Length of 'rmdir.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "rmdir.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.path.length",
+          "type": "int",
+          "definition": "Length of 'rmdir.file.path' string",
           "constants": ""
         },
         {
@@ -3464,9 +3686,21 @@
           "constants": ""
         },
         {
+          "name": "setxattr.file.name.length",
+          "type": "int",
+          "definition": "Length of 'setxattr.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "setxattr.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "setxattr.file.path.length",
+          "type": "int",
+          "definition": "Length of 'setxattr.file.path' string",
           "constants": ""
         },
         {
@@ -3689,9 +3923,21 @@
           "constants": ""
         },
         {
+          "name": "signal.target.ancestors.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "signal.target.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.file.path' string",
           "constants": ""
         },
         {
@@ -3971,9 +4217,21 @@
           "constants": ""
         },
         {
+          "name": "signal.target.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "signal.target.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.file.path' string",
           "constants": ""
         },
         {
@@ -4154,9 +4412,21 @@
           "constants": ""
         },
         {
+          "name": "splice.file.name.length",
+          "type": "int",
+          "definition": "Length of 'splice.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "splice.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "splice.file.path.length",
+          "type": "int",
+          "definition": "Length of 'splice.file.path' string",
           "constants": ""
         },
         {
@@ -4265,9 +4535,21 @@
           "constants": ""
         },
         {
+          "name": "unlink.file.name.length",
+          "type": "int",
+          "definition": "Length of 'unlink.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "unlink.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.path.length",
+          "type": "int",
+          "definition": "Length of 'unlink.file.path' string",
           "constants": ""
         },
         {
@@ -4391,9 +4673,21 @@
           "constants": ""
         },
         {
+          "name": "utimes.file.name.length",
+          "type": "int",
+          "definition": "Length of 'utimes.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "utimes.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.path.length",
+          "type": "int",
+          "definition": "Length of 'utimes.file.path' string",
           "constants": ""
         },
         {

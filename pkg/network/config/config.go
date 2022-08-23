@@ -31,6 +31,9 @@ const (
 type Config struct {
 	ebpf.Config
 
+	// NPMEnabled is whether the network performance monitoring feature is explicitly enabled or not
+	NPMEnabled bool
+
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
@@ -187,6 +190,7 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
+		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
@@ -219,7 +223,7 @@ func New() *Config {
 		EnableHTTPMonitoring:            cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring:           cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		EnableHTTPHTTPSMonitoringViaETW: cfg.GetBool(join(netNS, "enable_http_https_monitoring_via_etw")),
-		MaxHTTPStatsBuffered:            100000,
+		MaxHTTPStatsBuffered:            cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),

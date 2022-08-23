@@ -635,7 +635,7 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">APIKEY AND (NOT SITE)</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair"</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair" OR WixUI_InstallMode = "Remove"</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
 

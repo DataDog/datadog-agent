@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // The example below represents the following scenario:
@@ -36,9 +37,7 @@ import (
 // The purpose of this package is to filter flows like (3) and (4) in order to
 // avoid double counting traffic represented similar to flows (1) and (2)
 func TestProxyFiltering(t *testing.T) {
-	assert := assert.New(t)
-	filter := NewFilter()
-	filter.LoadProxies(processData())
+	filter := NewFilter(processData())
 
 	// (1) This represents the *outgoing* connection from redis client to redis rerver (via host IP)
 	// It should be *kept*
@@ -103,13 +102,13 @@ func TestProxyFiltering(t *testing.T) {
 	// Filter docker-proxy traffic in place
 	payload := &model.Connections{Conns: []*model.Connection{c1, c2, c3, c4}}
 	filter.Filter(payload)
-	assert.Len(payload.Conns, 2)
-	assert.Equal(c1, payload.Conns[0])
-	assert.Equal(c2, payload.Conns[1])
+	assert.Len(t, payload.Conns, 2)
+	assert.Equal(t, c1, payload.Conns[0])
+	assert.Equal(t, c2, payload.Conns[1])
 }
 
-func processData() map[int32]*process.FilledProcess {
-	return map[int32]*process.FilledProcess{
+func processData() map[int32]*procutil.Process {
+	return map[int32]*procutil.Process{
 		1: {
 			Pid: 1,
 			Cmdline: []string{

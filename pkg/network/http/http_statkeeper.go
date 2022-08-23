@@ -169,7 +169,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 	if !match && pathIsMalformed(path) {
 		log.Infof("http path malformed")
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("http path malformed: %s", tx.String())
+			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
 		}
 		h.telemetry.malformed.Inc()
 		return "", true

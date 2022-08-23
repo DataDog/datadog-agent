@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -103,6 +102,7 @@ type Probe struct {
 	discarderRateLimiter *rate.Limiter
 
 	constantOffsets map[string]uint64
+	runtimeCompiled bool
 
 	// network section
 	tcProgramsLock sync.RWMutex
@@ -163,7 +163,7 @@ func (p *Probe) sanityChecks() error {
 	}
 
 	if p.config.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
-		log.Warn("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
 		p.config.NetworkEnabled = false
 	}
 
@@ -248,14 +248,16 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper)
+	loader := ebpf.NewProbeLoader(p.config, useSyscallWrapper, p.statsdClient)
 	defer loader.Close()
 
-	bytecodeReader, err := loader.Load()
+	bytecodeReader, runtimeCompiled, err := loader.Load()
 	if err != nil {
 		return err
 	}
 	defer bytecodeReader.Close()
+
+	p.runtimeCompiled = runtimeCompiled
 
 	if err := p.eventStream.Init(p.manager, p.config); err != nil {
 		return err
@@ -269,6 +271,9 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	if p.config.AgentMonitoringEvents {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
+	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -304,6 +309,11 @@ func (p *Probe) Init() error {
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
+}
+
+// IsRuntimeCompiled returns true if the eBPF programs where successfully runtime compiled
+func (p *Probe) IsRuntimeCompiled() bool {
+	return p.runtimeCompiled
 }
 
 // Setup the runtime security probe
@@ -427,7 +437,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
-		log.Errorf("failed to decode event: %s", err)
+		seclog.Errorf("failed to decode event: %s", err)
 		return
 	}
 	offset += read
@@ -439,7 +449,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	switch eventType {
 	case model.MountReleasedEventType:
 		if _, err = event.MountReleased.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mount released event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode mount released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -452,12 +462,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			log.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.InvalidateDentryEventType:
 		if _, err = event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -466,7 +476,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		return
 	case model.ArgsEnvsEventType:
 		if _, err = event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -475,12 +485,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		return
 	case model.CgroupTracingEventType:
 		if !p.config.ActivityDumpEnabled {
-			log.Error("shouldn't receive Cgroup event if activity dumps are disabled")
+			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
 			return
 		}
 
 		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -490,7 +500,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	read, err = p.unmarshalContexts(data[offset:], event)
 	if err != nil {
-		log.Errorf("failed to decode event `%s`: %s", eventType, err)
+		seclog.Errorf("failed to decode event `%s`: %s", eventType, err)
 		return
 	}
 	offset += read
@@ -501,7 +511,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode Network Context")
+			seclog.Errorf("failed to decode Network Context")
 		}
 		offset += read
 	}
@@ -509,7 +519,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	switch eventType {
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -520,7 +530,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Insert new mount point in cache
 		err = p.resolvers.MountResolver.Insert(event.Mount)
 		if err != nil {
-			log.Errorf("failed to insert mount event: %v", err)
+			seclog.Errorf("failed to insert mount event: %v", err)
 		}
 
 		if event.Mount.GetFSType() == "nsfs" {
@@ -538,7 +548,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -552,17 +562,17 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	case model.FileOpenEventType:
 		if _, err = event.Open.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileMkdirEventType:
 		if _, err = event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileRmdirEventType:
 		if _, err = event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -572,7 +582,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.FileUnlinkEventType:
 		if _, err = event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -582,7 +592,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.FileRenameEventType:
 		if _, err = event.Rename.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -592,22 +602,22 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.FileChmodEventType:
 		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileChownEventType:
 		if _, err = event.Chown.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileUtimesEventType:
 		if _, err = event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileLinkEventType:
 		if _, err = event.Link.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -618,17 +628,17 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.FileSetXAttrEventType:
 		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileRemoveXAttrEventType:
 		if _, err = event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.ForkEventType:
 		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
-			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
@@ -643,12 +653,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
-			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
-			log.Debugf("failed to resolve new process cache entry context: %s", err)
+			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
 		}
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
@@ -656,7 +666,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
 		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
@@ -668,35 +678,35 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
 		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
 		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.BPFEventType:
 		if _, err = event.BPF.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.PTraceEventType:
 		if _, err = event.PTrace.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		// resolve tracee process context
@@ -706,7 +716,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.MMapEventType:
 		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
@@ -717,12 +727,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.MProtectEventType:
 		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.LoadModuleEventType:
 		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 
@@ -733,11 +743,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.UnloadModuleEventType:
 		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
 		}
 	case model.SignalEventType:
 		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		// resolve target process context
@@ -747,38 +757,38 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	case model.SpliceEventType:
 		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.NetDeviceEventType:
 		if _, err = event.NetDevice.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		_ = p.setupNewTCClassifier(event.NetDevice.Device)
 	case model.VethPairEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
+			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	default:
-		log.Errorf("unsupported event type %d", eventType)
+		seclog.Errorf("unsupported event type %d", eventType)
 		return
 	}
 
@@ -838,7 +848,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
 func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
-	log.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
+	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := p.Map("filter_policy")
 	if err != nil {
 		return fmt.Errorf("unable to find policy table: %w", err)
@@ -866,7 +876,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 	newApprovers, err := handler(p, approvers)
 	if err != nil {
-		log.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
+		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
 	}
 
 	for _, newApprover := range newApprovers {
@@ -996,7 +1006,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}
 	defer func() {
 		if err := p.eventStream.Resume(); err != nil {
-			log.Errorf("failed to resume event stream: %s", err)
+			seclog.Errorf("failed to resume event stream: %s", err)
 		}
 	}()
 
@@ -1009,7 +1019,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 // DumpDiscarders removes all the discarders
 func (p *Probe) DumpDiscarders() (string, error) {
-	log.Debug("Dumping discarders")
+	seclog.Debugf("Dumping discarders")
 
 	dump, err := os.CreateTemp("/tmp", "discarder-dump-")
 	if err != nil {
@@ -1034,7 +1044,7 @@ Discarder Count: Discardee Parameters
 	discardedInodeCount := 0
 	inodeDiscardersInfo, inodeDiscardersErr := p.inodeDiscarders.Info()
 	if inodeDiscardersErr != nil {
-		log.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
+		seclog.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
 	} else {
 		var inode inodeDiscarderMapEntry
 		var inodeParams inodeDiscarderParams
@@ -1049,7 +1059,7 @@ Discarder Count: Discardee Parameters
 			}
 			printDiscardee(dump, fmt.Sprintf("%s %+v", path, inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
 			if discardedInodeCount == maxInodeDiscarders {
-				log.Infof("Discarded inode count has reached max discarder map size")
+				seclog.Infof("Discarded inode count has reached max discarder map size")
 				break
 			}
 		}
@@ -1060,7 +1070,7 @@ Discarder Count: Discardee Parameters
 	discardedPIDCount := 0
 	pidDiscardersInfo, pidDiscardersErr := p.pidDiscarders.Info()
 	if pidDiscardersErr != nil {
-		log.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
+		seclog.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
 	} else {
 		var pid uint32
 		var pidParams pidDiscarderParams
@@ -1070,7 +1080,7 @@ Discarder Count: Discardee Parameters
 			discardedPIDCount++
 			printDiscardee(dump, fmt.Sprintf("%+v", pid), fmt.Sprintf("%+v", pidParams), discardedPIDCount)
 			if discardedPIDCount == maxPIDDiscarders {
-				log.Infof("Discarded PID count has reached max discarder map size")
+				seclog.Infof("Discarded PID count has reached max discarder map size")
 				break
 			}
 		}
@@ -1079,24 +1089,24 @@ Discarder Count: Discardee Parameters
 	fmt.Fprintf(dump, "\nDiscarder Stats - Front Buffer\n")
 	frontBufferPrintErr := p.printDiscarderStats(dump, frontBufferDiscarderStatsMapName)
 	if frontBufferPrintErr != nil {
-		_ = log.Errorf("could not dump discarder stats map %s: %s", frontBufferDiscarderStatsMapName, frontBufferPrintErr)
+		seclog.Errorf("could not dump discarder stats map %s: %s", frontBufferDiscarderStatsMapName, frontBufferPrintErr)
 	}
 
 	fmt.Fprintf(dump, "\nDiscarder Stats - Back Buffer\n")
 	backBufferPrintErr := p.printDiscarderStats(dump, backBufferDiscarderStatsMapName)
 	if backBufferPrintErr != nil {
-		_ = log.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
+		seclog.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
 	}
 
 	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
 
-	log.Infof("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
+	seclog.Infof("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
 	return dump.Name(), nil
 }
 
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
-	log.Debug("Freezing discarders")
+	seclog.Debugf("Freezing discarders")
 
 	flushingMap, err := p.Map("flushing_discarders")
 	if err != nil {
@@ -1111,10 +1121,10 @@ func (p *Probe) FlushDiscarders() error {
 		p.flushingDiscarders.Store(false)
 
 		if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(0)); err != nil {
-			log.Errorf("Failed to reset flush_discarders flag: %s", err)
+			seclog.Errorf("Failed to reset flush_discarders flag: %s", err)
 		}
 
-		log.Debugf("Unfreezing discarders")
+		seclog.Debugf("Unfreezing discarders")
 	}
 	defer unfreezeDiscarders()
 
@@ -1139,7 +1149,7 @@ func (p *Probe) FlushDiscarders() error {
 
 	discarderCount := len(discardedInodes) + len(discardedPids)
 	if discarderCount == 0 {
-		log.Debugf("No discarder found")
+		seclog.Debugf("No discarder found")
 		return nil
 	}
 
@@ -1147,7 +1157,7 @@ func (p *Probe) FlushDiscarders() error {
 	delay := flushWindow / time.Duration(discarderCount)
 
 	flushDiscarders := func() {
-		log.Debugf("Flushing discarders")
+		seclog.Debugf("Flushing discarders")
 
 		var req ERPCRequest
 
@@ -1221,7 +1231,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *ev
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber, p)
 	}
-	opts.WithLogger(&seclog.PatternLogger{})
+	opts.WithLogger(seclog.DefaultLogger)
 
 	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts, macroStore)
 }
@@ -1377,11 +1387,11 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	if err := p.VerifyOSVersion(); err != nil {
-		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
+		seclog.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
 	if err := p.VerifyEnvironment(); err != nil {
-		log.Warnf("the current environment may be misconfigured: %v", err)
+		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
 	useRingBuffers := p.UseRingBuffers()
@@ -1404,7 +1414,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	)
 
 	if !p.config.EnableKernelFilters {
-		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
 	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
@@ -1414,7 +1424,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	p.constantOffsets, err = p.GetOffsetConstants()
 	if err != nil {
-		log.Warnf("constant fetcher failed: %v", err)
+		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
 	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,

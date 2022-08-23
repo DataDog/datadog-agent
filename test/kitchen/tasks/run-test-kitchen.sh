@@ -14,32 +14,32 @@ if [ -f "$(pwd)/ssh-key.pub" ]; then
   rm ssh-key.pub
 fi
 
-ssh-keygen -f "$(pwd)/ed25519-key" -P "" -a 100 -t ed25519
-KITCHEN_ED25519_SSH_KEY_PATH="$(pwd)/ed25519-key"
-export KITCHEN_ED25519_SSH_KEY_PATH
-
-# show that the ed25519 ssh key is there
-echo "$(pwd)/ed25519-key"
-echo "$KITCHEN_ED25519_SSH_KEY_PATH"
-
-ssh-keygen -f "$(pwd)/rsa-key" -P "" -t rsa -b 2048
-KITCHEN_RSA_SSH_KEY_PATH="$(pwd)/rsa-key"
-export KITCHEN_RSA_SSH_KEY_PATH
-
-# show that the rsa ssh key is there
-echo "$(pwd)/rsa-key"
-echo "$KITCHEN_RSA_SSH_KEY_PATH"
-
-# start the ssh-agent and add the keys
-eval "$(ssh-agent -s)"
-ssh-add "$KITCHEN_RSA_SSH_KEY_PATH"
-ssh-add "$KITCHEN_ED25519_SSH_KEY_PATH"
-
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
 if [ "$KITCHEN_PROVIDER" == "azure" ]; then
+  # Generating SSH keys to connect to Azure VMs
+
+  ssh-keygen -f "$(pwd)/ed25519-key" -P "" -a 100 -t ed25519
+  KITCHEN_ED25519_SSH_KEY_PATH="$(pwd)/ed25519-key"
+  export KITCHEN_ED25519_SSH_KEY_PATH
+
+  # show that the ed25519 ssh key is there
+  ls "$(pwd)/ed25519-key"
+
+  ssh-keygen -f "$(pwd)/rsa-key" -P "" -t rsa -b 2048
+  KITCHEN_RSA_SSH_KEY_PATH="$(pwd)/rsa-key"
+  export KITCHEN_RSA_SSH_KEY_PATH
+
+  # show that the rsa ssh key is there
+  ls "$(pwd)/rsa-key"
+
+  # start the ssh-agent and add the keys
+  eval "$(ssh-agent -s)"
+  ssh-add "$KITCHEN_RSA_SSH_KEY_PATH"
+  ssh-add "$KITCHEN_ED25519_SSH_KEY_PATH"
+
   # Setup the azure credentials, grabbing them from AWS if they do not exist in the environment already
   # If running locally, they should be imported into the environment
 
@@ -82,6 +82,22 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
   echo "using ec2 kitchen provider"
+
+  # Setup the AWS credentials: grab the ED25519 ssh key that is needed to connect to Amazon Linux 2022 instances
+  # See: https://github.com/test-kitchen/kitchen-ec2/issues/588
+  # Note: this issue happens even when allowing RSA keys in the ssh service of the remote host (which was the fix we did for Ubuntu 22.04),
+  # therefore using the auto-generated SSH key is not possible at all.
+
+  # These should not be printed out
+  set +x
+  if [ -z ${KITCHEN_EC2_SSH_KEY_ID+x} ]; then
+    KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
+    export KITCHEN_EC2_SSH_KEY_ID
+    KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
+    export KITCHEN_EC2_SSH_KEY_PATH
+    aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.aws_ec2_kitchen_ssh_key --with-decryption --query "Parameter.Value" --out text > $KITCHEN_EC2_SSH_KEY_PATH
+  fi
+  set -x
 fi
 
 # Generate a password to use for the windows servers

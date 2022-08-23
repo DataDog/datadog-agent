@@ -12,13 +12,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // TODO change probe.c path to runtime-compilation specific version
 //go:generate go run ../../ebpf/include_headers.go ./c/prebuilt/probe.c ../../ebpf/bytecode/build/runtime/runtime-security.c ./c ../../ebpf/c
 //go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/runtime-security.c ../../ebpf/bytecode/runtime/runtime-security.go runtime
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	var cflags []string
 
 	if useSyscallWrapper {
@@ -27,5 +28,9 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool) (
 		cflags = append(cflags, "-DUSE_SYSCALL_WRAPPER=0")
 	}
 
-	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
+	if !config.NetworkEnabled {
+		cflags = append(cflags, "-DDO_NOT_USE_TC")
+	}
+
+	return runtime.RuntimeSecurity.Compile(&config.Config, cflags, client)
 }

@@ -34,7 +34,7 @@ var (
 	stdargHData []byte
 )
 
-const compilationStepTimeout = 15 * time.Second
+const compilationStepTimeout = 60 * time.Second
 
 func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
