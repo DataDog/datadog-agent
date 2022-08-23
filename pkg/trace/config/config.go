@@ -266,6 +266,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string
+	// APIKey is the main API Key (defaults to the main API key).
+	ApplicationKey string
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
