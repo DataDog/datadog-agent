@@ -94,7 +94,7 @@ platforms:
     <% end %>
     image_id: <%= platform[1] %>
     block_device_mappings:
-      - device_name: /dev/xvda
+      - device_name: /dev/sda1
         ebs:
           volume_type: gp2
           volume_size: 50
