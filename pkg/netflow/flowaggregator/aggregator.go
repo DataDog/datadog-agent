@@ -36,9 +36,11 @@ type FlowAggregator struct {
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
+	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	return &FlowAggregator{
 		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:           newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
+		flowAcc:           newFlowAccumulator(flushInterval, flowContextTTL),
 		flushInterval:     flowAggregatorFlushInterval,
 		sender:            sender,
 		stopChan:          make(chan struct{}),

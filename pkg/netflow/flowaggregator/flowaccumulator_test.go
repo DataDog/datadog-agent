@@ -78,7 +78,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(60)
+	acc := newFlowAccumulator(60, 60)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -121,7 +121,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval)
+	acc := newFlowAccumulator(flushInterval, 60*time.Second)
 	acc.add(flow)
 
 	// Then

@@ -39,11 +39,11 @@ func newFlowWrapper(flow *common.Flow) flowWrapper {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration) *flowAccumulator {
 	return &flowAccumulator{
 		flows:             make(map[uint64]flowWrapper),
 		flowFlushInterval: aggregatorFlushInterval,
-		flowContextTTL:    aggregatorFlushInterval * 5,
+		flowContextTTL:    aggregatorFlowContextTTL,
 	}
 }
 
