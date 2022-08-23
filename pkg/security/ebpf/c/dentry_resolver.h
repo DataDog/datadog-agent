@@ -12,12 +12,13 @@
 
 #define DENTRY_INVALID -1
 #define DENTRY_DISCARDED -2
+#define DENTRY_RUNTIME_ERROR -3
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
 #define DR_MAX_TAIL_CALL          30
 #define DR_MAX_ITERATION_DEPTH    45
-#define DR_MAX_SEGMENT_LENGTH     (255-10)
+#define DR_MAX_SEGMENT_LENGTH     255
 
 struct path_leaf_t {
   struct path_key_t parent;
@@ -98,8 +99,19 @@ struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_progs") dentry_resolver_
     .max_entries = 1,
 };
 
+struct bpf_map_def SEC("maps/resolve_dentry_path_leaf") resolve_dentry_path_leaf = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct path_leaf_t),
+    .max_entries = 1,
+};
+
 int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct dentry_resolver_input_t *input) {
-    struct path_leaf_t map_value = {};
+    u32 zero = 0;
+    struct path_leaf_t *map_value = bpf_map_lookup_elem(&resolve_dentry_path_leaf, &zero);
+    if (map_value == NULL) {
+        return DENTRY_RUNTIME_ERROR;
+    }
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
     struct qstr qstr;
@@ -147,20 +159,20 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         }
 
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        segment_len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
+        segment_len = bpf_probe_read_str(&map_value->name, sizeof(map_value->name), (void *)qstr.name);
         if (segment_len > 0) {
-            map_value.len = (u16) segment_len;
+            map_value->len = (u16) segment_len;
         } else {
-            map_value.len = 0;
+            map_value->len = 0;
         }
 
-        if (map_value.name[0] == '/' || map_value.name[0] == 0) {
-            map_value.name[0] = '/';
+        if (map_value->name[0] == '/' || map_value->name[0] == 0) {
+            map_value->name[0] = '/';
             next_key.ino = 0;
             next_key.mount_id = 0;
         }
 
-        map_value.parent = next_key;
+        map_value->parent = next_key;
 
         bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
 
@@ -173,9 +185,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
 
     if (input->iteration == DR_MAX_TAIL_CALL) {
-        map_value.name[0] = 0;
-        map_value.parent.mount_id = 0;
-        map_value.parent.ino = 0;
+        map_value->name[0] = 0;
+        map_value->parent.mount_id = 0;
+        map_value->parent.ino = 0;
         bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
     }
 
