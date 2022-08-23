@@ -189,7 +189,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, skip_object_files=False):
     """
     Compile test suite for kitchen
     """
@@ -231,7 +231,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
         test(
             ctx,
             packages=pkg,
-            skip_object_files=(i != 0),
+            skip_object_files=skip_object_files or (i != 0),
             skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
