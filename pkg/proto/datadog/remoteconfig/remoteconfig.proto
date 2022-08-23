@@ -94,6 +94,8 @@ message ConfigState {
   string id = 1;
   uint64 version = 2;
   string product = 3;
+  uint64 apply_state = 4;
+  string apply_error = 5;
 }
 
 message ClientState {
@@ -152,7 +154,7 @@ message TracerPredicateV1 {
 	string appVersion = 4;
 	string tracerVersion = 5;
 	string language = 6;
-        string runtimeID = 7;
+  string runtimeID = 7;
 }
 
 message TracerPredicates {
