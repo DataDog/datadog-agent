@@ -83,8 +83,8 @@ tests_ebpf_x64:
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
 
     - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime
-    - cp $SRC_PATH/pkg/ebpf/bytecode/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
-    - cp $SRC_PATH/pkg/ebpf/bytecode/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -121,8 +121,8 @@ tests_ebpf_arm64:
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
 
     - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime
-    - cp $SRC_PATH/pkg/ebpf/bytecode/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
-    - cp $SRC_PATH/pkg/ebpf/bytecode/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
+    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
