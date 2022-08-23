@@ -17,9 +17,10 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
+
+	"go.uber.org/atomic"
 
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
@@ -98,7 +99,7 @@ func handleSignals(process *os.Process, config *serverlessLog.Config, metricAgen
 }
 
 func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent) bool {
-	var hasTimeout int32
+	hasTimeout := atomic.NewInt32(0)
 	wg := &sync.WaitGroup{}
 	wg.Add(3)
 	go flushAndWait(flushTimeout, wg, metricAgent, hasTimeout)
@@ -110,7 +111,7 @@ func flush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, tr
 		wg.Done()
 	}(wg, childCtx)
 	wg.Wait()
-	return atomic.LoadInt32(&hasTimeout) > 0
+	return hasTimeout.Load() > 0
 }
 
 func flushWithContext(ctx context.Context, timeout time.Duration, timeoutchan chan struct{}, flushFunction func()) {
@@ -124,14 +125,14 @@ func flushWithContext(ctx context.Context, timeout time.Duration, timeoutchan ch
 	}
 }
 
-func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverless.FlushableAgent, hasTimeout int32) {
+func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverless.FlushableAgent, hasTimeout *atomic.Int32) {
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	ch := make(chan struct{}, 1)
 	go flushWithContext(childCtx, flushTimeout, ch, agent.Flush)
 	select {
 	case <-childCtx.Done():
-		atomic.AddInt32(&hasTimeout, 1)
+		hasTimeout.Inc()
 		break
 	case <-ch:
 		break
