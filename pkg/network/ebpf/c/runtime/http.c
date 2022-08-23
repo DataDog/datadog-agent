@@ -30,7 +30,7 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
 
 #pragma unroll
     for (; i < iter; i++) {
-        if (offset + BLK_SIZE - 1 >= len) break;
+        if (offset + BLK_SIZE - 1 >= len) { break; }
 
         bpf_skb_load_bytes(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
         offset += BLK_SIZE;
@@ -44,36 +44,37 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
-    if (offset + 14 < len)
+    if (offset + 14 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 15);
-    else if (offset + 13 < len)
+    } else if (offset + 13 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 14);
-    else if (offset + 12 < len)
+    } else if (offset + 12 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 13);
-    else if (offset + 11 < len)
+    } else if (offset + 11 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 12);
-    else if (offset + 10 < len)
+    } else if (offset + 10 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 11);
-    else if (offset + 9 < len)
+    } else if (offset + 9 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 10);
-    else if (offset + 8 < len)
+    } else if (offset + 8 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 9);
-    else if (offset + 7 < len)
+    } else if (offset + 7 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 8);
-    else if (offset + 6 < len)
+    } else if (offset + 6 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 7);
-    else if (offset + 5 < len)
+    } else if (offset + 5 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 6);
-    else if (offset + 4 < len)
+    } else if (offset + 4 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 5);
-    else if (offset + 3 < len)
+    } else if (offset + 3 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 4);
-    else if (offset + 2 < len)
+    } else if (offset + 2 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 3);
-    else if (offset + 1 < len)
+    } else if (offset + 1 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 2);
-    else if (offset < len)
+    } else if (offset < len) {
         bpf_skb_load_bytes(skb, offset, buf, 1);
+    }
 }
 
 // This entry point is needed to bypass a memory limit on socket filters
