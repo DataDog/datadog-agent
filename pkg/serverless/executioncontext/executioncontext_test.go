@@ -107,3 +107,13 @@ func TestUpdateFromRuntimeDoneLog(t *testing.T) {
 
 	assert.Equal(endTime, ec.endTime)
 }
+
+func TestUpdateFromEventPayload(t *testing.T) {
+	assert := assert.New(t)
+
+	warmupPayloadString := `{"source": "serverless-plugin-warmup"}`
+	ec := ExecutionContext{}
+	ec.UpdateFromEventPayload(warmupPayloadString)
+
+	assert.True(ec.warmup)
+}

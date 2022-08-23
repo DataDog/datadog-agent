@@ -158,6 +158,12 @@ func AddColdStartTag(tags []string, coldStart bool) []string {
 	return tags
 }
 
+// AddWarmupTag appends the warmup tag to existing tags
+func AddWarmupTag(tags []string, warmup bool) []string {
+	tags = append(tags, fmt.Sprintf("warmup:%v", warmup))
+	return tags
+}
+
 // GetExtensionVersion returns the extension version which is fed at build time
 func GetExtensionVersion() string {
 	return currentExtensionVersion

@@ -275,6 +275,32 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	})
 }
 
+func TestAddWarmupTagWithoutWarmup(t *testing.T) {
+	generatedTags := AddWarmupTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, false)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"warmup:false",
+	})
+}
+
+func TestWarmupStartTagWithWarmup(t *testing.T) {
+	generatedTags := AddWarmupTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, true)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"warmup:true",
+	})
+}
+
 func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
 	os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_java")
 	os.Setenv("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "128")

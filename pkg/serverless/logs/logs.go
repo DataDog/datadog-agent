@@ -304,9 +304,10 @@ func processMessage(
 	}
 
 	if enhancedMetricsEnabled {
-		tags := tags.AddColdStartTag(metricTags, ecs.LastLogRequestID == ecs.ColdstartRequestID)
+		allTags := tags.AddColdStartTag(metricTags, ecs.LastLogRequestID == ecs.ColdstartRequestID)
+		allTags = tags.AddWarmupTag(allTags, ecs.Warmup)
 		if message.logType == logTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, demux)
+			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, allTags, demux)
 		}
 		if message.logType == logTypePlatformReport {
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
@@ -318,14 +319,14 @@ func processMessage(
 				RuntimeStart:     ecs.StartTime,
 				RuntimeEnd:       ecs.EndTime,
 				T:                message.time,
-				Tags:             tags,
+				Tags:             allTags,
 				Demux:            demux,
 			}
 			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
 			message.stringRecord = createStringRecordForReportLog(message, ecs)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
+			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, allTags, demux)
 			ec.UpdateFromRuntimeDoneLog(message.time)
 			ecs = ec.GetCurrentState()
 		}

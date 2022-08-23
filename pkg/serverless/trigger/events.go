@@ -152,6 +152,12 @@ func Unmarshal(payload string) (map[string]interface{}, error) {
 	return jsonPayload, nil
 }
 
+// IsWarmupEvent checks if the event payload is from the serverless warmup plugin
+func IsWarmupEvent(event map[string]interface{}) bool {
+	source, ok := event["source"].(string)
+	return ok && source == "serverless-plugin-warmup"
+}
+
 func isAPIGatewayEvent(event map[string]interface{}) bool {
 	return json.GetNestedValue(event, "requestcontext", "stage") != nil &&
 		json.GetNestedValue(event, "httpmethod") != nil &&

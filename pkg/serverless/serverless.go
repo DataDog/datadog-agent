@@ -170,6 +170,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		if isTimeout {
 			ecs := daemon.ExecutionContext.GetCurrentState()
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+			metricTags = tags.AddWarmupTag(metricTags, ecs.Warmup)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 		}
@@ -210,6 +211,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 
 	if daemon.MetricAgent != nil {
 		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+		metricTags = tags.AddWarmupTag(metricTags, ecs.Warmup)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
