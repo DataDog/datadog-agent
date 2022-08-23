@@ -214,6 +214,8 @@ type FunctionConfiguration struct {
 	paramLookupFunction    ParameterLookupFunction
 }
 
+// ErrNilElf is returned when getting a nil pointer to an elf file.
 var ErrNilElf = errors.New("got nil elf file")
 
+// ErrUnsupportedArch is returned when an architecture given as a parameter is not supported.
 var ErrUnsupportedArch = errors.New("got unsupported arch")

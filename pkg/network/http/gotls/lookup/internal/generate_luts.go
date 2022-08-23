@@ -36,17 +36,6 @@ var (
 	sharedBuildDirFlag = flag.String("shared-build-dir", "", "shared directory to cache Go versions")
 )
 
-type inspectionResult struct {
-	writePrams             []bininspect.ParameterMetadata
-	readParams             []bininspect.ParameterMetadata
-	closeParams            []bininspect.ParameterMetadata
-	tlsConnInnerConnOffset uint64
-	tcpConnInnerConnOffset uint64
-	connFDOffset           uint64
-	netFD_PFDOffset        uint64
-	fd_SysfdOffset         uint64
-}
-
 var (
 	// List of functions to look for in the binary.
 	functionsToFind = []string{
@@ -168,56 +157,87 @@ func run(
 				OutputType:      "[]bininspect.ParameterMetadata",
 				OutputZeroValue: "nil",
 				DocComment:      `GetWriteParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Write`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).writePrams },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).Functions["crypto/tls.(*Conn).Write"].Parameters
+				},
 			},
 			{
 				Name:            "GetReadParams",
 				OutputType:      "[]bininspect.ParameterMetadata",
 				OutputZeroValue: "nil",
 				DocComment:      `GetReadParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Read`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).readParams },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).Functions["crypto/tls.(*Conn).Read"].Parameters
+				},
 			},
 			{
 				Name:            "GetCloseParams",
 				OutputType:      "[]bininspect.ParameterMetadata",
 				OutputZeroValue: "nil",
 				DocComment:      `GetWriteParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Close`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).closeParams },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).Functions["crypto/tls.(*Conn).Close"].Parameters
+				},
 			},
 			{
 				Name:            "GetTLSConnInnerConnOffset",
 				OutputType:      "uint64",
 				OutputZeroValue: "0",
 				DocComment:      `GetTLSConnInnerConnOffset gets the offset of the "conn" field in the "crypto/tls.Conn" struct`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).tlsConnInnerConnOffset },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
+						StructName: "crypto/tls.Conn",
+						FieldName:  "conn",
+					}]
+				},
 			},
 			{
 				Name:            "GetTCPConnInnerConnOffset",
 				OutputType:      "uint64",
 				OutputZeroValue: "0",
 				DocComment:      `GetTCPConnInnerConnOffset gets the offset of the "conn" field in the "net.TCPConn" struct`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).tcpConnInnerConnOffset },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
+						StructName: "net.TCPConn",
+						FieldName:  "conn",
+					}]
+				},
 			},
 			{
 				Name:            "GetConnFDOffset",
 				OutputType:      "uint64",
 				OutputZeroValue: "0",
 				DocComment:      `GetConnFDOffset gets the offset of the "fd" field in the "net.conn" struct`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).connFDOffset },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
+						StructName: "net.conn",
+						FieldName:  "fd",
+					}]
+				},
 			},
 			{
 				Name:            "GetNetFD_PFDOffset",
 				OutputType:      "uint64",
 				OutputZeroValue: "0",
 				DocComment:      `GetNetFD_PFDOffset gets the offset of the "pfd" field in the "net.netFD" struct`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).netFD_PFDOffset },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
+						StructName: "net.netFD",
+						FieldName:  "pfd",
+					}]
+				},
 			},
 			{
 				Name:            "GetFD_SysfdOffset",
 				OutputType:      "uint64",
 				OutputZeroValue: "0",
 				DocComment:      `GetFD_SysfdOffset gets the offset of the "Sysfd" field in the "internal/poll.FD" struct`,
-				ExtractValue:    func(r interface{}) interface{} { return (r).(inspectionResult).fd_SysfdOffset },
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
+						StructName: "internal/poll.FD",
+						FieldName:  "Sysfd",
+					}]
+				},
 			},
 		},
 		ExtraImports: []string{
@@ -253,47 +273,22 @@ func run(
 func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 	file, err := os.Open(binary.Path)
 	if err != nil {
-		return inspectionResult{}, err
+		return bininspect.Result{}, err
 	}
 	defer file.Close()
 
 	elfFile, err := elf.NewFile(file)
 	if err != nil {
-		return inspectionResult{}, err
+		return bininspect.Result{}, err
 	}
 
 	// Inspect the binary using `binspect`
-	rawResult, err := bininspect.InspectWithDWARF(elfFile, functionsToFind, FieldsToFind)
+	result, err := bininspect.InspectWithDWARF(elfFile, functionsToFind, FieldsToFind)
 	if err != nil {
-		return inspectionResult{}, err
+		return bininspect.Result{}, err
 	}
 
-	result := inspectionResult{
-		writePrams:  rawResult.Functions["crypto/tls.(*Conn).Write"].Parameters,
-		readParams:  rawResult.Functions["crypto/tls.(*Conn).Read"].Parameters,
-		closeParams: rawResult.Functions["crypto/tls.(*Conn).Close"].Parameters,
-		tlsConnInnerConnOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
-			StructName: "crypto/tls.Conn",
-			FieldName:  "conn",
-		}],
-		tcpConnInnerConnOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
-			StructName: "net.TCPConn",
-			FieldName:  "conn",
-		}],
-		connFDOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
-			StructName: "net.conn",
-			FieldName:  "fd",
-		}],
-		netFD_PFDOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
-			StructName: "net.netFD",
-			FieldName:  "pfd",
-		}],
-		fd_SysfdOffset: rawResult.StructOffsets[bininspect.FieldIdentifier{
-			StructName: "internal/poll.FD",
-			FieldName:  "Sysfd",
-		}],
-	}
+	log.Printf("extracted binary data for (go%s, %s)", result.GoVersion, result.Arch)
 
-	log.Printf("extracted binary data for (go%s, %s)", binary.GoVersionString, binary.Architecture)
 	return result, nil
 }
