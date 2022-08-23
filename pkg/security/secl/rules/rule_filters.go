@@ -29,7 +29,7 @@ func (r *RuleIDFilter) IsAccepted(rule *RuleDefinition) (bool, error) {
 
 // AgentVersionFilter defines a agent version filter
 type AgentVersionFilter struct {
-	Version *semver.Version
+	version *semver.Version
 }
 
 // NewAgentVersionFilter returns a new agent version based rule filter
@@ -45,7 +45,7 @@ func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error)
 	}
 
 	return &AgentVersionFilter{
-		Version: &cleanAgentVersion,
+		version: &cleanAgentVersion,
 	}, nil
 }
 
@@ -56,5 +56,5 @@ func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition) (bool, error) {
 		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
 	}
 
-	return constraint.Check(r.Version), nil
+	return constraint.Check(r.version), nil
 }

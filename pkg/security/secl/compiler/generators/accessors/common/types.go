@@ -40,6 +40,7 @@ type StructField struct {
 	BasicType           string
 	ReturnType          string
 	IsArray             bool
+	IsLength            bool
 	Event               string
 	Handler             string
 	CachelessResolution bool

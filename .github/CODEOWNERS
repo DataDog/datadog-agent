@@ -230,6 +230,7 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/agent-network
+/pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/internal/launchers/traps/     @DataDog/infrastructure-integrations @DataDog/agent-metrics-logs
 /pkg/logs/internal/tailers/traps/       @DataDog/infrastructure-integrations @DataDog/agent-metrics-logs

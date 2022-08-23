@@ -206,6 +206,41 @@ type StatCounters struct {
 	TCPClosed      uint32
 }
 
+// StatCountersByCookie stores StatCounters by unique cookie
+type StatCountersByCookie []*struct {
+	StatCounters
+	Cookie uint32
+}
+
+// Get returns a StatCounters object for a cookie
+func (s StatCountersByCookie) Get(cookie uint32) (StatCounters, bool) {
+	for _, c := range s {
+		if c.Cookie == cookie {
+			return c.StatCounters, true
+		}
+	}
+
+	return StatCounters{}, false
+}
+
+// Put adds or sets a StatCounters object for a cookie
+func (s *StatCountersByCookie) Put(cookie uint32, sc StatCounters) {
+	for _, c := range *s {
+		if c.Cookie == cookie {
+			c.StatCounters = sc
+			return
+		}
+	}
+
+	*s = append(*s, &struct {
+		StatCounters
+		Cookie uint32
+	}{
+		StatCounters: sc,
+		Cookie:       cookie,
+	})
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -214,8 +249,22 @@ type ConnectionStats struct {
 	IPTranslation *IPTranslation
 	Via           *Via
 
-	Monotonic StatCounters
-	Last      StatCounters
+	// Monotonic stores a list of StatCounters
+	// each identified by a unique "cookie"
+	//
+	// this is necessary because we use connection
+	// info like src/dst address/port to uniquely
+	// identify a connection and port reuse or
+	// races in the ebpf code may occur that would
+	// make conflicts in the stats per connection
+	// impossible to resolve/detect
+	//
+	// the "cookie" is generated in the ebpf code
+	// when we first create counters for a connection;
+	// see the get_conn_stats() function
+	Monotonic StatCountersByCookie
+
+	Last StatCounters
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -289,6 +338,26 @@ func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
+// MonotonicSum returns the sum of all the monotonic stats
+func (c ConnectionStats) MonotonicSum() StatCounters {
+	var stc StatCounters
+	for _, st := range c.Monotonic {
+		stc = stc.Add(st.StatCounters)
+	}
+
+	return stc
+}
+
+func (c ConnectionStats) clone() ConnectionStats {
+	cl := c
+	cl.Monotonic = make(StatCountersByCookie, 0, len(c.Monotonic))
+	for _, s := range c.Monotonic {
+		cl.Monotonic.Put(s.Cookie, s.StatCounters)
+	}
+
+	return cl
+}
+
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
@@ -348,20 +417,31 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
+	var stc StatCounters
+	cookies := make([]uint32, 0, len(c.Monotonic))
+	for _, st := range c.Monotonic {
+		stc = stc.Add(st.StatCounters)
+		cookies = append(cookies, st.Cookie)
+	}
+
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
-		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
-		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
+		humanize.Bytes(stc.SentBytes), humanize.Bytes(c.Last.SentBytes),
+		humanize.Bytes(stc.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
-			", %d retransmits (+%d), RTT %s (± %s)",
-			c.Monotonic.Retransmits, c.Last.Retransmits,
+			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
+			stc.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
+			stc.TCPEstablished, c.Last.TCPEstablished,
+			stc.TCPClosed, c.Last.TCPClosed,
 		)
 	}
+
+	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
 
 	return str
 }
@@ -385,13 +465,18 @@ func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := GetNATLocalAddress(c)
 	raddr, rport := GetNATRemoteAddress(c)
+	return HTTPKeyTupleFromConnTuple(laddr, raddr, lport, rport)
+}
 
+// HTTPKeyTupleFromConnTuple builds the key for an http connection from a
+// connection tuple of (laddr, raddr, lport, rport)
+func HTTPKeyTupleFromConnTuple(laddr, raddr util.Address, lport, rport uint16) http.KeyTuple {
 	// HTTP data is always indexed as (client, server), so we account for that when generating the
 	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport < dport
+	// In the rare cases where both ports are within the same range we ensure that sport > dport
 	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
 	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
-		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport < rport) {
+		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport > rport) {
 		return http.NewKeyTuple(laddr, raddr, lport, rport)
 	}
 
@@ -420,4 +505,78 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	return buf[:n]
+}
+
+// Sub returns s-other
+func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) {
+	if s.RecvBytes < other.RecvBytes ||
+		s.RecvPackets < other.RecvPackets ||
+		(s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
+		s.SentBytes < other.SentBytes ||
+		s.SentPackets < other.SentPackets ||
+		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
+		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) {
+		return sc, true
+	}
+
+	sc = StatCounters{
+		RecvBytes:   s.RecvBytes - other.RecvBytes,
+		RecvPackets: s.RecvPackets - other.RecvPackets,
+		SentBytes:   s.SentBytes - other.SentBytes,
+		SentPackets: s.SentPackets - other.SentPackets,
+	}
+
+	if s.Retransmits > 0 {
+		sc.Retransmits = s.Retransmits - other.Retransmits
+	}
+	if s.TCPEstablished > 0 {
+		sc.TCPEstablished = s.TCPEstablished - other.TCPEstablished
+	}
+	if s.TCPClosed > 0 {
+		sc.TCPClosed = s.TCPClosed - other.TCPClosed
+	}
+
+	return sc, false
+}
+
+// Add returns s+other
+func (s StatCounters) Add(other StatCounters) StatCounters {
+	return StatCounters{
+		RecvBytes:      s.RecvBytes + other.RecvBytes,
+		RecvPackets:    s.RecvPackets + other.RecvPackets,
+		Retransmits:    s.Retransmits + other.Retransmits,
+		SentBytes:      s.SentBytes + other.SentBytes,
+		SentPackets:    s.SentPackets + other.SentPackets,
+		TCPClosed:      s.TCPClosed + other.TCPClosed,
+		TCPEstablished: s.TCPEstablished + other.TCPEstablished,
+	}
+}
+
+func maxUint64(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+func maxUint32(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+// Max returns max(s, other)
+func (s StatCounters) Max(other StatCounters) StatCounters {
+	return StatCounters{
+		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
+		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
+		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
+		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
+		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
+	}
 }
