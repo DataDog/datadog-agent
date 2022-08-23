@@ -22,6 +22,7 @@ if node['platform_family'] != 'windows'
 
   execute "dbg" do
     command "ls #{wrk_dir}"
+    live_stream true
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
