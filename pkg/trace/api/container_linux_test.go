@@ -18,8 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,13 +73,13 @@ func TestConnContext(t *testing.T) {
 	}
 }
 
-type testProvider struct {
-	c testMetaCollector
-}
-
-func (p *testProvider) GetCollector(runtime string) provider.Collector             { return nil }
-func (p *testProvider) GetMetaCollector() provider.MetaCollector                   { return &p.c }
-func (p *testProvider) RegisterCollector(collectorMeta provider.CollectorMetadata) {}
+// type testProvider struct {
+// 	c testMetaCollector
+// }
+//
+// func (p *testProvider) GetCollector(runtime string) provider.Collector             { return nil }
+// func (p *testProvider) GetMetaCollector() provider.MetaCollector                   { return &p.c }
+// func (p *testProvider) RegisterCollector(collectorMeta provider.CollectorMetadata) {}
 
 type testMetaCollector struct {
 	pids map[int]string
@@ -95,11 +93,11 @@ func (c *testMetaCollector) GetSelfContainerID() (string, error) { return "", ni
 func TestGetContainerID(t *testing.T) {
 	const containerID = "abcdef"
 	const containerPID = 1234
-	originalProvider := metrics.GetProvider
-	tp := testProvider{}
-	tp.c.pids = map[int]string{containerPID: containerID}
-	metrics.GetProvider = func() provider.Provider { return &tp }
-	defer func() { metrics.GetProvider = originalProvider }()
+	// originalProvider := metrics.GetProvider
+	// tp := testProvider{}
+	// tp.c.pids = map[int]string{containerPID: containerID}
+	// metrics.GetProvider = func() provider.Provider { return &tp }
+	// defer func() { metrics.GetProvider = originalProvider }()
 
 	t.Run("header", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)

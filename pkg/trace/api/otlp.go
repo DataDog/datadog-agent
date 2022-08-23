@@ -240,7 +240,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = GetContainerID(ctx, header)
+		containerID = GetContainerID(ctx, o.conf.ContainerProcRoot, header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{

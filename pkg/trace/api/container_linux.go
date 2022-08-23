@@ -7,13 +7,14 @@ package api
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"net"
 	"net/http"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
 )
 
 type ucredKey struct{}
@@ -54,7 +55,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 // syscall.Ucred object in the context (see: connContext), determines the PID of the sender, and
 // then uses the Meta Collector to map the PID to a container ID. If any of these fail, the
 // function returns the empty string.
-func GetContainerID(ctx context.Context, h http.Header) string {
+func GetContainerID(ctx context.Context, procRoot string, h http.Header) string {
 	if id := h.Get(headerContainerID); id != "" {
 		return id
 	}
@@ -62,7 +63,17 @@ func GetContainerID(ctx context.Context, h http.Header) string {
 	if !ok || ucred == nil {
 		return ""
 	}
-	cid, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(ucred.Pid), cacheExpiration)
+	// TODO: Should this be done once at config time?
+	reader, err := cgroups.NewReader()
+	if err != nil {
+		log.Debugf("Could not create cgroups reader: %v", err)
+		return ""
+	}
+	cgroupController := ""
+	if reader.CgroupVersion() == 1 {
+		cgroupController = "memory"
+	}
+	cid, err := cgroups.IdentiferFromCgroupReferences(procRoot, strconv.Itoa(int(ucred.Pid)), cgroupController, cgroups.ContainerFilter)
 	if err != nil {
 		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
 		return ""

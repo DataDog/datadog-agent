@@ -21,6 +21,6 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 
 // GetContainerID returns the container ID set by the client in the request header, or the empty
 // string if none is present.
-func GetContainerID(_ context.Context, h http.Header) string {
+func GetContainerID(_ context.Context, _ string, h http.Header) string {
 	return h.Get(headerContainerID)
 }
