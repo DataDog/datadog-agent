@@ -99,6 +99,11 @@ platforms:
           volume_type: gp2
           volume_size: 50
           delete_on_termination: true
+      - device_name: /dev/xvda
+        ebs:
+          volume_type: gp2
+          volume_size: 50
+          delete_on_termination: true
     <% if allow_rsa_key || al2022 %>
     user_data: |
       #!/bin/sh
