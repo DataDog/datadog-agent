@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build linux_bpf
+// +build linux_bpf
+
 package bininspect
 
 import (
@@ -205,10 +208,15 @@ type GoroutineIDMetadata struct {
 	RuntimeGTLSAddrOffset uint64
 }
 
+// ParameterLookupFunction represents a function that returns a list of parameter metadata (for example, parameter size)
+// for a specific golang function. It selects the relevant parameters metadata by the given go version & architecture.
 type ParameterLookupFunction func(goversion.GoVersion, string) ([]ParameterMetadata, error)
 
+// StructLookupFunction represents a function that returns the offset of a specific field in a struct.
+// It selects the relevant offset metadata by the given go version & architecture.
 type StructLookupFunction func(goversion.GoVersion, string) (uint64, error)
 
+// FunctionConfiguration contains info for the function analyzing process when scanning a binary.
 type FunctionConfiguration struct {
 	includeReturnLocations bool
 	paramLookupFunction    ParameterLookupFunction

@@ -144,7 +144,7 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
-		return 0, fmt.Errorf("could not open symbol sections to resolve symbol offset: %w, %w", regularSymbolsErr, dynamicSymbolsErr)
+		return 0, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
 	}
 
 	// Concatenating into a single list.
