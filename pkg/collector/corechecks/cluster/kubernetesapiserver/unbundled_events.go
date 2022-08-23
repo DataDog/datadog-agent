@@ -44,6 +44,13 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 	)
 
 	for _, ev := range events {
+		kubeEvents.Inc(
+			ev.InvolvedObject.Kind,
+			ev.Source.Component,
+			ev.Type,
+			ev.Reason,
+		)
+
 		if !c.shouldCollect(ev) {
 			continue
 		}
@@ -61,6 +68,8 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 		if hostInfo.providerID != "" {
 			tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostInfo.providerID))
 		}
+
+		emittedEvents.Inc(involvedObject.Kind, ev.Type)
 
 		datadogEvs = append(datadogEvs, metrics.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),

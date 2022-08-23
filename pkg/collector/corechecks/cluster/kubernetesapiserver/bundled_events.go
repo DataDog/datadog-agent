@@ -37,6 +37,13 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, []e
 			continue
 		}
 
+		kubeEvents.Inc(
+			event.InvolvedObject.Kind,
+			event.Source.Component,
+			event.Type,
+			event.Reason,
+		)
+
 		id := buildBundleID(event)
 
 		bundle, found := bundlesByObject[id]
@@ -50,13 +57,6 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, []e
 			errors = append(errors, err)
 			continue
 		}
-
-		kubeEvents.Inc(
-			event.InvolvedObject.Kind,
-			event.Source.Component,
-			event.Type,
-			event.Reason,
-		)
 	}
 
 	datadogEvs := make([]metrics.Event, 0, len(bundlesByObject))
