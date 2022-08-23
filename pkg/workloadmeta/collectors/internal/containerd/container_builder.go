@@ -36,7 +36,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		return workloadmeta.Container{}, err
 	}
 
-	envs, err := containerdClient.EnvVars(container)
+	envs, err := cutil.EnvVarsFromSpec(spec)
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
