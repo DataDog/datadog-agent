@@ -1611,8 +1611,8 @@ chmod 755 pyscript.py
 				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
 			},
 		},
-
-		// TODO: Unsupported for now
+		// TODO: Test for snapshotted processes
+		// TODO: Nested interpreted exec is unsupported for now
 		//		{
 		//			name: "nested interpreted exec",
 		//			rule: &rules.RuleDefinition{
