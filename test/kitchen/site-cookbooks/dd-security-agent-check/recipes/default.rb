@@ -9,15 +9,10 @@ if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
   remote_directory wrk_dir do
-    cookbook 'dd-system-probe-check'
-    source 'tests'
+    source 'ebpf_bytecode'
     mode '755'
     files_mode '755'
     sensitive true
-    case
-    when !platform?('windows')
-      files_owner 'root'
-    end
   end
 
   execute "dbg" do
