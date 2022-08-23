@@ -13,11 +13,7 @@ if node['platform_family'] != 'windows'
     mode '755'
     files_mode '755'
     sensitive true
-  end
-
-  execute "dbg" do
-    command "ls #{wrk_dir}"
-    live_stream true
+    files_owner 'root'
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
