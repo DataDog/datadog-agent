@@ -27,6 +27,8 @@ import (
 const (
 	agentMajorVersion = 7
 	agentDistChannel  = "nightly"
+	// Beta is for QA
+	//agentDistChannel = "beta"
 )
 
 type LinuxTestSuite struct {
@@ -59,19 +61,22 @@ func (s *LinuxTestSuite) SetupSuite() {
 	s.procAPIClient = datadog.NewProcessesApi(s.ddAPIClient)
 }
 
-//func (s *LinuxTestSuite) TearDownSuite() {
-//	s.ec2.Close()
-//}
+func (s *LinuxTestSuite) TearDownSuite() {
+	s.ec2.Close()
+}
 
 func (s *LinuxTestSuite) TearDownTest() {
 	killAndRemoveContainers(s.T(), s.ec2.sshClient)
-	//s.T().Log("uninstalling the datadog agent")
-	//stdout, err := clients.ExecuteCommand(s.ec2.sshClient, "sudo apt-get remove --purge datadog-agent -y")
-	//if err != nil {
-	//	s.T().Logf("error uninstalling the datadog agent. stdout:%s, err: %v", stdout, err)
-	//}
+	s.T().Log("uninstalling the datadog agent")
+	stdout, err := clients.ExecuteCommand(s.ec2.sshClient, "sudo apt-get remove --purge datadog-agent -y")
+	if err != nil {
+		s.T().Logf("error uninstalling the datadog agent. stdout:%s, err: %v", stdout, err)
+	}
 }
 
+// TODO: create config helper
+// TODO: create tests that customize the config yaml
+// TODO: Consider creating process-metric for process-distribution to validate metrics tests
 func (s *LinuxTestSuite) TestProcessAgentOnLinux() {
 	hostName := createHostName(s.T().Name())
 	hostTag := fmt.Sprintf("host:%s", hostName)
@@ -187,8 +192,6 @@ func (s *LinuxTestSuite) TestProcessAgentOnLinux() {
 	}, 2*time.Minute, 1*time.Second)
 }
 
-// TODO: create config helper
-// TODO: create tests that customize the config yaml
 func (s *LinuxTestSuite) waitForProcessAgent() {
 	var stdout string
 	require.Eventuallyf(s.T(), func() bool {
