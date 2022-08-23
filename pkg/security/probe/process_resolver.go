@@ -421,10 +421,31 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
-	// binrpm heuristic
+	// Heuristic to detect likely interpreter event
+	// Cannot detect when a script if as follows:
+	// perl <<__HERE__
+	//#!/usr/bin/perl
+	//
+	//sleep 10;
+	//
+	//print "Hello from Perl\n";
+	//__HERE__
+	// Because the entry only has 1 argument (perl in this case). But can detect when a script is as follows:
+	//cat << EOF > perlscript.pl
+	//#!/usr/bin/perl
+	//
+	//sleep 15;
+	//
+	//print "Hello from Perl\n";
+	//
+	//EOF
 	if valueCount := len(entry.ArgsEntry.Values); valueCount > 1 {
-		if lastArg := entry.ArgsEntry.Values[valueCount-1]; path.Base(lastArg) == entry.Comm && path.IsAbs(lastArg) {
+		firstArg := entry.ArgsEntry.Values[0]
+		lastArg := entry.ArgsEntry.Values[valueCount-1]
+		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
+		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
 			entry.LinuxBinprm.FileEvent = entry.FileEvent
+			seclog.Debugf("Likely interpreter event detected in process cache. Pathname: %s", entry.LinuxBinprm.FileEvent.PathnameStr)
 		}
 	}
 
