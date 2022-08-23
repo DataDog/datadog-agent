@@ -8,7 +8,7 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  remote_directory wrk_dir do
+  remote_directory "#{wrk_dir}/ebpf_bytecode" do
     source 'ebpf_bytecode'
     mode '755'
     files_mode '755'
