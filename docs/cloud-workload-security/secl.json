@@ -386,9 +386,21 @@
           "constants": ""
         },
         {
+          "name": "process.ancestors.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "process.ancestors.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -764,9 +776,21 @@
           "constants": ""
         },
         {
+          "name": "process.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "process.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -1571,9 +1595,21 @@
           "constants": ""
         },
         {
+          "name": "exec.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exec.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "exec.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exec.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -1970,9 +2006,21 @@
           "constants": ""
         },
         {
+          "name": "exit.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exit.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "exit.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exit.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -3095,9 +3143,21 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.ancestors.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -3473,9 +3533,21 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -4559,9 +4631,21 @@
           "constants": ""
         },
         {
+          "name": "signal.target.ancestors.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "signal.target.ancestors.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.interpreter.file.path' string",
           "constants": ""
         },
         {
@@ -4937,9 +5021,21 @@
           "constants": ""
         },
         {
+          "name": "signal.target.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "signal.target.interpreter.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.interpreter.file.path' string",
           "constants": ""
         },
         {

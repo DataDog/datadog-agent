@@ -230,7 +230,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `process.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `process.ancestors.interpreter.file.name` | string | File's basename |  |
+| `process.ancestors.interpreter.file.name.length` | int | Length of 'process.ancestors.interpreter.file.name' string |  |
 | `process.ancestors.interpreter.file.path` | string | File's path |  |
+| `process.ancestors.interpreter.file.path.length` | int | Length of 'process.ancestors.interpreter.file.path' string |  |
 | `process.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `process.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
 | `process.ancestors.interpreter.file.user` | string | User of the file's owner |  |
@@ -293,7 +295,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `process.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `process.interpreter.file.name` | string | File's basename |  |
+| `process.interpreter.file.name.length` | int | Length of 'process.interpreter.file.name' string |  |
 | `process.interpreter.file.path` | string | File's path |  |
+| `process.interpreter.file.path.length` | int | Length of 'process.interpreter.file.path' string |  |
 | `process.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `process.interpreter.file.uid` | int | UID of the file's owner |  |
 | `process.interpreter.file.user` | string | User of the file's owner |  |
@@ -468,7 +472,9 @@ A process was executed or forked
 | `exec.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `exec.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `exec.interpreter.file.name` | string | File's basename |  |
+| `exec.interpreter.file.name.length` | int | Length of 'exec.interpreter.file.name' string |  |
 | `exec.interpreter.file.path` | string | File's path |  |
+| `exec.interpreter.file.path.length` | int | Length of 'exec.interpreter.file.path' string |  |
 | `exec.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `exec.interpreter.file.uid` | int | UID of the file's owner |  |
 | `exec.interpreter.file.user` | string | User of the file's owner |  |
@@ -540,7 +546,9 @@ A process was terminated
 | `exit.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `exit.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `exit.interpreter.file.name` | string | File's basename |  |
+| `exit.interpreter.file.name.length` | int | Length of 'exit.interpreter.file.name' string |  |
 | `exit.interpreter.file.path` | string | File's path |  |
+| `exit.interpreter.file.path.length` | int | Length of 'exit.interpreter.file.path' string |  |
 | `exit.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `exit.interpreter.file.uid` | int | UID of the file's owner |  |
 | `exit.interpreter.file.user` | string | User of the file's owner |  |
@@ -766,7 +774,9 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `ptrace.tracee.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.ancestors.interpreter.file.name` | string | File's basename |  |
+| `ptrace.tracee.ancestors.interpreter.file.name.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.name' string |  |
 | `ptrace.tracee.ancestors.interpreter.file.path` | string | File's path |  |
+| `ptrace.tracee.ancestors.interpreter.file.path.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.path' string |  |
 | `ptrace.tracee.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
 | `ptrace.tracee.ancestors.interpreter.file.user` | string | User of the file's owner |  |
@@ -829,7 +839,9 @@ A ptrace command was executed
 | `ptrace.tracee.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `ptrace.tracee.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.interpreter.file.name` | string | File's basename |  |
+| `ptrace.tracee.interpreter.file.name.length` | int | Length of 'ptrace.tracee.interpreter.file.name' string |  |
 | `ptrace.tracee.interpreter.file.path` | string | File's path |  |
+| `ptrace.tracee.interpreter.file.path.length` | int | Length of 'ptrace.tracee.interpreter.file.path' string |  |
 | `ptrace.tracee.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `ptrace.tracee.interpreter.file.uid` | int | UID of the file's owner |  |
 | `ptrace.tracee.interpreter.file.user` | string | User of the file's owner |  |
@@ -1054,7 +1066,9 @@ A signal was sent
 | `signal.target.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `signal.target.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.ancestors.interpreter.file.name` | string | File's basename |  |
+| `signal.target.ancestors.interpreter.file.name.length` | int | Length of 'signal.target.ancestors.interpreter.file.name' string |  |
 | `signal.target.ancestors.interpreter.file.path` | string | File's path |  |
+| `signal.target.ancestors.interpreter.file.path.length` | int | Length of 'signal.target.ancestors.interpreter.file.path' string |  |
 | `signal.target.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
 | `signal.target.ancestors.interpreter.file.user` | string | User of the file's owner |  |
@@ -1117,7 +1131,9 @@ A signal was sent
 | `signal.target.interpreter.file.modification_time` | int | Modification time of the file |  |
 | `signal.target.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.interpreter.file.name` | string | File's basename |  |
+| `signal.target.interpreter.file.name.length` | int | Length of 'signal.target.interpreter.file.name' string |  |
 | `signal.target.interpreter.file.path` | string | File's path |  |
+| `signal.target.interpreter.file.path.length` | int | Length of 'signal.target.interpreter.file.path' string |  |
 | `signal.target.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
 | `signal.target.interpreter.file.uid` | int | UID of the file's owner |  |
 | `signal.target.interpreter.file.user` | string | User of the file's owner |  |
