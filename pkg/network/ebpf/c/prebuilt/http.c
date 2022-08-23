@@ -10,7 +10,7 @@
 #include "tags-types.h"
 #include "sock.h"
 #include "port_range.h"
-#include "ioctl.h"
+#include "npm_ioctl.h"
 
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
@@ -517,9 +517,9 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct npm_ioctl *req = (struct npm_ioctl *)PT_REGS_PARM4(ctx);
-    struct npm_ioctl ioctl = {};
-    if (get_npm_request(&ioctl, req) < 0) {
+    struct bpf_ioctl *req = (struct bpf_ioctl *)PT_REGS_PARM4(ctx);
+    struct bpf_ioctl ioctl = {};
+    if (ioctl_get_request(struct bpf_ioctl, &ioctl, req) < 0) {
         return 0;
     }
     switch (ioctl.code) {

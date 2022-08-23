@@ -525,7 +525,7 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
 
     struct npm_ioctl *req = (struct npm_ioctl *)PT_REGS_PARM4(ctx);
     struct npm_ioctl ioctl = {};
-    if (get_npm_request(&ioctl, req) < 0) {
+    if (ioctl_get_request(struct npm_ioctl, &ioctl, req) < 0) {
         return 0;
     }
     switch (ioctl.code) {
