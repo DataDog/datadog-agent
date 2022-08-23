@@ -146,6 +146,7 @@ func (r *HTTPReceiver) Start() {
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      r.buildMux(),
+		ConnContext:  connContext,
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -411,7 +412,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   ts.TracerVersion,
 		}, false, nil
@@ -426,7 +427,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
@@ -447,7 +448,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, ranHook, nil

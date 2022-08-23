@@ -2750,6 +2750,7 @@ k8s.io/api v0.23.8 h1:tBMQ7z7s1NUUii649OaGe962xPacUzHwnGEj6Ahneu0=
 k8s.io/api v0.23.8/go.mod h1:26VNldp5fRyiZ/tEO/3V8RJW+In1Aay3YkxsDzkvuWU=
 k8s.io/apiextensions-apiserver v0.23.5 h1:5SKzdXyvIJKu+zbfPc3kCbWpbxi+O+zdmAJBm26UJqI=
 k8s.io/apiextensions-apiserver v0.23.5/go.mod h1:ntcPWNXS8ZPKN+zTXuzYMeg731CP0heCTl6gYBxLcuQ=
+k8s.io/apiextensions-apiserver v0.23.8/go.mod h1:pcYtXkSRncXGgCCQSbTqppO3XMaLWdqlDisD4dUKQ/U=
 k8s.io/apimachinery v0.17.0/go.mod h1:b9qmWdKlLuU9EBh+06BtLcSf/Mu89rWL33naRxs1uZg=
 k8s.io/apimachinery v0.18.3/go.mod h1:OaXp26zu/5J7p0f92ASynJa1pZo06YlV9fG7BoWbCko=
 k8s.io/apimachinery v0.20.1/go.mod h1:WlLqWAHZGg07AeltaI0MV5uk1Omp8xaN0JGLY6gkRpU=
