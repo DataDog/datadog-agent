@@ -17,11 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/vboulineau/pulumi-definitions/aws"
 	"github.com/vboulineau/pulumi-definitions/aws/ec2/ec2"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/vboulineau/pulumi-definitions/aws"
 )
 
 const initScript = `#!/bin/bash
