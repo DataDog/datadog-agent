@@ -3,7 +3,7 @@ require 'spec_helper'
 print `cat /etc/os-release`
 print `uname -a`
 
-Dir.glob('/tmp/security-agent/pkg/ebpf/bytecode/build/*.o').each do |f|
+Dir.glob('/tmp/security-agent/ebpf_bytecode/build/*.o').each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
 
