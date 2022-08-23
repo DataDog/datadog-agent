@@ -94,7 +94,11 @@ platforms:
     <% end %>
     image_id: <%= platform[1] %>
     block_device_mappings:
+      <% if ENV['KITCHEN_ARCH'] == "arm64" %>
+      - device_name: /dev/sda1
+      <% else %>
       - device_name: /dev/xvda
+      <% end %>
         ebs:
           volume_type: gp2
           volume_size: 40
