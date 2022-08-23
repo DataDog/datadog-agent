@@ -188,7 +188,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, skip_object_files=False):
     """
     Compile test suite for kitchen
     """
