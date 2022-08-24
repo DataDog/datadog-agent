@@ -126,7 +126,6 @@ package etw
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"strconv"
