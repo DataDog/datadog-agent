@@ -78,7 +78,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(60, 60)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlowContextTTL)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -104,6 +104,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	timeNow = MockTimeNow
 	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 	flushInterval := 60 * time.Second
+	flowContextTTL := 60 * time.Second
 
 	// Given
 	flow := &common.Flow{
@@ -121,7 +122,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, 60*time.Second)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL)
 	acc.add(flow)
 
 	// Then
@@ -168,7 +169,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	assert.Equal(t, flushTime4, wrappedFlow.lastSuccessfulFlush)
 
 	// test flush with TTL reached to clean up entry
-	flushTime5 := flushTime4.Add((acc.flowContextTTL + 1) * time.Second)
+	flushTime5 := flushTime4.Add(flowContextTTL + 1*time.Second)
 	setMockTimeNow(flushTime5)
 	acc.flush()
 	_, ok := acc.flows[flow.AggregationHash()]
