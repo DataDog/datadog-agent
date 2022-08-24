@@ -97,6 +97,33 @@ network_devices:
 			},
 		},
 		{
+			name: "flow context ttl equal to flush interval if not defined",
+			configYaml: `
+network_devices:
+  netflow:
+    enabled: true
+    aggregator_flush_interval: 50
+    listeners:
+      - flow_type: netflow9
+`,
+			expectedConfig: NetflowConfig{
+				StopTimeout:              5,
+				AggregatorBufferSize:     100,
+				AggregatorFlushInterval:  50,
+				AggregatorFlowContextTTL: 50,
+				LogPayloads:              false,
+				Listeners: []ListenerConfig{
+					{
+						FlowType:  common.TypeNetFlow9,
+						BindHost:  "0.0.0.0",
+						Port:      uint16(2055),
+						Workers:   1,
+						Namespace: "default",
+					},
+				},
+			},
+		},
+		{
 			name: "invalid flow type",
 			configYaml: `
 network_devices:

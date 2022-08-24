@@ -12,9 +12,6 @@ const (
 	// DefaultAggregatorFlushInterval is the default flush interval in seconds
 	DefaultAggregatorFlushInterval = 300 // 5min
 
-	// DefaultAggregatorFlowContextTTL is the default flow context TTL in seconds
-	DefaultAggregatorFlowContextTTL = 300 // 5min
-
 	// DefaultAggregatorBufferSize is the default aggregator buffer size interval
 	DefaultAggregatorBufferSize = 100
 

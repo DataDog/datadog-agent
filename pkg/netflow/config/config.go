@@ -71,7 +71,9 @@ func ReadConfig() (*NetflowConfig, error) {
 		mainConfig.AggregatorFlushInterval = common.DefaultAggregatorFlushInterval
 	}
 	if mainConfig.AggregatorFlowContextTTL == 0 {
-		mainConfig.AggregatorFlowContextTTL = common.DefaultAggregatorFlowContextTTL
+		// Set AggregatorFlowContextTTL to AggregatorFlushInterval to keep flow context around
+		// for 1 flush-interval time after a flush.
+		mainConfig.AggregatorFlowContextTTL = mainConfig.AggregatorFlushInterval
 	}
 	if mainConfig.AggregatorBufferSize == 0 {
 		mainConfig.AggregatorBufferSize = common.DefaultAggregatorBufferSize
