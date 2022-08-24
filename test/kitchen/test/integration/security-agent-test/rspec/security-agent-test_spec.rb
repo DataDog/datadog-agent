@@ -38,7 +38,7 @@ end
 if File.readlines("/etc/os-release").grep(/SUSE/).size == 0 and !File.exists?('/etc/rhsm')
   describe 'functional test running inside a container' do
     it 'successfully runs' do
-      Open3.popen2e("sudo", "docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=/tmp/security-agent/pkg/ebpf/bytecode/build", "-ti", "docker-testsuite", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics", "--env", "docker") do |_, output, wait_thr|
+      Open3.popen2e("sudo", "docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=/tmp/security-agent/pkg/ebpf/bytecode/build", "docker-testsuite", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics", "--env", "docker") do |_, output, wait_thr|
         test_failures = check_output(output, wait_thr)
         expect(test_failures).to be_empty, test_failures.join("\n")
       end
