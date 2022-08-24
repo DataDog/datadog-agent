@@ -71,8 +71,8 @@ func (f *flowAccumulator) flush() []*common.Flow {
 			flowsToFlush = append(flowsToFlush, flowCtx.flow)
 			flowCtx.lastSuccessfulFlush = now
 			flowCtx.flow = nil
-		} else if flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now) {
-			log.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%d, nextFlush=%d)", key, flowCtx.lastSuccessfulFlush, flowCtx.nextFlush)
+		} else if flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now) || flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Equal(now) {
+			log.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
 			delete(f.flows, key)
 			continue

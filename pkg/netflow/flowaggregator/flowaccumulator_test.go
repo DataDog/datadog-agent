@@ -168,10 +168,20 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	assert.Equal(t, MockTimeNow().Add(acc.flowFlushInterval*3), wrappedFlow.nextFlush)
 	assert.Equal(t, flushTime4, wrappedFlow.lastSuccessfulFlush)
 
-	// test flush with TTL reached to clean up entry
-	flushTime5 := flushTime4.Add(flowContextTTL + 1*time.Second)
+	// test flush with TTL reached (now+ttl is equal last successful flush) to clean up entry
+	flushTime5 := flushTime4.Add(flowContextTTL)
 	setMockTimeNow(flushTime5)
 	acc.flush()
 	_, ok := acc.flows[flow.AggregationHash()]
+	assert.False(t, ok)
+
+	// test flush with TTL reached (now+ttl is after last successful flush) to clean up entry
+	setMockTimeNow(MockTimeNow())
+	acc.add(flow)
+	acc.flush()
+	flushTime6 := MockTimeNow().Add(flowContextTTL + 1*time.Second)
+	setMockTimeNow(flushTime6)
+	acc.flush()
+	_, ok = acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 }
