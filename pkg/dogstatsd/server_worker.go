@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -27,15 +28,22 @@ type worker struct {
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
-	samples []metrics.MetricSample
+	samples metrics.MetricSampleBatch
 }
 
 func newWorker(s *Server) *worker {
+	var batcher *batcher
+	if s.ServerlessMode {
+		batcher = newServerlessBatcher(s.demultiplexer)
+	} else {
+		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator))
+	}
+
 	return &worker{
 		server:  s,
-		batcher: newBatcher(s.demultiplexer),
+		batcher: batcher,
 		parser:  newParser(s.sharedFloat64List),
-		samples: make([]metrics.MetricSample, 0, defaultSampleSize),
+		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 	}
 }
 

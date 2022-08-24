@@ -21,6 +21,11 @@ func IsEnabled(cfg config.Config) bool {
 	return false
 }
 
+// IsDisplayed checks if the OTLP section should be rendered in the Agent
+func IsDisplayed() bool {
+	return false
+}
+
 // Pipeline is an OTLP pipeline.
 type Pipeline struct{}
 

@@ -108,7 +108,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 		}
 
-		if data.clusterName == "" {
+		if data.clusterName == "" && config.IsFeaturePresent(config.Kubernetes) {
 			clusterName, err := hostinfo.GetNodeClusterNameLabel(ctx)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
@@ -133,6 +133,12 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
 func GetClusterName(ctx context.Context, hostname string) string {
 	return getClusterName(ctx, defaultClusterNameData, hostname)
+}
+
+// GetRFC1123CompliantClusterName returns an RFC-1123 compliant k8s cluster
+// name if it exists, either directly specified or autodiscovered
+func GetRFC1123CompliantClusterName(ctx context.Context, hostname string) string {
+	return MakeClusterNameRFC1123Compliant(getClusterName(ctx, defaultClusterNameData, hostname))
 }
 
 func resetClusterName(data *clusterNameData) {
@@ -178,6 +184,14 @@ func GetClusterID() (string, error) {
 
 	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	return clusterID, nil
+}
+
+// MakeClusterNameRFC1123Compliant returns the RFC-1123 compliant cluster name.
+func MakeClusterNameRFC1123Compliant(clusterName string) string {
+	if strings.Contains(clusterName, "_") {
+		return strings.ReplaceAll(clusterName, "_", "-")
+	}
+	return clusterName
 }
 
 // setProviderCatalog should only be used for testing.

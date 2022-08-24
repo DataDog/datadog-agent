@@ -32,5 +32,5 @@ func (c *cgroupV2) GetPIDStats(stats *PIDStats) error {
 }
 
 func (c *cgroupV2) GetPIDs(cacheValidity time.Duration) ([]int, error) {
-	return c.pidMapper.getPIDsForCgroup(c.relativePath, cacheValidity), nil
+	return c.pidMapper.getPIDsForCgroup(c.identifier, c.relativePath, cacheValidity), nil
 }

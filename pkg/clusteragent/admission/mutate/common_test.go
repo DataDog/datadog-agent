@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -76,7 +77,7 @@ func Test_injectEnv(t *testing.T) {
 			},
 			wantPodFunc: func() corev1.Pod {
 				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnv("inject-me"))
+				pod.Spec.Containers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[0].Env...)
 				return *pod
 			},
 			injected: true,
@@ -100,8 +101,8 @@ func Test_injectEnv(t *testing.T) {
 			},
 			wantPodFunc: func() corev1.Pod {
 				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container"))
-				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnv("inject-me"))
-				pod.Spec.Containers[1].Env = append(pod.Spec.Containers[1].Env, fakeEnv("inject-me"))
+				pod.Spec.Containers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[0].Env...)
+				pod.Spec.Containers[1].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.Containers[1].Env...)
 				return *pod
 			},
 			injected: true,
@@ -114,7 +115,7 @@ func Test_injectEnv(t *testing.T) {
 			},
 			wantPodFunc: func() corev1.Pod {
 				pod := fakePodWithContainer("foo-pod", fakeContainer("foo-container"), fakeContainer("bar-container"))
-				pod.Spec.Containers[1].Env = append(pod.Spec.Containers[1].Env, fakeEnv("foo-container-env-foo"))
+				pod.Spec.Containers[1].Env = append([]corev1.EnvVar{fakeEnv("foo-container-env-foo")}, pod.Spec.Containers[1].Env...)
 				return *pod
 			},
 			injected: true,
@@ -129,6 +130,43 @@ func Test_injectEnv(t *testing.T) {
 			if tt.args.pod != nil && !reflect.DeepEqual(tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers) {
 				t.Errorf("injectEnv() = %v, want %v", tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
 			}
+		})
+	}
+}
+
+func Test_injectVolume(t *testing.T) {
+	type args struct {
+		pod         *corev1.Pod
+		volume      corev1.Volume
+		volumeMount corev1.VolumeMount
+	}
+	tests := []struct {
+		name     string
+		args     args
+		injected bool
+	}{
+		{
+			name: "nominal case",
+			args: args{
+				pod:         fakePod("foo"),
+				volume:      corev1.Volume{Name: "volumefoo"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: true,
+		},
+		{
+			name: "volume exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo"),
+				volume:      corev1.Volume{Name: "volumefoo"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.injected, injectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
 		})
 	}
 }

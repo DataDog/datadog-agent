@@ -42,7 +42,7 @@ func diagnoseECS() error {
 
 // diagnose the ECS metadata with tags API availability
 func diagnoseECSTags() error {
-	client, err := ecsmeta.V3FromCurrentTask()
+	client, err := ecsmeta.V3orV4FromCurrentTask()
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 Compliance
 ==========
-
-{{- if not .ComplianceStatus}}
+{{ if not .ComplianceStatus}}
   Not enabled
 {{- else}}
   {{- with .ComplianceStatus}}
@@ -11,7 +10,6 @@ Compliance
   {{- end }}
   {{- end }}
   {{- end }}
-{{- end }}
 
   Checks
   ======
@@ -64,3 +62,4 @@ Compliance
     {{- end }}
     {{- end }}
   {{ end }}
+{{- end }}

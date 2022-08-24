@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/ibm"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent"
@@ -42,6 +43,7 @@ func DetectCloudProvider(ctx context.Context) {
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
 		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
 		{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
+		{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
 	}
 
 	for _, cloudDetector := range detectors {
@@ -92,12 +94,14 @@ func GetHostAliases(ctx context.Context) []string {
 
 	detectors := []cloudProviderAliasesDetector{
 		{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
+		{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
 		{name: azure.CloudProviderName, callback: azure.GetHostAliases},
 		{name: gce.CloudProviderName, callback: gce.GetHostAliases},
 		{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
 		{name: "kubelet", callback: kubelet.GetHostAliases},
 		{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
 		{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
+		{name: ibm.CloudProviderName, callback: ibm.GetHostAliases},
 		{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
 	}
 

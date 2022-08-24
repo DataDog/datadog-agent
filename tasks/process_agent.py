@@ -1,4 +1,3 @@
-import datetime
 import os
 import shutil
 import sys
@@ -9,16 +8,7 @@ from invoke.exceptions import Exit
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
-    get_go_version,
-    get_version,
-    get_version_numeric_only,
-)
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
@@ -32,7 +22,6 @@ def build(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
-    go_version=None,
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
@@ -62,31 +51,12 @@ def build(
             f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/process-agent/windows_resources/process-agent.rc --target {windres_target} -O coff -o cmd/process-agent/rsrc.syso"
         )
 
-    # TODO use pkg/version for this
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-
     goenv = {}
-    if go_version:
-        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
-        ld_vars["GoVersion"] = go_version
-
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_include = (
         get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
         if build_include is None
@@ -119,6 +89,18 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
 
+class TempDir:
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+        print(f"created tempdir: {self.fname}")
+        return self.fname
+
+    # The _ in front of the unused arguments are needed to pass lint check
+    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
+        print(f"deleting tempdir: {self.fname}")
+        shutil.rmtree(self.fname)
+
+
 @task
 def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
     """
@@ -147,6 +129,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -158,13 +142,26 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"docker push {image}")
 
 
-class TempDir:
-    def __enter__(self):
-        self.fname = tempfile.mkdtemp()
-        print(f"created tempdir: {self.fname}")
-        return self.fname
+@task
+def go_generate(ctx):
+    """
+    Run the go generate directives inside the /pkg/process directory
 
-    # The _ in front of the unused arguments are needed to pass lint check
-    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
-        print(f"deleting tempdir: {self.fname}")
-        shutil.rmtree(self.fname)
+    """
+    with ctx.cd("./pkg/process/events/model"):
+        ctx.run("go generate ./...")
+
+
+@task
+def gen_mocks(ctx):
+    """
+    Generate mocks
+    """
+
+    interfaces = {"./pkg/process/procutil": ["Probe"]}
+
+    for path, names in interfaces.items():
+        interface_regex = "|".join(f"^{i}\\$" for i in names)
+
+        with ctx.cd(path):
+            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")

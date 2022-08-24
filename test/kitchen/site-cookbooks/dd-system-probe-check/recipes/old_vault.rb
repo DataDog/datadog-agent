@@ -28,15 +28,15 @@ node['yum-centos']['vault_repos'].each do |release, _config|
       description "CentOS-#{release} Vault - #{id.capitalize}"
       case node['platform_version'].to_i
       when 7
-        if arm?
-            baseurl "http://vault.centos.org/altarch/#{release}/#{dir}/$basearch/"
+        if Chef::SystemProbeHelpers::arm?(node)
+            baseurl "http://mirror.rackspace.com/centos-vault/altarch/#{release}/#{dir}/$basearch/"
             gpgkey ['file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-$releasever-$basearch', 'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-$releasever']
         else
-            baseurl "http://vault.centos.org/#{release}/#{dir}/$basearch/"
+            baseurl "http://mirror.rackspace.com/centos-vault/#{release}/#{dir}/$basearch/"
             gpgkey 'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-$releasever'
         end
       when 8
-        baseurl "http://vault.centos.org/#{release}/#{dir}/$basearch/os/"
+        baseurl "http://mirror.rackspace.com/centos-vault/#{release}/#{dir}/$basearch/os/"
         gpgkey 'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial'
       end
       node['yum-centos']['vault_repos'][release].each do |config, value|

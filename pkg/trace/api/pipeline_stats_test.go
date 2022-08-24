@@ -50,8 +50,10 @@ func TestPipelineStatsProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
-	newPipelineStatsProxy(c.NewHTTPTransport(), u, "123", "key:val").ServeHTTP(rec, req)
-	slurp, err := ioutil.ReadAll(rec.Result().Body)
+	newPipelineStatsProxy(c, u, "123", "key:val").ServeHTTP(rec, req)
+	result := rec.Result()
+	slurp, err := ioutil.ReadAll(result.Body)
+	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +118,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		receiver.pipelineStatsProxyHandler().ServeHTTP(rec, req)
 		resp := rec.Result()
 		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		resp.Body.Close()
 	})
 
 	t.Run("ok_fargate", func(t *testing.T) {
@@ -142,7 +145,6 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		defer mockConfig("site", "asd:\r\n")()
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -150,12 +152,14 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 		rec := httptest.NewRecorder()
 		conf := newTestReceiverConfig()
 		conf.Endpoints[0].Host = ""
+		conf.Site = "asd:\r\n"
 		r := newTestReceiverFromConfig(conf)
 		r.pipelineStatsProxyHandler().ServeHTTP(rec, req)
 		res := rec.Result()
 		if res.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
+		res.Body.Close()
 		slurp, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)

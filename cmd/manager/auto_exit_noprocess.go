@@ -8,9 +8,10 @@ package manager
 import (
 	"regexp"
 
+	"github.com/DataDog/gopsutil/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 type processes map[int32]*process.FilledProcess
@@ -57,7 +58,7 @@ func DefaultNoProcessExit() (ExitDetector, error) {
 func (s *noProcessExit) check() bool {
 	processes, err := processFetcher()
 	if err != nil {
-		log.Debugf("Unable to get processes list to trigger autoexit, err: %w", err)
+		log.Debugf("Unable to get processes list to trigger autoexit, err: %v", err)
 		return false
 	}
 

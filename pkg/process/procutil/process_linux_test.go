@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -668,7 +667,7 @@ func TestParseStatContent(t *testing.T) {
 	defer probe.Close()
 
 	// hard code the bootTime so we get consistent calculation for createTime
-	atomic.StoreUint64(&probe.bootTime, 1606181252)
+	probe.bootTime.Store(1606181252)
 	now := time.Now()
 
 	for _, tc := range []struct {
@@ -778,7 +777,7 @@ func TestBootTimeLocalFS(t *testing.T) {
 	defer probe.Close()
 	expectT, err := host.BootTime()
 	assert.NoError(t, err)
-	assert.Equal(t, expectT, atomic.LoadUint64(&probe.bootTime))
+	assert.Equal(t, expectT, probe.bootTime.Load())
 }
 
 func TestBootTimeRefresh(t *testing.T) {
@@ -786,13 +785,13 @@ func TestBootTimeRefresh(t *testing.T) {
 	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500 * time.Millisecond))
 	defer probe.Close()
 
-	assert.Equal(t, uint64(1606127264), atomic.LoadUint64(&probe.bootTime))
+	assert.Equal(t, uint64(1606127264), probe.bootTime.Load())
 	err := os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat_temp")
 	require.NoError(t, err)
 	err = os.Rename("resources/test_procfs/proc/stat2", "resources/test_procfs/proc/stat")
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool { return uint64(1606127364) == atomic.LoadUint64(&probe.bootTime) }, time.Second, 100*time.Millisecond)
+	assert.Eventually(t, func() bool { return uint64(1606127364) == probe.bootTime.Load() }, time.Second, 100*time.Millisecond)
 
 	err = os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat2")
 	require.NoError(t, err)
@@ -865,8 +864,19 @@ func testParseStatmStatusMatch(t *testing.T) {
 	}
 }
 
-func TestGetLinkWithAuthCheck(t *testing.T) {
+func TestGetLinkWithAuthCheckTestFS(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	defer os.Unsetenv("HOST_PROC")
+
+	testGetLinkWithAuthCheck(t)
+}
+
+func TestGetLinkWithAuthCheckLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
+	testGetLinkWithAuthCheck(t)
+}
+
+func testGetLinkWithAuthCheck(t *testing.T) {
 	probe := getProbeWithPermission()
 	defer probe.Close()
 
@@ -891,28 +901,6 @@ func TestGetLinkWithAuthCheck(t *testing.T) {
 
 func TestGetFDCountLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
-	probe := getProbeWithPermission()
-	defer probe.Close()
-
-	pids, err := probe.getActivePIDs()
-	assert.NoError(t, err)
-
-	for _, pid := range pids {
-		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
-		fdCount := probe.getFDCount(pathForPID)
-		expProc, err := process.NewProcess(pid)
-		assert.NoError(t, err)
-		// test both with and without permission issues
-		if expFdCount, err := expProc.NumFDs(); err == nil {
-			assert.Equal(t, expFdCount, fdCount)
-		} else {
-			assert.Equal(t, int32(-1), fdCount)
-		}
-	}
-}
-
-func TestGetFDCountLocalFSImproved(t *testing.T) {
-	maySkipLocalTest(t)
 	probe := getProbe()
 	defer probe.Close()
 
@@ -921,7 +909,7 @@ func TestGetFDCountLocalFSImproved(t *testing.T) {
 
 	for _, pid := range pids {
 		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
-		fdCount := probe.getFDCountImproved(pathForPID)
+		fdCount := probe.getFDCount(pathForPID)
 		expProc, err := process.NewProcess(pid)
 		assert.NoError(t, err)
 		// test both with and without permission issues

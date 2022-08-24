@@ -10,12 +10,47 @@ package probes
 
 import (
 	"math"
+	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// allProbes contain the list of all the probes of the runtime security module
-var allProbes []*manager.Probe
+const (
+	minPathnamesEntries = 64000 // ~27 MB
+	maxPathnamesEntries = 96000
+
+	minProcEntries = 16394
+	maxProcEntries = 131072
+)
+
+var (
+	// allProbes contain the list of all the probes of the runtime security module
+	allProbes []*manager.Probe
+	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
+	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
+	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
+	EventsPerfRingBufferSize = 257 * os.Getpagesize()
+	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+	// Must be a power of 2 and a multiple of the page size
+	defaultEventsRingBufferSize uint32
+)
+
+func init() {
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		numCPU = 1
+	}
+
+	if numCPU < 64 {
+		defaultEventsRingBufferSize = uint32(64 * 256 * os.Getpagesize())
+	} else {
+		defaultEventsRingBufferSize = uint32(128 * 256 * os.Getpagesize())
+	}
+}
 
 // AllProbes returns the list of all the probes of the runtime security module
 func AllProbes() []*manager.Probe {
@@ -40,28 +75,22 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getPTraceProbes()...)
 	allProbes = append(allProbes, getMMapProbes()...)
 	allProbes = append(allProbes, getMProtectProbes()...)
+	allProbes = append(allProbes, getModuleProbes()...)
+	allProbes = append(allProbes, getSignalProbes()...)
+	allProbes = append(allProbes, getSpliceProbes()...)
+	allProbes = append(allProbes, getFlowProbes()...)
+	allProbes = append(allProbes, getNetDeviceProbes()...)
+	allProbes = append(allProbes, GetTCProbes()...)
+	allProbes = append(allProbes, getBindProbes()...)
+	allProbes = append(allProbes, getSyscallMonitorProbes()...)
+	allProbes = append(allProbes, getPipeProbes()...)
 
 	allProbes = append(allProbes,
-		// Syscall monitor
-		&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
-				EBPFFuncName: "sys_enter",
-			},
-		},
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
 				EBPFFuncName: "sys_exit",
-			},
-		},
-		&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFSection:  "tracepoint/sched/sched_process_exec",
-				EBPFFuncName: "sched_process_exec",
 			},
 		},
 		// Snapshot probe
@@ -80,6 +109,8 @@ func AllProbes() []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
+		// Syscall table map
+		getSyscallTableMap(),
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
@@ -92,6 +123,7 @@ func AllMaps() []*manager.Map {
 		{Name: "exec_file_cache"},
 		// Open tables
 		{Name: "open_flags_approvers"},
+		{Name: "io_uring_req_pid"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
@@ -99,10 +131,6 @@ func AllMaps() []*manager.Map {
 		// SELinux tables
 		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
-		// Syscall monitor tables
-		{Name: "buffer_selector"},
-		{Name: "noisy_processes_fb"},
-		{Name: "noisy_processes_bb"},
 		// Flushing discarders boolean
 		{Name: "flushing_discarders"},
 		// Enabled event mask
@@ -110,22 +138,64 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+const (
+	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
+	MaxTracedCgroupsCount = 128
+)
+
+func getMaxEntries(numCPU int, min int, max int) uint32 {
+	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
+	if maxEntries < min {
+		maxEntries = min
+	}
+
+	return uint32(maxEntries)
+}
+
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
-	return map[string]manager.MapSpecEditor{
+func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
+	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
+		cgroupWaitListSize = MaxTracedCgroupsCount
+	}
+	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
-			MaxEntries: uint32(4096 * numCPU),
+			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_cache": {
-			MaxEntries: uint32(4096 * numCPU),
+			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pathnames": {
-			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
-			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
+			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"traced_cgroups": {
+			MaxEntries: MaxTracedCgroupsCount,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"cgroup_wait_list": {
+			MaxEntries: uint32(cgroupWaitListSize),
+			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+	if supportMmapableMaps {
+		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
+			Flags:      unix.BPF_F_MMAPABLE,
+			EditorFlag: manager.EditFlags,
+		}
+	}
+	if useRingBuffers {
+		if ringBufferSize == 0 {
+			ringBufferSize = defaultEventsRingBufferSize
+		}
+		editors["events"] = manager.MapSpecEditor{
+			MaxEntries: ringBufferSize,
+			Type:       ebpf.RingBuf,
+			EditorFlag: manager.EditType | manager.EditMaxEntries,
+		}
+	}
+	return editors
 }
 
 // AllPerfMaps returns the list of perf maps of the runtime security module
@@ -137,13 +207,25 @@ func AllPerfMaps() []*manager.PerfMap {
 	}
 }
 
+// AllRingBuffers returns the list of ring buffers of the runtime security module
+func AllRingBuffers() []*manager.RingBuffer {
+	return []*manager.RingBuffer{
+		{
+			Map: manager.Map{Name: "events"},
+		},
+	}
+}
+
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	if networkEnabled {
+		routes = append(routes, getTCTailCallRoutes()...)
+	}
 
 	return routes
 }
@@ -151,9 +233,9 @@ func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"kprobe_dentry_resolver_erpc",
-		"kprobe_dentry_resolver_parent_erpc",
-		"kprobe_dentry_resolver_segment_erpc",
+		"kprobe_dentry_resolver_erpc_write_user",
+		"kprobe_dentry_resolver_parent_erpc_write_user",
+		"kprobe_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

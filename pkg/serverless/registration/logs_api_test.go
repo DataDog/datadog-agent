@@ -57,6 +57,9 @@ func TestIsValidHTTPCodeError(t *testing.T) {
 
 func TestSendLogRegistrationRequestFailure(t *testing.T) {
 	response, err := sendLogRegistrationRequest(&http.Client{}, &http.Request{})
+	if err == nil {
+		response.Body.Close()
+	}
 	assert.Nil(t, response)
 	assert.NotNil(t, err)
 }
@@ -65,6 +68,9 @@ func TestSendLogRegistrationRequestSuccess(t *testing.T) {
 	response, err := sendLogRegistrationRequest(&ClientMock{}, &http.Request{})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
+	if response.Body != nil {
+		response.Body.Close()
+	}
 }
 
 func TestSubscribeLogsSuccess(t *testing.T) {
@@ -74,7 +80,7 @@ func TestSubscribeLogsSuccess(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-
+	time.Sleep(100 * time.Millisecond)
 	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
 	assert.Nil(t, err)
 }
@@ -84,7 +90,7 @@ func TestSubscribeLogsTimeout(t *testing.T) {
 	//fake the register route
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// timeout
-		time.Sleep(registerLogsTimeout + 10*time.Millisecond)
+		time.Sleep(registerLogsTimeout + 100*time.Millisecond)
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()

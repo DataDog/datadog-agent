@@ -18,14 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NetworkRoute holds one network destination subnet and it's linked interface name
-type NetworkRoute struct {
-	Interface string
-	Subnet    uint64
-	Gateway   uint64
-	Mask      uint64
-}
-
 // ParseProcessRoutes parses /proc/<pid>/net/route into a list of NetworkDestionation
 // If PID is 0, it parses /proc/net/route instead
 func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
@@ -74,6 +66,96 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 		routes = append(routes, d)
 	}
 	return routes, nil
+}
+
+// ParseProcessIPs parses /proc/<pid>/net/fib_trie and returns the /32 IP
+// addresses found. The result does not contain duplicate IPs.
+//
+// Here's an example of /proc/<pid>/net/fib_trie that shows its format:
+//	Main:
+//	  +-- 0.0.0.0/1 2 0 2
+//	     +-- 0.0.0.0/4 2 0 2
+//	        |-- 0.0.0.0
+//	           /0 universe UNICAST
+//	        +-- 10.4.0.0/24 2 1 2
+//	           |-- 10.4.0.0
+//	              /32 link BROADCAST
+//	              /24 link UNICAST
+//	           +-- 10.4.0.192/26 2 0 2
+//	              |-- 10.4.0.216
+//	                 /32 host LOCAL
+//	              |-- 10.4.0.255
+//	                 /32 link BROADCAST
+//	     +-- 127.0.0.0/8 2 0 2
+//	        +-- 127.0.0.0/31 1 0 0
+//	           |-- 127.0.0.0
+//	              /32 link BROADCAST
+//	              /8 host LOCAL
+//	           |-- 127.0.0.1
+//	              /32 host LOCAL
+//	        |-- 127.255.255.255
+//	           /32 link BROADCAST
+//	Local:
+//	  +-- 0.0.0.0/1 2 0 2
+//	     +-- 0.0.0.0/4 2 0 2
+//	        |-- 0.0.0.0
+//	           /0 universe UNICAST
+//	        +-- 10.4.0.0/24 2 1 2
+//	           |-- 10.4.0.0
+//	              /32 link BROADCAST
+//	              /24 link UNICAST
+//	           +-- 10.4.0.192/26 2 0 2
+//	              |-- 10.4.0.216
+//	                 /32 host LOCAL
+//	              |-- 10.4.0.255
+//	                 /32 link BROADCAST
+//	     +-- 127.0.0.0/8 2 0 2
+//	        +-- 127.0.0.0/31 1 0 0
+//	           |-- 127.0.0.0
+//	              /32 link BROADCAST
+//	              /8 host LOCAL
+//	           |-- 127.0.0.1
+//	              /32 host LOCAL
+//	        |-- 127.255.255.255
+//	           /32 link BROADCAST
+//
+// The IPs that we're interested in are the ones that appear above lines that
+// contain "/32 host".
+func ParseProcessIPs(procPath string, pid int, filterFunc func(string) bool) ([]string, error) {
+	var procNetFibTrieFile string
+	if pid > 0 {
+		procNetFibTrieFile = filepath.Join(procPath, strconv.Itoa(pid), "net", "fib_trie")
+	} else {
+		procNetFibTrieFile = filepath.Join(procPath, "net", "fib_trie")
+	}
+
+	lines, err := filesystem.ReadLines(procNetFibTrieFile)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read file at: %s, err: %w", procNetFibTrieFile, err)
+	}
+	if len(lines) < 1 {
+		return nil, fmt.Errorf("empty network file %s", procNetFibTrieFile)
+	}
+
+	IPs := make(map[string]bool)
+	for i, line := range lines {
+		if strings.Contains(line, "/32 host") && i > 0 {
+			split := strings.Split(lines[i-1], "|-- ")
+			if len(split) == 2 {
+				ip := split[1]
+				if filterFunc == nil || filterFunc(ip) {
+					IPs[ip] = true
+				}
+			}
+		}
+	}
+
+	var uniqueIPs []string
+	for IP := range IPs {
+		uniqueIPs = append(uniqueIPs, IP)
+	}
+
+	return uniqueIPs, nil
 }
 
 // // defaultGateway returns the default Docker gateway.

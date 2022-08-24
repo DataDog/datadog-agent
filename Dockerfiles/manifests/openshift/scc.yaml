@@ -4,7 +4,7 @@
 # default restricted SCC
 #
 kind: SecurityContextConstraints
-apiVersion: v1
+apiVersion: security.openshift.io/v1
 metadata:
   name: datadog-agent
 users:
@@ -43,6 +43,9 @@ allowedCapabilities:
 - NET_BROADCAST
 - IPC_LOCK
 - NET_RAW
+- CHOWN
+- AUDIT_CONTROL
+- AUDIT_READ
 #
 # The rest is copied from restricted SCC
 #

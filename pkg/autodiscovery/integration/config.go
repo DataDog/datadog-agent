@@ -10,7 +10,9 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"strings"
 
+	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -26,16 +28,6 @@ type RawMap map[interface{}]interface{}
 
 // JSONMap is the generic type to hold JSON configurations
 type JSONMap map[string]interface{}
-
-// CreationTime represents the moment when the service was launched compare to the agent start.
-type CreationTime int
-
-const (
-	// Before indicates the service was launched before the agent start
-	Before CreationTime = iota
-	// After indicates the service was launched after the agent start
-	After
-)
 
 // Config is a generic container for configuration data specific to an
 // integration.  It contains snippets of configuration for various agent
@@ -92,9 +84,6 @@ type Config struct {
 
 	// NodeName is node name in case of an endpoint check backed by a pod
 	NodeName string `json:"node_name"` // (include in digest: true)
-
-	// CreationTime is creation time of service
-	CreationTime CreationTime `json:"-"` // (include in digest: false)
 
 	// Source is the source of the configuration
 	Source string `json:"source"` // (include in digest: false)
@@ -406,4 +395,105 @@ func (c *Config) Digest() string {
 	h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// FastDigest returns an hash value representing the data stored in this configuration.
+// Difference with Digest is that FastDigest does not consider that difference may appear inside Instances
+// allowing to remove costly YAML Marshal/UnMarshal operations
+// The ClusterCheck field is intentionally left out to keep a stable digest
+// between the cluster-agent and the node-agents
+func (c *Config) FastDigest() uint64 {
+	h := murmur3.New64()
+	_, _ = h.Write([]byte(c.Name))
+	for _, i := range c.Instances {
+		_, _ = h.Write([]byte(i))
+	}
+	_, _ = h.Write([]byte(c.InitConfig))
+	for _, i := range c.ADIdentifiers {
+		_, _ = h.Write([]byte(i))
+	}
+	_, _ = h.Write([]byte(c.NodeName))
+	_, _ = h.Write([]byte(c.LogsConfig))
+	_, _ = h.Write([]byte(c.ServiceID))
+	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+
+	return h.Sum64()
+}
+
+// Dump returns a string representing this Config value, for debugging purposes.  If multiline is true,
+// then it contains newlines; otherwise, it is comma-separated.
+func (c *Config) Dump(multiline bool) string {
+	var b strings.Builder
+	dataField := func(data Data) string {
+		if data == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("[]byte(%#v)", string(data))
+	}
+	ws := func(fmt string) string {
+		if multiline {
+			return "\n\t" + fmt
+		}
+		return " " + fmt
+	}
+
+	fmt.Fprint(&b, "integration.Config = {")
+	fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
+	if c.Instances == nil {
+		fmt.Fprint(&b, ws("Instances: nil,"))
+	} else {
+		fmt.Fprint(&b, ws("Instances: {"))
+		for _, inst := range c.Instances {
+			fmt.Fprintf(&b, ws("%s,"), dataField(inst))
+		}
+		fmt.Fprint(&b, ws("}"))
+	}
+	fmt.Fprintf(&b, ws("InitConfig: %s,"), dataField(c.InitConfig))
+	fmt.Fprintf(&b, ws("MetricConfig: %s,"), dataField(c.MetricConfig))
+	fmt.Fprintf(&b, ws("LogsConfig: %s,"), dataField(c.LogsConfig))
+	fmt.Fprintf(&b, ws("ADIdentifiers: %#v,"), c.ADIdentifiers)
+	fmt.Fprintf(&b, ws("AdvancedADIdentifiers: %#v,"), c.AdvancedADIdentifiers)
+	fmt.Fprintf(&b, ws("Provider: %#v,"), c.Provider)
+	fmt.Fprintf(&b, ws("ServiceID: %#v,"), c.ServiceID)
+	fmt.Fprintf(&b, ws("TaggerEntity: %#v,"), c.TaggerEntity)
+	fmt.Fprintf(&b, ws("ClusterCheck: %t,"), c.ClusterCheck)
+	fmt.Fprintf(&b, ws("NodeName: %#v,"), c.NodeName)
+	fmt.Fprintf(&b, ws("Source: %s,"), c.Source)
+	fmt.Fprintf(&b, ws("IgnoreAutodiscoveryTags: %t,"), c.IgnoreAutodiscoveryTags)
+	fmt.Fprintf(&b, ws("MetricsExcluded: %t,"), c.MetricsExcluded)
+	fmt.Fprintf(&b, ws("LogsExcluded: %t} (digest %s)"), c.LogsExcluded, c.Digest())
+	return b.String()
+}
+
+// ConfigChanges contains the changes that occurred due to an event in
+// AutoDiscovery.
+type ConfigChanges struct {
+	// Schedule contains configs that should be scheduled as a result of
+	// this event.
+	Schedule []Config
+
+	// Unschedule contains configs that should be unscheduled as a result of
+	// this event.
+	Unschedule []Config
+}
+
+// ScheduleConfig adds a config to `Schedule`
+func (c *ConfigChanges) ScheduleConfig(config Config) {
+	c.Schedule = append(c.Schedule, config)
+}
+
+// UnscheduleConfig adds a config to `Unschedule`
+func (c *ConfigChanges) UnscheduleConfig(config Config) {
+	c.Unschedule = append(c.Unschedule, config)
+}
+
+// IsEmpty determines whether this set of changes is empty
+func (c *ConfigChanges) IsEmpty() bool {
+	return len(c.Schedule) == 0 && len(c.Unschedule) == 0
+}
+
+// Merge merges the given ConfigChanges into this one.
+func (c *ConfigChanges) Merge(other ConfigChanges) {
+	c.Schedule = append(c.Schedule, other.Schedule...)
+	c.Unschedule = append(c.Unschedule, other.Unschedule...)
 }

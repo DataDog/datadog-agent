@@ -7,13 +7,14 @@ package checks
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-	"github.com/docker/docker/api/types"
 
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func loadTestJSON(path string, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	b, err := ioutil.ReadAll(jsonFile)
+	b, err := io.ReadAll(jsonFile)
 	if err != nil {
 		return err
 	}
@@ -232,7 +233,7 @@ func TestDockerContainerCheck(t *testing.T) {
 
 			var containers []types.Container
 			assert.NoError(loadTestJSON("./testdata/docker/container-list.json", &containers))
-			client.On("ContainerList", mockCtx, types.ContainerListOptions{All: true}).Return(containers, nil)
+			client.On("ContainerList", mockCtx, types.ContainerListOptions{}).Return(containers, nil)
 
 			var container types.ContainerJSON
 			assert.NoError(loadTestJSON("./testdata/docker/container-3c4bd9d35d42.json", &container))

@@ -17,15 +17,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mdlayher/netlink"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/mdlayher/netlink"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netns"
 )
 
 const (
@@ -35,8 +36,7 @@ const (
 
 // keep this test for netlink only, because eBPF listens to all namespaces all the time.
 func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
-	defer testutil.TeardownCrossNsDNAT(t)
-	testutil.SetupCrossNsDNAT(t)
+	ns := testutil.SetupCrossNsDNAT(t)
 
 	cfg := config.New()
 	cfg.ConntrackMaxStateSize = 100
@@ -46,11 +46,11 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(time.Second)
 
-	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
 	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
 
-	testNs, err := netns.GetFromName("test")
+	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
 
@@ -77,7 +77,6 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 func TestMessageDump(t *testing.T) {
 	skipUnless(t, "netlink_dump")
 
-	defer testutil.TeardownDNAT(t)
 	testutil.SetupDNAT(t)
 
 	f, err := ioutil.TempFile("", "message_dump")
@@ -91,7 +90,6 @@ func TestMessageDump(t *testing.T) {
 func TestMessageDump6(t *testing.T) {
 	skipUnless(t, "netlink_dump")
 
-	defer testutil.TeardownDNAT6(t)
 	testutil.SetupDNAT6(t)
 
 	f, err := ioutil.TempFile("", "message_dump6")

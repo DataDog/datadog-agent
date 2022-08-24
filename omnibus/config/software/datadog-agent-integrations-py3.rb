@@ -77,6 +77,7 @@ if osx?
   # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_packages.push(/^aerospike==/)
   blacklist_folders.push('aerospike')
+  blacklist_folders.push('teradata')
 end
 
 if arm?
@@ -124,15 +125,25 @@ build do
 
   # Install the checks along with their dependencies
   block do
+    if windows?
+      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
+      build_deps_dir = "#{windows_safe_path(project_dir)}\\.build_deps"
+    else
+      wheel_build_dir = "#{project_dir}/.wheels"
+      build_deps_dir = "#{project_dir}/.build_deps"
+    end
+
     #
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} install hatchling==0.11.2"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1"
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools3.rb
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==6.4.0"
-    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools', 'hatchling']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
+      "PIP_FIND_LINKS" => "#{build_deps_dir}",
       # Specify C99 standard explicitly to avoid issues while building some
       # wheels (eg. ddtrace)
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -140,6 +151,9 @@ build do
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+    }
+    win_build_env = {
+      "PIP_FIND_LINKS" => "#{build_deps_dir}",
     }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -193,29 +207,33 @@ build do
         mode: 0640,
         vars: { requirements: requirements }
 
+    # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
+    pip_max_retries = 20
+    pip_timeout = 20
+
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
-      wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
       command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
     else
-      wheel_build_dir = "#{project_dir}/.wheels"
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
       command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
+      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
     end
 
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
     if windows?
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
@@ -251,7 +269,17 @@ build do
       File.exist?(manifest_file_path) || next
 
       manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
+      if manifest.key?("supported_os")
+        manifest["supported_os"].include?(os) || next
+      else
+        if os == "mac_os"
+          tag = "Supported OS::macOS"
+        else
+          tag = "Supported OS::#{os.capitalize}"
+        end
+
+        manifest["tile"]["classifier_tags"].include?(tag) || next
+      end
 
       File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 3.
@@ -268,7 +296,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
+    awscli = if windows? then '"c:\Program files\python38\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
@@ -364,7 +392,7 @@ build do
         end
 
         if windows?
-          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+          command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
           command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         else
           command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
@@ -395,6 +423,13 @@ build do
     block do
       # We have to run these operations in block, so they get applied after operations
       # from the last block
+
+      # Patch applies to only one file: set it explicitly as a target, no need for -p
+      if windows?
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
+      else
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/__init__.py"
+      end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       if windows?

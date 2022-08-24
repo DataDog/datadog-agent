@@ -12,13 +12,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 // Health returns a cobra command to report on the agent's health
@@ -76,7 +77,7 @@ func requestHealth() error {
 		return err
 	}
 
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

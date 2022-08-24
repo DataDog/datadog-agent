@@ -12,13 +12,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
-
-	"fmt"
-	"net"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -66,9 +66,7 @@ func CertTemplate() (*x509.Certificate, error) {
 }
 
 // GenerateRootCert generates a root certificate
-func GenerateRootCert(hosts []string, bits int) (
-	cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
-
+func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
 	rootCertTmpl, err := CertTemplate()
 	if err != nil {
 		return
@@ -81,7 +79,7 @@ func GenerateRootCert(hosts []string, bits int) (
 
 	// describe what the certificate will be used for
 	rootCertTmpl.IsCA = true
-	rootCertTmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	rootCertTmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature | x509.KeyUsageCRLSign
 	rootCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 
 	for _, h := range hosts {
@@ -152,7 +150,7 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 	}
 
 	// Do some basic validation
-	authToken := string(authTokenRaw)
+	authToken := strings.TrimSpace(string(authTokenRaw))
 	if len(authToken) < authTokenMinimalLen {
 		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
 	}
@@ -235,7 +233,7 @@ func validateAuthToken(authToken string) error {
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
-	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+	if err := ioutil.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
 		return err
 	}
 
@@ -248,7 +246,7 @@ func saveAuthToken(token, tokenPath string) error {
 		log.Errorf("Failed to write auth token acl %s", err)
 		return err
 	}
-	log.Infof("Wrote auth token acl")
 
+	log.Infof("Wrote auth token")
 	return nil
 }

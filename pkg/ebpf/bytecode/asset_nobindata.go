@@ -9,17 +9,22 @@
 package bytecode
 
 import (
+	"fmt"
 	"os"
 	"path"
-
-	"github.com/pkg/errors"
 )
 
 // GetReader returns a new AssetReader for the specified file asset
 func GetReader(dir, name string) (AssetReader, error) {
-	asset, err := os.Open(path.Join(dir, path.Base(name)))
+	assetPath := path.Join(dir, path.Base(name))
+	err := VerifyAssetPermissions(assetPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not find asset")
+		return nil, err
+	}
+
+	asset, err := os.Open(assetPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not find asset: %w", err)
 	}
 
 	return asset, nil

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1176
+      - image: datadog/datadog-agent-runner-circle:go11711
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -102,7 +102,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
@@ -153,6 +153,15 @@ jobs:
       - run:
           name: run license linting
           command: inv -e lint-licenses
+
+  copyrights_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run copyrights linting
+          command: inv -e lint-copyrights
 
   filename_linting:
     <<: *job_template
@@ -277,6 +286,9 @@ workflows:
           requires:
             - dependencies
       - licenses_linting:
+          requires:
+            - dependencies
+      - copyrights_linting:
           requires:
             - dependencies
       - filename_linting:

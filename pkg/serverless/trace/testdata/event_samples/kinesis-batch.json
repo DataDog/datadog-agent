@@ -1,0 +1,36 @@
+{
+    "Records": [
+        {
+            "kinesis": {
+                "kinesisSchemaVersion": "1.0",
+                "partitionKey": "partitionkey",
+                "sequenceNumber": "49624230154685806402418173680709770494154422022871973922",
+                "data": "eyJmb28iOiAiYmFyIiwgIl9kYXRhZG9nIjogeyJ4LWRhdGFkb2ctdHJhY2UtaWQiOiAiNDk0ODM3NzMxNjM1NzI5MTQyMSIsICJ4LWRhdGFkb2ctcGFyZW50LWlkIjogIjI4NzYyNTMzODAwMTg2ODEwMjYiLCAieC1kYXRhZG9nLXNhbXBsaW5nLXByaW9yaXR5IjogIjEifX0=",
+                "approximateArrivalTimestamp": 1643638425.163
+            },
+            "eventSource": "aws:kinesis",
+            "eventVersion": "1.0",
+            "eventID": "shardId-000000000002:49624230154685806402418173680709770494154422022871973922",
+            "eventName": "aws:kinesis:record",
+            "invokeIdentityArn": "arn:aws:iam::601427279990:role/inferred-spans-python-dev-sa-east-1-lambdaRole",
+            "awsRegion": "sa-east-1",
+            "eventSourceARN": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream"
+        },
+        {
+            "kinesis": {
+                "kinesisSchemaVersion": "1.0",
+                "partitionKey": "partitionkey",
+                "sequenceNumber": "49624230154685806402418173680709770494154422022871973922",
+                "data": "eyJmb28iOiAiYmFyIiwgIl9kYXRhZG9nIjogeyJ4LWRhdGFkb2ctdHJhY2UtaWQiOiAiNDk0ODM3NzMxNjM1NzI5MTQyMSIsICJ4LWRhdGFkb2ctcGFyZW50LWlkIjogIjI4NzYyNTMzODAwMTg2ODEwMjYiLCAieC1kYXRhZG9nLXNhbXBsaW5nLXByaW9yaXR5IjogIjEifX0=",
+                "approximateArrivalTimestamp": 1643638425.163
+            },
+            "eventSource": "aws:kinesis",
+            "eventVersion": "1.0",
+            "eventID": "shardId-000000000002:49624230154685806402418173680709770494154422022871973922",
+            "eventName": "aws:kinesis:record",
+            "invokeIdentityArn": "arn:aws:iam::601427279990:role/inferred-spans-python-dev-sa-east-1-lambdaRole",
+            "awsRegion": "sa-east-1",
+            "eventSourceARN": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream"
+        }
+    ]
+}

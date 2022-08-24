@@ -10,8 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 )
 
 func TestNewDynamicConfig(t *testing.T) {
@@ -29,12 +30,12 @@ func TestNewDynamicConfig(t *testing.T) {
 	dc.RateByService.SetAll(rates)
 	state := dc.RateByService.GetNewState("")
 	assert.Equal(map[string]float64{"service:myservice,env:myenv": 0.5}, state.Rates)
-	assert.Equal(map[string]pb.SamplingMechanism{"service:myservice,env:myenv": 2}, state.Mechanisms)
+	assert.Equal(map[string]apmsampling.SamplingMechanism{"service:myservice,env:myenv": 2}, state.Mechanisms)
 	assert.NotEqual("", state.Version)
 
 	state = dc.RateByService.GetNewState(state.Version)
 	assert.Equal(map[string]float64(nil), state.Rates)
-	assert.Equal(map[string]pb.SamplingMechanism(nil), state.Mechanisms)
+	assert.Equal(map[string]apmsampling.SamplingMechanism(nil), state.Mechanisms)
 }
 
 func TestRateByServiceGetSet(t *testing.T) {
@@ -51,7 +52,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 				Rates: map[string]float64{
 					"service:,env:": 0.1,
 				},
-				Mechanisms: map[string]pb.SamplingMechanism{
+				Mechanisms: map[string]apmsampling.SamplingMechanism{
 					"service:,env:": 2,
 				},
 			},
@@ -68,7 +69,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 					"service:mcnulty,env:dev":  0.2,
 					"service:postgres,env:dev": 0.1,
 				},
-				Mechanisms: map[string]pb.SamplingMechanism{
+				Mechanisms: map[string]apmsampling.SamplingMechanism{
 					"service:,env:":            2,
 					"service:mcnulty,env:dev":  3,
 					"service:postgres,env:dev": 4,
@@ -83,7 +84,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 				Rates: map[string]float64{
 					"service:,env:": 1,
 				},
-				Mechanisms: map[string]pb.SamplingMechanism{
+				Mechanisms: map[string]apmsampling.SamplingMechanism{
 					"service:,env:": 2,
 				},
 			},
@@ -91,7 +92,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 		{
 			out: State{
 				Rates:      map[string]float64{},
-				Mechanisms: map[string]pb.SamplingMechanism{},
+				Mechanisms: map[string]apmsampling.SamplingMechanism{},
 			},
 		},
 		{
@@ -102,7 +103,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 				Rates: map[string]float64{
 					"service:,env:": 0.2,
 				},
-				Mechanisms: map[string]pb.SamplingMechanism{
+				Mechanisms: map[string]apmsampling.SamplingMechanism{
 					"service:,env:": 2,
 				},
 			},
@@ -146,7 +147,7 @@ func TestMechanism(t *testing.T) {
 		{"three", "test"}: {0.4, 0},
 		{"four", "test"}:  {0.4, 3},
 	})
-	assert.Equal(t, map[string]pb.SamplingMechanism{
+	assert.Equal(t, map[string]apmsampling.SamplingMechanism{
 		"service:two,env:test":  1,
 		"service:four,env:test": 3,
 	}, rbc.GetNewState("").Mechanisms)

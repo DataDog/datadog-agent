@@ -33,16 +33,16 @@ func discoverCgroupMountPoints(hostPrefix, procFsPath string) (map[string]string
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		line := s.Text()
-		if !strings.HasPrefix(line, "cgroup") {
-			continue
-		}
 
 		tokens := strings.Fields(line)
-		// Check if the filesystem type is 'cgroup' or 'cgroup2'
 		if len(tokens) >= 3 {
+			// Check if the filesystem type is 'cgroup' or 'cgroup2'
 			fsType := tokens[2]
-			cgroupPath := tokens[1]
+			if !strings.HasPrefix(fsType, "cgroup") {
+				continue
+			}
 
+			cgroupPath := tokens[1]
 			// Mounts are duplicated when /sys/fs is mounted inside a container (like /host/sys/fs)
 			if !strings.HasPrefix(cgroupPath, hostPrefix) {
 				continue
@@ -52,7 +52,11 @@ func discoverCgroupMountPoints(hostPrefix, procFsPath string) (map[string]string
 				// Target can be comma-separate values like cpu,cpuacct
 				tsp := strings.Split(path.Base(cgroupPath), ",")
 				for _, target := range tsp {
-					mountPointsv1[target] = cgroupPath
+					// In case multiple paths are mounted for a single controller, take the shortest one
+					previousPath := mountPointsv1[target]
+					if previousPath == "" || len(cgroupPath) < len(previousPath) {
+						mountPointsv1[target] = cgroupPath
+					}
 				}
 			} else if tokens[2] == "cgroup2" {
 				mountPointsv2 = cgroupPath

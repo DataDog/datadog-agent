@@ -2,7 +2,6 @@
 # Entrypoint for the Windows Docker image
 build_windows_container_entrypoint:
   rules:
-    !reference [.on_a7]
   stage: binary_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["tests_windows-x64"]

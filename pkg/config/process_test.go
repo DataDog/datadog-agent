@@ -75,6 +75,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: make(map[string][]string),
 		},
 		{
+			key:          "process_config.events_additional_endpoints",
+			defaultValue: make(map[string][]string),
+		},
+		{
 			key:          "process_config.internal_profiling.enabled",
 			defaultValue: false,
 		},
@@ -83,16 +87,40 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessMaxPerMessage,
 		},
 		{
-			key:          "process_config.max_ctr_procs_per_message",
-			defaultValue: DefaultProcessMaxCtrProcsPerMessage,
-		},
-		{
 			key:          "process_config.expvar_port",
 			defaultValue: DefaultProcessExpVarPort,
 		},
 		{
+			key:          "process_config.max_message_bytes",
+			defaultValue: DefaultProcessMaxMessageBytes,
+		},
+		{
 			key:          "process_config.cmd_port",
 			defaultValue: DefaultProcessCmdPort,
+		},
+		{
+			key:          "process_config.event_collection.store.max_items",
+			defaultValue: DefaultProcessEventStoreMaxItems,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pushes",
+			defaultValue: DefaultProcessEventStoreMaxPendingPushes,
+		},
+		{
+			key:          "process_config.event_collection.store.max_pending_pulls",
+			defaultValue: DefaultProcessEventStoreMaxPendingPulls,
+		},
+		{
+			key:          "process_config.event_collection.store.stats_interval",
+			defaultValue: DefaultProcessEventStoreStatsInterval,
+		},
+		{
+			key:          "process_config.event_collection.enabled",
+			defaultValue: false,
+		},
+		{
+			key:          "process_config.event_collection.interval",
+			defaultValue: DefaultProcessEventsCheckInterval,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -150,6 +178,7 @@ func TestEnvVarOverride(t *testing.T) {
 
 	for _, tc := range []struct {
 		key, env, value string
+		expType         string
 		expected        interface{}
 	}{
 		{
@@ -261,6 +290,12 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: "datacat.com",
 		},
 		{
+			key:      "process_config.events_dd_url",
+			env:      "DD_PROCESS_CONFIG_EVENTS_DD_URL",
+			value:    "datacat.com",
+			expected: "datacat.com",
+		},
+		{
 			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",
@@ -273,10 +308,10 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: 10,
 		},
 		{
-			key:      "process_config.max_ctr_procs_per_message",
-			env:      "DD_PROCESS_CONFIG_MAX_CTR_PROCS_PER_MESSAGE",
-			value:    "20",
-			expected: 20,
+			key:      "process_config.max_message_bytes",
+			env:      "DD_PROCESS_CONFIG_MAX_MESSAGE_BYTES",
+			value:    "100000",
+			expected: 100000,
 		},
 		{
 			key:      "process_config.expvar_port",
@@ -290,10 +325,102 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "1235",
 			expected: 1235,
 		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.scrub_args has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.scrub_args",
+			env:      "DD_PROCESS_CONFIG_SCRUB_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "false",
+			expType:  "boolean", // process_config.strip_proc_arguments has no default value so Get returns a string
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_STRIP_PROCESS_ARGS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "false",
+			expType:  "boolean",
+			expected: false,
+		},
+		{
+			key:      "process_config.strip_proc_arguments",
+			env:      "DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS",
+			value:    "true",
+			expType:  "boolean",
+			expected: true,
+		},
+		{
+			key:      "process_config.event_collection.store.max_items",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_ITEMS",
+			value:    "400",
+			expected: 400,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pushes",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PUSHES",
+			value:    "100",
+			expected: 100,
+		},
+		{
+			key:      "process_config.event_collection.store.max_pending_pulls",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_MAX_PENDING_PULLS",
+			value:    "50",
+			expected: 50,
+		},
+		{
+			key:      "process_config.event_collection.store.stats_interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_STORE_STATS_INTERVAL",
+			value:    "60",
+			expected: 60,
+		},
+		{
+			key:      "process_config.event_collection.enabled",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_ENABLED",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.event_collection.interval",
+			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_INTERVAL",
+			value:    "20s",
+			expected: 20 * time.Second,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			reset := setEnvForTest(tc.env, tc.value)
-			assert.Equal(t, tc.expected, cfg.Get(tc.key))
+			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			reset()
 		})
 
@@ -302,7 +429,7 @@ func TestEnvVarOverride(t *testing.T) {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
 				reset := setEnvForTest(env, tc.value)
-				assert.Equal(t, tc.expected, cfg.Get(tc.key))
+				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 				reset()
 			})
 		}
@@ -318,6 +445,60 @@ func TestEnvVarOverride(t *testing.T) {
 		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
 		reset()
 	})
+
+	t.Run("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
+		reset := setEnvForTest("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", `{"https://process-events.datadoghq.io": ["fakeAPIKey"]}`)
+		assert.Equal(t, map[string][]string{
+			"https://process-events.datadoghq.io": {
+				"fakeAPIKey",
+			},
+		}, cfg.GetStringMapStringSlice("process_config.events_additional_endpoints"))
+		reset()
+	})
+}
+
+func readCfgWithType(cfg Config, key, expType string) interface{} {
+	switch expType {
+	case "stringSlice":
+		return cfg.GetStringSlice(key)
+	case "boolean":
+		return cfg.GetBool(key)
+	default:
+		return cfg.Get(key)
+	}
+}
+
+func TestEnvVarCustomSensitiveWords(t *testing.T) {
+	cfg := setupConf()
+	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
+
+	for i, tc := range []struct {
+		words    string
+		expected []string
+	}{
+		{
+			words:    "pass*,word,secret",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[\"pass*\", \"word\",\"secret\"]",
+			expected: []string{"pass*", "word", "secret"},
+		},
+		{
+			words:    "[pass],word,user",
+			expected: []string{"[pass]", "word", "user"},
+		},
+	} {
+		for _, envPrefix := range expectedPrefixes {
+			e := envPrefix + "CUSTOM_SENSITIVE_WORDS"
+			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
+				reset := setEnvForTest(e, tc.words)
+				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
+				assert.Equal(t, tc.expected, args)
+				reset()
+			})
+		}
+	}
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {

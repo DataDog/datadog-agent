@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.7.1.post
+install_script_version=1.9.0.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -204,6 +204,11 @@ if [ -n "$DD_UPGRADE" ]; then
   upgrade=$DD_UPGRADE
 fi
 
+fips_mode=
+if [ -n "$DD_FIPS_MODE" ]; then
+  fips_mode=$DD_FIPS_MODE
+fi
+
 agent_flavor="datadog-agent"
 if [ -n "$DD_AGENT_FLAVOR" ]; then
     agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
@@ -214,6 +219,7 @@ flavor_to_readable=(
     ["datadog-agent"]="Datadog Agent"
     ["datadog-iot-agent"]="Datadog IoT Agent"
     ["datadog-dogstatsd"]="Datadog Dogstatsd"
+    ["datadog-heroku-agent"]="Datadog Heroku Agent"
 )
 nice_flavor=${flavor_to_readable[$agent_flavor]}
 
@@ -263,12 +269,19 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   #  - 20.0 = sets explicit patch version x.20.0
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=$DD_AGENT_MINOR_VERSION
+  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
+  agent_minor_version_without_patch="${agent_minor_version%.*}"
 fi
 
 agent_dist_channel=stable
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
-  if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
-    echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
+  if [ "$repository_url" == "datadoghq.com" ]; then
+    if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
+      echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
+      exit 1;
+    fi
+  elif [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ] && [ "$DD_AGENT_DIST_CHANNEL" != "nightly" ]; then
+    echo "DD_AGENT_DIST_CHANNEL must be either 'stable', 'beta' or 'nightly' on custom repos. Current value: $DD_AGENT_DIST_CHANNEL"
     exit 1;
   fi
   agent_dist_channel=$DD_AGENT_DIST_CHANNEL
@@ -296,7 +309,7 @@ fi
 
 if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
-  if [ ! "$upgrade" ]; then
+  if [ ! "$upgrade" ] && [ ! -e "$config_file" ]; then
     printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
     exit 1;
   fi
@@ -304,11 +317,6 @@ fi
 
 if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
     printf "\033[31mThe full $nice_flavor isn't available for your architecture (armv7l).\nInstall the ${flavor_to_readable[datadog-iot-agent]} by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
-    exit 1;
-fi
-
-if [[ `uname -m` != "x86_64" ]] && [[ $agent_flavor == "datadog-dogstatsd" ]]; then
-    printf "\033[31mThe $nice_flavor is only available for x86_64 architecture.\033[0m\n"
     exit 1;
 fi
 
@@ -336,6 +344,17 @@ elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
 # openSUSE and SUSE use /etc/SuSE-release or /etc/os-release
 elif [ -f /etc/SuSE-release ] || [ "$DISTRIBUTION" == "SUSE" ] || [ "$DISTRIBUTION" == "openSUSE" ]; then
     OS="SUSE"
+fi
+
+if [[ "$agent_flavor" == "datadog-dogstatsd" ]]; then
+    if [[ `uname -m` == "armv7l" ]] || { [[ `uname -m` != "x86_64" ]] && [[ "$OS" != "Debian" ]]; }; then
+        printf "\033[31mThe $nice_flavor isn't available for your architecture.\033[0m\n"
+        exit 1;
+    fi
+    if  [[ "$OS" == "Debian" ]] && [[ `uname -m` == "aarch64" ]] && { [[ -n "$agent_minor_version" ]] && [[ "$agent_minor_version" -lt 35 ]]; }; then
+        printf "\033[31mThe $nice_flavor is only available since version 7.35.0 for your architecture.\033[0m\n"
+        exit 1;
+    fi
 fi
 
 # Root user detection
@@ -410,7 +429,13 @@ if [ "$OS" = "RedHat" ]; then
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
+    declare -a packages
+    packages=("$agent_flavor")
+    if [ -n "$fips_mode" ]; then
+      packages+=("datadog-fips-proxy")
+    fi
+
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "${packages[@]}" || $sudo_cmd yum -y install $dnf_flag "${packages[@]}"
 
 elif [ "$OS" = "Debian" ]; then
     apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
@@ -450,6 +475,20 @@ elif [ "$OS" = "Debian" ]; then
         $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
+    if [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 8 ]; then
+      if [ -n "$agent_minor_version_without_patch" ]; then
+          if [ "$agent_minor_version_without_patch" -ge "36" ]; then
+              printf "\033[31mDebian < 8 only supports $nice_flavor %s up to %s.35.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              exit;
+          fi
+      else
+          if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
+              echo -e "  \033[33m$nice_flavor $agent_major_version.35 is the last supported version on $DISTRIBUTION $release_version. Installing $agent_major_version.35 now.\n\033[0m"
+              agent_minor_version=35
+          fi
+      fi
+    fi
+
     printf "\033[34m\n* Installing the $nice_flavor package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the Datadog repository.
@@ -466,7 +505,7 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
-    
+
     if [ -n "$agent_minor_version" ]; then
         # Example: datadog-agent=1:7.20.2-1
         pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
@@ -475,7 +514,13 @@ If the cause is unclear, please contact Datadog support.
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd apt-get install -y --force-yes "$agent_flavor" "datadog-signing-keys"
+    declare -a packages
+    packages=("$agent_flavor" "datadog-signing-keys")
+    if [ -n "$fips_mode" ]; then
+     packages+=("datadog-fips-proxy")
+    fi
+
+    $sudo_cmd apt-get install -y --force-yes "${packages[@]}"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)
@@ -546,11 +591,9 @@ elif [ "$OS" = "SUSE" ]; then
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
-  
+
   echo -e "\033[34m\n* Installing the $nice_flavor package\n\033[0m"
 
-  # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
-  agent_minor_version_without_patch="${agent_minor_version%.*}"
   # ".32" is the latest version supported for OpenSUSE < 15 and SLES < 12
   # we explicitly test for SUSE11 = "yes", as some SUSE11 don't have /etc/os-release, thus SUSE_VER is empty
   if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then
@@ -588,10 +631,16 @@ elif [ "$OS" = "SUSE" ]; then
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
+  declare -a packages
+  packages=("$agent_flavor")
+  if [ -n "$fips_mode" ]; then
+    packages+=("datadog-fips-proxy")
+  fi
+
   if [ -z "$sudo_cmd" ]; then
-    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}"
   else
-    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "$agent_flavor"
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}"
   fi
 
 else
@@ -635,13 +684,50 @@ else
       no_start=true
     fi
   fi
-  if [ "$site" ]; then
-    printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
-  fi
-  if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
+
+  if [ -z "$fips_mode" ]; then
+    if [ "$site" ]; then
+      printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
+    fi
+    if [ -n "$DD_URL" ]; then
+      printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
+    fi
+  else
+    printf "\033[34m\n* Setting $nice_flavor configuration to use FIPS proxy: $config_file\n\033[0m\n"
+    $sudo_cmd cp "$config_file" "${config_file}.orig"
+    $sudo_cmd sh -c "exec cat - '${config_file}.orig' > '$config_file'" <<EOF
+# Configuration for the agent to use datadog-fips-proxy to communicate with Datadog via FIPS-compliant channel.
+
+dd_url: http://localhost:3834
+
+apm_config:
+    apm_dd_url: http://localhost:3835
+    profiling_dd_url: http://localhost:3836
+    telemetry:
+        dd_url: http://localhost:3843
+
+process_config:
+    process_dd_url: http://localhost:3837
+
+logs_config:
+    use_http: true
+    logs_dd_url: localhost:3838
+    logs_no_ssl: true
+
+database_monitoring:
+    metrics:
+        dd_url: localhost:3839
+    activity:
+        dd_url: localhost:3839
+    samples:
+        dd_url: localhost:3840
+
+network_devices:
+    metadata:
+        dd_url: localhost:3841
+EOF
   fi
   if [ "$hostname" ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $config_file\n\033[0m\n"
@@ -652,9 +738,10 @@ else
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
-  $sudo_cmd chown dd-agent:dd-agent "$config_file"
-  $sudo_cmd chmod 640 "$config_file"
 fi
+
+$sudo_cmd chown dd-agent:dd-agent "$config_file"
+$sudo_cmd chmod 640 "$config_file"
 
 # Creating or overriding the install information
 install_info_content="---

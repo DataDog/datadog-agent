@@ -7,26 +7,22 @@ package sampler
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
+	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"golang.org/x/time/rate"
 )
 
 const (
-	// cardinalityLimit limits the number of spans considered per combination of (env, service).
-	cardinalityLimit = 1000
-	// defaultTTL limits the frequency at which we sample a same span (env, service, name, rsc, ...).
-	defaultTTL = 2 * time.Minute
 	// priorityTTL allows to blacklist p1 spans that are sampled entirely, for this period.
 	priorityTTL = 10 * time.Minute
 	// ttlRenewalPeriod specifies the frequency at which we will upload cached entries.
 	ttlRenewalPeriod = 1 * time.Minute
-	// rareSamplerTPS traces per second allowed by the rate limiter.
-	rareSamplerTPS = 5
 	// rareSamplerBurst sizes the token store used by the rate limiter.
 	rareSamplerBurst = 50
 	rareKey          = "_dd.rare"
@@ -39,24 +35,35 @@ const (
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
 type RareSampler struct {
-	// Variables access through the 'atomic' package must be 64bits aligned.
-	hits    int64
-	misses  int64
-	shrinks int64
+	hits    *atomic.Int64
+	misses  *atomic.Int64
+	shrinks *atomic.Int64
 	mu      sync.RWMutex
 
-	tickStats *time.Ticker
-	limiter   *rate.Limiter
-	seen      map[Signature]*seenSpans
+	tickStats   *time.Ticker
+	limiter     *rate.Limiter
+	ttl         time.Duration
+	priorityTTL time.Duration
+	cardinality int
+	seen        map[Signature]*seenSpans
 }
 
 // NewRareSampler returns a NewRareSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
-func NewRareSampler() *RareSampler {
+func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 	e := &RareSampler{
-		limiter:   rate.NewLimiter(rareSamplerTPS, rareSamplerBurst),
-		seen:      make(map[Signature]*seenSpans),
-		tickStats: time.NewTicker(10 * time.Second),
+		hits:        atomic.NewInt64(0),
+		misses:      atomic.NewInt64(0),
+		shrinks:     atomic.NewInt64(0),
+		limiter:     rate.NewLimiter(rate.Limit(conf.RareSamplerTPS), rareSamplerBurst),
+		ttl:         conf.RareSamplerCooldownPeriod,
+		priorityTTL: priorityTTL,
+		cardinality: conf.RareSamplerCardinality,
+		seen:        make(map[Signature]*seenSpans),
+		tickStats:   time.NewTicker(10 * time.Second),
+	}
+	if e.ttl > e.priorityTTL {
+		e.priorityTTL = e.ttl
 	}
 	go func() {
 		for range e.tickStats.C {
@@ -67,13 +74,9 @@ func NewRareSampler() *RareSampler {
 }
 
 // Sample a trace and returns true if trace was sampled (should be kept)
-func (e *RareSampler) Sample(t *pb.TraceChunk, env string) bool {
-	return e.sample(time.Now(), env, t)
-}
-
-func (e *RareSampler) sample(now time.Time, env string, t *pb.TraceChunk) bool {
+func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
 	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
-		e.handlePriorityTrace(now, env, t)
+		e.handlePriorityTrace(now, env, t, e.priorityTTL)
 		return false
 	}
 	return e.handleTrace(now, env, t)
@@ -84,8 +87,8 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk) {
-	expire := now.Add(priorityTTL)
+func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
+	expire := now.Add(ttl)
 	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
@@ -96,16 +99,16 @@ func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.Trace
 
 func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) bool {
 	var sampled bool
-	expire := now.Add(defaultTTL)
 	for _, s := range t.Spans {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
-		if !sampled {
-			sampled = e.sampleSpan(now, env, s)
-			continue
+		if sampled = e.sampleSpan(now, env, s); sampled {
+			break
 		}
-		e.addSpan(expire, env, s)
+	}
+	if sampled {
+		e.handlePriorityTrace(now, env, t, e.ttl)
 	}
 	return sampled
 }
@@ -128,11 +131,11 @@ func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 	if now.After(expire) || !ok {
 		sampled = e.limiter.Allow()
 		if sampled {
-			ss.add(now.Add(defaultTTL), s)
-			atomic.AddInt64(&e.hits, 1)
+			ss.add(now.Add(e.ttl), s)
+			e.hits.Inc()
 			traceutil.SetMetric(s, rareKey, 1)
 		} else {
-			atomic.AddInt64(&e.misses, 1)
+			e.misses.Inc()
 		}
 	}
 	return sampled
@@ -145,7 +148,11 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 	if ok {
 		return s
 	}
-	s = &seenSpans{expires: make(map[spanHash]time.Time), totalSamplerShrinks: &e.shrinks}
+	s = &seenSpans{
+		expires:             make(map[spanHash]time.Time),
+		totalSamplerShrinks: e.shrinks,
+		cardinality:         e.cardinality,
+	}
 	e.mu.Lock()
 	e.seen[shardSig] = s
 	e.mu.Unlock()
@@ -153,9 +160,9 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 }
 
 func (e *RareSampler) report() {
-	metrics.Count("datadog.trace_agent.sampler.rare.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.sampler.rare.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.
@@ -166,7 +173,9 @@ type seenSpans struct {
 	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
 	shrunk bool
 	// totalSamplerShrinks is the reference to the total number of shrinks reported by RareSampler.
-	totalSamplerShrinks *int64
+	totalSamplerShrinks *atomic.Int64
+	// cardinality limits the number of spans considered per combination of (env, service).
+	cardinality int
 }
 
 func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
@@ -181,7 +190,7 @@ func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
 
 	// if cardinality limit reached, shrink
 	size := len(ss.expires)
-	if size > cardinalityLimit {
+	if size > ss.cardinality {
 		ss.shrink()
 	}
 	ss.mu.Unlock()
@@ -192,13 +201,13 @@ func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
 // all sampling tokens. The cardinality limit matches a backend limit.
 // This function is not thread safe and should be called between locks
 func (ss *seenSpans) shrink() {
-	newExpires := make(map[spanHash]time.Time, cardinalityLimit)
+	newExpires := make(map[spanHash]time.Time, ss.cardinality)
 	for h, expire := range ss.expires {
-		newExpires[h%spanHash(cardinalityLimit)] = expire
+		newExpires[h%spanHash(ss.cardinality)] = expire
 	}
 	ss.expires = newExpires
 	ss.shrunk = true
-	atomic.AddInt64(ss.totalSamplerShrinks, 1)
+	ss.totalSamplerShrinks.Inc()
 }
 
 func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
@@ -211,7 +220,7 @@ func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
 func (ss *seenSpans) sign(s *pb.Span) spanHash {
 	h := computeSpanHash(s, "", true)
 	if ss.shrunk {
-		h = h % spanHash(cardinalityLimit)
+		h = h % spanHash(ss.cardinality)
 	}
 	return h
 }

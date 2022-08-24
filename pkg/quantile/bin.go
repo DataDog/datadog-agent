@@ -51,7 +51,7 @@ func appendSafe(bins []bin, k Key, n int) []bin {
 		bins = append(bins, bin{k: k, n: r})
 	}
 
-	for i := 0; i < int(n/maxBinWidth); i++ {
+	for i := 0; i < n/maxBinWidth; i++ {
 		bins = append(bins, bin{k: k, n: maxBinWidth})
 	}
 

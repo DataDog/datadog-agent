@@ -53,7 +53,7 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 			// If so, the first attempt will fail because the closed connection will still be cached.
 			log.Debug("Retrying transaction")
 			if err := t.Process(context.Background(), f.client); err != nil {
-				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
+				log.Warnf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
 			}
 		}
 	}
@@ -122,6 +122,11 @@ func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra htt
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
+// SubmitProcessEventChecks sends process events checks
+func (f *SyncForwarder) SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
+}
+
 // SubmitRTProcessChecks sends real time process checks
 func (f *SyncForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
@@ -145,6 +150,11 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
+}
+
+// SubmitOrchestratorManifests sends orchestrator manifests
+func (f *SyncForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events

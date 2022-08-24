@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 func VirtualMemory() (*mem.VirtualMemoryStat, error) {
@@ -30,12 +31,12 @@ func VirtualMemory() (*mem.VirtualMemoryStat, error) {
 		Wired:        0,
 		Buffers:      353818902528,
 		Cached:       2596446142464,
-		Writeback:    0,
+		WriteBack:    0,
 		Dirty:        314572800,
-		WritebackTmp: 0,
+		WriteBackTmp: 0,
 		Shared:       327680000000,
 		Slab:         327680000000,
-		SReclaimable: 327680000000,
+		Sreclaimable: 327680000000,
 		PageTables:   37790679040,
 		SwapCached:   25000000000,
 		CommitLimit:  785338368,

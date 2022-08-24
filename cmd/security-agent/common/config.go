@@ -29,7 +29,7 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 			}
 			continue
 		}
-		if loadedConfiguration == false {
+		if !loadedConfiguration {
 			err := common.SetupConfig(configurationFilename)
 			if err != nil {
 				if userDefined {
@@ -49,13 +49,13 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 
 			err = coreconfig.Datadog.MergeConfig(file)
 			if err != nil {
-				return fmt.Errorf("Unable to merge a configuration file: %v", err)
+				return fmt.Errorf("unable to merge a configuration file: %v", err)
 			}
 		}
 	}
 
-	if loadedConfiguration == false {
-		return fmt.Errorf("Unable to load any configuration file from %s", configurationFilesArray)
+	if !loadedConfiguration {
+		return fmt.Errorf("unable to load any configuration file from %s", configurationFilesArray)
 	}
 
 	return nil

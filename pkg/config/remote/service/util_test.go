@@ -1,11 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package service
 
 import (
 	"encoding/base32"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 )
 
 func TestRemoteConfigKey(t *testing.T) {

@@ -16,6 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+const Traces DataType = "traces"
+
 func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
@@ -49,6 +52,8 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
+
+	bindVectorOptions(config, Traces)
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
@@ -109,13 +114,9 @@ func setupAPM(config Config) {
 		return r
 	})
 
-	config.SetEnvKeyTransformer("apm_config.filter_tags.require", func(in string) interface{} {
-		return strings.Split(in, " ")
-	})
+	config.SetEnvKeyTransformer("apm_config.filter_tags.require", parseKVList("apm_config.filter_tags.require"))
 
-	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", func(in string) interface{} {
-		return strings.Split(in, " ")
-	})
+	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
 
 	config.SetEnvKeyTransformer("apm_config.replace_tags", func(in string) interface{} {
 		var out []map[string]string
@@ -132,6 +133,24 @@ func setupAPM(config Config) {
 		}
 		return out
 	})
+}
+
+func parseKVList(key string) func(string) interface{} {
+	return func(in string) interface{} {
+		if len(in) == 0 {
+			return []string{}
+		}
+		if in[0] != '[' {
+			return strings.Split(in, " ")
+		}
+		// '[' as a first character signals JSON array format
+		var values []string
+		if err := json.Unmarshal([]byte(in), &values); err != nil {
+			log.Warnf(`"%s" can not be parsed: %v`, key, err)
+			return []string{}
+		}
+		return values
+	}
 }
 
 func splitCSVString(s string, sep rune) ([]string, error) {

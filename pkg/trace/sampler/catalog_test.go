@@ -18,7 +18,7 @@ import (
 // occurring when registering entries in the catalog in parallel to obtaining
 // the rates by service map.
 func TestCatalogRegression(t *testing.T) {
-	cat := newServiceLookup()
+	cat := newServiceLookup(0)
 	n := 100
 
 	var wg sync.WaitGroup
@@ -53,13 +53,13 @@ func TestServiceSignatureString(t *testing.T) {
 }
 
 func TestNewServiceLookup(t *testing.T) {
-	cat := newServiceLookup()
+	cat := newServiceLookup(0)
 	assert.NotNil(t, cat.items)
 	assert.NotNil(t, cat.ll)
 }
 
 func TestServiceKeyCatalogRegister(t *testing.T) {
-	cat := newServiceLookup()
+	cat := newServiceLookup(0)
 	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
@@ -78,7 +78,7 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 
 func TestServiceKeyCatalogLRU(t *testing.T) {
 	t.Run("size", func(t *testing.T) {
-		cat := newServiceLookup()
+		cat := newServiceLookup(0)
 		cat.maxEntries = 3
 		_ = cat.register(ServiceSignature{"service1", "env1"})
 		sig2 := cat.register(ServiceSignature{"service2", "env2"})
@@ -98,7 +98,7 @@ func TestServiceKeyCatalogLRU(t *testing.T) {
 	})
 
 	t.Run("move", func(t *testing.T) {
-		cat := newServiceLookup()
+		cat := newServiceLookup(0)
 		cat.maxEntries = 3
 		sig1 := cat.register(ServiceSignature{"service1", "env1"})
 		_ = cat.register(ServiceSignature{"service2", "env2"})
@@ -141,7 +141,7 @@ func catalogContains(t *testing.T, cat *serviceKeyCatalog, has map[ServiceSignat
 
 func TestCatalogEnvMatchAgent(t *testing.T) {
 	assert := assert.New(t)
-	cat := newServiceLookup()
+	cat := newServiceLookup(0)
 
 	sig1 := ServiceSignature{"service1", defaultEnv}
 	cat.register(sig1)
@@ -176,7 +176,7 @@ func TestCatalogEnvMatchAgent(t *testing.T) {
 func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
-	cat := newServiceLookup()
+	cat := newServiceLookup(0)
 	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
@@ -226,7 +226,7 @@ func BenchmarkServiceKeyCatalog(b *testing.B) {
 
 	b.Run("new", func(b *testing.B) {
 		x := 1
-		cat := newServiceLookup()
+		cat := newServiceLookup(0)
 		cat.maxEntries = math.MaxInt16
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -237,7 +237,7 @@ func BenchmarkServiceKeyCatalog(b *testing.B) {
 	})
 
 	b.Run("same", func(b *testing.B) {
-		cat := newServiceLookup()
+		cat := newServiceLookup(0)
 		cat.maxEntries = math.MaxInt16
 		ss := ServiceSignature{Name: "sql-db", Env: "staging"}
 		b.ResetTimer()

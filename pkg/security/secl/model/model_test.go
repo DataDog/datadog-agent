@@ -31,6 +31,9 @@ func TestPathValidation(t *testing.T) {
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/"}); err == nil {
 		t.Error("should return an error")
 	}
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "~/"}); err == nil {
+		t.Error("should return an error")
+	}
 
 	var val string
 	for i := 0; i <= MaxPathDepth; i++ {

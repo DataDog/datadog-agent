@@ -75,7 +75,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     // It seems that support for this type of access range by the verifier was added later on:
     // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
     //
-    // What is unfortunate about this is not only that enqueing a HTTP transaction is O(HTTP_BATCH_SIZE),
+    // What is unfortunate about this is not only that enqueuing a HTTP transaction is O(HTTP_BATCH_SIZE),
     // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
 #pragma unroll
     for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
@@ -115,32 +115,33 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     http->response_status_code = status_code;
 }
 
-static __always_inline void http_parse_data(char *p, http_packet_t *packet_type, http_method_t *method) {
+static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
         *packet_type = HTTP_RESPONSE;
-    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
+    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_GET;
-    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T')) {
+    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T') && (p[4]  == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_POST;
-    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T')) {
+    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PUT;
-    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) {
+    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E') && (p[6]  == ' ') && (p[7] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;
-    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D')) {
+    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D') && (p[4]  == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_HEAD;
-    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S')) {
+    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S') && (p[7]  == ' ') && ((p[8] == '/') || (p[8] == '*'))) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_OPTIONS;
-    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H')) {
+    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5]  == ' ') && (p[6] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PATCH;
     }
 }
+
 
 static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, skb_info_t *skb_info, http_packet_t packet_type) {
     if (packet_type == HTTP_PACKET_UNKNOWN) {
@@ -186,11 +187,23 @@ static __always_inline http_transaction_t* http_should_flush_previous_state(http
 }
 
 static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *skb_info, u16 pre_norm_src_port) {
-    return (skb_info && skb_info->tcp_flags&TCPHDR_FIN &&
+    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST) &&
+            // This is done to avoid double flushing the same
+            // `http_transaction_t` to userspace.  In the context of a regular
+            // TCP teardown, the FIN flag will be seen in "both ways", like:
+            //
+            // server -> FIN -> client
+            // server <- FIN <- client
+            //
+            // Since we can't make any assumptions about the ordering of these
+            // events and there are no synchronization primitives available to
+            // us, the way we solve it is by storing the non-normalized src port
+            // when we start tracking a HTTP transaction and ensuring that only the
+            // FIN flag seen in the same direction will trigger the flushing event.
             http->owned_by_src_port == pre_norm_src_port);
 }
 
-static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info) {
+static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
     char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
@@ -208,13 +221,21 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         http_begin_response(http, buffer);
     }
 
-    // If we have a (L7/application-layer) payload we want to update the response_last_seen
-    // This is to prevent things such as a keep-alive adding up to the transaction latency
+    http->tags |= tags;
+
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
     if (buffer[0] != 0) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
     bool conn_closed = http_closed(http, skb_info, http_stack->owned_by_src_port);
+
+    // It's a bit confusing that we're potentially overriding the return value
+    // of the call to `http_should_flush_previous_state` above, but in reality
+    // when `conn_closed` is true the previous value of `to_flush` should be
+    // null.  We write the code in this way to avoid inlining `http_enqueue`
+    // multiple times and keep the number of eBPF instructions to a minimum.
     if (conn_closed) {
         to_flush = http;
     }

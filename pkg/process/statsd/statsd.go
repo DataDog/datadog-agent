@@ -8,7 +8,7 @@ package statsd
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Client is a global Statsd client. When a client is configured via Configure,

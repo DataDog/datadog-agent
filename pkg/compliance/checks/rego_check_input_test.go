@@ -9,11 +9,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/stretchr/testify/mock"
-	assert "github.com/stretchr/testify/require"
 )
 
 type regoInputFixture struct {
@@ -67,6 +68,7 @@ func (f *regoInputFixture) run(t *testing.T) {
 	env.On("ProvidedInput", mock.Anything).Return(nil).Once()
 	env.On("Hostname").Return("hostname_test").Once()
 	env.On("DumpInputPath").Return(tf.Name()).Once()
+	env.On("ShouldSkipRegoEval").Return(false).Once()
 
 	defer env.AssertExpectations(t)
 

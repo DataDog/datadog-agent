@@ -51,14 +51,21 @@ SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
 
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
-    if (!syscall)
+    if (!syscall) {
         return 0;
+    }
 
-    if (IS_UNHANDLED_ERROR(retval))
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
+    }
+
+    if (is_pipefs_mount_id(syscall->setattr.file.path_key.mount_id)) {
+        return 0;
+    }
 
     struct chmod_event_t event = {
         .syscall.retval = retval,
+        .event.async = 0,
         .file = syscall->setattr.file,
         .padding = 0,
         .mode = syscall->setattr.mode,

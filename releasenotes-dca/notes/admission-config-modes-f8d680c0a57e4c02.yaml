@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    The Datadog Admission Controller supports multiple configuration injection
+    modes through the ``admission_controller.inject_config.mode`` parameter
+    or the ``DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE`` environment variable:
+    - ``hostip``: Inject the host IP. (default)
+    - ``service``: Inject Datadog's local-service DNS name.
+    - ``socket``: Inject the Datadog socket path.

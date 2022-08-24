@@ -6,7 +6,7 @@
 #define MIN_PASS_LEN 16         /* minimum length of password to generate */
 #define MAX_PASS_LEN 20         /* maximum length of password to generate */
 #define MIN_NUM_LOWER_CHARS 2   /* minimum allowable number of lowercase chars */
-#define MIN_NUM_UPPER_CHARS 2   /* minumum allowable number of uppercase chars */
+#define MIN_NUM_UPPER_CHARS 2   /* minimum allowable number of uppercase chars */
 #define MIN_NUM_NUMBER_CHARS 2  /* minimum allowable number of numeric chars */
 #define MIN_NUM_SPECIAL_CHARS 2 /* minimum number of special characters */
 #include "SID.h"

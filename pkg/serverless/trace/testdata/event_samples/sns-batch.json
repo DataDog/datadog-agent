@@ -1,0 +1,50 @@
+{
+    "Records": [
+        {
+            "EventSource": "aws:sns",
+            "EventVersion": "1.0",
+            "EventSubscriptionArn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy:224b60ba-befc-4830-ad96-f1f0ac94eb04",
+            "Sns": {
+                "Type": "Notification",
+                "MessageId": "87056a47-f506-5d77-908b-303605d3b197",
+                "TopicArn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
+                "Subject": null,
+                "Message": "Asynchronously invoking a Lambda function with SNS.",
+                "Timestamp": "2022-01-31T14:13:41.637Z",
+                "SignatureVersion": "1",
+                "Signature": "BmwnJb0Ku2KgQef9QOgaSSTwLyUsbkRq90lzD5Vn4mAcRUOq2ForfMOYbxMB6idljWIWy9t/jK4AIMxPGk/eOGiRcENx3BvAcGcoDayBRFY13+xUGaPn5Lfoht/ZJ7/hmCgFWKRa8ooATZL+AwGAw6Id8qzf0R3M3k2asy5Vxa4ODKiFW9OzWY/zFgsYJhddR3JrQl9YOMRyIobNNHT96o1TwjGsSUTEemrxA6jQtb3QbardEKO+2SuataLEZki7gE2D2sA300WqZecumI339q7la+OIj6VDGDwFoppE2sh8hzJYXAH7oo11giwltE0V3/eLFCVhsE8Y1KD/yDPPsA==",
+                "SigningCertUrl": "https://sns.sa-east-1.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+                "UnsubscribeUrl": "https://sns.sa-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy:224b60ba-befc-4830-ad96-f1f0ac94eb04",
+                "MessageAttributes": {
+                    "_datadog": {
+                        "Type": "String",
+                        "Value": "{\"x-datadog-trace-id\": \"4948377316357291421\", \"x-datadog-parent-id\": \"6746998015037429512\", \"x-datadog-sampling-priority\": \"1\"}"
+                    }
+                }
+            }
+        },
+        {
+            "EventSource": "aws:sns",
+            "EventVersion": "1.0",
+            "EventSubscriptionArn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy:224b60ba-befc-4830-ad96-f1f0ac94eb04",
+            "Sns": {
+                "Type": "Notification",
+                "MessageId": "87056a47-f506-5d77-908b-303605d3b197",
+                "TopicArn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
+                "Subject": null,
+                "Message": "Asynchronously invoking a Lambda function with SNS.",
+                "Timestamp": "2022-01-31T14:13:41.637Z",
+                "SignatureVersion": "1",
+                "Signature": "BmwnJb0Ku2KgQef9QOgaSSTwLyUsbkRq90lzD5Vn4mAcRUOq2ForfMOYbxMB6idljWIWy9t/jK4AIMxPGk/eOGiRcENx3BvAcGcoDayBRFY13+xUGaPn5Lfoht/ZJ7/hmCgFWKRa8ooATZL+AwGAw6Id8qzf0R3M3k2asy5Vxa4ODKiFW9OzWY/zFgsYJhddR3JrQl9YOMRyIobNNHT96o1TwjGsSUTEemrxA6jQtb3QbardEKO+2SuataLEZki7gE2D2sA300WqZecumI339q7la+OIj6VDGDwFoppE2sh8hzJYXAH7oo11giwltE0V3/eLFCVhsE8Y1KD/yDPPsA==",
+                "SigningCertUrl": "https://sns.sa-east-1.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+                "UnsubscribeUrl": "https://sns.sa-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy:224b60ba-befc-4830-ad96-f1f0ac94eb04",
+                "MessageAttributes": {
+                    "_datadog": {
+                        "Type": "String",
+                        "Value": "{\"x-datadog-trace-id\": \"4948377316357291421\", \"x-datadog-parent-id\": \"6746998015037429512\", \"x-datadog-sampling-priority\": \"1\"}"
+                    }
+                }
+            }
+        }
+    ]
+}

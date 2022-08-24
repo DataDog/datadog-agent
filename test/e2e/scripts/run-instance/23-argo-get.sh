@@ -41,11 +41,17 @@ done
 # CWS & CSPM e2e output
 for workflow in $(./argo list -o name); do
     if [ "$ARGO_WORKFLOW" = "cws" ]; then
-        kubectl logs $(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id') -c main
+        pod=$(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cws-e2e").id')
+        if [ -n "$pod" ]; then
+            kubectl logs "$pod" -c main
+        fi
     fi
 
     if [ "$ARGO_WORKFLOW" = "cspm" ]; then
-        kubectl logs $(./argo get $workflow -o json | jq -r '.status.nodes[] | select(.displayName=="test-cspm-e2e").id') -c main
+        pod=$(./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.displayName=="test-cspm-e2e").id')
+        if [ -n "$pod" ]; then
+            kubectl logs "$pod" -c main
+        fi
     fi
 done
 
@@ -61,7 +67,9 @@ fi
 
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
 LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
+BEGIN_TS=$(./argo list -o json | jq -r '.[] | .metadata.creationTimestamp' | while read -r ts; do date -d "$ts" +%s; done | sort -n | head -n 1)
 
 printf "\033[1mThe Argo UI will remain available at \033[1;34mhttps://%s\033[0m until \033[1;33m%s\033[0m.\n" "$LOCAL_IP" "$TIME_LEFT"
+printf "\033[1mAll the logs of this job can be found at \033[1;34mhttps://dddev.datadoghq.com/logs?query=app%%3Aagent-e2e-tests%%20ci_commit_short_sha%%3A%s%%20ci_pipeline_id%%3A%s%%20ci_job_id%%3A%s&index=dd-agent-ci-e2e&from_ts=%d000&to_ts=%d000&live=false\033[0m.\n" "${CI_COMMIT_SHORT_SHA:-unknown}" "${CI_PIPELINE_ID:-unknown}" "${CI_JOB_ID:-unknown}" "$BEGIN_TS" "$(date +%s)"
 
 exit ${EXIT_CODE}

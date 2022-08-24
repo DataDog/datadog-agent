@@ -7,20 +7,17 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // telemetry reports environment information (e.g containers running) when the runtime security component is running
 type telemetry struct {
-	sender                aggregator.Sender
-	detector              collectors.DetectorInterface
+	containers            *common.ContainersTelemetry
 	runtimeSecurityClient *RuntimeSecurityClient
 }
 
@@ -29,19 +26,19 @@ func newTelemetry() (*telemetry, error) {
 	if err != nil {
 		return nil, err
 	}
-	sender, err := aggregator.GetDefaultSender()
+
+	containersTelemetry, err := common.NewContainersTelemetry()
 	if err != nil {
 		return nil, err
 	}
 
 	return &telemetry{
-		sender:                sender,
-		detector:              collectors.NewDetector(""),
+		containers:            containersTelemetry,
 		runtimeSecurityClient: runtimeSecurityClient,
 	}, nil
 }
 
-func (t *telemetry) run(ctx context.Context) {
+func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
@@ -56,6 +53,9 @@ func (t *telemetry) run(ctx context.Context) {
 			if err := t.reportContainers(); err != nil {
 				log.Debugf("couldn't report containers: %v", err)
 			}
+			if rsa.storage != nil {
+				rsa.storage.SendTelemetry()
+			}
 		}
 	}
 }
@@ -64,7 +64,7 @@ func (t *telemetry) reportContainers() error {
 	// retrieve the runtime security module config
 	cfg, err := t.runtimeSecurityClient.GetConfig()
 	if err != nil {
-		return errors.Errorf("couldn't fetch config from runtime security module")
+		return errors.New("couldn't fetch config from runtime security module")
 	}
 
 	var metricName string
@@ -77,21 +77,7 @@ func (t *telemetry) reportContainers() error {
 		return nil
 	}
 
-	collector, _, err := t.detector.GetPreferred()
-	if err != nil {
-		return err
-	}
-
-	containers, err := collector.List()
-	if err != nil {
-		return err
-	}
-
-	for _, container := range containers {
-		t.sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
-	}
-
-	t.sender.Commit()
+	t.containers.ReportContainers(metricName)
 
 	return nil
 }

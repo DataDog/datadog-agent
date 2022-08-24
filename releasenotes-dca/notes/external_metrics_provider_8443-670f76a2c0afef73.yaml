@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    Change the default value of the external metrics provider port from 443 to 8443.
+    This will allow to run the cluster agent with a non-root user for better security.
+    This was already the default value in the Helm chart and in the datadog operator.

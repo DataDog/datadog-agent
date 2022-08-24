@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/stretchr/testify/suite"
@@ -27,33 +29,34 @@ type ProviderTestSuite struct {
 func (suite *ProviderTestSuite) SetupTest() {
 	suite.a = auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.p = &provider{
-		numberOfPipelines: 3,
-		auditor:           suite.a,
-		pipelines:         []*Pipeline{},
-		endpoints:         config.NewEndpoints(config.Endpoint{}, nil, true, false),
+		numberOfPipelines:    3,
+		auditor:              suite.a,
+		pipelines:            []*Pipeline{},
+		endpoints:            config.NewEndpoints(config.Endpoint{}, nil, true, false),
+		currentPipelineIndex: atomic.NewUint32(0),
 	}
 }
 
 func (suite *ProviderTestSuite) TestProvider() {
 	suite.a.Start()
 	suite.p.Start()
-	suite.Equal(uint32(0), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(0), suite.p.currentPipelineIndex.Load())
 	suite.Equal(3, len(suite.p.pipelines))
 
 	c := suite.p.NextPipelineChan()
-	suite.Equal(uint32(1), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(1), suite.p.currentPipelineIndex.Load())
 	suite.Equal(suite.p.pipelines[1].InputChan, c)
 
 	c = suite.p.NextPipelineChan()
-	suite.Equal(uint32(2), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(2), suite.p.currentPipelineIndex.Load())
 	suite.Equal(suite.p.pipelines[2].InputChan, c)
 
 	c = suite.p.NextPipelineChan()
-	suite.Equal(uint32(3), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(3), suite.p.currentPipelineIndex.Load())
 	suite.Equal(suite.p.pipelines[0].InputChan, c) // wraps
 
 	c = suite.p.NextPipelineChan()
-	suite.Equal(uint32(4), suite.p.currentPipelineIndex)
+	suite.Equal(uint32(4), suite.p.currentPipelineIndex.Load())
 	suite.Equal(suite.p.pipelines[1].InputChan, c)
 
 	suite.p.Stop()

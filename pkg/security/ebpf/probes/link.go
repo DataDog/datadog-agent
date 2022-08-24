@@ -19,6 +19,20 @@ var linkProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_vfs_link",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_linkat",
+			EBPFFuncName: "kprobe_do_linkat",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/do_linkat",
+			EBPFFuncName: "kretprobe_do_linkat",
+		},
+	},
 }
 
 func getLinkProbe() []*manager.Probe {

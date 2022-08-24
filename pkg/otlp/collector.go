@@ -13,10 +13,12 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service"
+	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -28,6 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+var (
+	pipelineError = atomic.NewError(nil)
 )
 
 func getComponents(s serializer.MetricSerializer) (
@@ -51,6 +57,7 @@ func getComponents(s serializer.MetricSerializer) (
 	exporters, err := component.MakeExporterFactoryMap(
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
+		loggingexporter.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -91,14 +98,36 @@ type PipelineConfig struct {
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
+	// Debug contains debug configurations.
+	Debug map[string]interface{}
 
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
 }
 
+// DebugLogEnabled returns whether debug logging is enabled. If invalid loglevel value is set,
+// it assume debug logging is disabled.
+func (p *PipelineConfig) DebugLogEnabled() bool {
+	if v, ok := p.Debug["loglevel"]; ok {
+		if s, ok := v.(string); ok {
+			_, ok := config.OTLPDebugLogLevelMap[s]
+			if ok {
+				return s != config.OTLPDebugLogLevelDisabled
+			}
+		}
+	}
+	return false
+}
+
 // Pipeline is an OTLP pipeline.
 type Pipeline struct {
 	col *service.Collector
+}
+
+// CollectorStatus is the status struct for an OTLP pipeline's collector
+type CollectorStatus struct {
+	Status       string
+	ErrorMessage string
 }
 
 // NewPipeline defines a new OTLP pipeline.
@@ -151,22 +180,39 @@ func (p *Pipeline) Stop() {
 
 // BuildAndStart builds and starts an OTLP pipeline
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
-	pcfg, err := FromAgentConfig(config.Datadog)
+	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("config error: %w", err)
+		pipelineError.Store(fmt.Errorf("config error: %w", err))
+		return nil, pipelineError.Load()
 	}
 
 	p, err := NewPipeline(pcfg, s)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build pipeline: %w", err)
+		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
+		return nil, pipelineError.Load()
 	}
 
 	go func() {
 		err = p.Run(ctx)
 		if err != nil {
-			log.Errorf("Error running the OTLP pipeline: %s", err)
+			pipelineError.Store(fmt.Errorf("Error running the OTLP pipeline: %w", err))
+			log.Errorf(pipelineError.Load().Error())
 		}
 	}()
 
 	return p, nil
+}
+
+// GetCollectorStatus get the collector status and error message (if there is one)
+func GetCollectorStatus(p *Pipeline) CollectorStatus {
+	statusMessage, errMessage := "Failed to start", ""
+	if p != nil {
+		statusMessage = p.col.GetState().String()
+	}
+	err := pipelineError.Load()
+	if err != nil {
+		// If the pipeline is nil then it failed to start so we return the error.
+		errMessage = err.Error()
+	}
+	return CollectorStatus{Status: statusMessage, ErrorMessage: errMessage}
 }

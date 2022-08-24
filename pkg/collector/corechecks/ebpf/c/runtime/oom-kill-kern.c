@@ -1,6 +1,4 @@
-#include <linux/compiler.h>
-#include <linux/kconfig.h>
-#include <linux/ptrace.h>
+#include "kconfig.h"
 #include <linux/types.h>
 #include <linux/version.h>
 #include <linux/oom.h>
@@ -8,6 +6,7 @@
 #include "bpf_helpers.h"
 #include "bpf-common.h"
 #include "oom-kill-kern-user.h"
+#include "map-defs.h"
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 // 4.8 is the first version where `struct oom_control*` is the first argument of `oom_kill_process`
@@ -20,18 +19,11 @@
  * the statistics per pid
  */
 
-struct bpf_map_def SEC("maps/oom_stats") oom_stats = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct oom_stats),
-    .max_entries = 10240,
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_HASH_MAP(oom_stats, u32, struct oom_stats, 10240)
 
 SEC("kprobe/oom_kill_process")
 int kprobe__oom_kill_process(struct pt_regs *ctx) {
-    struct oom_control *oc = PT_REGS_PARM1(ctx);
+    struct oom_control *oc = (struct oom_control*)PT_REGS_PARM1(ctx);
 
     struct oom_stats zero = {};
     u32 pid = bpf_get_current_pid_tgid() >> 32;

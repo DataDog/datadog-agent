@@ -36,7 +36,7 @@ methods from `retrier.go` on that class:
 - passing the error to `Retry.IsErrWillRetry()` and `Retry.IsErrPermaFail()`
 will tell you whether it's necessary to retry again, or just give up
 initialising this object
-- retry throtling is implemented in case several users try to use a class.
+- retry throttling is implemented in case several users try to use a class.
 Calling `NextRetry()` will tell you when the next retry is possible. Before
 that time, all calls to `TriggerRetry()` will return a `FailWillRetry` error.
 **The retry will not automatically run when that time is reached, you have

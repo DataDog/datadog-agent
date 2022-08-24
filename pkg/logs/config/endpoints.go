@@ -41,7 +41,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
-	IsReliable              bool `mapstructure:"is_reliable" json:"is_reliable"`
+	IsReliable              *bool `mapstructure:"is_reliable" json:"is_reliable"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -93,6 +93,11 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
 }
 
+// GetIsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
+func (e *Endpoint) GetIsReliable() bool {
+	return e.IsReliable == nil || *e.IsReliable
+}
+
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
@@ -103,6 +108,7 @@ type Endpoints struct {
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
 	BatchMaxContentSize    int
+	InputChanSize          int
 }
 
 // GetStatus returns the endpoints status, one line per endpoint
@@ -128,18 +134,12 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		BatchMaxConcurrentSend: config.DefaultBatchMaxConcurrentSend,
 		BatchMaxSize:           config.DefaultBatchMaxSize,
 		BatchMaxContentSize:    config.DefaultBatchMaxContentSize,
+		InputChanSize:          config.DefaultInputChanSize,
 	}
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint,
-	additionalEndpoints []Endpoint,
-	useProto bool,
-	useHTTP bool,
-	batchWait time.Duration,
-	batchMaxConcurrentSend int,
-	batchMaxSize int,
-	batchMaxContentSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
 
 	return &Endpoints{
 		Main:                   main,
@@ -150,6 +150,7 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 		BatchMaxConcurrentSend: batchMaxConcurrentSend,
 		BatchMaxSize:           batchMaxSize,
 		BatchMaxContentSize:    batchMaxContentSize,
+		InputChanSize:          inputChanSize,
 	}
 }
 
@@ -158,7 +159,7 @@ func NewEndpointsWithBatchSettings(main Endpoint,
 func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if endpoint.IsReliable {
+		if endpoint.GetIsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
@@ -169,7 +170,7 @@ func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 func (e *Endpoints) GetUnReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if !endpoint.IsReliable {
+		if !endpoint.GetIsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}

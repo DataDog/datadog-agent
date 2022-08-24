@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/testutils"
 )
@@ -44,7 +44,11 @@ func TestHostnameFromAttributes(t *testing.T) {
 		conventions.AttributeHostID:        testInstanceID,
 		conventions.AttributeHostName:      testIP,
 	})
-	hostname, ok := HostnameFromAttributes(attrs)
+	hostname, ok := HostnameFromAttributes(attrs, false)
+	assert.True(t, ok)
+	assert.Equal(t, hostname, testInstanceID)
+
+	hostname, ok = HostnameFromAttributes(attrs, true)
 	assert.True(t, ok)
 	assert.Equal(t, hostname, testInstanceID)
 }

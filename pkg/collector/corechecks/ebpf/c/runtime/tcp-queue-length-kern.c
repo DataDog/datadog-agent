@@ -1,7 +1,4 @@
-#include <linux/compiler.h>
-
-#include <linux/kconfig.h>
-#include <linux/ptrace.h>
+#include "kconfig.h"
 #include <linux/types.h>
 #include <linux/version.h>
 #include <linux/tcp.h>
@@ -14,6 +11,7 @@
     })
 
 #include "bpf_helpers.h"
+#include "map-defs.h"
 #include "bpf-common.h"
 #include "tcp-queue-length-kern-user.h"
 
@@ -26,38 +24,16 @@
  * The `tcp_queue_stats` map is used to share with the userland program system-probe
  * the statistics (max size of receive/send buffer)
  */
-
-struct bpf_map_def SEC("maps/tcp_queue_stats") tcp_queue_stats = {
-    .type = BPF_MAP_TYPE_PERCPU_HASH,
-    .key_size = sizeof(struct stats_key),
-    .value_size = sizeof(struct stats_value),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_PERCPU_HASH_MAP(tcp_queue_stats, struct stats_key, struct stats_value, 1024)
 
 /*
  * the `who_recvmsg` and `who_sendmsg` maps are used to remind the sock pointer
  * received as input parameter when we are in the kretprobe of tcp_recvmsg and tcp_sendmsg.
  */
-struct bpf_map_def SEC("maps/who_recvmsg") who_recvmsg = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct sock *),
-    .max_entries = 100,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/who_sendmsg") who_sendmsg = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct sock *),
-    .max_entries = 100,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(who_recvmsg, u64, struct sock *, 100)
+    
+BPF_HASH_MAP(who_sendmsg, u64, struct sock *, 100)
+    
 // TODO: replace all `bpf_probe_read` by `bpf_probe_read_kernel` once we can assume that we have at least kernel 5.5
 static __always_inline int check_sock(struct sock *sk) {
     struct stats_value zero = {
@@ -103,7 +79,7 @@ static __always_inline int check_sock(struct sock *sk) {
 
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    struct sock *sk = PT_REGS_PARM1(ctx);
+    struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&who_recvmsg, &pid_tgid, &sk, BPF_ANY);
     return check_sock(sk);
@@ -122,7 +98,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
-    struct sock *sk = PT_REGS_PARM1(ctx);
+    struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&who_sendmsg, &pid_tgid, &sk, BPF_ANY);
 

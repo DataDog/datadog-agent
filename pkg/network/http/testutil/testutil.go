@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -46,19 +47,33 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
 	}
+	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
 
-	listenFn := func() { _ = srv.ListenAndServe() }
+	listenFn := func() error {
+		ln, err := net.Listen("tcp", srv.Addr)
+		if err == nil {
+			go func() { _ = srv.Serve(ln) }()
+		}
+		return err
+	}
 
 	// If certPath is set we enabled TLS
 	if options.EnableTLS {
 		curDir, _ := curDir()
 		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "testdata/server.key")
-		listenFn = func() { _ = srv.ListenAndServeTLS(crtPath, keyPath) }
+		listenFn = func() error {
+			ln, err := net.Listen("tcp", srv.Addr)
+			if err == nil {
+				go func() { _ = srv.ServeTLS(ln, crtPath, keyPath) }()
+			}
+			return err
+		}
 	}
-
-	go listenFn()
-	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
+	err := listenFn()
+	if err != nil {
+		t.Fatalf("server listen: %s", err)
+	}
 	return func() { srv.Shutdown(context.Background()) }
 }
 

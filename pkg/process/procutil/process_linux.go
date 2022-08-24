@@ -18,10 +18,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,10 +73,10 @@ func WithReturnZeroPermStats(enabled bool) Option {
 
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
-func WithPermission(enabled bool) Option {
+func WithPermission(elevatedPermissions bool) Option {
 	return func(p Probe) {
 		if linuxProbe, ok := p.(*probe); ok {
-			linuxProbe.withPermission = enabled
+			linuxProbe.elevatedPermissions = elevatedPermissions
 		}
 	}
 }
@@ -91,16 +92,16 @@ func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 
 // probe is a service that fetches process related info on current host
 type probe struct {
+	bootTime     *atomic.Uint64
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
 	uid          uint32 // UID
 	euid         uint32 // Effective UID
 	clockTicks   float64
-	bootTime     uint64
 	exit         chan struct{}
 
 	// configurations
-	withPermission          bool
+	elevatedPermissions     bool
 	returnZeroPermStats     bool
 	bootTimeRefreshInterval time.Duration
 }
@@ -119,9 +120,10 @@ func NewProcessProbe(options ...Option) Probe {
 		euid:                    uint32(os.Geteuid()),
 		clockTicks:              getClockTicks(),
 		exit:                    make(chan struct{}),
+		bootTime:                atomic.NewUint64(0),
 		bootTimeRefreshInterval: time.Minute,
 	}
-	atomic.StoreUint64(&p.bootTime, bootTime)
+	p.bootTime.Store(bootTime)
 
 	for _, o := range options {
 		o(p)
@@ -153,7 +155,7 @@ func (p *probe) syncBootTime() {
 		if err != nil {
 			log.Errorf("could not parse boot time: %s", err)
 		} else {
-			atomic.StoreUint64(&p.bootTime, bootTime)
+			p.bootTime.Store(bootTime)
 		}
 	case <-p.exit:
 		return
@@ -184,9 +186,9 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
-		if p.withPermission {
-			stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+		if p.elevatedPermissions {
+			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -256,9 +258,9 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 			},
 		}
-		if p.withPermission {
-			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+		if p.elevatedPermissions {
+			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			proc.Stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -283,7 +285,7 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 			continue
 		}
 
-		fds := p.getFDCountImproved(pathForPID)
+		fds := p.getFDCount(pathForPID)
 		io := p.parseIO(pathForPID)
 
 		// don't return entries with all zero values if returnZeroPermStats is disabled
@@ -619,7 +621,7 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
 	if err == nil {
-		ctime := (t / uint64(p.clockTicks)) + atomic.LoadUint64(&p.bootTime)
+		ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
 		// convert create time into milliseconds
 		sInfo.createTime = int64(ctime * 1000)
 	}
@@ -688,30 +690,9 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-// getFDCount gets num_fds from /proc/(pid)/fd
-func (p *probe) getFDCount(pidPath string) int32 {
-	path := filepath.Join(pidPath, "fd")
-
-	if err := p.ensurePathReadable(path); err != nil {
-		return -1
-	}
-
-	d, err := os.Open(path)
-	if err != nil {
-		return -1
-	}
-	defer d.Close()
-
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return -1
-	}
-	return int32(len(names))
-}
-
-// getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
+// getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
-func (p *probe) getFDCountImproved(pidPath string) int32 {
+func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {

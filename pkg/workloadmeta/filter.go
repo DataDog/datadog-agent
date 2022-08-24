@@ -5,14 +5,31 @@
 
 package workloadmeta
 
-// Filter allows a subscriber to filter events by entity kind or event source.
+// Filter allows a subscriber to filter events by entity kind, event source, and
+// event type.
+//
+// A nil filter matches all events.
 type Filter struct {
-	kinds   map[Kind]struct{}
-	sources map[Source]struct{}
+	kinds     map[Kind]struct{}
+	source    Source
+	eventType EventType
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
-func NewFilter(kinds []Kind, sources []Source) *Filter {
+//
+// Only events for entities with one of the given kinds will be delivered.  If
+// kinds is nil or empty, events for entities of any kind will be delivered.
+//
+// Similarly, only events for entities collected from the given source will be
+// delivered, and the entities in the events will contain data only from that
+// source.  For example, if source is SourceRuntime, then only events from the
+// runtime will be delivered, and they will not contain any additional metadata
+// from orchestrators or cluster orchestrators.  Use SourceAll to collect data
+// from all sources.
+//
+// Only events of the given type will be delivered. Use EventTypeAll to collect
+// data from all the event types.
+func NewFilter(kinds []Kind, source Source, eventType EventType) *Filter {
 	var kindSet map[Kind]struct{}
 	if len(kinds) > 0 {
 		kindSet = make(map[Kind]struct{})
@@ -21,17 +38,10 @@ func NewFilter(kinds []Kind, sources []Source) *Filter {
 		}
 	}
 
-	var sourceSet map[Source]struct{}
-	if len(sources) > 0 {
-		sourceSet = make(map[Source]struct{})
-		for _, s := range sources {
-			sourceSet[s] = struct{}{}
-		}
-	}
-
 	return &Filter{
-		kinds:   kindSet,
-		sources: sourceSet,
+		kinds:     kindSet,
+		source:    source,
+		eventType: eventType,
 	}
 }
 
@@ -47,41 +57,34 @@ func (f *Filter) MatchKind(k Kind) bool {
 	return ok
 }
 
-// MatchSource returns true if the filter matches the passed sources. If the
-// filter is nil, or has no sources, it always matches.
+// MatchSource returns true if the filter matches the passed source. If the
+// filter is nil, or has SourceAll, it always matches.
 func (f *Filter) MatchSource(source Source) bool {
-	_, ok := f.SelectSources([]Source{source})
-
-	return ok
+	return f.Source() == SourceAll || f.Source() == source
 }
 
-// SelectSources returns a subset of the passed sources that match the filter.
-func (f *Filter) SelectSources(sources []Source) ([]Source, bool) {
-	if f == nil || len(f.sources) == 0 {
-		return sources, true
-	}
-
-	var (
-		selectedSources []Source
-		found           bool
-	)
-
-	for _, s := range sources {
-		_, ok := f.sources[s]
-		if ok {
-			selectedSources = append(selectedSources, s)
-			found = true
-		}
-	}
-
-	return selectedSources, found
+// MatchEventType returns true if the filter matches the passed EventType. If
+// the filter is nil, or has EventTypeAll, it always matches.
+func (f *Filter) MatchEventType(eventType EventType) bool {
+	return f.EventType() == EventTypeAll || f.EventType() == eventType
 }
 
-// Match returns true if the filter matches an event.
-func (f *Filter) Match(ev CollectorEvent) bool {
+// Source returns the source this filter is filtering by. If the filter is nil,
+// returns SourceAll.
+func (f *Filter) Source() Source {
 	if f == nil {
-		return true
+		return SourceAll
 	}
 
-	return f.MatchKind(ev.Entity.GetID().Kind) && f.MatchSource(ev.Source)
+	return f.source
+}
+
+// EventType returns the event type this filter is filtering by. If the filter
+// is nil, it returns EventTypeAll.
+func (f *Filter) EventType() EventType {
+	if f == nil {
+		return EventTypeAll
+	}
+
+	return f.eventType
 }

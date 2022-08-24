@@ -1,7 +1,0 @@
-apm_config:
-  apm_non_local_traffic: true
-
-experimental:
-  otlp:
-    http_port: 1234
-    grpc_port: 5678

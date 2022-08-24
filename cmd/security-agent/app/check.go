@@ -10,9 +10,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/cihub/seelog"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -20,13 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/spf13/cobra"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 var (
@@ -38,6 +40,7 @@ var (
 		overrideRegoInput string
 		dumpRegoInput     string
 		dumpReports       string
+		skipRegoEval      bool
 	}{}
 )
 
@@ -49,6 +52,7 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
 	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
+	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
 }
 
 // CheckCmd returns a cobra command to run security agent checks
@@ -69,6 +73,10 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	err := configureLogger()
 	if err != nil {
 		return err
+	}
+
+	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
+		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
 
 	// We need to set before calling `SetupConfig`
@@ -116,14 +124,14 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		ruleID = args[0]
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	options = append(options, checks.WithHostname(hostname))
+	options = append(options, checks.WithHostname(hname))
 
-	stopper = restart.NewSerialStopper()
+	stopper = startstop.NewSerialStopper()
 	defer stopper.Stop()
 
 	reporter, err := NewCheckReporter(stopper, checkArgs.report, checkArgs.dumpReports)
@@ -149,6 +157,8 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	if checkArgs.dumpRegoInput != "" {
 		options = append(options, checks.WithRegoInputDumpPath(checkArgs.dumpRegoInput))
 	}
+
+	options = append(options, checks.WithRegoEvalSkip(checkArgs.skipRegoEval))
 
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
@@ -189,13 +199,15 @@ func configureLogger() error {
 	return nil
 }
 
+// RunCheckReporter represents a reporter used for reporting RunChecks
 type RunCheckReporter struct {
 	reporter        event.Reporter
 	events          map[string][]*event.Event
 	dumpReportsPath string
 }
 
-func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
+// NewCheckReporter creates a new RunCheckReporter
+func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
 	if report {
@@ -219,6 +231,7 @@ func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath stri
 	return r, nil
 }
 
+// Report reports the event
 func (r *RunCheckReporter) Report(event *event.Event) {
 	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
 
@@ -235,6 +248,7 @@ func (r *RunCheckReporter) Report(event *event.Event) {
 	}
 }
 
+// ReportRaw reports the raw content
 func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
 	fmt.Println(string(content))
 }

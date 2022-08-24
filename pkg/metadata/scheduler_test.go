@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/stretchr/testify/assert"
 )
 
 type MockCollector struct {
@@ -53,7 +54,7 @@ func TestNewScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 	c := NewScheduler(demux)
@@ -192,7 +193,7 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 }
 
 func buildDemultiplexer() aggregator.Demultiplexer {
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
 	return demux

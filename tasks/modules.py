@@ -1,18 +1,21 @@
 import os
 import subprocess
-import sys
-
-from invoke import task
+from contextlib import contextmanager
 
 
 class GoModule:
-    """A Go module abstraction."""
+    """
+    A Go module abstraction.
+    independent specifies whether this modules is supposed to exist independently of the datadog-agent module.
+    If True, a check will run to ensure this is true.
+    """
 
-    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True):
+    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, independent=False):
         self.path = path
         self.targets = targets if targets else ["."]
         self.condition = condition
         self.should_tag = should_tag
+        self.independent = independent
 
         self._dependencies = None
 
@@ -102,18 +105,18 @@ DEFAULT_MODULES = {
         ".",
         targets=["./pkg", "./cmd"],
     ),
-    "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
-    "pkg/util/winutil": GoModule(
-        "pkg/util/winutil",
-        condition=lambda: sys.platform == 'win32',
+    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+    "test/e2e/containers/otlp_sender": GoModule(
+        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
-    "pkg/quantile": GoModule("pkg/quantile"),
-    "pkg/obfuscate": GoModule("pkg/obfuscate"),
-    "pkg/otlp/model": GoModule("pkg/otlp/model"),
-    "pkg/security/secl": GoModule("pkg/security/secl"),
+    "pkg/quantile": GoModule("pkg/quantile", independent=True),
+    "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
+    "pkg/trace": GoModule("pkg/trace", independent=True),
+    "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
 }
 
 MAIN_TEMPLATE = """package main
@@ -128,24 +131,37 @@ func main() {{}}
 PACKAGE_TEMPLATE = '	_ "{}"'
 
 
-@task
+@contextmanager
 def generate_dummy_package(ctx, folder):
-    import_paths = []
-    for mod in DEFAULT_MODULES.values():
-        if mod.path != "." and mod.condition():
-            import_paths.append(mod.import_path)
-
-    os.mkdir(folder)
-    with ctx.cd(folder):
-        print("Creating dummy 'main.go' file... ", end="")
-        with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
-            main_file.write(
-                MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
-            )
-        print("Done")
-
-        ctx.run("go mod init example.com/testmodule")
+    """
+    Return a generator-iterator when called.
+    Allows us to wrap this function with a "with" statement to delete the created dummy pacakage afterwards.
+    """
+    try:
+        import_paths = []
         for mod in DEFAULT_MODULES.values():
-            if mod.path != ".":
-                ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
-                ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+            if mod.path != "." and mod.condition():
+                import_paths.append(mod.import_path)
+
+        os.mkdir(folder)
+        with ctx.cd(folder):
+            print("Creating dummy 'main.go' file... ", end="")
+            with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
+                main_file.write(
+                    MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
+                )
+            print("Done")
+
+            ctx.run("go mod init example.com/testmodule")
+            for mod in DEFAULT_MODULES.values():
+                if mod.path != ".":
+                    ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
+                    ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
+
+        # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
+        yield folder
+
+    # the generator is then resumed here after the "with" block is exited
+    finally:
+        # delete test_folder to avoid FileExistsError while running this task again
+        ctx.run(f"rm -rf ./{folder}")

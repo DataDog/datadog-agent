@@ -13,6 +13,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/ecsfargate"
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/system"
 )
 

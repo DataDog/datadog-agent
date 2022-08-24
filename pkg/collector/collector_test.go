@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // FIXTURE
@@ -79,6 +80,7 @@ type CollectorTestSuite struct {
 
 func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = NewCollector()
+	suite.c.Start()
 }
 
 func (suite *CollectorTestSuite) TearDownTest() {
@@ -89,14 +91,14 @@ func (suite *CollectorTestSuite) TearDownTest() {
 func (suite *CollectorTestSuite) TestNewCollector() {
 	assert.NotNil(suite.T(), suite.c.runner)
 	assert.NotNil(suite.T(), suite.c.scheduler)
-	assert.Equal(suite.T(), started, suite.c.state)
+	assert.Equal(suite.T(), started, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestStop() {
 	suite.c.Stop()
 	assert.Nil(suite.T(), suite.c.runner)
 	assert.Nil(suite.T(), suite.c.scheduler)
-	assert.Equal(suite.T(), stopped, suite.c.state)
+	assert.Equal(suite.T(), stopped, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestRunCheck() {

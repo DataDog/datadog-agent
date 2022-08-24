@@ -80,10 +80,10 @@ const (
 
   --- Writer stats (1 min) ---
 
-  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events 0}}{{.Status.TraceWriter.Events}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
-  {{if gt .Status.TraceWriter.Errors 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors}}{{end}}
-  Stats: {{.Status.StatsWriter.Payloads}} payloads, {{.Status.StatsWriter.StatsBuckets}} stats buckets, {{.Status.StatsWriter.Bytes}} bytes
-  {{if gt .Status.StatsWriter.Errors 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors}}{{end}}
+  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events.Load 0}}{{.Status.TraceWriter.Events.Load}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
+  {{if gt .Status.TraceWriter.Errors.Load 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors.Load}}{{end}}
+  Stats: {{.Status.StatsWriter.Payloads.Load}} payloads, {{.Status.StatsWriter.StatsBuckets.Load}} stats buckets, {{.Status.StatsWriter.Bytes.Load}} bytes
+  {{if gt .Status.StatsWriter.Errors.Load 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors.Load}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
@@ -200,6 +200,15 @@ func (s infoString) String() string { return string(s) }
 func InitInfo(conf *config.AgentConfig) error {
 	var err error
 
+	publishVersion := func() interface{} {
+		return struct {
+			Version   string
+			GitCommit string
+		}{
+			Version:   conf.AgentVersion,
+			GitCommit: conf.GitCommit,
+		}
+	}
 	funcMap := template.FuncMap{
 		"add": func(a, b int64) int64 {
 			return a + b
@@ -269,7 +278,10 @@ type StatusInfo struct {
 	MemStats struct {
 		Alloc uint64
 	} `json:"memstats"`
-	Version       infoVersion        `json:"version"`
+	Version struct {
+		Version   string
+		GitCommit string
+	} `json:"version"`
 	Receiver      []TagStats         `json:"receiver"`
 	RateByService map[string]float64 `json:"ratebyservice"`
 	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
@@ -301,8 +313,8 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// so we can assume it's not even running, or at least, not with
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
-		program, banner := getProgramBanner(Version)
-		notRunningTmpl.Execute(w, struct {
+		program, banner := getProgramBanner(conf.AgentVersion)
+		_ = notRunningTmpl.Execute(w, struct {
 			Banner       string
 			Program      string
 			ReceiverPort int
@@ -318,7 +330,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(conf.AgentVersion)
 		_ = errorTmpl.Execute(w, struct {
 			Banner  string
 			Program string

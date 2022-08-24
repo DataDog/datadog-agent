@@ -12,45 +12,30 @@ import (
 )
 
 const (
-	checkIDAnnotationFormat = "ad.datadoghq.com/%s.check.id"
-	checkIDSuffix           = ".check.id"
-	// NewPodAnnotationPrefix is the new autodiscovery prefix for pod annotations
-	NewPodAnnotationPrefix = "ad.datadoghq.com/"
-	// NewPodAnnotationFormat shows the prefix + identifier format for new autodiscovery annotations
-	NewPodAnnotationFormat = NewPodAnnotationPrefix + "%s."
-	// LegacyPodAnnotationPrefix is the legacy autodiscovery prefix for pod annotations
-	LegacyPodAnnotationPrefix = "service-discovery.datadoghq.com/"
-	// LegacyPodAnnotationFormat shows the prefix + identifier format for legacy autodiscovery annotations
-	LegacyPodAnnotationFormat = LegacyPodAnnotationPrefix + "%s."
+	checkIDSuffix = ".check.id"
 )
-
-// GetCustomCheckID returns whether there is a custom check ID for a given container based on the pod annotations
-func GetCustomCheckID(annotations map[string]string, containerName string) (string, bool) {
-	id, found := annotations[fmt.Sprintf(checkIDAnnotationFormat, containerName)]
-	return id, found
-}
 
 // ValidateAnnotationsMatching detects if annotations using the new AD annotation format don't match a valid container identifier
 func ValidateAnnotationsMatching(annotations map[string]string, containerIdentifiers map[string]struct{}, containerNames map[string]struct{}) []error {
 	var errors []error
 
 	for annotation := range annotations {
-		if !strings.HasPrefix(annotation, NewPodAnnotationPrefix) {
+		if !strings.HasPrefix(annotation, KubeAnnotationPrefix) {
 			continue
 		}
 		var idToValidate string
 		checkIDIndex := strings.LastIndex(annotation, checkIDSuffix)
 		adSuffixIndex := strings.LastIndex(annotation, ".")
-		if checkIDIndex >= len(NewPodAnnotationPrefix) {
+		if checkIDIndex >= len(KubeAnnotationPrefix) {
 			// validate check.id annotation
-			idToValidate = annotation[len(NewPodAnnotationPrefix):checkIDIndex]
+			idToValidate = annotation[len(KubeAnnotationPrefix):checkIDIndex]
 			err := validateIdentifier(annotation, containerNames, idToValidate)
 			if err != nil {
 				errors = append(errors, err)
 			}
-		} else if adSuffixIndex >= len(NewPodAnnotationPrefix) {
+		} else if adSuffixIndex >= len(KubeAnnotationPrefix) {
 			// validate other AD annotations
-			idToValidate = annotation[len(NewPodAnnotationPrefix):adSuffixIndex]
+			idToValidate = annotation[len(KubeAnnotationPrefix):adSuffixIndex]
 			err := validateIdentifier(annotation, containerIdentifiers, idToValidate)
 			if err != nil {
 				errors = append(errors, err)

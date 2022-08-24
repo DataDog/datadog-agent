@@ -74,11 +74,11 @@ const (
 	//
 	v05 Version = "v0.5"
 
-	// v07
+	// V07 API
 	//
 	// Content-Type: application/msgpack
 	// Payload: TracerPayload (pkg/trace/pb/tracer_payload.proto)
 	// Response: Service sampling rates.
 	//
-	v07 Version = "v0.7"
+	V07 Version = "v0.7"
 )

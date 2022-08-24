@@ -8,6 +8,8 @@ package tagset
 import (
 	"fmt"
 	"math/rand"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,4 +114,97 @@ func genTags(count int, div int) ([]string, []string) {
 	}
 
 	return tags, uniq
+}
+
+func TestDedup2Small(t *testing.T) {
+	g := NewHashGenerator()
+
+	cases := []struct {
+		name               string
+		l, r, expL, expR   string
+		expHashL, expHashR uint64
+	}{
+		{"empty", "", "", "", "", 0, 0},
+		{"empty l small", "", "foo", "", "foo", 0, 0xe271865701f54561},
+		{"empty r small", "foo", "", "foo", "", 0xe271865701f54561, 0},
+		// bruteforce mode (# tags <= 4)
+		{"small-1", "foo,foo,bar", "ook", "foo,bar", "ook", 0x7047de8cfccfa365, 0xaf143bb3d715f7c5},
+		{"small-2", "foo,bar", "foo,ook", "foo,bar", "ook", 0x7047de8cfccfa365, 0xaf143bb3d715f7c5},
+		{"small-3", "foo", "ook,foo,eek", "foo", "ook,eek", 0xe271865701f54561, 0x5cc6d96d47bebee3},
+		{"small-4", "foo,bar,foo", "", "foo,bar", "", 0x7047de8cfccfa365, 0},
+		{"small-5", "", "bar,foo,bar,bar", "", "bar,foo", 0, 0x7047de8cfccfa365},
+		// hashing mode (# tags > 4)
+		{"mid-1", "foo,bar,bar", "bar,bar,bar,foo", "foo,bar", "", 0x7047de8cfccfa365, 0},
+		{"mid-2", "foo,foo,bar", "ook,ook", "foo,bar", "ook", 0x7047de8cfccfa365, 0xaf143bb3d715f7c5},
+		{"mid-3", "foo,foo,bar", "foo,ook,bar,eek", "foo,bar", "eek,ook", 0x7047de8cfccfa365, 0x5cc6d96d47bebee3},
+		{"mid-4", "bar,bar,foo", "foo,ook,bar,eek,ook", "bar,foo", "ook,eek", 0x7047de8cfccfa365, 0x5cc6d96d47bebee3},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := NewHashingTagsAccumulatorWithTags(strings.Split(tc.l, ","))
+			r := NewHashingTagsAccumulatorWithTags(strings.Split(tc.r, ","))
+
+			b := NewHashingTagsAccumulator()
+			b.Append(l.Get()...)
+			b.Append(r.Get()...)
+
+			g.Dedup2(l, r)
+			got := l.Hash() ^ r.Hash()
+			exp := g.Hash(b)
+
+			assert.EqualValues(t, exp, got)
+			assert.EqualValues(t, tc.expL, strings.Join(l.Get(), ","))
+			assert.EqualValues(t, tc.expR, strings.Join(r.Get(), ","))
+			assert.EqualValues(t, tc.expHashL, l.Hash())
+			assert.EqualValues(t, tc.expHashR, r.Hash())
+		})
+	}
+}
+
+func TestDedup2Rand(t *testing.T) {
+	g := NewHashGenerator()
+
+	for i := 1; i <= 1024; i *= 4 {
+		for j := 1; j < 4; j++ {
+			for k := 0; k < 20; k++ {
+				tags, _ := genTags(i, j)
+				rand.Shuffle(len(tags), func(i, j int) { tags[i], tags[j] = tags[j], tags[i] })
+				for n := 0; n <= len(tags); n += len(tags)/5 + 1 {
+					b := NewHashingTagsAccumulatorWithTags(tags)
+					l := NewHashingTagsAccumulatorWithTags(tags[:n])
+					r := NewHashingTagsAccumulatorWithTags(tags[n:])
+
+					h1 := g.Hash(b)
+					g.Dedup2(l, r)
+					h2 := l.Hash() ^ r.Hash()
+
+					assert.EqualValues(t, h1, h2)
+					l.AppendHashingAccumulator(r)
+
+					sort.Sort(b)
+					sort.Sort(l)
+
+					assert.EqualValues(t, b.Get(), l.Get())
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkDedup2(b *testing.B) {
+	tags, _ := genTags(2048, 1)
+	for i := 1; i < 4096; i *= 2 {
+		l := NewHashingTagsAccumulatorWithTags(tags[:i/2])
+		r := NewHashingTagsAccumulatorWithTags(tags[i/2 : i])
+		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+			hg := NewHashGenerator()
+			l, r := l.Dup(), r.Dup()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				hg.Dedup2(l, r)
+			}
+		})
+	}
 }

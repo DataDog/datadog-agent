@@ -12,10 +12,16 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/gogo/protobuf/proto"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gogo/protobuf/proto"
+)
+
+const (
+	pollEndpoint = "/api/v0.1/configurations"
 )
 
 // API is the interface to implement for a configuration fetcher
@@ -31,7 +37,7 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(baseURL, apiKey, appKey string) *HTTPClient {
+func NewHTTPClient(apiKey, appKey string) *HTTPClient {
 	header := http.Header{
 		"DD-Api-Key":         []string{apiKey},
 		"DD-Application-Key": []string{appKey},
@@ -42,6 +48,7 @@ func NewHTTPClient(baseURL, apiKey, appKey string) *HTTPClient {
 		Transport: httputils.CreateHTTPTransport(),
 	}
 
+	baseURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
 	return &HTTPClient{
 		client:  httpClient,
 		header:  header,
@@ -56,7 +63,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 		return nil, err
 	}
 
-	url := c.baseURL + "/configurations"
+	url := c.baseURL + pollEndpoint
 	log.Debugf("Querying url %s with %+v", url, request)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(body))
 	if err != nil {
@@ -87,7 +94,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	response := &pbgo.LatestConfigsResponse{}
 	err = proto.Unmarshal(body, response)
 	if err != nil {
-		log.Debugf("Error decoding response, %w, response body: %s", err, string(body))
+		log.Debugf("Error decoding response, %v, response body: %s", err, string(body))
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 

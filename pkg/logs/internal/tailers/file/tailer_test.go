@@ -11,8 +11,8 @@ package file
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
@@ -20,12 +20,11 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"path/filepath"
-
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 var chanSize = 10
@@ -39,32 +38,30 @@ type TailerTestSuite struct {
 
 	tailer     *Tailer
 	outputChan chan *message.Message
-	source     *config.LogSource
+	source     *sources.ReplaceableSource
 }
 
 func (suite *TailerTestSuite) SetupTest() {
 	var err error
-	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
-	suite.Nil(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
-	suite.source = config.NewLogSource("", &config.LogsConfig{
+	suite.source = sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
-	})
+	}))
 	sleepDuration := 10 * time.Millisecond
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), sleepDuration, decoder.NewDecoderFromSource(suite.source))
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), sleepDuration, decoder.NewDecoderFromSource(suite.source))
 	suite.tailer.closeTimeout = closeTimeout
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tailer.Stop()
 	suite.testFile.Close()
-	os.Remove(suite.testDir)
 }
 
 func TestTailerTestSuite(t *testing.T) {
@@ -83,7 +80,7 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	// and it tries to write in it
 	err := suite.tailer.StartFromBeginning()
 	suite.Nil(err)
-	<-suite.tailer.OutputChan
+	<-suite.tailer.outputChan
 
 	// Ask the tailer to stop after a file rotation
 	suite.tailer.StopAfterFileRotation()
@@ -101,7 +98,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
-	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
+	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -138,7 +135,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestTailFromEnd() {
@@ -167,7 +164,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestRecoverTailing() {
@@ -198,7 +195,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestWithBlanklines() {
@@ -226,7 +223,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 	msg = <-suite.outputChan
 	suite.Equal("message 3", string(msg.Content))
 
-	suite.Equal(len(lines), int(suite.tailer.decodedOffset))
+	suite.Equal(len(lines), int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
@@ -243,13 +240,14 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -262,13 +260,14 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
 	msg := <-suite.outputChan
 	tags := msg.Origin.Tags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -278,12 +277,13 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(1, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestBuildTagsFileDir() {
-	dirTaggedSource := config.NewLogSource("", &config.LogsConfig{
+	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
@@ -292,9 +292,10 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
-	suite.Equal(2, len(tags))
-	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
-	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+	suite.ElementsMatch([]string{
+		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
+	}, tags)
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
@@ -304,10 +305,10 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	var err error
 
 	aml := true
-	suite.source.Config.AutoMultiLine = &aml
-	suite.source.Config.AutoMultiLineSampleSize = 3
+	suite.source.Config().AutoMultiLine = &aml
+	suite.source.Config().AutoMultiLineSampleSize = 3
 
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source))
 
 	_, err = suite.testFile.WriteString(lines)
 	suite.Nil(err)

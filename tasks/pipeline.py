@@ -9,14 +9,6 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import (
-    DEFAULT_BRANCH,
-    get_all_allowed_repo_branches,
-    is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
-)
-
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.pipeline_notifications import (
@@ -34,6 +26,13 @@ from .libs.pipeline_tools import (
     wait_for_pipeline,
 )
 from .libs.types import SlackMessage, TeamMessage
+from .utils import (
+    DEFAULT_BRANCH,
+    get_all_allowed_repo_branches,
+    is_allowed_repo_branch,
+    nightly_entry_for,
+    release_entry_for,
+)
 
 # Tasks to trigger pipelines
 
@@ -202,8 +201,8 @@ def run(
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
-    if not git_ref and not here:
-        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+    if (not git_ref and not here) or (git_ref and here):
+        raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
         release_version_6 = release_entry_for(6)
@@ -290,6 +289,19 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
+    args_given = 0
+    if id is not None:
+        args_given += 1
+    if git_ref is not None:
+        args_given += 1
+    if here:
+        args_given += 1
+    if args_given != 1:
+        raise Exit(
+            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
+            code=1,
+        )
+
     if id is not None:
         wait_for_pipeline(gitlab, id)
     elif git_ref is not None:
@@ -320,6 +332,8 @@ GITHUB_SLACK_MAP = {
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
     "@DataDog/processes": "#processes",
     "@DataDog/agent-core": "#agent-core",
+    "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
+    "@DataDog/agent-shared-components": "#agent-shared-components",
     "@DataDog/container-app": "#container-app",
     "@DataDog/metrics-aggregation": "#metrics-aggregation",
     "@DataDog/serverless": "#serverless-agent",

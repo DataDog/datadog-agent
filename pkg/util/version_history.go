@@ -7,9 +7,11 @@ package util
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,8 +19,15 @@ import (
 )
 
 type versionHistoryEntry struct {
-	Version   string    `json:"version"`
-	Timestamp time.Time `json:"timestamp"`
+	Version       string        `json:"version"`
+	Timestamp     time.Time     `json:"timestamp"`
+	InstallMethod installMethod `json:"install_method" yaml:"install_method"`
+}
+
+type installMethod struct {
+	Tool             string `json:"tool" yaml:"tool"`
+	ToolVersion      string `json:"tool_version" yaml:"tool_version"`
+	InstallerVersion string `json:"installer_version" yaml:"installer_version"`
 }
 
 type versionHistoryEntries struct {
@@ -31,11 +40,16 @@ const maxVersionHistoryEntries = 60
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
 	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	logVersionHistoryToFile(versionHistoryFilePath, version.AgentVersion, time.Now().UTC())
+	installInfoFilePath := filepath.Join(config.FileUsedDir(), "install_info")
+	logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, version.AgentVersion, time.Now().UTC())
 }
 
-func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timestamp time.Time) {
-	file, err := ioutil.ReadFile(versionHistoryFilePath)
+func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentVersion string, timestamp time.Time) {
+	if agentVersion == "" || timestamp.IsZero() {
+		return
+	}
+
+	file, err := os.ReadFile(versionHistoryFilePath)
 
 	history := versionHistoryEntries{}
 
@@ -52,6 +66,15 @@ func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timest
 	newEntry := versionHistoryEntry{
 		Version:   agentVersion,
 		Timestamp: timestamp,
+	}
+
+	installInfo, err := os.ReadFile(installInfoFilePath)
+	if err == nil {
+		if err := yaml.Unmarshal(installInfo, &newEntry); err != nil {
+			log.Infof("Cannot deserialize yaml file: %s: %s", installInfoFilePath, err)
+		}
+	} else {
+		log.Infof("Cannot read %s: %s", installInfoFilePath, err)
 	}
 
 	if len(history.Entries) == 0 || history.Entries[len(history.Entries)-1].Version != newEntry.Version {
@@ -75,7 +98,7 @@ func logVersionHistoryToFile(versionHistoryFilePath, agentVersion string, timest
 		return
 	}
 
-	err = ioutil.WriteFile(versionHistoryFilePath, file, 0644)
+	err = os.WriteFile(versionHistoryFilePath, file, 0644)
 	if err != nil {
 		log.Errorf("Cannot write json file: %s %v", versionHistoryFilePath, err)
 		return

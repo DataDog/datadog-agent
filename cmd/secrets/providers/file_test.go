@@ -67,7 +67,7 @@ func TestReadSecretFile(t *testing.T) {
 			inputFile: fileThatIsASymlinkToOtherDir,
 			expectedError: fmt.Sprintf(
 				"not following symlink \"%s\" outside of \"%s\"",
-				testDataAbsPath+"/secret5-target",
+				testDataAbsPath+"/read-secrets-secret5-target",
 				testSecretsAbsPath,
 			),
 			skipWindows: true,

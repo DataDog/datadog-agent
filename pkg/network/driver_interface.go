@@ -11,15 +11,15 @@ package network
 import (
 	"fmt"
 	"math"
-	"net"
 	"sync"
-	"sync/atomic"
 	"unsafe"
+
+	"go.uber.org/atomic"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows"
 )
 
 // DriverExpvar is the name of a top-level driver expvar returned from GetStats
@@ -36,7 +36,11 @@ const (
 	// set default max open & closed flows for windows.  See note in setParams(),
 	// these are only sort-of honored for now
 	defaultMaxOpenFlows   = uint64(32767)
-	defaultMaxClosedFlows = uint64(32767)
+	defaultMaxClosedFlows = uint64(65535)
+
+	// starting number of entries usermode flow buffer can contain
+	defaultFlowEntries      = 50
+	defaultDriverBufferSize = defaultFlowEntries * driver.PerFlowDataSize
 )
 
 // DriverExpvarNames is a list of all the DriverExpvar names returned from GetStats
@@ -44,18 +48,18 @@ var DriverExpvarNames = []DriverExpvar{totalFlowStats, flowHandleStats, flowStat
 
 // DriverInterface holds all necessary information for interacting with the windows driver
 type DriverInterface struct {
-	// declare totalFlows first so it remains on a 64 bit boundary since it is used by atomic functions
-	totalFlows     int64
-	closedFlows    int64
-	openFlows      int64
-	moreDataErrors int64
-	bufferSize     int64
+	totalFlows       *atomic.Int64
+	closedFlows      *atomic.Int64
+	openFlows        *atomic.Int64
+	moreDataErrors   *atomic.Int64
+	bufferSize       *atomic.Int64
+	nBufferIncreases *atomic.Int64
+	nBufferDecreases *atomic.Int64
 
 	maxOpenFlows   uint64
 	maxClosedFlows uint64
 
-	driverFlowHandle  *driver.Handle
-	driverStatsHandle *driver.Handle
+	driverFlowHandle driver.Handle
 
 	enableMonotonicCounts bool
 
@@ -65,25 +69,38 @@ type DriverInterface struct {
 	cfg *config.Config
 }
 
+// Function pointer definition passed to NewDriverInterface that enables
+// creating DriverInterfaces with varying handle types like ReadDriverHandle or
+// TestDriverHandle*
+type HandleCreateFn func(flags uint32, handleType driver.HandleType) (driver.Handle, error)
+
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
+func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn) (*DriverInterface, error) {
 	dc := &DriverInterface{
+		totalFlows:       atomic.NewInt64(0),
+		closedFlows:      atomic.NewInt64(0),
+		openFlows:        atomic.NewInt64(0),
+		moreDataErrors:   atomic.NewInt64(0),
+		bufferSize:       atomic.NewInt64(defaultDriverBufferSize),
+		nBufferIncreases: atomic.NewInt64(0),
+		nBufferDecreases: atomic.NewInt64(0),
+
 		cfg:                   cfg,
 		enableMonotonicCounts: cfg.EnableMonotonicCount,
-		readBuffer:            make([]byte, cfg.DriverBufferSize),
-		bufferSize:            int64(cfg.DriverBufferSize),
+		readBuffer:            make([]byte, defaultDriverBufferSize),
 		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
 		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
 	}
 
-	err := dc.setupFlowHandle()
+	h, err := handleFunc(0, driver.FlowHandle)
+	if err != nil {
+		return nil, err
+	}
+	dc.driverFlowHandle = h
+
+	err = dc.setupFlowHandle()
 	if err != nil {
 		return nil, fmt.Errorf("error creating driver flow handle: %w", err)
-	}
-
-	err = dc.setupStatsHandle()
-	if err != nil {
-		return nil, fmt.Errorf("Error creating stats handle: %w", err)
 	}
 
 	return dc, nil
@@ -94,20 +111,12 @@ func (di *DriverInterface) Close() error {
 	if err := di.driverFlowHandle.Close(); err != nil {
 		return fmt.Errorf("error closing flow file handle: %w", err)
 	}
-	if err := di.driverStatsHandle.Close(); err != nil {
-		return fmt.Errorf("error closing stat file handle: %w", err)
-	}
 	return nil
 }
 
 // setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) setupFlowHandle() error {
-	dh, err := driver.NewHandle(0, driver.FlowHandle)
-	if err != nil {
-		return err
-	}
-	di.driverFlowHandle = dh
 
 	filters, err := di.createFlowHandleFilters()
 	if err != nil {
@@ -115,7 +124,7 @@ func (di *DriverInterface) setupFlowHandle() error {
 	}
 
 	// Create and set flow filters for each interface
-	err = di.driverFlowHandle.SetFlowFilters(filters)
+	err = di.SetFlowFilters(filters)
 	if err != nil {
 		return err
 	}
@@ -128,37 +137,40 @@ func (di *DriverInterface) setupFlowHandle() error {
 	return nil
 }
 
-// setupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
-func (di *DriverInterface) setupStatsHandle() error {
-	dh, err := driver.NewHandle(0, driver.StatsHandle)
-	if err != nil {
-		return err
+// SetFlowFilters installs the provided filters for flows
+func (di *DriverInterface) SetFlowFilters(filters []driver.FilterDefinition) error {
+	var id int64
+	for _, filter := range filters {
+		err := di.driverFlowHandle.DeviceIoControl(
+			driver.SetFlowFilterIOCTL,
+			(*byte)(unsafe.Pointer(&filter)),
+			uint32(unsafe.Sizeof(filter)),
+			(*byte)(unsafe.Pointer(&id)),
+			uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to set filter: %v", err)
+		}
 	}
-
-	di.driverStatsHandle = dh
 	return nil
 }
 
 // GetStats returns statistics for the driver interface used by the windows tracer
 func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
-	handleStats, err := di.driverFlowHandle.GetStatsForHandle()
+	stats, err := di.driverFlowHandle.GetStatsForHandle()
 	if err != nil {
 		return nil, err
 	}
 
-	totalDriverStats, err := di.driverStatsHandle.GetStatsForHandle()
-	if err != nil {
-		return nil, err
-	}
-	totalFlows := atomic.LoadInt64(&di.totalFlows)
-	openFlows := atomic.SwapInt64(&di.openFlows, 0)
-	closedFlows := atomic.SwapInt64(&di.closedFlows, 0)
-	moreDataErrors := atomic.SwapInt64(&di.moreDataErrors, 0)
-	bufferSize := atomic.LoadInt64(&di.bufferSize)
+	totalFlows := di.totalFlows.Load()
+	openFlows := di.openFlows.Swap(0)
+	closedFlows := di.closedFlows.Swap(0)
+	moreDataErrors := di.moreDataErrors.Swap(0)
+	bufferSize := di.bufferSize.Load()
+	nBufferIncreases := di.nBufferIncreases.Load()
+	nBufferDecreases := di.nBufferDecreases.Load()
 
 	return map[DriverExpvar]interface{}{
-		totalFlowStats:  totalDriverStats,
-		flowHandleStats: handleStats,
+		flowHandleStats: stats["handle"],
 		flowStats: map[string]int64{
 			"total":  totalFlows,
 			"open":   openFlows,
@@ -167,6 +179,8 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 		driverStats: map[string]int64{
 			"more_data_errors": moreDataErrors,
 			"buffer_size":      bufferSize,
+			"buffer_increases": nBufferIncreases,
+			"buffer_decreases": nBufferDecreases,
 		},
 	}, nil
 }
@@ -183,7 +197,7 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 	var totalBytesRead uint32
 	// keep reading while driver says there is more data available
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
-		err = windows.ReadFile(di.driverFlowHandle.Handle, di.readBuffer, &bytesRead, nil)
+		err = di.driverFlowHandle.ReadFile(di.readBuffer, &bytesRead, nil)
 		if err != nil {
 			if err == windows.ERROR_NO_MORE_ITEMS {
 				break
@@ -191,7 +205,15 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 			if err != windows.ERROR_MORE_DATA {
 				return 0, 0, fmt.Errorf("ReadFile: %w", err)
 			}
-			atomic.AddInt64(&di.moreDataErrors, 1)
+			di.moreDataErrors.Inc()
+		}
+
+		// Windows driver hashmap implementation could return this if the
+		// provided buffer is too small to contain all entries in one of
+		// the hashmap's linkedlists
+		if bytesRead == 0 && err == windows.ERROR_MORE_DATA {
+			di.resizeDriverBuffer(cap(di.readBuffer) * 2)
+			continue
 		}
 		totalBytesRead += bytesRead
 
@@ -216,29 +238,30 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, close
 				}
 			}
 		}
+		di.resizeDriverBuffer(int(totalBytesRead))
 	}
-
-	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
-	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
 
 	activeCount := activeBuf.Len() - startActive
 	closedCount := closedBuf.Len() - startClosed
-	atomic.AddInt64(&di.openFlows, int64(activeCount))
-	atomic.AddInt64(&di.closedFlows, int64(closedCount))
-	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))
+	di.openFlows.Add(int64(activeCount))
+	di.closedFlows.Add(int64(closedCount))
+	di.totalFlows.Add(int64(activeCount + closedCount))
 
 	return activeCount, closedCount, nil
 }
 
-func resizeDriverBuffer(compareSize int, buffer []uint8) []uint8 {
+func (di *DriverInterface) resizeDriverBuffer(compareSize int) {
 	// Explicitly setting len to 0 causes the ReadFile syscall to break, so allocate buffer with cap = len
-	if compareSize >= cap(buffer)*2 {
-		return make([]uint8, cap(buffer)*2)
-	} else if compareSize <= cap(buffer)/2 {
-		// Take the max of buffer/2 and compareSize to limit future array resizes
-		return make([]uint8, int(math.Max(float64(cap(buffer)/2), float64(compareSize))))
+	if compareSize >= cap(di.readBuffer)*2 {
+		di.readBuffer = make([]uint8, cap(di.readBuffer)*2)
+		di.nBufferIncreases.Inc()
+		di.bufferSize.Store(int64(len(di.readBuffer)))
+	} else if compareSize <= cap(di.readBuffer)/2 {
+		// Take the max of di.readBuffer/2 and compareSize to limit future array resizes
+		di.readBuffer = make([]uint8, int(math.Max(float64(cap(di.readBuffer)/2), float64(compareSize))))
+		di.nBufferDecreases.Inc()
+		di.bufferSize.Store(int64(len(di.readBuffer)))
 	}
-	return buffer
 }
 
 func minUint64(a, b uint64) uint64 {
@@ -248,8 +271,6 @@ func minUint64(a, b uint64) uint64 {
 	return a
 }
 
-// setParams passes any configuration values from the config file down
-// to the driver.
 func (di *DriverInterface) setFlowParams() error {
 	// set up the maximum flows
 
@@ -260,105 +281,108 @@ func (di *DriverInterface) setFlowParams() error {
 
 	// this makes it so that the config can clamp down, but can never make it
 	// larger than the coded defaults above.
-	maxFlows := minUint64(defaultMaxOpenFlows+defaultMaxClosedFlows, di.maxOpenFlows+di.maxClosedFlows)
-	log.Debugf("Setting max flows in driver to %v", maxFlows)
-	err := windows.DeviceIoControl(di.driverFlowHandle.Handle,
-		driver.SetMaxFlowsIOCTL,
-		(*byte)(unsafe.Pointer(&maxFlows)),
-		uint32(unsafe.Sizeof(maxFlows)),
+	maxOpenFlows := minUint64(defaultMaxOpenFlows, di.maxOpenFlows)
+	maxClosedFlows := minUint64(defaultMaxClosedFlows, di.maxClosedFlows)
+
+	err := di.driverFlowHandle.DeviceIoControl(
+		driver.SetMaxOpenFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxOpenFlows)),
+		uint32(unsafe.Sizeof(maxOpenFlows)),
 		nil,
 		uint32(0), nil, nil)
 	if err != nil {
-		log.Warnf("Failed to set max number of flows to %v %v", maxFlows, err)
+		log.Warnf("Failed to set max number of open flows to %v %v", maxOpenFlows, err)
+	}
+	err = di.driverFlowHandle.DeviceIoControl(
+		driver.SetMaxClosedFlowsIOCTL,
+		(*byte)(unsafe.Pointer(&maxClosedFlows)),
+		uint32(unsafe.Sizeof(maxClosedFlows)),
+		nil,
+		uint32(0), nil, nil)
+	if err != nil {
+		log.Warnf("Failed to set max number of closed flows to %v %v", maxClosedFlows, err)
 	}
 	return err
 }
 
 func (di *DriverInterface) createFlowHandleFilters() ([]driver.FilterDefinition, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, fmt.Errorf("error getting interfaces: %s", err.Error())
+	var filters []driver.FilterDefinition
+	log.Debugf("Creating filters for all interfaces")
+	if di.cfg.CollectTCPConns {
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionOutbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(0),
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_TCP,
+		}, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionInbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(0),
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_TCP,
+		})
+		if di.cfg.CollectIPv6Conns {
+			filters = append(filters, driver.FilterDefinition{
+				FilterVersion:  driver.Signature,
+				Size:           driver.FilterDefinitionSize,
+				Direction:      driver.DirectionOutbound,
+				FilterLayer:    driver.LayerTransport,
+				InterfaceIndex: uint64(0),
+				Af:             windows.AF_INET6,
+				Protocol:       windows.IPPROTO_TCP,
+			}, driver.FilterDefinition{
+				FilterVersion:  driver.Signature,
+				Size:           driver.FilterDefinitionSize,
+				Direction:      driver.DirectionInbound,
+				FilterLayer:    driver.LayerTransport,
+				InterfaceIndex: uint64(0),
+				Af:             windows.AF_INET6,
+				Protocol:       windows.IPPROTO_TCP,
+			})
+		}
 	}
 
-	var filters []driver.FilterDefinition
-	for _, iface := range ifaces {
-		log.Debugf("Creating filters for interface: %s [%+v]", iface.Name, iface)
-		if di.cfg.CollectTCPConns {
+	if di.cfg.CollectUDPConns {
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionOutbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(0),
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_UDP,
+		}, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			Direction:      driver.DirectionInbound,
+			FilterLayer:    driver.LayerTransport,
+			InterfaceIndex: uint64(0),
+			Af:             windows.AF_INET,
+			Protocol:       windows.IPPROTO_UDP,
+		})
+		if di.cfg.CollectIPv6Conns {
 			filters = append(filters, driver.FilterDefinition{
 				FilterVersion:  driver.Signature,
 				Size:           driver.FilterDefinitionSize,
 				Direction:      driver.DirectionOutbound,
 				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
-				Protocol:       windows.IPPROTO_TCP,
-			}, driver.FilterDefinition{
-				FilterVersion:  driver.Signature,
-				Size:           driver.FilterDefinitionSize,
-				Direction:      driver.DirectionInbound,
-				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
-				Protocol:       windows.IPPROTO_TCP,
-			})
-			if di.cfg.CollectIPv6Conns {
-				filters = append(filters, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionOutbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_TCP,
-				}, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionInbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_TCP,
-				})
-			}
-		}
-
-		if di.cfg.CollectUDPConns {
-			filters = append(filters, driver.FilterDefinition{
-				FilterVersion:  driver.Signature,
-				Size:           driver.FilterDefinitionSize,
-				Direction:      driver.DirectionOutbound,
-				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
+				InterfaceIndex: uint64(0),
+				Af:             windows.AF_INET6,
 				Protocol:       windows.IPPROTO_UDP,
 			}, driver.FilterDefinition{
 				FilterVersion:  driver.Signature,
 				Size:           driver.FilterDefinitionSize,
 				Direction:      driver.DirectionInbound,
 				FilterLayer:    driver.LayerTransport,
-				InterfaceIndex: uint64(iface.Index),
-				Af:             windows.AF_INET,
+				InterfaceIndex: uint64(0),
+				Af:             windows.AF_INET6,
 				Protocol:       windows.IPPROTO_UDP,
 			})
-			if di.cfg.CollectIPv6Conns {
-				filters = append(filters, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionOutbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_UDP,
-				}, driver.FilterDefinition{
-					FilterVersion:  driver.Signature,
-					Size:           driver.FilterDefinitionSize,
-					Direction:      driver.DirectionInbound,
-					FilterLayer:    driver.LayerTransport,
-					InterfaceIndex: uint64(iface.Index),
-					Af:             windows.AF_INET6,
-					Protocol:       windows.IPPROTO_UDP,
-				})
-			}
 		}
 	}
 

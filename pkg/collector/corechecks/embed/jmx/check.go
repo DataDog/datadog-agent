@@ -18,13 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// JMXCheck TODO <agent-core> : IML-199
 type JMXCheck struct {
-	id        check.ID
-	name      string
-	config    integration.Config
-	stop      chan struct{}
-	source    string
-	telemetry bool
+	id             check.ID
+	name           string
+	config         integration.Config
+	stop           chan struct{}
+	source         string
+	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
 func newJMXCheck(config integration.Config, source string) *JMXCheck {
@@ -41,6 +44,7 @@ func newJMXCheck(config integration.Config, source string) *JMXCheck {
 	return check
 }
 
+// Run TODO <agent-core> : IML-199
 func (c *JMXCheck) Run() error {
 	err := state.scheduleCheck(c)
 	if err != nil {
@@ -57,45 +61,68 @@ func (c *JMXCheck) Run() error {
 	return nil
 }
 
+// Stop TODO <agent-core> : IML-199
 func (c *JMXCheck) Stop() {
 	close(c.stop)
 	state.unscheduleCheck(c)
 }
 
+// Cancel TODO <agent-core> : IML-199
 func (c *JMXCheck) Cancel() {}
 
+// String TODO <agent-core> : IML-199
 func (c *JMXCheck) String() string {
 	return c.name
 }
 
+// Version TODO <agent-core> : IML-199
 func (c *JMXCheck) Version() string {
 	return ""
 }
 
+// ConfigSource TODO <agent-core> : IML-199
 func (c *JMXCheck) ConfigSource() string {
 	return c.source
 }
 
+// InitConfig TODO <agent-core> : IML-199
+func (c *JMXCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig TODO <agent-core> : IML-199
+func (c *JMXCheck) InstanceConfig() string {
+	return c.instanceConfig
+}
+
+// Configure TODO <agent-core> : IML-199
 func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, source string) error {
+	c.initConfig = string(config)
+	c.instanceConfig = string(initConfig)
 	return nil
 }
 
+// Interval TODO <agent-core> : IML-199
 func (c *JMXCheck) Interval() time.Duration {
 	return 0
 }
 
+// ID TODO <agent-core> : IML-199
 func (c *JMXCheck) ID() check.ID {
 	return c.id
 }
 
+// IsTelemetryEnabled TODO <agent-core> : IML-199
 func (c *JMXCheck) IsTelemetryEnabled() bool {
 	return c.telemetry
 }
 
+// GetWarnings TODO <agent-core> : IML-199
 func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
 }
 
+// GetSenderStats TODO <agent-core> : IML-199
 func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
 	return check.NewSenderStats(), nil
 }

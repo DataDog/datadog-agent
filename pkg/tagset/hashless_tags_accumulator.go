@@ -10,7 +10,7 @@ import "github.com/DataDog/datadog-agent/pkg/util"
 // HashlessTagsAccumulator allows to build a slice of tags, in a context where the hashes for
 // those tags are not useful.
 //
-// This type implements TagAccumulator.
+// This type implements TagsAccumulator.
 type HashlessTagsAccumulator struct {
 	data []string
 }
@@ -37,6 +37,11 @@ func (h *HashlessTagsAccumulator) Append(tags ...string) {
 	h.data = append(h.data, tags...)
 }
 
+// AppendHashlessAccumulator appends tags from the given accumulator
+func (h *HashlessTagsAccumulator) AppendHashlessAccumulator(src *HashlessTagsAccumulator) {
+	h.data = append(h.data, src.data...)
+}
+
 // AppendHashed appends tags and corresponding hashes to the builder
 func (h *HashlessTagsAccumulator) AppendHashed(src HashedTags) {
 	h.data = append(h.data, src.data...)
@@ -47,12 +52,17 @@ func (h *HashlessTagsAccumulator) Get() []string {
 	return h.data
 }
 
+// Copy returns a new slice with the copy of the tags
+func (h *HashlessTagsAccumulator) Copy() []string {
+	return append(make([]string, 0, len(h.data)), h.data...)
+}
+
 // SortUniq sorts and remove duplicate in place
 func (h *HashlessTagsAccumulator) SortUniq() {
 	h.data = util.SortUniqInPlace(h.data)
 }
 
-// Reset resets the size of the builder to 0 without discaring the internal
+// Reset resets the size of the builder to 0 without discarding the internal
 // buffer
 func (h *HashlessTagsAccumulator) Reset() {
 	// we keep the internal buffer but reset size

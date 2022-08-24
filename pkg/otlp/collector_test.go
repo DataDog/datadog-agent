@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build test
-// +build test
+//go:build otlp && test
+// +build otlp,test
 
 package otlp
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -72,31 +73,28 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows, see AP-1723 for details")
+	}
+
+	// TODO (AP-1723): Update Collector to version 0.55 before re-enabling.
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skip on macOS, see AP-1723 for details")
+	}
+
 	tests := []struct {
 		path string
 		err  string
 	}{
-		{path: "experimental/port/nobindhost.yaml"},
-		{path: "experimental/port/nonlocal.yaml"},
 		{
-			path: "experimental/receiver/noprotocols.yaml",
+			path: "receiver/noprotocols.yaml",
 			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
 		},
-		{path: "experimental/receiver/simple.yaml"},
-		{path: "experimental/receiver/advanced.yaml"},
+		{path: "receiver/simple.yaml"},
+		{path: "receiver/advanced.yaml"},
 		{
-			path: "experimental/receiver/typo.yaml",
-			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
-		},
-
-		{
-			path: "stable/receiver/noprotocols.yaml",
-			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
-		},
-		{path: "stable/receiver/simple.yaml"},
-		{path: "stable/receiver/advanced.yaml"},
-		{
-			path: "stable/receiver/typo.yaml",
+			path: "receiver/typo.yaml",
 			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
 		},
 	}

@@ -46,13 +46,6 @@ const (
 	Assured ConnFlags = C.CONN_ASSURED
 )
 
-type PortState uint8
-
-const (
-	PortListening PortState = C.PORT_LISTENING
-	PortClosed    PortState = C.PORT_CLOSED
-)
-
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 
 type ConnTag = uint64

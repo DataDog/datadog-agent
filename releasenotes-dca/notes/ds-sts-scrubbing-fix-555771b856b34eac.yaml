@@ -1,0 +1,4 @@
+---
+fixes:
+    - Fix a bug that prevents scrubbing sensitive content on the DaemonSet resource.
+    - Fix a bug that prevents scrubbing sensitive content on the StatefulSet resource.

@@ -11,6 +11,7 @@ import (
 	"context"
 	_ "expvar"
 	"fmt"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -28,9 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -72,8 +73,9 @@ extensions for special Datadog features.`,
 	confPath   string
 	socketPath string
 
-	metaScheduler *metadata.Scheduler
-	statsd        *dogstatsd.Server
+	metaScheduler  *metadata.Scheduler
+	statsd         *dogstatsd.Server
+	dogstatsdStats *http.Server
 )
 
 const (
@@ -132,6 +134,18 @@ func runAgent(ctx context.Context) (err error) {
 		log.Infof("Config will be read from env variables")
 	}
 
+	// go_expvar server
+	port := config.Datadog.GetInt("dogstatsd_stats_port")
+	dogstatsdStats = &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
+		Handler: http.DefaultServeMux,
+	}
+	go func() {
+		if err := dogstatsdStats.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating dogstatsd stats server on port %d: %s", port, err)
+		}
+	}()
+
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
@@ -185,11 +199,11 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	hname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
@@ -206,23 +220,23 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	if config.Datadog.GetBool("inventories_enabled") {
-		if err = metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
+		if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
 			return
 		}
 	}
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		store := workloadmeta.GetGlobalStore()
+		store.Start(ctx)
 
-		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
-		if err := tagger.Init(); err != nil {
+		tagger.SetDefaultTagger(local.NewTagger(store))
+		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
 
-	statsd, err = dogstatsd.NewServer(demux, nil)
+	statsd, err = dogstatsd.NewServer(demux, false)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
@@ -270,11 +284,16 @@ func stopAgent(cancel context.CancelFunc) {
 		metaScheduler.Stop()
 	}
 
+	if dogstatsdStats != nil {
+		if err := dogstatsdStats.Shutdown(context.Background()); err != nil {
+			log.Errorf("Error shutting down dogstatsd stats server: %s", err)
+		}
+	}
+
 	if statsd != nil {
 		statsd.Stop()
 	}
 
 	log.Info("See ya!")
 	log.Flush()
-	return
 }

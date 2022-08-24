@@ -73,16 +73,16 @@ if node['dd-agent-upgrade']['add_new_repo']
       owner 'root'
       group 'root'
       mode '0644'
-      content "deb [signed-by=#{apt_usr_share_keyring}] #{node['dd-agent-upgrade']['aptrepo']} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
+      content "deb #{node['dd-agent-upgrade']['aptrepo']} #{node['dd-agent-upgrade']['aptrepo_dist']} #{node['dd-agent-upgrade']['agent_major_version']}"
       notifies :update, 'apt_update[datadog]', :immediately
     end
 
   when 'rhel'
     include_recipe 'yum'
 
-    yum_repository 'datadog-update' do
-      name 'datadog-update'
-      description 'datadog-update'
+    yum_repository 'datadog' do
+      name 'datadog'
+      description 'datadog'
       url node['dd-agent-upgrade']['yumrepo']
       action :add
       make_cache true
@@ -110,9 +110,9 @@ if node['dd-agent-upgrade']['add_new_repo']
       action :nothing
     end
 
-    zypper_repository 'datadog-update' do
-      name 'datadog-update'
-      description 'datadog-update'
+    zypper_repository 'datadog' do
+      name 'datadog'
+      description 'datadog'
       baseurl node['dd-agent-upgrade']['yumrepo_suse']
       action :add
       gpgcheck false

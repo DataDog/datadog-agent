@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps before package is installed.
+#
+# .rpm: STEP 2 of 6
+
+INSTALL_DIR=/opt/datadog-agent
+SERVICE_NAME=datadog-agent
+
+set -e
+
+if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
+    # Stop an already running agent
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME-process || true
+        systemctl stop $SERVICE_NAME-sysprobe || true
+        systemctl stop $SERVICE_NAME-trace || true
+        systemctl stop $SERVICE_NAME-security || true
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME-process || true
+        initctl stop $SERVICE_NAME-sysprobe || true
+        initctl stop $SERVICE_NAME-trace || true
+        initctl stop $SERVICE_NAME-security || true
+        initctl stop $SERVICE_NAME || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+    fi
+fi
+
+# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
+# They were not being cleaned by these versions, so let's do that now on install/upgrade
+TUF_REPO_DIR=$INSTALL_DIR/repositories
+if [ -d $TUF_REPO_DIR ]; then
+    rm -rf $TUF_REPO_DIR
+fi
+
+# RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
+# So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
+if [ -f "/etc/init.d/datadog-agent" ]; then
+    /etc/init.d/datadog-agent stop || true
+fi
+
+# Set up `dd-agent` user and group
+getent group dd-agent >/dev/null || groupadd -r dd-agent
+getent passwd dd-agent >/dev/null || \
+    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin \
+        -c "Datadog Agent" dd-agent && \
+        { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
+
+
+# Starting with 6.10, integrations are also uninstalled on package removal
+
+# Since 6.18.0, a file containing all integrations files which have been installed by
+# the package is available. We use it to remove only the datadog-related check files which
+# have *NOT* been installed by the package (eg: installed using the `integration` command).
+
+if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+    echo "Removing integrations installed with the 'agent integration' command"
+
+    # List all files in the embedded dir of the datadog-agent install dir
+    PREV_DIR=$(pwd)
+    cd $INSTALL_DIR
+    find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+
+    # List all files in the embedded dir of the datadog-agent install dir
+    # which were not installed by the package and rm them.
+    grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
+
+    rm $INSTALL_DIR/embedded/.all-integrations.txt
+    cd "$PREV_DIR"
+else
+    PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
+    PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
+    if [ -x $PIP2_PATH ]; then
+        echo "Uninstalling Python 2 integrations..."
+        $PIP2_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP2_PATH uninstall -y -q --no-cache-dir || true
+    fi
+    if [ -x $PIP3_PATH ]; then
+        echo "Uninstalling Python 3 integrations..."
+        $PIP3_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP3_PATH uninstall -y -q --no-cache-dir || true
+    fi
+fi
+
+# Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
+# This MUST be done after using pip or any python, because executing python might generate .pyc files
+if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
+    # (commented lines are filtered out)
+    cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
+fi
+
+exit 0

@@ -1,6 +1,7 @@
 name: "Windows unit tests"
 
-on: [push]
+on:
+  - pull_request
 
 jobs:
   windows-unit-tests:
@@ -12,19 +13,19 @@ jobs:
           git config --global core.eol lf
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0 #needed for 'git describe' to work
 
       - name: Install python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8.10'
 
       - name: Install go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.17.6'
+          go-version-file: '.go-version'
 
       - name: Set up runner
         run: |
@@ -50,5 +51,5 @@ jobs:
           inv -e rtloader.install
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-3=$pythonLocation
+          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
           codecov -f profile.cov -F windows

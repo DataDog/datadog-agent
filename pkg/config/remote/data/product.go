@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package data
 
 // Product is a remote configuration product
@@ -6,6 +11,8 @@ type Product string
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling Product = "APM_SAMPLING"
+	// ProductCWSDD is the cloud workload security product
+	ProductCWSDD Product = "CWS_DD"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 )

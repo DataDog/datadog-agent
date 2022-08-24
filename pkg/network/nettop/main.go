@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -35,7 +36,7 @@ func main() {
 	fmt.Printf("Initialization complete. Starting nettop\n")
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	printConns := func(now time.Time) {
 		fmt.Printf("-- %s --\n", now)

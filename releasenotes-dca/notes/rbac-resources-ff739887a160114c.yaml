@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Enable collection of Roles/RoleBindings/ClusterRoles/ClusterRoleBindings/ServiceAccounts
+    by default in the orchestrator check.

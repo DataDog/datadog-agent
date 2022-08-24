@@ -17,10 +17,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 var (
@@ -131,7 +132,7 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 
 func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
 	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
 

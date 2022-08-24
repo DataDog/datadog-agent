@@ -42,7 +42,6 @@ func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 				Tags:       []string{"a", "b:21", "c"},
 				Host:       "localhost",
 				SampleRate: 1,
-				Timestamp:  TimeNowNano(),
 			}
 			samples[i] = s
 		}

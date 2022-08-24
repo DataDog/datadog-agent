@@ -8,8 +8,9 @@ package retry
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 type diskUsageRetrieverMock struct {
@@ -28,7 +29,7 @@ func TestComputeAvailableSpace(t *testing.T) {
 			Total:     100,
 		}}
 	maxSizeInBytes := int64(30)
-	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 0.9)
+	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 0.9)
 
 	max, err := diskUsageLimit.computeAvailableSpace(10)
 	r.NoError(err)

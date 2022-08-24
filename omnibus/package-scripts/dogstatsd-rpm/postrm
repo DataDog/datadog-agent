@@ -1,0 +1,22 @@
+#!/bin/sh
+#
+# Perform necessary datadog-dogstatsd removal steps after package is uninstalled.
+#
+# .rpm: STEP 5 of 6
+
+# Remove the symlink to the binary.
+rm -f "/usr/bin/datadog-dogstatsd"
+
+case "$*" in
+    0)
+        # We're uninstalling.
+        # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
+    ;;
+    1)
+        # We're upgrading.
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

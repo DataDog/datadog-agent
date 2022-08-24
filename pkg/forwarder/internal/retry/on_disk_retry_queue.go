@@ -25,7 +25,7 @@ const retryFileFormat = "2006_01_02__15_04_05_"
 type onDiskRetryQueue struct {
 	serializer         *HTTPTransactionsSerializer
 	storagePath        string
-	diskUsageLimit     *diskUsageLimit
+	diskUsageLimit     *DiskUsageLimit
 	filenames          []string
 	currentSizeInBytes int64
 	telemetry          onDiskRetryQueueTelemetry
@@ -34,7 +34,7 @@ type onDiskRetryQueue struct {
 func newOnDiskRetryQueue(
 	serializer *HTTPTransactionsSerializer,
 	storagePath string,
-	diskUsageLimit *diskUsageLimit,
+	diskUsageLimit *DiskUsageLimit,
 	telemetry onDiskRetryQueueTelemetry) (*onDiskRetryQueue, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
@@ -98,7 +98,7 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 	s.currentSizeInBytes += bufferSize
 	s.filenames = append(s.filenames, file.Name())
 	s.telemetry.setFileSize(bufferSize)
-	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setCurrentSizeInBytes(s.GetDiskSpaceUsed())
 	s.telemetry.setFilesCount(s.getFilesCount())
 	return nil
 }
@@ -128,7 +128,7 @@ func (s *onDiskRetryQueue) Deserialize() ([]transaction.Transaction, error) {
 	}
 	s.telemetry.addDeserializeErrorsCount(errorsCount)
 	s.telemetry.addDeserializeTransactionsCount(len(transactions))
-	s.telemetry.setCurrentSizeInBytes(s.getCurrentSizeInBytes())
+	s.telemetry.setCurrentSizeInBytes(s.GetDiskSpaceUsed())
 	s.telemetry.setFilesCount(s.getFilesCount())
 	return transactions, err
 }
@@ -138,8 +138,8 @@ func (s *onDiskRetryQueue) getFilesCount() int {
 	return len(s.filenames)
 }
 
-// getCurrentSizeInBytes returns the current disk space used.
-func (s *onDiskRetryQueue) getCurrentSizeInBytes() int64 {
+// GetDiskSpaceUsed() returns the current disk space used.
+func (s *onDiskRetryQueue) GetDiskSpaceUsed() int64 {
 	return s.currentSizeInBytes
 }
 

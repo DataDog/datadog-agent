@@ -62,6 +62,14 @@ func (c *complianceCheck) ID() check.ID {
 	return check.ID(c.ruleID)
 }
 
+func (c *complianceCheck) InitConfig() string {
+	return ""
+}
+
+func (c *complianceCheck) InstanceConfig() string {
+	return ""
+}
+
 func (c *complianceCheck) GetWarnings() []error {
 	return nil
 }
@@ -113,7 +121,9 @@ func (c *complianceCheck) Run() error {
 	for _, report := range reports {
 		if report.Error != nil {
 			log.Debugf("%s: check run failed: %v", c.ruleID, report.Error)
-			err = report.Error
+			if !report.UserProvidedError {
+				err = report.Error
+			}
 		}
 
 		data, result := reportToEventData(report)

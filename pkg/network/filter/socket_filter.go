@@ -9,8 +9,9 @@
 package filter
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // HeadlessSocketFilter creates a raw socket attached to the given socket filter.
@@ -24,7 +25,7 @@ func HeadlessSocketFilter(rootPath string, filter *manager.Probe) (closeFn func(
 	)
 
 	err = util.WithRootNS(rootPath, func() error {
-		packetSrc, srcErr = NewPacketSource(filter)
+		packetSrc, srcErr = NewPacketSource(filter, nil)
 		return srcErr
 	})
 	if err != nil {

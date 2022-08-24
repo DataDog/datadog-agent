@@ -9,9 +9,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
@@ -67,38 +68,39 @@ func TestDestinationSend200(t *testing.T) {
 	server.Stop()
 }
 
-func TestDestinationSend500Retries(t *testing.T) {
-	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, true, respondChan)
+func TestRetries(t *testing.T) {
+	// We retry more than just these status codes - testing these to spot check retry works correctly.
+	retryTest(t, 500)
+	retryTest(t, 429)
+	retryTest(t, 404)
+}
+
+func TestNoRetries(t *testing.T) {
+	testNoRetry(t, 400)
+	testNoRetry(t, 401)
+	testNoRetry(t, 403)
+	testNoRetry(t, 413)
+}
+
+func testNoRetry(t *testing.T, statusCode int) {
+	server := NewTestServer(statusCode)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
-	isRetrying := make(chan bool, 1)
-	server.Destination.Start(input, output, isRetrying)
+	server.Destination.Start(input, output, nil)
 
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	<-output
 
-	// In a retry loop. let the server respond once
-	<-respondChan
-	// once it responds a second time, we know `isRetrying` has been set
-	<-respondChan
-	assert.True(t, <-isRetrying)
-
-	// Should recover because it was retrying
-	server.ChangeStatus(200)
-	// Drain any retries
-	for {
-		if (<-respondChan) == 200 {
-			break
-		}
-	}
+	// Should not retry this request - no error reported back (because it's not retryable) so input should be unblocked
+	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
 	<-output
 
 	server.Stop()
 }
 
-func TestDestinationSend429Retries(t *testing.T) {
+func retryTest(t *testing.T, statusCode int) {
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(429, 0, true, respondChan)
+	server := NewTestServerWithOptions(statusCode, 0, true, respondChan)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -147,22 +149,6 @@ func TestDestinationContextCancel(t *testing.T) {
 	// has been canceled and the payload will be dropped. In the real agent, this channel would be closed
 	// by the caller while the agent is shutting down
 	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	server.Stop()
-}
-
-func TestDestinationSend400(t *testing.T) {
-	server := NewTestServer(400)
-	input := make(chan *message.Payload)
-	output := make(chan *message.Payload)
-	server.Destination.Start(input, output, nil)
-
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	<-output
-
-	// Should not retry 400 - no error reported back (because it's not retryable) so input should be unblocked
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
-	<-output
-
 	server.Stop()
 }
 

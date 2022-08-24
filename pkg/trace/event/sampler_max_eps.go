@@ -8,11 +8,11 @@ package event
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxEPSReportFrequency = 10 * time.Second
@@ -26,8 +26,7 @@ type maxEPSSampler struct {
 	maxEPS      float64
 	rateCounter rateCounter
 
-	reportFrequency time.Duration
-	reportDone      chan bool
+	reportDone chan bool
 }
 
 // NewMaxEPSSampler creates a new instance of a maxEPSSampler with the provided maximum amount of events per second.
@@ -122,7 +121,7 @@ type rateCounter interface {
 
 // samplerBackendRateCounter is a rateCounter backed by a maxEPSSampler.Backend.
 type samplerBackendRateCounter struct {
-	backend *sampler.MemoryBackend
+	backend *memoryBackend
 	exit    chan struct{}
 	stopped chan struct{}
 }
@@ -130,7 +129,7 @@ type samplerBackendRateCounter struct {
 // newSamplerBackendRateCounter creates a new samplerBackendRateCounter based on exponential decay counters.
 func newSamplerBackendRateCounter() *samplerBackendRateCounter {
 	return &samplerBackendRateCounter{
-		backend: sampler.NewMemoryBackend(1*time.Second, 1.125),
+		backend: newMemoryBackend(),
 		exit:    make(chan struct{}),
 		stopped: make(chan struct{}),
 	}
@@ -140,12 +139,12 @@ func newSamplerBackendRateCounter() *samplerBackendRateCounter {
 func (s *samplerBackendRateCounter) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
-		decayTicker := time.NewTicker(s.backend.DecayPeriod)
+		decayTicker := time.NewTicker(s.backend.decayPeriod)
 		defer decayTicker.Stop()
 		for {
 			select {
 			case <-decayTicker.C:
-				s.backend.DecayScore()
+				s.backend.decayScore()
 			case <-s.exit:
 				close(s.stopped)
 				return
@@ -162,10 +161,10 @@ func (s *samplerBackendRateCounter) Stop() {
 
 // Count adds an event to the rate computation.
 func (s *samplerBackendRateCounter) Count() {
-	s.backend.CountSample()
+	s.backend.countSample()
 }
 
 // GetRate gets the current event rate.
 func (s *samplerBackendRateCounter) GetRate() float64 {
-	return s.backend.GetUpperSampledScore()
+	return s.backend.getUpperSampledScore()
 }

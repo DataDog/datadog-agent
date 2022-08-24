@@ -1,6 +1,5 @@
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #include <linux/version.h>
-#include <linux/types.h>
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
@@ -20,46 +19,54 @@
 SEC("kprobe/__nf_conntrack_hash_insert")
 int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
+
     u32 status = ct_status(ct);
-    if (!(status&IPS_CONFIRMED)) {
+    if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
-    if (!(status&IPS_NAT_MASK)) {
-        increment_telemetry_count(registers_dropped);
+    
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
+
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
 
-    struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
-    __builtin_memset(tuplehash, 0, sizeof(tuplehash));
-    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    increment_telemetry_registers_count();
 
-    struct nf_conntrack_tuple orig = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
-    struct nf_conntrack_tuple reply = tuplehash[IP_CT_DIR_REPLY].tuple;
+    return 0;
+}
 
-    u32 netns = get_netns(&ct->ct_net);
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", netns, status);
+SEC("kprobe/ctnetlink_fill_info")
+int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
 
-    conntrack_tuple_t orig_conn = {};
-    if (!nf_conntrack_tuple_to_conntrack_tuple(&orig_conn, &orig)) {
+    proc_t proc = {};
+    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+    if (!proc_t_comm_prefix_equals("system-probe", 12, proc)) {
+        log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process\n");
         return 0;
     }
-    orig_conn.netns = netns;
 
-    log_debug("orig\n");
-    print_translation(&orig_conn);
+    struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM5(ctx);
 
-    conntrack_tuple_t reply_conn = {};
-    if (!nf_conntrack_tuple_to_conntrack_tuple(&reply_conn, &reply)) {
+    u32 status = ct_status(ct);
+    if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
-    reply_conn.netns = netns;
+    
+    log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
 
-    log_debug("reply\n");
-    print_translation(&reply_conn);
+    conntrack_tuple_t orig = {}, reply = {};
+    if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
 
-    bpf_map_update_elem(&conntrack, &orig_conn, &reply_conn, BPF_ANY);
-    bpf_map_update_elem(&conntrack, &reply_conn, &orig_conn, BPF_ANY);
-    increment_telemetry_count(registers);
+    bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    increment_telemetry_registers_count();
 
     return 0;
 }

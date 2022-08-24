@@ -8,24 +8,27 @@ package status
 import (
 	"expvar"
 	"strings"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Builder is used to build the status.
 type Builder struct {
-	isRunning   *int32
+	isRunning   *atomic.Bool
 	endpoints   *config.Endpoints
-	sources     *config.LogSources
+	sources     *sourcesPkg.LogSources
 	warnings    *config.Messages
 	errors      *config.Messages
 	logsExpVars *expvar.Map
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
 		endpoints:   endpoints,
@@ -53,7 +56,7 @@ func (b *Builder) BuildStatus() Status {
 // this needs to be thread safe as it can be accessed
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
-	return atomic.LoadInt32(b.isRunning) != 0
+	return b.isRunning.Load()
 }
 
 func (b *Builder) getUseHTTP() bool {
@@ -83,7 +86,7 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
-				BytesRead:          source.BytesRead.Value(),
+				BytesRead:          source.BytesRead.Load(),
 				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
 				AllTimePeakLatency: source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
 				RecentAvgLatency:   source.LatencyStats.MovingAvg() / int64(time.Millisecond),
@@ -106,14 +109,14 @@ func (b *Builder) getIntegrations() []Integration {
 
 // groupSourcesByName groups all logs sources by name so that they get properly displayed
 // on the agent status.
-func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
-	sources := make(map[string][]*config.LogSource)
+func (b *Builder) groupSourcesByName() map[string][]*sourcesPkg.LogSource {
+	sources := make(map[string][]*sourcesPkg.LogSource)
 	for _, source := range b.sources.GetSources() {
 		if source.IsHiddenFromStatus() {
 			continue
 		}
 		if _, exists := sources[source.Name]; !exists {
-			sources[source.Name] = []*config.LogSource{}
+			sources[source.Name] = []*sourcesPkg.LogSource{}
 		}
 		sources[source.Name] = append(sources[source.Name], source)
 	}
@@ -121,7 +124,7 @@ func (b *Builder) groupSourcesByName() map[string][]*config.LogSource {
 }
 
 // toString returns a representation of a status.
-func (b *Builder) toString(status *config.LogStatus) string {
+func (b *Builder) toString(status *status.LogStatus) string {
 	var value string
 	if status.IsPending() {
 		value = "Pending"
@@ -136,6 +139,8 @@ func (b *Builder) toString(status *config.LogStatus) string {
 // toDictionary returns a representation of the configuration.
 func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 	dictionary := make(map[string]interface{})
+	dictionary["Service"] = c.Service
+	dictionary["Source"] = c.Source
 	switch c.Type {
 	case config.TCPType, config.UDPType:
 		dictionary["Port"] = c.Port
@@ -148,8 +153,12 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		dictionary["Label"] = c.Label
 		dictionary["Name"] = c.Name
 	case config.JournaldType:
-		dictionary["IncludeUnits"] = strings.Join(c.IncludeUnits, ", ")
-		dictionary["ExcludeUnits"] = strings.Join(c.ExcludeUnits, ", ")
+		dictionary["IncludeSystemUnits"] = strings.Join(c.IncludeSystemUnits, ", ")
+		dictionary["ExcludeSystemUnits"] = strings.Join(c.ExcludeSystemUnits, ", ")
+		dictionary["IncludeUserUnits"] = strings.Join(c.IncludeUserUnits, ", ")
+		dictionary["ExcludeUserUnits"] = strings.Join(c.ExcludeUserUnits, ", ")
+		dictionary["IncludeMatches"] = strings.Join(c.IncludeMatches, ", ")
+		dictionary["ExcludeMatches"] = strings.Join(c.ExcludeMatches, ", ")
 	case config.WindowsEventType:
 		dictionary["ChannelPath"] = c.ChannelPath
 		dictionary["Query"] = c.Query

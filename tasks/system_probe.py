@@ -2,14 +2,16 @@ import contextlib
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 from subprocess import check_output
 
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
@@ -25,32 +27,45 @@ DNF_TAG = "dnf"
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
-
-DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
+CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 
 is_windows = sys.platform == "win32"
+
+arch_mapping = {
+    "amd64": "x64",
+    "x86_64": "x64",
+    "x64": "x64",
+    "i386": "x86",
+    "i686": "x86",
+    "aarch64": "arm64",  # linux
+    "arm64": "arm64",  # darwin
+}
+CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 
 
 @task
 def build(
     ctx,
     race=False,
-    incremental_build=False,
+    incremental_build=True,
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
     windows=is_windows,
-    arch="x64",
-    embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
+    arch=CURRENT_ARCH,
     compile_ebpf=True,
     nikos_embedded_path=None,
     bundle_ebpf=False,
     parallel_build=True,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
 ):
     """
     Build the system_probe
@@ -73,14 +88,19 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(
+            ctx,
+            parallel_build=parallel_build,
+            kernel_release=kernel_release,
+            debug=debug,
+            strip_object_files=strip_object_files,
+        )
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        embedded_path=embedded_path,
         nikos_embedded_path=nikos_embedded_path,
     )
 
@@ -119,6 +139,8 @@ def test(
     run=None,
     windows=is_windows,
     parallel_build=True,
+    failfast=False,
+    kernel_release=None,
 ):
     """
     Run tests on eBPF parts
@@ -138,7 +160,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx, parallel_build=parallel_build)
+        build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -151,14 +173,15 @@ def test(
         "output_params": "-c -o " + output_path if output_path else "",
         "pkgs": packages,
         "run": "-run " + run if run else "",
+        "failfast": "-failfast" if failfast else "",
     }
 
     _, _, env = get_build_flags(ctx)
-    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.normpath(os.path.join(os.getcwd(), "pkg", "ebpf", "bytecode", "build"))
+    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v -tags "{build_tags}" {output_params} {pkgs} {run}'
+    cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
@@ -166,7 +189,7 @@ def test(
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
     Compile test suite for kitchen
     """
@@ -212,6 +235,7 @@ def kitchen_prepare(ctx, windows=is_windows):
             skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
+            kernel_release=kernel_release,
         )
 
         # copy ancillary data, if applicable
@@ -220,22 +244,36 @@ def kitchen_prepare(ctx, windows=is_windows):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
+    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
+        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+
 
 @task
-def kitchen_test(ctx, target=None, arch="x86_64"):
+def kitchen_test(ctx, target=None, provider="virtualbox"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
 
+    vagrant_arch = ""
+    if CURRENT_ARCH == "x64":
+        vagrant_arch = "x86_64"
+    elif CURRENT_ARCH == "arm64":
+        vagrant_arch = "arm64"
+    else:
+        raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
+
     # Retrieve a list of all available vagrant images
     images = {}
-    with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
-        for platform, by_provider in json.load(f).items():
-            if "vagrant" in by_provider:
-                for image in by_provider["vagrant"][arch]:
-                    images[image] = platform
+    platform_file = os.path.join(KITCHEN_DIR, "platforms.json")
+    with open(platform_file, 'r') as f:
+        for kplatform, by_provider in json.load(f).items():
+            if "vagrant" in by_provider and vagrant_arch in by_provider["vagrant"]:
+                for image in by_provider["vagrant"][vagrant_arch]:
+                    images[image] = kplatform
 
     if not (target in images):
         print(
@@ -245,18 +283,54 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
     with ctx.cd(KITCHEN_DIR):
         ctx.run(
-            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test",
-            env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
+            f"inv kitchen.genconfig --platform {images[target]} --osversions {target} --provider vagrant --testfiles system-probe-test --platformfile {platform_file} --arch {vagrant_arch}",
+            env={"KITCHEN_VAGRANT_PROVIDER": provider},
         )
         ctx.run("kitchen test")
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True):
+def kitchen_genconfig(
+    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
+):
+    if not arch:
+        arch = CURRENT_ARCH
+
+    if arch == "x64":
+        arch = "x86_64"
+    elif arch == "arm64":
+        arch = "arm64"
+    else:
+        raise UnexpectedExit("unsupported arch specified")
+
+    if not image_size and provider == "azure":
+        image_size = "Standard_D2_v2"
+
+    if not image_size:
+        raise UnexpectedExit("Image size must be specified")
+
+    if azure_sub_id is None and provider == "azure":
+        raise Exit("azure subscription id must be specified with --azure-sub-id")
+
+    env = {
+        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+    }
+    if azure_sub_id:
+        env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
+
+    with ctx.cd(KITCHEN_DIR):
+        ctx.run(
+            f"inv -e kitchen.genconfig --platform={platform} --osversions={osversions} --provider={provider} --arch={arch} --imagesize={image_size} --testfiles=system-probe-test --platformfile=platforms.json",
+            env=env,
+        )
+
+
+@task
+def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True, kernel_release=None):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -325,12 +399,20 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_files = list(base_files)
-    network_files.extend(glob.glob(network_c_dir + "/**/*.c"))
+    network_files.extend(glob.glob(network_c_dir + "/**/*[!http].c"))
+    network_files.append(os.path.join(network_c_dir, "runtime", "http.c"))
     network_flags = list(build_flags)
     network_flags.append(f"-I{network_c_dir}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
     network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
     run_tidy(ctx, files=network_files, build_flags=network_flags, fix=fix, fail_on_issue=fail_on_issue)
+
+    # special treatment for prebuilt/http.c
+    http_files = [os.path.join(network_c_dir, "prebuilt", "http.c")]
+    http_flags = get_http_prebuilt_build_flags(network_c_dir)
+    http_flags.append(f"-I{network_c_dir}")
+    http_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
+    run_tidy(ctx, files=http_files, build_flags=http_flags, fix=fix, fail_on_issue=fail_on_issue)
 
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_files = list(base_files)
@@ -338,61 +420,83 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False):
     security_flags = list(build_flags)
     security_flags.append(f"-I{security_agent_c_dir}")
     security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    run_tidy(ctx, files=security_files, build_flags=security_flags, fix=fix, fail_on_issue=fail_on_issue)
+    security_checks = ["-readability-function-cognitive-complexity"]
+    run_tidy(
+        ctx,
+        files=security_files,
+        build_flags=security_flags,
+        fix=fix,
+        fail_on_issue=fail_on_issue,
+        checks=security_checks,
+    )
 
 
-def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
+def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=None):
     flags = ["--quiet"]
     if fix:
         flags.append("--fix")
     if fail_on_issue:
         flags.append("--warnings-as-errors='*'")
 
-    ctx.run(f"clang-tidy {' '.join(flags)} {' '.join(files)} -- {' '.join(build_flags)}")
+    if checks is not None:
+        flags.append(f"--checks={','.join(checks)}")
+
+    ctx.run(f"clang-tidy {' '.join(flags)} {' '.join(files)} -- {' '.join(build_flags)}", warn=True)
 
 
 @task
-def object_files(ctx, parallel_build=True):
+def object_files(ctx, parallel_build=True, kernel_release=None):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, parallel_build=parallel_build)
+    build_object_files(ctx, parallel_build=parallel_build, kernel_release=kernel_release)
 
 
 def get_ebpf_targets():
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
-    files.extend(glob.glob("pkg/network/ebpf/c/*.[c,h]"))
-    files.extend(glob.glob("pkg/security/ebpf/c/*.[c,h]"))
+    files.extend(glob.glob("pkg/network/ebpf/c/**/*.[c,h]", recursive=True))
+    files.extend(glob.glob("pkg/security/ebpf/c/**/*.[c,h]", recursive=True))
     return files
 
 
-def get_linux_header_dirs():
-    os_info = os.uname()
-    centos_headers_dir = "/usr/src/kernels"
-    debian_headers_dir = "/usr/src"
+def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
+    if not kernel_release:
+        os_info = os.uname()
+        kernel_release = os_info.release
+
+    if kernel_release and minimal_kernel_release:
+        match = re.compile(r'(\d+)\.(\d+)(\.(\d+))?').match(kernel_release)
+        version_tuple = list(map(int, map(lambda x: x or '0', match.group(1, 2, 4))))
+        if version_tuple < minimal_kernel_release:
+            print(
+                f"You need to have kernel headers for at least {'.'.join(map(lambda x: str(x), minimal_kernel_release))} to enable all system-probe features"
+            )
+
+    src_kernels_dir = "/usr/src/kernels"
+    src_dir = "/usr/src"
+    possible_dirs = [
+        f"/lib/modules/{kernel_release}/build",
+        f"/lib/modules/{kernel_release}/source",
+        f"{src_dir}/linux-headers-{kernel_release}",
+        f"{src_kernels_dir}/{kernel_release}",
+    ]
     linux_headers = []
-    if os.path.isdir(centos_headers_dir):
-        for d in os.listdir(centos_headers_dir):
-            if os_info.release in d:
-                linux_headers.append(os.path.join(centos_headers_dir, d))
-    else:
-        for d in os.listdir(debian_headers_dir):
-            if d.startswith("linux-") and os_info.release in d:
-                linux_headers.append(os.path.join(debian_headers_dir, d))
+    for d in possible_dirs:
+        if os.path.isdir(d):
+            # resolve symlinks
+            linux_headers.append(Path(d).resolve())
 
-    # fallback to non-filtered version for Docker where `uname -r` is not correct
+    # fallback to non-release-specific directories
     if len(linux_headers) == 0:
-        if os.path.isdir(centos_headers_dir):
-            linux_headers = [os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)]
+        if os.path.isdir(src_kernels_dir):
+            linux_headers = [os.path.join(src_kernels_dir, d) for d in os.listdir(src_kernels_dir)]
         else:
-            linux_headers = [
-                os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
-            ]
+            linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
 
-    # fallback to the running kernel/build headers via /lib/modules/$(uname -r)/build/
+    # fallback to /usr as a last report
     if len(linux_headers) == 0:
-        uname_r = check_output('''uname -r''', shell=True).decode('utf-8').strip()
-        build_dir = f"/lib/modules/{uname_r}/build"
-        if os.path.isdir(build_dir):
-            linux_headers = [build_dir]
+        linux_headers = ["/usr"]
+
+    # deduplicate
+    linux_headers = list(dict.fromkeys(linux_headers))
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
@@ -427,7 +531,13 @@ def get_linux_header_dirs():
     return dirs
 
 
-def get_ebpf_build_flags(target=None):
+def get_network_agent_ebpf_build_flags(target=None, kernel_release=None):
+    flags = get_ebpf_build_flags(target, kernel_release)
+    flags.append("-g")
+    return flags
+
+
+def get_ebpf_build_flags(target=None, kernel_release=None, minimal_kernel_release=None):
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
     if not target:
@@ -460,11 +570,15 @@ def get_ebpf_build_flags(target=None):
         ]
     )
 
-    header_dirs = get_linux_header_dirs()
+    header_dirs = get_linux_header_dirs(kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release)
     for d in header_dirs:
         flags.extend(["-isystem", d])
 
     return flags
+
+
+def ebpf_check_source_file(ctx, parallel_build, src_file):
+    return ctx.run(CHECK_SOURCE_CMD.format(src_file=src_file), echo=False, asynchronous=parallel_build)
 
 
 def build_network_ebpf_compile_file(
@@ -502,35 +616,57 @@ def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, netwo
         )
 
 
-def build_http_ebpf_files(ctx, build_dir):
+def get_http_prebuilt_build_flags(network_c_dir, kernel_release=None):
+    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
+    flags = get_network_agent_ebpf_build_flags(kernel_release=kernel_release)
+    flags.append(f"-I{network_c_dir}")
+    flags.append(f"-D__{uname_m}__")
+    flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+    return flags
+
+
+def build_http_ebpf_files(ctx, build_dir, kernel_release=None, strip_object_files=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    uname_m = check_output("uname -m", shell=True).decode('utf-8').strip()
-    network_flags = get_ebpf_build_flags(target=["-target", "bpf"])
-    network_flags.append(f"-I{network_c_dir}")
-    network_flags.append(f"-D__{uname_m}__")
+    network_flags = get_http_prebuilt_build_flags(network_c_dir, kernel_release=kernel_release)
 
-    network_flags.append(f"-isystem /usr/include/{uname_m}-linux-gnu")
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", True, network_flags)
+    if strip_object_files:
+        strip_network_ebpf_obj_file(ctx, False, build_dir, "http", True)
 
-    build_network_ebpf_compile_file(
-        ctx, False, build_dir, "http", True, network_prebuilt_dir, network_flags, extension=".o"
-    )
-    build_network_ebpf_compile_file(
-        ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags, extension=".o"
-    )
+    build_network_ebpf_compile_file(ctx, False, build_dir, "http", False, network_prebuilt_dir, network_flags)
+    build_network_ebpf_link_file(ctx, False, build_dir, "http", False, network_flags)
+    if strip_object_files:
+        strip_network_ebpf_obj_file(ctx, False, build_dir, "http", False)
 
 
-def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
+def get_network_build_flags(network_c_dir, kernel_release=None):
+    flags = get_network_agent_ebpf_build_flags(kernel_release=kernel_release)
+    flags.append(f"-I{network_c_dir}")
+    return flags
+
+
+def strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug):
+
+    if not debug:
+        obj_file = os.path.join(build_dir, f"{p}.o")
+        return ctx.run(f"llvm-strip -g {obj_file}", asynchronous=parallel_build)
+    else:
+        debug_obj_file = os.path.join(build_dir, f"{p}-debug.o")
+        return ctx.run(f"llvm-strip -g {debug_obj_file}", asynchronous=parallel_build)
+
+
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, strip_object_files=False):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     compiled_programs = ["dns", "offset-guess", "tracer"]
 
-    network_flags = get_ebpf_build_flags()
-    network_flags.append(f"-I{network_c_dir}")
+    network_flags = get_network_build_flags(network_c_dir, kernel_release=kernel_release)
 
     flavor = []
     for prog in compiled_programs:
@@ -556,19 +692,66 @@ def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
         (p, debug) = flavor[i]
         promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
 
-    for promise in promises_link:
+    if not strip_object_files:
+        return
+
+    promises_strip = []
+    for i, promise in enumerate(promises_link):
+        promise.join()
+        (p, debug) = flavor[i]
+        promises_strip.append(strip_network_ebpf_obj_file(ctx, parallel_build, build_dir, p, debug))
+
+    for promise in promises_strip:
         promise.join()
 
 
-def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
+def get_security_agent_build_flags(security_agent_c_dir, kernel_release=None, minimal_kernel_release=None, debug=False):
+    security_flags = get_ebpf_build_flags(kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release)
+    security_flags.append(f"-I{security_agent_c_dir}")
+    if debug:
+        security_flags.append("-DDEBUG=1")
+    return security_flags
+
+
+def build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=None, debug=False):
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "offset-guesser.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security-offset-guesser.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security-offset-guesser.o")
+
+    security_flags = get_security_agent_build_flags(
+        security_agent_c_dir,
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        debug=debug,
+    )
+
+    ctx.run(
+        CLANG_CMD.format(
+            flags=" ".join(security_flags),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
+        ),
+    )
+    ctx.run(
+        LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+    )
+
+
+def build_security_probe_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
     security_bc_file = os.path.join(build_dir, "runtime-security.bc")
     security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
 
-    security_flags = get_ebpf_build_flags()
-    security_flags.append(f"-I{security_agent_c_dir}")
+    security_flags = get_security_agent_build_flags(
+        security_agent_c_dir,
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        debug=debug,
+    )
 
     # compile
     promises = []
@@ -624,25 +807,65 @@ def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
             p.join()
 
 
-def build_object_files(ctx, parallel_build):
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True, kernel_release=None, debug=False):
+    build_security_probe_ebpf_files(ctx, build_dir, parallel_build, kernel_release=kernel_release, debug=debug)
+    build_security_offset_guesser_ebpf_files(ctx, build_dir, kernel_release=kernel_release, debug=debug)
+
+
+def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
     """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
     ctx.run("which clang")
 
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    if strip_object_files:
+        print("checking for llvm-strip...")
+        ctx.run("which llvm-strip")
+
+    promises_check = []
+    for f in get_ebpf_targets():
+        promises_check.append(ebpf_check_source_file(ctx, parallel_build, f))
+
+    if parallel_build:
+        for promise in promises_check:
+            promise.join()
+
+    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
     build_runtime_dir = os.path.join(build_dir, "runtime")
 
     ctx.run(f"mkdir -p {build_dir}")
     ctx.run(f"mkdir -p {build_runtime_dir}")
 
-    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
-    build_http_ebpf_files(ctx, build_dir=build_dir)
-    build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    build_network_ebpf_files(
+        ctx,
+        build_dir=build_dir,
+        parallel_build=parallel_build,
+        kernel_release=kernel_release,
+        strip_object_files=strip_object_files,
+    )
+    build_http_ebpf_files(
+        ctx, build_dir=build_dir, kernel_release=kernel_release, strip_object_files=strip_object_files
+    )
+    build_security_ebpf_files(
+        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
+    )
 
     generate_runtime_files(ctx)
+
+    # We need to copy the bpf files out of the mounted build directory in order to be able to
+    # change their ownership to root
+    src_files = os.path.join(build_dir, "*")
+    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+
+    if not is_root():
+        ctx.sudo(f"mkdir -p {bpf_dir}")
+        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
+        ctx.sudo(f"chown root:root -R {bpf_dir}")
+    else:
+        ctx.run(f"mkdir -p {bpf_dir}")
+        ctx.run(f"cp -R {src_files} {bpf_dir}")
+        ctx.run(f"chown root:root -R {bpf_dir}")
 
 
 @task
@@ -653,20 +876,20 @@ def generate_runtime_files(ctx):
         "./pkg/network/http/compile.go",
         "./pkg/network/tracer/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
-        "./pkg/security/probe/compile.go",
+        "./pkg/security/ebpf/compile.go",
     ]
     for f in runtime_compiler_files:
         ctx.run(f"go generate -mod=mod -tags {BPF_TAG} {f}")
 
 
-def replace_cgo_tag_absolute_path(file_path):
+def replace_cgo_tag_absolute_path(file_path, windows=is_windows):
     # read
     f = open(file_path)
     lines = []
     for line in f:
-        if line.startswith("// cgo -godefs"):
+        if (windows and line.startswith("// cgo.exe -godefs")) or (not windows and line.startswith("// cgo -godefs")):
             path = line.split()[-1]
-            if path.startswith("/"):
+            if os.path.isabs(path):
                 _, filename = os.path.split(path)
                 lines.append(line.replace(path, filename))
                 continue
@@ -694,16 +917,33 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             "./pkg/network/ebpf/kprobe_types.go",
         ]
 
+    env = {}
+    if not is_windows:
+        env["CC"] = "clang"
+
     for f in def_files:
         fdir, file = os.path.split(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             output_file = f"{base}_{platform}.go"
-            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}")
+            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}", env=env)
             ctx.run(f"gofmt -w -s {output_file}")
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file))
+                replace_cgo_tag_absolute_path(file_path=os.path.join(fdir, output_file), windows=windows)
+
+
+@task
+def generate_lookup_tables(ctx, windows=is_windows):
+    if windows:
+        return
+
+    lookup_table_generate_files = [
+        "./pkg/network/go/goid/main.go",
+        "./pkg/network/http/gotls/lookup/main.go",
+    ]
+    for file in lookup_table_generate_files:
+        ctx.run(f"go generate {file}")
 
 
 def is_root():

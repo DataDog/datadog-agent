@@ -148,6 +148,7 @@ func TestAggregateEvents(t *testing.T) {
 					countByAction: map[string]int{
 						"unfiltered_action": 1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 			},
 		},
@@ -186,6 +187,7 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 			},
 		},
@@ -217,12 +219,14 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 				"other_image": {
 					imageName: "other_image",
 					countByAction: map[string]int{
 						"other_action": 1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 			},
 		},

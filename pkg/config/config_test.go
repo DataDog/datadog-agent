@@ -68,7 +68,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
-	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle"}, config.GetStringSlice("cloud_provider_metadata"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
@@ -118,6 +118,70 @@ api_key: fakeapikey
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestUnexpectedUnicode(t *testing.T) {
+	keyYaml := "api_\u202akey: fakeapikey\n"
+	valueYaml := "api_key: fa\u202akeapikey\n"
+
+	testConfig := setupConfFromYAML(keyYaml)
+
+	warnings := findUnexpectedUnicode(testConfig)
+	require.Len(t, warnings, 1)
+
+	assert.Contains(t, warnings[0], "Configuration key string")
+	assert.Contains(t, warnings[0], "U+202A")
+
+	testConfig = setupConfFromYAML(valueYaml)
+
+	warnings = findUnexpectedUnicode(testConfig)
+
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "For key 'api_key'")
+	assert.Contains(t, warnings[0], "U+202A")
+}
+
+func TestUnexpectedNestedUnicode(t *testing.T) {
+	yaml := "runtime_security_config:\n  activity_dump:\n    remote_storage:\n      endpoints:\n        logs_dd_url: \"http://\u202adatadawg.com\""
+	testConfig := setupConfFromYAML(yaml)
+
+	warnings := findUnexpectedUnicode(testConfig)
+	require.Len(t, warnings, 1)
+
+	assert.Contains(t, warnings[0], "U+202A")
+	assert.Contains(t, warnings[0], "For key 'runtime_security_config.activity_dump.remote_storage.endpoints.logs_dd_url'")
+}
+
+func TestUnexpectedWhitespace(t *testing.T) {
+	tests := []struct {
+		yaml                string
+		expectedWarningText string
+		expectedPosition    string
+	}{
+		{
+			yaml:                "root_element:\n  nestedKey: \"hiddenI\u200bnvalidWhitespaceEmbedded\n\"",
+			expectedWarningText: "U+200B",
+			expectedPosition:    fmt.Sprintf("position %d", 7),
+		},
+		{
+			yaml:                "root_element:\n  nestedKey: \u202fhiddenInvalidWhitespaceToLeft\n",
+			expectedWarningText: "U+202F",
+			expectedPosition:    fmt.Sprintf("position %d", 0),
+		},
+		{
+			yaml:                "root_element:\n  nestedKey: [validValue, \u202fhiddenInvalidWhitespaceToLeft]\n",
+			expectedWarningText: "U+202F",
+			expectedPosition:    fmt.Sprintf("position %d", 0),
+		},
+	}
+	for _, tc := range tests {
+		testConfig := setupConfFromYAML(tc.yaml)
+		warnings := findUnexpectedUnicode(testConfig)
+		require.Len(t, warnings, 1)
+
+		assert.Contains(t, warnings[0], tc.expectedPosition)
+		assert.Contains(t, warnings[0], tc.expectedPosition)
+	}
+}
+
 func TestUnknownKeysWarning(t *testing.T) {
 	yamlBase := `
 site: datadoghq.eu
@@ -144,7 +208,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Mock(), env))
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env))
 		}
 	}
 	t.Run("DD_API_KEY", test("DD_API_KEY", false))
@@ -154,6 +218,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
 	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
 	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
 }
 
 func TestSiteEnvVar(t *testing.T) {
@@ -189,6 +254,30 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestDDURLEnvVar(t *testing.T) {
 	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetURL := setEnvForTest("DD_URL", "https://app.datadoghq.eu")
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
 	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	defer resetAPIKey()
@@ -202,6 +291,35 @@ func TestDDURLEnvVar(t *testing.T) {
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
+}
+
+func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+
+	// If DD_DD_URL and DD_URL are set, the value of DD_DD_URL is used
+	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+	resetURLWeaker := setEnvForTest("DD_URL", "https://app.datadoghq.dd_url.eu")
+
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetURLWeaker()
+	defer resetExternalURL()
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.dd_dd_url.eu": {
 			"fakeapikey",
 		},
 	}
@@ -593,7 +711,7 @@ func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetEnv()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	assert.Nil(t, config.Get("proxy"))
 
 	proxies := GetProxies()
@@ -612,7 +730,7 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetEnv()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t, p, proxies)
 }
@@ -631,7 +749,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	defer resetHTTPSProxyUpper()
 	defer resetNoProxyUpper()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -654,7 +772,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	defer resetHTTPSProxyLower()
 	defer resetNoProxyLower()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies = GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -676,7 +794,7 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -705,7 +823,7 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -728,7 +846,7 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	defer resetHTTPProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -750,7 +868,7 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	defer resetHTTPProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -777,7 +895,7 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -801,7 +919,7 @@ func TestLoadProxyWithoutNoProxy(t *testing.T) {
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
-	loadProxyFromEnv(config)
+	LoadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -851,32 +969,6 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
-}
-
-func TestExperimentalOTLP(t *testing.T) {
-	checkConf := func(t *testing.T, conf Config) {
-		assert.Equal(t, 789, conf.GetInt(OTLPTracePort))
-		assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": map[string]interface{}{"d": interface{}(nil)}}, conf.GetStringMap(OTLPReceiverSection))
-		assert.Equal(t, map[string]interface{}{"c": 3, "d": 4, "enabled": false, "tag_cardinality": "medium"}, conf.GetStringMap(OTLPMetrics))
-		assert.False(t, conf.GetBool(OTLPMetricsEnabled))
-		assert.Equal(t, "medium", conf.GetString(OTLPTagCardinalityKey))
-	}
-
-	t.Run("main", func(t *testing.T) {
-		conf := setupConf()
-		conf.SetConfigFile("./tests/otlp_main.yaml")
-		_, err := load(conf, "otlp_main.yaml", true)
-		assert.NoError(t, err)
-		checkConf(t, conf)
-	})
-
-	t.Run("experimental", func(t *testing.T) {
-		conf := setupConf()
-		conf.SetConfigFile("./tests/otlp_experimental.yaml")
-		_, err := load(conf, "otlp_experimental.yaml", true)
-		assert.NoError(t, err)
-		checkConf(t, conf)
-	})
 }
 
 func TestNumWorkers(t *testing.T) {
@@ -1063,26 +1155,4 @@ network_devices:
 `
 	config = setupConfFromYAML(datadogYaml)
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
-}
-
-func TestGetInventoriesMinInterval(t *testing.T) {
-	Mock().Set("inventories_min_interval", 6)
-	assert.EqualValues(t, 6*time.Second, GetInventoriesMinInterval())
-}
-
-func TestGetInventoriesMinIntervalInvalid(t *testing.T) {
-	// an invalid integer results in a value of 0 from Viper (with a logged warning)
-	Mock().Set("inventories_min_interval", 0)
-	assert.EqualValues(t, DefaultInventoriesMinInterval*time.Second, GetInventoriesMinInterval())
-}
-
-func TestGetInventoriesMaxInterval(t *testing.T) {
-	Mock().Set("inventories_max_interval", 6)
-	assert.EqualValues(t, 6*time.Second, GetInventoriesMaxInterval())
-}
-
-func TestGetInventoriesMaxIntervalInvalid(t *testing.T) {
-	// an invalid integer results in a value of 0 from Viper (with a logged warning)
-	Mock().Set("inventories_max_interval", 0)
-	assert.EqualValues(t, DefaultInventoriesMaxInterval*time.Second, GetInventoriesMaxInterval())
 }

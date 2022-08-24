@@ -22,6 +22,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
@@ -33,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -41,9 +42,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -61,6 +65,9 @@ var (
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+		},
 	}
 
 	startCmd = &cobra.Command{
@@ -99,8 +106,9 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	confPathArray []string
 	flagNoColor   bool
 
-	srv     *api.Server
-	stopper restart.Stopper
+	srv          *api.Server
+	expvarServer *http.Server
+	stopper      startstop.Stopper
 )
 
 func init() {
@@ -154,10 +162,6 @@ func start(cmd *cobra.Command, args []string) error {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	go handleSignals(stopCh)
-
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
 
 	err := RunAgent(ctx)
 	if err != nil {
@@ -235,8 +239,12 @@ func RunAgent(ctx context.Context) (err error) {
 	if coreconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
+	expvarServer := &http.Server{
+		Addr:    "127.0.0.1:" + port,
+		Handler: http.DefaultServeMux,
+	}
 	go func() {
-		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		err := expvarServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating expvar server on port %v: %v", port, err)
 		}
@@ -244,11 +252,11 @@ func RunAgent(ctx context.Context) (err error) {
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
-	hostname, err := util.GetHostname(context.TODO())
+	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	log.Infof("Hostname is: %s", hostname)
+	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// setup the forwarder
 	keysPerDomain, err := coreconfig.GetMultipleEndpoints()
@@ -257,21 +265,25 @@ func RunAgent(ctx context.Context) (err error) {
 	}
 
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
-	stopper = restart.NewSerialStopper()
-
-	// Retrieve statsd host and port from the datadog agent configuration file
-	statsdHost := coreconfig.GetBindHost()
-	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+	stopper = startstop.NewSerialStopper()
 
 	// Create a statsd Client
-	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	statsdAddr := os.Getenv("STATSD_URL")
+	if statsdAddr == "" {
+		// Retrieve statsd host and port from the datadog agent configuration file
+		statsdHost := coreconfig.GetBindHost()
+		statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
+
+		statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
+	}
+
 	statsdClient, err := ddgostatsd.New(statsdAddr)
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
@@ -280,13 +292,17 @@ func RunAgent(ctx context.Context) (err error) {
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		tagger.SetDefaultTagger(remote.NewTagger())
-		err := tagger.Init()
+		err := tagger.Init(ctx)
 		if err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}
 	}
 
-	complianceAgent, err := startCompliance(hostname, stopper, statsdClient)
+	// Start workloadmeta store
+	store := workloadmeta.GetGlobalStore()
+	store.Start(ctx)
+
+	complianceAgent, err := startCompliance(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -296,7 +312,7 @@ func RunAgent(ctx context.Context) (err error) {
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostname, stopper, statsdClient)
+	runtimeAgent, err := startRuntimeSecurity(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -308,6 +324,10 @@ func RunAgent(ctx context.Context) (err error) {
 
 	if err = srv.Start(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
+
+	if err := setupInternalProfiling(); err != nil {
+		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
 	}
 
 	log.Infof("Datadog Security Agent is now running.")
@@ -366,7 +386,53 @@ func StopAgent(cancel context.CancelFunc) {
 	if srv != nil {
 		srv.Stop()
 	}
+	if expvarServer != nil {
+		if err := expvarServer.Shutdown(context.Background()); err != nil {
+			log.Errorf("Error shutting down expvar server: %v", err)
+		}
+	}
 
 	log.Info("See ya!")
 	log.Flush()
+}
+
+func setupInternalProfiling() error {
+	cfg := coreconfig.Datadog
+	if cfg.GetBool(secAgentKey("internal_profiling.enabled")) {
+		v, _ := version.Agent()
+
+		cfgSite := cfg.GetString(secAgentKey("internal_profiling.site"))
+		cfgURL := cfg.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))
+
+		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+		var site string
+		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
+		} else {
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
+			if cfgURL != "" {
+				site = cfgURL
+			}
+		}
+
+		profSettings := profiling.Settings{
+			ProfilingURL:         site,
+			Env:                  cfg.GetString(secAgentKey("internal_profiling.env")),
+			Service:              "security-agent",
+			Period:               cfg.GetDuration(secAgentKey("internal_profiling.period")),
+			CPUDuration:          cfg.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: cfg.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
+			BlockProfileRate:     cfg.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
+			WithGoroutineProfile: cfg.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
+
+		return profiling.Start(profSettings)
+	}
+
+	return nil
+}
+
+func secAgentKey(sub string) string {
+	return fmt.Sprintf("security_agent.%s", sub)
 }

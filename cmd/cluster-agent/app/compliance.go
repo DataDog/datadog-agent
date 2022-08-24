@@ -22,10 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 )
 
 func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
-	stopper := restart.NewSerialStopper()
+	stopper := startstop.NewSerialStopper()
 	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -96,7 +96,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		endpoints,
 		checks.WithInterval(checkInterval),
 		checks.WithMaxEvents(checkMaxEvents),
-		checks.WithHostname(hostname),
+		checks.WithHostname(hname),
 		checks.WithMatchRule(func(rule *compliance.RuleCommon) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),

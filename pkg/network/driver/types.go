@@ -22,10 +22,14 @@ import "C"
 const Signature = C.DD_NPMDRIVER_SIGNATURE
 
 const (
-	GetStatsIOCTL      = C.DDNPMDRIVER_IOCTL_GETSTATS
-	SetFlowFilterIOCTL = C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER
-	SetDataFilterIOCTL = C.DDNPMDRIVER_IOCTL_SET_DATA_FILTER
-	SetMaxFlowsIOCTL   = C.DDNPMDRIVER_IOCTL_SET_MAX_FLOWS
+	GetStatsIOCTL             = C.DDNPMDRIVER_IOCTL_GETSTATS
+	SetFlowFilterIOCTL        = C.DDNPMDRIVER_IOCTL_SET_FLOW_FILTER
+	SetDataFilterIOCTL        = C.DDNPMDRIVER_IOCTL_SET_DATA_FILTER
+	GetFlowsIOCTL             = C.DDNPMDRIVER_IOCTL_GET_FLOWS
+	SetMaxOpenFlowsIOCTL      = C.DDNPMDRIVER_IOCTL_SET_MAX_OPEN_FLOWS
+	SetMaxClosedFlowsIOCTL    = C.DDNPMDRIVER_IOCTL_SET_MAX_CLOSED_FLOWS
+	FlushPendingHttpTxnsIOCTL = C.DDNPMDRIVER_IOCTL_FLUSH_PENDING_HTTP_TRANSACTIONS
+	EnableHttpIOCTL           = C.DDNPMDRIVER_IOCTL_ENABLE_HTTP
 )
 
 type FilterAddress C.struct__filterAddress
@@ -38,13 +42,12 @@ type FilterPacketHeader C.struct_filterPacketHeader
 
 const FilterPacketHeaderSize = C.sizeof_struct_filterPacketHeader
 
-type HandleStats C.struct__handle_stats
 type FlowStats C.struct__flow_handle_stats
 type TransportStats C.struct__transport_handle_stats
+type HttpStats C.struct__http_handle_stats
 type Stats C.struct__stats
-type DriverStats C.struct_driver_stats
 
-const DriverStatsSize = C.sizeof_struct_driver_stats
+const StatsSize = C.sizeof_struct__stats
 
 type PerFlowData C.struct__perFlowData
 type TCPFlowData C.struct__tcpFlowData
@@ -69,4 +72,14 @@ const (
 
 const (
 	LayerTransport = C.FILTER_LAYER_TRANSPORT
+)
+
+type HttpTransactionType C.struct__HttpTransactionType
+type ConnTupleType C.struct__ConnTupleType
+type HttpMethodType C.enum__HttpMethodType
+
+const (
+	HttpBatchSize           = C.HTTP_BATCH_SIZE
+	HttpBufferSize          = C.HTTP_BUFFER_SIZE
+	HttpTransactionTypeSize = C.sizeof_struct__HttpTransactionType
 )

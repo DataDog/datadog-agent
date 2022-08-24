@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# Perform necessary datadog-dogstatsd setup steps prior to remove the old package.
+#
+# .deb: STEP 1 of 5
+
+SERVICE_NAME=datadog-dogstatsd
+
+stop_agent()
+{
+    # Stop an already running dogstatsd
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-dogstatsd package only provides service files for systemd and upstart."
+    fi
+}
+
+deregister_agent()
+{
+    # Disable dogstatsd start on system boot
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        # Nothing to do, this is defined directly in the upstart job file
+        :
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-dogstatsd package only provides service files for systemd and upstart."
+    fi
+}
+
+stop_agent
+deregister_agent
+
+exit 0

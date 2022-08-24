@@ -199,7 +199,7 @@ func createMetric(value float64, tags []string, name string, t int64) datadog.Me
 }
 
 func main() {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	if err := InitLogging("info"); err != nil {
 		log.Infof("Unable to replace logger, default logging will apply (highly verbose): %s", err)
@@ -219,7 +219,7 @@ func main() {
 	mockConfig.Set("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f, nil)
 	aggr := aggregator.InitAggregator(s, nil, "localhost")
-	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), nil)
+	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), false)
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)
 		return

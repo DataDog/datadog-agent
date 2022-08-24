@@ -8,8 +8,8 @@ package filters
 import (
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Blacklister holds a list of regular expressions which will match resources

@@ -16,11 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupFS(pidFdsMap map[int][]int) (*tempFolder, map[int]string, error) {
-	f, err := newTempFolder("")
-	if err != nil {
-		return nil, nil, err
-	}
+func setupFS(t *testing.T, pidFdsMap map[int][]int) (map[int]string, error) {
+	f := newTempFolder(t)
 
 	// Make map that stores paths to file descriptors files
 	pidPathMap := make(map[int]string)
@@ -30,11 +27,11 @@ func setupFS(pidFdsMap map[int][]int) (*tempFolder, map[int]string, error) {
 	for pid, fds := range pidFdsMap {
 		g, err := ioutil.TempDir(f.RootPath, strconv.Itoa(pid))
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		p, err := ioutil.TempDir(g, "fd")
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		pidPathMap[pid] = p
@@ -42,17 +39,17 @@ func setupFS(pidFdsMap map[int][]int) (*tempFolder, map[int]string, error) {
 		for _, fd := range fds {
 			_, err := ioutil.TempFile(p, strconv.Itoa(fd))
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 		}
 	}
-	return f, pidPathMap, nil
+	return pidPathMap, nil
 }
 
 func TestGetFileDescriptorLen(t *testing.T) {
 	// Map of pids to file descriptors
 	pidFdsMap := map[int][]int{12345: {1}, 23456: {1, 11}, 34567: {1, 11, 111}}
-	f, pidPathMap, err := setupFS(pidFdsMap)
+	pidPathMap, err := setupFS(t, pidFdsMap)
 	assert.Nil(t, err)
 
 	for pid, fds := range pidFdsMap {
@@ -63,7 +60,4 @@ func TestGetFileDescriptorLen(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, len(fds), result)
 	}
-
-	// Clean up temp dirs and files
-	f.removeAll()
 }

@@ -219,7 +219,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: argoproj/argoexec:v3.3.1
         command: [sh]
         source: |
           set -euo pipefail

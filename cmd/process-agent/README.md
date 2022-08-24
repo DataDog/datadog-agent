@@ -21,10 +21,9 @@ cd datadog-agent
 
 Note that you must be in `$GOPATH/src/github.com/DataDog/datadog-agent`, NOT `~/dd/datadog-agent`.
 
-Pull down the latest dependencies via `dep`, and build the Process Agent:
+To build the Process Agent run:
 
 ```
-inv -e deps
 inv -e process-agent.build
 ```
 

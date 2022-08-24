@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a bug introduced in 7.33 that could prevent autodiscovery variable %%port_<name>%% to not be resolved properly.

@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // features keeps a map of all APM features as defined by the DD_APM_FEATURES

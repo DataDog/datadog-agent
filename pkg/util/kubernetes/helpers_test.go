@@ -41,19 +41,26 @@ func TestParseDeploymentForReplicaSet(t *testing.T) {
 }
 
 func TestParseCronJobForJob(t *testing.T) {
-	for in, out := range map[string]string{
-		"hello-1562319360": "hello",
-		"hello-600":        "hello",
-		"hello-world":      "",
-		"hello":            "",
-		"-hello1562319360": "",
-		"hello1562319360":  "",
-		"hello60":          "",
-		"hello-60":         "",
-		"hello-1562319a60": "",
+	for in, out := range map[string]struct {
+		string
+		int
+	}{
+		"hello-1562319360": {"hello", 1562319360},
+		"hello-600":        {"hello", 600},
+		"hello-world":      {"", 0},
+		"hello":            {"", 0},
+		"-hello1562319360": {"", 0},
+		"hello1562319360":  {"", 0},
+		"hello60":          {"", 0},
+		"hello-60":         {"", 0},
+		"hello-1562319a60": {"", 0},
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
-			assert.Equal(t, out, ParseCronJobForJob(in))
+			cronjobName, id := ParseCronJobForJob(in)
+			assert.Equal(t, out, struct {
+				string
+				int
+			}{cronjobName, id})
 		})
 	}
 }

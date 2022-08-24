@@ -15,7 +15,7 @@ when 'debian'
   execute 'create /usr/share keyring and source list' do
     command <<-EOF
       sudo apt-get install -y apt-transport-https curl gnupg
-      sudo sh -c "echo \'deb [signed-by=#{apt_usr_share_keyring}] #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
+      sudo sh -c "echo \'deb #{node['dd-agent-step-by-step']['aptrepo']} #{node['dd-agent-step-by-step']['aptrepo_dist']} #{node['dd-agent-step-by-step']['agent_major_version']}\' > /etc/apt/sources.list.d/datadog.list"
       sudo touch #{apt_usr_share_keyring} && sudo chmod a+r #{apt_usr_share_keyring}
       for key in DATADOG_APT_KEY_CURRENT.public DATADOG_APT_KEY_F14F620E.public DATADOG_APT_KEY_382E94DE.public; do
         sudo curl --retry 5 -o "/tmp/${key}" "https://keys.datadoghq.com/${key}"
@@ -40,6 +40,9 @@ when 'debian'
 
 when 'rhel'
   protocol = node['platform_version'].to_i < 6 ? 'http' : 'https'
+  # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
+  # repo_gpgcheck on RHEL/CentOS < 8.2
+  repo_gpgcheck = node['platform_version'].to_f < 8.2 ? '0' : '1'
 
   file '/etc/yum.repos.d/datadog.repo' do
     content <<-EOF.gsub(/^ {6}/, '')
@@ -48,7 +51,7 @@ when 'rhel'
       baseurl = #{node['dd-agent-step-by-step']['yumrepo']}
       enabled=1
       gpgcheck=1
-      repo_gpgcheck=1
+      repo_gpgcheck=#{repo_gpgcheck}
       gpgkey=#{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
              #{protocol}://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public

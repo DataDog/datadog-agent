@@ -12,10 +12,11 @@ import (
 	"strings"
 	"unsafe"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
@@ -80,6 +81,15 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
 		var key uint32
+		var value uintptr // C.void *
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
+	case "ssl_ctx_by_pid_tgid": // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
+		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key uint64
 		var value uintptr // C.void *
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))

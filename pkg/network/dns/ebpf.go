@@ -11,15 +11,17 @@ package dns
 import (
 	"math"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 )
 
 const funcName = "socket__dns_filter"
+const probeUID = "dns"
 
 type ebpfProgram struct {
 	*manager.Manager
@@ -38,6 +40,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  string(probes.SocketDnsFilter),
 				EBPFFuncName: funcName,
+				UID:          probeUID,
 			}},
 		},
 	}
@@ -70,6 +73,7 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.SocketDnsFilter),
 					EBPFFuncName: funcName,
+					UID:          probeUID,
 				},
 			},
 		},

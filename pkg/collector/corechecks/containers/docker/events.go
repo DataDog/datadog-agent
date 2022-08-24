@@ -15,13 +15,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	dockerEvents = telemetry.NewCounterWithOpts(
+		dockerCheckName,
+		"events",
+		[]string{"action"},
+		"Number of Docker events received by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
+	emittedEvents = telemetry.NewCounterWithOpts(
+		dockerCheckName,
+		"emitted_events",
+		[]string{"type"},
+		"Number of events emitted by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 )
 
 // reportEvents handles the event retrieval logic
@@ -85,10 +103,14 @@ func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggre
 		ev, err := bundle.toDatadogEvent(d.dockerHostname)
 		if err != nil {
 			log.Warnf("can't submit event: %s", err)
-		} else {
-			sender.Event(ev)
+			continue
 		}
+
+		sender.Event(ev)
+
+		emittedEvents.Inc(string(bundle.alertType))
 	}
+
 	return nil
 }
 
@@ -104,17 +126,26 @@ func aggregateEvents(events []*docker.ContainerEvent, filteredActions []string) 
 			filteredByType[event.Action] = filteredByType[event.Action] + 1
 			continue
 		}
+
 		bundle, found := eventsByImage[event.ImageName]
 		if found == false {
 			bundle = newDockerEventBundler(event.ImageName)
 			eventsByImage[event.ImageName] = bundle
 		}
-		bundle.addEvent(event) //nolint:errcheck
+
+		err := bundle.addEvent(event)
+		if err != nil {
+			log.Warnf("Error while bundling events, %s.", err.Error())
+			continue
+		}
+
+		dockerEvents.Inc(event.Action)
 	}
 
 	if len(filteredByType) > 0 {
 		log.Debugf("filtered out the following events: %s", formatStringIntMap(filteredByType))
 	}
+
 	return eventsByImage
 }
 

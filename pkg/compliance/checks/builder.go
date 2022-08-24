@@ -11,9 +11,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
+
+	cache "github.com/patrickmn/go-cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -22,10 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	cache "github.com/patrickmn/go-cache"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by Builder
@@ -147,7 +148,9 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -220,7 +223,7 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 // of a file instead of the current environment
 func WithRegoInput(regoInputPath string) BuilderOption {
 	return func(b *builder) error {
-		content, err := ioutil.ReadFile(regoInputPath)
+		content, err := os.ReadFile(regoInputPath)
 		if err != nil {
 			return err
 		}
@@ -232,6 +235,14 @@ func WithRegoInput(regoInputPath string) BuilderOption {
 func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
 	return func(b *builder) error {
 		b.regoInputDumpPath = regoInputDumpPath
+		return nil
+	}
+}
+
+// WithRegoEvalSkip configures a builder to skip the rego evaluation, while still building the input
+func WithRegoEvalSkip(regoEvalSkip bool) BuilderOption {
+	return func(b *builder) error {
+		b.regoEvalSkip = regoEvalSkip
 		return nil
 	}
 }
@@ -296,6 +307,7 @@ type builder struct {
 
 	regoInputOverride map[string]eval.RegoInputMap
 	regoInputDumpPath string
+	regoEvalSkip      bool
 
 	status *status
 }
@@ -434,7 +446,7 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Con
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +468,7 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 
 	// skip host match check if rego input is overridden
 	if b.regoInputOverride == nil {
-		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
 		if err != nil {
 			return nil, err
 		}
@@ -559,9 +571,14 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compl
 	}
 }
 
-func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string) (bool, error) {
+func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string, skipOnK8s bool) (bool, error) {
 	switch scope {
 	case compliance.DockerScope:
+		if skipOnK8s && config.IsKubernetes() {
+			log.Infof("rule %s skipped - running on a Kubernetes environment", ruleID)
+			return false, nil
+		}
+
 		if b.dockerClient == nil {
 			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
 			return false, nil
@@ -573,6 +590,10 @@ func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSel
 		}
 	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
+			ignoreHostSelectors := config.Datadog.GetBool("compliance_config.ignore_host_selectors")
+			if ignoreHostSelectors {
+				return true, nil
+			}
 			return b.isKubernetesNodeEligible(hostSelector)
 		}
 		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
@@ -736,6 +757,10 @@ func (b *builder) ProvidedInput(ruleID string) eval.RegoInputMap {
 
 func (b *builder) DumpInputPath() string {
 	return b.regoInputDumpPath
+}
+
+func (b *builder) ShouldSkipRegoEval() bool {
+	return b.regoEvalSkip
 }
 
 func (b *builder) Hostname() string {

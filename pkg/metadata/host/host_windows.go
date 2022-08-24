@@ -17,13 +17,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 var (
@@ -71,6 +73,10 @@ func fillOsVersion(stats *systemStats, info *InfoStat) {
 	stats.Winver = osVersion{info.Platform, info.PlatformVersion}
 }
 
+func getOSVersion(info *InfoStat) string {
+	return strings.Trim(info.Platform+" "+info.PlatformVersion, " ")
+}
+
 // GetStatusInformation just returns an InfoStat object, filled in with various
 // operating system metadata
 func GetStatusInformation() *InfoStat {
@@ -99,6 +105,7 @@ func getSystemStats() *systemStats {
 		// fill the platform dependent bits of info
 		fillOsVersion(stats, hostInfo)
 		cache.Cache.Set(key, stats, cache.NoExpiration)
+		inventories.SetHostMetadata(inventories.HostOSVersion, getOSVersion(hostInfo))
 	}
 
 	return stats
@@ -124,8 +131,8 @@ func getHostInfo() *InfoStat {
 	info.KernelArch = runtime.GOARCH
 
 	pi, _ := platform.GetArchInfo()
-	info.Platform = pi["os"].(string)
-	info.PlatformFamily = pi["os"].(string)
+	info.Platform = pi["os"]
+	info.PlatformFamily = pi["os"]
 
 	info.PlatformVersion, _ = winutil.GetWindowsBuildString()
 	info.HostID = common.GetUUID()

@@ -88,6 +88,7 @@ send_pkg_size-a7:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
     - dogstatsd_deb-x64
+    - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
     - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
@@ -103,7 +104,7 @@ send_pkg_size-a7:
     - !reference [.add_metric_func, script]
 
     - source /root/.bashrc && conda activate ddpy3
-    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent
+    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent /tmp/deb/heroku-agent
     - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd /tmp/rpm/iot-agent
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd /tmp/suse/iot-agent
 
@@ -116,6 +117,7 @@ send_pkg_size-a7:
             add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
             add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH
             add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH
+            if [[ "$os" == "debian" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/heroku-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH; fi
 
             # record the size of each of the important binaries in each package
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH
@@ -133,6 +135,7 @@ send_pkg_size-a7:
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb /tmp/deb/agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb /tmp/deb/iot-agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb /tmp/deb/dogstatsd > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb /tmp/deb/heroku-agent > /dev/null
     - add_metrics /tmp/deb debian
 
     # centos
@@ -169,22 +172,31 @@ send_pkg_size-a7:
     - |
         for flavor in ${FLAVORS}; do
             mkdir -p "/tmp/stable/${flavor}" "/tmp/stable/${flavor}/suse"
+
             curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_amd64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
-            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
-            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
-            
+
             add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_amd64.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
 
             set +e
             inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
             failures=$((${failures}+$?))
-            inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
-            failures=$((${failures}+$?))
-            inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
-            failures=$((${failures}+$?))
             set -e
+
+            if [[ "$flavor" != "datadog-heroku-agent" ]]; then
+              # We don't build RPM packages for the heroku flavor
+              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+              curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+              add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH}
+
+              set +e
+              inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+              failures=$((${failures}+$?))
+              inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+              failures=$((${failures}+$?))
+              set -e
+            fi
         done
 
     # Send package size metrics
@@ -205,9 +217,11 @@ check_pkg_size-a6:
     MAJOR_VERSION: 6
     FLAVORS: "datadog-agent"
   before_script:
+    # FIXME: ["datadog-agent"]="25000000" should be replaced by "15000000"
+    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="15000000"
+            ["datadog-agent"]="25000000"
         )
 
 check_pkg_size-a7:
@@ -218,6 +232,7 @@ check_pkg_size-a7:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
     - dogstatsd_deb-x64
+    - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
     - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
@@ -226,11 +241,16 @@ check_pkg_size-a7:
     - iot_agent_suse-x64
   variables:
     MAJOR_VERSION: 7
-    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
+    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
   before_script:
+    # FIXME: ["datadog-agent"]="25000000" and ["datadog-heroku-agent"]="25000000" should
+    # be replaced by "15000000"
+    # "25000000" is needed as of now because of a large bump in size in system-probe in 7.35
+    # If this happens often we could exclude system-probe from the heroku build, it's not used.
     - |
         declare -Ar max_sizes=(
-            ["datadog-agent"]="15000000"
+            ["datadog-agent"]="25000000"
             ["datadog-iot-agent"]="10000000"
             ["datadog-dogstatsd"]="10000000"
+            ["datadog-heroku-agent"]="25000000"
         )

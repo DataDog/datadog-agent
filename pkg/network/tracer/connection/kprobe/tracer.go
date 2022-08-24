@@ -12,8 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sync/atomic"
 	"unsafe"
+
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -23,14 +28,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 )
 
 const (
 	defaultClosedChannelSize = 500
+
+	probeUID = "net"
 )
 
 type kprobeTracer struct {
@@ -43,8 +48,24 @@ type kprobeTracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions int64
+	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
+
+	telemetry telemetry
+}
+
+type telemetry struct {
+	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
+	udpConns4, udpConns6 *atomic.Int64 `stats:""`
+}
+
+func newTelemetry() telemetry {
+	return telemetry{
+		tcpConns4: atomic.NewInt64(0),
+		udpConns4: atomic.NewInt64(0),
+		tcpConns6: atomic.NewInt64(0),
+		udpConns6: atomic.NewInt64(0),
+	}
 }
 
 func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
@@ -121,6 +142,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probeName),
 					EBPFFuncName: funcName,
+					UID:          probeUID,
 				},
 			})
 	}
@@ -138,7 +160,9 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		m:             m,
 		config:        config,
 		closeConsumer: closeConsumer,
+		pidCollisions: atomic.NewInt64(0),
 		removeTuple:   &netebpf.ConnTuple{},
+		telemetry:     newTelemetry(),
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -204,14 +228,18 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
+	tel := newTelemetry()
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
+
+		tel.addConnection(conn)
+
 		if filter != nil && !filter(conn) {
 			continue
 		}
 		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, tcp)
+			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 		*buffer.Next() = *conn
 	}
@@ -220,7 +248,56 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
+	t.telemetry.assign(tel)
+
 	return nil
+}
+
+func (t *telemetry) assign(other telemetry) {
+	t.tcpConns4.Store(other.tcpConns4.Load())
+	t.tcpConns6.Store(other.tcpConns6.Load())
+	t.udpConns4.Store(other.udpConns4.Load())
+	t.udpConns6.Store(other.udpConns6.Load())
+}
+
+func (t *telemetry) addConnection(conn *network.ConnectionStats) {
+	isTcp := conn.Type == network.TCP
+	switch conn.Family {
+	case network.AFINET6:
+		if isTcp {
+			t.tcpConns6.Inc()
+		} else {
+			t.udpConns6.Inc()
+		}
+	case network.AFINET:
+		if isTcp {
+			t.tcpConns4.Inc()
+		} else {
+			t.udpConns4.Inc()
+		}
+	}
+}
+
+func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
+	isTcp := conn.Type == network.TCP
+	switch conn.Family {
+	case network.AFINET6:
+		if isTcp {
+			t.tcpConns6.Dec()
+		} else {
+			t.udpConns6.Dec()
+		}
+	case network.AFINET:
+		if isTcp {
+			t.tcpConns4.Dec()
+		} else {
+			t.udpConns4.Dec()
+		}
+	}
+}
+
+func (t *telemetry) get() map[string]interface{} {
+	return atomicstats.Report(t)
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
@@ -252,6 +329,8 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
+	t.telemetry.removeConnection(conn)
+
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
 	// We can ignore the error for this map since it will not always contain the entry
@@ -276,9 +355,9 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	}
 
 	closeStats := t.closeConsumer.GetStats()
-	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
+	pidCollisions := t.pidCollisions.Load()
 
-	return map[string]int64{
+	stats := map[string]int64{
 		"closed_conn_polling_lost":     closeStats[perfLostStat],
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
@@ -290,6 +369,12 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
 		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
 	}
+
+	for k, v := range t.telemetry.get() {
+		stats[k] = v.(int64)
+	}
+
+	return stats
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -298,37 +383,35 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
+	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true); err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	} else {
 		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
 		if err != nil {
 			return fmt.Errorf("failed to get TCP port binding map: %w", err)
 		}
-		for p := range tcpPorts {
+		for p, count := range tcpPorts {
 			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
 			pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-			state := netebpf.PortListening
-			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update TCP port binding map: %w", err)
 			}
 		}
 	}
 
-	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns); err != nil {
+	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false); err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	} else {
 		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
 		if err != nil {
 			return fmt.Errorf("failed to get UDP port binding map: %w", err)
 		}
-		for p := range udpPorts {
+		for p, count := range udpPorts {
 			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 			// UDP port bindings currently do not have network namespace numbers
 			pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
-			state := netebpf.PortListening
-			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&state), ebpf.UpdateNoExist)
+			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 				return fmt.Errorf("failed to update UDP port binding map: %w", err)
 			}
@@ -337,13 +420,16 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	conn.MonotonicRetransmits = tcpStats.Retransmits
-	conn.MonotonicTCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.MonotonicTCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+
+	m, _ := conn.Monotonic.Get(cookie)
+	m.Retransmits = tcpStats.Retransmits
+	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.Monotonic.Put(cookie, m)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -363,8 +449,9 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
-			atomic.AddInt64(&t.pidCollisions, 1)
+			t.pidCollisions.Inc()
 			stats.Retransmits = 0
+			stats.State_transitions = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}
@@ -376,21 +463,24 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
 	*stats = network.ConnectionStats{
-		Pid:                  t.Pid,
-		NetNS:                t.Netns,
-		Source:               t.SourceAddress(),
-		Dest:                 t.DestAddress(),
-		SPort:                t.Sport,
-		DPort:                t.Dport,
-		SPortIsEphemeral:     network.IsPortInEphemeralRange(t.Sport),
-		MonotonicSentBytes:   s.Sent_bytes,
-		MonotonicRecvBytes:   s.Recv_bytes,
-		MonotonicSentPackets: s.Sent_packets,
-		MonotonicRecvPackets: s.Recv_packets,
-		LastUpdateEpoch:      s.Timestamp,
-		IsAssured:            s.IsAssured(),
-		Tags:                 s.Tags,
+		Pid:              t.Pid,
+		NetNS:            t.Netns,
+		Source:           t.SourceAddress(),
+		Dest:             t.DestAddress(),
+		SPort:            t.Sport,
+		DPort:            t.Dport,
+		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
+		Monotonic:        make(network.StatCountersByCookie, 0, 3),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
 	}
+
+	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
+	})
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

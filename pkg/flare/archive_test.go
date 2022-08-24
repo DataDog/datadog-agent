@@ -21,28 +21,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
+	procmodel "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func createTestDirStructure(
-	srcPrefix string,
+	t *testing.T,
 	filename string,
 ) (string, string, error) {
-
-	srcDir, err := ioutil.TempDir("", srcPrefix)
-	if err != nil {
-		return "", "", err
-	}
-
-	dstDir, err := ioutil.TempDir("", "ArchiveTest")
-	if err != nil {
-		return "", "", err
-	}
+	srcDir := t.TempDir()
+	dstDir := t.TempDir()
 
 	// create non-empty file in the source directory
 	file, err := os.Create(filepath.Join(srcDir, filename))
@@ -63,9 +60,34 @@ func createTestDirStructure(
 	return srcDir, dstDir, nil
 }
 
+func TestArchiveName(t *testing.T) {
+	// test with No log level set
+	zipFilePath := getArchivePath()
+	assert.Contains(t, zipFilePath, "Z.zip")
+	assert.NotContains(t, zipFilePath, "info")
+
+	// init and configure logger at runtime
+	config.SetupLogger("TEST", "debug", "", "", true, true, true)
+	ll := settings.LogLevelRuntimeSetting{}
+
+	// set 'trace' level logging
+	err := ll.Set("trace")
+	assert.Nil(t, err)
+
+	// Verify the runtime setting is set to 'trace'
+	v, err := ll.Get()
+	assert.Equal(t, "trace", v)
+	assert.Nil(t, err)
+
+	// verify filePath string ends with the correct log_level
+	zipFilePath = getArchivePath()
+	assert.Contains(t, zipFilePath, "-trace.zip")
+	assert.NotContains(t, zipFilePath, "Z.zip")
+}
+
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
@@ -82,7 +104,6 @@ func TestCreateArchive(t *testing.T) {
 }
 
 func TestCreateArchiveAndGoRoutines(t *testing.T) {
-
 	contents := "No Goroutines for you, my friend!"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +131,6 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	// printing some of their contents.
 	found := false
 	for _, f := range z.File {
-
 		// find go-routine dump.
 		if path.Base(f.Name) == routineDumpFilename {
 			found = true
@@ -167,11 +187,7 @@ func TestZipConfigCheck(t *testing.T) {
 	defer ts.Close()
 	configCheckURL = ts.URL
 
-	dir, err := ioutil.TempDir("", "TestZipConfigCheck")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	zipConfigCheck(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "config-check.log"))
@@ -285,21 +301,24 @@ func TestCleanDirectoryName(t *testing.T) {
 }
 
 func TestZipLogFiles(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "logs")
-	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-	dstDir, err := ioutil.TempDir("", "TestZipLogFiles")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
+	srcDir := t.TempDir()
+	dstDir := t.TempDir()
 
-	_, err = os.Create(filepath.Join(srcDir, "agent.log"))
+	var err error
+	f, err := os.Create(filepath.Join(srcDir, "agent.log"))
 	require.NoError(t, err)
-	_, err = os.Create(filepath.Join(srcDir, "trace-agent.log"))
+	require.NoError(t, f.Close())
+
+	f, err = os.Create(filepath.Join(srcDir, "trace-agent.log"))
 	require.NoError(t, err)
-	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0700)
+	require.NoError(t, f.Close())
+
+	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0o700)
 	require.NoError(t, err)
-	_, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
+
+	f, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
 	require.NoError(t, err)
+	require.NoError(t, f.Close())
 
 	permsInfos := make(permissionsInfos)
 
@@ -316,10 +335,8 @@ func TestZipLogFiles(t *testing.T) {
 }
 
 func TestZipRegistryJSON(t *testing.T) {
-	srcDir, dstDir, err := createTestDirStructure("run", "registry.json")
+	srcDir, dstDir, err := createTestDirStructure(t, "registry.json")
 	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-	defer os.RemoveAll(dstDir)
 
 	tempRunPath := config.Datadog.GetString("logs_config.run_path")
 	config.Datadog.Set("logs_config.run_path", srcDir)
@@ -335,13 +352,13 @@ func TestZipRegistryJSON(t *testing.T) {
 }
 
 func TestZipTaggerList(t *testing.T) {
-	tagMap := make(map[string]response.TaggerListEntity)
-	tagMap["random_entity_name"] = response.TaggerListEntity{
+	tagMap := make(map[string]tagger_api.TaggerListEntity)
+	tagMap["random_entity_name"] = tagger_api.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
 	}
-	resp := response.TaggerListResponse{
+	resp := tagger_api.TaggerListResponse{
 		Entities: tagMap,
 	}
 
@@ -351,14 +368,10 @@ func TestZipTaggerList(t *testing.T) {
 	}))
 	defer s.Close()
 
-	dir, err := ioutil.TempDir("", "TestZipTaggerList")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	taggerListURL = s.URL
-	zipTaggerList(dir, "")
+	zipAgentTaggerList(dir, "")
 	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
 	if err != nil {
 		log.Fatal(err)
@@ -388,11 +401,7 @@ func TestZipWorkloadList(t *testing.T) {
 	}))
 	defer s.Close()
 
-	dir, err := ioutil.TempDir("", "TestZipWorkloadList")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	workloadListURL = s.URL
 	zipWorkloadList(dir, "")
@@ -460,9 +469,9 @@ instances:
 	redacted := `init_config:
 instances:
 - host: 127.0.0.1
-  api_key: ***************************aaaaa
+  api_key: "***************************aaaaa"
   port: 8082
-  api_key: ********
+  api_key: "********"
   version: 4 # omit this line if you're running pdns_recursor version 3.x`
 
 	err := writeScrubbedFile(filename, []byte(clear))
@@ -474,10 +483,8 @@ instances:
 }
 
 func TestZipFile(t *testing.T) {
-	srcDir, dstDir, err := createTestDirStructure("source", "test.json")
+	srcDir, dstDir, err := createTestDirStructure(t, "test.json")
 	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-	defer os.RemoveAll(dstDir)
 
 	err = zipFile(srcDir, dstDir, "test.json")
 	require.NoError(t, err)
@@ -489,10 +496,8 @@ func TestZipFile(t *testing.T) {
 }
 
 func TestZipVersionHistory(t *testing.T) {
-	srcDir, dstDir, err := createTestDirStructure("run", "version-history.json")
+	srcDir, dstDir, err := createTestDirStructure(t, "version-history.json")
 	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-	defer os.RemoveAll(dstDir)
 
 	tempRunPath := config.Datadog.GetString("run_path")
 	config.Datadog.Set("run_path", srcDir)
@@ -505,4 +510,149 @@ func TestZipVersionHistory(t *testing.T) {
 	actualContent, err := ioutil.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, "mockfilecontent", string(actualContent))
+}
+
+func TestZipProcessAgentFullConfig(t *testing.T) {
+	type ProcessConfig struct {
+		Enabled string `yaml:"enabled"`
+	}
+
+	globalCfg := struct {
+		Apikey     string        `yaml:"api_key"`
+		DDurl      string        `yaml:"dd_url"`
+		ProcessCfg ProcessConfig `yaml:"process_config"`
+	}{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"https://my-url.com",
+		ProcessConfig{
+			"true",
+		},
+	}
+
+	exp := `api_key: "***************************aaaaa"
+dd_url: https://my-url.com
+process_config:
+  enabled: "true"`
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		dir := t.TempDir()
+
+		zipProcessAgentFullConfig(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, "error: process-agent is not running or is unreachable", string(content))
+	})
+
+	t.Run("with process-agent running", func(t *testing.T) {
+		// Create a server to mock process-agent /config/all endpoint
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+			b, err := yaml.Marshal(globalCfg)
+			require.NoError(t, err)
+
+			_, err = w.Write(b)
+			require.NoError(t, err)
+		}
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		dir := t.TempDir()
+
+		procStatusURL = srv.URL
+		zipProcessAgentFullConfig(dir, "")
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, exp, string(content))
+	})
+}
+
+func TestZipProcessAgentChecks(t *testing.T) {
+	expectedProcesses := []procmodel.MessageBody{
+		&procmodel.CollectorProc{
+			Processes: []*procmodel.Process{
+				{
+					Pid: 1337,
+				},
+			},
+		},
+	}
+	expectedProcessesJSON, err := json.Marshal(&expectedProcesses)
+	require.NoError(t, err)
+
+	expectedContainers := []procmodel.MessageBody{
+		&procmodel.CollectorContainer{
+			Containers: []*procmodel.Container{
+				{
+					Id: "yeet",
+				},
+			},
+		},
+	}
+	expectedContainersJSON, err := json.Marshal(&expectedContainers)
+	require.NoError(t, err)
+
+	expectedProcessDiscoveries := []procmodel.MessageBody{
+		&procmodel.CollectorProcDiscovery{
+			ProcessDiscoveries: []*procmodel.ProcessDiscovery{
+				{
+					Pid: 9001,
+				},
+			},
+		},
+	}
+	expectedProcessDiscoveryJSON, err := json.Marshal(&expectedProcessDiscoveries)
+	require.NoError(t, err)
+
+	t.Run("without process-agent running", func(t *testing.T) {
+		dir := t.TempDir()
+		fmt.Println(dir)
+
+		err = zipProcessChecks(dir, "", func() (string, error) { return "fake:1337", nil })
+		require.NoError(t, err)
+
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(string(content), "error: process-agent is not running or is unreachable"))
+	})
+	t.Run("with process-agent running", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.process_collection.enabled", true)
+		cfg.Set("process_config.container_collection.enabled", true)
+		cfg.Set("process_config.process_discovery.enabled", true)
+
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			switch r.URL.Path {
+			case "/check/process":
+				_, err = w.Write(expectedProcessesJSON)
+			case "/check/container":
+				_, err = w.Write(expectedContainersJSON)
+			case "/check/process_discovery":
+				_, err = w.Write(expectedProcessDiscoveryJSON)
+			default:
+				t.Error("Unexpected url endpoint", r.URL.Path)
+			}
+			require.NoError(t, err)
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(handler))
+		defer srv.Close()
+
+		dir := t.TempDir()
+
+		err = zipProcessChecks(dir, "", func() (string, error) { return strings.TrimPrefix(srv.URL, "http://"), nil })
+		require.NoError(t, err)
+
+		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedProcessesJSON, content)
+
+		content, err = ioutil.ReadFile(filepath.Join(dir, "container_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedContainersJSON, content)
+
+		content, err = ioutil.ReadFile(filepath.Join(dir, "process_discovery_check_output.json"))
+		require.NoError(t, err)
+		assert.Equal(t, expectedProcessDiscoveryJSON, content)
+	})
 }

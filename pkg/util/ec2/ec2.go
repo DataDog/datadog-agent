@@ -9,11 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,23 +20,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type ec2Token struct {
-	expirationDate time.Time
-	value          string
-	sync.RWMutex
-}
-
 // declare these as vars not const to ease testing
 var (
 	metadataURL        = "http://169.254.169.254/latest/meta-data"
 	tokenURL           = "http://169.254.169.254/latest/api/token"
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
-	token              = ec2Token{}
+
+	token              *httputils.APIToken
 	tokenRenewalWindow = 15 * time.Second
+
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
 )
+
+func init() {
+	token = httputils.NewAPIToken(getToken)
+}
+
+func getToken(ctx context.Context) (string, time.Time, error) {
+	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
+	// Set the local expiration date before requesting the metadata endpoint so the local expiration date will always
+	// expire before the expiration date computed on the AWS side. The expiration date is set minus the renewal window
+	// to ensure the token will be refreshed before it expires.
+	expirationDate := time.Now().Add(tokenLifetime - tokenRenewalWindow)
+
+	res, err := httputils.Put(ctx,
+		tokenURL,
+		map[string]string{
+			"X-aws-ec2-metadata-token-ttl-seconds": fmt.Sprintf("%d", int(tokenLifetime.Seconds())),
+		},
+		nil,
+		config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
+
+	if err != nil {
+		return "", time.Now(), err
+	}
+	return res, expirationDate, nil
+}
 
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 InstanceID",
@@ -91,6 +109,19 @@ func IsRunningOn(ctx context.Context) bool {
 		return true
 	}
 	return false
+}
+
+// GetHostAliases returns the host aliases from the EC2 metadata API.
+func GetHostAliases(ctx context.Context) ([]string, error) {
+
+	instanceID, err := GetInstanceID(ctx)
+	if err == nil {
+		return []string{instanceID}, nil
+	}
+
+	log.Debugf("failed to get instance ID to use as Host Alias: %s", err)
+
+	return []string{}, nil
 }
 
 var hostnameFetcher = cachedfetch.Fetcher{
@@ -242,72 +273,15 @@ func extractClusterName(tags []string) (string, error) {
 func doHTTPRequest(ctx context.Context, url string) (string, error) {
 	headers := map[string]string{}
 	if config.Datadog.GetBool("ec2_prefer_imdsv2") {
-		token, err := getToken(ctx)
+		tokenValue, err := token.Get(ctx)
 		if err != nil {
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
-			headers["X-aws-ec2-metadata-token"] = token
+			headers["X-aws-ec2-metadata-token"] = tokenValue
 		}
 	}
 
 	return httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
-}
-
-func getToken(ctx context.Context) (string, error) {
-
-	token.RLock()
-	// The token renewal window is open, refreshing the token
-	if time.Now().Before(token.expirationDate) {
-		val := token.value
-		token.RUnlock()
-		return val, nil
-	}
-	token.RUnlock()
-	token.Lock()
-	defer token.Unlock()
-	// Token has been refreshed by another caller
-	if time.Now().Before(token.expirationDate) {
-		return token.value, nil
-	}
-
-	client := http.Client{
-		Transport: httputils.CreateHTTPTransport(),
-		Timeout:   time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, tokenURL, nil)
-	if err != nil {
-		return "", err
-	}
-
-	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
-	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", fmt.Sprintf("%d", int(tokenLifetime.Seconds())))
-	// Set the local expiration date before requesting the metadata endpoint so the local expiration date will always
-	// expire before the expiration date computed on the AWS side. The expiration date is set minus the renewal window
-	// to ensure the token will be refreshed before it expires.
-	token.expirationDate = time.Now().Add(tokenLifetime - tokenRenewalWindow)
-	res, err := client.Do(req)
-	if err != nil {
-		// Re-mark the token as expired now, so it will be refreshed next time
-		token.expirationDate = time.Now()
-		return "", err
-	}
-
-	if res.StatusCode != 200 {
-		// Re-mark the token as expired now, so it will be refreshed next time
-		token.expirationDate = time.Now()
-		return "", fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, tokenURL)
-	}
-
-	defer res.Body.Close()
-	all, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		// Re-mark the token as expired now, so it will be refreshed next time
-		token.expirationDate = time.Now()
-		return "", fmt.Errorf("unable to read response body, %s", err)
-	}
-	token.value = string(all)
-	return token.value, nil
 }
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
@@ -341,10 +315,4 @@ func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
 		isDefault = isDefault || strings.HasPrefix(hostname, val)
 	}
 	return isDefault
-}
-
-// HostnameProvider gets the hostname
-func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
-	log.Debug("GetHostname trying EC2 metadata...")
-	return GetInstanceID(ctx)
 }

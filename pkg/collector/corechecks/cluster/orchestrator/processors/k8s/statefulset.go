@@ -10,6 +10,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -96,4 +97,8 @@ func (h *StatefulSetHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorCon
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
 func (h *StatefulSetHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+	r := resource.(*appsv1.StatefulSet)
+	if ctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
+	}
 }

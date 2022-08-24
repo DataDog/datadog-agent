@@ -83,9 +83,9 @@ func HasEC2ResourceTags() bool {
 		return false
 	}
 	return queryCacheBool(hasEC2ResourceTagsCacheKey, func() (bool, time.Duration) {
-		client, err := ecsmeta.V3FromCurrentTask()
+		client, err := ecsmeta.V3orV4FromCurrentTask()
 		if err != nil {
-			log.Debugf("failed to detect V3 metadata endpoint: %s", err)
+			log.Debugf("failed to detect V3 and V4 metadata endpoint: %s", err)
 			return false, hasEC2ResourceTagsCacheExpiry
 		}
 		_, err = client.GetTaskWithTags(context.TODO())

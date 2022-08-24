@@ -11,6 +11,7 @@ package serializer
 import (
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -20,34 +21,30 @@ type MockSerializer struct {
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *MockSerializer) SendEvents(e EventsStreamJSONMarshaler) error {
-	return s.Called(e).Error(0)
+func (s *MockSerializer) SendEvents(events metrics.Events) error {
+	return s.Called(events).Error(0)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *MockSerializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
-	return s.Called(sc).Error(0)
+func (s *MockSerializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) error {
+	return s.Called(serviceChecks).Error(0)
 }
 
 // SendIterableSeries serializes a list of Serie and sends the payload to the forwarder
-func (s *MockSerializer) SendIterableSeries(series marshaler.IterableMarshaler) error {
-	return s.Called(series).Error(0)
+func (s *MockSerializer) SendIterableSeries(serieSource metrics.SerieSource) error {
+	return s.Called(serieSource).Error(0)
 }
 
-// IsIterableSeriesSupported returns whether `SendIterableSeries` is supported
-func (s *MockSerializer) IsIterableSeriesSupported() bool {
-	return s.Called().Get(0).(bool)
-}
-
-// SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *MockSerializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
-	return s.Called(series).Error(0)
-}
+// AreSeriesEnabled returns whether series are enabled for serialization
+func (s *MockSerializer) AreSeriesEnabled() bool { return true }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *MockSerializer) SendSketch(sketches marshaler.Marshaler) error {
+func (s *MockSerializer) SendSketch(sketches metrics.SketchesSource) error {
 	return s.Called(sketches).Error(0)
 }
+
+// AreSeriesEnabled returns whether sketches are enabled for serialization
+func (s *MockSerializer) AreSketchesEnabled() bool { return true }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
 func (s *MockSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
@@ -77,4 +74,9 @@ func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hos
 // SendContainerLifecycleEvent serializes & send container lifecycle event payloads
 func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
 	return s.Called(msgs, hostname).Error(0)
+}
+
+// SendOrchestratorManifests serializes & send orchestrator manifest payloads
+func (s *MockSerializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
+	return s.Called(msgs, hostName, clusterID).Error(0)
 }

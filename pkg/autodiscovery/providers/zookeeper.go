@@ -18,6 +18,7 @@ import (
 
 	"github.com/samuel/go-zookeeper/zk"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -175,7 +176,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 		return nil
 	}
 
-	checkNames, err := parseCheckNames(string(rawNames))
+	checkNames, err := utils.ParseCheckNames(string(rawNames))
 	if err != nil {
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
 		return nil
@@ -193,7 +194,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 		return nil
 	}
 
-	return buildTemplates(key, checkNames, initConfigs, instances)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances)
 }
 
 func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
@@ -202,7 +203,7 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data
 		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %s", key, err)
 	}
 
-	return parseJSONValue(string(rawValue))
+	return utils.ParseJSONValue(string(rawValue))
 }
 
 func init() {

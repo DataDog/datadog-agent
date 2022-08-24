@@ -10,6 +10,7 @@ package net
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -44,4 +45,9 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 // GetProcStats is not supported
 func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// Register is not supported
+func (r *RemoteSysProbeUtil) Register(clientID string) error {
+	return ebpf.ErrNotImplemented
 }

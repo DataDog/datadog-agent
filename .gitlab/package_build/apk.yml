@@ -13,7 +13,6 @@ agent_android_apk:
     - inv -e install-tools
     - inv -e deps-vendored
     - cd $SRC_PATH
-    - python3 -m pip install -r requirements.txt
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*

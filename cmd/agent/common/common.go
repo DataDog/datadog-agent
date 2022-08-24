@@ -36,6 +36,9 @@ var (
 	// DSD is the global dogstatsd instance
 	DSD *dogstatsd.Server
 
+	// ExpvarServer is the global expvar server
+	ExpvarServer *http.Server
+
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
 

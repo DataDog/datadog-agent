@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // TestInfoHandler ensures that the keys returned by the /info handler do not
@@ -49,10 +49,12 @@ func TestInfoHandler(t *testing.T) {
 		Memcached:         config.Enablable{Enabled: false},
 	}
 	conf := &config.AgentConfig{
-		Enabled:    true,
-		Hostname:   "test.host.name",
-		DefaultEnv: "prod",
-		ConfigPath: "/path/to/config",
+		Enabled:      true,
+		AgentVersion: "0.99.0",
+		GitCommit:    "fab047e10",
+		Hostname:     "test.host.name",
+		DefaultEnv:   "prod",
+		ConfigPath:   "/path/to/config",
 		Endpoints: []*config.Endpoint{{
 			APIKey:  "123",
 			Host:    "https://target-intake.datadoghq.com",
@@ -81,7 +83,6 @@ func TestInfoHandler(t *testing.T) {
 		},
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
-		LogLevel:                    "WARN",
 		LogFilePath:                 "/path/to/logfile",
 		LogThrottling:               false,
 		MaxMemory:                   1000000,
@@ -108,16 +109,14 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	var testCases = []struct {
-		name                 string
-		expected             string
-		enableConfigEndpoint bool
+		name     string
+		expected string
 	}{
 		{
 			name: "default",
 			expected: `{
 	"version": "0.99.0",
 	"git_commit": "fab047e10",
-	"build_date": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
 	"endpoints": [
 		"/v0.3/traces",
 		"/v0.3/services",
@@ -130,12 +129,15 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
+		"/evp_proxy/v1/",
 		"/debugger/v1/input"
 	],
 	"feature_flags": [
 		"feature_flag"
 	],
 	"client_drop_p0s": true,
+	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -170,12 +172,10 @@ func TestInfoHandler(t *testing.T) {
 }`,
 		},
 		{
-			name:                 "debug",
-			enableConfigEndpoint: true,
+			name: "debug",
 			expected: `{
 	"version": "0.99.0",
 	"git_commit": "fab047e10",
-	"build_date": "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792",
 	"endpoints": [
 		"/v0.3/traces",
 		"/v0.3/services",
@@ -188,13 +188,15 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
 		"/appsec/proxy/",
-		"/debugger/v1/input",
-		"/v0.7/config"
+		"/evp_proxy/v1/",
+		"/debugger/v1/input"
 	],
 	"feature_flags": [
-		"config_endpoint"
+		"feature_flag"
 	],
 	"client_drop_p0s": true,
+	"span_meta_structs": true,
+	"long_running_spans": true,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,
@@ -232,26 +234,16 @@ func TestInfoHandler(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			rcv := newTestReceiverFromConfig(conf)
-			if tt.enableConfigEndpoint {
-				defer testutil.WithFeatures("config_endpoint")()
-			} else {
-				defer testutil.WithFeatures("feature_flag")()
-			}
-			defer func(old string) { info.Version = old }(info.Version)
-			defer func(old string) { info.GitCommit = old }(info.GitCommit)
-			defer func(old string) { info.BuildDate = old }(info.BuildDate)
-			info.Version = "0.99.0"
-			info.GitCommit = "fab047e10"
-			info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
+			defer testutil.WithFeatures("feature_flag")()
 			_, h := rcv.makeInfoHandler()
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "/info", nil)
 			h.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Body.String(), tt.expected)
+			assert.Equal(t, tt.expected, rec.Body.String())
 			if rec.Body.String() != tt.expected {
-				t.Fatal("Output of /info has changed. Changing the keys "+
+				t.Fatalf("Output of /info has changed. Changing the keys "+
 					"is not allowed because the client rely on them and "+
-					"is considered a breaking change:\n\n%f", rec.Body.String())
+					"is considered a breaking change:\n\n%v", rec.Body.String())
 			}
 		})
 	}

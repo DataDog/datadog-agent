@@ -10,6 +10,7 @@ package http
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,26 @@ func TestPath(t *testing.T) {
 	}
 
 	b := make([]byte, HTTPBufferSize)
-	assert.Equal(t, "/foo/bar", string(tx.Path(b)))
+	path, fullPath := tx.Path(b)
+	assert.Equal(t, "/foo/bar", string(path))
+	assert.True(t, fullPath)
+}
+
+func TestMaximumLengthPath(t *testing.T) {
+	rep := strings.Repeat("a", HTTPBufferSize-6)
+	str := "GET /" + rep
+	str += "bc"
+	tx := httpTX{
+		request_fragment: requestFragment(
+			[]byte(str),
+		),
+	}
+	b := make([]byte, HTTPBufferSize)
+	path, fullPath := tx.Path(b)
+	expected := "/" + rep
+	expected = expected + "b"
+	assert.Equal(t, expected, string(path))
+	assert.False(t, fullPath)
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
@@ -38,7 +58,9 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 	}
 
 	b := make([]byte, HTTPBufferSize)
-	assert.Equal(t, "/foo/", string(tx.Path(b)))
+	path, fullPath := tx.Path(b)
+	assert.Equal(t, "/foo/", string(path))
+	assert.False(t, fullPath)
 }
 
 func TestLatency(t *testing.T) {
@@ -61,7 +83,7 @@ func BenchmarkPath(b *testing.B) {
 	b.ResetTimer()
 	buf := make([]byte, HTTPBufferSize)
 	for i := 0; i < b.N; i++ {
-		_ = tx.Path(buf)
+		_, _ = tx.Path(buf)
 	}
 	runtime.KeepAlive(buf)
 }

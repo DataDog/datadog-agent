@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,6 +40,7 @@ type OrchestratorConfig struct {
 	MaxPerMessage                  int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
+	IsManifestCollectionEnabled    bool
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -63,7 +64,7 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
-// Load load orchestrator-specific configuration
+// Load loads orchestrator-specific configuration
 // at this point secrets should already be resolved by the core/process/cluster agent
 func (oc *OrchestratorConfig) Load() error {
 	URL, err := extractOrchestratorDDUrl()
@@ -106,13 +107,14 @@ func (oc *OrchestratorConfig) Load() error {
 	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		oc.OrchestrationCollectionEnabled = true
 		// Set clustername
-		hostname, _ := coreutil.GetHostname(context.TODO())
-		if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
+		hname, _ := hostname.Get(context.TODO())
+		if clusterName := clustername.GetClusterName(context.TODO(), hname); clusterName != "" {
 			oc.KubeClusterName = clusterName
 		}
 	}
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
 	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
+	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.enabled"))
 
 	return nil
 }
@@ -159,7 +161,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
+func NewOrchestratorForwarder() forwarder.Forwarder {
 	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		return nil
 	}

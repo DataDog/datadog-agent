@@ -11,7 +11,9 @@ package docker
 import (
 	"regexp"
 	"testing"
-	"time"
+
+	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -21,43 +23,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	dockerTypes "github.com/docker/docker/api/types"
-	"github.com/stretchr/testify/assert"
 )
-
-func createContainerMeta(runtime, cID string) *workloadmeta.Container {
-	return &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   cID,
-		},
-		Runtime: workloadmeta.ContainerRuntime(runtime),
-		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
-		},
-	}
-}
 
 func TestDockerCheckGenericPart(t *testing.T) {
 	// Creating mocks
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
-		createContainerMeta("docker", "cID100"),
+		generic.CreateContainerMeta("docker", "cID100"),
 		// Should never been called as we are in the Docker check
-		createContainerMeta("containerd", "cID101"),
+		generic.CreateContainerMeta("containerd", "cID101"),
 	}
 
-	containersStats := map[string]metrics.MockContainerEntry{
-		"cID100": metrics.GetFullSampleContainerEntry(),
-		"cID101": metrics.GetFullSampleContainerEntry(),
+	containersStats := map[string]mock.ContainerEntry{
+		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, nil, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -79,7 +65,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "docker.cpu.usage", 1e-5, "", expectedTags)
@@ -97,7 +83,8 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.cache", 200, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.failed_count", 10, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "docker.mem.in_use", 1, "", expectedTags)
+	mockSender.AssertMetricInRange(t, "Gauge", "docker.mem.in_use", 0, 1, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.sw_limit", 500, "", expectedTags)
 
 	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", 100, "", expectedFooTags)
@@ -226,8 +213,9 @@ func TestDockerCustomPart(t *testing.T) {
 
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:7.32.0-rc.1"})
-	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 2, "", []string{"app:foo"})
-	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"app:foo"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped", 1, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
+
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running.total", 4, "", nil)
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped.total", 1, "", nil)
 
@@ -242,4 +230,63 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 2, "", []string{"volume_state:dangling"})
 
 	mockSender.AssertServiceCheck(t, DockerServiceUp, coreMetrics.ServiceCheckOK, "", nil, "")
+}
+
+func TestContainersRunning(t *testing.T) {
+	mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+	mockSender.SetupAcceptAll()
+
+	// Define tags for 3 different containers. The first 2 have the same tags.
+	// The third one shares the image-related tags, but has a different
+	// "service" tag.
+	fakeTagger := local.NewFakeTagger()
+	fakeTagger.SetTags("container_id://e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s1"}, nil, nil, nil)
+	fakeTagger.SetTags("container_id://b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s1"}, nil, nil, nil)
+	fakeTagger.SetTags("container_id://be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s2"}, nil, nil, nil)
+	tagger.SetDefaultTagger(fakeTagger)
+
+	// Image ID is shared by the 3 containers
+	imageID := "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6"
+
+	// Mock client + fake data
+	dockerClient := dockerUtil.MockClient{}
+	dockerClient.FakeContainerList = []dockerTypes.Container{
+		{
+			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
+			Names:   []string{"agent"},
+			Image:   "datadog/agent",
+			ImageID: imageID,
+			State:   containers.ContainerRunningState,
+		},
+		{
+			ID:      "b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074",
+			Names:   []string{"agent"},
+			Image:   "datadog/agent",
+			ImageID: imageID,
+			State:   containers.ContainerRunningState,
+		},
+		{
+			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90",
+			Names:   []string{"agent"},
+			Image:   "datadog/agent",
+			ImageID: imageID,
+			State:   containers.ContainerRunningState,
+		},
+	}
+
+	// Create Docker check
+	check := DockerCheck{
+		instance:        &DockerConfig{},
+		dockerHostname:  "testhostname",
+		containerFilter: &containers.Filter{},
+	}
+
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
+	assert.NoError(t, err)
+
+	// Containers that share the same set of tags should be reported together,
+	// but containers that only share some tags should not be reported together
+
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 2, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s1"})
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s2"})
 }

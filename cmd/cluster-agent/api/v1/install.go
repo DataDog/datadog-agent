@@ -6,25 +6,13 @@
 package v1
 
 import (
-	"strconv"
+	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )
-
-var (
-	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
-		[]string{"handler", "status"}, "Counter of requests made to the cluster agent API.",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
-)
-
-func incrementRequestMetric(handler string, status int) {
-	apiRequests.Inc(handler, strconv.Itoa(status))
-}
 
 // InstallMetadataEndpoints registers endpoints for metadata
 func InstallMetadataEndpoints(r *mux.Router) {

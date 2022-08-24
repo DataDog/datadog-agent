@@ -34,6 +34,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload v4.89.0+incompatible
+	github.com/DataDog/agent-payload/v5 v5.0.19
 	github.com/DataDog/datadog-agent v0.0.0-20211213161047-f82981e22ca1
 )

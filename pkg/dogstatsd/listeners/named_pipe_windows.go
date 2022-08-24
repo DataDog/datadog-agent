@@ -11,8 +11,9 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
@@ -73,7 +74,7 @@ func newNamedPipeListener(
 			connToClose:     make(chan net.Conn),
 			closeAllConns:   make(chan struct{}),
 			allConnsClosed:  make(chan struct{}),
-			activeConnCount: 0,
+			activeConnCount: atomic.NewInt32(0),
 		},
 		trafficCapture: capture,
 	}
@@ -87,7 +88,7 @@ type namedPipeConnections struct {
 	connToClose     chan net.Conn
 	closeAllConns   chan struct{}
 	allConnsClosed  chan struct{}
-	activeConnCount int32
+	activeConnCount *atomic.Int32
 }
 
 func (l *namedPipeConnections) handleConnections() {
@@ -97,11 +98,11 @@ func (l *namedPipeConnections) handleConnections() {
 		select {
 		case conn := <-l.newConn:
 			connections[conn] = struct{}{}
-			atomic.AddInt32(&l.activeConnCount, 1)
+			l.activeConnCount.Inc()
 		case conn := <-l.connToClose:
 			conn.Close()
 			delete(connections, conn)
-			atomic.AddInt32(&l.activeConnCount, -1)
+			l.activeConnCount.Dec()
 			if requestStop && len(connections) == 0 {
 				stop = true
 			}
@@ -208,5 +209,5 @@ func (l *NamedPipeListener) Stop() {
 
 // getActiveConnectionsCount returns the number of active connections.
 func (l *NamedPipeListener) getActiveConnectionsCount() int32 {
-	return atomic.LoadInt32(&l.connections.activeConnCount)
+	return l.connections.activeConnCount.Load()
 }

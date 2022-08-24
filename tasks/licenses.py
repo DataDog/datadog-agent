@@ -18,6 +18,7 @@ COPYRIGHT_LOCATIONS = [
     'license.md',
     'LICENSE.md',
     'LICENSE.txt',
+    'License.txt',
     'COPYING',
     'NOTICE',
     'README',
@@ -38,35 +39,19 @@ AUTHORS_LOCATIONS = [
 COPYRIGHT_RE = re.compile(r'copyright\s+(?:©|\(c\)\s+)?(?:(?:[0-9 ,-]|present)+\s+)?(?:by\s+)?(.*)', re.I)
 
 # Copyright strings to ignore, as they are not owners.  Most of these are from
-# boilerplate license files
-COPYRIGHT_IGNORE_PREFIXES = [
-    'holder',
-    'HOLDER',
-    'owner',
-    'OWNER',
-    'notice',
-    'license',
-    'License',
-    'patent',
-    'statement',
-    'and Related Rights',
-    'and related rights',
-    'and related or neighboring rights',
-    'doctrines',
-    '& License',
-    'and license',
-    'AND LICENSE',
-    '[yyyy]',
-    '{yyyy}',
+# boilerplate license files.
+#
+# These match at the beginning of the copyright (the result of COPYRIGHT_RE).
+COPYRIGHT_IGNORE_RES = [
+    re.compile(r'copyright(:? and license)?$', re.I),
+    re.compile(r'copyright (:?holder|owner|notice|license|statement)', re.I),
+    re.compile(r'Copyright & License -'),
+    re.compile(r'copyright .yyyy. .name of copyright owner.', re.I),
+    re.compile(r'copyright .yyyy. .name of copyright owner.', re.I),
 ]
 
 # Match for various suffixes that need not be included
-STRIP_SUFFIXES_RE = [
-    re.compile(r'all rights reserved\.?.*', re.I),
-    re.compile(r'\(license at http://golang.org\) where indicated'),
-    re.compile(r'\S+ is licensed under the .*'),
-    re.compile(r'- see.*'),
-]
+STRIP_SUFFIXES_RE = []
 
 # Packages containing CONTRIBUTORS files that do not use #-style comments
 # in their header; we skip until the first blank line.
@@ -216,10 +201,10 @@ def find_copyright_for(package, overrides, ctx):
                 mo = COPYRIGHT_RE.search(line)
                 if not mo:
                     continue
-                cpy = mo.group(1)
+                cpy = mo.group(0)
 
                 # ignore a few spurious matches from license boilerplate
-                if any(cpy.startswith(ign) for ign in COPYRIGHT_IGNORE_PREFIXES):
+                if any(ign.match(cpy) for ign in COPYRIGHT_IGNORE_RES):
                     continue
 
                 # strip some suffixes

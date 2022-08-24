@@ -9,11 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -61,7 +62,7 @@ func launchGui(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	csrfToken, err := util.DoGet(c, urlstr)
+	csrfToken, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(csrfToken, &errMap) //nolint:errcheck

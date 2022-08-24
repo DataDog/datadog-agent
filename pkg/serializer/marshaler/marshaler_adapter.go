@@ -52,8 +52,3 @@ func (a *IterableStreamJSONMarshalerAdapter) MoveNext() bool {
 	}
 	return true
 }
-
-// IterationStopped must be called when receiver stop calling MoveNext.
-func (a *IterableStreamJSONMarshalerAdapter) IterationStopped() {
-	// Nothing
-}

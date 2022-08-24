@@ -1,0 +1,38 @@
+{
+    "version": "2.0",
+    "routeKey": "GET /httpapi/get",
+    "rawPath": "/httpapi/get",
+    "rawQueryString": "",
+    "headers": {
+        "accept": "*/*",
+        "content-length": "0",
+        "host": "x02yirxc7a.execute-api.sa-east-1.amazonaws.com",
+        "user-agent": "curl/7.64.1",
+        "x-amzn-trace-id": "Root=1-613a52fb-4c43cfc95e0241c1471bfa05",
+        "x-forwarded-for": "38.122.226.210",
+        "x-forwarded-port": "443",
+        "x-forwarded-proto": "https",
+        "x-datadog-trace-id": "12345",
+        "x-datadog-parent-id": "67890",
+        "x-datadog-sampling-priority": "2"
+    },
+    "requestContext": {
+        "accountId": "601427279990",
+        "apiId": "x02yirxc7a",
+        "domainName": "x02yirxc7a.execute-api.sa-east-1.amazonaws.com",
+        "domainPrefix": "x02yirxc7a",
+        "http": {
+            "method": "GET",
+            "path": "/httpapi/get",
+            "protocol": "HTTP/1.1",
+            "sourceIp": "38.122.226.210",
+            "userAgent": "curl/7.64.1"
+        },
+        "requestId": "FaHnXjKCGjQEJ7A=",
+        "routeKey": "GET /httpapi/get",
+        "stage": "$default",
+        "time": "09/Sep/2021:18:31:23 +0000",
+        "timeEpoch": 1631212283738
+    },
+    "isBase64Encoded": false
+}

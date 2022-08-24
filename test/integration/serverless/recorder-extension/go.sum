@@ -74,9 +74,9 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/toml v0.4.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
-github.com/DataDog/agent-payload v4.89.0+incompatible h1:0C7DwBSz1iqkgwCp2Lwzzguu5dgcxNxLo9QeE4OCDJQ=
-github.com/DataDog/agent-payload v4.89.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/agent-payload/v5 v5.0.4/go.mod h1:2gapp8p4Vd548JI+axD8kCExklNvVI6AMF5/+IfN/4g=
+github.com/DataDog/agent-payload/v5 v5.0.19 h1:Qm89IzxFz1tUlhg6XZLEePENOlUlXmd/MPs8tOsWOeQ=
+github.com/DataDog/agent-payload/v5 v5.0.19/go.mod h1:2gapp8p4Vd548JI+axD8kCExklNvVI6AMF5/+IfN/4g=
 github.com/DataDog/datadog-agent v0.0.0-20211213161047-f82981e22ca1 h1:jwtv0oJFR46jNt7nPgHnM8k3xltXPR2vPO32pmOfVp8=
 github.com/DataDog/datadog-agent v0.0.0-20211213161047-f82981e22ca1/go.mod h1:AKhtuPk2NM6CA1wHSIgsPnboMGCopl5STV0gYJUAqHA=
 github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-20211201172000-1fd9a353e8e4/go.mod h1:EP9f4GqaDJyP1F5jTNMtzdIpw3JpNs3rMSJOnYywCiw=

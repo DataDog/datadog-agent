@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -28,13 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
-	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	taggerStreamSendTimeout = 1 * time.Minute
+	streamKeepAliveInterval = 9 * time.Minute
 )
 
 type server struct {
@@ -47,7 +49,7 @@ type serverSecure struct {
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
-	h, err := hostutil.GetHostname(ctx)
+	h, err := hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
 	}
@@ -136,9 +138,13 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	eventCh := t.Subscribe(cardinality)
 	defer t.Unsubscribe(eventCh)
 
+	ticker := time.NewTicker(streamKeepAliveInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case events := <-eventCh:
+			ticker.Reset(streamKeepAliveInterval)
+
 			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
 			for _, event := range events {
 				e, err := pbutils.Tagger2PbEntityEvent(event)
@@ -164,6 +170,24 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 
 		case <-out.Context().Done():
 			return nil
+
+		// The remote tagger client has a timeout that closes the connection after 10 minutes of inactivity
+		// (implemented in pkg/tagger/remote/tagger.go)
+		// In order to avoid closing the connection and having to open it again, the server will send an empty
+		// message after 9 minutes of inactivity.
+		// The goal is only to keep the connection alive without losing the protection against “half” closed connections brought by the timeout.
+		case <-ticker.C:
+			err = grpc.DoWithTimeout(func() error {
+				return out.Send(&pb.StreamTagsResponse{
+					Events: []*pb.StreamTagsEvent{},
+				})
+			}, taggerStreamSendTimeout)
+
+			if err != nil {
+				log.Warnf("error sending tagger keep-alive: %s", err)
+				telemetry.ServerStreamErrors.Inc()
+				return err
+			}
 		}
 	}
 }
@@ -198,6 +222,14 @@ func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetCon
 		return nil, errors.New("remote configuration service not initialized")
 	}
 	return s.configService.ClientGetConfigs(in)
+}
+
+func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
+	if s.configService == nil {
+		log.Debug("Remote configuration service not initialized")
+		return nil, errors.New("remote configuration service not initialized")
+	}
+	return s.configService.ConfigGetState()
 }
 
 func init() {

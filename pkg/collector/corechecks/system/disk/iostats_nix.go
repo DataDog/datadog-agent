@@ -14,12 +14,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem" // for system.io.block_{in,out}
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/disk"
-	"github.com/shirou/gopsutil/mem" // for system.io.block_{in,out}
 )
 
 // For testing purpose
@@ -71,7 +71,7 @@ func incrementWithOverflow(currentValue, lastValue uint64) int64 {
 }
 
 func (c *IOCheck) nixIO() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (c *IOCheck) nixIO() error {
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}

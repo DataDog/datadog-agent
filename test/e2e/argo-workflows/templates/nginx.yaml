@@ -87,7 +87,7 @@ spec:
                 annotations:
                   ad.datadoghq.com/nginx.check_names: '["nginx"]'
                   ad.datadoghq.com/nginx.init_configs: '[{}]'
-                  ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status", "tags": "%%tags%%"}]'
+                  ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status"}]'
                   ad.datadoghq.com/nginx.logs: '[{"type": "docker","image": "nginx","service": "nginx","source": "nginx"}]'
               spec:
                 containers:
@@ -261,7 +261,7 @@ spec:
           while (1) {
             var nb = db.series.find({
             metric: "kubernetes_state.deployment.replicas_available",
-            tags: { $all: ["namespace:{{inputs.parameters.namespace}}", "deployment:nginx"] },
+            tags: { $all: ["kube_namespace:{{inputs.parameters.namespace}}", "kube_deployment:nginx"] },
             "points.0.1": { $eq: 1 } }).count();
             print("find: " + nb)
             if (nb != 0) {
@@ -297,7 +297,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: argoproj/argoexec:v3.3.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -314,7 +314,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: argoproj/argoexec:v3.3.1
         command: [sh]
         source: |
           set -euo pipefail
@@ -396,7 +396,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:latest
+        image: argoproj/argoexec:v3.3.1
         command: [sh]
         source: |
           set -euo pipefail

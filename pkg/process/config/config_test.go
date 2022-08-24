@@ -264,7 +264,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
-	agentConfig = NewDefaultAgentConfig()
+	_ = NewDefaultAgentConfig()
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
@@ -559,11 +559,11 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
+			cfg := config.Mock(t)
 			cfg.Set("process_config.process_discovery.interval", tc.interval)
 
 			agentCfg := NewDefaultAgentConfig()
-			assert.NoError(t, agentCfg.LoadProcessYamlConfig(""))
+			assert.NoError(t, agentCfg.LoadAgentConfig(""))
 
 			assert.Equal(t, tc.expectedInterval, agentCfg.CheckIntervals[DiscoveryCheckName])
 		})

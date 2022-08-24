@@ -9,6 +9,7 @@
 package kprobe
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -31,6 +32,7 @@ func enableProbe(enabled map[probes.ProbeName]string, name probes.ProbeName) {
 // This map does not include the probes used exclusively in the offset guessing process.
 func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]string, error) {
 	enabled := make(map[probes.ProbeName]string, 0)
+	ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
@@ -41,15 +43,18 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 
 	if c.CollectTCPConns {
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
+		enableProbe(enabled, probes.TCPSendMsgReturn)
 		enableProbe(enabled, probes.TCPCleanupRBuf)
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseReturn)
+		enableProbe(enabled, probes.TCPConnect)
+		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 
-		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
+		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
 		if err == nil && len(missing) == 0 {
 			enableProbe(enabled, probes.SockFDLookup)
 			enableProbe(enabled, probes.SockFDLookupRet)
@@ -62,17 +67,46 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		enableProbe(enabled, probes.UDPDestroySock)
 		enableProbe(enabled, probes.UDPDestroySockReturn)
 		enableProbe(enabled, probes.IPMakeSkb)
+		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsg, probes.UDPRecvMsgPre410, kv410))
-		enableProbe(enabled, probes.UDPRecvMsgReturn)
 
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
+			enableProbe(enabled, probes.IP6MakeSkbReturn)
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsg, probes.UDPv6RecvMsgPre410, kv410))
-			enableProbe(enabled, probes.UDPv6RecvMsgReturn)
+		}
+
+		if runtimeTracer {
+			missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked"})
+			if err != nil {
+				return nil, fmt.Errorf("error verifying kernel function presence: %s", err)
+			}
+
+			enableProbe(enabled, probes.UDPRecvMsg)
+			enableProbe(enabled, probes.UDPRecvMsgReturn)
+			if c.CollectIPv6Conns {
+				enableProbe(enabled, probes.UDPv6RecvMsg)
+				enableProbe(enabled, probes.UDPv6RecvMsgReturn)
+			}
+
+			if _, miss := missing["skb_consume_udp"]; !miss {
+				enableProbe(enabled, probes.SKBConsumeUDP)
+			} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
+				enableProbe(enabled, probes.SKB__FreeDatagramLocked)
+			} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
+				enableProbe(enabled, probes.SKBFreeDatagramLocked)
+			} else {
+				return nil, fmt.Errorf("missing desired UDP receive kernel functions")
+			}
+		} else {
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPRecvMsg, probes.UDPRecvMsgPre410, kv410))
+			enableProbe(enabled, probes.UDPRecvMsgReturn)
+			if c.CollectIPv6Conns {
+				enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.UDPv6RecvMsg, probes.UDPv6RecvMsgPre410, kv410))
+				enableProbe(enabled, probes.UDPv6RecvMsgReturn)
+			}
 		}
 	}
 

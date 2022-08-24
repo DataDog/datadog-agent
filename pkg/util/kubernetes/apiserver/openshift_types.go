@@ -14,6 +14,6 @@ type OpenShiftAPILevel string
 // Responses for DetectOpenShiftAPILevel()
 const (
 	OpenShiftAPIGroup OpenShiftAPILevel = "new apiGroups"
-	OpenShiftOAPI                       = "legacy OAPI"
-	NotOpenShift                        = "no API"
+	OpenShiftOAPI     OpenShiftAPILevel = "legacy OAPI"
+	NotOpenShift      OpenShiftAPILevel = "no API"
 )

@@ -8,6 +8,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -28,6 +30,31 @@ var (
 	prettyPrintJSON bool
 	statusFilePath  string
 )
+
+func scrubMessage(message string) string {
+	msgScrubbed, err := scrubber.ScrubBytes([]byte(message))
+	if err == nil {
+		return string(msgScrubbed)
+	}
+	return "[REDACTED] - failure to clean the message"
+}
+
+func redactError(unscrubbedError error) error {
+	if unscrubbedError == nil {
+		return unscrubbedError
+	}
+
+	errMsg := unscrubbedError.Error()
+	scrubbedMsg, scrubOperationErr := scrubber.ScrubBytes([]byte(errMsg))
+	var scrubbedError error
+	if scrubOperationErr != nil {
+		scrubbedError = errors.New("[REDACTED] failed to clean error")
+	} else {
+		scrubbedError = errors.New(string(scrubbedMsg))
+	}
+
+	return scrubbedError
+}
 
 func init() {
 	AgentCmd.AddCommand(statusCmd)
@@ -65,7 +92,7 @@ var statusCmd = &cobra.Command{
 
 		_ = common.SetupSystemProbeConfig(sysProbeConfFilePath)
 
-		return requestStatus()
+		return redactError(requestStatus())
 	},
 }
 
@@ -85,7 +112,8 @@ var componentCmd = &cobra.Command{
 		if len(args) != 1 {
 			return fmt.Errorf("a component name must be specified")
 		}
-		return componentStatus(args[0])
+
+		return redactError(componentStatus(args[0]))
 	},
 }
 
@@ -125,7 +153,7 @@ func requestStatus() error {
 		if err != nil {
 			return err
 		}
-		s = formattedStatus
+		s = scrubMessage(formattedStatus)
 	}
 
 	if statusFilePath != "" {
@@ -180,7 +208,7 @@ func componentStatus(component string) error {
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else {
-		s = string(r)
+		s = scrubMessage(string(r))
 	}
 
 	if statusFilePath != "" {
@@ -202,7 +230,7 @@ func makeRequest(url string) ([]byte, error) {
 		return nil, e
 	}
 
-	r, e := util.DoGet(c, url)
+	r, e := util.DoGet(c, url, util.LeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

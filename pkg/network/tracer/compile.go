@@ -11,13 +11,14 @@ package tracer
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
 //go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/conntrack.c ../../../pkg/ebpf/bytecode/build/runtime/conntrack.c ../../../pkg/ebpf/c ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
 //go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/conntrack.c ../../../pkg/ebpf/bytecode/runtime/conntrack.go runtime
 
 func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Conntrack.Compile(&config.Config, getCFlags(config))
+	return runtime.Conntrack.Compile(&config.Config, getCFlags(config), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -28,5 +29,6 @@ func getCFlags(config *config.Config) []string {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
+	cflags = append(cflags, "-g")
 	return cflags
 }

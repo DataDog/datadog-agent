@@ -74,9 +74,9 @@ rules:
       - list
       - watch
   - apiGroups:
-      - autoscaling.k8s.io
+      - networking.k8s.io
     resources:
-      - verticalpodautoscalers
+      - ingresses
     verbs:
       - list
       - watch

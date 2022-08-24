@@ -103,6 +103,7 @@ type Status struct {
 	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
 	AllContainers  []ContainerStatus
 	Conditions     []Conditions `json:"conditions,omitempty"`
+	QOSClass       string       `json:"qosClass,omitempty"`
 }
 
 // GetAllContainers returns the list of init and regular containers

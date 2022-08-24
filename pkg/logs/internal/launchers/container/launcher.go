@@ -3,110 +3,174 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
+// +build docker
+
 package container
 
 import (
-	"sync"
-	"time"
+	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container/tailerfactory"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-// Launchable is a retryable wrapper for a restartable
-type Launchable struct {
-	IsAvailable func() (bool, *retry.Retrier)
-	Launcher    func() restart.Restartable
+// containerSourceTypes are the values of source.Config.Type for which this
+// launcher will respond.
+var containerSourceTypes = map[string]struct{}{
+	"docker":     {},
+	"containerd": {},
+	"podman":     {},
 }
 
-// Launcher tries to select a container launcher and retry on failure
+// A Launcher starts and stops new tailers for every new containers discovered
+// by autodiscovery.
+//
+// This launcher supports several container runtimes (as defined by
+// source.Config.Type), and emulates the old behavior of the kubernetes
+// launcher (when LogWhat == LogPods) and docker launcher (when LogWhat ==
+// LogContainers).
 type Launcher struct {
-	containerLaunchables []Launchable
-	activeLauncher       restart.Restartable
-	stop                 bool
-	sync.Mutex
+	// cancel will cause the launcher loop to stop
+	cancel context.CancelFunc
+
+	// once the loop stops, this channel will be closed
+	stopped chan struct{}
+
+	// sources allows adding new sources to the agent, for child file sources
+	// (temporary)
+	sources *sourcesPkg.LogSources
+
+	// tailerFactory builds tailers for sources
+	tailerFactory tailerfactory.Factory
+
+	// tailers contains the tailer for each source
+	tailers map[*sourcesPkg.LogSource]tailerfactory.Tailer
 }
 
-// NewLauncher creates a new launcher
-func NewLauncher(containerLaunchers []Launchable) *Launcher {
-	return &Launcher{
-		containerLaunchables: containerLaunchers,
+// NewLauncher returns a new launcher
+func NewLauncher(sources *sourcesPkg.LogSources) *Launcher {
+	launcher := &Launcher{
+		sources: sources,
+		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
+	}
+	return launcher
+}
+
+// Start starts the Launcher
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+	// only start this launcher once it's determined that we should be logging containers, and not pods.
+	ctx, cancel := context.WithCancel(context.Background())
+	l.cancel = cancel
+	l.stopped = make(chan struct{})
+	workloadmetaStore := workloadmeta.GetGlobalStore()
+	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, workloadmetaStore)
+	go l.run(ctx, sourceProvider)
+}
+
+// Stop stops the Launcher. This call returns when the launcher has stopped.
+func (l *Launcher) Stop() {
+	if l.cancel != nil {
+		l.cancel()
+		l.cancel = nil
+		<-l.stopped
+		l.stopped = nil
 	}
 }
 
-func (l *Launcher) launch(launchable Launchable) {
-	launcher := launchable.Launcher()
-	if launcher == nil {
-		launcher = NewNoopLauncher()
-	}
-	l.activeLauncher = launcher
-	l.activeLauncher.Start()
-}
+// run is the main loop for this launcher.  It monitors for sources added or
+// removed to the agent and starts or stops tailers appropriately.
+func (l *Launcher) run(ctx context.Context, sourceProvider launchers.SourceProvider) {
+	log.Info("Starting Container launcher")
 
-func (l *Launcher) shouldRetry() (bool, time.Duration) {
-	var retryer *retry.Retrier
-	for _, launchable := range l.containerLaunchables {
-		ok, rt := launchable.IsAvailable()
-		if ok {
-			l.launch(launchable)
-			return false, 0
+	addedSources, removedSources := sourceProvider.SubscribeAll()
+
+	for {
+		if !l.loop(ctx, addedSources, removedSources) {
+			break
 		}
-		// Hold on to the retrier with the longest interval
-		if retryer == nil || (rt != nil && retryer.NextRetry().Before(rt.NextRetry())) {
-			retryer = rt
-		}
 	}
-	if retryer == nil {
-		log.Info("Nothing to retry - stopping")
-		return false, 0
-	}
-	nextRetry := time.Until(retryer.NextRetry())
-	log.Infof("Could not find an available a container launcher - will try again in %s", nextRetry.Truncate(time.Second))
-	return true, nextRetry
-
 }
 
-// Start starts the launcher
-func (l *Launcher) Start() {
-	// If we are restarting, start up the active launcher since we already picked one from a previous run
-	l.Lock()
-	if l.activeLauncher != nil {
-		l.stop = true
-		l.activeLauncher.Start()
-		l.Unlock()
+// loop runs one iteration of the launcher's main loop, and returns true if it should be run again.
+func (l *Launcher) loop(ctx context.Context, addedSources, removedSources chan *sourcesPkg.LogSource) bool {
+	select {
+	case source := <-addedSources:
+		l.startSource(source)
+
+	case source := <-removedSources:
+		l.stopSource(source)
+
+	case <-ctx.Done():
+		l.stop()
+		close(l.stopped)
+		return false
+	}
+	return true
+}
+
+// startSource starts tailing from a source.
+func (l *Launcher) startSource(source *sourcesPkg.LogSource) {
+	containerID := source.Config.Identifier
+
+	// if this is not of a supported container type, ignore it
+	if _, ok := containerSourceTypes[source.Config.Type]; !ok {
 		return
 	}
-	l.stop = false
-	l.Unlock()
 
-	// Try to select a launcher
-	go func() {
-		for {
-			l.Lock()
-			if l.stop {
-				l.Unlock()
-				return
-			}
-			shouldRetry, nextRetry := l.shouldRetry()
-			l.stop = !shouldRetry
-			if !shouldRetry {
-				l.Unlock()
-				return
-			}
-			l.Unlock()
-			<-time.After(nextRetry)
-		}
-	}()
+	// sanity check; this should never be true for types in containerSourceTypes
+	if containerID == "" {
+		log.Warnf("Source %s has no container identifier", source.Name)
+		return
+	}
+
+	if _, exists := l.tailers[source]; exists {
+		return
+	}
+
+	tailer, err := l.tailerFactory.MakeTailer(source)
+	if err != nil {
+		source.Status.Error(err)
+		return
+	}
+
+	err = tailer.Start()
+	if err != nil {
+		source.Status.Error(err)
+		return
+	}
+	source.AddInput(source.Config.Identifier)
+
+	l.tailers[source] = tailer
 }
 
-// Stop stops the launcher
-func (l *Launcher) Stop() {
-	l.Lock()
-	defer l.Unlock()
-	l.stop = true
-	if l.activeLauncher != nil {
-		l.activeLauncher.Stop()
+// stopSource stops tailing from a source.
+func (l *Launcher) stopSource(source *sourcesPkg.LogSource) {
+	if tailer, exists := l.tailers[source]; exists {
+		tailer.Stop()
+		delete(l.tailers, source)
 	}
+}
+
+// stop stops the launcher's run loop, returning when all running tailers have
+// stopped.
+func (l *Launcher) stop() {
+	count := 0
+	stopper := startstop.NewParallelStopper()
+	for _, tailer := range l.tailers {
+		count++
+		stopper.Add(tailer)
+	}
+	log.Infof("Stopping container launcher - stopping %d tailers", count)
+	stopper.Stop()
+	log.Info("Stopping container launcher")
+
+	l.tailers = make(map[*sources.LogSource]tailerfactory.Tailer)
 }

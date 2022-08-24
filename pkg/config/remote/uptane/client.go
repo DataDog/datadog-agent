@@ -9,22 +9,16 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"time"
 
-	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/pkg/errors"
 	"github.com/theupdateframework/go-tuf/client"
 	"github.com/theupdateframework/go-tuf/data"
 	"go.etcd.io/bbolt"
-)
 
-// State represents the state of an uptane client
-type State struct {
-	ConfigRootVersion      uint64
-	ConfigSnapshotVersion  uint64
-	DirectorRootVersion    uint64
-	DirectorTargetsVersion uint64
-}
+	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+)
 
 // Client is an uptane client
 type Client struct {
@@ -41,22 +35,26 @@ type Client struct {
 	directorTUFClient   *client.Client
 
 	targetStore *targetStore
+
+	cachedVerify     bool
+	cachedVerifyTime time.Time
+
+	// TUF transaction tracker
+	transactionalStore *transactionalStore
 }
 
 // NewClient creates a new uptane client
 func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error) {
-	localStoreConfig, err := newLocalStoreConfig(cacheDB, cacheKey)
+	transactionalStore := newTransactionalStore(cacheDB)
+	localStoreConfig, err := newLocalStoreConfig(transactionalStore, cacheKey)
 	if err != nil {
 		return nil, err
 	}
-	localStoreDirector, err := newLocalStoreDirector(cacheDB, cacheKey)
+	localStoreDirector, err := newLocalStoreDirector(transactionalStore, cacheKey)
 	if err != nil {
 		return nil, err
 	}
-	targetStore, err := newTargetStore(cacheDB, cacheKey)
-	if err != nil {
-		return nil, err
-	}
+	targetStore := newTargetStore(transactionalStore, cacheKey)
 	c := &Client{
 		orgID:               orgID,
 		configLocalStore:    localStoreConfig,
@@ -64,6 +62,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 		directorLocalStore:  localStoreDirector,
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
 		targetStore:         targetStore,
+		transactionalStore:  transactionalStore,
 	}
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
@@ -74,6 +73,12 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
+	c.cachedVerify = false
+
+	// in case the commit is successful it is a no-op.
+	// the defer is present to be sure a transaction is never left behind.
+	defer c.transactionalStore.rollback()
+
 	err := c.updateRepos(response)
 	if err != nil {
 		return err
@@ -82,35 +87,19 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	if err != nil {
 		return err
 	}
-	return c.verify()
+	err = c.verify()
+	if err != nil {
+		return err
+	}
+
+	return c.transactionalStore.commit()
 }
 
-// State returns the state of the uptane client
-func (c *Client) State() (State, error) {
+// TargetsCustom returns the current targets custom of this uptane client
+func (c *Client) TargetsCustom() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
-	configRootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
-	if err != nil {
-		return State{}, err
-	}
-	directorRootVersion, err := c.directorLocalStore.GetMetaVersion(metaRoot)
-	if err != nil {
-		return State{}, err
-	}
-	configSnapshotVersion, err := c.configLocalStore.GetMetaVersion(metaSnapshot)
-	if err != nil {
-		return State{}, err
-	}
-	directorTargetsVersion, err := c.directorLocalStore.GetMetaVersion(metaTargets)
-	if err != nil {
-		return State{}, err
-	}
-	return State{
-		ConfigRootVersion:      configRootVersion,
-		ConfigSnapshotVersion:  configSnapshotVersion,
-		DirectorRootVersion:    directorRootVersion,
-		DirectorTargetsVersion: directorTargetsVersion,
-	}, nil
+	return c.directorLocalStore.GetMetaCustom(metaTargets)
 }
 
 // DirectorRoot returns a director root
@@ -131,10 +120,7 @@ func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	return root, nil
 }
 
-// Targets returns the current targets of this uptane client
-func (c *Client) Targets() (data.TargetFiles, error) {
-	c.Lock()
-	defer c.Unlock()
+func (c *Client) unsafeTargets() (data.TargetFiles, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -142,10 +128,14 @@ func (c *Client) Targets() (data.TargetFiles, error) {
 	return c.directorTUFClient.Targets()
 }
 
-// TargetFile returns the content of a target if the repository is in a verified state
-func (c *Client) TargetFile(path string) ([]byte, error) {
+// Targets returns the current targets of this uptane client
+func (c *Client) Targets() (data.TargetFiles, error) {
 	c.Lock()
 	defer c.Unlock()
+	return c.unsafeTargets()
+}
+
+func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 	err := c.verify()
 	if err != nil {
 		return nil, err
@@ -156,6 +146,13 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// TargetFile returns the content of a target if the repository is in a verified state
+func (c *Client) TargetFile(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetFile(path)
 }
 
 // TargetsMeta returns the current raw targets.json meta of this uptane client
@@ -208,11 +205,20 @@ func (c *Client) pruneTargetFiles() error {
 }
 
 func (c *Client) verify() error {
+	if c.cachedVerify && time.Since(c.cachedVerifyTime) < time.Minute {
+		return nil
+	}
 	err := c.verifyOrgID()
 	if err != nil {
 		return err
 	}
-	return c.verifyUptane()
+	err = c.verifyUptane()
+	if err != nil {
+		return err
+	}
+	c.cachedVerify = true
+	c.cachedVerifyTime = time.Now()
+	return nil
 }
 
 func (c *Client) verifyOrgID() error {
@@ -221,11 +227,12 @@ func (c *Client) verifyOrgID() error {
 		return err
 	}
 	for targetPath := range directorTargets {
-		configFileMeta, err := rdata.ParseFilePathMeta(targetPath)
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
 		if err != nil {
 			return err
 		}
-		if configFileMeta.OrgID != c.orgID {
+		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
+		if checkOrgID && configPathMeta.OrgID != c.orgID {
 			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
 		}
 	}
@@ -240,7 +247,11 @@ func (c *Client) verifyUptane() error {
 	for targetPath, targetMeta := range directorTargets {
 		configTargetMeta, err := c.configTUFClient.Target(targetPath)
 		if err != nil {
-			return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+			if client.IsNotFound(err) {
+				return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
+			}
+			// Other errors such as expired metadata
+			return err
 		}
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)

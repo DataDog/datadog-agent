@@ -14,6 +14,6 @@ import (
 )
 
 func TestShouldSanitizeConfig(t *testing.T) {
-	launcher := NewLauncher(config.NewLogSources(), nil)
+	launcher := NewLauncher()
 	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "System", Query: ""}).Query)
 }

@@ -6,17 +6,17 @@
 package main
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/stretchr/testify/assert"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -34,7 +34,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 
 	// Validate that we stay that way
 	statuses = []*model.CollectorStatus{
@@ -43,7 +43,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 
 	// And that it can turn back off
 	statuses = []*model.CollectorStatus{
@@ -52,7 +52,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(0), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.False(c.realTimeEnabled.Load())
 }
 
 func TestUpdateRTInterval(t *testing.T) {
@@ -70,7 +70,7 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 0, Interval: 10},
 	}
 	c.updateRTStatus(statuses)
-	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
+	assert.True(c.realTimeEnabled.Load())
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }
 
@@ -126,7 +126,7 @@ func TestDisableRealTime(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 
@@ -162,7 +162,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			c, err := NewCollector(cfg, expectedChecks)
@@ -211,7 +211,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
@@ -262,7 +262,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
@@ -312,7 +312,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock()
+			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
@@ -322,6 +322,26 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
 			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
 			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
+		})
+	}
+}
+
+func TestIgnoreResponseBody(t *testing.T) {
+	for _, tc := range []struct {
+		checkName string
+		ignore    bool
+	}{
+		{checkName: checks.Process.Name(), ignore: false},
+		{checkName: checks.Process.RealTimeName(), ignore: false},
+		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
+		{checkName: checks.Container.Name(), ignore: false},
+		{checkName: checks.RTContainer.Name(), ignore: false},
+		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: checks.Connections.Name(), ignore: false},
+		{checkName: checks.ProcessEvents.Name(), ignore: true},
+	} {
+		t.Run(tc.checkName, func(t *testing.T) {
+			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
 		})
 	}
 }

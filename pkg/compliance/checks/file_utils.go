@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
@@ -24,7 +25,10 @@ func (m pathMapper) normalizeToHostRoot(path string) string {
 }
 
 func (m pathMapper) relativeToHostRoot(path string) string {
-	if filepath.HasPrefix(path, m.hostMountPath) {
+	// TODO: This used to use filepath.HasPrefix, which is broken and does not have
+	// a suitable stdlib replacement. I changed it to strings.HasPrefix to be explicit
+	// about what we use while preserving behavior, but it won't work in some cases
+	if strings.HasPrefix(path, m.hostMountPath) {
 		p, err := filepath.Rel(m.hostMountPath, path)
 		if err != nil {
 			log.Warnf("Unable to return original path for: %s", path)

@@ -225,27 +225,20 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 	setLimits := false
 	limits := map[string]int64{}
 
-	cpuLimit := rq.Limits.Cpu()
-	if !cpuLimit.IsZero() {
-		limits[corev1.ResourceCPU.String()] = cpuLimit.MilliValue()
+	for t, v := range rq.Limits {
+		if t == corev1.ResourceCPU {
+			limits[t.String()] = v.MilliValue()
+		} else {
+			limits[t.String()] = v.Value()
+		}
 		setLimits = true
 	}
-
-	memLimit := rq.Limits.Memory()
-	if !memLimit.IsZero() {
-		limits[corev1.ResourceMemory.String()] = memLimit.Value()
-		setLimits = true
-	}
-
-	cpuRequest := rq.Requests.Cpu()
-	if !cpuRequest.IsZero() {
-		requests[corev1.ResourceCPU.String()] = cpuRequest.MilliValue()
-		setRequests = true
-	}
-
-	memRequest := rq.Requests.Memory()
-	if !memRequest.IsZero() {
-		requests[corev1.ResourceMemory.String()] = memRequest.Value()
+	for t, v := range rq.Requests {
+		if t == corev1.ResourceCPU {
+			requests[t.String()] = v.MilliValue()
+		} else {
+			requests[t.String()] = v.Value()
+		}
 		setRequests = true
 	}
 
@@ -299,12 +292,18 @@ func getConditionMessage(p *corev1.Pod) string {
 
 // mapToTags converts a map for which both keys and values are strings to a
 // slice of strings containing those key-value pairs under the "key:value" form.
+// if the map contains empty values we only use the key instead
 func mapToTags(m map[string]string) []string {
 	slice := make([]string, len(m))
 
 	i := 0
 	for k, v := range m {
-		slice[i] = k + ":" + v
+		// Labels can contain empty values: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+		if v == "" {
+			slice[i] = k
+		} else {
+			slice[i] = k + ":" + v
+		}
 		i++
 	}
 

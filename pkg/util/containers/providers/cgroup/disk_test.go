@@ -27,16 +27,13 @@ type DiskMappingTestSuite struct {
 }
 
 func (s *DiskMappingTestSuite) SetupTest() {
-	var err error
-	s.proc, err = newTempFolder("test-disk-mapping")
-	assert.NoError(s.T(), err)
+	s.proc = newTempFolder(s.T())
 	config.Datadog.SetDefault("container_proc_root", s.proc.RootPath)
 }
 
 func (s *DiskMappingTestSuite) TearDownTest() {
 	cache.Cache.Delete(diskMappingCacheKey)
 	config.Datadog.SetDefault("container_proc_root", "/proc")
-	s.proc.removeAll()
 	s.proc = nil
 }
 
@@ -97,9 +94,7 @@ func (s *DiskMappingTestSuite) TestContainerCgroupIO() {
         8      16 sdb 189 0 4063 220 0 0 0 0 0 112 204
     `))
 
-	tempFolder, err := newTempFolder("io-stats")
-	assert.Nil(s.T(), err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(s.T())
 
 	// 8:0  is sda
 	// 8:16 is sdb
@@ -169,9 +164,7 @@ func (s *DiskMappingTestSuite) TestContainerCgroupIO() {
 }
 
 func (s *DiskMappingTestSuite) TestContainerCgroupIOFailedMapping() {
-	tempFolder, err := newTempFolder("io-stats")
-	assert.Nil(s.T(), err)
-	defer tempFolder.removeAll()
+	tempFolder := newTempFolder(s.T())
 
 	// 8:0  is sda
 	// 8:16 is sdb

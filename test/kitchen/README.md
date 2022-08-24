@@ -230,6 +230,7 @@ where:
   - suse
   - ubuntu
   - windows
+  - amazonlinux
 
   osversions is an index into the per-provider dictionary for the given 
   platform.  Examples include

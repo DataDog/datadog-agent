@@ -7,8 +7,9 @@ package host
 
 import (
 	"runtime"
+	"strings"
 
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/host"
 )
 
 type osVersion [3]interface{}
@@ -17,4 +18,8 @@ const osName = runtime.GOOS
 
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
 	stats.Macver = osVersion{info.PlatformVersion, [3]string{"", "", ""}, runtime.GOARCH}
+}
+
+func getOSVersion(info *host.InfoStat) string {
+	return strings.Trim(info.PlatformVersion+" "+runtime.GOARCH, " ")
 }

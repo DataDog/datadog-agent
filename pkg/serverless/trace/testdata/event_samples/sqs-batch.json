@@ -1,0 +1,52 @@
+{
+    "Records": [
+        {
+            "messageId": "2fcbad66-372a-4b1c-87da-26b2cea13936",
+            "receiptHandle": "AQEBnxFcyzQZhkrLV/TrSpn0VBszuq4a5/u66uyGRdUKuvXMurd6RRV952L+arORbE4MlGqWLUxurzYH9mKvc/A3MYjmGwQvvhp6uK5c7gXxg6tvHVAlsEFmTB0p35dxfGCmtrJbzdPjVtmcucPEpRx7z51tQokgGWuJbqx3Z9MVRD+6dyO3o6Zu6G3oWUgiUZ0dxhNoIIeT6xr/tEsoWhGK9ZUPRJ7e0BM/UZKfkecX1CVgVZ8J/t8fHRklJd34S6pN99SPNBKx+1lOZCelm2MihbQR6zax8bkhwL3glxYP83MxexvfOELA3G/6jx96oQ4mQdJASsKFUzvcs2NUxX+0bBVX9toS7MW/Udv+3CiQwSjjkc18A385QHtNrJDRbH33OUxFCqN5CcUMiGvEFed5EQ==",
+            "body": "Asynchronously invoking a Lambda function with SQS.",
+            "attributes": {
+                "ApproximateReceiveCount": "1",
+                "SentTimestamp": "1634662094538",
+                "SenderId": "AROAYYB64AB3LSVUYFP5T:harv-inferred-spans-dev-initSender",
+                "ApproximateFirstReceiveTimestamp": "1634662094544"
+            },
+            "messageAttributes": {
+                "_datadog": {
+                    "stringValue": "{\"x-datadog-trace-id\":\"2684756524522091840\",\"x-datadog-parent-id\":\"7431398482019833808\",\"x-datadog-sampled\":\"1\",\"x-datadog-sampling-priority\":\"1\"}",
+                    "stringListValues": [],
+                    "binaryListValues": [],
+                    "dataType": "String"
+                }
+            },
+            "md5OfMessageAttributes": "14b3b4a81d5ddeb96af62963d703c528",
+            "md5OfBody": "24933a8beabe72088d7576cab1a59142",
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+            "awsRegion": "sa-east-1"
+        },
+        {
+            "messageId": "2fcbad66-372a-4b1c-87da-26b2cea13937",
+            "receiptHandle": "AQEBnxFcyzQZhkrLV/TrSpn0VBszuq4a5/u66uyGRdUKuvXMurd6RRV952L+arORbE4MlGqWLUxurzYH9mKvc/A3MYjmGwQvvhp6uK5c7gXxg6tvHVAlsEFmTB0p35dxfGCmtrJbzdPjVtmcucPEpRx7z51tQokgGWuJbqx3Z9MVRD+6dyO3o6Zu6G3oWUgiUZ0dxhNoIIeT6xr/tEsoWhGK9ZUPRJ7e0BM/UZKfkecX1CVgVZ8J/t8fHRklJd34S6pN99SPNBKx+1lOZCelm2MihbQR6zax8bkhwL3glxYP83MxexvfOELA3G/6jx96oQ4mQdJASsKFUzvcs2NUxX+0bBVX9toS7MW/Udv+3CiQwSjjkc18A385QHtNrJDRbH33OUxFCqN5CcUMiGvEFed5EQ==",
+            "body": "Asynchronously invoking a Lambda function with SQS.",
+            "attributes": {
+                "ApproximateReceiveCount": "1",
+                "SentTimestamp": "1634662094538",
+                "SenderId": "AROAYYB64AB3LSVUYFP5T:harv-inferred-spans-dev-initSender",
+                "ApproximateFirstReceiveTimestamp": "1634662094544"
+            },
+            "messageAttributes": {
+                "_datadog": {
+                    "stringValue": "{\"x-datadog-trace-id\":\"2684756524522091840\",\"x-datadog-parent-id\":\"7431398482019833808\",\"x-datadog-sampled\":\"1\",\"x-datadog-sampling-priority\":\"1\"}",
+                    "stringListValues": [],
+                    "binaryListValues": [],
+                    "dataType": "String"
+                }
+            },
+            "md5OfMessageAttributes": "14b3b4a81d5ddeb96af62963d703c528",
+            "md5OfBody": "24933a8beabe72088d7576cab1a59142",
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+            "awsRegion": "sa-east-1"
+        }
+    ]
+}

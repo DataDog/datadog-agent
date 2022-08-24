@@ -41,23 +41,39 @@ func (c *cgroupV1) parseCPUController(stats *CPUStats) {
 		reportError(err)
 	}
 
-	if err := parse2ColumnStatsWithMapping(c.fr, c.pathFor("cpu", "cpu.stat"), 0, 1, map[string]**uint64{
-		"nr_throttled":   &stats.ThrottledPeriods,
-		"throttled_time": &stats.ThrottledTime,
-		"nr_periods":     &stats.ElapsedPeriods,
+	if err := parse2ColumnStats(c.fr, c.pathFor("cpu", "cpu.stat"), 0, 1, func(key, value string) error {
+		intVal, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			reportError(newValueError(value, err))
+			// Dont't stop parsing on a single faulty value
+			return nil
+		}
+
+		switch key {
+		case "nr_throttled":
+			stats.ThrottledPeriods = &intVal
+		case "throttled_time":
+			stats.ThrottledTime = &intVal
+		case "nr_periods":
+			stats.ElapsedPeriods = &intVal
+		}
+
+		return nil
 	}); err != nil {
 		reportError(err)
 	}
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("cpu", "cpu.cfs_period_us"), &stats.SchedulerPeriod); err == nil {
-		stats.SchedulerPeriod = uint64Ptr(*stats.SchedulerPeriod * uint64(time.Microsecond))
+		if stats.SchedulerPeriod != nil {
+			stats.SchedulerPeriod = uint64Ptr(*stats.SchedulerPeriod * uint64(time.Microsecond))
+		}
 	} else {
 		reportError(err)
 	}
 
 	var tempValue *int64
 	if err := parseSingleSignedStat(c.fr, c.pathFor("cpu", "cpu.cfs_quota_us"), &tempValue); err == nil {
-		if *tempValue != -1 {
+		if tempValue != nil && *tempValue != -1 {
 			stats.SchedulerQuota = uint64Ptr(uint64(*tempValue) * uint64(time.Microsecond))
 		}
 	} else {
@@ -79,7 +95,7 @@ func (c *cgroupV1) parseCPUSetController(stats *CPUStats) {
 	// Normally there's only one line, but as the parser works line by line anyway, we do support multiple lines
 	var cpuCount uint64
 	err := parseFile(c.fr, c.pathFor("cpuset", "cpuset.cpus"), func(line string) error {
-		cpuCount += parseCPUSetFormat(line)
+		cpuCount += ParseCPUSetFormat(line)
 		return nil
 	})
 

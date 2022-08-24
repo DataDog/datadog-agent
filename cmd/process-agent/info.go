@@ -19,28 +19,36 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
-	infoMutex               sync.RWMutex
-	infoOnce                sync.Once
-	infoStart               = time.Now()
-	infoNotRunningTmpl      *template.Template
-	infoTmpl                *template.Template
-	infoErrorTmpl           *template.Template
-	infoDockerSocket        string
-	infoLastCollectTime     string
-	infoProcCount           int
-	infoContainerCount      int
-	infoProcessQueueSize    int
-	infoRTProcessQueueSize  int
-	infoPodQueueSize        int
-	infoProcessQueueBytes   int
-	infoRTProcessQueueBytes int
-	infoPodQueueBytes       int
+	infoMutex                 sync.RWMutex
+	infoOnce                  sync.Once
+	infoStart                 = time.Now()
+	infoNotRunningTmpl        *template.Template
+	infoTmpl                  *template.Template
+	infoErrorTmpl             *template.Template
+	infoDockerSocket          string
+	infoLastCollectTime       string
+	infoProcCount             int
+	infoContainerCount        int
+	infoProcessQueueSize      int
+	infoRTProcessQueueSize    int
+	infoConnectionsQueueSize  int
+	infoEventQueueSize        int
+	infoPodQueueSize          int
+	infoProcessQueueBytes     int
+	infoRTProcessQueueBytes   int
+	infoConnectionsQueueBytes int
+	infoEventQueueBytes       int
+	infoPodQueueBytes         int
+	infoEnabledChecks         []string
+	infoDropCheckPayloads     []string
 )
 
 const (
@@ -59,10 +67,15 @@ const (
   Number of containers: {{.Status.ContainerCount}}
   Process Queue length: {{.Status.ProcessQueueSize}}
   RTProcess Queue length: {{.Status.RTProcessQueueSize}}
+  Connections Queue length: {{.Status.ConnectionsQueueSize}}
+  Event Queue length: {{.Status.EventQueueSize}}
   Pod Queue length: {{.Status.PodQueueSize}}
   Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
   RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
+  Connections Bytes enqueued: {{.Status.ConnectionsQueueBytes}}
+  Event Bytes enqueued: {{.Status.EventQueueBytes}}
   Pod Bytes enqueued: {{.Status.PodQueueBytes}}
+  Drop Check Payloads: {{.Status.DropCheckPayloads}}
 
   Logs: {{.Status.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
@@ -89,13 +102,13 @@ func publishUptime() interface{} {
 	return int(time.Since(infoStart) / time.Second)
 }
 
+func publishUptimeNano() interface{} {
+	return infoStart.UnixNano()
+}
+
 func publishVersion() interface{} {
-	return infoVersion{
-		Version:   Version,
-		GitCommit: GitCommit,
-		BuildDate: BuildDate,
-		GoVersion: GoVersion,
-	}
+	agentVersion, _ := version.Agent()
+	return agentVersion
 }
 
 func publishDockerSocket() interface{} {
@@ -152,12 +165,44 @@ func updateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount = containerCount
 }
 
-func updateQueueSize(processQueueSize, rtProcessQueueSize, podQueueSize int) {
+type queueStats struct {
+	processQueueSize      int
+	rtProcessQueueSize    int
+	connectionsQueueSize  int
+	eventQueueSize        int
+	podQueueSize          int
+	processQueueBytes     int64
+	rtProcessQueueBytes   int64
+	connectionsQueueBytes int64
+	eventQueueBytes       int64
+	podQueueBytes         int64
+}
+
+func updateQueueStats(stats *queueStats) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
-	infoProcessQueueSize = processQueueSize
-	infoRTProcessQueueSize = rtProcessQueueSize
-	infoPodQueueSize = podQueueSize
+	infoProcessQueueSize = stats.processQueueSize
+	infoRTProcessQueueSize = stats.rtProcessQueueSize
+	infoConnectionsQueueSize = stats.connectionsQueueSize
+	infoEventQueueSize = stats.eventQueueSize
+	infoPodQueueSize = stats.podQueueSize
+	infoProcessQueueBytes = int(stats.processQueueBytes)
+	infoRTProcessQueueBytes = int(stats.rtProcessQueueBytes)
+	infoConnectionsQueueBytes = int(stats.connectionsQueueBytes)
+	infoEventQueueBytes = int(stats.eventQueueBytes)
+	infoPodQueueBytes = int(stats.podQueueBytes)
+}
+
+func updateEnabledChecks(enabledChecks []string) {
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
+	infoEnabledChecks = enabledChecks
+}
+
+func publishEnabledChecks() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoEnabledChecks
 }
 
 func publishProcessQueueSize() interface{} {
@@ -178,12 +223,16 @@ func publishRTProcessQueueSize() interface{} {
 	return infoRTProcessQueueSize
 }
 
-func updateQueueBytes(processQueueBytes, rtProcessQueueBytes, podQueueBytes int64) {
-	infoMutex.Lock()
-	defer infoMutex.Unlock()
-	infoProcessQueueBytes = int(processQueueBytes)
-	infoRTProcessQueueBytes = int(rtProcessQueueBytes)
-	infoPodQueueBytes = int(podQueueBytes)
+func publishConnectionsQueueSize() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoConnectionsQueueSize
+}
+
+func publishEventQueueSize() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoEventQueueSize
 }
 
 func publishProcessQueueBytes() interface{} {
@@ -202,6 +251,18 @@ func publishRTProcessQueueBytes() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 	return infoRTProcessQueueBytes
+}
+
+func publishConnectionsQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoConnectionsQueueBytes
+}
+
+func publishEventQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoEventQueueBytes
 }
 
 func publishContainerID() interface{} {
@@ -236,40 +297,72 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
+func publishEndpoints() interface{} {
+	eps, err := getAPIEndpoints()
+	if err != nil {
+		return err
+	}
+
+	endpointsInfo := make(map[string][]string)
+
+	// obfuscate the api keys
+	for _, endpoint := range eps {
+		apiKey := endpoint.APIKey
+		if len(apiKey) > 5 {
+			apiKey = apiKey[len(apiKey)-5:]
+		}
+
+		endpointsInfo[endpoint.Endpoint.String()] = append(endpointsInfo[endpoint.Endpoint.String()], apiKey)
+	}
+	return endpointsInfo
+}
+
+func updateDropCheckPayloads(drops []string) {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+
+	infoDropCheckPayloads = make([]string, len(drops))
+	copy(infoDropCheckPayloads, drops)
+}
+
+func publishDropCheckPayloads() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+
+	return infoDropCheckPayloads
+}
+
 func getProgramBanner(version string) (string, string) {
 	program := fmt.Sprintf("Processes and Containers Agent (v %s)", version)
 	banner := strings.Repeat("=", len(program))
 	return program, banner
 }
 
-type infoVersion struct {
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-	GoVersion string
-}
-
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
-	Pid                 int                    `json:"pid"`
-	Uptime              int                    `json:"uptime"`
-	MemStats            struct{ Alloc uint64 } `json:"memstats"`
-	Version             infoVersion            `json:"version"`
-	Config              config.AgentConfig     `json:"config"`
-	DockerSocket        string                 `json:"docker_socket"`
-	LastCollectTime     string                 `json:"last_collect_time"`
-	ProcessCount        int                    `json:"process_count"`
-	ContainerCount      int                    `json:"container_count"`
-	ProcessQueueSize    int                    `json:"process_queue_size"`
-	RTProcessQueueSize  int                    `json:"rtprocess_queue_size"`
-	PodQueueSize        int                    `json:"pod_queue_size"`
-	ProcessQueueBytes   int                    `json:"process_queue_bytes"`
-	RTProcessQueueBytes int                    `json:"rtprocess_queue_bytes"`
-	PodQueueBytes       int                    `json:"pod_queue_bytes"`
-	ContainerID         string                 `json:"container_id"`
-	ProxyURL            string                 `json:"proxy_url"`
-	LogFile             string                 `json:"log_file"`
+	Pid                   int                    `json:"pid"`
+	Uptime                int                    `json:"uptime"`
+	MemStats              struct{ Alloc uint64 } `json:"memstats"`
+	Version               version.Version        `json:"version"`
+	Config                config.AgentConfig     `json:"config"`
+	DockerSocket          string                 `json:"docker_socket"`
+	LastCollectTime       string                 `json:"last_collect_time"`
+	ProcessCount          int                    `json:"process_count"`
+	ContainerCount        int                    `json:"container_count"`
+	ProcessQueueSize      int                    `json:"process_queue_size"`
+	RTProcessQueueSize    int                    `json:"rtprocess_queue_size"`
+	ConnectionsQueueSize  int                    `json:"connections_queue_size"`
+	EventQueueSize        int                    `json:"event_queue_size"`
+	PodQueueSize          int                    `json:"pod_queue_size"`
+	ProcessQueueBytes     int                    `json:"process_queue_bytes"`
+	RTProcessQueueBytes   int                    `json:"rtprocess_queue_bytes"`
+	ConnectionsQueueBytes int                    `json:"connections_queue_bytes"`
+	EventQueueBytes       int                    `json:"event_queue_bytes"`
+	PodQueueBytes         int                    `json:"pod_queue_bytes"`
+	ContainerID           string                 `json:"container_id"`
+	ProxyURL              string                 `json:"proxy_url"`
+	LogFile               string                 `json:"log_file"`
+	DropCheckPayloads     []string               `json:"drop_check_payloads"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
@@ -286,6 +379,7 @@ func initInfo(_ *config.AgentConfig) error {
 	infoOnce.Do(func() {
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
 		expvar.Publish("uptime", expvar.Func(publishUptime))
+		expvar.Publish("uptime_nano", expvar.Func(publishUptimeNano))
 		expvar.Publish("version", expvar.Func(publishVersion))
 		expvar.Publish("docker_socket", expvar.Func(publishDockerSocket))
 		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
@@ -293,11 +387,18 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("container_count", expvar.Func(publishContainerCount))
 		expvar.Publish("process_queue_size", expvar.Func(publishProcessQueueSize))
 		expvar.Publish("rtprocess_queue_size", expvar.Func(publishRTProcessQueueSize))
+		expvar.Publish("connections_queue_size", expvar.Func(publishConnectionsQueueSize))
+		expvar.Publish("event_queue_size", expvar.Func(publishEventQueueSize))
 		expvar.Publish("pod_queue_size", expvar.Func(publishPodQueueSize))
 		expvar.Publish("process_queue_bytes", expvar.Func(publishProcessQueueBytes))
 		expvar.Publish("rtprocess_queue_bytes", expvar.Func(publishRTProcessQueueBytes))
+		expvar.Publish("connections_queue_bytes", expvar.Func(publishConnectionsQueueBytes))
+		expvar.Publish("event_queue_bytes", expvar.Func(publishEventQueueBytes))
 		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
+		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
+		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
+		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {
@@ -318,11 +419,12 @@ func initInfo(_ *config.AgentConfig) error {
 
 // Info is called when --info flag is enabled when executing the agent binary
 func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
+	agentVersion, _ := version.Agent()
 	var err error
 	client := http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(expvarURL)
 	if err != nil {
-		program, banner := getProgramBanner(Version)
+		program, banner := getProgramBanner(agentVersion.GetNumber())
 		_ = infoNotRunningTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -337,7 +439,9 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 	var info StatusInfo
 	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		program, banner := getProgramBanner(Version)
+		// Since the request failed, we can't get the version of the remote agent.
+		clientVersion, _ := version.Agent()
+		program, banner := getProgramBanner(clientVersion.GetNumber())
 		_ = infoErrorTmpl.Execute(w, struct {
 			Banner  string
 			Program string
@@ -350,7 +454,7 @@ func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
 		return err
 	}
 
-	program, banner := getProgramBanner(info.Version.Version)
+	program, banner := getProgramBanner(info.Version.GetNumber())
 	err = infoTmpl.Execute(w, struct {
 		Banner  string
 		Program string

@@ -11,9 +11,17 @@ package system
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+)
+
+// From https://github.com/torvalds/linux/blob/5859a2b1991101d6b978f3feb5325dad39421f29/include/linux/proc_ns.h#L41-L49
+// Currently, host namespace inode number are hardcoded, which can be used to detect
+// if we're running in host namespace or not (does not work when running in DinD)
+const (
+	hostCgroupNamespaceInode = 0xEFFFFFFB
 )
 
 var (
@@ -22,8 +30,8 @@ var (
 )
 
 // GetProcessNamespaceInode performs a stat() call on /proc/<pid>/ns/<namespace>
-func GetProcessNamespaceInode(procPath string, pid int, namespace string) (uint64, error) {
-	nsPath := filepath.Join(procPath, strconv.Itoa(pid), "ns", namespace)
+func GetProcessNamespaceInode(procPath string, pid string, namespace string) (uint64, error) {
+	nsPath := filepath.Join(procPath, pid, "ns", namespace)
 	fi, err := os.Stat(nsPath)
 	if err != nil {
 		return 0, err
@@ -37,7 +45,7 @@ func GetProcessNamespaceInode(procPath string, pid int, namespace string) (uint6
 // to  PID 1 namespace id, which we assume runs in host network namespace
 func IsProcessHostNetwork(procPath string, namespaceID uint64) *bool {
 	syncNetNSPid1.Do(func() {
-		netNSPid1, _ = GetProcessNamespaceInode(procPath, 1, "net")
+		netNSPid1, _ = GetProcessNamespaceInode(procPath, "1", "net")
 	})
 
 	if netNSPid1 == 0 {
@@ -46,4 +54,10 @@ func IsProcessHostNetwork(procPath string, namespaceID uint64) *bool {
 
 	res := netNSPid1 == namespaceID
 	return &res
+}
+
+// IsProcessHostCgroupNamespace compares namespaceID with known, harcoded host PID Namespace inode
+// Keeps same signature as `IsProcessHostNetwork` as we may need to change implementation depending on Kernel evolution
+func IsProcessHostCgroupNamespace(procPath string, namespaceID uint64) *bool {
+	return pointer.BoolPtr(namespaceID == hostCgroupNamespaceInode)
 }

@@ -41,7 +41,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return err
 	}
 
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
@@ -128,7 +128,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	}
 
 	// Query the cluster agent API
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))

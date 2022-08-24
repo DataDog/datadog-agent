@@ -293,6 +293,8 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance.
+// Note: exclude filters are not applied to empty container names, empty
+// images and empty namespaces.
 func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
 	if !cf.Enabled {
 		return false
@@ -316,19 +318,27 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	}
 
 	// Check if excludeListed
-	for _, r := range cf.ImageExcludeList {
-		if r.MatchString(containerImage) {
-			return true
+	if containerImage != "" {
+		for _, r := range cf.ImageExcludeList {
+			if r.MatchString(containerImage) {
+				return true
+			}
 		}
 	}
-	for _, r := range cf.NameExcludeList {
-		if r.MatchString(containerName) {
-			return true
+
+	if containerName != "" {
+		for _, r := range cf.NameExcludeList {
+			if r.MatchString(containerName) {
+				return true
+			}
 		}
 	}
-	for _, r := range cf.NamespaceExcludeList {
-		if r.MatchString(podNamespace) {
-			return true
+
+	if podNamespace != "" {
+		for _, r := range cf.NamespaceExcludeList {
+			if r.MatchString(podNamespace) {
+				return true
+			}
 		}
 	}
 

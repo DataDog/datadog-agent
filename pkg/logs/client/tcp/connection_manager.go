@@ -8,12 +8,12 @@ package tcp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -166,8 +166,7 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 		_, err := conn.Read(buff)
 		switch {
 		case err == nil:
-		case strings.Contains(err.Error(), "use of closed network connection"):
-			// TODO: in go1.16+, match the newly-exported `net.ErrClosed` error instead.
+		case errors.Is(err, net.ErrClosed):
 			// Connection already closed, expected
 			return
 		case err == io.EOF:

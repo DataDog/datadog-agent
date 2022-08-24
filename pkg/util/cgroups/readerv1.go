@@ -20,11 +20,10 @@ const (
 )
 
 type readerV1 struct {
-	mountPoints    map[string]string
-	baseController string
-	cgroupRoot     string
-	filter         ReaderFilter
-	pidMapper      pidMapper
+	mountPoints map[string]string
+	cgroupRoot  string
+	filter      ReaderFilter
+	pidMapper   pidMapper
 }
 
 func newReaderV1(procPath string, mountPoints map[string]string, baseController string, filter ReaderFilter) (*readerV1, error) {
@@ -32,14 +31,12 @@ func newReaderV1(procPath string, mountPoints map[string]string, baseController 
 		baseController = defaultBaseController
 	}
 
-	// cgroupRoot
 	if path, found := mountPoints[baseController]; found {
 		return &readerV1{
-			mountPoints:    mountPoints,
-			baseController: baseController,
-			cgroupRoot:     path,
-			filter:         filter,
-			pidMapper:      getPidMapper(procPath, path, baseController, filter),
+			mountPoints: mountPoints,
+			cgroupRoot:  path,
+			filter:      filter,
+			pidMapper:   getPidMapper(procPath, path, baseController, filter),
 		}, nil
 	}
 

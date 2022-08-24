@@ -16,6 +16,7 @@ SEC("socket/dns_filter")
 int socket__dns_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
     conn_tuple_t tup;
+    __builtin_memset(&tup, 0, sizeof(conn_tuple_t));
     if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return 0;
     }

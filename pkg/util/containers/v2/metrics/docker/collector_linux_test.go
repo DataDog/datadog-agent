@@ -13,12 +13,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/docker/docker/api/types"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_convertCPUStats(t *testing.T) {
@@ -41,11 +43,11 @@ func Test_convertCPUStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerCPUStats{
-				Total:            util.Float64Ptr(42),
-				System:           util.Float64Ptr(43),
-				User:             util.Float64Ptr(44),
-				ThrottledPeriods: util.Float64Ptr(45),
-				ThrottledTime:    util.Float64Ptr(46),
+				Total:            pointer.Float64Ptr(42),
+				System:           pointer.Float64Ptr(43),
+				User:             pointer.Float64Ptr(44),
+				ThrottledPeriods: pointer.Float64Ptr(45),
+				ThrottledTime:    pointer.Float64Ptr(46),
 			},
 		},
 	}
@@ -77,12 +79,12 @@ func Test_convertMemoryStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerMemStats{
-				UsageTotal:   util.Float64Ptr(42),
-				KernelMemory: util.Float64Ptr(95),
-				Limit:        util.Float64Ptr(43),
-				OOMEvents:    util.Float64Ptr(44),
-				RSS:          util.Float64Ptr(45),
-				Cache:        util.Float64Ptr(46),
+				UsageTotal:   pointer.Float64Ptr(42),
+				KernelMemory: pointer.Float64Ptr(95),
+				Limit:        pointer.Float64Ptr(43),
+				OOMEvents:    pointer.Float64Ptr(44),
+				RSS:          pointer.Float64Ptr(45),
+				Cache:        pointer.Float64Ptr(46),
 			},
 		},
 	}
@@ -157,38 +159,36 @@ func Test_convertIOStats(t *testing.T) {
 				},
 			},
 			expectedOutput: provider.ContainerIOStats{
-				ReadBytes:       util.Float64Ptr(86),
-				WriteBytes:      util.Float64Ptr(88),
-				ReadOperations:  util.Float64Ptr(94),
-				WriteOperations: util.Float64Ptr(96),
+				ReadBytes:       pointer.Float64Ptr(86),
+				WriteBytes:      pointer.Float64Ptr(88),
+				ReadOperations:  pointer.Float64Ptr(94),
+				WriteOperations: pointer.Float64Ptr(96),
 				Devices: map[string]provider.DeviceIOStats{
 					"foo1": {
-						ReadBytes:       util.Float64Ptr(42),
-						WriteBytes:      util.Float64Ptr(43),
-						ReadOperations:  util.Float64Ptr(46),
-						WriteOperations: util.Float64Ptr(47),
+						ReadBytes:       pointer.Float64Ptr(42),
+						WriteBytes:      pointer.Float64Ptr(43),
+						ReadOperations:  pointer.Float64Ptr(46),
+						WriteOperations: pointer.Float64Ptr(47),
 					},
 					"bar2": {
-						ReadBytes:       util.Float64Ptr(44),
-						WriteBytes:      util.Float64Ptr(45),
-						ReadOperations:  util.Float64Ptr(48),
-						WriteOperations: util.Float64Ptr(49),
+						ReadBytes:       pointer.Float64Ptr(44),
+						WriteBytes:      pointer.Float64Ptr(45),
+						ReadOperations:  pointer.Float64Ptr(48),
+						WriteOperations: pointer.Float64Ptr(49),
 					},
 				},
 			},
 		},
 	}
 
-	dir, err := os.MkdirTemp("", "proc")
-	assert.Nil(t, err)
-	defer os.Remove(dir)
+	dir := t.TempDir()
 
 	diskstats := []byte(
 		"   1       2 foo1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n" +
 			"   1       3 bar2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
 	)
 
-	err = ioutil.WriteFile(dir+"/diskstats", diskstats, 0644)
+	err := ioutil.WriteFile(dir+"/diskstats", diskstats, 0644)
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 
@@ -214,8 +214,8 @@ func Test_convetrPIDStats(t *testing.T) {
 				Limit:   43,
 			},
 			expectedOutput: provider.ContainerPIDStats{
-				ThreadCount: util.Float64Ptr(42),
-				ThreadLimit: util.Float64Ptr(43),
+				ThreadCount: pointer.Float64Ptr(42),
+				ThreadLimit: pointer.Float64Ptr(43),
 			},
 		},
 	}
@@ -223,6 +223,84 @@ func Test_convetrPIDStats(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, &test.expectedOutput, convertPIDStats(&test.input))
+		})
+	}
+}
+
+func Test_computeCPULimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          *types.ContainerJSON
+		expectedLimit float64
+	}{
+		{
+			name: "No CPU Limit",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{},
+				},
+			},
+			expectedLimit: 100 * float64(system.HostCPUCount()),
+		},
+		{
+			name: "Nano CPUs",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							NanoCPUs: 5000000000,
+						},
+					},
+				},
+			},
+			expectedLimit: 500,
+		},
+		{
+			name: "CFS Quotas with period",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CPUPeriod: 10000,
+							CPUQuota:  5000,
+						},
+					},
+				},
+			},
+			expectedLimit: 50,
+		},
+		{
+			name: "CFS Quotas without period",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CPUQuota: 5000,
+						},
+					},
+				},
+			},
+			expectedLimit: 5,
+		},
+		{
+			name: "CPU Set",
+			spec: &types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					HostConfig: &container.HostConfig{
+						Resources: container.Resources{
+							CpusetCpus: "0-2",
+						},
+					},
+				},
+			},
+			expectedLimit: 300,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			containerStats := &provider.ContainerStats{CPU: &provider.ContainerCPUStats{}}
+			computeCPULimit(containerStats, tt.spec)
+			assert.Equal(t, tt.expectedLimit, *containerStats.CPU.Limit)
 		})
 	}
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -14,7 +14,7 @@ import (
 // HashingTagsAccumulator allows to build a slice of tags, including the hashes
 // of each tag.
 //
-// This type implements TagAccumulator.
+// This type implements TagsAccumulator.
 type HashingTagsAccumulator struct {
 	hashedTags
 }
@@ -43,6 +43,12 @@ func (h *HashingTagsAccumulator) Append(tags ...string) {
 
 // AppendHashed appends tags and corresponding hashes to the builder
 func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
+	h.data = append(h.data, src.data...)
+	h.hash = append(h.hash, src.hash...)
+}
+
+// AppendHashingAccumulator appends tags and corresponding hashes to the accumulator
+func (h *HashingTagsAccumulator) AppendHashingAccumulator(src *HashingTagsAccumulator) {
 	h.data = append(h.data, src.data...)
 	h.hash = append(h.hash, src.hash...)
 }
@@ -107,4 +113,16 @@ func (h *HashingTagsAccumulator) Swap(i, j int) {
 // Dup returns a complete copy of HashingTagsAccumulator
 func (h *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
 	return &HashingTagsAccumulator{h.dup()}
+}
+
+// Hash returns combined hashes of all tags in the accumulator.
+//
+// Does not account for possibility of duplicates. Must be called after a call to Dedup2 or SortUniq
+// first.
+func (h *HashingTagsAccumulator) Hash() uint64 {
+	var hash uint64
+	for _, h := range h.hash {
+		hash ^= h
+	}
+	return hash
 }

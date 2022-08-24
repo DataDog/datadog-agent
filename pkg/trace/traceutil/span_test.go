@@ -6,6 +6,7 @@
 package traceutil
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -41,6 +42,23 @@ func TestSetMeta(t *testing.T) {
 		SetMeta(s, "X", "Y")
 		assert.NotNil(t, s.Meta)
 		assert.Equal(t, s.Meta["X"], "Y")
+	}
+}
+
+func TestGetSetMetaStruct(t *testing.T) {
+	for _, s := range []*pb.Span{
+		{},
+		{MetaStruct: map[string][]byte{"A": []byte(``)}},
+	} {
+		assert.Nil(t, SetMetaStruct(s, "Z", []int{1, 2, 3}))
+		assert.NotNil(t, s.MetaStruct)
+		assert.Equal(t, []byte{0x93, 0x1, 0x2, 0x3}, s.MetaStruct["Z"])
+		val, ok := GetMetaStruct(s, "Z")
+		assert.True(t, ok)
+		assert.Equal(t, []interface{}{int64(1), int64(2), int64(3)}, val)
+		assert.NotNil(t, SetMetaStruct(s, "cannot-marshal", struct{}{}))
+		_, ok = GetMetaStruct(s, "cannot-marshal")
+		assert.False(t, ok)
 	}
 }
 
@@ -183,4 +201,17 @@ func TestIsMeasured(t *testing.T) {
 
 	span.Metrics = map[string]float64{"_dd.measured": 0}
 	assert.False(IsMeasured(span), "the measured key is present but the value != 1, the span should not be measured")
+}
+
+func TestIsPartialSnapshot(t *testing.T) {
+	assert := assert.New(t)
+	span := &pb.Span{}
+
+	assert.False(IsPartialSnapshot(span), "by default, a span is considered as complete")
+
+	span.Metrics = map[string]float64{"_dd.partial_version": -10}
+	assert.False(IsPartialSnapshot(span), "Negative versions do not mark the span as incomplete")
+
+	span.Metrics = map[string]float64{"_dd.partial_version": float64(rand.Uint32())}
+	assert.True(IsPartialSnapshot(span), "Any value in partialVersion key will mark the span as incomplete")
 }

@@ -6,10 +6,11 @@
 package local
 
 import (
+	"context"
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -64,7 +65,7 @@ func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinali
 // Tagger interface
 
 // Init not implemented in fake tagger
-func (f *FakeTagger) Init() error {
+func (f *FakeTagger) Init(context.Context) error {
 	return nil
 }
 
@@ -86,7 +87,7 @@ func (f *FakeTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 }
 
 // AccumulateTagsFor fake implementation
-func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := f.Tag(entity, cardinality)
 	if err != nil {
 		return err
@@ -107,7 +108,7 @@ func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List fake implementation
-func (f *FakeTagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func (f *FakeTagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return f.store.List()
 }
 

@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 type sqlTestCase struct {
@@ -1076,6 +1076,26 @@ ORDER BY [b].[Name]`,
 			`SELECT id, name FROM emp WHERE name LIKE ?`,
 		},
 		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value < @name`,
+		},
+		{
+			`SELECT @@foo`,
+			`SELECT @@foo`,
+		},
+		{
 			`DROP TABLE IF EXISTS django_site;
 DROP TABLE IF EXISTS knowledgebase_article;
 
@@ -1148,6 +1168,10 @@ LIMIT 1
 			query:    `SELECT * FROM dbo.Items WHERE id = 1 or /*!obfuscation*/ 1 = 1`,
 			expected: `SELECT * FROM dbo.Items WHERE id = ? or ? = ?`,
 		},
+		{
+			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
+			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1155,6 +1179,64 @@ LIMIT 1
 			oq, err := o.ObfuscateSQLString(c.query)
 			require.NoError(t, err)
 			require.Equal(t, c.expected, oq.Query)
+		})
+	}
+}
+
+func TestPGJSONOperators(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		in, out string
+	}{
+		{
+			"select users.custom #> '{a,b}' from users",
+			"select users.custom #> ? from users",
+		},
+		{
+			"select users.custom #>> '{a,b}' from users",
+			"select users.custom #>> ? from users",
+		},
+		{
+			"select users.custom #- '{a,b}' from users",
+			"select users.custom #- ? from users",
+		},
+		{
+			"select users.custom -> 'foo' from users",
+			"select users.custom -> ? from users",
+		},
+		{
+			"select users.custom ->> 'foo' from users",
+			"select users.custom ->> ? from users",
+		},
+		{
+			"select * from users where user.custom @> '{a,b}'",
+			"select * from users where user.custom @> ?",
+		},
+		{
+			`SELECT a FROM foo WHERE value<@name`,
+			`SELECT a FROM foo WHERE value <@ name`,
+		},
+		{
+			"select * from users where user.custom ? 'foo'",
+			"select * from users where user.custom ? ?",
+		},
+		{
+			"select * from users where user.custom ?| array [ '1', '2' ]",
+			"select * from users where user.custom ?| array [ ? ]",
+		},
+		{
+			"select * from users where user.custom ?& array [ '1', '2' ]",
+			"select * from users where user.custom ?& array [ ? ]",
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					DBMS: DBMSPostgres,
+				},
+			}).ObfuscateSQLString(tt.in)
+			assert.NoError(err)
+			assert.Equal(tt.out, oq.Query)
 		})
 	}
 }
@@ -1741,9 +1823,9 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 
 	b.Run("random", func(b *testing.B) {
 		b.ReportAllocs()
-		var j uint64
+		var j atomic.Uint64
 		for i := 0; i < b.N; i++ {
-			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
+			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", j.Inc()))
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -1770,7 +1852,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 		return func(b *testing.B) {
 			o := NewObfuscator(Config{})
 			hitcount := int(float64(queries) * hitrate)
-			var idx uint64
+			var idx atomic.Uint64
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for n := 0; n < hitcount; n++ {
@@ -1779,7 +1861,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 					}
 				}
 				for n := 0; n < queries-hitcount; n++ {
-					if _, err := fn(o, fmt.Sprintf(queryfmt, atomic.AddUint64(&idx, 1))); err != nil {
+					if _, err := fn(o, fmt.Sprintf(queryfmt, idx.Inc())); err != nil {
 						b.Fatal(err)
 					}
 				}

@@ -9,8 +9,6 @@
 package k8s
 
 import (
-	"sync/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -54,6 +52,9 @@ func (c *ClusterCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.lister = c.informer.Lister()
 }
 
+// IsAvailable returns whether the collector is available.
+func (c *ClusterCollector) IsAvailable() bool { return true }
+
 // Metadata is used to access information about the collector.
 func (c *ClusterCollector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata
@@ -70,11 +71,11 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		APIClient:  rcfg.APIClient,
 		Cfg:        rcfg.Config,
 		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: atomic.AddInt32(rcfg.MsgGroupRef, 1),
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
 		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed, err := c.processor.Process(ctx, list)
+	processResult, processed, err := c.processor.Process(ctx, list)
 
 	// This would happen when recovering from a processor panic. In the nominal
 	// case we would have a positive integer set at the very end of processing.
@@ -92,7 +93,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    1,
 		ResourcesProcessed: processed,
 	}

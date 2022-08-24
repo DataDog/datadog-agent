@@ -7,8 +7,6 @@ package watchdog
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"testing"
 	"time"
@@ -30,7 +28,7 @@ func TestCPULow(t *testing.T) {
 	c := CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
-	// checking that CPU is low enough, this is theorically flaky,
+	// checking that CPU is low enough, this is theoretically flaky,
 	// but eating 50% of CPU for a time.Sleep is still not likely to happen often
 	assert.Condition(func() bool { return c.UserAvg >= 0.0 }, fmt.Sprintf("cpu avg should be positive, got %f", c.UserAvg))
 	assert.Condition(func() bool { return c.UserAvg <= 0.5 }, fmt.Sprintf("cpu avg should be below 0.5, got %f", c.UserAvg))
@@ -63,12 +61,10 @@ func doTestCPUHigh(t *testing.T, n int) {
 	}
 	t.Logf("CPU (%d goroutines): %v", n, c)
 
-	// Checking that CPU is high enough, a very simple ++ loop should be
-	// enough to stimulate one core and make it over 50%. One of the goals
-	// of this test is to check that values are not wrong by a factor 100, such
-	// as mismatching percentages and [0...1]  values.
-	assert.Condition(func() bool { return c.UserAvg >= 0.5 }, fmt.Sprintf("cpu avg is too low, got %f", c.UserAvg))
-	assert.Condition(func() bool { return c.UserAvg <= float64(n+1) }, fmt.Sprintf("cpu avg is too high, target is %d, got %f", n, c.UserAvg))
+	// Checking that CPU is not "too high", the above loops create CPU usage, given that `1` means a single core at full
+	// utilization we want to verify that we did not accidentally mix integer percentage values and whole numbers
+	// (e.g. 15% should be `0.15` NOT `15`)
+	assert.Condition(func() bool { return c.UserAvg <= float64(n+1) }, fmt.Sprintf("cpu avg is too high, should never exceed %d, got %f", n, c.UserAvg))
 }
 
 func TestCPUHigh(t *testing.T) {
@@ -131,24 +127,6 @@ func TestMemHigh(t *testing.T) {
 		return
 	}
 	doTestMemHigh(t, 1e7)
-}
-
-type testNetHandler struct {
-	t *testing.T
-}
-
-func (h *testNetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	r.Body.Close()
-	h.t.Logf("request")
-}
-
-func newTestNetServer(t *testing.T) *httptest.Server {
-	assert := assert.New(t)
-	server := httptest.NewServer(&testNetHandler{t: t})
-	assert.NotNil(server)
-	t.Logf("server on %v", server.URL)
-	return server
 }
 
 func BenchmarkCPU(b *testing.B) {

@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	cache "github.com/patrickmn/go-cache"
@@ -325,20 +327,20 @@ func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[str
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error) {
 	cf := configFormat{}
-	config := integration.Config{Name: name}
+	conf := integration.Config{Name: name}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
 	yamlFile, err := readFilePtr(fpath)
 	if err != nil {
-		return config, err
+		return conf, err
 	}
 
 	// Parse configuration
 	// Try UnmarshalStrict first, so we can warn about duplicated keys
 	if strictErr := yaml.UnmarshalStrict(yamlFile, &cf); strictErr != nil {
 		if err := yaml.Unmarshal(yamlFile, &cf); err != nil {
-			return config, err
+			return conf, err
 		}
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
@@ -346,56 +348,66 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
 	// this is not a valid configuration file
 	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
-		return config, errors.New("Configuration file contains no valid instances")
+		return conf, errors.New("Configuration file contains no valid instances")
 	}
 
 	// at this point the Yaml was already parsed, no need to check the error
 	if cf.InitConfig != nil {
 		rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
-		config.InitConfig = rawInitConfig
+		conf.InitConfig = rawInitConfig
 	}
 
 	// Go through instances and return corresponding []byte
 	for _, instance := range cf.Instances {
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
-		config.Instances = append(config.Instances, rawConf)
+		dataConf := (integration.Data)(rawConf)
+		if fargate.IsFargateInstance(context.TODO()) {
+			// In Fargate, since no host tags are applied in the backend,
+			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
+			tags := config.GetConfiguredTags(false)
+			err := dataConf.MergeAdditionalTags(tags)
+			if err != nil {
+				log.Debugf("Could not add agent-level tags to instance of %v: %v", fpath, err)
+			}
+		}
+		conf.Instances = append(conf.Instances, dataConf)
 	}
 
 	// If JMX metrics were found, add them to the config
 	if cf.MetricConfig != nil {
 		rawMetricConfig, _ := yaml.Marshal(cf.MetricConfig)
-		config.MetricConfig = rawMetricConfig
+		conf.MetricConfig = rawMetricConfig
 	}
 
 	// If logs was found, add it to the config
 	if cf.LogsConfig != nil {
 		logsConfig := make(map[string]interface{})
 		logsConfig["logs"] = cf.LogsConfig
-		config.LogsConfig, _ = yaml.Marshal(logsConfig)
+		conf.LogsConfig, _ = yaml.Marshal(logsConfig)
 	}
 
 	// Copy auto discovery identifiers
-	config.ADIdentifiers = cf.ADIdentifiers
-	config.AdvancedADIdentifiers = cf.AdvancedADIdentifiers
+	conf.ADIdentifiers = cf.ADIdentifiers
+	conf.AdvancedADIdentifiers = cf.AdvancedADIdentifiers
 
 	// Copy cluster_check status
-	config.ClusterCheck = cf.ClusterCheck
+	conf.ClusterCheck = cf.ClusterCheck
 
 	// Copy ignore_autodiscovery_tags parameter
-	config.IgnoreAutodiscoveryTags = cf.IgnoreAutodiscoveryTags
+	conf.IgnoreAutodiscoveryTags = cf.IgnoreAutodiscoveryTags
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
-		return config, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
+		return conf, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
 
 	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
-	_ = configresolver.SubstituteTemplateEnvVars(&config)
+	_ = configresolver.SubstituteTemplateEnvVars(&conf)
 
-	config.Source = "file:" + fpath
+	conf.Source = "file:" + fpath
 
-	return config, err
+	return conf, err
 }
 
 func containsString(slice []string, str string) bool {

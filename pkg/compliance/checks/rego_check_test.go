@@ -66,6 +66,7 @@ func (f *regoFixture) run(t *testing.T) {
 	env.On("ProvidedInput", mock.Anything).Return(nil).Once()
 	env.On("Hostname").Return("hostname_test").Once()
 	env.On("DumpInputPath").Return("").Once()
+	env.On("ShouldSkipRegoEval").Return(false).Once()
 
 	defer env.AssertExpectations(t)
 
@@ -232,8 +233,9 @@ func TestRegoCheck(t *testing.T) {
 						ID:   "42",
 						Type: "process",
 					},
-					Evaluator: "rego",
-					Error:     errors.New("error message"),
+					Evaluator:         "rego",
+					Error:             errors.New("error message"),
+					UserProvidedError: true,
 				},
 			},
 		},

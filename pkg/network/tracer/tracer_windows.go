@@ -9,6 +9,7 @@
 package tracer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,7 +56,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config)
+	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
@@ -133,11 +135,46 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
+	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	return &network.Connections{
-		BufferedData: delta.BufferedData,
-		DNS:          names,
-		DNSStats:     delta.DNSStats,
+		BufferedData:  delta.BufferedData,
+		DNS:           names,
+		DNSStats:      delta.DNSStats,
+		ConnTelemetry: telemetryDelta,
 	}, nil
+}
+
+// RegisterClient registers the client
+func (t *Tracer) RegisterClient(clientID string) error {
+	t.state.RegisterClient(clientID)
+	return nil
+}
+
+func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
+	tm := map[network.ConnTelemetryType]int64{}
+
+	// allStats is the expvar map.  it is actually a map of maps
+	// top level keys are:
+	//   state (we don't need for this call)
+	//   dns   ( the dns handle stats)
+	//   each of the strings in DriverExpvarNames.  We're interested
+	//   in driver.flowHandleStats, which is "driver_flow_handle_stats"
+	if allstats, err := t.driverInterface.GetStats(); err == nil {
+		if flowStats, ok := allstats["driver_flow_handle_stats"].(map[string]int64); ok {
+			if fme, ok := flowStats["num_flows_missed_max_exceeded"]; ok {
+				tm[network.NPMDriverFlowsMissedMaxExceeded] = fme
+			}
+		}
+	}
+	dnsStats := t.reverseDNS.GetStats()
+	if pp, ok := dnsStats["packets_processed_transport"]; ok {
+		tm[network.MonotonicDNSPacketsProcessed] = pp
+	}
+	if pd, ok := dnsStats["read_packets_skipped"]; ok {
+		tm[network.MonotonicDNSPacketsDropped] = pd
+	}
+
+	return tm
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -170,4 +207,14 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	return "", ebpf.ErrNotImplemented
+}
+
+// DebugCachedConntrack is not implemented on this OS for Tracer
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugHostConntrack is not implemented on this OS for Tracer
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
 }

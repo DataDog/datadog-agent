@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix CPU limit calculation for Windows containers.

@@ -13,18 +13,17 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 )
 
 type connTag = uint64
@@ -88,7 +87,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
-					ReplSrcPort: int32(40),
+					ReplSrcPort: int32(40000),
 					ReplDstPort: int32(80),
 				},
 
@@ -137,31 +136,40 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	}
 	return out
 }
+
 func TestSerialization(t *testing.T) {
 	var httpReqStats http.RequestStats
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{
-					Source:               util.AddressFromString("10.1.1.1"),
-					Dest:                 util.AddressFromString("10.2.2.2"),
-					MonotonicSentBytes:   1,
-					LastSentBytes:        2,
-					MonotonicRecvBytes:   100,
-					LastRecvBytes:        101,
-					LastUpdateEpoch:      50,
-					LastTCPEstablished:   1,
-					LastTCPClosed:        1,
-					MonotonicRetransmits: 201,
-					LastRetransmits:      201,
-					Pid:                  6000,
-					NetNS:                7,
-					SPort:                1000,
-					DPort:                9000,
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					Monotonic: network.StatCountersByCookie{
+						{
+							StatCounters: network.StatCounters{
+								SentBytes:   1,
+								RecvBytes:   100,
+								Retransmits: 201,
+							},
+						},
+					},
+					Last: network.StatCounters{
+						SentBytes:      2,
+						RecvBytes:      101,
+						TCPEstablished: 1,
+						TCPClosed:      1,
+						Retransmits:    201,
+					},
+					LastUpdateEpoch: 50,
+					Pid:             6000,
+					NetNS:           7,
+					SPort:           1000,
+					DPort:           9000,
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
-						ReplSrcPort: 40,
+						ReplSrcPort: 40000,
 						ReplDstPort: 80,
 					},
 
@@ -186,8 +194,8 @@ func TestSerialization(t *testing.T) {
 				},
 			},
 		},
-		DNS: map[util.Address][]string{
-			util.AddressFromString("172.217.12.145"): {"golang.org"},
+		DNS: map[util.Address][]dns.Hostname{
+			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
 		},
 		DNSStats: dns.StatsByKeyByNameByType{
 			dns.Key{
@@ -195,8 +203,8 @@ func TestSerialization(t *testing.T) {
 				ServerIP:   util.AddressFromString("8.8.8.8"),
 				ClientPort: uint16(1000),
 				Protocol:   syscall.IPPROTO_UDP,
-			}: map[*intern.Value]map[dns.QueryType]dns.Stats{
-				intern.GetByString("foo.com"): {
+			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+				dns.ToHostname("foo.com"): {
 					dns.TypeA: {
 						Timeouts:          0,
 						SuccessLatencySum: 0,
@@ -206,23 +214,25 @@ func TestSerialization(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
+		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(
 				util.AddressFromString("20.1.1.1"),
 				util.AddressFromString("20.1.1.1"),
-				40,
+				40000,
 				80,
 				"/testpath",
+				true,
 				http.MethodGet,
-			): httpReqStats,
+			): &httpReqStats,
 		},
 	}
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:   "/testpath",
-				Method: model.HTTPMethod_Get,
+				Path:     "/testpath",
+				Method:   model.HTTPMethod_Get,
+				FullPath: true,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{
 						Count:     0,
@@ -425,65 +435,6 @@ func TestSerialization(t *testing.T) {
 	})
 }
 
-func TestFormatHTTPStatsByPath(t *testing.T) {
-	var httpReqStats http.RequestStats
-	httpReqStats.AddRequest(100, 12.5, 0)
-	httpReqStats.AddRequest(100, 12.5, tagGnuTLS)
-	httpReqStats.AddRequest(405, 3.5, tagOpenSSL)
-	httpReqStats.AddRequest(405, 3.5, 0)
-
-	// Verify the latency data is correct prior to serialization
-	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
-	assert.Equal(t, 2.0, latencies.GetCount())
-	verifyQuantile(t, latencies, 0.5, 12.5)
-
-	latencies = httpReqStats[model.HTTPResponseStatus_ClientErr].Latencies
-	assert.Equal(t, 2.0, latencies.GetCount())
-	verifyQuantile(t, latencies, 0.5, 3.5)
-
-	key := http.NewKey(
-		util.AddressFromString("10.1.1.1"),
-		util.AddressFromString("10.2.2.2"),
-		1000,
-		9000,
-		"/testpath",
-		http.MethodGet,
-	)
-	statsByKey := map[http.Key]http.RequestStats{
-		key: httpReqStats,
-	}
-	formattedStats, formattedTags := FormatHTTPStats(statsByKey)
-
-	// Now path will be nested in the map
-	key.Path = ""
-	key.Method = http.MethodUnknown
-
-	endpointAggregations := formattedStats[key].EndpointAggregations
-	require.Len(t, endpointAggregations, 1)
-	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
-	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
-
-	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus
-	assert.Len(t, statsByResponseStatus, 5)
-
-	tags := formattedTags[key]
-	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
-
-	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
-	sketch := unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 2.0, sketch.GetCount())
-	verifyQuantile(t, sketch, 0.5, 12.5)
-
-	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 2.0, sketch.GetCount())
-	verifyQuantile(t, sketch, 0.5, 3.5)
-
-	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
-	assert.Nil(t, serializedLatencies)
-}
-
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	var (
 		clientPort = uint16(52800)
@@ -509,23 +460,25 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]http.RequestStats{
+		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(
 				localhost,
 				localhost,
 				clientPort,
 				serverPort,
 				"/testpath",
+				true,
 				http.MethodGet,
-			): httpReqStats,
+			): &httpReqStats,
 		},
 	}
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:   "/testpath",
-				Method: model.HTTPMethod_Get,
+				Path:     "/testpath",
+				Method:   model.HTTPMethod_Get,
+				FullPath: true,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{Count: 0, Latencies: nil},
 					{Count: 0, Latencies: nil},
@@ -581,6 +534,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		60000,
 		8080,
 		"",
+		true,
 		http.MethodGet,
 	)
 
@@ -620,13 +574,16 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	// Let's alternate between payloads with and without HTTP data
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
-			httpKey.Path = fmt.Sprintf("/path-%d", i)
-			in.HTTP = map[http.Key]http.RequestStats{httpKey: {}}
+			httpKey.Path = http.Path{
+				Content:  fmt.Sprintf("/path-%d", i),
+				FullPath: true,
+			}
+			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path, out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.HTTP = nil
@@ -634,24 +591,4 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
-}
-
-func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
-	var sketchPb sketchpb.DDSketch
-	err := proto.Unmarshal(bytes, &sketchPb)
-	assert.Nil(t, err)
-
-	ret, err := ddsketch.FromProto(&sketchPb)
-	assert.Nil(t, err)
-
-	return ret
-}
-
-func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expectedValue float64) {
-	val, err := sketch.GetValueAtQuantile(q)
-	assert.Nil(t, err)
-
-	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
-	assert.True(t, val >= expectedValue-acceptableError)
-	assert.True(t, val <= expectedValue+acceptableError)
 }

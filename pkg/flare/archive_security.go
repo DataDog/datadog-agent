@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +32,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, c
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname(context.TODO())
+	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -94,7 +95,12 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, c
 		return "", err
 	}
 
-	err = zipLinuxKrobeEvents(tempDir, hostname)
+	err = zipLinuxDmesg(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while retrieving dmesg: %s", err)
+	}
+
+	err = zipLinuxKprobeEvents(tempDir, hostname)
 	if err != nil {
 		log.Infof("Error while getting kprobe_events: %s", err)
 	}

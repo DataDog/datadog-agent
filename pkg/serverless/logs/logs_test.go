@@ -8,19 +8,21 @@ package logs
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {
@@ -41,15 +43,18 @@ func TestUnmarshalExtensionLog(t *testing.T) {
 
 func TestShouldProcessLog(t *testing.T) {
 
-	validLog := logMessage{
+	validLog := &logMessage{
 		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
 	}
 
-	invalidLog0 := logMessage{
+	invalidLog0 := &logMessage{
 		logType: logTypePlatformLogsSubscription,
 	}
 
-	invalidLog1 := logMessage{
+	invalidLog1 := &logMessage{
 		logType: logTypePlatformExtension,
 	}
 
@@ -59,24 +64,62 @@ func TestShouldProcessLog(t *testing.T) {
 	nonEmptyRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	emptyRequestID := ""
 
-	assert.True(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.True(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
 
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
 
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
-	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&executioncontext.State{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
 }
 
+func TestShouldNotProcessEmptyLog(t *testing.T) {
+	assert.True(t, shouldProcessLog(
+		&executioncontext.State{
+			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+		&logMessage{
+			stringRecord: "aaa",
+			objectRecord: platformObjectRecord{
+				requestID: "",
+			},
+		}),
+	)
+	assert.True(t, shouldProcessLog(
+		&executioncontext.State{
+			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+		&logMessage{
+			stringRecord: "",
+			objectRecord: platformObjectRecord{
+				requestID: "aaa",
+			},
+		}),
+	)
+	assert.False(t, shouldProcessLog(
+		&executioncontext.State{
+			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+		&logMessage{
+			stringRecord: "",
+			objectRecord: platformObjectRecord{
+				requestID: "",
+			},
+		}),
+	)
+}
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
-	var sampleLogMessage = logMessage{
+	var sampleLogMessage = &logMessage{
 		objectRecord: platformObjectRecord{
 			requestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
 			reportLogItem: reportLogMetrics{
@@ -88,13 +131,20 @@ func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 			},
 		},
 	}
-	output := createStringRecordForReportLog(&sampleLogMessage)
-	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tInit Duration: 50.00 ms"
+
+	now := time.Now()
+	ecs := executioncontext.State{
+		StartTime: now,
+		EndTime:   now.Add(10 * time.Millisecond),
+	}
+
+	output := createStringRecordForReportLog(sampleLogMessage, ecs)
+	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tRuntime Duration: 10.00 ms\tPost Runtime Duration: 90.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tInit Duration: 50.00 ms"
 	assert.Equal(t, expectedOutput, output)
 }
 
 func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
-	var sampleLogMessage = logMessage{
+	var sampleLogMessage = &logMessage{
 		objectRecord: platformObjectRecord{
 			requestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
 			reportLogItem: reportLogMetrics{
@@ -106,8 +156,15 @@ func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 			},
 		},
 	}
-	output := createStringRecordForReportLog(&sampleLogMessage)
-	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
+
+	now := time.Now()
+	ecs := executioncontext.State{
+		StartTime: now,
+		EndTime:   now.Add(10 * time.Millisecond),
+	}
+
+	output := createStringRecordForReportLog(sampleLogMessage, ecs)
+	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tRuntime Duration: 10.00 ms\tPost Runtime Duration: 90.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
 	assert.Equal(t, expectedOutput, output)
 }
 
@@ -151,32 +208,10 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestGetLambdaSourceNilScheduler(t *testing.T) {
-	assert.Nil(t, GetLambdaSource())
-}
-
-func TestGetLambdaSourceNilSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services)
-	assert.Nil(t, GetLambdaSource())
-}
-
-func TestGetLambdaSourceValidSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	chanSource := config.NewLogSource("TestLog", &config.LogsConfig{
-		Type:    config.StringChannelType,
-		Source:  "lambda",
-		Tags:    nil,
-		Channel: nil,
-	})
-	logSources.AddSource(chanSource)
-	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services)
-	assert.NotNil(t, GetLambdaSource())
-}
-
 func TestProcessMessageValid(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
 	message := logMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
@@ -188,37 +223,37 @@ func TestProcessMessageValid(t *testing.T) {
 				maxMemoryUsedMB:  256.0,
 				initDurationMs:   100.0,
 			},
+			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	select {
-	case received := <-metricsChan:
-		assert.Equal(t, len(received), 6)
-	case <-time.After(100 * time.Millisecond):
-		assert.Fail(t, "We should have received metrics")
-	}
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	metricsChan = make(chan []metrics.MetricSample, 1)
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 7)
+	assert.Len(t, timed, 0)
+	demux.Reset()
+
 	computeEnhancedMetrics = false
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should NOT have received metrics")
-	case <-time.After(100 * time.Millisecond):
-		//nothing to do here
-	}
+	received, timed = demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "we should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageStartValid(t *testing.T) {
-	message := logMessage{
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	message := &logMessage{
 		logType: logTypePlatformStart,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -229,8 +264,9 @@ func TestProcessMessageStartValid(t *testing.T) {
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+
 	computeEnhancedMetrics := true
 
 	runtimeDoneCallbackWasCalled := false
@@ -238,15 +274,19 @@ func TestProcessMessageStartValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
-	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	ecs := mockExecutionContext.GetCurrentState()
+	assert.Equal(t, lastRequestID, ecs.LastLogRequestID)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	messageTime := time.Now()
+	defer demux.Stop(false)
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
-		time:    time.Now(),
+		time:    messageTime,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 			runtimeDoneItem: runtimeDoneItem{
@@ -257,27 +297,29 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
-
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	runtimeDoneCallbackWasCalled := false
 	mockRuntimeDone := func() {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
-	assert.Equal(t, startTime, executionContext.StartTime)
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	ecs := mockExecutionContext.GetCurrentState()
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
+	assert.WithinDuration(t, messageTime, ecs.EndTime, time.Millisecond)
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
 	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
 	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -291,24 +333,24 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	lastRequestID := currentRequestID
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
-	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
 	computeEnhancedMetrics := true
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	runtimeDoneCallbackWasCalled := false
 	mockRuntimeDone := func() {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan, mockRuntimeDone)
-	assert.Equal(t, startTime, executionContext.StartTime)
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
 	// Runtime done callback should NOT be called if the log message was for a previous invocation
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
-	message := logMessage{
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	message := &logMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -324,20 +366,20 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 
 	metricTags := []string{"functionname:test-function"}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
+	mockExecutionContext := &executioncontext.ExecutionContext{}
 
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should NOT have received metrics")
-	case <-time.After(100 * time.Millisecond):
-		//nothing to do here
-	}
+	computeEnhancedMetrics := true
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "We should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
-	message := logMessage{
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	message := &logMessage{
 		logType:      logTypePlatformLogsDropped,
 		time:         time.Now(),
 		stringRecord: "bla bla bla",
@@ -346,21 +388,22 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
-
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should NOT have received metrics")
-	case <-time.After(100 * time.Millisecond):
-		//nothing to do here
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "We should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
-	message := logMessage{
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+	message := &logMessage{
 		logType:      logTypeFunction,
 		time:         time.Now(),
 		stringRecord: "fatal error: runtime: out of memory",
@@ -369,34 +412,34 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	metricTags := []string{"functionname:test-function"}
-
-	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan, func() {})
 
-	select {
-	case received := <-metricsChan:
-		assert.Equal(t, len(received), 1)
-		assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
-	case <-time.After(100 * time.Millisecond):
-		assert.Fail(t, "We should have received metrics")
-	}
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 2)
+	assert.Len(t, timed, 0)
+	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
+	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
 }
 
 func TestProcessLogMessageLogsEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
-			ARN:           "myARN",
-			LastRequestID: "myRequestID",
-		},
 		LogsEnabled: true,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -415,7 +458,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 	select {
 	case received := <-logChannel:
 		assert.NotNil(t, received)
-		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
@@ -426,16 +469,15 @@ func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
-			ARN:           "myARN",
-			LastRequestID: "myRequestID",
-		},
 		LogsEnabled: true,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -457,16 +499,16 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
-			ARN:           "myARN",
-			LastRequestID: "myRequestID",
-		},
 		LogsEnabled: true,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -479,7 +521,7 @@ func TestProcessLogMessageNoStringRecordFunctionLog(t *testing.T) {
 	select {
 	case received := <-logChannel:
 		assert.NotNil(t, received)
-		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "my-arn", received.Lambda.ARN)
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
@@ -490,16 +532,16 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
 
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
-			ARN:           "myARN",
-			LastRequestID: "myRequestID",
-		},
 		LogsEnabled: false,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
+		ExecutionContext: mockExecutionContext,
 	}
 
 	logMessages := []logMessage{
@@ -526,16 +568,16 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
-			ARN:           "myARN",
-			LastRequestID: "myRequestID",
-		},
 		LogsEnabled: false,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
+		ExecutionContext: mockExecutionContext,
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -548,16 +590,16 @@ func TestServeHTTPInvalidPayload(t *testing.T) {
 func TestServeHTTPSuccess(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
 
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
 	logCollection := &LambdaLogsCollector{
-		ExecutionContext: &ExecutionContext{
-			ARN:           "myARN",
-			LastRequestID: "myRequestID",
-		},
 		LogsEnabled: false,
 		LogChannel:  logChannel,
 		ExtraTags: &Tags{
 			Tags: []string{"tag0:value0,tag1:value1"},
 		},
+		ExecutionContext: mockExecutionContext,
 	}
 
 	raw, err := ioutil.ReadFile("./testdata/extension_log.json")
@@ -675,4 +717,78 @@ func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
+}
+
+func TestRuntimeMetricsMatchLogs(t *testing.T) {
+	// The test ensures that the values listed in the report log statement
+	// matches the values of the metrics being reported.
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	runtimeDurationMs := 10.0
+	postRuntimeDurationMs := 90.0
+	durationMs := runtimeDurationMs + postRuntimeDurationMs
+
+	startTime := time.Now()
+	endTime := startTime.Add(time.Duration(runtimeDurationMs) * time.Millisecond)
+	reportLogTime := endTime.Add(time.Duration(postRuntimeDurationMs) * time.Millisecond)
+
+	requestID := "13dee504-0d50-4c86-8d82-efd20693afc9"
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("arn not used", requestID)
+	mockExecutionContext.UpdateFromStartLog(requestID, startTime)
+	computeEnhancedMetrics := true
+
+	doneMessage := &logMessage{
+		time:    endTime,
+		logType: logTypePlatformRuntimeDone,
+		objectRecord: platformObjectRecord{
+			requestID:       requestID,
+			runtimeDoneItem: runtimeDoneItem{},
+		},
+	}
+	reportMessage := &logMessage{
+		time:    reportLogTime,
+		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+			reportLogItem: reportLogMetrics{
+				durationMs: durationMs,
+			},
+		},
+	}
+
+	processMessage(doneMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+	processMessage(reportMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
+	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
+	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      runtimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  runtimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[4], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      durationMs / 1000, // in seconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[6], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.post_runtime_duration",
+		Value:      postRuntimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
+	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
+	assert.Len(t, timedMetrics, 0)
 }

@@ -6,10 +6,9 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -27,6 +26,9 @@ var (
 
 	// ErrEventTypeNotEnabled is returned when an event is not enabled
 	ErrEventTypeNotEnabled = errors.New("event type not enabled")
+
+	// ErrCannotMergeExpression is returned when trying to merge SECL expression
+	ErrCannotMergeExpression = errors.New("cannot merge expression")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type

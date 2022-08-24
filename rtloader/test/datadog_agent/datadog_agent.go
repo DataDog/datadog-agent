@@ -256,6 +256,10 @@ type sqlConfig struct {
 	CollectComments bool `json:"collect_comments"`
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
+	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
+	KeepSQLAlias bool `json:"keep_sql_alias"`
+	// DollarQuotedFunc specifies whether or not to remove $func$ strings in postgres.
+	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
 }

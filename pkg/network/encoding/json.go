@@ -9,8 +9,9 @@ import (
 	"bytes"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeJSON holds the HTML content-type of a JSON payload
@@ -59,6 +60,10 @@ func handleZeroValues(conns *model.Connections) {
 
 	if len(conns.CompilationTelemetryByAsset) == 0 {
 		conns.CompilationTelemetryByAsset = nil
+	}
+
+	if len(conns.ConnTelemetryMap) == 0 {
+		conns.ConnTelemetryMap = nil
 	}
 
 	for _, c := range conns.Conns {

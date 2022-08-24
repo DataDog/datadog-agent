@@ -11,15 +11,14 @@ package tracer
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func TestConntrackCompile(t *testing.T) {
 	cfg := config.New()
 	cfg.BPFDebug = true
-	cflags := getCFlags(cfg)
-	_, err := runtime.Conntrack.Compile(&cfg.Config, cflags)
+	_, err := getRuntimeCompiledConntracker(cfg)
 	require.NoError(t, err)
 }

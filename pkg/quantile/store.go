@@ -10,6 +10,8 @@ import (
 	"unsafe"
 )
 
+var _ memSized = (*sparseStore)(nil)
+
 type sparseStore struct {
 	bins  binList
 	count int
@@ -177,7 +179,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 
 	for keyIdx < len(kcs) {
 		kn := int(kcs[keyIdx].n)
-		tmp = appendSafe(tmp, kcs[keyIdx].k, int(kn))
+		tmp = appendSafe(tmp, kcs[keyIdx].k, kn)
 		s.count += kn
 		keyIdx++
 	}

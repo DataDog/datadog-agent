@@ -21,7 +21,7 @@ invoke agent.build --build-exclude=systemd,python
 
 This is the complete list of the available components:
 
-* `apm`: make the APM agent execution available.
+* `apm`: make the APM agent execution available. For information on building the trace agent, see [the trace agent README](../trace-agent/README.md).
 * `consul`: enable consul as a configuration store
 * `python`: embed the Python interpreter.
 * `docker`: add Docker support (required by AutoDiscovery).
@@ -45,11 +45,21 @@ This is the complete list of the available components:
 Please note you might need to provide some extra dependencies in your dev
 environment to build certain bits (see [development environment][dev-env]).
 
+Also note that the trace agent needs to be built and run separately. For more information, see [the trace agent README](../trace-agent/README.md).
+
 ## Additional details
 
 We use `pkg-config` to make compilers and linkers aware of Python. If you need
 to adjust the build for your specific configuration, add or edit the files within
 the `pkg-config` folder.
+
+The Agent is comprised of several binaries, each with its own invoke task to build it:
+- The 'main' Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/agent.py
+- The process Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/process_agent.py
+- The trace Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/trace_agent.py
+- The cluster Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/cluster_agent.py
+- The security Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/security_agent.py
+- The system probe: https://github.com/DataDog/datadog-agent/blob/main/tasks/system_probe.py
 
 ## Testing Agent changes in containerized environments
 

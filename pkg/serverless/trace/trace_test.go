@@ -14,8 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestStartEnabledFalse(t *testing.T) {
@@ -74,17 +76,26 @@ func TestLoadConfigShouldBeFast(t *testing.T) {
 	assert.True(t, time.Since(startTime) < time.Second)
 }
 
-func TestBuildTraceBlocklist(t *testing.T) {
-	userProvidedBlocklist := []string{
-		"GET /toto",
-		"PATCH /tutu",
+func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
+	spanFromLambdaLibrary := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://127.0.0.1:8124/lambda/flush",
+		},
 	}
-	expected := []string{
-		"GET /toto",
-		"PATCH /tutu",
-		"GET /lambda/hello",
-		"POST /lambda/flush",
+
+	spanFromLambdaRuntime := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://127.0.0.1:9001/2018-06-01/runtime/invocation/fee394a9-b9a4-4602-853e-a48bb663caa3/response",
+		},
 	}
-	result := buildTraceBlocklist(userProvidedBlocklist)
-	assert.Equal(t, expected, result)
+
+	legitimateSpan := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://www.datadoghq.com",
+		},
+	}
+
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaLibrary))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaRuntime))
+	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(&legitimateSpan))
 }

@@ -18,6 +18,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -26,7 +27,7 @@ import (
 )
 
 const (
-	// AD on the load-balanced service IPs
+	kubeServiceID               = "service"
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
 )
 
@@ -96,13 +97,13 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", old)
+		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		k.upToDate = false
 		return
 	}
@@ -146,23 +147,28 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 
 func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
 	var configs []integration.Config
+
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
 			continue
 		}
+
 		serviceID := apiserver.EntityForService(svc)
-		svcConf, errors := extractTemplatesFromMap(serviceID, svc.Annotations, kubeServiceAnnotationPrefix)
+		svcConf, errors := utils.ExtractTemplatesFromPodAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
+
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
 			svcConf[i].Source = "kube_services:" + serviceID
 			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 		}
+
 		configs = append(configs, svcConf...)
 	}
 

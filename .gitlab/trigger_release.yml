@@ -7,7 +7,6 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   script:
-    - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --no-follow --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"
 
 trigger_release_6:

@@ -9,10 +9,11 @@
 package collectors
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"go.uber.org/atomic"
 
 	"k8s.io/client-go/tools/cache"
 )
@@ -26,6 +27,12 @@ type Collector interface {
 	// Init is where the collector initialization happens. It is used to create
 	// informers and listers.
 	Init(*CollectorRunConfig)
+
+	// IsAvailable returns whether a collector is available.
+	// A typical use-case is checking whether the targeted apiGroup version
+	// used by the collector is available in the cluster.
+	// Should be called after Init.
+	IsAvailable() bool
 
 	// Metadata is used to access information describing the collector.
 	Metadata() *CollectorMetadata
@@ -48,12 +55,15 @@ type CollectorRunConfig struct {
 	APIClient   *apiserver.APIClient
 	ClusterID   string
 	Config      *config.OrchestratorConfig
-	MsgGroupRef *int32
+	MsgGroupRef *atomic.Int32
 }
 
 // CollectorRunResult contains information about what the collector has done.
+// Metadata is a list of payload, each payload contains a list of k8s resources metadata and manifest
+// Manifests is a list of payload, each payload contains a list of k8s resources manifest.
+// Manifests is a copy of part of Metadata
 type CollectorRunResult struct {
-	Messages           []model.MessageBody
+	Result             processors.ProcessResult
 	ResourcesListed    int
 	ResourcesProcessed int
 }

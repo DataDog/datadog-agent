@@ -46,7 +46,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
   end
 end
 
@@ -95,6 +95,9 @@ package :rpm do
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
+    end
   end
 end
 
@@ -182,6 +185,15 @@ end
 
 # version manifest file
 dependency 'version-manifest'
+
+# package scripts
+if linux?
+  if debian?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+  else
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+  end
+end
 
 exclude '\.git*'
 exclude 'bundler\/git'

@@ -6,15 +6,16 @@
 package util
 
 import (
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 // LogLimit is a utility that can be used to avoid logging noisily
 type LogLimit struct {
 	// n is the times remaining that the LogLimit will return true for ShouldLog.
-	// we repeatedly add 1 to it.
-	n int32
+	// we repeatedly subtract 1 from it, if it is nonzero.
+	n *atomic.Int32
 
 	// exit and ticker must be different channels
 	// becaues Stopping a ticker will not close the ticker channel,
@@ -28,7 +29,7 @@ type LogLimit struct {
 // interval thereafter.
 func NewLogLimit(n int, interval time.Duration) *LogLimit {
 	l := &LogLimit{
-		n:      int32(n),
+		n:      atomic.NewInt32(int32(n)),
 		ticker: time.NewTicker(interval),
 		exit:   make(chan struct{}),
 	}
@@ -39,9 +40,10 @@ func NewLogLimit(n int, interval time.Duration) *LogLimit {
 
 // ShouldLog returns true if the caller should log
 func (l *LogLimit) ShouldLog() bool {
-	n := atomic.LoadInt32(&l.n)
+	n := l.n.Load()
 	if n > 0 {
-		atomic.CompareAndSwapInt32(&l.n, n, n-1)
+		// try to decrement n, doing nothing on concurrent attempts
+		l.n.CAS(n, n-1)
 		return true
 	}
 
@@ -68,5 +70,5 @@ func (l *LogLimit) resetLoop() {
 func (l *LogLimit) resetCounter() {
 	// c.n == 0, it means we have gotten through the first few logs, and after ticker.T we should
 	// do another log
-	atomic.CompareAndSwapInt32(&l.n, 0, 1)
+	l.n.CAS(0, 1)
 }

@@ -14,10 +14,11 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/clbanning/mxj"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -49,7 +50,7 @@ type richEvent struct {
 
 // Tailer collects logs from event log.
 type Tailer struct {
-	source     *config.LogSource
+	source     *sources.LogSource
 	config     *Config
 	outputChan chan *message.Message
 	stop       chan struct{}
@@ -59,7 +60,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *sources.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		config:     config,

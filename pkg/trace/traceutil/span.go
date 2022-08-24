@@ -6,6 +6,10 @@
 package traceutil
 
 import (
+	"bytes"
+
+	"github.com/tinylib/msgp/msgp"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
@@ -17,6 +21,8 @@ const (
 	measuredKey = "_dd.measured"
 	// tracerTopLevelKey is a metric flag set by tracers on top_level spans
 	tracerTopLevelKey = "_dd.top_level"
+	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
+	partialVersionKey = "_dd.partial_version"
 )
 
 // HasTopLevel returns true if span is top-level.
@@ -34,6 +40,15 @@ func UpdateTracerTopLevel(s *pb.Span) {
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s *pb.Span) bool {
 	return s.Metrics[measuredKey] == 1
+}
+
+// IsPartialSnapshot returns true if the span is a partial snapshot.
+// This kind of spans are partial images of long-running spans.
+// When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
+// The metric usually increases each time a new version of the same span is sent by the tracer
+func IsPartialSnapshot(s *pb.Span) bool {
+	v, ok := s.Metrics[partialVersionKey]
+	return ok && v >= 0
 }
 
 // SetTopLevel sets the top-level attribute of the span.
@@ -84,4 +99,45 @@ func GetMetaDefault(s *pb.Span, key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+// SetMetaStruct sets the structured metadata at key to the val on the span s.
+func SetMetaStruct(s *pb.Span, key string, val interface{}) error {
+	var b bytes.Buffer
+
+	if s.MetaStruct == nil {
+		s.MetaStruct = make(map[string][]byte)
+	}
+	writer := msgp.NewWriter(&b)
+	err := writer.WriteIntf(val)
+	if err != nil {
+		return err
+	}
+	writer.Flush()
+	s.MetaStruct[key] = b.Bytes()
+	return nil
+}
+
+// GetMetaStruct gets the structured metadata value in the span MetaStruct map.
+func GetMetaStruct(s *pb.Span, key string) (interface{}, bool) {
+	if s.MetaStruct == nil {
+		return nil, false
+	}
+	if rawVal, ok := s.MetaStruct[key]; ok {
+		val, _, err := msgp.ReadIntfBytes(rawVal)
+		if err != nil {
+			ok = false
+		}
+		return val, ok
+	}
+	return nil, false
+}
+
+// GetMetric gets the metadata value in the span Metrics map.
+func GetMetric(s *pb.Span, key string) (float64, bool) {
+	if s.Metrics == nil {
+		return 0, false
+	}
+	val, ok := s.Metrics[key]
+	return val, ok
 }

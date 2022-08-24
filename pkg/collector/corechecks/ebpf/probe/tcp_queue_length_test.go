@@ -14,9 +14,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+func TestTCPQueueLengthCompile(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kv < kernel.VersionCode(4, 8, 0) {
+		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+	}
+
+	cfg := ebpf.NewConfig()
+	cfg.BPFDebug = true
+	_, err = runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	require.NoError(t, err)
+}
 
 func TestTCPQueueLengthTracer(t *testing.T) {
 	kv, err := kernel.HostVersion()
@@ -36,14 +55,14 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 
 	beforeStats := extractGlobalStats(t, tcpTracer)
 	if beforeStats.ReadBufferMaxUsage > 10 {
-		t.Error("max usage of read buffer is too big before the stress test")
+		t.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
 	}
 
 	runTCPLoadTest()
 
 	afterStats := extractGlobalStats(t, tcpTracer)
 	if afterStats.ReadBufferMaxUsage < 1000 {
-		t.Error("max usage of read buffer is too low after the stress test")
+		t.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", afterStats.ReadBufferMaxUsage)
 	}
 
 	defer tcpTracer.Close()
@@ -57,9 +76,16 @@ func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLeng
 		t.Error("failed to get and flush stats")
 	}
 
-	globalStats, ok := stats[""]
-	if !ok {
-		return TCPQueueLengthStatsValue{}
+	globalStats := TCPQueueLengthStatsValue{}
+
+	for _, cgroupStats := range stats {
+		if cgroupStats.ReadBufferMaxUsage > globalStats.ReadBufferMaxUsage {
+			globalStats.ReadBufferMaxUsage = cgroupStats.ReadBufferMaxUsage
+		}
+
+		if cgroupStats.WriteBufferMaxUsage > globalStats.WriteBufferMaxUsage {
+			globalStats.WriteBufferMaxUsage = cgroupStats.WriteBufferMaxUsage
+		}
 	}
 
 	return globalStats

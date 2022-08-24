@@ -35,12 +35,10 @@ type TimeSeriesConsumer interface {
 	// ConsumeTimeSeries consumes a timeseries-style metric.
 	ConsumeTimeSeries(
 		ctx context.Context,
-		name string,
+		dimensions *Dimensions,
 		typ MetricDataType,
 		timestamp uint64,
 		value float64,
-		tags []string,
-		host string,
 	)
 }
 
@@ -49,11 +47,9 @@ type SketchConsumer interface {
 	// ConsumeSketch consumes a pkg/quantile-style sketch.
 	ConsumeSketch(
 		ctx context.Context,
-		name string,
+		dimensions *Dimensions,
 		timestamp uint64,
 		sketch *quantile.Sketch,
-		tags []string,
-		host string,
 	)
 }
 
@@ -68,4 +64,13 @@ type Consumer interface {
 type HostConsumer interface {
 	// ConsumeHost consumes a hostname.
 	ConsumeHost(host string)
+}
+
+// TagsConsumer is a tags consumer.
+// It is an optional interface that can be implemented by a Consumer.
+// Consumed tags are used for running metrics, and should represent
+// some resource running a Collector (e.g. Fargate task).
+type TagsConsumer interface {
+	// ConsumeTag consumes a tag
+	ConsumeTag(tag string)
 }

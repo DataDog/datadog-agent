@@ -9,7 +9,6 @@
 package flare
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ func TestTrimCommand(t *testing.T) {
 		"/my/very/long/command":                      "/my/very/long/command",
 		"/my/very/very/very/very/very/long/command":  "/my/very/very/very/very/very/…",
 	} {
-		t.Run(fmt.Sprintf(in), func(t *testing.T) {
+		t.Run(in, func(t *testing.T) {
 			assert.Equal(t, out, trimCommand(in))
 		})
 	}

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -31,6 +30,7 @@ func NewTestConcentrator(now time.Time) *Concentrator {
 	statsChan := make(chan pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
+		AgentVersion:   "0.99.0",
 		DefaultEnv:     "env",
 		Hostname:       "hostname",
 	}
@@ -285,8 +285,6 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.
 func TestConcentratorStatsCounts(t *testing.T) {
-	defer func(old string) { info.Version = old }(info.Version)
-	info.Version = "0.99.0"
 	assert := assert.New(t)
 	now := time.Now()
 	c := NewTestConcentrator(now)
@@ -509,4 +507,22 @@ func TestDistributions(t *testing.T) {
 			assert.InEpsilon(expectedUniform[i], actual, 0.015)
 		}
 	})
+}
+func TestIgnoresPartialSpans(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	span := testSpan(1, 0, 50, 5, "A1", "resource1", 0)
+	span.Metrics = map[string]float64{"_dd.partial_version": 830604}
+	spans := []*pb.Span{span}
+	traceutil.ComputeTopLevel(spans)
+
+	// we only have one top level but partial. We expect to ignore it when calculating stats
+	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
+
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	assert.Empty(stats.GetStats())
 }

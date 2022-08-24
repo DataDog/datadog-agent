@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package api
 
 import (
@@ -6,11 +11,12 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
-	"sync/atomic"
 	"testing"
 
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // asserting Server starts a TLS Server with provided callback function used to perform assertions
@@ -35,14 +41,16 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 }
 
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
-	responseBody, err := ioutil.ReadAll(rec.Result().Body)
+	resp := rec.Result()
+	responseBody, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	assert.NoError(t, err)
 
 	return string(responseBody)
 }
 
 func TestTelemetryBasicProxyRequest(t *testing.T) {
-	var endpointCalled uint64
+	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -54,30 +62,31 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
 
-		atomic.AddUint64(&endpointCalled, 1)
+		endpointCalled.Inc()
 		return nil
 	})
-	defer mockConfigMap(map[string]interface{}{
-		"api_key":                     "test_apikey",
-		"apm_config.telemetry.dd_url": srv.URL,
-		"hostname":                    "test_hostname",
-		"skip_ssl_validation":         true,
-		"env":                         "test_env",
-	})() // reset config after the test
 
 	req, rec := newRequestRecorder(t)
-	cfg, err := traceconfig.Load("/does/not/exists.yaml")
-	assert.NoError(err)
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test_apikey"
+	cfg.TelemetryConfig.Enabled = true
+	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+		APIKey: "test_apikey",
+		Host:   srv.URL,
+	}}
+	cfg.Hostname = "test_hostname"
+	cfg.SkipSSLValidation = true
+	cfg.DefaultEnv = "test_env"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
 	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), atomic.LoadUint64(&endpointCalled))
+	assert.Equal(uint64(1), endpointCalled.Load())
 
 }
 
 func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
-	var endpointCalled uint64
+	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
 	mainBackend := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -88,7 +97,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 
-		atomic.AddUint64(&endpointCalled, 2)
+		endpointCalled.Add(2)
 		return nil
 	})
 	additionalBackend := assertingServer(t, func(req *http.Request, body []byte) error {
@@ -99,26 +108,28 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 
-		atomic.AddUint64(&endpointCalled, 3)
+		endpointCalled.Add(3)
 		return nil
 	})
 
-	defer mockConfigMap(map[string]interface{}{
-		"apm_config.telemetry.additional_endpoints": map[string]string{
-			additionalBackend.URL + "/": "test_apikey_2",
-			// proxy must ignore malformed urls
-			"111://malformed_url.example.com": "test_apikey_3",
-		},
-		"apm_config.telemetry.dd_url": mainBackend.URL,
-		"api_key":                     "test_apikey_1",
-		"hostname":                    "test_hostname",
-		"skip_ssl_validation":         true,
-		"env":                         "test_env",
-	})()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test_apikey_1"
+	cfg.TelemetryConfig.Enabled = true
+	cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+		APIKey: "test_apikey_1",
+		Host:   mainBackend.URL,
+	}, {
+		APIKey: "test_apikey_3",
+		Host:   "111://malformed_url.example.com",
+	}, {
+		APIKey: "test_apikey_2",
+		Host:   additionalBackend.URL + "/",
+	}}
+	cfg.Hostname = "test_hostname"
+	cfg.SkipSSLValidation = true
+	cfg.DefaultEnv = "test_env"
 
 	req, rec := newRequestRecorder(t)
-	cfg, err := traceconfig.Load("/does/not/exists.yaml")
-	assert.NoError(err)
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -127,54 +138,54 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	// because we use number 2,3 both endpoints must be called to produce 5
 	// just counting number of requests could give false results if first endpoint
 	// was called twice
-	if atomic.LoadUint64(&endpointCalled) != 5 {
+	if endpointCalled.Load() != 5 {
 		t.Fatalf("calling multiple backends failed")
 	}
 }
 
 func TestTelemetryConfig(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.enabled": false,
-			"api_key":                      "api_key",
-		})()
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "api_key"
 
 		req, rec := newRequestRecorder(t)
-		cfg, err := traceconfig.Load("/does/not/exists.yaml")
-		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-		assert.Equal(t, 404, rec.Result().StatusCode)
+		result := rec.Result()
+		assert.Equal(t, 404, result.StatusCode)
+		result.Body.Close()
 	})
 
 	t.Run("no-endpoints", func(t *testing.T) {
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.dd_url": "111://malformed.dd_url.com",
-			"api_key":                     "api_key",
-		})()
-
+		cfg := config.New()
+		cfg.TelemetryConfig.Enabled = true
+		cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+			APIKey: "api_key",
+			Host:   "111://malformed.dd_url.com",
+		}}
 		req, rec := newRequestRecorder(t)
-		cfg, err := traceconfig.Load("/does/not/exists.yaml")
-		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
-
-		assert.Equal(t, 404, rec.Result().StatusCode)
+		result := rec.Result()
+		assert.Equal(t, 404, result.StatusCode)
+		result.Body.Close()
 	})
 
 	t.Run("fallback-endpoint", func(t *testing.T) {
 		srv := assertingServer(t, func(req *http.Request, body []byte) error { return nil })
-		defer mockConfigMap(map[string]interface{}{
-			"apm_config.telemetry.dd_url": "111://malformed.dd_url.com",
-			"apm_config.telemetry.additional_endpoints": map[string]string{
-				srv.URL: "api_key",
-			},
-			"skip_ssl_validation": true,
-			"api_key":             "api_key",
-		})()
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "api_key"
+		cfg.TelemetryConfig.Enabled = true
+		cfg.SkipSSLValidation = true
+		cfg.TelemetryConfig.Endpoints = []*config.Endpoint{{
+			APIKey: "api_key",
+			Host:   "111://malformed.dd_url.com",
+		}, {
+			APIKey: "api_key",
+			Host:   srv.URL,
+		}}
+
 		req, rec := newRequestRecorder(t)
-		cfg, err := traceconfig.Load("/does/not/exists.yaml")
-		assert.NoError(t, err)
 		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 

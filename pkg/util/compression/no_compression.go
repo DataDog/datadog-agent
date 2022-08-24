@@ -14,15 +14,13 @@ package compression
 var ContentEncoding = ""
 
 // Compress will not compress anything
-func Compress(dst []byte, src []byte) ([]byte, error) {
-	dst = src
-	return dst, nil
+func Compress(src []byte) ([]byte, error) {
+	return src, nil
 }
 
 // Decompress will not decompress anything
-func Decompress(dst []byte, src []byte) ([]byte, error) {
-	dst = src
-	return dst, nil
+func Decompress(src []byte) ([]byte, error) {
+	return src, nil
 }
 
 // CompressBound returns the worst case size needed for a destination buffer

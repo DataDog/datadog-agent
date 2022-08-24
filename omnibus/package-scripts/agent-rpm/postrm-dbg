@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent removal steps after package is uninstalled.
+#
+# .rpm: STEP 5 of 6
+
+## NOTHING HERE
+
+exit 0

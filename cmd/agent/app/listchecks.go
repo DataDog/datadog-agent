@@ -8,11 +8,12 @@ package app
 import (
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -54,7 +55,7 @@ func doListChecks() error {
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/check/", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
-	body, e := util.DoGet(c, urlstr)
+	body, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if e != nil {
 		fmt.Printf("Error getting version string: %s\n", e)
 		return e
