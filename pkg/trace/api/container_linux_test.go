@@ -105,7 +105,7 @@ func TestGetContainerID(t *testing.T) {
 			t.Fail()
 		}
 		req.Header.Add(headerContainerID, containerID)
-		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
+		assert.Equal(t, containerID, GetContainerID(req.Context(), "", req.Header))
 	})
 
 	t.Run("header-cred", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestGetContainerID(t *testing.T) {
 			t.Fail()
 		}
 		req.Header.Add(headerContainerID, containerID)
-		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
+		assert.Equal(t, containerID, GetContainerID(req.Context(), "", req.Header))
 	})
 
 	t.Run("cred", func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		assert.Equal(t, containerID, GetContainerID(req.Context(), req.Header))
+		assert.Equal(t, containerID, GetContainerID(req.Context(), "", req.Header))
 	})
 
 	t.Run("badcred", func(t *testing.T) {
@@ -133,7 +133,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		assert.Equal(t, "", GetContainerID(req.Context(), req.Header))
+		assert.Equal(t, "", GetContainerID(req.Context(), "", req.Header))
 	})
 
 	t.Run("empty", func(t *testing.T) {
@@ -141,6 +141,6 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		assert.Equal(t, "", GetContainerID(req.Context(), req.Header))
+		assert.Equal(t, "", GetContainerID(req.Context(), "", req.Header))
 	})
 }
