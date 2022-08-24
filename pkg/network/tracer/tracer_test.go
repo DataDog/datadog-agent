@@ -1680,6 +1680,44 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
 		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
 	}
+
+	b := genPayload(6)
+	randName := "veth-" + string(b[:len(b)-1])
+	randNetns := "ns-" + string(b[:len(b)-1])
+	setupCmdsTmpl := `sudo ip netns add n1
+sudo ip link add vethhost type veth peer name vethn1 netns n1
+sudo ip netns exec n1 ip a a 172.20.20.20/24 dev vethn1
+sudo ip a a 172.20.20.2/24 dev vethhost
+sudo ip l s vethhost up
+sudo ip netns exec n1 ip l s vethn1 up
+sudo ip netns exec n1 ping -c 1 172.20.20.2
+`
+	defer func() {
+		out, err := exec.Command("sudo", "ip", "netns", "delete", randNetns).CombinedOutput()
+		require.NoErrorf(t, err, "failed to cleanup netns %s via: %s\n%s", randNetns, err, string(out))
+	}()
+
+	setupCmds := strings.ReplaceAll(setupCmdsTmpl, "vethhost", randName)
+	setupCmds = strings.ReplaceAll(setupCmds, "vethn1", randName)
+	setupCmds = strings.ReplaceAll(setupCmds, "n1", randNetns)
+	scanner := bufio.NewScanner(strings.NewReader(setupCmds))
+	for scanner.Scan() {
+		cmd := strings.Split(scanner.Text(), " ")
+		out, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
+		require.NoErrorf(t, err, "failed to setup netns %s command %s: %s\n%s", randNetns, cmd, err, string(out))
+	}
+
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("can't read setup commands %s", err)
+	}
+
+	containers := []struct {
+		name    string
+		command []string
+	}{
+		{name: "host", command: []string{}},
+		{name: "netns", command: []string{"sudo", "ip", "netns", "exec", randNetns}},
+	}
 	tests := []struct {
 		name     string
 		fetchCmd []string
@@ -1687,55 +1725,66 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		{name: "wget", fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"}},
 		{name: "curl", fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"}},
 	}
+	for _, container := range containers {
+		t.Run(container.name, func(t *testing.T) {
 
-	for _, keepAlives := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without keep-alives", value: false},
-		{name: "with keep-alives", value: true},
-	} {
-		t.Run(keepAlives.name, func(t *testing.T) {
-			// Spin-up HTTPS server
-			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-				EnableTLS:        true,
-				EnableKeepAlives: keepAlives.value,
-			})
-			t.Cleanup(serverDoneFn)
-
-			for _, test := range tests {
-				t.Run(test.name, func(t *testing.T) {
-					fetch, err := exec.LookPath(test.fetchCmd[0])
-					if err != nil {
-						t.Skipf("%s not found; skipping test.", test.fetchCmd)
+			for _, keepAlives := range []struct {
+				name  string
+				value bool
+			}{
+				{name: "without keep-alives", value: false},
+				{name: "with keep-alives", value: true},
+			} {
+				t.Run(keepAlives.name, func(t *testing.T) {
+					// Spin-up HTTPS server
+					listenAddr := "127.0.0.1:443"
+					if container.name != "host" {
+						listenAddr = "172.20.20.2:443"
 					}
-					ldd, err := exec.LookPath("ldd")
-					if err != nil {
-						t.Skip("ldd not found; skipping test.")
-					}
-					linked, _ := exec.Command(ldd, fetch).Output()
+					serverDoneFn := testutil.HTTPServer(t, listenAddr, testutil.Options{
+						EnableTLS:        true,
+						EnableKeepAlives: keepAlives.value,
+					})
+					t.Cleanup(serverDoneFn)
 
-					foundSSLLib := false
-					for _, lib := range tlsLibs {
-						libSSLPath := lib.FindString(string(linked))
-						if _, err := os.Stat(libSSLPath); err == nil {
-							foundSSLLib = true
-							break
-						}
-					}
-					if !foundSSLLib {
-						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
-					}
+					for _, test := range tests {
+						t.Run(test.name, func(t *testing.T) {
+							fetch, err := exec.LookPath(test.fetchCmd[0])
+							if err != nil {
+								t.Skipf("%s not found; skipping test.", test.fetchCmd)
+							}
+							ldd, err := exec.LookPath("ldd")
+							if err != nil {
+								t.Skip("ldd not found; skipping test.")
+							}
+							linked, _ := exec.Command(ldd, fetch).Output()
 
-					testHTTPSLibrary(t, test.fetchCmd)
+							foundSSLLib := false
+							for _, lib := range tlsLibs {
+								libSSLPath := lib.FindString(string(linked))
+								if _, err := os.Stat(libSSLPath); err == nil {
+									foundSSLLib = true
+									break
+								}
+							}
+							if !foundSSLLib {
+								t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
+							}
 
+							fetchCmd := test.fetchCmd
+							if container.name != "host" {
+								fetchCmd = append(container.command, fetchCmd...)
+							}
+							testHTTPSLibrary(t, fetchCmd, listenAddr)
+						})
+					}
 				})
 			}
 		})
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, serverAddr string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1753,12 +1802,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL or GnuTLS
-	const targetURL = "https://127.0.0.1:443/200/foobar"
+	targetURL := "https://" + serverAddr + "/200/foobar"
 	cmd := append(fetchCmd, targetURL)
 	requestCmd := exec.Command(cmd[0], cmd[1:]...)
 	var out []byte
 	out, err = requestCmd.CombinedOutput()
-	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
+	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", cmd, err, string(out))
 
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")
