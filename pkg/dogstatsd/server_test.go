@@ -88,6 +88,19 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err, "port is not available, it should be")
 }
 
+// This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
+// It should not fail since `cachedTlmOriginIds` and `cachedOrder` should be
+// properly protected from multiple accesses by `cachedTlmLock`.
+// The main purpose of this test is to detect early if a future code change is
+// introducing a data race.
+// Has to be run with the -race option.
+func TestNoRaceOriginTagMaps(t *testing.T) {
+	s := &Server{cachedTlmOriginIds: make(map[string]cachedTagsOriginMap)}
+	for i := 0; i < 100; i++ {
+		go func() { s.createOriginTagMaps("an origin") }()
+	}
+}
+
 func TestUDPReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
