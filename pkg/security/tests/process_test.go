@@ -1622,6 +1622,6 @@ func TestProcessResolution(t *testing.T) {
 
 		equals(t, cacheEntry, procEntry)
 
-		_, err = io.WriteString(stdin, "\n")
+		io.WriteString(stdin, "\n")
 	})
 }
