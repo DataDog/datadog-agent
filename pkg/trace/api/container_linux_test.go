@@ -8,10 +8,12 @@ package api
 import (
 	"bytes"
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -93,11 +95,14 @@ func (c *testMetaCollector) GetSelfContainerID() (string, error) { return "", ni
 func TestGetContainerID(t *testing.T) {
 	const containerID = "abcdef"
 	const containerPID = 1234
-	// originalProvider := metrics.GetProvider
-	// tp := testProvider{}
-	// tp.c.pids = map[int]string{containerPID: containerID}
-	// metrics.GetProvider = func() provider.Provider { return &tp }
-	// defer func() { metrics.GetProvider = originalProvider }()
+	originalFunc := identifierFromCgroupReferences
+	identifierFromCgroupReferences = func(procPath, pid, baseCgroupController string, filter cgroups.ReaderFilter) (string, error) {
+		if pid == strconv.FormatInt(containerPID, 10) {
+			return containerID, nil
+		}
+		return "", nil
+	}
+	defer func() { identifierFromCgroupReferences = originalFunc }()
 
 	t.Run("header", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)

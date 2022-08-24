@@ -50,6 +50,8 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
+var identifierFromCgroupReferences = cgroups.IdentiferFromCgroupReferences
+
 // GetContainerID attempts first to read the container ID set by the client in the request header.
 // If no such header is present or the value is empty, the function looks for a
 // syscall.Ucred object in the context (see: connContext), determines the PID of the sender, and
@@ -73,7 +75,7 @@ func GetContainerID(ctx context.Context, procRoot string, h http.Header) string 
 	if reader.CgroupVersion() == 1 {
 		cgroupController = "memory"
 	}
-	cid, err := cgroups.IdentiferFromCgroupReferences(procRoot, strconv.Itoa(int(ucred.Pid)), cgroupController, cgroups.ContainerFilter)
+	cid, err := identifierFromCgroupReferences(procRoot, strconv.Itoa(int(ucred.Pid)), cgroupController, cgroups.ContainerFilter)
 	if err != nil {
 		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
 		return ""
