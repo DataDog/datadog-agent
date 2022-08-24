@@ -156,8 +156,6 @@ func requestStatus() error {
 		s = scrubMessage(formattedStatus)
 	}
 
-	s = scrubMessage(s)
-
 	if statusFilePath != "" {
 		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
@@ -212,8 +210,6 @@ func componentStatus(component string) error {
 	} else {
 		s = scrubMessage(string(r))
 	}
-
-	s = scrubMessage(s)
 
 	if statusFilePath != "" {
 		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
