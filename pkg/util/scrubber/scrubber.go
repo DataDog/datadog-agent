@@ -17,7 +17,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -153,7 +152,7 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(data), hint) {
+			if bytes.Contains(data, []byte(hint)) {
 				containsHint = true
 				break
 			}
