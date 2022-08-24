@@ -35,7 +35,7 @@
         "ec2": {
             "arm64": {
                 "debian-10": "ami-005c63ab415954283",
-                "debian-11": "ami-041d866da7585e730"
+                "debian-11": "ami-0d53a3ba77632d713"
             }
         }
     },
