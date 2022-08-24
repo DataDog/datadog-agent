@@ -137,7 +137,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/process"
 )
 
 /*
@@ -1095,6 +1094,11 @@ func etwHttpServiceSummary() {
 	log.Infof("  ETW Bytes Total(Payload): %v(%v)\n", bytesFormat(transferedETWBytesTotal), bytesFormat(transferedETWBytesPayload))
 	log.Infof("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
 
+	/*
+	* dbtodo
+	*
+	* gopsutil on Windows causes bad things (WMI).  Decide if we need this info
+	* and if so get another way.
 	if curProc, err := process.NewProcess(int32(os.Getpid())); err == nil {
 		if cpu, err2 := curProc.CPUPercent(); err2 == nil {
 			log.Infof("  CPU:                      %.2f%%\n", cpu)
@@ -1106,6 +1110,7 @@ func etwHttpServiceSummary() {
 	}
 
 	fmt.Print("\n")
+	*/
 }
 
 func etwHttpServiceCallback(eventInfo *C.DD_ETW_EVENT_INFO) {
