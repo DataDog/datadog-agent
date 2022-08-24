@@ -12,6 +12,8 @@ import (
 	"context"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 // DebugConntrackEntry is a entry in a conntrack table (host or cached).
@@ -92,8 +94,8 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 }
 
 // DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
-func DumpHostTable(ctx context.Context, procRoot string) (map[uint32][]DebugConntrackEntry, error) {
-	consumer := NewConsumer(procRoot, -1, true)
+func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugConntrackEntry, error) {
+	consumer := NewConsumer(cfg.ProcRoot, -1, cfg.RootNetNs, cfg.EnableConntrackAllNamespaces)
 	decoder := NewDecoder()
 	defer consumer.Stop()
 

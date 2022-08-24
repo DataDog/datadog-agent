@@ -16,10 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
-	c := NewConsumer("/proc", 1, false)
+	rootNs, err := util.GetRootNetNamespace("/proc")
+	require.NoError(t, err)
+	defer rootNs.Close()
+
+	c := NewConsumer("/proc", 1, rootNs, false)
 	require.NotNil(t, c)
 	exited := make(chan struct{})
 	defer func() {

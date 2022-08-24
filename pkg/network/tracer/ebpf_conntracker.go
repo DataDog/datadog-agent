@@ -18,12 +18,13 @@ import (
 	"time"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	libnetlink "github.com/mdlayher/netlink"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -135,7 +136,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
-	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
+	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, cfg.RootNetNs, cfg.EnableConntrackAllNamespaces)
 	defer e.consumer.Stop()
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {

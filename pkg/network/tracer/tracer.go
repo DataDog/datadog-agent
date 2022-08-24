@@ -783,7 +783,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	table, err := netlink.DumpHostTable(ctx, t.config.ProcRoot)
+	table, err := netlink.DumpHostTable(ctx, t.config)
 	if err != nil {
 		return nil, err
 	}

@@ -101,7 +101,11 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer := NewConsumer("/proc", 500, false)
+	rootNs, err := util.GetRootNetNamespace("/proc")
+	require.NoError(t, err)
+	defer rootNs.Close()
+
+	consumer := NewConsumer("/proc", 500, rootNs, false)
 	events, err := consumer.Events()
 	require.NoError(t, err)
 

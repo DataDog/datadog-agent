@@ -98,6 +98,8 @@ type Consumer struct {
 
 	// for testing purposes
 	recvLoopRunning *atomic.Bool
+
+	rootNetNs netns.NsHandle
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -122,7 +124,7 @@ func (e *Event) Done() {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool) *Consumer {
+func NewConsumer(procRoot string, targetRateLimit int, rootNetNs netns.NsHandle, listenAllNamespaces bool) *Consumer {
 	c := &Consumer{
 		procRoot:            procRoot,
 		pool:                newBufferPool(),
@@ -136,6 +138,7 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 		readErrors:          atomic.NewInt64(0),
 		msgErrors:           atomic.NewInt64(0),
 		recvLoopRunning:     atomic.NewBool(false),
+		rootNetNs:           rootNetNs,
 	}
 
 	return c
@@ -452,7 +455,7 @@ func (c *Consumer) Stop() {
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
-	err := util.WithRootNS(c.procRoot, func() error {
+	err := util.WithNS(c.procRoot, c.rootNetNs, func() error {
 		var err error
 		c.socket, err = NewSocket()
 		return err
