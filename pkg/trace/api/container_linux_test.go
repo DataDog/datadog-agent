@@ -8,7 +8,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"io"
 	"net"
 	"net/http"
@@ -16,10 +15,10 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -74,23 +73,6 @@ func TestConnContext(t *testing.T) {
 		t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 	}
 }
-
-// type testProvider struct {
-// 	c testMetaCollector
-// }
-//
-// func (p *testProvider) GetCollector(runtime string) provider.Collector             { return nil }
-// func (p *testProvider) GetMetaCollector() provider.MetaCollector                   { return &p.c }
-// func (p *testProvider) RegisterCollector(collectorMeta provider.CollectorMetadata) {}
-
-type testMetaCollector struct {
-	pids map[int]string
-}
-
-func (c *testMetaCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	return c.pids[pid], nil
-}
-func (c *testMetaCollector) GetSelfContainerID() (string, error) { return "", nil }
 
 func TestGetContainerID(t *testing.T) {
 	const containerID = "abcdef"

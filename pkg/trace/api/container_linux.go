@@ -7,7 +7,6 @@ package api
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"net"
 	"net/http"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 )
 
 type ucredKey struct{}
