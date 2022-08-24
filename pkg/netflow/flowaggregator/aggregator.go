@@ -121,7 +121,7 @@ func (agg *FlowAggregator) flushLoop() {
 
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
-	flowsContexts := len(agg.flowAcc.flows)
+	flowsContexts := agg.flowAcc.getFlowContextCount()
 	now := time.Now()
 	flowsToFlush := agg.flowAcc.flush()
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
