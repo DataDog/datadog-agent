@@ -105,15 +105,8 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 		return nil, 0, nil
 	}
 
-	keyTuples := network.HTTPKeyTuplesFromConn(c)
-	for _, key := range keyTuples {
-		if aggregation := e.aggregations[key]; aggregation != nil {
-			return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
-		}
-	}
-
-	return nil, 0, nil
-
+	key := network.HTTPKeyTupleFromConn(c)
+	return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
