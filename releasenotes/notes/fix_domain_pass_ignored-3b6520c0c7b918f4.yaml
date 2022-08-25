@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The Windows installer uses the DDAGENTUSER_PASSWORD correctly when installing services on Domain Controller.
