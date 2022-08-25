@@ -10,9 +10,11 @@ package orchestrator
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -50,26 +52,37 @@ func (kp *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInv
 		return nil, err
 	}
 
-	preferredResources, err := client.DiscoveryCl.ServerPreferredResources()
+	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources()
 	if err != nil {
-		return nil, err
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			return nil, err
+		}
+		// We don't handle API group errors here because we assume API groups used
+		// by collectors in the orchestrator check will always be part of the result
+		// even though it might be incomplete due to discovery failures on other
+		// groups.
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
+		}
 	}
 
-	_, allResources, err := client.DiscoveryCl.ServerGroupsAndResources()
-	if err != nil {
-		return nil, err
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("failed to discover resources from API groups")
 	}
+
+	preferredResources, otherResources := identifyResources(groups, resources)
 
 	// First pass to enable server-preferred resources
 	kp.walkAPIResources(inventory, preferredResources)
 
-	// Second pass to enable non-preferred resources
-	kp.walkAPIResources(inventory, allResources)
+	// Second pass to enable other resources
+	kp.walkAPIResources(inventory, otherResources)
 
 	return kp.result, nil
 }
 
 func (kp *APIServerDiscoveryProvider) addCollector(collector collectors.Collector) {
+	// Make sure resource collectors are added at most once
 	if _, found := kp.seen[collector.Metadata().Name]; found {
 		return
 	}
@@ -79,10 +92,10 @@ func (kp *APIServerDiscoveryProvider) addCollector(collector collectors.Collecto
 	log.Debugf("Discovered collector %s", collector.Metadata().FullName())
 }
 
-func (kp *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, apis []*v1.APIResourceList) {
-	for _, api := range apis {
-		for _, resource := range api.APIResources {
-			collector, err := inventory.CollectorForVersion(resource.Name, api.GroupVersion)
+func (kp *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, resources []*v1.APIResourceList) {
+	for _, list := range resources {
+		for _, resource := range list.APIResources {
+			collector, err := inventory.CollectorForVersion(resource.Name, list.GroupVersion)
 			if err != nil {
 				continue
 			}
@@ -96,4 +109,26 @@ func (kp *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.Coll
 			kp.addCollector(collector)
 		}
 	}
+}
+
+// identifyResources is used to arrange resources into two groups: those that
+// belong to preferred API group versions and those that don't.
+func identifyResources(groups []*v1.APIGroup, resources []*v1.APIResourceList) (preferred []*v1.APIResourceList, others []*v1.APIResourceList) {
+	preferredGroupVersions := make(map[string]struct{})
+
+	// Identify preferred group versions
+	for _, group := range groups {
+		preferredGroupVersions[group.PreferredVersion.GroupVersion] = struct{}{}
+	}
+
+	// Triage resources
+	for _, list := range resources {
+		if _, found := preferredGroupVersions[list.GroupVersion]; found {
+			preferred = append(preferred, list)
+		} else {
+			others = append(others, list)
+		}
+	}
+
+	return
 }

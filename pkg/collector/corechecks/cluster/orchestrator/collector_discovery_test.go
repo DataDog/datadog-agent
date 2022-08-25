@@ -35,6 +35,14 @@ func TestWalkAPIResources(t *testing.T) {
 	}
 	allResources := []*v1.APIResourceList{
 		{
+			GroupVersion: "apps/v1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "deployments",
+				},
+			},
+		},
+		{
 			GroupVersion: "batch/v1",
 			APIResources: []v1.APIResource{
 				{
@@ -50,14 +58,6 @@ func TestWalkAPIResources(t *testing.T) {
 				},
 			},
 		},
-		{
-			GroupVersion: "apps/v1",
-			APIResources: []v1.APIResource{
-				{
-					Name: "deployments",
-				},
-			},
-		},
 	}
 
 	provider.walkAPIResources(inventory, preferredResources)
@@ -69,4 +69,100 @@ func TestWalkAPIResources(t *testing.T) {
 	require.Len(t, provider.result, 2)
 	assert.True(t, provider.result[0].Metadata().FullName() == "batch/v1/cronjobs")
 	assert.True(t, provider.result[1].Metadata().FullName() == "apps/v1/deployments")
+}
+
+func TestIdentifyResources(t *testing.T) {
+	groups := []*v1.APIGroup{
+		{
+			Name: "apps",
+			Versions: []v1.GroupVersionForDiscovery{
+				{
+					GroupVersion: "apps/v1",
+				},
+			},
+			PreferredVersion: v1.GroupVersionForDiscovery{
+				GroupVersion: "apps/v1",
+				Version:      "v1",
+			},
+		},
+		{
+			Name: "batch",
+			Versions: []v1.GroupVersionForDiscovery{
+				{
+					GroupVersion: "batch/v1",
+					Version:      "v1",
+				},
+				{
+					GroupVersion: "batch/v1beta1",
+					Version:      "v1beta1",
+				},
+			},
+			PreferredVersion: v1.GroupVersionForDiscovery{
+				GroupVersion: "batch/v1",
+				Version:      "v1",
+			},
+		},
+	}
+
+	resources := []*v1.APIResourceList{
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "deployments",
+				},
+			},
+		},
+		{
+			GroupVersion: "batch/v1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "cronjobs",
+				},
+			},
+		},
+		{
+			GroupVersion: "batch/v1beta1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "cronjobs",
+				},
+			},
+		},
+	}
+
+	expectedPreferredResources := []*v1.APIResourceList{
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "deployments",
+				},
+			},
+		},
+		{
+			GroupVersion: "batch/v1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "cronjobs",
+				},
+			},
+		},
+	}
+
+	expectedOtherResources := []*v1.APIResourceList{
+		{
+			GroupVersion: "batch/v1beta1",
+			APIResources: []v1.APIResource{
+				{
+					Name: "cronjobs",
+				},
+			},
+		},
+	}
+
+	actualPreferredResources, actualOtherResources := identifyResources(groups, resources)
+
+	assert.EqualValues(t, expectedPreferredResources, actualPreferredResources)
+	assert.EqualValues(t, expectedOtherResources, actualOtherResources)
 }
