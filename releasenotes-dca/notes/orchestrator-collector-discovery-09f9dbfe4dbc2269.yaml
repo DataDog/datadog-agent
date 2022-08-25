@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    The orchestrator is now able to discover resources to collect based on API
-    groups available in the Kubernetes cluster.
+    The orchestrator check is now able to discover resources to collect based
+    on API groups available in the Kubernetes cluster.
