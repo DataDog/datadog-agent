@@ -7,6 +7,7 @@ package log
 
 import (
 	"bytes"
+	"os"
 	"testing"
 	"time"
 
@@ -102,6 +103,17 @@ func TestCreateConfig(t *testing.T) {
 	config := CreateConfig(metadata)
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "cloudrun", config.source)
+	assert.Equal(t, "DD_CLOUDRUN_LOG_AGENT", string(config.loggerName))
+	assert.Equal(t, metadata, config.Metadata)
+}
+
+func TestCreateConfigWithSource(t *testing.T) {
+	os.Setenv("DD_SOURCE", "python")
+	defer os.Unsetenv("DD_SOURCE")
+	metadata := &metadata.Metadata{}
+	config := CreateConfig(metadata)
+	assert.Equal(t, 5*time.Second, config.FlushTimeout)
+	assert.Equal(t, "python", config.source)
 	assert.Equal(t, "DD_CLOUDRUN_LOG_AGENT", string(config.loggerName))
 	assert.Equal(t, metadata, config.Metadata)
 }

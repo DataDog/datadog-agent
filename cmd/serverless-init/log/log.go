@@ -23,10 +23,11 @@ import (
 
 const (
 	defaultFlushTimeout = 5 * time.Second
+	defaultSource       = "cloudrun"
 	loggerName          = "DD_CLOUDRUN_LOG_AGENT"
 	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
-	source              = "cloudrun"
+	sourceEnvVar        = "DD_SOURCE"
 	sourceName          = "Google Cloud Run"
 )
 
@@ -49,6 +50,10 @@ type CustomWriter struct {
 
 // CreateConfig builds and returns a log config
 func CreateConfig(metadata *metadata.Metadata) *Config {
+	var source string
+	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
+		source = defaultSource
+	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
 		Metadata:     metadata,
@@ -89,7 +94,7 @@ func SetupLog(conf *Config) {
 			log.Errorf("Unable to change the log level: %s", err)
 		}
 	}
-	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
+	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
 }
 
