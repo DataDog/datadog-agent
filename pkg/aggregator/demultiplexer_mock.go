@@ -24,8 +24,8 @@ type TestAgentDemultiplexer struct {
 	sync.Mutex
 }
 
-// AddTimeSampleBatch implements a noop timesampler, appending the samples in an internal slice.
-func (a *TestAgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AddDSDSamples implements a noop timesampler, appending the samples in an internal slice.
+func (a *TestAgentDemultiplexer) AddDSDSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
 	a.receivedSamples = append(a.receivedSamples, samples...)
 	a.Unlock()
@@ -36,17 +36,17 @@ func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*me
 	return a.aggregator.GetBufferedChannels()
 }
 
-// AddTimeSample implements a noop timesampler, appending the sample in an internal slice.
-func (a *TestAgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AddDSDSample implements a noop timesampler, appending the sample in an internal slice.
+func (a *TestAgentDemultiplexer) AddDSDSample(sample metrics.MetricSample) {
 	a.Lock()
 	a.receivedSamples = append(a.receivedSamples, sample)
 	a.Unlock()
 }
 
-// AddLateMetrics implements a fake no aggregation pipeline ingestion part,
+// AddTimedSamples implements a fake no aggregation pipeline ingestion part,
 // there will be NO AUTOMATIC FLUSH as it could exist in the real implementation
 // Use Reset() to clean the buffer.
-func (a *TestAgentDemultiplexer) AddLateMetrics(metrics metrics.MetricSampleBatch) {
+func (a *TestAgentDemultiplexer) AddTimedSamples(metrics metrics.MetricSampleBatch) {
 	a.Lock()
 	a.lateMetrics = append(a.lateMetrics, metrics...)
 	a.Unlock()

@@ -59,7 +59,7 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
 		duration := end.Sub(start).Milliseconds()
-		demux.AddTimeSample(metrics.MetricSample{
+		demux.AddDSDSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
@@ -158,7 +158,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 	}
 
 	for _, metric := range enhancedMetrics {
-		args.Demux.AddTimeSample(metric)
+		args.Demux.AddDSDSample(metric)
 	}
 }
 
@@ -184,7 +184,7 @@ func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer)
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
-	demux.AddTimeSample(metrics.MetricSample{
+	demux.AddDSDSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,

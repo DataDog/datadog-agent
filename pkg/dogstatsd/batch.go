@@ -187,7 +187,7 @@ func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 func (b *batcher) flushSamples(shard uint32) {
 	if b.samplesCount[shard] > 0 {
 		t1 := time.Now()
-		b.demux.AddTimeSampleBatch(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
+		b.demux.AddDSDSamples(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
 
@@ -199,7 +199,7 @@ func (b *batcher) flushSamples(shard uint32) {
 func (b *batcher) flushLateSamples() {
 	if b.lateSamplesCount > 0 {
 		t1 := time.Now()
-		b.demux.AddLateMetrics(b.lateSamples[:b.lateSamplesCount])
+		b.demux.AddTimedSamples(b.lateSamples[:b.lateSamplesCount])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
 

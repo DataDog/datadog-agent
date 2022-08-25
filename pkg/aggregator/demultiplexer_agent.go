@@ -254,11 +254,11 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
 }
 
-// AddAgentStartupTelemetry adds a startup event and count (in a time sampler)
+// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 // to be sent on the next flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	if agentVersion != "" {
-		d.AddTimeSample(metrics.MetricSample{
+		d.AddDSDSample(metrics.MetricSample{
 			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
 			Value:      1,
 			Tags:       d.aggregator.tags(true),
@@ -528,14 +528,14 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
-// AddLateMetrics buffers a bunch of late metrics. This data will be directly
+// AddTimedSamples buffers a bunch of late metrics. This data will be directly
 // transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.
-func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
+func (d *AgentDemultiplexer) AddTimedSamples(samples metrics.MetricSampleBatch) {
 	// safe-guard: if for some reasons we are receiving some metrics here despite
 	// having the no-aggregation pipeline disabled, they are redirected to the first
 	// time sampler.
 	if !d.options.EnableNoAggregationPipeline {
-		d.AddTimeSampleBatch(TimeSamplerID(0), samples)
+		d.AddDSDSamples(TimeSamplerID(0), samples)
 		return
 	}
 
@@ -543,9 +543,9 @@ func (d *AgentDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	d.statsd.noAggStreamWorker.addSamples(samples)
 }
 
-// AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
-// If you have to submit a single metric sample see `AddTimeSample`.
-func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AddDSDSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
+// If you have to submit a single metric sample see `AddDSDSample`.
+func (d *AgentDemultiplexer) AddDSDSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	// distribute the samples on the different statsd samplers using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
@@ -554,8 +554,8 @@ func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples met
 	d.statsd.workers[shard].samplesChan <- samples
 }
 
-// AddTimeSample adds a MetricSample in the first time sampler.
-func (d *AgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AddDSDSample adds a MetricSample in the first DogStatsD time sampler.
+func (d *AgentDemultiplexer) AddDSDSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
 	d.statsd.workers[0].samplesChan <- batch[:1]

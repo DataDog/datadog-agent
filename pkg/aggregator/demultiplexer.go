@@ -43,21 +43,21 @@ type Demultiplexer interface {
 	// Serializer returns the serializer used by the Demultiplexer instance.
 	Serializer() serializer.MetricSerializer
 
-	// Aggregation API
+	// Samples API
 	// --
 
-	// AddTimeSample sends a MetricSample to the time sampler.
+	// AddDSDSample sends a MetricSample to the DogStatsD time sampler.
 	// In sharded implementation, the metric is sent to the first time sampler.
-	AddTimeSample(sample metrics.MetricSample)
-	// AddTimeSampleBatch sends a batch of MetricSample to the given time
-	// sampler shard.
+	AddDSDSample(sample metrics.MetricSample)
+	// AddDSDSamples sends a batch of MetricSample to the given DogStatsD
+	// time sampler shard.
 	// Implementation not supporting sharding may ignore the `shard` parameter.
-	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
+	AddDSDSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch)
 
-	// AddLateMetrics pushes metrics in the no-aggregation pipeline: a pipeline
+	// AddTimedSamples pushes metrics in the no-aggregation pipeline: a pipeline
 	// where the metrics are not sampled and sent as-is.
 	// This is the method to use to send metrics with a valid timestamp attached.
-	AddLateMetrics(metrics metrics.MetricSampleBatch)
+	AddTimedSamples(metrics metrics.MetricSampleBatch)
 
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
 	// the serialization/forwarding parts.
