@@ -59,7 +59,7 @@ struct exit_event_t {
     struct process_context_t process;
     struct span_context_t span;
     struct container_context_t container;
-    u32 exit_code;
+    u64 exit_code;
 };
 
 struct _tracepoint_sched_process_fork {
@@ -105,6 +105,15 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .key_size = sizeof(struct exec_path),
     .value_size = sizeof(u64),
     .max_entries = 2048,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/task_in_coredump") tasks_in_coredump = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u64),
+    .value_size = sizeof(u64),
+    .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };
@@ -498,6 +507,16 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     return 0;
 }
 
+SEC("kprobe/do_coredump")
+int kprobe_do_coredump(struct pt_regs *ctx) {
+    u64 key = bpf_get_current_pid_tgid();
+    u64 in_coredump = 1;
+
+    bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
+
+    return 0;
+}
+
 SEC("kprobe/do_exit")
 int kprobe_do_exit(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -527,7 +546,12 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *pc = fill_process_context(&event.process);
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
-        event.exit_code = (u32)PT_REGS_PARM1(ctx);
+        event.exit_code = (long)PT_REGS_PARM1(ctx);
+        u64 *in_coredump = (u64 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
+        if (in_coredump) {
+            event.exit_code |= 0x80;
+            bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
+        }
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
