@@ -10,10 +10,9 @@ if node['platform_family'] != 'windows'
 
   remote_directory "#{wrk_dir}/ebpf_bytecode" do
     source 'ebpf_bytecode'
-    mode '755'
-    files_mode '755'
     sensitive true
     files_owner 'root'
+    owner 'root'
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do

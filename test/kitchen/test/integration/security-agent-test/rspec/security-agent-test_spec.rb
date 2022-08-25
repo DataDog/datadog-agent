@@ -24,7 +24,8 @@ print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
 
 Dir.glob('/tmp/security-agent/ebpf_bytecode/*.o').each do |f|
-  FileUtils.chmod 0644, f, :verbose => true
+  # FileUtils.chmod 0644, f, :verbose => true
+  puts f
 end
 
 describe 'functional test running directly on host' do
