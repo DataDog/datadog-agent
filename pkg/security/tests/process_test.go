@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"io"
 	"math"
 	"os"
@@ -1556,11 +1557,11 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 echo "Executing echo inside a bash script"
 
 %s - << EOF
-print('Executing print inside a python script')
+print('Executing print inside a python (%s) script')
 
 EOF
 
-echo "Back to bash"`, python),
+echo "Back to bash"`, python, python),
 		},
 		{
 			name: "regular exec with interpreter rule",
@@ -1576,10 +1577,10 @@ echo "Executing echo inside a bash script"
 perl <<__HERE__
 #!%s
 
-print "Hello from Perl\n";
+print "Executing print inside a perl (%s) script\n";
 __HERE__
 
-echo "Back to bash"`, perl),
+echo "Back to bash"`, perl, perl),
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
 			},
@@ -1599,14 +1600,14 @@ echo "Executing echo inside a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print inside a python script')
+print('Executing print inside a python (%s) script')
 
 EOF
 
 echo "Back to bash"
 
 chmod 755 pyscript.py
-./pyscript.py`, python),
+./pyscript.py`, python, python),
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
 			},
@@ -1679,9 +1680,11 @@ chmod 755 pyscript.py
 				if scriptRunErr != nil {
 					t.Logf("could not run %s: %s", scriptLocation, scriptRunErr)
 				}
-				fmt.Println(string(output))
+				t.Logf(string(output))
+
 				offsets, _ := testModule.probe.GetOffsetConstants()
 				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmFileField, offsets[constantfetch.OffsetNameLinuxBinprmFileField])
+
 				return nil
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
