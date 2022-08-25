@@ -23,11 +23,6 @@ end
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
 
-Dir.glob('/tmp/security-agent/ebpf_bytecode/*.o').each do |f|
-  # FileUtils.chmod 0644, f, :verbose => true
-  puts f
-end
-
 describe 'functional test running directly on host' do
   it 'successfully runs' do
     Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode"}, "sudo", "-E", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics") do |_, output, wait_thr|
