@@ -13,12 +13,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -413,4 +412,19 @@ func configurationFromYAML(t *testing.T, yaml string) *Config {
 	_, err = sysconfig.New(f.Name())
 	require.NoError(t, err)
 	return New()
+}
+
+func TestDisableRootNetNamespace(t *testing.T) {
+	newConfig()
+	config.Datadog.Set("network_config.enable_root_netns", false)
+
+	cfg := New()
+	require.False(t, cfg.EnableConntrackAllNamespaces)
+	require.False(t, cfg.EnableRootNetNs)
+	require.False(t, netns.None().Equal(cfg.RootNetNs))
+
+	ns, err := netns.GetFromPid(os.Getpid())
+	require.NoError(t, err)
+	defer ns.Close()
+	require.True(t, ns.Equal(cfg.RootNetNs))
 }
