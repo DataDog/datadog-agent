@@ -14,13 +14,21 @@ import (
 	"net/http"
 )
 
+// connContext is unimplemented for non-linux builds.
 func connContext(ctx context.Context, c net.Conn) context.Context {
-	// unimplemented for non-linux builds.
 	return ctx
 }
 
-// GetContainerID returns the container ID set by the client in the request header, or the empty
-// string if none is present.
-func GetContainerID(_ context.Context, _ string, h http.Header) string {
+type IDProvider interface {
+	GetContainerID(context.Context, http.Header) string
+}
+
+type CgroupIDProvider struct{}
+
+func NewIDProvider(procRoot string) IDProvider {
+	return &CgroupIDProvider{}
+}
+
+func (_ *CgroupIDProvider) GetContainerID(_ context.Context, h http.Header) string {
 	return h.Get(headerContainerID)
 }

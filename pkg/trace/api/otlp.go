@@ -49,16 +49,17 @@ const (
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
-	wg      sync.WaitGroup      // waits for a graceful shutdown
-	httpsrv *http.Server        // the running HTTP server on a started receiver, if enabled
-	grpcsrv *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out     chan<- *Payload     // the outgoing payload channel
-	conf    *config.AgentConfig // receiver config
+	wg          sync.WaitGroup      // waits for a graceful shutdown
+	httpsrv     *http.Server        // the running HTTP server on a started receiver, if enabled
+	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out         chan<- *Payload     // the outgoing payload channel
+	conf        *config.AgentConfig // receiver config
+	cidProvider IDProvider          // container ID provider
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -240,7 +241,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = GetContainerID(ctx, o.conf.ContainerProcRoot, header)
+		containerID = o.cidProvider.GetContainerID(ctx, header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{

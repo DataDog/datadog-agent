@@ -7,19 +7,20 @@ package api
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"syscall"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"time"
 )
 
 type ucredKey struct{}
 
 // connContext injects a Unix Domain Socket's User Credentials into the
-// context.Context object provided. This is useful as the ConnContext member of an http.Server, to
+// context.Context object provided. This is useful as the connContext member of an http.Server, to
 // provide User Credentials to HTTP handlers.
 //
 // If the connection c is not a *net.UnixConn, the unchanged context is returned.
@@ -42,14 +43,49 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
-var identifierFromCgroupReferences = cgroups.IdentiferFromCgroupReferences
+// cacheExpiration determines how long a pid->container ID mapping is considered valid. This value is
+// somewhat arbitrarily chosen, but just needs to be large enough to reduce latency and I/O load
+// caused by frequently reading mappings, and small enough that pid-reuse doesn't cause mismatching
+// of pids with container ids. A one minute cache means the latency and I/O should be low, and
+// there would have to be thousands of containers spawned and dying per second to cause a mismatch.
+const cacheExpiration = time.Minute
 
-// GetContainerID attempts first to read the container ID set by the client in the request header.
-// If no such header is present or the value is empty, the function looks for a
-// syscall.Ucred object in the context (see: connContext), determines the PID of the sender, and
-// then uses the Meta Collector to map the PID to a container ID. If any of these fail, the
-// function returns the empty string.
-func GetContainerID(ctx context.Context, procRoot string, h http.Header) string {
+type IDProvider interface {
+	GetContainerID(context.Context, http.Header) string
+}
+
+// noCgroupsProvider is a fallback IDProvider that only looks in the http header for a container ID.
+type noCgroupsProvider struct{}
+
+func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) string {
+	return h.Get(headerContainerID)
+}
+
+func NewIDProvider(procRoot string) IDProvider {
+	reader, err := cgroups.NewReader()
+	if err != nil {
+		log.Warn("Failed to identify cgroups version due to err: %v. APM data may be missing containerIDs.", err)
+		return &noCgroupsProvider{}
+	}
+	cgroupController := ""
+	if reader.CgroupVersion() == 1 {
+		cgroupController = "memory"
+	}
+	c := NewCache(1 * time.Minute)
+	return &CgroupIDProvider{
+		procRoot:   procRoot,
+		controller: cgroupController,
+		cache:      c,
+	}
+}
+
+type CgroupIDProvider struct {
+	procRoot   string
+	controller string
+	cache      *Cache
+}
+
+func (c *CgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
 	if id := h.Get(headerContainerID); id != "" {
 		return id
 	}
@@ -57,21 +93,91 @@ func GetContainerID(ctx context.Context, procRoot string, h http.Header) string 
 	if !ok || ucred == nil {
 		return ""
 	}
-	// TODO: Should this be done once at config time?
-	reader, err := cgroups.NewReader()
-	if err != nil {
-		log.Debugf("Could not create cgroups reader: %v", err)
-		return ""
-	}
-	cgroupController := ""
-	if reader.CgroupVersion() == 1 {
-		cgroupController = "memory"
-	}
-	// todo: this probably needs to be wrapped in a cache since it was before
-	cid, err := identifierFromCgroupReferences(procRoot, strconv.Itoa(int(ucred.Pid)), cgroupController, cgroups.ContainerFilter)
+	cid, err := c.getCachedContainerID(strconv.Itoa(int(ucred.Pid)))
 	if err != nil {
 		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
 		return ""
 	}
 	return cid
+}
+
+func (c *CgroupIDProvider) getCachedContainerID(pid string) (string, error) {
+	currentTime := time.Now()
+	entry, found, err := c.cache.Get(currentTime, pid, cacheExpiration)
+	if found {
+		if err != nil {
+			return "", err
+		}
+
+		return entry.(string), nil
+	}
+
+	// No cache, cacheValidity is 0 or too old value
+	val, err := cgroups.IdentiferFromCgroupReferences(c.procRoot, pid, c.controller, cgroups.ContainerFilter)
+	if err != nil {
+		c.cache.Store(currentTime, pid, nil, err)
+		return "", err
+	}
+
+	c.cache.Store(currentTime, pid, val, nil)
+	return val, nil
+}
+
+// The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go
+// It is not imported to avoid importing the entirety of datadog-agent which causes problems for the trace-agent
+
+type cacheEntry struct {
+	value     interface{}
+	err       error
+	timestamp time.Time
+}
+
+// Cache provides a caching mechanism based on staleness toleration provided by requestor
+type Cache struct {
+	cache       map[string]cacheEntry
+	cacheLock   sync.RWMutex
+	gcInterval  time.Duration
+	gcTimestamp time.Time
+}
+
+// NewCache returns a new cache dedicated to a collector
+func NewCache(gcInterval time.Duration) *Cache {
+	return &Cache{
+		cache:      make(map[string]cacheEntry),
+		gcInterval: gcInterval,
+	}
+}
+
+// Get retrieves data from cache, returns not found if cacheValidity == 0
+func (c *Cache) Get(currentTime time.Time, key string, cacheValidity time.Duration) (interface{}, bool, error) {
+	if cacheValidity <= 0 {
+		return nil, false, nil
+	}
+
+	c.cacheLock.RLock()
+	entry, found := c.cache[key]
+	c.cacheLock.RUnlock()
+
+	if !found || currentTime.Sub(entry.timestamp) > cacheValidity {
+		return nil, false, nil
+	}
+
+	if entry.err != nil {
+		return nil, true, entry.err
+	}
+
+	return entry.value, true, nil
+}
+
+// Store sets data in the cache, it also clears the cache if the gcInterval has passed
+func (c *Cache) Store(currentTime time.Time, key string, value interface{}, err error) {
+	c.cacheLock.Lock()
+	defer c.cacheLock.Unlock()
+
+	if currentTime.Sub(c.gcTimestamp) > c.gcInterval {
+		c.cache = make(map[string]cacheEntry, len(c.cache))
+		c.gcTimestamp = currentTime
+	}
+
+	c.cache[key] = cacheEntry{value: value, timestamp: currentTime, err: err}
 }

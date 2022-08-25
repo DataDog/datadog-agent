@@ -64,12 +64,13 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out            chan *Payload
-	conf           *config.AgentConfig
-	dynConf        *sampler.DynamicConfig
-	server         *http.Server
-	statsProcessor StatsProcessor
-	appsecHandler  http.Handler
+	out                 chan *Payload
+	conf                *config.AgentConfig
+	dynConf             *sampler.DynamicConfig
+	server              *http.Server
+	statsProcessor      StatsProcessor
+	appsecHandler       http.Handler
+	containerIDProvider IDProvider
 
 	rateLimiterResponse int // HTTP status code when refusing
 
@@ -91,11 +92,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:            out,
-		statsProcessor: statsProcessor,
-		conf:           conf,
-		dynConf:        dynConf,
-		appsecHandler:  appsecHandler,
+		out:                 out,
+		statsProcessor:      statsProcessor,
+		conf:                conf,
+		dynConf:             dynConf,
+		appsecHandler:       appsecHandler,
+		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -402,7 +404,7 @@ func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 // - tp is the decoded payload
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, containerProcRoot string) (tp *pb.TracerPayload, ranHook bool, err error) {
+func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
@@ -412,7 +414,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, contai
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     GetContainerID(req.Context(), containerProcRoot, req.Header),
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   ts.TracerVersion,
 		}, false, nil
@@ -427,7 +429,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, contai
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     GetContainerID(req.Context(), containerProcRoot, req.Header),
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
@@ -448,14 +450,14 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, contai
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     GetContainerID(req.Context(), containerProcRoot, req.Header),
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, ranHook, nil
 	}
 }
 
-// replyOK replies to the given http.ReponseWriter w based on the endpoint version, with either status 200/OK
+// replyOK replies to the given http.ResponseWriter w based on the endpoint version, with either status 200/OK
 // or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
 // was successful.
 func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWriter) (n uint64, ok bool) {
@@ -524,7 +526,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	start := time.Now()
-	tp, ranHook, err := decodeTracerPayload(v, req, ts, r.conf.ContainerProcRoot)
+	tp, ranHook, err := decodeTracerPayload(v, req, ts, r.containerIDProvider)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)

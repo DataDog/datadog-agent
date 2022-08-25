@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,14 +77,15 @@ func TestConnContext(t *testing.T) {
 func TestGetContainerID(t *testing.T) {
 	const containerID = "abcdef"
 	const containerPID = 1234
-	originalFunc := identifierFromCgroupReferences
-	identifierFromCgroupReferences = func(procPath, pid, baseCgroupController string, filter cgroups.ReaderFilter) (string, error) {
-		if pid == strconv.FormatInt(containerPID, 10) {
-			return containerID, nil
-		}
-		return "", nil
+	// fudge factor to ease testing, if our tests take over 24 hours we got bigger problems
+	timeFudgeFactor := 24 * time.Hour
+	c := NewCache(timeFudgeFactor)
+	c.Store(time.Now().Add(timeFudgeFactor), strconv.Itoa(containerPID), containerID, nil)
+	provider := &CgroupIDProvider{
+		procRoot:   "",
+		controller: "",
+		cache:      c,
 	}
-	defer func() { identifierFromCgroupReferences = originalFunc }()
 
 	t.Run("header", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)
@@ -92,7 +93,7 @@ func TestGetContainerID(t *testing.T) {
 			t.Fail()
 		}
 		req.Header.Add(headerContainerID, containerID)
-		assert.Equal(t, containerID, GetContainerID(req.Context(), "", req.Header))
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
 	t.Run("header-cred", func(t *testing.T) {
@@ -102,7 +103,7 @@ func TestGetContainerID(t *testing.T) {
 			t.Fail()
 		}
 		req.Header.Add(headerContainerID, containerID)
-		assert.Equal(t, containerID, GetContainerID(req.Context(), "", req.Header))
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
 	t.Run("cred", func(t *testing.T) {
@@ -111,7 +112,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		assert.Equal(t, containerID, GetContainerID(req.Context(), "", req.Header))
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
 	t.Run("badcred", func(t *testing.T) {
@@ -120,7 +121,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		assert.Equal(t, "", GetContainerID(req.Context(), "", req.Header))
+		assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
 	})
 
 	t.Run("empty", func(t *testing.T) {
@@ -128,6 +129,6 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		assert.Equal(t, "", GetContainerID(req.Context(), "", req.Header))
+		assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
 	})
 }
