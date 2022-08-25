@@ -11,20 +11,12 @@ import (
 	"net/http"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 )
 
 type ucredKey struct{}
-
-// cacheExpiration determines how long a pid->container ID mapping is considered valid. This value is
-// somewhat arbitrarily chosen, but just needs to be large enough to reduce latency and I/O load
-// caused by frequently reading mappings, and small enough that pid-reuse doesn't cause mismatching
-// of pids with container ids. A one minute cache means the latency and I/O should be low, and
-// there would have to be thousands of containers spawned and dying per second to cause a mismatch.
-const cacheExpiration = time.Minute
 
 // connContext injects a Unix Domain Socket's User Credentials into the
 // context.Context object provided. This is useful as the ConnContext member of an http.Server, to
@@ -75,6 +67,7 @@ func GetContainerID(ctx context.Context, procRoot string, h http.Header) string 
 	if reader.CgroupVersion() == 1 {
 		cgroupController = "memory"
 	}
+	// todo: this probably needs to be wrapped in a cache since it was before
 	cid, err := identifierFromCgroupReferences(procRoot, strconv.Itoa(int(ucred.Pid)), cgroupController, cgroups.ContainerFilter)
 	if err != nil {
 		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
