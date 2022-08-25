@@ -77,6 +77,13 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	}
 }
 
+// Flush performs a synchronous flushing in the trace agent
+func (s *ServerlessTraceAgent) Flush() {
+	if s.Get() != nil {
+		s.ta.FlushSync()
+	}
+}
+
 // Get returns the trace agent instance
 func (s *ServerlessTraceAgent) Get() *agent.Agent {
 	return s.ta
@@ -84,8 +91,12 @@ func (s *ServerlessTraceAgent) Get() *agent.Agent {
 
 // SetTags sets the tags to the trace agent config and span processor
 func (s *ServerlessTraceAgent) SetTags(tagMap map[string]string) {
-	s.ta.SetGlobalTagsUnsafe(tagMap)
-	s.spanModifier.tags = tagMap
+	if s.Get() != nil {
+		s.ta.SetGlobalTagsUnsafe(tagMap)
+		s.spanModifier.tags = tagMap
+	} else {
+		log.Debug("could not set tags as the trace agent has not been initialized")
+	}
 }
 
 // Stop stops the trace agent

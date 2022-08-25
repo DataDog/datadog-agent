@@ -116,6 +116,7 @@
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
+/cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/agent-network
 /cmd/security-agent/                    @DataDog/agent-security
 

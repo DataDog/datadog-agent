@@ -92,6 +92,11 @@ type Payload struct {
 	RequestID          string         `json:"requestId"`
 }
 
+// FlushableAgent allows flushing
+type FlushableAgent interface {
+	Flush()
+}
+
 // ReportInitError reports an init error to the environment.
 func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 	var err error
