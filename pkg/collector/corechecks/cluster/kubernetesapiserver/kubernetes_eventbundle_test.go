@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,42 @@ func TestFormatEvent(t *testing.T) {
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
 	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
+
+	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
+	output, err := b.formatEvents("", providerIDCache)
+
+	assert.Nil(t, err, "not nil")
+	assert.Equal(t, expectedOutput.Text, output.Text)
+	assert.ElementsMatch(t, expectedOutput.Tags, output.Tags)
+}
+
+func TestFormatEventEscapeCharacter(t *testing.T) {
+	event := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Failed", "Error: error response: filepath: ~file~", "Normal", 709662600)
+
+	b := &kubernetesEventBundle{
+		name:          "dca-789976f5d7-2ljx6",
+		objUID:        types.UID("e6417a7f-f566-11e7-9749-0e4863e1cbf4"),
+		component:     "Pod",
+		kind:          "Pod",
+		countByAction: make(map[string]int),
+	}
+
+	assert.NoError(t, b.addEvent(event))
+
+	expectedOutput := metrics.Event{
+		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
+		Priority:       metrics.EventPriorityNormal,
+		Host:           "",
+		SourceTypeName: "kubernetes",
+		EventType:      kubernetesAPIServerCheckName,
+		Ts:             int64(b.lastTimestamp),
+		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name), fmt.Sprintf("pod_name:%s", b.name), fmt.Sprintf("namespace:%s", "default"), fmt.Sprintf("kube_namespace:%s", "default")},
+		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
+	}
+	expectedOutput.Text = "%%% \n" +
+		"3 **Failed**: Error: error response: filepath: \\~file\\~\n" +
+		fmt.Sprintf(" \n _Events emitted by the %s seen at %s since %s_ \n", b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n" +
+		" %%%"
 
 	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
 	output, err := b.formatEvents("", providerIDCache)
@@ -190,3 +227,28 @@ func TestEventsTagging(t *testing.T) {
 		})
 	}
 }
+
+func benchmarkEscapeEventMessage(nbEvents int, b *testing.B) {
+	eventMessage := "~" + strings.Repeat("event message ", 10) + "~"
+
+	var bundle *kubernetesEventBundle
+
+	for i := 0; i < nbEvents; i++ {
+		eventReason := fmt.Sprintf("Reason %d", i)
+		event := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", eventReason, eventMessage, "Normal", 709662600)
+
+		if i == 0 {
+			bundle = newKubernetesEventBundler(event)
+		}
+		bundle.addEvent(event)
+	}
+
+	for n := 0; n < b.N; n++ {
+		bundle.formatEventText()
+	}
+}
+
+func BenchmarkEscapeEventMessage1(b *testing.B)  { benchmarkEscapeEventMessage(1, b) }
+func BenchmarkEscapeEventMessage2(b *testing.B)  { benchmarkEscapeEventMessage(2, b) }
+func BenchmarkEscapeEventMessage5(b *testing.B)  { benchmarkEscapeEventMessage(5, b) }
+func BenchmarkEscapeEventMessage10(b *testing.B) { benchmarkEscapeEventMessage(10, b) }

@@ -568,6 +568,13 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bind"}, EntryAndExit),
 				},
 			},
+
+			// List of probes required to capture DNS events
+			"dns": {
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
+				}},
+			},
 		}
 	}
 	return selectorsPerEventTypeStore

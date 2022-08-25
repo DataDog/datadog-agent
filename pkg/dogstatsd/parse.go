@@ -45,13 +45,18 @@ type parser struct {
 	// client. Defaulting to false, this opt-in flag is used to avoid changing tags cardinality
 	// for existing installations.
 	dsdOriginEnabled bool
+
+	// readTimestamps is true if the parser has to read timestamps from messages.
+	readTimestamps bool
 }
 
 func newParser(float64List *float64ListPool) *parser {
 	stringInternerCacheSize := config.Datadog.GetInt("dogstatsd_string_interner_size")
+	readTimestamps := config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
 		interner:         newStringInterner(stringInternerCacheSize),
+		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: config.Datadog.GetBool("dogstatsd_origin_detection_client"),
 	}
@@ -165,6 +170,9 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			}
 		// timestamp
 		case bytes.HasPrefix(optionalField, timestampFieldPrefix):
+			if !p.readTimestamps {
+				continue
+			}
 			ts, err := strconv.ParseInt(string(optionalField[len(timestampFieldPrefix):]), 10, 0)
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %v", optionalField[len(timestampFieldPrefix):], err)

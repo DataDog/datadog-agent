@@ -648,7 +648,7 @@ func checkPoliciesInner(dir string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
@@ -658,11 +658,14 @@ func checkPoliciesInner(dir string) error {
 		return err
 	}
 
+	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
 	loaderOpts := rules.PolicyLoaderOpts{
 		RuleFilters: []rules.RuleFilter{
-			&rules.AgentVersionFilter{
-				Version: agentVersion,
-			},
+			agentVersionFilter,
 		},
 	}
 
@@ -697,16 +700,6 @@ func checkPoliciesInner(dir string) error {
 
 func checkPolicies(cmd *cobra.Command, args []string) error {
 	return checkPoliciesInner(checkPoliciesArgs.dir)
-}
-
-// RuleIDFilter used by the policy load to filter out rules
-type RuleIDFilter struct {
-	ID string
-}
-
-// IsAccepted implment the RuleFilter interface
-func (r *RuleIDFilter) IsAccepted(rule *rules.RuleDefinition) bool {
-	return r.ID == rule.ID
 }
 
 // EvalReport defines a report of an evaluation
@@ -790,14 +783,14 @@ func evalRule(cmd *cobra.Command, args []string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
 	loaderOpts := rules.PolicyLoaderOpts{
 		RuleFilters: []rules.RuleFilter{
-			&RuleIDFilter{
+			&rules.RuleIDFilter{
 				ID: evalArgs.ruleID,
 			},
 		},

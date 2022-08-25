@@ -7,11 +7,11 @@ import (
 	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	math "math"
 )
 
@@ -199,7 +199,7 @@ type AgentSecureClient interface {
 	//      TODO: add the curl code here
 	DogstatsdSetTaggerState(ctx context.Context, in *TaggerState, opts ...grpc.CallOption) (*TaggerStateResponse, error)
 	ClientGetConfigs(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
-	GetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
+	GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
 }
 
 type agentSecureClient struct {
@@ -278,7 +278,7 @@ func (c *agentSecureClient) ClientGetConfigs(ctx context.Context, in *ClientGetC
 	return out, nil
 }
 
-func (c *agentSecureClient) GetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error) {
+func (c *agentSecureClient) GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error) {
 	out := new(GetStateConfigResponse)
 	err := c.cc.Invoke(ctx, "/datadog.api.v1.AgentSecure/GetConfigState", in, out, opts...)
 	if err != nil {
@@ -338,7 +338,7 @@ type AgentSecureServer interface {
 	//      TODO: add the curl code here
 	DogstatsdSetTaggerState(context.Context, *TaggerState) (*TaggerStateResponse, error)
 	ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
-	GetConfigState(context.Context, *emptypb.Empty) (*GetStateConfigResponse, error)
+	GetConfigState(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
 }
 
 // UnimplementedAgentSecureServer can be embedded to have forward compatible implementations.
@@ -360,7 +360,7 @@ func (*UnimplementedAgentSecureServer) DogstatsdSetTaggerState(ctx context.Conte
 func (*UnimplementedAgentSecureServer) ClientGetConfigs(ctx context.Context, req *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClientGetConfigs not implemented")
 }
-func (*UnimplementedAgentSecureServer) GetConfigState(ctx context.Context, req *emptypb.Empty) (*GetStateConfigResponse, error) {
+func (*UnimplementedAgentSecureServer) GetConfigState(ctx context.Context, req *empty.Empty) (*GetStateConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfigState not implemented")
 }
 
@@ -462,7 +462,7 @@ func _AgentSecure_ClientGetConfigs_Handler(srv interface{}, ctx context.Context,
 }
 
 func _AgentSecure_GetConfigState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -474,7 +474,7 @@ func _AgentSecure_GetConfigState_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/datadog.api.v1.AgentSecure/GetConfigState",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentSecureServer).GetConfigState(ctx, req.(*emptypb.Empty))
+		return srv.(AgentSecureServer).GetConfigState(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }

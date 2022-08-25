@@ -8,8 +8,16 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  directory wrk_dir do
-    recursive true
+  remote_directory wrk_dir do
+    cookbook 'dd-system-probe-check'
+    source 'tests'
+    mode '755'
+    files_mode '755'
+    sensitive true
+    case
+    when !platform?('windows')
+      files_owner 'root'
+    end
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
@@ -108,7 +116,7 @@ if node['platform_family'] != 'windows'
 
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM centos:7
+      FROM public.ecr.aws/docker/library/centos:centos7
 
       ENV DOCKER_DD_AGENT=yes
 
@@ -180,5 +188,18 @@ if node['platform_family'] != 'windows'
       action :create_if_missing
       content "integrity"
     end
+  end
+
+  # system-probe common
+
+  system_probe_tests_folder = '/tmp/system-probe-tests'
+
+  directory system_probe_tests_folder do
+    recursive true
+  end
+
+  file "#{system_probe_tests_folder}/color_idx" do
+    content node[:color_idx].to_s
+    mode 644
   end
 end

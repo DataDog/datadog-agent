@@ -17,7 +17,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -98,13 +97,20 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 		return nil, err
 	}
 	defer file.Close()
-	return c.scrubReader(file)
+
+	var sizeHint int
+	stats, err := file.Stat()
+	if err == nil {
+		sizeHint = int(stats.Size())
+	}
+
+	return c.scrubReader(file, sizeHint)
 }
 
 // ScrubBytes scrubs credentials from slice of bytes
 func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
-	return c.scrubReader(r)
+	return c.scrubReader(r, r.Len())
 }
 
 // ScrubLine scrubs credentials from a single line of text.  It can be safely
@@ -115,8 +121,11 @@ func (c *Scrubber) ScrubLine(message string) string {
 }
 
 // scrubReader applies the cleaning algorithm to a Reader
-func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
-	var cleanedFile []byte
+func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
+	var cleanedBuffer bytes.Buffer
+	if sizeHint > 0 {
+		cleanedBuffer.Grow(sizeHint)
+	}
 
 	scanner := bufio.NewScanner(file)
 
@@ -126,14 +135,14 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if blankRegex.Match(b) {
-			cleanedFile = append(cleanedFile, byte('\n'))
+			cleanedBuffer.WriteRune('\n')
 		} else if !commentRegex.Match(b) {
 			b = c.scrub(b, c.singleLineReplacers)
 			if !first {
-				cleanedFile = append(cleanedFile, byte('\n'))
+				cleanedBuffer.WriteRune('\n')
 			}
 
-			cleanedFile = append(cleanedFile, b...)
+			cleanedBuffer.Write(b)
 			first = false
 		}
 	}
@@ -143,7 +152,7 @@ func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile = c.scrub(cleanedFile, c.multiLineReplacers)
+	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers)
 
 	return cleanedFile, nil
 }
@@ -153,7 +162,7 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(data), hint) {
+			if bytes.Contains(data, []byte(hint)) {
 				containsHint = true
 				break
 			}

@@ -68,6 +68,15 @@ func NetIPFromAddress(addr Address, buf []byte) net.IP {
 	return net.IP(buf[:n])
 }
 
+// FromLowHigh creates an address from a pair of uint64 numbers
+func FromLowHigh(l, h uint64) Address {
+	if h > 0 {
+		return V6Address(l, h)
+	}
+
+	return V4Address(uint32(l))
+}
+
 // ToLowHigh converts an address into a pair of uint64 numbers
 func ToLowHigh(addr Address) (l, h uint64) {
 	return ToLowHighIP(addr.IP)

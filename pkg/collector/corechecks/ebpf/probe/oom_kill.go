@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +41,7 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	compiledOutput, err := runtime.OomKill.Compile(cfg, nil)
+	compiledOutput, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 	if err != nil {
 		return nil, err
 	}
