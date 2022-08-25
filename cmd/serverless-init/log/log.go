@@ -26,7 +26,7 @@ const (
 	loggerName          = "DD_CLOUDRUN_LOG_AGENT"
 	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
-	source              = "cloudrun"
+	sourceEnvVar        = "DD_SOURCE"
 	sourceName          = "Google Cloud Run"
 )
 
@@ -53,7 +53,7 @@ func CreateConfig(metadata *metadata.Metadata) *Config {
 		FlushTimeout: defaultFlushTimeout,
 		Metadata:     metadata,
 		channel:      make(chan *logConfig.ChannelMessage),
-		source:       source,
+		source:       os.Getenv(sourceEnvVar),
 		loggerName:   loggerName,
 		isEnabled:    isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
@@ -89,7 +89,7 @@ func SetupLog(conf *Config) {
 			log.Errorf("Unable to change the log level: %s", err)
 		}
 	}
-	serverlessLogs.SetupLogAgent(conf.channel, sourceName, source)
+	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.Source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(conf.Metadata.TagMap()))
 }
 
