@@ -115,7 +115,8 @@ def package(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False, 
             file,
             f"c:\\omnibus-ruby\\src\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\{os.path.basename(file)}",
         )
-    res = ctx.run("omnibus\\resources\\agent\\msi\\localbuild\\rebuild.bat", warn=True)
+    cmd = "omnibus\\resources\\agent\\msi\\localbuild\\rebuild.bat"
+    res = ctx.run(cmd, warn=True)
     if res.exited is None or res.exited > 0:
         print(
             color_message(
