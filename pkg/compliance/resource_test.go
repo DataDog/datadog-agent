@@ -23,18 +23,6 @@ process:
   name: dockerd
 condition: process.flag("--tlsverify") != ""
 `
-const testResourceProcessWithFallback = `
-process:
-  name: dockerd
-condition: process.flag("--tlsverify") != ""
-fallback:
-  condition: >-
-    !process.hasFlag("--tlsverify")
-  resource:
-    file:
-      path: /etc/docker/daemon.json
-    condition: file.jq(".tlsverify") == "true"
-`
 
 const testResourceCommand = `
 command:
@@ -90,29 +78,6 @@ func TestResources(t *testing.T) {
 					},
 				},
 				Condition: `process.flag("--tlsverify") != ""`,
-			},
-		},
-		{
-			name:  "process with fallback",
-			input: testResourceProcessWithFallback,
-			expected: Resource{
-				ResourceCommon: ResourceCommon{
-					Process: &Process{
-						Name: "dockerd",
-					},
-				},
-				Condition: `process.flag("--tlsverify") != ""`,
-				Fallback: &Fallback{
-					Condition: `!process.hasFlag("--tlsverify")`,
-					Resource: Resource{
-						ResourceCommon: ResourceCommon{
-							File: &File{
-								Path: `/etc/docker/daemon.json`,
-							},
-						},
-						Condition: `file.jq(".tlsverify") == "true"`,
-					},
-				},
 			},
 		},
 		{

@@ -28,18 +28,6 @@ func TestResourceCheck(t *testing.T) {
 	e := &mocks.Env{}
 	e.On("MaxEventsPerRun").Return(30)
 
-	fallbackReports := []*compliance.Report{
-		{
-			Passed: false,
-			Data: event.Data{
-				"fallback": true,
-			},
-		},
-	}
-
-	fallback := &mockCheckable{}
-	fallback.On("check", e).Return(fallbackReports, nil)
-
 	iterator := &mockIterator{els: []eval.Instance{
 		newResolvedInstance(
 			simpleInstanceWithVars(
@@ -73,121 +61,11 @@ func TestResourceCheck(t *testing.T) {
 		name              string
 		resourceCondition string
 		resourceResolved  resolved
-		fallbackCondition string
-		fallback          checkable
 		reportedFields    []string
 
 		expectReports []*compliance.Report
 		expectErr     error
 	}{
-		{
-			name:              "no fallback provided",
-			resourceCondition: "a > 3",
-			resourceResolved: newResolvedInstance(
-				simpleInstanceWithVars(
-					eval.VarMap{
-						"a": 4,
-						"b": 8,
-					},
-				), "test-id", "test-resource-type",
-			),
-			reportedFields: []string{"a"},
-			expectReports: []*compliance.Report{
-				{
-					Passed: true,
-					Data: event.Data{
-						"a": 4,
-					},
-					Resource: compliance.ReportResource{
-						ID:   "test-id",
-						Type: "test-resource-type",
-					},
-				},
-			},
-		},
-		{
-			name:              "fallback not used",
-			resourceCondition: "a >= 3",
-			resourceResolved: newResolvedInstance(
-				simpleInstanceWithVars(
-					eval.VarMap{
-						"a": 4,
-					},
-				), "test-id", "test-resource-type",
-			),
-			fallbackCondition: "a == 3",
-			fallback:          fallback,
-			reportedFields:    []string{"a"},
-			expectReports: []*compliance.Report{
-				{
-					Passed: true,
-					Data: event.Data{
-						"a": 4,
-					},
-					Resource: compliance.ReportResource{
-						ID:   "test-id",
-						Type: "test-resource-type",
-					},
-				},
-			},
-		},
-		{
-			name:              "fallback used",
-			resourceCondition: "a >= 3",
-			resourceResolved: newResolvedInstance(
-				simpleInstanceWithVars(
-					eval.VarMap{
-						"a": 3,
-					},
-				), "test-id", "test-resource-type",
-			),
-			fallbackCondition: "a == 3",
-			fallback:          fallback,
-			expectReports:     fallbackReports,
-		},
-		{
-			name:              "cannot use fallback",
-			resourceCondition: "a >= 3",
-			resourceResolved: newResolvedIterator(
-				newInstanceIterator(
-					[]eval.Instance{newResolvedInstance(
-						simpleInstanceWithVars(
-							eval.VarMap{
-								"a": 3,
-							},
-						), "test-id", "test-resource-type",
-					)},
-				),
-			),
-			fallbackCondition: "a == 3",
-			fallback:          fallback,
-			expectReports: []*compliance.Report{
-				{
-					Passed: false,
-					Error:  ErrResourceCannotUseFallback,
-				},
-			},
-			expectErr: ErrResourceCannotUseFallback,
-		},
-		{
-			name:              "fallback missing",
-			resourceCondition: "a >= 3",
-			resourceResolved: newResolvedInstance(
-				simpleInstanceWithVars(
-					eval.VarMap{
-						"a": 3,
-					},
-				), "test-id", "test-resource-type",
-			),
-			fallbackCondition: "a == 3",
-			expectReports: []*compliance.Report{
-				{
-					Passed: false,
-					Error:  ErrResourceFallbackMissing,
-				},
-			},
-			expectErr: ErrResourceFallbackMissing,
-		},
 		{
 			name:              "iterator partially passed",
 			resourceCondition: "a > 10",
@@ -248,12 +126,6 @@ func TestResourceCheck(t *testing.T) {
 				Condition: test.resourceCondition,
 			}
 
-			if test.fallbackCondition != "" {
-				resource.Fallback = &compliance.Fallback{
-					Condition: test.fallbackCondition,
-				}
-			}
-
 			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.ResourceCommon, rego bool) (resolved, error) {
 				return test.resourceResolved, nil
 			}
@@ -262,7 +134,6 @@ func TestResourceCheck(t *testing.T) {
 				ruleID:         "rule-id",
 				resource:       resource,
 				resolve:        resolve,
-				fallback:       test.fallback,
 				reportedFields: test.reportedFields,
 			}
 

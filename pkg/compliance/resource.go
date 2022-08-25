@@ -52,8 +52,7 @@ type ResourceCommon struct {
 // Resource describes supported resource types observed by a Rule
 type Resource struct {
 	ResourceCommon `yaml:",inline"`
-	Condition      string    `yaml:"condition"`
-	Fallback       *Fallback `yaml:"fallback,omitempty"`
+	Condition      string `yaml:"condition"`
 }
 
 // RegoInput describes supported resource types observed by a Rego Rule
@@ -99,12 +98,6 @@ func (r *ResourceCommon) Kind() ResourceKind {
 	default:
 		return KindInvalid
 	}
-}
-
-// Fallback specifies optional fallback configuration for a resource
-type Fallback struct {
-	Condition string   `yaml:"condition,omitempty"`
-	Resource  Resource `yaml:"resource"`
 }
 
 // Fields & functions available for File

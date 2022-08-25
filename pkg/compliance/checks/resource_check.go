@@ -19,12 +19,6 @@ var (
 	// ErrResourceKindNotSupported is returned in case resource kind is not supported by evaluator
 	ErrResourceKindNotSupported = errors.New("resource kind not supported")
 
-	// ErrResourceFallbackMissing is returned when a resource relies on fallback but no fallback is provided
-	ErrResourceFallbackMissing = errors.New("resource fallback missing")
-
-	// ErrResourceCannotUseFallback is returned when a resource cannot use fallback
-	ErrResourceCannotUseFallback = errors.New("resource cannot use fallback")
-
 	// ErrResourceFailedToResolve is returned when a resource failed to resolve to any instances for evaluation
 	ErrResourceFailedToResolve = errors.New("failed to resolve resource")
 )
@@ -53,25 +47,6 @@ func (ri *_resolvedInstance) Type() string {
 }
 
 func (ri *_resolvedInstance) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
-	if c.resource.Fallback != nil {
-		if c.fallback == nil {
-			return []*compliance.Report{compliance.BuildReportForError(ErrResourceFallbackMissing)}
-		}
-
-		fallbackExpression, err := eval.Cache.ParseExpression(c.resource.Fallback.Condition)
-		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
-		}
-
-		useFallback, err := fallbackExpression.BoolEvaluate(ri.Instance)
-		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
-		}
-		if useFallback {
-			return c.fallback.check(env)
-		}
-	}
-
 	passed, err := conditionExpression.Evaluate(ri.Instance)
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
@@ -94,10 +69,6 @@ type resolvedIterator struct {
 }
 
 func (ri *resolvedIterator) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
-	if c.resource.Fallback != nil {
-		return []*compliance.Report{compliance.BuildReportForError(ErrResourceCannotUseFallback)}
-	}
-
 	results, err := conditionExpression.EvaluateIterator(ri.Iterator, globalInstance)
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
@@ -132,8 +103,7 @@ type resourceCheck struct {
 	ruleID   string
 	resource compliance.Resource
 
-	resolve  resolveFunc
-	fallback checkable
+	resolve resolveFunc
 
 	reportedFields []string
 }
@@ -169,19 +139,10 @@ func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) 
 		return nil, log.Errorf("%s: failed to find resource resolver for resource kind: %s", ruleID, kind)
 	}
 
-	var fallback checkable
-	if resource.Fallback != nil {
-		fallback, err = newResourceCheck(env, ruleID, resource.Fallback.Resource)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &resourceCheck{
 		ruleID:         ruleID,
 		resource:       resource,
 		resolve:        resolve,
-		fallback:       fallback,
 		reportedFields: reportedFields,
 	}, nil
 }
