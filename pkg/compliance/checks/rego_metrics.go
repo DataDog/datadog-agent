@@ -7,113 +7,82 @@ package checks
 
 import (
 	"sync"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/open-policy-agent/opa/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cast"
 )
 
-var registeredHistograms map[string]telemetry.Histogram
+const regoMetricPrefix = "datadog.security_agent.compliance.opa."
 
-func registerHistogram(name string) telemetry.Histogram {
-	if registeredHistograms == nil {
-		registeredHistograms = make(map[string]telemetry.Histogram)
-	}
-
-	if histogram, found := registeredHistograms[name]; found {
-		return histogram
-	}
-
-	buckets := make([]float64, len(prometheus.DefBuckets))
-	for i, v := range prometheus.DefBuckets {
-		buckets[i] = v * float64(time.Millisecond)
-	}
-
-	histogram := telemetry.NewHistogram("opa", name, nil, "", buckets)
-	registeredHistograms[name] = histogram
-	return histogram
+type regoMetric struct {
+	name   string
+	client statsd.ClientInterface
 }
 
-var registeredCounters map[string]telemetry.Counter
-
-func registerCounter(name string) telemetry.Counter {
-	if registeredCounters == nil {
-		registeredCounters = make(map[string]telemetry.Counter)
-	}
-
-	if counter, found := registeredCounters[name]; found {
-		return counter
-	}
-
-	counter := telemetry.NewCounter("opa", name, nil, "")
-	registeredCounters[name] = counter
-	return counter
-}
-
-type regoCounter struct {
+type regoMetricsCounter struct {
+	regoMetric
 	regoCounter metrics.Counter
-	ddCounter   telemetry.Counter
 }
 
-func (c *regoCounter) Incr() {
+func (c *regoMetricsCounter) Incr() {
 	c.regoCounter.Incr()
-	c.ddCounter.Inc()
+	c.client.Incr(c.name, nil, 1)
 }
 
-func (c *regoCounter) Value() interface{} {
+func (c *regoMetricsCounter) Value() interface{} {
 	return c.regoCounter.Value()
 }
 
-func (c *regoCounter) Add(n uint64) {
+func (c *regoMetricsCounter) Add(n uint64) {
 	c.regoCounter.Add(n)
-	c.ddCounter.Add(float64(n))
+	c.client.Count(c.name, cast.ToInt64(c.Value())+int64(n), nil, 1)
 }
 
-type regoHistogram struct {
+type regoMetricsHistogram struct {
+	regoMetric
 	regoHistogram metrics.Histogram
-	ddHistogram   telemetry.Histogram
 }
 
-func (h *regoHistogram) Value() interface{} {
+func (h *regoMetricsHistogram) Value() interface{} {
 	return h.regoHistogram.Value()
 }
 
-func (c *regoHistogram) Update(n int64) {
+func (c *regoMetricsHistogram) Update(n int64) {
 	c.regoHistogram.Update(n)
-	c.ddHistogram.Observe(float64(n))
+	c.client.Histogram(c.name, float64(n), nil, 1)
 }
 
-type regoTimer struct {
-	regoTimer   metrics.Timer
-	ddHistogram telemetry.Histogram
+type regoMetricsTimer struct {
+	regoMetric
+	regoTimer metrics.Timer
 }
 
-func (t *regoTimer) Value() interface{} {
+func (t *regoMetricsTimer) Value() interface{} {
 	return t.regoTimer.Value()
 }
 
-func (t *regoTimer) Int64() int64 {
+func (t *regoMetricsTimer) Int64() int64 {
 	return cast.ToInt64(t.Value())
 }
 
-func (t *regoTimer) Start() {
+func (t *regoMetricsTimer) Start() {
 	t.regoTimer.Start()
 }
 
-func (t *regoTimer) Stop() int64 {
+func (t *regoMetricsTimer) Stop() int64 {
 	delta := t.regoTimer.Stop()
-	t.ddHistogram.Observe(float64(delta))
+	t.client.Histogram(t.name, float64(delta), nil, 1)
 	return delta
 }
 
 type regoMetrics struct {
 	sync.Mutex
+	client     statsd.ClientInterface
 	inner      metrics.Metrics
-	counters   map[string]*regoCounter
-	timers     map[string]*regoTimer
-	histograms map[string]*regoHistogram
+	counters   map[string]*regoMetricsCounter
+	timers     map[string]*regoMetricsTimer
+	histograms map[string]*regoMetricsHistogram
 }
 
 func (m *regoMetrics) Info() metrics.Info {
@@ -125,10 +94,12 @@ func (m *regoMetrics) Timer(name string) metrics.Timer {
 	defer m.Unlock()
 	t, ok := m.timers[name]
 	if !ok {
-		ddHistogram := registerHistogram(name)
-		t = &regoTimer{
-			regoTimer:   m.inner.Timer(name),
-			ddHistogram: ddHistogram,
+		t = &regoMetricsTimer{
+			regoMetric: regoMetric{
+				name:   regoMetricPrefix + name,
+				client: m.client,
+			},
+			regoTimer: m.inner.Timer(name),
 		}
 		m.timers[name] = t
 	}
@@ -140,10 +111,12 @@ func (m *regoMetrics) Histogram(name string) metrics.Histogram {
 	defer m.Unlock()
 	h, ok := m.histograms[name]
 	if !ok {
-		ddHistogram := registerHistogram(name)
-		h = &regoHistogram{
+		h = &regoMetricsHistogram{
+			regoMetric: regoMetric{
+				name:   regoMetricPrefix + name,
+				client: m.client,
+			},
 			regoHistogram: m.inner.Histogram(name),
-			ddHistogram:   ddHistogram,
 		}
 		m.histograms[name] = h
 	}
@@ -155,10 +128,12 @@ func (m *regoMetrics) Counter(name string) metrics.Counter {
 	defer m.Unlock()
 	c, ok := m.counters[name]
 	if !ok {
-		ddCounter := registerCounter(name)
-		c = &regoCounter{
+		c = &regoMetricsCounter{
+			regoMetric: regoMetric{
+				name:   regoMetricPrefix + name,
+				client: m.client,
+			},
 			regoCounter: m.inner.Counter(name),
-			ddCounter:   ddCounter,
 		}
 		m.counters[name] = c
 	}
@@ -177,10 +152,15 @@ func (m *regoMetrics) MarshalJSON() ([]byte, error) {
 	return m.inner.MarshalJSON()
 }
 
-func newRegoMetrics() *regoMetrics {
+func newRegoMetrics(inner metrics.Metrics, client statsd.ClientInterface) *regoMetrics {
+	if inner == nil {
+		inner = metrics.New()
+	}
 	return &regoMetrics{
-		inner:    metrics.New(),
-		counters: make(map[string]*regoCounter),
-		timers:   make(map[string]*regoTimer),
+		client:     client,
+		inner:      inner,
+		counters:   make(map[string]*regoMetricsCounter),
+		timers:     make(map[string]*regoMetricsTimer),
+		histograms: make(map[string]*regoMetricsHistogram),
 	}
 }
