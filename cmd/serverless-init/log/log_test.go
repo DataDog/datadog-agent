@@ -109,6 +109,7 @@ func TestCreateConfig(t *testing.T) {
 
 func TestCreateConfigWithSource(t *testing.T) {
 	os.Setenv("DD_SOURCE", "python")
+	defer os.Unsetenv("DD_SOURCE")
 	metadata := &metadata.Metadata{}
 	config := CreateConfig(metadata)
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)

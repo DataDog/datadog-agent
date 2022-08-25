@@ -51,7 +51,7 @@ type CustomWriter struct {
 // CreateConfig builds and returns a log config
 func CreateConfig(metadata *metadata.Metadata) *Config {
 	var source string
-	if source = os.Getenv(sourceEnvVar); source == "" {
+	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
 		source = defaultSource
 	}
 	return &Config{
