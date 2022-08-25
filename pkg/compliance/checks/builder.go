@@ -396,27 +396,6 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 	log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, file)
 
 	matchedCount := 0
-	for _, r := range suite.Rules {
-		if b.checkMatchingRule(file, suite, &r) {
-			matchedCount++
-		} else {
-			continue
-		}
-
-		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
-		check, err := b.checkFromRule(&suite.Meta, &r)
-		if err != nil {
-			if err != ErrRuleDoesNotApply {
-				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
-			}
-			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
-		}
-
-		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
-			return err
-		}
-	}
-
 	for _, r := range suite.RegoRules {
 		if b.checkMatchingRule(file, suite, &r) {
 			matchedCount++
@@ -450,26 +429,6 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 		return b.status.getChecksStatus()
 	}
 	return compliance.CheckStatusList{}
-}
-
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.ConditionFallbackRule) (compliance.Check, error) {
-	ruleScope, err := getRuleScope(meta, rule.Scope)
-	if err != nil {
-		return nil, err
-	}
-
-	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
-	if err != nil {
-		return nil, err
-	}
-
-	if !eligible {
-		log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
-		return nil, ErrRuleDoesNotApply
-	}
-
-	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
-	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
@@ -508,78 +467,6 @@ func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList
 		return compliance.KubernetesClusterScope, nil
 	default:
 		return "", ErrRuleScopeNotSupported
-	}
-}
-
-func (b *builder) kubeResourceReporter(rule compliance.ConditionFallbackRule, resourceType string) resourceReporter {
-	return func(report *compliance.Report) compliance.ReportResource {
-		var clusterID string
-		var err error
-
-		if b.kubeClient != nil {
-			clusterID, err = b.kubeClient.ClusterID()
-			if err != nil {
-				log.Debugf("failed to retrieve cluster id, defaulting to hostname")
-			}
-		}
-
-		if clusterID == "" {
-			clusterID = b.Hostname()
-		}
-
-		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
-			return compliance.ReportResource{
-				ID:   clusterID + "_" + report.Resource.ID,
-				Type: report.Resource.Type,
-			}
-		}
-
-		if rule.ResourceType != "" {
-			resourceType = rule.ResourceType
-		}
-
-		return compliance.ReportResource{
-			ID:   clusterID + "_" + resourceType,
-			Type: resourceType,
-		}
-	}
-}
-
-func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.ConditionFallbackRule) resourceReporter {
-	switch scope {
-	case compliance.DockerScope:
-		return func(report *compliance.Report) compliance.ReportResource {
-			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
-				return compliance.ReportResource{
-					ID:   b.Hostname() + "_" + report.Resource.ID,
-					Type: report.Resource.Type,
-				}
-			}
-
-			resourceType := rule.ResourceType
-			if resourceType == "" {
-				resourceType = "docker_daemon"
-			}
-
-			return compliance.ReportResource{
-				ID:   b.Hostname() + "_daemon",
-				Type: resourceType,
-			}
-		}
-
-	case compliance.KubernetesNodeScope:
-		return b.kubeResourceReporter(rule, "kubernetes_node")
-
-	case compliance.KubernetesClusterScope:
-		return b.kubeResourceReporter(rule, "kubernetes_cluster")
-
-	default:
-		return func(report *compliance.Report) compliance.ReportResource {
-			return compliance.ReportResource{
-				ID:   b.Hostname(),
-				Type: string(scope),
-			}
-		}
 	}
 }
 
@@ -683,35 +570,6 @@ func (b *builder) nodeLabelKeys() []string {
 		keys = append(keys, k)
 	}
 	return keys
-}
-
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.ConditionFallbackRule, handler resourceReporter) (compliance.Check, error) {
-	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
-	if err != nil {
-		return nil, err
-	}
-
-	var notify eventNotify
-	if b.status != nil {
-		notify = b.status.updateCheck
-	}
-
-	// We capture err as configuration error but do not prevent check creation
-	return &complianceCheck{
-		Env: b,
-
-		ruleID:      rule.ID,
-		description: rule.Description,
-		interval:    b.checkInterval,
-
-		suiteMeta: meta,
-
-		resourceHandler: handler,
-		scope:           ruleScope,
-		checkable:       checkable,
-
-		eventNotify: notify,
-	}, nil
 }
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
