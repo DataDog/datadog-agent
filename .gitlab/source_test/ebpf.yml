@@ -51,6 +51,15 @@
     paths:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
 
+.build_cws_tests:
+  - invoke -e security-agent.kitchen-prepare
+  # Copy nikos archive to be extracted in kitchen tests
+  - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
+  - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
+
+
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -68,21 +77,7 @@ tests_ebpf_x64:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
     - export PATH=$PATH:$GOPATH/bin
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --no-bundle-ebpf --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --race --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Copy nikos archive to be extracted in kitchen tests
-    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-     # Copy files needed for runtime compilation
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
-
-    - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
+    - !reference [.build_cws_tests]
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -104,21 +99,8 @@ tests_ebpf_arm64:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
     - export PATH=$PATH:$GOPATH/bin
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --no-bundle-ebpf --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --race --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Copy nikos archive to be extracted in kitchen tests
-    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-    # Copy files needed for runtime compilation
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
+    - !reference [.build_cws_tests]
 
-    - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
-    - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
