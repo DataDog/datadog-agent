@@ -1493,9 +1493,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Value: uint64(p.config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
-			Name: "setup_new_exec_is_last",
-			// TODO!!!
-			Value: utils.BoolTouint64(!p.kernelVersion.IsRH7Kernel() && !(p.kernelVersion.Code < kernel.Kernel5_5)), // the setup_new_exec kprobe is after security_bprm_committed_creds in kernels that are NOT RH7 and AFTER 5.4
+			Name:  "setup_new_exec_is_last",
+			Value: utils.BoolTouint64(!p.kernelVersion.IsRH7Kernel() && p.kernelVersion.Code >= kernel.Kernel5_5), // the setup_new_exec kprobe is after security_bprm_committed_creds in kernels that are not RH7, and additionally, have a kernel version of at least 5.5
 		},
 	)
 
