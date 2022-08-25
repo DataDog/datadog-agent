@@ -706,6 +706,7 @@ def go_generate_check(ctx):
                 print(f"* {file}")
             raise Exit(code=1)
 
+
 @task
 def kitchen_prepare(ctx):
     build_embed_syscall_tester(ctx)
@@ -716,7 +717,9 @@ def kitchen_prepare(ctx):
     cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
 
     testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
-    build_functional_tests(ctx, bundle_ebpf=False, race=True, output=testsuite_out_path, nikos_embedded_path=nikos_embedded_path)
+    build_functional_tests(
+        ctx, bundle_ebpf=False, race=True, output=testsuite_out_path, nikos_embedded_path=nikos_embedded_path
+    )
     stresssuite_out_path = os.path.join(cookbook_files_dir, "stresssuite")
     build_stress_tests(ctx, output=stresssuite_out_path)
 
