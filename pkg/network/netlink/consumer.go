@@ -238,14 +238,8 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 		}
 	}
 
-	rootNS, err := util.GetRootNetNamespace(c.procRoot)
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(c.rootNetNs)})
 	if err != nil {
-		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
-	}
-
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
-	if err != nil {
-		rootNS.Close()
 		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
 
@@ -259,17 +253,16 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 
 			close(output)
 
-			_ = rootNS.Close()
 			_ = conn.Close()
 		}()
 
 		// root ns first
-		if err := c.dumpTable(family, output, rootNS); err != nil {
+		if err := c.dumpTable(family, output, c.rootNetNs); err != nil {
 			log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
 		}
 
 		for _, ns := range nss {
-			if rootNS.Equal(ns) {
+			if c.rootNetNs.Equal(ns) {
 				// we've already dumped the table for the root ns above
 				continue
 			}
@@ -348,14 +341,8 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 		}
 	}
 
-	rootNS, err := util.GetRootNetNamespace(c.procRoot)
+	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(c.rootNetNs)})
 	if err != nil {
-		return nil, fmt.Errorf("error dumping conntrack table, could not get root namespace: %w", err)
-	}
-
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(rootNS)})
-	if err != nil {
-		rootNS.Close()
 		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
 
@@ -363,12 +350,12 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 
 	go func() {
 		// root ns first
-		if err := c.dumpAndDiscardTable(family, rootNS); err != nil {
+		if err := c.dumpAndDiscardTable(family, c.rootNetNs); err != nil {
 			log.Errorf("error dumping conntrack table for root namespace, some NAT info may be missing: %s", err)
 		}
 
 		for _, ns := range nss {
-			if rootNS.Equal(ns) {
+			if c.rootNetNs.Equal(ns) {
 				// we've already dumped the table for the root ns above
 				continue
 			}
@@ -389,7 +376,6 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 
 		close(done)
 
-		_ = rootNS.Close()
 		_ = conn.Close()
 	}()
 

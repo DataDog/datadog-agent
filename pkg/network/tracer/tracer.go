@@ -747,13 +747,7 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 
 // DebugCachedConntrack dumps the cached NAT conntrack data
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
-	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
-	if err != nil {
-		return nil, err
-	}
-	defer rootNSHandle.Close()
-
-	rootNS, err := util.GetInoForNs(rootNSHandle)
+	rootNS, err := util.GetInoForNs(t.config.RootNetNs)
 	if err != nil {
 		return nil, err
 	}
@@ -773,13 +767,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
-	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
-	if err != nil {
-		return nil, err
-	}
-	defer rootNSHandle.Close()
-
-	rootNS, err := util.GetInoForNs(rootNSHandle)
+	rootNS, err := util.GetInoForNs(t.config.RootNetNs)
 	if err != nil {
 		return nil, err
 	}
