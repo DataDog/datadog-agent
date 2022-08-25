@@ -126,6 +126,11 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 		log.Error("unable to get the requested metadata, defaulting to unknown")
 		return "unknown"
 	}
-	data, _ := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Error("unable to read metadata body, defaulting to unknown")
+		return "unknown"
+	}
 	return strings.ToLower(string(data))
 }
