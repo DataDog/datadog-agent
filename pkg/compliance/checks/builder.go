@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-policy-agent/opa/rego"
 	cache "github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -703,12 +704,22 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 }
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
+	m := newRegoMetrics()
+
 	regoCheck := &regoCheck{
-		ruleID: rule.ID,
-		inputs: rule.Inputs,
+		ruleID:    rule.ID,
+		inputs:    rule.Inputs,
+		ruleScope: ruleScope,
+		metrics:   m,
 	}
 
-	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
+	regoOptions := append([]func(r *rego.Rego){
+		rego.EnablePrintStatements(true),
+		rego.PrintHook(&regoPrintHook{}),
+		rego.Metrics(m),
+	}, regoBuiltins...)
+
+	if err := regoCheck.compileRule(rule, regoOptions, meta); err != nil {
 		return nil, err
 	}
 
