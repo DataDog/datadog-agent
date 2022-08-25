@@ -1680,6 +1680,8 @@ chmod 755 pyscript.py
 					t.Logf("could not run %s: %s", scriptLocation, scriptRunErr)
 				}
 				fmt.Println(string(output))
+				offsets, _ := testModule.probe.GetOffsetConstants()
+				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmFileField, offsets[constantfetch.OffsetNameLinuxBinprmFileField])
 				return nil
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)

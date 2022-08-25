@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
+// offset names
+const (
+	OffsetNameLinuxBinprmFileField = "binprm_file_offset"
+)
+
 // GetAvailableConstantFetchers returns available constant fetchers
 func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)

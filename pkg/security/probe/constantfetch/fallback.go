@@ -98,7 +98,7 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFlowi4ULIOffset(f.kernelVersion)
 	case "flowi6_uli_offset":
 		value = getFlowi6ULIOffset(f.kernelVersion)
-	case "binprm_file_offset":
+	case OffsetNameLinuxBinprmFileField:
 		value = getBinPrmFileFieldOffset(f.kernelVersion)
 	}
 	f.res[id] = value
