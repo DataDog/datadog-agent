@@ -125,12 +125,11 @@ func (agg *FlowAggregator) flush() int {
 	now := time.Now()
 	flowsToFlush := agg.flowAcc.flush()
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
-	if len(flowsToFlush) == 0 {
-		return 0
-	}
-	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 
-	agg.sendFlows(flowsToFlush)
+	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
+	if len(flowsToFlush) > 0 {
+		agg.sendFlows(flowsToFlush)
+	}
 
 	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
