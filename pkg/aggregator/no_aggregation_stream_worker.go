@@ -152,7 +152,8 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
-							// ignored when late but mimic dogstatsd traffic here anyway
+							serie.MType = sample.Mtype.ToAPIType()
+							// ignored by the intake when late but mimic dogstatsd traffic here anyway
 							serie.Interval = 10
 							w.seriesSink.Append(&serie)
 

@@ -1,5 +1,5 @@
 require 'fileutils'
-require 'spec_helper'
+require 'kernel_out_spec_helper'
 require 'open3'
 
 GOLANG_TEST_FAILURE = /FAIL:/

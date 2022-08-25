@@ -146,7 +146,7 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-platform
-/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations @DataDog/software-integrity-and-trust
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 /omnibus/config/software/snmp-traps.rb                    @DataDog/infrastructure-integrations
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent

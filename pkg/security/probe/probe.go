@@ -523,6 +523,14 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
+		// There could be entries of a previous mount_id in the cache for instance,
+		// runc does the following : it bind mounts itself (using /proc/exe/self),
+		// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
+		// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
+		// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
+		// so we remove all dentry entries belonging to the mountID.
+		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
+
 		// Resolve mount point
 		event.SetMountPoint(&event.Mount)
 		// Resolve root
@@ -538,14 +546,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID)
 			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountPath)
 		}
-
-		// There could be entries of a previous mount_id in the cache for instance,
-		// runc does the following : it bind mounts itself (using /proc/exe/self),
-		// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
-		// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
-		// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
-		// so we remove all dentry entries belonging to the mountID.
-		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
