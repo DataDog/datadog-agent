@@ -676,7 +676,9 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
 #ifdef DEBUG
-    bpf_printk("interpreter file %llu\n", interpreter);
+    bpf_printk("binprm_file_offset: %d\n", binprm_file_offset);
+
+    bpf_printk("interpreter file: %llx\n", interpreter);
 
     const char *s;
     bpf_probe_read(&s, sizeof(s), &bprm->filename);
