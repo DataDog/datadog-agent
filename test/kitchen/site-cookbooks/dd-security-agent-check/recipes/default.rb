@@ -8,16 +8,12 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  remote_directory wrk_dir do
-    cookbook 'dd-system-probe-check'
-    source 'tests'
+  remote_directory "#{wrk_dir}/ebpf_bytecode" do
+    source 'ebpf_bytecode'
     mode '755'
     files_mode '755'
     sensitive true
-    case
-    when !platform?('windows')
-      files_owner 'root'
-    end
+    files_owner 'root'
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
