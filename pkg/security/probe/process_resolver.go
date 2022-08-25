@@ -445,7 +445,6 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
 		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
 			entry.LinuxBinprm.FileEvent = entry.FileEvent
-			seclog.Debugf("Likely interpreter event detected in process cache. Pathname: %s", entry.LinuxBinprm.FileEvent.PathnameStr)
 		}
 	}
 

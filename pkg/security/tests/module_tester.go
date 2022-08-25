@@ -304,24 +304,19 @@ func getInode(tb testing.TB, path string) uint64 {
 
 //nolint:deadcode,unused
 func which(tb testing.TB, name string) string {
-	executable, err := exec.LookPath(name)
+	executable, err := whichNonFatal(name)
 	if err != nil {
-		tb.Fatalf("couldn't resolve %s: %v", name, err)
+		tb.Fatalf("could not resolve %s: %v", name, err)
 	}
-
-	if dest, err := filepath.EvalSymlinks(executable); err == nil {
-		return dest
-	}
-
 	return executable
 }
 
 //nolint:deadcode,unused
-// whichNotFatal returns an error instead of fatal
-func whichNotFatal(tb testing.TB, name string) (string, error) {
+// whichNonFatal is "which" which returns an error instead of fatal
+func whichNonFatal(name string) (string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		return "", fmt.Errorf("couldn't resolve %s: %v", name, err)
+		return "", fmt.Errorf("could not resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
