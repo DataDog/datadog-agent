@@ -1088,6 +1088,12 @@ def setup_runtime_clang(ctx):
         if version_str == CLANG_VERSION:
             return
 
+    if not os.path.exists("/opt/datadog-agent/embedded/bin"):
+        if not is_root():
+            ctx.sudo("mkdir -p /opt/datadog-agent/embedded/bin")
+        else:
+            ctx.run("mkdir -p /opt/datadog-agent/embedded/bin")
+
     arch = arch_mapping.get(platform.machine())
     if arch == "x64":
         arch = "amd64"
