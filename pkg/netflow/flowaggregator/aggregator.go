@@ -36,9 +36,11 @@ type FlowAggregator struct {
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
+	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	return &FlowAggregator{
 		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:           newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
+		flowAcc:           newFlowAccumulator(flushInterval, flowContextTTL),
 		flushInterval:     flowAggregatorFlushInterval,
 		sender:            sender,
 		stopChan:          make(chan struct{}),
@@ -119,8 +121,10 @@ func (agg *FlowAggregator) flushLoop() {
 
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
+	flowsContexts := agg.flowAcc.getFlowContextCount()
+	now := time.Now()
 	flowsToFlush := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder", len(flowsToFlush))
+	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
 	if len(flowsToFlush) == 0 {
 		return 0
 	}
