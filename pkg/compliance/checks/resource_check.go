@@ -175,15 +175,3 @@ func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance
 		return nil, nil, ErrResourceKindNotSupported
 	}
 }
-
-func newResourceCheckList(env env.Env, ruleID string, resources []compliance.Resource) (checkable, error) {
-	var checks checkableList
-	for _, resource := range resources {
-		c, err := newResourceCheck(env, ruleID, resource)
-		if err != nil {
-			return nil, err
-		}
-		checks = append(checks, c)
-	}
-	return checks, nil
-}
