@@ -136,7 +136,11 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
-	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, cfg.RootNetNs, cfg.EnableConntrackAllNamespaces)
+	var err error
+	e.consumer, err = netlink.NewConsumer(cfg)
+	if err != nil {
+		return err
+	}
 	defer e.consumer.Stop()
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
-	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"inet.af/netaddr"
@@ -95,7 +94,7 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit, config.EnableConntrackAllNamespaces, config.RootNetNs)
+		conntracker, err = newConntrackerOnce(config)
 		done <- struct{}{}
 	}()
 
@@ -120,12 +119,16 @@ func newStats() stats {
 	}
 }
 
-func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool, rootNetNs netns.NsHandle) (Conntracker, error) {
-	consumer := NewConsumer(procRoot, targetRateLimit, rootNetNs, listenAllNamespaces)
+func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
+	consumer, err := NewConsumer(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	ctr := &realConntracker{
 		consumer:      consumer,
-		cache:         newConntrackCache(maxStateSize, defaultOrphanTimeout),
-		maxStateSize:  maxStateSize,
+		cache:         newConntrackCache(cfg.ConntrackMaxStateSize, defaultOrphanTimeout),
+		maxStateSize:  cfg.ConntrackMaxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
 		decoder:       NewDecoder(),
 		stats:         newStats(),
@@ -143,7 +146,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 		return nil, err
 	}
 
-	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
+	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", cfg.ConntrackRateLimit)
 	return ctr, nil
 }
 

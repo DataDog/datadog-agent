@@ -95,7 +95,11 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 
 // DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
 func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugConntrackEntry, error) {
-	consumer := NewConsumer(cfg.ProcRoot, -1, cfg.RootNetNs, cfg.EnableConntrackAllNamespaces)
+	consumer, err := NewConsumer(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	decoder := NewDecoder()
 	defer consumer.Stop()
 

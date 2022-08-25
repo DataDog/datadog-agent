@@ -64,9 +64,15 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		return nil
 	}
 
+	ns, err := config.GetRootNetNs()
+	if err != nil {
+		log.Errorf("could not create gateway lookup: %s", err)
+		return nil
+	}
+
 	gl := &gatewayLookup{
 		procRoot:            config.ProcRoot,
-		rootNetNs:           config.RootNetNs,
+		rootNetNs:           ns,
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
 		subnetCacheSize:     atomic.NewUint64(0),
 		subnetCacheMisses:   atomic.NewUint64(0),

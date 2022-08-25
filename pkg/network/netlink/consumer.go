@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,24 +125,29 @@ func (e *Event) Done() {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(procRoot string, targetRateLimit int, rootNetNs netns.NsHandle, listenAllNamespaces bool) *Consumer {
+func NewConsumer(cfg *config.Config) (*Consumer, error) {
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Consumer{
-		procRoot:            procRoot,
+		procRoot:            cfg.ProcRoot,
 		pool:                newBufferPool(),
-		targetRateLimit:     targetRateLimit,
-		breaker:             NewCircuitBreaker(int64(targetRateLimit)),
+		targetRateLimit:     cfg.ConntrackRateLimit,
+		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit)),
 		netlinkSeqNumber:    1,
-		listenAllNamespaces: listenAllNamespaces,
+		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
 		enobufs:             atomic.NewInt64(0),
 		throttles:           atomic.NewInt64(0),
 		samplingPct:         atomic.NewInt64(0),
 		readErrors:          atomic.NewInt64(0),
 		msgErrors:           atomic.NewInt64(0),
 		recvLoopRunning:     atomic.NewBool(false),
-		rootNetNs:           rootNetNs,
+		rootNetNs:           ns,
 	}
 
-	return c
+	return c, nil
 }
 
 // Events returns a channel of Event objects (wrapping netlink messages) which receives
@@ -438,6 +444,7 @@ func (c *Consumer) Stop() {
 		c.conn.Close()
 	}
 	c.breaker.Stop()
+	c.rootNetNs.Close()
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {

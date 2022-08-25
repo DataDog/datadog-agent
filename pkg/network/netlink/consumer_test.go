@@ -15,16 +15,22 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	c, err := NewConsumer(
+		&config.Config{
+			Config: ebpf.Config{
+				ProcRoot: "/proc",
+			},
+			ConntrackRateLimit:           1,
+			EnableRootNetNs:              true,
+			EnableConntrackAllNamespaces: false,
+		})
 	require.NoError(t, err)
-	defer rootNs.Close()
-
-	c := NewConsumer("/proc", 1, rootNs, false)
 	require.NotNil(t, c)
 	exited := make(chan struct{})
 	defer func() {

@@ -6,16 +6,11 @@
 package config
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/vishvananda/netns"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -167,13 +162,6 @@ type Config struct {
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
 
-	// RootNetNs is the network namespace to use for creating, e.g., netlink sockets
-	//
-	// This will be the host's default network namespace if system_probe_config.enable_root_netns
-	// is set to true (the default); otherwise this will be the default network namespace
-	// for the current process
-	RootNetNs netns.NsHandle
-
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
@@ -300,15 +288,7 @@ func New() *Config {
 	}
 
 	if !c.EnableRootNetNs {
-		c.RootNetNs, err = netns.GetFromPid(os.Getpid())
 		c.EnableConntrackAllNamespaces = false
-	} else {
-		// get the root network namespace
-		c.RootNetNs, err = util.GetRootNetNamespace(c.ProcRoot)
-	}
-
-	if err != nil {
-		panic(fmt.Errorf("could not get root network namespace: %w", err))
 	}
 
 	return c
