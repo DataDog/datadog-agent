@@ -1110,7 +1110,6 @@ def setup_runtime_clang(ctx):
         ctx.run("chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-import os
 def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
     setup_runtime_clang(ctx)
 
