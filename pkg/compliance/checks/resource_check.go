@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,7 +67,7 @@ func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) 
 	case compliance.KindCommand:
 		return command.Resolve, command.ReportedFields, nil
 	case compliance.KindProcess:
-		return resolveProcess, processReportedFields, nil
+		return process.Resolve, process.ReportedFields, nil
 	case compliance.KindDocker:
 		if env.DockerClient() == nil {
 			return nil, nil, log.Errorf("%s: docker client not initialized")

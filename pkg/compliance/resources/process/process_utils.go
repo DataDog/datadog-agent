@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package process
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"strings"
 	"time"
@@ -182,4 +183,21 @@ func parseProcessCmdLine(args []string) map[string]string {
 	}
 
 	return results
+}
+
+func ValueFromProcessFlag(name string, flag string) (interface{}, error) {
+	log.Debugf("Resolving value from process: %s, flag %s", name, flag)
+
+	processes, err := getProcesses(cacheValidity)
+	if err != nil {
+		return "", fmt.Errorf("unable to fetch processes: %w", err)
+	}
+
+	matchedProcesses := processes.findProcessesByName(name)
+	for _, mp := range matchedProcesses {
+		flagValues := parseProcessCmdLine(mp.Cmdline)
+		return flagValues[flag], nil
+	}
+
+	return "", fmt.Errorf("failed to find process: %s", name)
 }

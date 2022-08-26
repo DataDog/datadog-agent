@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -777,25 +778,7 @@ func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) 
 	if !ok {
 		return nil, fmt.Errorf(`expecting string value for process flag argument`)
 	}
-	return valueFromProcessFlag(name, flag)
-}
-
-func valueFromProcessFlag(name string, flag string) (interface{}, error) {
-	log.Debugf("Resolving value from process: %s, flag %s", name, flag)
-
-	processes, err := getProcesses(cacheValidity)
-	if err != nil {
-		return "", fmt.Errorf("unable to fetch processes: %w", err)
-	}
-
-	matchedProcesses := processes.findProcessesByName(name)
-	if len(matchedProcesses) != 0 {
-		cmdLine := matchedProcesses[0].CmdlineSlice()
-		flagValues := parseProcessCmdLine(cmdLine)
-		return flagValues[flag], nil
-	}
-
-	return "", fmt.Errorf("failed to find process: %s", name)
+	return process.ValueFromProcessFlag(name, flag)
 }
 
 func (b *builder) evalValueFromFile(get file.Getter) eval.Function {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package process
 
 import (
 	"context"
@@ -23,13 +23,13 @@ const (
 	cacheValidity time.Duration = 10 * time.Minute
 )
 
-var processReportedFields = []string{
+var ReportedFields = []string{
 	compliance.ProcessFieldName,
 	compliance.ProcessFieldExe,
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
