@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
@@ -80,7 +81,7 @@ func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) 
 		}
 		return kubeapiserver.Resolve, kubeapiserver.ReportedFields, nil
 	case compliance.KindConstants:
-		return resolveConstants, nil, nil
+		return constants.Resolve, nil, nil
 	default:
 		return nil, nil, ErrResourceKindNotSupported
 	}
