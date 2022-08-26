@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,7 +78,7 @@ func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) 
 		if env.KubeClient() == nil {
 			return nil, nil, log.Errorf("%s: kube client not initialized")
 		}
-		return resolveKubeapiserver, kubeResourceReportedFields, nil
+		return kubeapiserver.Resolve, kubeapiserver.ReportedFields, nil
 	case compliance.KindConstants:
 		return resolveConstants, nil, nil
 	default:

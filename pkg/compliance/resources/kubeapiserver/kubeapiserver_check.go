@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package kubeapiserver
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-var kubeResourceReportedFields = []string{
+var ReportedFields = []string{
 	compliance.KubeResourceFieldName,
 	compliance.KubeResourceFieldGroup,
 	compliance.KubeResourceFieldVersion,
@@ -36,7 +36,7 @@ type kubeUnstructureResolvedResource struct {
 	eval.Instance
 }
 
-func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
