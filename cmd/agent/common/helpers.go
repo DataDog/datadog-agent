@@ -75,9 +75,9 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {
 			if runtime.GOOS == "windows" {
-				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running with "Run as Administrator"`, err)
+				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
 			} else {
-				err = fmt.Errorf("cannot access the Datadog config file (%w); try running as the same user as the Datadog agent", err)
+				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
 		} else {
 			err = fmt.Errorf("unable to load Datadog config file: %w", err)
