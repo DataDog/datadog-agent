@@ -1574,7 +1574,7 @@ echo "Back to bash"`, python, python),
 
 echo "Executing echo inside a bash script"
 
-perl <<__HERE__
+%s <<__HERE__
 #!%s
 
 print "Executing print inside a perl (%s) script\n";
