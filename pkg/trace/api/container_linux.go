@@ -50,6 +50,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 // there would have to be thousands of containers spawned and dying per second to cause a mismatch.
 const cacheExpiration = time.Minute
 
+// IDProvider implementations are able to look up a container ID given a ctx and http header.
 type IDProvider interface {
 	GetContainerID(context.Context, http.Header) string
 }
@@ -61,10 +62,11 @@ func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) str
 	return h.Get(headerContainerID)
 }
 
+// NewIDProvider initializes an IDProvider instance using the provided procRoot to perform cgroups lookups in linux environments.
 func NewIDProvider(procRoot string) IDProvider {
 	reader, err := cgroups.NewReader()
 	if err != nil {
-		log.Warn("Failed to identify cgroups version due to err: %v. APM data may be missing containerIDs.", err)
+		log.Warnf("Failed to identify cgroups version due to err: %v. APM data may be missing containerIDs.", err)
 		return &noCgroupsProvider{}
 	}
 	cgroupController := ""
@@ -72,20 +74,22 @@ func NewIDProvider(procRoot string) IDProvider {
 		cgroupController = "memory"
 	}
 	c := NewCache(1 * time.Minute)
-	return &CgroupIDProvider{
+	return &cgroupIDProvider{
 		procRoot:   procRoot,
 		controller: cgroupController,
 		cache:      c,
 	}
 }
 
-type CgroupIDProvider struct {
+type cgroupIDProvider struct {
 	procRoot   string
 	controller string
 	cache      *Cache
 }
 
-func (c *CgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
+// GetContainerID returns the container ID in the http.Header,
+// otherwise looks for a PID in the ctx which is used to search cgroups for a container ID.
+func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
 	if id := h.Get(headerContainerID); id != "" {
 		return id
 	}
@@ -101,7 +105,7 @@ func (c *CgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 	return cid
 }
 
-func (c *CgroupIDProvider) getCachedContainerID(pid string) (string, error) {
+func (c *cgroupIDProvider) getCachedContainerID(pid string) (string, error) {
 	currentTime := time.Now()
 	entry, found, err := c.cache.Get(currentTime, pid, cacheExpiration)
 	if found {
