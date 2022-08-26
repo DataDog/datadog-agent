@@ -185,6 +185,7 @@ func (ccc *CCCache) waitForResource(guid string) {
 	ch, ok := ccc.activeResources[guid]
 	ccc.RUnlock()
 	if ok {
+		// wait for the resource to be released
 		<-ch
 	}
 }
@@ -199,9 +200,10 @@ func (ccc *CCCache) setResourceActive(guid string) error {
 		return fmt.Errorf("resource with guid %s is already active", guid)
 	}
 
-	// creating a channel will make consequent reads blocking
 	ccc.Lock()
 	defer ccc.Unlock()
+
+	// creating a channel will make consequent reads blocking
 	ccc.activeResources[guid] = make(chan interface{})
 
 	return nil
@@ -211,6 +213,7 @@ func (ccc *CCCache) setResourceInactive(guid string) {
 	ccc.RLock()
 	defer ccc.RUnlock()
 	if ch, ok := ccc.activeResources[guid]; ok {
+		// release the resource
 		close(ch)
 	}
 }
@@ -274,13 +277,13 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 			return nil, err
 		}
 
-		// unblock other goroutines as the resource is fetched
+		// unblock other goroutines, the resource is fetched
 		defer ccc.setResourceInactive(appGUID)
 
 		query := url.Values{}
 		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
 
-		// fetch processes for the appGUID from the CAPI
+		// fetch processes from the CAPI
 		processes, err := ccc.ccAPIClient.ListProcessByAppGUID(query, appGUID)
 		if err != nil {
 			return nil, err
@@ -316,7 +319,7 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find CF application %s in cloud controller cache", guid)
 		}
 
-		// app and cfapps share the same guid which would cause a deadlock in the ccc.activeResources map if not properly handle
+		// Apps and CFApplication share the same guid which causes a deadlock in the ccc.activeResources map if not properly handled
 		cfappGUID := "cfapp" + guid
 
 		// wait in case the resource is currently being fetched
@@ -328,7 +331,7 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 			return nil, err
 		}
 
-		// unblock other goroutines as the resource is fetched
+		// unblock other goroutines, the resource is fetched
 		defer ccc.setResourceInactive(cfappGUID)
 
 		// fetch app from the CAPI
@@ -422,7 +425,7 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 			return nil, err
 		}
 
-		// unblock other goroutines as the resource is fetched
+		// unblock other goroutines, the resource is fetched
 		defer ccc.setResourceInactive(guid)
 
 		// fetch app from the CAPI
@@ -460,7 +463,7 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 			return nil, err
 		}
 
-		// unblock other goroutines as the resource is fetched
+		// unblock other goroutines, the resource is fetched
 		defer ccc.setResourceInactive(guid)
 
 		// fetch space from the CAPI
@@ -498,7 +501,7 @@ func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
 			return nil, err
 		}
 
-		// unblock other goroutines as the resource is fetched
+		// unblock other goroutines, the resource is fetched
 		defer ccc.setResourceInactive(guid)
 
 		// fetch org from the CAPI
