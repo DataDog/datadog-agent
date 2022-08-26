@@ -566,6 +566,7 @@ def get_ebpf_build_flags(target=None, kernel_release=None, minimal_kernel_releas
             '-fno-unwind-tables',
             '-fno-asynchronous-unwind-tables',
             '-fno-jump-tables',
+            '-fmerge-all-constants',
             f"-I{c_dir}",
         ]
     )
