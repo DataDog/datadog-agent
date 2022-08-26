@@ -397,7 +397,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/netsampler/goflow2 v1.1.0
+require github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
 
 require (
 	github.com/DataDog/aptly v1.5.0 // indirect
