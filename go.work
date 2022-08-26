@@ -1,0 +1,15 @@
+go 1.19
+
+use .
+
+use (
+	./pkg/obfuscate
+	./pkg/otlp/model
+	./pkg/quantile
+	./pkg/remoteconfig/state
+	./pkg/security/secl
+	./pkg/trace
+	./pkg/util/cgroups
+	./pkg/util/log
+	./pkg/util/scrubber
+)
