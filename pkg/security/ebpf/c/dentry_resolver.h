@@ -12,6 +12,7 @@
 
 #define DENTRY_INVALID -1
 #define DENTRY_DISCARDED -2
+#define DENTRY_ERROR -3
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
@@ -117,6 +118,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
+    if (!params) {
+        return DENTRY_ERROR;
+    }
     *params = (struct is_discarded_by_inode_t){
         .event_type = input->discarder_type,
         .tgid = bpf_get_current_pid_tgid() >> 32,
