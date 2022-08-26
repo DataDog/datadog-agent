@@ -100,6 +100,9 @@ func WithHostname(hostname string) BuilderOption {
 // WithHostRootMount defines host root filesystem mount location
 func WithHostRootMount(hostRootMount string) BuilderOption {
 	return func(b *builder) error {
+		if hostRootMount == "" {
+			hostRootMount = "/"
+		}
 		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
 		b.pathMapper = file.NewPathMapper(
 			hostRootMount,
