@@ -313,7 +313,8 @@ __attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx
     }
 
     // is this event type traced ?
-    u64 *traced = bpf_map_lookup_elem(&traced_event_types, &params->event_type);
+    u64 event_type = params->event_type;
+    u64 *traced = bpf_map_lookup_elem(&traced_event_types, &event_type);
     if (traced == NULL) {
         params->activity_dump_state = NO_ACTIVITY_DUMP;
         return;

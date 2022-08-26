@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
@@ -41,10 +40,10 @@ var cpuInfo = cpu.GetCpuInfo
 type Check struct {
 	core.CheckBase
 	nbCPU             float64
-	interruptsCounter pdhutil.PdhSingleInstanceCounterSet
-	idleCounter       pdhutil.PdhSingleInstanceCounterSet
-	userCounter       pdhutil.PdhSingleInstanceCounterSet
-	privilegedCounter pdhutil.PdhSingleInstanceCounterSet
+	interruptsCounter *pdhutil.PdhSingleInstanceCounterSet
+	idleCounter       *pdhutil.PdhSingleInstanceCounterSet
+	userCounter       *pdhutil.PdhSingleInstanceCounterSet
+	privilegedCounter *pdhutil.PdhSingleInstanceCounterSet
 }
 
 // Run executes the check
@@ -56,30 +55,56 @@ func (c *Check) Run() error {
 
 	sender.Gauge("system.cpu.num_cores", c.nbCPU, "", nil)
 
-	val, err := c.interruptsCounter.GetValue()
+	var val float64
+
+	// counter ("Processor Information", "% Interrupt Time")
+	if c.interruptsCounter == nil {
+		c.interruptsCounter, err = getProcessorPDHCounter("% Interrupt Time", "_Total")
+	}
+	if c.interruptsCounter != nil {
+		val, err = c.interruptsCounter.GetValue()
+	}
 	if err != nil {
-		log.Warnf("Error getting handle value %v", err)
+		c.Warnf("cpu.Check: could not establish interrupt time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
 	}
 
-	val, err = c.idleCounter.GetValue()
+	// counter ("Processor Information", "% Idle Time")
+	if c.idleCounter == nil {
+		c.idleCounter, err = getProcessorPDHCounter("% Idle Time", "_Total")
+	}
+	if c.idleCounter != nil {
+		val, err = c.idleCounter.GetValue()
+	}
 	if err != nil {
-		log.Warnf("Error getting handle value %v", err)
+		c.Warnf("cpu.Check: could not establish idle time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.idle", float64(val), "", nil)
 	}
 
-	val, err = c.userCounter.GetValue()
+	// counter ("Processor Information", "% User Time")
+	if c.userCounter == nil {
+		c.userCounter, err = getProcessorPDHCounter("% User Time", "_Total")
+	}
+	if c.userCounter != nil{
+		val, err = c.userCounter.GetValue()
+	}
 	if err != nil {
-		log.Warnf("Error getting handle value %v", err)
+		c.Warnf("cpu.Check: could not establish user time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.user", float64(val), "", nil)
 	}
 
-	val, err = c.privilegedCounter.GetValue()
+	// counter ("Processor Information", "% Privileged Time")
+	if c.privilegedCounter == nil {
+		c.privilegedCounter, err = getProcessorPDHCounter("% Privileged Time", "_Total")
+	}
+	if c.privilegedCounter != nil {
+		val, err = c.privilegedCounter.GetValue()
+	}
 	if err != nil {
-		log.Warnf("Error getting handle value %v", err)
+		c.Warnf("cpu.Check: could not establish system time counter: %v", err)
 	} else {
 		sender.Gauge("system.cpu.system", float64(val), "", nil)
 	}
@@ -93,14 +118,16 @@ func (c *Check) Run() error {
 }
 
 // Configure the PDH counter according to the running environment.
-// On machines with more than 1 NUMA node, it uses "Process Information",
+// On machines with more than 1 NUMA node, it uses "Processor Information",
 // otherwise it uses "Processor" (e.g. in containers).
-func getProcessorPDHCounter(counterName, instance string) (pdhutil.PdhSingleInstanceCounterSet, error) {
+// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
+// you visibility about other applications running on the same processor as you
+func getProcessorPDHCounter(counterName, instance string) (*pdhutil.PdhSingleInstanceCounterSet, error) {
 	counter, err := pdhutil.GetUnlocalizedCounter("Processor Information", counterName, instance)
 	if err != nil {
 		counter, err = pdhutil.GetUnlocalizedCounter("Processor", counterName, instance)
 	}
-	return counter, err
+	return &counter, err
 }
 
 // Configure the CPU check doesn't need configuration
@@ -117,24 +144,6 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
 	c.nbCPU = cpucount
 
-	// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
-	// you visibility about other applications running on the same processor as you
-	c.interruptsCounter, err = getProcessorPDHCounter("% Interrupt Time", "_Total")
-	if err != nil {
-		return fmt.Errorf("cpu.Check could not establish interrupt time counter %v", err)
-	}
-	c.idleCounter, err = getProcessorPDHCounter("% Idle Time", "_Total")
-	if err != nil {
-		return fmt.Errorf("cpu.Check could not establish idle time counter %v", err)
-	}
-	c.userCounter, err = getProcessorPDHCounter("% User Time", "_Total")
-	if err != nil {
-		return fmt.Errorf("cpu.Check could not establish user time counter %v", err)
-	}
-	c.privilegedCounter, err = getProcessorPDHCounter("% Privileged Time", "_Total")
-	if err != nil {
-		return fmt.Errorf("cpu.Check could not establish system time counter %v", err)
-	}
 	return nil
 }
 

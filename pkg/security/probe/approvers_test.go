@@ -28,7 +28,7 @@ func TestApproverAncestors1(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	m := &model.Model{}
 	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
@@ -60,7 +60,7 @@ func TestApproverAncestors2(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	m := &model.Model{}
 	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
@@ -89,7 +89,7 @@ func TestApproverAncestors3(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	m := &model.Model{}
 	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts, &eval.MacroStore{})

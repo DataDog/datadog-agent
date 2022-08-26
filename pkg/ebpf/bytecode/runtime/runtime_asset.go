@@ -20,12 +20,12 @@ import (
 	"golang.org/x/sys/unix"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/nikos/types"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -95,9 +95,9 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 }
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
-func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
+func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string, client statsd.ClientInterface) (CompiledOutput, error) {
 	output, err := a.runtimeCompiler.CompileObjectFile(config, cflags, a.filename, a)
-	a.SubmitTelemetry()
+	a.SubmitTelemetry(client)
 	return output, err
 }
 
@@ -130,7 +130,7 @@ func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 	return telemetry.GetTelemetry()
 }
 
-func (a *RuntimeAsset) SubmitTelemetry() {
+func (a *RuntimeAsset) SubmitTelemetry(statsdClient statsd.ClientInterface) {
 	tm := a.runtimeCompiler.GetRCTelemetry()
 
 	if !tm.compilationEnabled {
@@ -166,7 +166,7 @@ func (a *RuntimeAsset) SubmitTelemetry() {
 			fmt.Sprintf("reason:%s", model.RuntimeCompilationResult(tm.compilationResult).String()),
 		)
 
-		if err := statsd.Client.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
+		if err := statsdClient.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
 			log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
 		}
 	}
@@ -184,7 +184,7 @@ func (a *RuntimeAsset) SubmitTelemetry() {
 			fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(tm.headerFetchResult).String()),
 		)
 
-		if err := statsd.Client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
+		if err := statsdClient.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
 			log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
 		}
 	}

@@ -130,3 +130,15 @@ updates:
     milestone: 22
     schedule:
       interval: "monthly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+      - dependencies
+      - dependencies-github-actions
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
+    schedule:
+      interval: "weekly"

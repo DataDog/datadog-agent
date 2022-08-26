@@ -882,7 +882,11 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint16(data[4:6])
 	e.Class = ByteOrder.Uint16(data[6:8])
 	e.Size = ByteOrder.Uint16(data[8:10])
-	e.Name, _ = decodeDNSName(data[10:])
+	var err error
+	e.Name, err = decodeDNSName(data[10:])
+	if err != nil {
+		return 0, err
+	}
 	return len(data), nil
 }
 

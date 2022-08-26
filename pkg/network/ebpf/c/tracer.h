@@ -28,6 +28,7 @@ typedef struct {
     __u64 recv_bytes;
     __u64 timestamp;
     __u32 flags;
+    __u32 cookie;
     __u8 direction;
     __u64 sent_packets;
     __u64 recv_packets;

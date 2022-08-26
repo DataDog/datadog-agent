@@ -217,6 +217,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
 			tailer.ReplaceSource(source)
+			continue
 		}
 
 		mode, _ := config.TailingModeFromString(source.Config.TailingMode)

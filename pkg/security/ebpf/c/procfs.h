@@ -69,6 +69,8 @@ int kprobe_security_inode_getattr(struct pt_regs *ctx) {
     return 0;
 }
 
+#ifndef DO_NOT_USE_TC
+
 struct bpf_map_def SEC("maps/fd_link_pid") fd_link_pid = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(u8),
@@ -90,7 +92,6 @@ int kprobe_path_get(struct pt_regs *ctx) {
     if (procfs_pid == NULL) {
         return 0;
     }
-    u32 pid = *procfs_pid;
 
     struct path *p = (struct path *)PT_REGS_PARM1(ctx);
     struct file *sock_file = (void *)p - offsetof(struct file, f_path);
@@ -125,6 +126,7 @@ int kprobe_path_get(struct pt_regs *ctx) {
     bpf_probe_read(&route.port, sizeof(route.port), &sk->__sk_common.skc_num);
 
     // save pid route
+    u32 pid = *procfs_pid;
     bpf_map_update_elem(&flow_pid, &route, &pid, BPF_ANY);
 
 #ifdef DEBUG
@@ -168,5 +170,7 @@ int kprobe_proc_fd_link(struct pt_regs *ctx) {
 #endif
     return 0;
 }
+
+#endif // DO_NOT_USE_TC
 
 #endif

@@ -748,11 +748,11 @@ api_key:
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
   ## configs:
-  ##  - network: 10.0.0.0/24
-  ##    version: 1
-  ##    community: public
-  ##  - network: 10.0.1.0/28
-  ##    community: public
+  ##  - network_address: 10.0.0.0/24
+  ##    snmp_version: 1
+  ##    community_string: public
+  ##  - network_address: 10.0.1.0/28
+  ##    community_string: public
   ##    ignored_ip_addresses:
   ##      - 10.0.1.0
   ##      - 10.0.1.1
@@ -1061,7 +1061,9 @@ api_key:
   ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
   ## the received traffic and communicated to tracers. This configures head base sampling.
-  ## Set to 0 to disable sampling.
+  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer 
+  ## disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
+  ## value sufficiently high for your traffic pattern.
   #
   # max_traces_per_second: 10
 
@@ -3139,7 +3141,7 @@ api_key:
     # stop_timeout: 5.0
 
 {{end -}}
-
+{{- if .OTLP }}
 ###################################
 ## OpenTelemetry Configuration   ##
 ###################################
@@ -3340,3 +3342,4 @@ api_key:
     ## Options are disabled, debug, info, error, warn.
     #
     # loglevel: info
+{{end -}}
