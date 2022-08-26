@@ -349,6 +349,6 @@ func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
 	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
 	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
-	
+
 	cc.refreshCacheOnMiss = false
 }

@@ -196,7 +196,7 @@ func (ccc *CCCache) setResourceActive(guid string) error {
 
 	// resource is already active
 	if ok {
-		return fmt.Errorf("resouce with guid %s is already active", guid)
+		return fmt.Errorf("resource with guid %s is already active", guid)
 	}
 
 	// creating a channel will make consequent reads blocking
