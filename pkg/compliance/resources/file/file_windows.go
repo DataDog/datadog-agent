@@ -6,7 +6,7 @@
 //go:build windows
 // +build windows
 
-package checks
+package file
 
 import (
 	"errors"

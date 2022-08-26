@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package checks
+package audit
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newAuditClient() (env.AuditClient, error) {
+func NewAuditClient() (env.AuditClient, error) {
 	if os.Geteuid() != 0 {
 		return nil, errors.New("you must be root to receive audit data")
 	}

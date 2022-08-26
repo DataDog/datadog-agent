@@ -6,7 +6,7 @@
 //go:build !linux
 // +build !linux
 
-package checks
+package audit
 
 import (
 	"errors"

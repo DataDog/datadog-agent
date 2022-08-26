@@ -149,7 +149,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 	objectsPerTags["context"] = contextInput
 
 	for _, input := range r.inputs {
-		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, input.Kind())
+		resolve, _, err := resourceKindToResolverAndFields(env, input.Kind())
 		if err != nil {
 			return nil, err
 		}

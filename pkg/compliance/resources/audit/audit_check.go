@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package audit
 
 import (
 	"context"
@@ -16,16 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var auditReportedFields = []string{
+var ReportedFields = []string{
 	compliance.AuditFieldPath,
 	compliance.AuditFieldEnabled,
 	compliance.AuditFieldPermissions,
 }
 
-func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -37,7 +38,7 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 		return nil, fmt.Errorf("audit client not configured")
 	}
 
-	path, err := resolvePath(e, audit.Path)
+	path, err := file.ResolvePath(e, audit.Path)
 	if err != nil {
 		return nil, err
 	}

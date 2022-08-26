@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -95,9 +97,9 @@ func WithHostname(hostname string) BuilderOption {
 func WithHostRootMount(hostRootMount string) BuilderOption {
 	return func(b *builder) error {
 		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
-		b.pathMapper = &pathMapper{
-			hostMountPath: hostRootMount,
-		}
+		b.pathMapper = file.NewPathMapper(
+			hostRootMount,
+		)
 		return nil
 	}
 }
@@ -124,7 +126,7 @@ func WithDockerClient(cli env.DockerClient) BuilderOption {
 // WithAudit configures using audit checks
 func WithAudit() BuilderOption {
 	return func(b *builder) error {
-		cli, err := newAuditClient()
+		cli, err := audit.NewAuditClient()
 		if err == nil {
 			b.auditClient = cli
 		}
@@ -305,7 +307,7 @@ type builder struct {
 	statsdClient statsd.ClientInterface
 
 	hostname     string
-	pathMapper   *pathMapper
+	pathMapper   *file.PathMapper
 	etcGroupPath string
 	nodeLabels   map[string]string
 
@@ -664,14 +666,14 @@ func (b *builder) NormalizeToHostRoot(path string) string {
 	if b.pathMapper == nil {
 		return path
 	}
-	return b.pathMapper.normalizeToHostRoot(path)
+	return b.pathMapper.NormalizeToHostRoot(path)
 }
 
 func (b *builder) RelativeToHostRoot(path string) string {
 	if b.pathMapper == nil {
 		return path
 	}
-	return b.pathMapper.relativeToHostRoot(path)
+	return b.pathMapper.RelativeToHostRoot(path)
 }
 
 func (b *builder) IsLeader() bool {
@@ -692,8 +694,8 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),
 			builderFuncExec:        b.withValueCache(builderFuncExec, evalCommandExec),
 			builderFuncProcessFlag: b.withValueCache(builderFuncProcessFlag, evalProcessFlag),
-			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
-			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
+			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(file.JSONGetter)),
+			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(file.YAMLGetter)),
 		},
 		nil,
 	)
@@ -826,7 +828,7 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 	return "", fmt.Errorf("failed to find process: %s", name)
 }
 
-func (b *builder) evalValueFromFile(get getter) eval.Function {
+func (b *builder) evalValueFromFile(get file.Getter) eval.Function {
 	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 2 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
@@ -842,6 +844,6 @@ func (b *builder) evalValueFromFile(get getter) eval.Function {
 		if !ok {
 			return nil, fmt.Errorf(`expecting string value for query argument`)
 		}
-		return queryValueFromFile(path, query, get)
+		return file.QueryValueFromFile(path, query, get)
 	}
 }

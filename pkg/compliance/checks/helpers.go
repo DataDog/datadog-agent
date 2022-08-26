@@ -6,148 +6,14 @@
 package checks
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"regexp"
 	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
-	yamlv2 "gopkg.in/yaml.v2"
-	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// getter applies jq query to get string value from json or yaml raw data
-type getter func([]byte, string) (string, error)
-
-type contentParser func([]byte) (interface{}, error)
-
-func parseRawContent(data []byte) (interface{}, error) {
-	return string(data), nil
-}
-
-func parseJSONContent(data []byte) (interface{}, error) {
-	var content interface{}
-
-	if err := json.Unmarshal(data, &content); err != nil {
-		return nil, err
-	}
-
-	return content, nil
-}
-
-func parseYAMLContent(data []byte) (interface{}, error) {
-	var content interface{}
-
-	if err := yaml.Unmarshal(data, &content); err != nil {
-		if err := yamlv2.Unmarshal(data, &content); err != nil {
-			return nil, err
-		}
-	}
-
-	content = jsonquery.NormalizeYAMLForGoJQ(content)
-	return content, nil
-}
-
-var contentParsers = map[string]contentParser{
-	"json": parseJSONContent,
-	"yaml": parseYAMLContent,
-	"raw":  parseRawContent,
-}
-
-func validateParserKind(parser string) (string, error) {
-	if parser == "" {
-		return "", nil
-	}
-
-	normParser := strings.ToLower(parser)
-	if _, ok := contentParsers[normParser]; !ok {
-		return "", fmt.Errorf("undefined file content parser %s", parser)
-	}
-	return normParser, nil
-}
-
-// readContent unmarshal file
-func readContent(filePath, parser string) (interface{}, error) {
-	if parser == "" {
-		return "", nil
-	}
-
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return "", err
-	}
-
-	parserFunc := contentParsers[parser]
-	if parserFunc != nil {
-		return parserFunc(data)
-	}
-
-	return string(data), nil
-}
-
-// jsonGetter retrieves a property from a JSON file (jq style syntax)
-func jsonGetter(data []byte, query string) (string, error) {
-	var jsonContent interface{}
-	if err := json.Unmarshal(data, &jsonContent); err != nil {
-		return "", err
-	}
-	value, _, err := jsonquery.RunSingleOutput(query, jsonContent)
-	return value, err
-}
-
-// yamlGetter retrieves a property from a YAML file (jq style syntax)
-func yamlGetter(data []byte, query string) (string, error) {
-	var yamlContent interface{}
-	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
-		return "", err
-	}
-	yamlContent = jsonquery.NormalizeYAMLForGoJQ(yamlContent)
-	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
-	return value, err
-}
-
-// regexpGetter retrieves the leftmost property matching regexp
-func regexpGetter(data []byte, expr string) (string, error) {
-	re, err := regexp.Compile(expr)
-	if err != nil {
-		return "", err
-	}
-
-	match := re.Find(data)
-	if match == nil {
-		return "", nil
-	}
-
-	return string(match), nil
-}
-
-// queryValueFromFile retrieves a value from a file with the provided getter func
-func queryValueFromFile(filePath string, query string, get getter) (string, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return "", err
-	}
-
-	return get(data, query)
-}
 
 // evalGoTemplate evaluates a go-style template on an object
 func evalGoTemplate(s string, obj interface{}) string {

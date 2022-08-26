@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,34 +52,12 @@ func (c *resourceCheck) check(env env.Env) []*compliance.Report {
 	return resolved.Evaluate(conditionExpression, env)
 }
 
-func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) (checkable, error) {
-	// TODO: validate resource here
-	kind := resource.Kind()
-
-	switch kind {
-	case compliance.KindCustom:
-		return newCustomCheck(ruleID, resource)
-	}
-
-	resolve, reportedFields, err := resourceKindToResolverAndFields(env, ruleID, kind)
-	if err != nil {
-		return nil, log.Errorf("%s: failed to find resource resolver for resource kind: %s", ruleID, kind)
-	}
-
-	return &resourceCheck{
-		ruleID:         ruleID,
-		resource:       resource,
-		resolve:        resolve,
-		reportedFields: reportedFields,
-	}, nil
-}
-
-func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance.ResourceKind) (resources.Resolver, []string, error) {
+func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) (resources.Resolver, []string, error) {
 	switch kind {
 	case compliance.KindFile:
-		return resolveFile, fileReportedFields, nil
+		return file.Resolve, file.ReportedFields, nil
 	case compliance.KindAudit:
-		return resolveAudit, auditReportedFields, nil
+		return audit.Resolve, audit.ReportedFields, nil
 	case compliance.KindGroup:
 		return resolveGroup, groupReportedFields, nil
 	case compliance.KindCommand:
@@ -86,12 +66,12 @@ func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance
 		return resolveProcess, processReportedFields, nil
 	case compliance.KindDocker:
 		if env.DockerClient() == nil {
-			return nil, nil, log.Errorf("%s: docker client not initialized", ruleID)
+			return nil, nil, log.Errorf("%s: docker client not initialized")
 		}
 		return resolveDocker, dockerReportedFields, nil
 	case compliance.KindKubernetes:
 		if env.KubeClient() == nil {
-			return nil, nil, log.Errorf("%s: kube client not initialized", ruleID)
+			return nil, nil, log.Errorf("%s: kube client not initialized")
 		}
 		return resolveKubeapiserver, kubeResourceReportedFields, nil
 	case compliance.KindConstants:

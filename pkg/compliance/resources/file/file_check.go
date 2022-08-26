@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package file
 
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var fileReportedFields = []string{
+var ReportedFields = []string{
 	compliance.FileFieldGlob,
 	compliance.FileFieldPath,
 	compliance.FileFieldPermissions,
@@ -26,7 +27,7 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -40,7 +41,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, err
 	}
 
-	path, err := resolvePath(e, file.Path)
+	path, err := ResolvePath(e, file.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +118,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 	return resources.NewResolvedInstances(instances), nil
 }
 
-func fileQuery(path string, get getter) eval.Function {
+func fileQuery(path string, get Getter) eval.Function {
 	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 1 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
@@ -126,18 +127,34 @@ func fileQuery(path string, get getter) eval.Function {
 		if !ok {
 			return nil, fmt.Errorf(`expecting string value for query argument`)
 		}
-		return queryValueFromFile(path, query, get)
+		return QueryValueFromFile(path, query, get)
 	}
 }
 
 func fileJQ(path string) eval.Function {
-	return fileQuery(path, jsonGetter)
+	return fileQuery(path, JSONGetter)
 }
 
 func fileYAML(path string) eval.Function {
-	return fileQuery(path, yamlGetter)
+	return fileQuery(path, YAMLGetter)
 }
 
 func fileRegexp(path string) eval.Function {
-	return fileQuery(path, regexpGetter)
+	return fileQuery(path, RegexpGetter)
+}
+
+// QueryValueFromFile retrieves a value from a file with the provided getter func
+func QueryValueFromFile(filePath string, query string, get Getter) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	return get(data, query)
 }
