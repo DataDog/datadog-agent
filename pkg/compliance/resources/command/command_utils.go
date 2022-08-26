@@ -3,14 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package command
 
 import (
 	"context"
+	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type commandRunnerFunc func(context.Context, string, []string, bool) (int, []byte, error)
@@ -52,4 +55,37 @@ func runBinaryCmd(execCommand *compliance.BinaryCmd, timeout time.Duration) (int
 
 	exitCode, stdout, err := commandRunner(ctx, execCommand.Name, execCommand.Args, true)
 	return exitCode, string(stdout), err
+}
+
+func ValueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
+	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
+
+	shellCmd := &compliance.ShellCmd{
+		Run: command,
+	}
+	if len(shellAndArgs) > 0 {
+		shellCmd.Shell = &compliance.BinaryCmd{
+			Name: shellAndArgs[0],
+			Args: shellAndArgs[1:],
+		}
+	}
+	execCommand := shellCmdToBinaryCmd(shellCmd)
+	exitCode, stdout, err := runBinaryCmd(execCommand, compliance.DefaultTimeout)
+	if exitCode != 0 || err != nil {
+		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
+	}
+	return stdout, nil
+}
+
+func ValueFromBinaryCommand(name string, args ...string) (interface{}, error) {
+	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
+	execCommand := &compliance.BinaryCmd{
+		Name: name,
+		Args: args,
+	}
+	exitCode, stdout, err := runBinaryCmd(execCommand, compliance.DefaultTimeout)
+	if exitCode != 0 || err != nil {
+		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
+	}
+	return stdout, nil
 }

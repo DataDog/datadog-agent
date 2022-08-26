@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package command
 
 import (
 	"context"
@@ -17,15 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultTimeout = 30 * time.Second
-)
-
-var commandReportedFields = []string{
+var ReportedFields = []string{
 	compliance.CommandFieldExitCode,
 }
 
-func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -46,7 +42,7 @@ func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res complianc
 		execCommand = shellCmdToBinaryCmd(command.ShellCmd)
 	}
 
-	commandTimeout := defaultTimeout
+	commandTimeout := compliance.DefaultTimeout
 	if command.TimeoutSeconds != 0 {
 		commandTimeout = time.Duration(command.TimeoutSeconds) * time.Second
 	}

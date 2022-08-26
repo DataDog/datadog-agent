@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
@@ -38,7 +39,7 @@ type resourceCheck struct {
 }
 
 func (c *resourceCheck) check(env env.Env) []*compliance.Report {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), compliance.DefaultTimeout)
 	defer cancel()
 
 	resolved, err := c.resolve(ctx, env, c.ruleID, c.resource.ResourceCommon, false)
@@ -63,7 +64,7 @@ func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) 
 	case compliance.KindGroup:
 		return group.Resolve, group.ReportedFields, nil
 	case compliance.KindCommand:
-		return resolveCommand, commandReportedFields, nil
+		return command.Resolve, command.ReportedFields, nil
 	case compliance.KindProcess:
 		return resolveProcess, processReportedFields, nil
 	case compliance.KindDocker:

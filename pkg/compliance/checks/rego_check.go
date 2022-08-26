@@ -154,7 +154,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			return nil, err
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), compliance.DefaultTimeout)
 		defer cancel()
 
 		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon, true)

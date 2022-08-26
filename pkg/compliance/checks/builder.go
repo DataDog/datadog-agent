@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -162,7 +163,7 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), compliance.DefaultTimeout)
 	defer cancel()
 	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
@@ -726,7 +727,7 @@ func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error)
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
 	}
-	command, ok := args[0].(string)
+	cmd, ok := args[0].(string)
 	if !ok {
 		return nil, fmt.Errorf(`expecting string value for command argument`)
 	}
@@ -742,27 +743,8 @@ func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error)
 			shellAndArgs = append(shellAndArgs, s)
 		}
 	}
-	return valueFromShellCommand(command, shellAndArgs...)
-}
 
-func valueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
-	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
-
-	shellCmd := &compliance.ShellCmd{
-		Run: command,
-	}
-	if len(shellAndArgs) > 0 {
-		shellCmd.Shell = &compliance.BinaryCmd{
-			Name: shellAndArgs[0],
-			Args: shellAndArgs[1:],
-		}
-	}
-	execCommand := shellCmdToBinaryCmd(shellCmd)
-	exitCode, stdout, err := runBinaryCmd(execCommand, defaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
-	}
-	return stdout, nil
+	return command.ValueFromShellCommand(cmd, shellAndArgs...)
 }
 
 func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
@@ -780,20 +762,7 @@ func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) 
 		cmdArgs = append(cmdArgs, s)
 	}
 
-	return valueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
-}
-
-func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
-	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
-	execCommand := &compliance.BinaryCmd{
-		Name: name,
-		Args: args,
-	}
-	exitCode, stdout, err := runBinaryCmd(execCommand, defaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
-	}
-	return stdout, nil
+	return command.ValueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
 }
 
 func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {
