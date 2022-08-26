@@ -18,9 +18,6 @@ import (
 	yamlv2 "gopkg.in/yaml.v2"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -171,52 +168,4 @@ func evalGoTemplate(s string, obj interface{}) string {
 // wrapErrorWithID wraps an error with an ID (e.g. rule ID)
 func wrapErrorWithID(id string, err error) error {
 	return fmt.Errorf("%s: %w", id, err)
-}
-
-// instanceToEventData converts an instance to event data filtering out fields not on the allowedFields list
-func instanceToEventData(instance eval.Instance, allowedFields []string) event.Data {
-	data := event.Data{}
-
-	for k, v := range instance.Vars() {
-		allow := false
-		for _, a := range allowedFields {
-			if k == a {
-				allow = true
-				break
-			}
-		}
-		if !allow {
-			continue
-		}
-		data[k] = v
-	}
-	return data
-}
-
-// instanceToReport converts an instance and passed status to report
-// filtering out fields not on the allowedFields list
-func instanceToReport(instance ResolvedInstance, passed bool, allowedFields []string) *compliance.Report {
-	var data event.Data
-	var resourceReport compliance.ReportResource
-
-	if instance != nil {
-		data = instanceToEventData(instance, allowedFields)
-		resourceReport = compliance.ReportResource{
-			ID:   instance.ID(),
-			Type: instance.Type(),
-		}
-	}
-
-	return &compliance.Report{
-		Resource: resourceReport,
-		Passed:   passed,
-		Data:     data,
-	}
-}
-
-// instanceToReports converts an evaluated instanceResult to reports
-// filtering out fields not on the allowedFields list
-func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *compliance.Report {
-	resolvedInstance, _ := result.Instance.(ResolvedInstance)
-	return instanceToReport(resolvedInstance, result.Passed, allowedFields)
 }

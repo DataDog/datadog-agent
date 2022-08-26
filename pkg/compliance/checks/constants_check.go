@@ -13,10 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func resolveConstants(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveConstants(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Constants == nil {
 		return nil, fmt.Errorf("expecting constants resource in constants check")
 	}
@@ -34,6 +35,6 @@ func resolveConstants(_ context.Context, e env.Env, ruleID string, res complianc
 	regoInput := eval.RegoInputMap(constants.Values)
 
 	instance := eval.NewInstance(vars, nil, regoInput)
-	resolvedInstance := NewResolvedInstance(instance, resourceID, "constants")
+	resolvedInstance := resources.NewResolvedInstance(instance, resourceID, "constants")
 	return resolvedInstance, nil
 }

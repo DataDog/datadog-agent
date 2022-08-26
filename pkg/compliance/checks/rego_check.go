@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -183,7 +184,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			default:
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
-		case ResolvedInstance:
+		case resources.ResolvedInstance:
 			switch inputType {
 			case "array":
 				r.appendInstance(arraysPerTags, tagName, res)

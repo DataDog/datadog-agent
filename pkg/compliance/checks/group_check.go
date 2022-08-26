@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +32,7 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func resolveGroup(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveGroup(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}
@@ -59,7 +60,7 @@ func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resour
 		return nil, ErrGroupNotFound
 	}
 
-	return NewResolvedInstance(finder.instance, group.Name, "group"), nil
+	return resources.NewResolvedInstance(finder.instance, group.Name, "group"), nil
 }
 
 type groupFinder struct {

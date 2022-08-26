@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,7 +74,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -92,23 +93,23 @@ func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance
 	switch res.Docker.Kind {
 	case "image":
 		if iterator, err = newDockerImageIterator(ctx, client); err == nil {
-			return NewResolvedIterator(iterator), nil
+			return resources.NewResolvedIterator(iterator), nil
 		}
 	case "container":
 		if iterator, err = newDockerContainerIterator(ctx, client); err == nil {
-			return NewResolvedIterator(iterator), nil
+			return resources.NewResolvedIterator(iterator), nil
 		}
 	case "network":
 		if iterator, err = newDockerNetworkIterator(ctx, client); err == nil {
-			return NewResolvedIterator(iterator), nil
+			return resources.NewResolvedIterator(iterator), nil
 		}
 	case "info":
 		if instance, err = newDockerInfoInstance(ctx, client); err == nil {
-			return NewResolvedInstance(instance, "daemon", "docker_daemon"), nil
+			return resources.NewResolvedInstance(instance, "daemon", "docker_daemon"), nil
 		}
 	case "version":
 		if instance, err = newDockerVersionInstance(ctx, client); err == nil {
-			return NewResolvedInstance(instance, "daemon", "docker_daemon"), nil
+			return resources.NewResolvedInstance(instance, "daemon", "docker_daemon"), nil
 		}
 	default:
 		return nil, dockerKindNotSupported(res.Docker.Kind)
@@ -206,7 +207,7 @@ func newDockerImageIterator(ctx context.Context, client env.DockerClient) (eval.
 
 func (it *dockerImageIterator) Next() (eval.Instance, error) {
 	if it.Done() {
-		return nil, ErrInvalidIteration
+		return nil, resources.ErrInvalidIteration
 	}
 
 	image := it.images[it.index]
@@ -264,7 +265,7 @@ func newDockerContainerIterator(ctx context.Context, client env.DockerClient) (e
 
 func (it *dockerContainerIterator) Next() (eval.Instance, error) {
 	if it.Done() {
-		return nil, ErrInvalidIteration
+		return nil, resources.ErrInvalidIteration
 	}
 
 	container := it.containers[it.index]
@@ -324,7 +325,7 @@ func newDockerNetworkIterator(ctx context.Context, client env.DockerClient) (eva
 
 func (it *dockerNetworkIterator) Next() (eval.Instance, error) {
 	if it.Done() {
-		return nil, ErrInvalidIteration
+		return nil, resources.ErrInvalidIteration
 	}
 
 	network := it.networks[it.index]

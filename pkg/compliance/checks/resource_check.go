@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,87 +24,11 @@ var (
 	ErrResourceFailedToResolve = errors.New("failed to resolve resource")
 )
 
-type Resolved interface {
-	Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report
-}
-type ResolvedInstance interface {
-	eval.Instance
-	ID() string
-	Type() string
-}
-
-type resolvedInstance struct {
-	eval.Instance
-	id   string
-	kind string
-}
-
-func (ri *resolvedInstance) ID() string {
-	return ri.id
-}
-
-func (ri *resolvedInstance) Type() string {
-	return ri.kind
-}
-
-func (ri *resolvedInstance) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
-	passed, err := conditionExpression.Evaluate(ri.Instance)
-	if err != nil {
-		return []*compliance.Report{compliance.BuildReportForError(err)}
-	}
-
-	report := instanceToReport(ri, passed, c.reportedFields)
-	return []*compliance.Report{report}
-}
-
-func NewResolvedInstance(instance eval.Instance, resourceID, resourceType string) *resolvedInstance {
-	return &resolvedInstance{
-		Instance: instance,
-		id:       resourceID,
-		kind:     resourceType,
-	}
-}
-
-type resolvedIterator struct {
-	eval.Iterator
-}
-
-func (ri *resolvedIterator) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
-	results, err := conditionExpression.EvaluateIterator(ri.Iterator, globalInstance)
-	if err != nil {
-		return []*compliance.Report{compliance.BuildReportForError(err)}
-	}
-
-	var reports []*compliance.Report
-	for _, result := range results {
-		report := instanceResultToReport(result, c.reportedFields)
-		reports = append(reports, report)
-	}
-
-	return reports
-}
-
-func NewResolvedIterator(iterator eval.Iterator) *resolvedIterator {
-	return &resolvedIterator{
-		Iterator: iterator,
-	}
-}
-
-func NewResolvedInstances(resolvedInstances []ResolvedInstance) *resolvedIterator {
-	instances := make([]eval.Instance, len(resolvedInstances))
-	for i, ri := range resolvedInstances {
-		instances[i] = ri
-	}
-	return NewResolvedIterator(newInstanceIterator(instances))
-}
-
-type Resolver func(ctx context.Context, e env.Env, ruleID string, resource compliance.ResourceCommon, rego bool) (Resolved, error)
-
 type resourceCheck struct {
 	ruleID   string
 	resource compliance.Resource
 
-	resolve Resolver
+	resolve resources.Resolver
 
 	reportedFields []string
 }
@@ -122,7 +47,7 @@ func (c *resourceCheck) check(env env.Env) []*compliance.Report {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	return resolved.Evaluate(conditionExpression, c, env)
+	return resolved.Evaluate(conditionExpression, env)
 }
 
 func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) (checkable, error) {
@@ -147,7 +72,7 @@ func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) 
 	}, nil
 }
 
-func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance.ResourceKind) (Resolver, []string, error) {
+func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance.ResourceKind) (resources.Resolver, []string, error) {
 	switch kind {
 	case compliance.KindFile:
 		return resolveFile, fileReportedFields, nil

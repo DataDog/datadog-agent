@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +25,7 @@ var auditReportedFields = []string{
 	compliance.AuditFieldPermissions,
 }
 
-func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -64,7 +65,7 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 
 			log.Debugf("%s: audit check - match %s", ruleID, path)
 			auditPermissions := auditPermissionsString(auditRule)
-			instances = append(instances, NewResolvedInstance(
+			instances = append(instances, resources.NewResolvedInstance(
 				eval.NewInstance(
 					eval.VarMap{
 						compliance.AuditFieldPath:        path,
@@ -83,7 +84,7 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 		}
 	}
 
-	return NewResolvedIterator(newInstanceIterator(instances)), nil
+	return resources.NewResolvedIterator(resources.NewInstanceIterator(instances)), nil
 }
 
 func auditPermissionsString(r *rule.FileWatchRule) string {

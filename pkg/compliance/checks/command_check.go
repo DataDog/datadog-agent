@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +25,7 @@ var commandReportedFields = []string{
 	compliance.CommandFieldExitCode,
 }
 
-func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -71,5 +72,5 @@ func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res complianc
 		},
 	)
 
-	return NewResolvedInstance(instance, execCommand.Name, "command"), nil
+	return resources.NewResolvedInstance(instance, execCommand.Name, "command"), nil
 }

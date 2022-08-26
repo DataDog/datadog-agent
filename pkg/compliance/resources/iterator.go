@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package resources
 
 import (
 	"errors"
@@ -32,6 +32,6 @@ func (it *instanceIterator) Done() bool {
 	return it.index >= len(it.instances)
 }
 
-func newInstanceIterator(instances []eval.Instance) *instanceIterator {
+func NewInstanceIterator(instances []eval.Instance) *instanceIterator {
 	return &instanceIterator{instances: instances}
 }

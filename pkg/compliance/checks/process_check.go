@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +29,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -45,7 +46,7 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 
 	matchedProcesses := processes.findProcessesByName(process.Name)
 
-	var instances []ResolvedInstance
+	var instances []resources.ResolvedInstance
 	for _, mp := range matchedProcesses {
 		name := mp.Name()
 		exe := mp.Exe()
@@ -70,19 +71,14 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 				"flags":   flagValues,
 			},
 		)
-		instances = append(instances, NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))
+		instances = append(instances, resources.NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))
 	}
 
 	if len(instances) == 0 && rego {
 		return nil, nil
 	}
 
-	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
-	if len(instances) == 1 {
-		return instances[0].(*resolvedInstance), nil
-	}
-
-	return NewResolvedInstances(instances), nil
+	return resources.NewResolvedInstances(instances), nil
 }
 
 func processFlag(flagValues map[string]string) eval.Function {

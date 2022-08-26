@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -35,7 +36,7 @@ type kubeUnstructureResolvedResource struct {
 	eval.Instance
 }
 
-func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -68,7 +69,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		resourceAPI = resourceDef
 	}
 
-	var resources []unstructured.Unstructured
+	var unstructuredResources []unstructured.Unstructured
 
 	api := kubeResource.APIRequest
 	switch api.Verb {
@@ -80,7 +81,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		if err != nil {
 			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, kubeResource.Namespace, api.ResourceName, err)
 		}
-		resources = []unstructured.Unstructured{*resource}
+		unstructuredResources = []unstructured.Unstructured{*resource}
 	case "list":
 		list, err := resourceAPI.List(ctx, metav1.ListOptions{
 			LabelSelector: kubeResource.LabelSelector,
@@ -89,13 +90,13 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		if err != nil {
 			return nil, fmt.Errorf("unable to list Kube resources:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, kubeResource.Namespace, api.ResourceName, err)
 		}
-		resources = list.Items
+		unstructuredResources = list.Items
 	}
 
-	log.Debugf("%s: Got %d resources", ruleID, len(resources))
+	log.Debugf("%s: Got %d resources", ruleID, len(unstructuredResources))
 
-	instances := make([]ResolvedInstance, len(resources))
-	for i, resource := range resources {
+	instances := make([]resources.ResolvedInstance, len(unstructuredResources))
+	for i, resource := range unstructuredResources {
 		resourceKind := resource.GetObjectKind().GroupVersionKind().Kind
 		resourceGroup := resource.GetObjectKind().GroupVersionKind().Group
 		resourceVersion := resource.GetObjectKind().GroupVersionKind().Version
@@ -128,7 +129,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		}
 	}
 
-	return NewResolvedInstances(instances), nil
+	return resources.NewResolvedInstances(instances), nil
 }
 
 func kubeResourceJQ(resource unstructured.Unstructured) eval.Function {

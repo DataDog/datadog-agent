@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,7 +26,7 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -50,7 +51,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, err
 	}
 
-	var instances []ResolvedInstance
+	var instances []resources.ResolvedInstance
 
 	for _, path := range paths {
 		// Re-computing relative after glob filtering
@@ -103,7 +104,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 
 		instance := eval.NewInstance(vars, functions, regoInput)
 
-		instances = append(instances, NewResolvedInstance(instance, path, "file"))
+		instances = append(instances, resources.NewResolvedInstance(instance, path, "file"))
 	}
 
 	if len(instances) == 0 {
@@ -113,12 +114,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
-	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
-	if len(instances) == 1 {
-		return instances[0].(*resolvedInstance), nil
-	}
-
-	return NewResolvedInstances(instances), nil
+	return resources.NewResolvedInstances(instances), nil
 }
 
 func fileQuery(path string, get getter) eval.Function {
