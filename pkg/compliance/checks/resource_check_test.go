@@ -29,7 +29,7 @@ func TestResourceCheck(t *testing.T) {
 	e.On("MaxEventsPerRun").Return(30)
 
 	iterator := &mockIterator{els: []eval.Instance{
-		newResolvedInstance(
+		NewResolvedInstance(
 			simpleInstanceWithVars(
 				eval.VarMap{
 					"a": 14,
@@ -37,7 +37,7 @@ func TestResourceCheck(t *testing.T) {
 			),
 			"test-id", "test-resource-type",
 		),
-		newResolvedInstance(
+		NewResolvedInstance(
 			simpleInstanceWithVars(
 				eval.VarMap{
 					"a": 6,
@@ -45,7 +45,7 @@ func TestResourceCheck(t *testing.T) {
 			),
 			"test-id", "test-resource-type",
 		),
-		newResolvedInstance(
+		NewResolvedInstance(
 			simpleInstanceWithVars(
 				eval.VarMap{
 					"a": 4,
@@ -60,7 +60,7 @@ func TestResourceCheck(t *testing.T) {
 	tests := []struct {
 		name              string
 		resourceCondition string
-		resourceResolved  resolved
+		resourceResolved  Resolved
 		reportedFields    []string
 
 		expectReports []*compliance.Report
@@ -69,7 +69,7 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "iterator partially passed",
 			resourceCondition: "a > 10",
-			resourceResolved:  newResolvedIterator(iterator),
+			resourceResolved:  NewResolvedIterator(iterator),
 			reportedFields:    []string{"a"},
 			expectReports: []*compliance.Report{
 				{
@@ -126,7 +126,7 @@ func TestResourceCheck(t *testing.T) {
 				Condition: test.resourceCondition,
 			}
 
-			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.ResourceCommon, rego bool) (resolved, error) {
+			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.ResourceCommon, rego bool) (Resolved, error) {
 				return test.resourceResolved, nil
 			}
 

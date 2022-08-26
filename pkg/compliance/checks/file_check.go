@@ -25,7 +25,7 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resolved, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -50,7 +50,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, err
 	}
 
-	var instances []resolvedInstance
+	var instances []ResolvedInstance
 
 	for _, path := range paths {
 		// Re-computing relative after glob filtering
@@ -103,7 +103,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 
 		instance := eval.NewInstance(vars, functions, regoInput)
 
-		instances = append(instances, newResolvedInstance(instance, path, "file"))
+		instances = append(instances, NewResolvedInstance(instance, path, "file"))
 	}
 
 	if len(instances) == 0 {
@@ -115,10 +115,10 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 
 	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
 	if len(instances) == 1 {
-		return instances[0].(*_resolvedInstance), nil
+		return instances[0].(*resolvedInstance), nil
 	}
 
-	return newResolvedInstances(instances), nil
+	return NewResolvedInstances(instances), nil
 }
 
 func fileQuery(path string, get getter) eval.Function {

@@ -35,7 +35,7 @@ type kubeUnstructureResolvedResource struct {
 	eval.Instance
 }
 
-func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resolved, error) {
+func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -94,7 +94,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 
 	log.Debugf("%s: Got %d resources", ruleID, len(resources))
 
-	instances := make([]resolvedInstance, len(resources))
+	instances := make([]ResolvedInstance, len(resources))
 	for i, resource := range resources {
 		resourceKind := resource.GetObjectKind().GroupVersionKind().Kind
 		resourceGroup := resource.GetObjectKind().GroupVersionKind().Group
@@ -128,7 +128,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		}
 	}
 
-	return newResolvedInstances(instances), nil
+	return NewResolvedInstances(instances), nil
 }
 
 func kubeResourceJQ(resource unstructured.Unstructured) eval.Function {

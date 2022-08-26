@@ -28,7 +28,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resolved, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -45,7 +45,7 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 
 	matchedProcesses := processes.findProcessesByName(process.Name)
 
-	var instances []resolvedInstance
+	var instances []ResolvedInstance
 	for _, mp := range matchedProcesses {
 		name := mp.Name()
 		exe := mp.Exe()
@@ -70,7 +70,7 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 				"flags":   flagValues,
 			},
 		)
-		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))
+		instances = append(instances, NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))
 	}
 
 	if len(instances) == 0 && rego {
@@ -79,10 +79,10 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 
 	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
 	if len(instances) == 1 {
-		return instances[0].(*_resolvedInstance), nil
+		return instances[0].(*resolvedInstance), nil
 	}
 
-	return newResolvedInstances(instances), nil
+	return NewResolvedInstances(instances), nil
 }
 
 func processFlag(flagValues map[string]string) eval.Function {

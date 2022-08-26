@@ -24,7 +24,7 @@ var commandReportedFields = []string{
 	compliance.CommandFieldExitCode,
 }
 
-func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resolved, error) {
+func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (Resolved, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -71,5 +71,5 @@ func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res complianc
 		},
 	)
 
-	return newResolvedInstance(instance, execCommand.Name, "command"), nil
+	return NewResolvedInstance(instance, execCommand.Name, "command"), nil
 }
