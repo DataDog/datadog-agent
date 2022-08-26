@@ -681,15 +681,24 @@ func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) b
 
 // getBinPrmFileFieldOffset returns the offset of the file field in the linux_binprm struct depending on the kernel version that the system probe is running on. Only used if runtime compilation, btf co-re, btfhub, offset-guesser all fail to yield an offset value.
 func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 296
+	}
+
 	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
 		return 168
-	} else if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
 		// `unsigned long argmin` is introduced in v5.0-rc1
 		return 176
-	} else if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
 		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
 		return 48
 	}
+
 	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
 	return 64
 }
