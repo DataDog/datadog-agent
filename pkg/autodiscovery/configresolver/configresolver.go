@@ -287,7 +287,8 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 		case int, bool:
 
 		default:
-			return data, fmt.Errorf("Unknown type: %T", elem)
+			log.Errorf("Unknown type: %T", elem)
+			continue
 		}
 	}
 
