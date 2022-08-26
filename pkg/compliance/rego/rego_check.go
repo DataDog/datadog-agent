@@ -147,7 +147,7 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 	return options, query, nil
 }
 
-func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, m metrics.Metrics, meta *compliance.SuiteMeta) error {
+func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -159,7 +159,7 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 	moduleArgs = append(moduleArgs,
 		rego.EnablePrintStatements(true),
 		rego.PrintHook(&regoPrintHook{}),
-		rego.Metrics(m))
+		rego.Metrics(r.metrics))
 
 	moduleArgs = append(moduleArgs, ruleModules...)
 	moduleArgs = append(moduleArgs, rego.Query(query))

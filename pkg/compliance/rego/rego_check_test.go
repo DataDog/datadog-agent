@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/stretchr/testify/mock"
@@ -23,7 +24,7 @@ type regoFixture struct {
 	module   string
 	findings string
 
-	processes     processes
+	processes     processutils.Processes
 	expectReports []*compliance.Report
 }
 
@@ -42,7 +43,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, nil, &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -53,8 +54,8 @@ func (f *regoFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	cache.Cache.Delete(processCacheKey)
-	processFetcher = func() (processes, error) {
+	cache.Cache.Delete(processutils.ProcessCacheKey)
+	processutils.ProcessFetcher = func() (processutils.Processes, error) {
 		return f.processes, nil
 	}
 
@@ -70,7 +71,7 @@ func (f *regoFixture) run(t *testing.T) {
 	regoCheck, err := f.newRegoCheck()
 	assert.NoError(err)
 
-	reports := regoCheck.check(env)
+	reports := regoCheck.Check(env)
 	assert.Equal(f.expectReports, reports)
 }
 
@@ -111,9 +112,6 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
-			},
 			expectReports: []*compliance.Report{
 				{
 					Passed: true,
@@ -128,6 +126,9 @@ func TestRegoCheck(t *testing.T) {
 					},
 					Evaluator: "rego",
 				},
+			},
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 		},
 		{
@@ -170,8 +171,8 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
@@ -224,8 +225,8 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
@@ -269,8 +270,8 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
@@ -312,8 +313,8 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: nil,
 		},

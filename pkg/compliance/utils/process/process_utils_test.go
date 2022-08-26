@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package process
+package utils
 
 import (
 	"testing"
@@ -33,7 +33,7 @@ func TestParseCmdLine(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed := parseProcessCmdLine(tt.args)
+			parsed := ParseProcessCmdLine(tt.args)
 			assert.Equal(t, tt.expected, parsed)
 		})
 	}

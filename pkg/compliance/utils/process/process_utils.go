@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package process
+package utils
 
 import (
 	"errors"
@@ -101,23 +101,23 @@ func (p *CheckedProcess) CmdlineSlice() []string {
 	return innerCmdLine
 }
 
-type processes []*CheckedProcess
+type Processes map[int32]*CheckedProcess
 
 const (
-	processCacheKey string = "compliance-processes"
+	ProcessCacheKey string = "compliance-processes"
 )
 
 var (
-	processFetcher = fetchProcesses
+	ProcessFetcher = fetchProcesses
 )
 
-func (p processes) findProcessesByName(name string) []*CheckedProcess {
-	return p.findProcesses(func(p *CheckedProcess) bool {
+func (p Processes) FindProcessesByName(name string) []*CheckedProcess {
+	return p.FindProcesses(func(p *CheckedProcess) bool {
 		return p.Name() == name
 	})
 }
 
-func (p processes) findProcesses(matchFunc func(*CheckedProcess) bool) []*CheckedProcess {
+func (p Processes) FindProcesses(matchFunc func(*CheckedProcess) bool) []*CheckedProcess {
 	var results = make([]*CheckedProcess, 0)
 	for _, process := range p {
 		if matchFunc(process) {
@@ -128,37 +128,37 @@ func (p processes) findProcesses(matchFunc func(*CheckedProcess) bool) []*Checke
 	return results
 }
 
-func fetchProcesses() (processes, error) {
+func fetchProcesses() (Processes, error) {
 	inners, err := process.Processes()
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([]*CheckedProcess, 0, len(inners))
+	res := make(map[int32]*CheckedProcess, len(inners))
 	for _, p := range inners {
-		res = append(res, NewCheckedProcess(p))
+		res[p.Pid] = NewCheckedProcess(p)
 	}
 	return res, nil
 }
 
-func getProcesses(maxAge time.Duration) (processes, error) {
-	if value, found := cache.Cache.Get(processCacheKey); found {
-		return value.(processes), nil
+func GetProcesses(maxAge time.Duration) (Processes, error) {
+	if value, found := cache.Cache.Get(ProcessCacheKey); found {
+		return value.(Processes), nil
 	}
 
 	log.Debug("Updating process cache")
-	rawProcesses, err := processFetcher()
+	rawProcesses, err := ProcessFetcher()
 	if err != nil {
 		return nil, err
 	}
 
-	cache.Cache.Set(processCacheKey, rawProcesses, maxAge)
+	cache.Cache.Set(ProcessCacheKey, rawProcesses, maxAge)
 	return rawProcesses, nil
 }
 
 // Parsing is far from being exhaustive, however for now it works sufficiently well
 // for standard flag style command args.
-func parseProcessCmdLine(args []string) map[string]string {
+func ParseProcessCmdLine(args []string) map[string]string {
 	results := make(map[string]string, 0)
 	pendingFlagValue := false
 
@@ -185,17 +185,17 @@ func parseProcessCmdLine(args []string) map[string]string {
 	return results
 }
 
-func ValueFromProcessFlag(name string, flag string) (interface{}, error) {
+func ValueFromProcessFlag(name string, flag string, cacheValidity time.Duration) (interface{}, error) {
 	log.Debugf("Resolving value from process: %s, flag %s", name, flag)
 
-	processes, err := getProcesses(cacheValidity)
+	processes, err := GetProcesses(cacheValidity)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch processes: %w", err)
 	}
 
-	matchedProcesses := processes.findProcessesByName(name)
+	matchedProcesses := processes.FindProcessesByName(name)
 	for _, mp := range matchedProcesses {
-		flagValues := parseProcessCmdLine(mp.CmdlineSlice())
+		flagValues := ParseProcessCmdLine(mp.CmdlineSlice())
 		return flagValues[flag], nil
 	}
 

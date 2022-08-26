@@ -16,11 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	cacheValidity time.Duration = 10 * time.Minute
+	CacheValidity time.Duration = 10 * time.Minute
 )
 
 var ReportedFields = []string{
@@ -35,23 +36,22 @@ func Resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 	}
 
 	process := res.Process
+	processes, err := processutils.GetProcesses(CacheValidity)
 
 	log.Debugf("%s: running process check: %s", id, process.Name)
-
-	processes, err := getProcesses(cacheValidity)
 
 	if err != nil {
 		return nil, log.Errorf("%s: Unable to fetch processes: %v", id, err)
 	}
 
-	matchedProcesses := processes.findProcessesByName(process.Name)
+	matchedProcesses := processes.FindProcessesByName(process.Name)
 
 	var instances []resources.ResolvedInstance
 	for _, mp := range matchedProcesses {
 		name := mp.Name()
 		exe := mp.Exe()
 		cmdLine := mp.CmdlineSlice()
-		flagValues := parseProcessCmdLine(cmdLine)
+		flagValues := processutils.ParseProcessCmdLine(cmdLine)
 
 		instance := eval.NewInstance(
 			eval.VarMap{

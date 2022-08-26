@@ -129,7 +129,7 @@ func TestNewCustomCheck(t *testing.T) {
 			} else {
 				assert.NotNil(check)
 				env := &mocks.Env{}
-				reports := check.check(env)
+				reports := check.Check(env)
 				if test.expectCheckReport.Error != nil {
 					assert.EqualError(reports[0].Error, test.expectCheckReport.Error.Error())
 				}
