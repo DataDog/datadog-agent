@@ -81,7 +81,7 @@ func TestGetContainerID(t *testing.T) {
 	timeFudgeFactor := 24 * time.Hour
 	c := NewCache(timeFudgeFactor)
 	c.Store(time.Now().Add(timeFudgeFactor), strconv.Itoa(containerPID), containerID, nil)
-	provider := &idProvider{
+	provider := &cgroupIDProvider{
 		procRoot:   "",
 		controller: "",
 		cache:      c,
