@@ -33,6 +33,9 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 	}
 
 	file := res.File
+	if file.Path != "" && file.Glob != "" {
+		return nil, fmt.Errorf("only one of 'path' and 'glob' can be specified")
+	}
 
 	log.Debugf("%s: running file check for %q", ruleID, file.Path)
 
@@ -41,12 +44,16 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 		return nil, err
 	}
 
-	path, err := ResolvePath(e, file.Path)
+	path := file.Path
+	if file.Glob != "" {
+		path = file.Glob
+	}
+
+	path, err = ResolvePath(e, path)
 	if err != nil {
 		return nil, err
 	}
 
-	initialGlob := path
 	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
 	if err != nil {
 		return nil, err
@@ -66,13 +73,13 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 
 		filePermissions := uint64(fi.Mode() & os.ModePerm)
 		vars := eval.VarMap{
-			compliance.FileFieldGlob:        initialGlob,
+			compliance.FileFieldGlob:        file.Glob,
 			compliance.FileFieldPath:        relPath,
 			compliance.FileFieldPermissions: filePermissions,
 		}
 
 		regoInput := eval.RegoInputMap{
-			"glob":        initialGlob,
+			"glob":        file.Glob,
 			"path":        relPath,
 			"permissions": filePermissions,
 		}
@@ -104,8 +111,13 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 		}
 
 		instance := eval.NewInstance(vars, functions, regoInput)
+		resolvedInstance := resources.NewResolvedInstance(instance, path, "file")
 
-		instances = append(instances, resources.NewResolvedInstance(instance, path, "file"))
+		if file.Path != "" {
+			return resolvedInstance, nil
+		}
+
+		instances = append(instances, resolvedInstance)
 	}
 
 	if len(instances) == 0 {

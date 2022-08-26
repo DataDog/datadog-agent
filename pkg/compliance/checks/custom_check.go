@@ -26,7 +26,7 @@ type checkFactoryFunc func(name string) custom.CheckFunc
 
 var customCheckFactory = custom.GetCustomCheck
 
-func newCustomCheck(ruleID string, res compliance.Resource) (checkable, error) {
+func newCustomCheck(ruleID string, res compliance.Resource) (Checkable, error) {
 	if res.Custom == nil {
 		return nil, errors.New("expecting custom resource in custom check")
 	}
@@ -60,7 +60,7 @@ func newCustomCheck(ruleID string, res compliance.Resource) (checkable, error) {
 	}, nil
 }
 
-func (c *customCheck) check(e env.Env) []*compliance.Report {
+func (c *customCheck) Check(e env.Env) []*compliance.Report {
 	report, err := c.checkFunc(e, c.ruleID, c.custom.Variables, c.expr)
 	if err != nil {
 		report = compliance.BuildReportForError(err)

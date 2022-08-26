@@ -117,6 +117,7 @@ const (
 // File describes a file resource
 type File struct {
 	Path   string `yaml:"path"`
+	Glob   string `yaml:"glob"`
 	Parser string `yaml:"parser,omitempty"`
 }
 

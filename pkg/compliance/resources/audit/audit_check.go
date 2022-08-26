@@ -57,7 +57,7 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 		return nil, err
 	}
 
-	var instances []eval.Instance
+	var instances []resources.ResolvedInstance
 	for _, auditRule := range auditRules {
 		for _, path := range paths {
 			if auditRule.Path != path {
@@ -85,7 +85,7 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 		}
 	}
 
-	return resources.NewResolvedIterator(resources.NewInstanceIterator(instances)), nil
+	return resources.NewResolvedInstances(instances), nil
 }
 
 func auditPermissionsString(r *rule.FileWatchRule) string {

@@ -37,7 +37,7 @@ func (m PathMapper) RelativeToHostRoot(path string) string {
 	if strings.HasPrefix(path, m.hostMountPath) {
 		p, err := filepath.Rel(m.hostMountPath, path)
 		if err != nil {
-			log.Warnf("Unable to return original path for: %s", path)
+			log.Warnf("Unable to return original path for: %s (host mount path: %s)", path, m.hostMountPath)
 			return path
 		}
 

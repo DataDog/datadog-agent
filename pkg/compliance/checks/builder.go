@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/open-policy-agent/opa/metrics"
-	"github.com/open-policy-agent/opa/rego"
+
 	cache "github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
@@ -585,20 +586,9 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 		m = newRegoMetrics(m, b.statsdClient)
 	}
 
-	regoCheck := &regoCheck{
-		ruleID:    rule.ID,
-		inputs:    rule.Inputs,
-		ruleScope: ruleScope,
-		metrics:   m,
-	}
+	regoCheck := rego.NewCheck(rule, m)
 
-	regoOptions := append([]func(r *rego.Rego){
-		rego.EnablePrintStatements(true),
-		rego.PrintHook(&regoPrintHook{}),
-		rego.Metrics(m),
-	}, regoBuiltins...)
-
-	if err := regoCheck.compileRule(rule, regoOptions, meta); err != nil {
+	if err := regoCheck.CompileRule(rule, ruleScope, m, meta); err != nil {
 		return nil, err
 	}
 

@@ -88,7 +88,7 @@ func TestFileCheck(t *testing.T) {
 			resource: compliance.Resource{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: "/etc/*.dat",
+						Glob: "/etc/*.dat",
 					},
 				},
 				Condition: "file.permissions == 0644",

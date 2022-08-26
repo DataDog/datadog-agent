@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package rego
 
 import (
 	"context"
@@ -27,11 +27,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const regoEvaluator = "rego"
 const regoEvalTimeout = 20 * time.Second
+
+var (
+	// ErrResourceKindNotSupported is returned in case resource kind is not supported by evaluator
+	ErrResourceKindNotSupported = errors.New("resource kind not supported")
+
+	// ErrResourceFailedToResolve is returned when a resource failed to resolve to any instances for evaluation
+	ErrResourceFailedToResolve = errors.New("failed to resolve resource")
+)
 
 type regoCheck struct {
 	evalLock sync.Mutex
@@ -41,6 +58,14 @@ type regoCheck struct {
 	ruleScope      compliance.RuleScope
 	inputs         []compliance.RegoInput
 	regoModuleArgs []func(*rego.Rego)
+}
+
+func NewCheck(rule *compliance.RegoRule, m metrics.Metrics) *regoCheck {
+	return &regoCheck{
+		ruleID:  rule.ID,
+		inputs:  rule.Inputs,
+		metrics: m,
+	}
 }
 
 func importModule(importPath, parentDir string, required bool) (string, error) {
@@ -122,7 +147,7 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 	return options, query, nil
 }
 
-func (r *regoCheck) compileRule(rule *compliance.RegoRule, regoOptions []func(r *rego.Rego), meta *compliance.SuiteMeta) error {
+func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, m metrics.Metrics, meta *compliance.SuiteMeta) error {
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -130,7 +155,12 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, regoOptions []func(r 
 	if err != nil {
 		return err
 	}
-	moduleArgs = append(moduleArgs, regoOptions...)
+
+	moduleArgs = append(moduleArgs,
+		rego.EnablePrintStatements(true),
+		rego.PrintHook(&regoPrintHook{}),
+		rego.Metrics(m))
+
 	moduleArgs = append(moduleArgs, ruleModules...)
 	moduleArgs = append(moduleArgs, rego.Query(query))
 
@@ -194,10 +224,6 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
 		case eval.Iterator:
-			if inputType != "array" {
-				return nil, fmt.Errorf("the input kind `%s` does not support the `%s` type", string(input.Kind()), inputType)
-			}
-
 			// create an empty array as a base
 			// this is useful if the iterator is empty for example, as it will ensure we at least
 			// export an empty array to the rego input
@@ -213,6 +239,10 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 				}
 
 				r.appendInstance(arraysPerTags, tagName, instance)
+			}
+
+			if instanceCount := len(arraysPerTags[tagName]); inputType != "array" && instanceCount != 1 {
+				return nil, fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(input.Kind()), instanceCount, inputType)
 			}
 		}
 	}
@@ -348,7 +378,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 	return reports
 }
 
-func (r *regoCheck) check(env env.Env) []*compliance.Report {
+func (r *regoCheck) Check(env env.Env) []*compliance.Report {
 	r.evalLock.Lock()
 	defer r.evalLock.Unlock()
 
@@ -422,7 +452,7 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 
 	currentData[ruleID] = input
 
-	jsonData, err := PrettyPrintJSON(currentData, "\t")
+	jsonData, err := utils.PrettyPrintJSON(currentData, "\t")
 	if err != nil {
 		return err
 	}
@@ -521,4 +551,33 @@ type regoPrintHook struct{}
 func (h *regoPrintHook) Print(_ print.Context, value string) error {
 	log.Infof("Rego print output: %s", value)
 	return nil
+}
+
+func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) (resources.Resolver, []string, error) {
+	switch kind {
+	case compliance.KindFile:
+		return file.Resolve, file.ReportedFields, nil
+	case compliance.KindAudit:
+		return audit.Resolve, audit.ReportedFields, nil
+	case compliance.KindGroup:
+		return group.Resolve, group.ReportedFields, nil
+	case compliance.KindCommand:
+		return command.Resolve, command.ReportedFields, nil
+	case compliance.KindProcess:
+		return process.Resolve, process.ReportedFields, nil
+	case compliance.KindDocker:
+		if env.DockerClient() == nil {
+			return nil, nil, log.Errorf("%s: docker client not initialized")
+		}
+		return docker.Resolve, docker.ReportedFields, nil
+	case compliance.KindKubernetes:
+		if env.KubeClient() == nil {
+			return nil, nil, log.Errorf("%s: kube client not initialized")
+		}
+		return kubeapiserver.Resolve, kubeapiserver.ReportedFields, nil
+	case compliance.KindConstants:
+		return constants.Resolve, nil, nil
+	default:
+		return nil, nil, ErrResourceKindNotSupported
+	}
 }

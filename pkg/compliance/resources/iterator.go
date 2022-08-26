@@ -32,6 +32,6 @@ func (it *instanceIterator) Done() bool {
 	return it.index >= len(it.instances)
 }
 
-func NewInstanceIterator(instances []eval.Instance) *instanceIterator {
+func newInstanceIterator(instances []eval.Instance) *instanceIterator {
 	return &instanceIterator{instances: instances}
 }

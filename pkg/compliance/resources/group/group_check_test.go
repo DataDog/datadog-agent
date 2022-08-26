@@ -6,6 +6,7 @@
 package group
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -19,22 +20,40 @@ func TestGroupCheck(t *testing.T) {
 	tests := []struct {
 		name         string
 		etcGroupFile string
-		resource     compliance.Resource
+		resource     compliance.RegoInput
+		module       string
 
 		expectReport *compliance.Report
 		expectError  error
 	}{
 		{
 			name:         "docker group user found",
-			etcGroupFile: "./testdata/group/etc-group",
-			resource: compliance.Resource{
+			etcGroupFile: "./testdata/etc-group",
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Group: &compliance.Group{
 						Name: "docker",
 					},
 				},
-				Condition: `"carlos" in group.users`,
 			},
+			module: `package datadog
+
+import data.datadog as dd
+import data.helpers as h
+
+carlos_in_group(group) {
+	[u | u := group.users[_]; u == "carlos"])
+}
+
+findings[f] {
+	carlos_in_group(input.group)
+	f := dd.passed_finding(
+			h.resource_type,
+			h.resource_id,
+			h.group_data(input.group),
+	)
+}
+`,
 
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -51,15 +70,15 @@ func TestGroupCheck(t *testing.T) {
 		},
 		{
 			name:         "docker group user not found",
-			etcGroupFile: "./testdata/group/etc-group",
-			resource: compliance.Resource{
+			etcGroupFile: "./testdata/etc-group",
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Group: &compliance.Group{
 						Name: "docker",
 					},
 				},
-				Condition: `"carol" in group.users`,
 			},
+			module: "",
 
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -83,10 +102,12 @@ func TestGroupCheck(t *testing.T) {
 			env := &mocks.Env{}
 			env.On("EtcGroupPath").Return(test.etcGroupFile)
 
-			groupCheck, err := newResourceCheck(env, "rule-id", test.resource)
+			groupCheck, err := Resolve(context.Background(), env, "rule-id", test.resource.ResourceCommon, true)
 			assert.NoError(err)
 
-			reports := groupCheck.check(env)
+			// conditionExpression, _ := eval.Cache.ParseIterable("_")
+
+			reports := groupCheck.Evaluate(conditionExpression, env)
 			assert.Equal(test.expectReport, reports[0])
 			assert.Equal(test.expectError, reports[0].Error)
 		})

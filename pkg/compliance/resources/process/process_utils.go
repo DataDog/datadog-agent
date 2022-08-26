@@ -195,7 +195,7 @@ func ValueFromProcessFlag(name string, flag string) (interface{}, error) {
 
 	matchedProcesses := processes.findProcessesByName(name)
 	for _, mp := range matchedProcesses {
-		flagValues := parseProcessCmdLine(mp.Cmdline)
+		flagValues := parseProcessCmdLine(mp.CmdlineSlice())
 		return flagValues[flag], nil
 	}
 

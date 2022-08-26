@@ -35,7 +35,7 @@ type complianceCheck struct {
 	scope           compliance.RuleScope
 	resourceHandler resourceReporter
 
-	checkable checkable
+	checkable Checkable
 
 	eventNotify eventNotify
 }
@@ -115,7 +115,7 @@ func (c *complianceCheck) Run() error {
 
 	var err error
 
-	reports := c.checkable.check(c)
+	reports := c.checkable.Check(c)
 	resourceQuadIDs := make(map[resourceQuadID]bool)
 
 	for _, report := range reports {
