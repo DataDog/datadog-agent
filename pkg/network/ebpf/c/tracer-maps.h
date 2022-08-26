@@ -13,7 +13,7 @@ BPF_HASH_MAP(conn_stats, conn_tuple_t, conn_stats_ts_t, 0)
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being failed_conn_stats_t *.
  */
-BPF_HASH_MAP(failed_conn_stats, conn_tuple_t, failed_conn_stats_t, 0)
+BPF_PERF_EVENT_ARRAY_MAP(failed_conn_events, __u32, 0)
 
 /* This is a key/value store with the keys being a conn_tuple_t (but without the PID being used)
  * and the values being a tcp_stats_t *.

@@ -142,7 +142,7 @@ type BPFMapName string
 // constants for the map names
 const (
 	ConnMap               BPFMapName = "conn_stats"
-	FailedConnMap         BPFMapName = "failed_conn_stats"
+	FailedConnEventMap    BPFMapName = "failed_conn_events"
 	TCPStatsMap           BPFMapName = "tcp_stats"
 	TCPConnectSockPidMap  BPFMapName = "tcp_ongoing_connect_pid"
 	ConnCloseEventMap     BPFMapName = "conn_close_event"

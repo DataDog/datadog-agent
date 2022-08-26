@@ -60,6 +60,20 @@ func TestDecode(t *testing.T) {
 					Direction: network.LOCAL,
 				},
 			},
+			FailedConns: []network.FailedConnStats{
+				{
+					Source:       util.AddressFromString("10.0.0.1"),
+					Dest:         util.AddressFromString("10.0.0.2"),
+					SPort:        1000,
+					DPort:        2000,
+					Pid:          7000,
+					NetNS:        2,
+					Type:         network.TCP,
+					Family:       network.AFINET,
+					Direction:    network.INCOMING,
+					FailureCount: 5,
+				},
+			},
 		},
 	}
 

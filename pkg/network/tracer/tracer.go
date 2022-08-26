@@ -666,7 +666,8 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	activeBuffer := network.NewConnectionBuffer(512, 512)
-	_, err := t.getConnections(activeBuffer)
+	failedBuffer := network.NewFailedConnBuffer(512, 512)
+	_, err := t.getConnections(activeBuffer, failedBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}

@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	defaultClosedChannelSize = 500
+	defaultClosedChannelSize     = 500
+	defaultFailedConnChannelSize = 500
 
 	probeUID = "net"
 )
@@ -41,13 +42,13 @@ const (
 type kprobeTracer struct {
 	m *manager.Manager
 
-	conns       *ebpf.Map
-	failedConns *ebpf.Map
-	tcpStats    *ebpf.Map
-	config      *config.Config
+	conns    *ebpf.Map
+	tcpStats *ebpf.Map
+	config   *config.Config
 
 	// tcp_close events
-	closeConsumer *tcpCloseConsumer
+	closeConsumer      *tcpCloseConsumer
+	failedConnConsumer *tcpFailedConnConsumer
 
 	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
@@ -84,7 +85,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.FailedConnMap):      {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
@@ -128,8 +128,11 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
+
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
+	perfHandlerFailedConn := ddebpf.NewPerfHandler(defaultFailedConnChannelSize)
+
+	m := newManager(perfHandlerTCP, perfHandlerFailedConn, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
@@ -159,25 +162,25 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("could not create tcpCloseConsumer: %s", err)
 	}
 
+	failedConsumer, err := newTCPFailedConnConsumer(perfHandlerFailedConn)
+	if err != nil {
+		return nil, fmt.Errorf("could not create tcpFailedConnConsumer: %w", err)
+	}
+
 	tr := &kprobeTracer{
-		m:             m,
-		config:        config,
-		closeConsumer: closeConsumer,
-		pidCollisions: atomic.NewInt64(0),
-		removeTuple:   &netebpf.ConnTuple{},
-		telemetry:     newTelemetry(),
+		m:                  m,
+		config:             config,
+		closeConsumer:      closeConsumer,
+		failedConnConsumer: failedConsumer,
+		pidCollisions:      atomic.NewInt64(0),
+		removeTuple:        &netebpf.ConnTuple{},
+		telemetry:          newTelemetry(),
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
-	}
-
-	tr.failedConns, _, err = m.GetMap(string(probes.FailedConnMap))
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.FailedConnMap, err)
 	}
 
 	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
@@ -206,6 +209,7 @@ func (t *kprobeTracer) Start(callback func([]network.ConnectionStats)) (err erro
 	}
 
 	t.closeConsumer.Start(callback)
+	t.failedConnConsumer.Start()
 	return nil
 }
 
@@ -216,6 +220,7 @@ func (t *kprobeTracer) FlushPending() {
 func (t *kprobeTracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	t.closeConsumer.Stop()
+	t.failedConnConsumer.Stop()
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
@@ -263,23 +268,16 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 }
 
 func (t *kprobeTracer) GetFailedConnections(buffer *network.FailedConnBuffer, filter func(*network.FailedConnStats) bool) error {
-	key, stats := &netebpf.ConnTuple{}, &netebpf.FailedConnStats{}
+	failedConns := t.failedConnConsumer.GetStats()
 
-	conn := new(network.FailedConnStats)
-
-	entries := t.failedConns.Iterate()
-	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		populateFailedConnStats(conn, key, stats)
+	for key, stats := range failedConns {
+		conn := getFailedConnStats(&key, &stats)
 
 		if filter != nil && !filter(conn) {
 			continue
 		}
 
 		*buffer.Next() = *conn
-	}
-
-	if err := entries.Err(); err != nil {
-		return fmt.Errorf("unable to iterate failed connections map: %w", err)
 	}
 
 	return nil
@@ -539,8 +537,8 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 }
 
-func populateFailedConnStats(stats *network.FailedConnStats, t *netebpf.ConnTuple, s *netebpf.FailedConnStats) {
-	*stats = network.FailedConnStats{
+func getFailedConnStats(t *netebpf.ConnTuple, s *failedConnStats) *network.FailedConnStats {
+	stats := network.FailedConnStats{
 		Source: t.SourceAddress(),
 		Dest:   t.DestAddress(),
 		SPort:  t.Sport,
@@ -551,7 +549,7 @@ func populateFailedConnStats(stats *network.FailedConnStats, t *netebpf.ConnTupl
 
 		// We only report failed connections for TCP
 		Type:         network.TCP,
-		FailureCount: s.Count,
+		FailureCount: s.failureCount,
 	}
 
 	switch t.Family() {

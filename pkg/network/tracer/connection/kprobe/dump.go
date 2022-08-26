@@ -98,15 +98,6 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.FailedConnMap): // maps/failed_conn_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value FailedConnStats
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'FailedConnStats'\n")
-		iter := currentMap.Iterate()
-		var key ddebpf.ConnTuple
-		var value ddebpf.FailedConnStats
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
-		}
-
 	case string(probes.TCPStatsMap): // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'TCPStats'\n")
 		iter := currentMap.Iterate()

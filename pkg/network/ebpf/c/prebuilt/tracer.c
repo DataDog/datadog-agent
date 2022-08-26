@@ -139,7 +139,8 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 
     // Should actually delete something only if the connection never got established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        handle_failed_conn(&t);
+        __u32 cpu = bpf_get_smp_processor_id();
+        bpf_perf_event_output(ctx, &failed_conn_events, cpu, &t, sizeof(t));
     }
 
     clear_sockfd_maps(sk);

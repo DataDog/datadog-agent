@@ -34,10 +34,6 @@ typedef struct {
     __u64 recv_packets;
 } conn_stats_ts_t;
 
-typedef struct {
-    __u64 failure_count;
-} failed_conn_stats_t;
-
 // Connection flags
 typedef enum
 {
