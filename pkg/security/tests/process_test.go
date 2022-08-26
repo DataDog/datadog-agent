@@ -1549,7 +1549,7 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 			name: "regular exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_regular_exec",
-				Expression: fmt.Sprintf(`exec.file.name == ~"python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`),
+				Expression: fmt.Sprintf(`exec.file.name == ~"*python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`), // RHEL python is platform-python3.6
 			},
 			scriptName: "regularExec.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
@@ -1589,7 +1589,7 @@ echo "Back to bash"`, perl, perl, perl),
 			name: "interpreted exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_interpreted_event",
-				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"python*" && exec.file.name == "pyscript.py"`),
+				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"*python*" && exec.file.name == "pyscript.py"`),
 			},
 			scriptName:      "interpretedExec.sh",
 			innerScriptName: "pyscript.py",
