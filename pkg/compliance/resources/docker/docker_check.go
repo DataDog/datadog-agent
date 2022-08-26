@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package docker
 
 import (
 	"context"
 	"fmt"
 	"strings"
+	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -20,7 +22,7 @@ import (
 )
 
 var (
-	dockerReportedFields = []string{
+	ReportedFields = []string{
 		compliance.DockerImageFieldID,
 		compliance.DockerImageFieldTags,
 		compliance.DockerContainerFieldID,
@@ -74,7 +76,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -183,6 +185,22 @@ func dockerTemplateQuery(funcName, obj interface{}) eval.Function {
 		log.Tracef(`template query in "%s(%q)" evaluated as %q`, funcName, query, v)
 		return v, nil
 	}
+}
+
+// evalGoTemplate evaluates a go-style template on an object
+func evalGoTemplate(s string, obj interface{}) string {
+	tmpl, err := template.New("tmpl").Funcs(sprig.TxtFuncMap()).Parse(s)
+	if err != nil {
+		log.Warnf("failed to parse template %q: %v", s, err)
+		return ""
+	}
+
+	b := &strings.Builder{}
+	if err := tmpl.Execute(b, obj); err != nil {
+		log.Tracef("failed to execute template %q: %v", s, err)
+		return ""
+	}
+	return b.String()
 }
 
 type dockerImageIterator struct {

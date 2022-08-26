@@ -6,7 +6,7 @@
 //go:build docker
 // +build docker
 
-package checks
+package docker
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-func newDockerClient() (env.DockerClient, error) {
+func NewDockerClient() (env.DockerClient, error) {
 	queryTimeout := config.Datadog.GetDuration("docker_query_timeout") * time.Second
 
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)

@@ -6,7 +6,7 @@
 //go:build !docker
 // +build !docker
 
-package checks
+package docker
 
 import (
 	"errors"
