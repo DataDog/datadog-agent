@@ -227,22 +227,29 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			// create an empty array as a base
 			// this is useful if the iterator is empty for example, as it will ensure we at least
 			// export an empty array to the rego input
-			if _, present := arraysPerTags[tagName]; !present {
+			if _, present := arraysPerTags[tagName]; !present && inputType == "array" {
 				arraysPerTags[tagName] = []interface{}{}
 			}
 
+			var instance eval.Instance
+			var instanceCount int
 			it := res
-			for !it.Done() {
-				instance, err := it.Next()
+			for ; !it.Done(); instanceCount++ {
+				instance, err = it.Next()
 				if err != nil {
 					return nil, err
 				}
 
-				r.appendInstance(arraysPerTags, tagName, instance)
+				if inputType == "array" {
+					r.appendInstance(arraysPerTags, tagName, instance)
+				}
 			}
 
-			if instanceCount := len(arraysPerTags[tagName]); inputType != "array" && instanceCount != 1 {
-				return nil, fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(input.Kind()), instanceCount, inputType)
+			if inputType == "object" {
+				if instanceCount != 1 {
+					return nil, fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(input.Kind()), instanceCount, inputType)
+				}
+				objectsPerTags[tagName] = instance.RegoInput()
 			}
 		}
 	}
