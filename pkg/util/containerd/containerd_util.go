@@ -218,6 +218,9 @@ func (c *ContainerdUtil) EnvVars(ctn containerd.Container) (map[string]string, e
 // EnvVarsFromSpec returns the env variables of a containerd container from its Spec
 func EnvVarsFromSpec(spec *oci.Spec) (map[string]string, error) {
 	envs := make(map[string]string)
+	if spec == nil || spec.Process == nil {
+		return envs, nil
+	}
 
 	for _, env := range spec.Process.Env {
 		envSplit := strings.SplitN(env, "=", 2)
