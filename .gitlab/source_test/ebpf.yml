@@ -51,15 +51,6 @@
     paths:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
 
-.build_cws_tests:
-  - invoke -e security-agent.kitchen-prepare
-  # Copy nikos archive to be extracted in kitchen tests
-  - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-  - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode/runtime/
-
-
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -77,7 +68,7 @@ tests_ebpf_x64:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
     - export PATH=$PATH:$GOPATH/bin
-    - !reference [.build_cws_tests]
+    - invoke -e security-agent.kitchen-prepare
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -99,8 +90,7 @@ tests_ebpf_arm64:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
     - export PATH=$PATH:$GOPATH/bin
-    - !reference [.build_cws_tests]
-
+    - invoke -e security-agent.kitchen-prepare
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe

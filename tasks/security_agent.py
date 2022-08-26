@@ -723,5 +723,17 @@ def kitchen_prepare(ctx):
     stresssuite_out_path = os.path.join(cookbook_files_dir, "stresssuite")
     build_stress_tests(ctx, output=stresssuite_out_path)
 
+    # Copy clang binaries
     for bin in ["clang-bpf", "llc-bpf"]:
         ctx.run(f"cp /tmp/{bin} {cookbook_files_dir}/{bin}")
+
+    ctx.run(f"cp /tmp/nikos.tar.gz {cookbook_files_dir}/")
+
+    ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
+    ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
+    src_path = os.environ.get("SRC_PATH", ".")
+    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+
+    ctx.run(f"mkdir -p {ebpf_runtime_dir}")
+    ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
+    ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
