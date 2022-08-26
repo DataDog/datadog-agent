@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,7 +61,7 @@ func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) 
 	case compliance.KindAudit:
 		return audit.Resolve, audit.ReportedFields, nil
 	case compliance.KindGroup:
-		return resolveGroup, groupReportedFields, nil
+		return group.Resolve, group.ReportedFields, nil
 	case compliance.KindCommand:
 		return resolveCommand, commandReportedFields, nil
 	case compliance.KindProcess:

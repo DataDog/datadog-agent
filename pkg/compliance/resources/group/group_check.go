@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package group
 
 import (
 	"bufio"
@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var groupReportedFields = []string{
+var ReportedFields = []string{
 	compliance.GroupFieldName,
 	compliance.GroupFieldUsers,
 	compliance.GroupFieldID,
@@ -32,7 +32,7 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func resolveGroup(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func Resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}
@@ -61,6 +61,11 @@ func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resour
 	}
 
 	return resources.NewResolvedInstance(finder.instance, group.Name, "group"), nil
+}
+
+// wrapErrorWithID wraps an error with an ID (e.g. rule ID)
+func wrapErrorWithID(id string, err error) error {
+	return fmt.Errorf("%s: %w", id, err)
 }
 
 type groupFinder struct {
