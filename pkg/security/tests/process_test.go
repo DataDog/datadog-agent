@@ -1580,7 +1580,7 @@ echo "Executing echo inside a bash script"
 print "Executing print inside a perl (%s) script\n";
 __HERE__
 
-echo "Back to bash"`, perl, perl),
+echo "Back to bash"`, perl, perl, perl),
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
 			},
