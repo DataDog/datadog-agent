@@ -2,9 +2,9 @@ require "rspec/core/formatters/base_text_formatter"
 
 COLORS = [
   :green,
-  :yellow,
   :blue,
   :magenta,
+  :yellow,
   :cyan,
 ]
 
