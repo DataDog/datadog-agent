@@ -2,8 +2,12 @@ module github.com/DataDog/datadog-agent/pkg/util/cgroups
 
 go 1.17
 
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/log => ../log
+)
+
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
 	github.com/containerd/cgroups v1.0.4
 	github.com/google/go-cmp v0.5.8
 	github.com/karrick/godirwalk v1.17.0
