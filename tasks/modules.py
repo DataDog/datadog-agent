@@ -119,7 +119,7 @@ DEFAULT_MODULES = {
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
-    "pkg/util/scrubber": GoModule("pkg/util/log", independent=True)
+    "pkg/util/scrubber": GoModule("pkg/util/log", independent=True),
 }
 
 MAIN_TEMPLATE = """package main
