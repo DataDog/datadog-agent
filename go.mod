@@ -412,9 +412,9 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.39.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0
 	github.com/go-delve/delve v1.9.0
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )
