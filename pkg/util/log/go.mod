@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/log
 
-go 1.19
+go 1.17
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1

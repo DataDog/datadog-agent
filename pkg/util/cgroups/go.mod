@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/cgroups
 
-go 1.19
+go 1.17
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
