@@ -117,9 +117,9 @@ DEFAULT_MODULES = {
     "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
-    "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True),
-    "pkg/util/log": GoModule("pkg/util/log", independent=True),
-    "pkg/util/scrubber": GoModule("pkg/util/log", independent=True),
+    "pkg/util/cgroups": GoModule("pkg/util/cgroups"),
+    "pkg/util/log": GoModule("pkg/util/log"),
+    "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
 }
 
 MAIN_TEMPLATE = """package main
