@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	BINARY       = "/proc/x/exe"
+	BINARY       = "/proc/16391/exe"
 	probeDataMap = "probe_data"
 
 	writeFuncName      = "uprobe__crypto_tls_Conn_Write"

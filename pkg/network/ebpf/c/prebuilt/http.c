@@ -521,8 +521,7 @@ char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
 
 // GO TLS PROBES
 
-static __always_inline tls_probe_data_t* get_probe_data() {
-	uint32_t key = 0;
+static __always_inline tls_probe_data_t* get_probe_data(uint32_t key) {
 	return bpf_map_lookup_elem(&probe_data, &key);
 }
 
@@ -530,7 +529,11 @@ static __always_inline tls_probe_data_t* get_probe_data() {
 SEC("uprobe/crypto/tls.(*Conn).Write")
 int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 	log_debug("##### WRITE\n");
-	tls_probe_data_t* pd = get_probe_data();
+
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+	u64 pid = pid_tgid >> 32;
+
+	tls_probe_data_t* pd = get_probe_data(pid);
 	if (pd == NULL)
 		return 1;
 
@@ -548,7 +551,6 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 		return 1;
 	}
 
-	u64 pid_tgid = bpf_get_current_pid_tgid();
 	conn_tuple_t* t = conn_tup_from_tls_conn(pd, conn_pointer, pid_tgid);
 	if (t == NULL) {
 		return 1;
@@ -562,13 +564,15 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 SEC("uprobe/crypto/tls.(*Conn).Read")
 int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
     log_debug("##### READ\n");
-	tls_probe_data_t* pd = get_probe_data();
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+	tls_probe_data_t* pd = get_probe_data(pid);
 	if (pd == NULL)
 		return 1;
 
 	// Read the TGID and goroutine ID to make the partial call key
 	read_partial_call_key_t call_key = {0};
-	uint64_t pid_tgid = bpf_get_current_pid_tgid();
 	call_key.tgid = pid_tgid >> 32;
 	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
 		return 1;
@@ -593,14 +597,15 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 	log_debug("##### READ RETURN\n");
-	tls_probe_data_t* pd = get_probe_data();
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+	tls_probe_data_t* pd = get_probe_data(pid);
 	if (pd == NULL)
 		return 1;
 
 	// Read the TGID and goroutine ID to make the partial call key
 	read_partial_call_key_t call_key = {0};
-	uint64_t pid_tgid = bpf_get_current_pid_tgid();
-	call_key.tgid = pid_tgid >> 32;
+	call_key.tgid = pid;
 	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
 		return 1;
 	}
@@ -636,7 +641,9 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 SEC("uprobe/crypto/tls.(*Conn).Close")
 int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     log_debug("##### CLOSE\n");
-	tls_probe_data_t* pd = get_probe_data();
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+	tls_probe_data_t* pd = get_probe_data(pid);
 	if (pd == NULL)
 		return 1;
 
@@ -645,7 +652,6 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 		return 1;
 	}
 
-	u64 pid_tgid = bpf_get_current_pid_tgid();
 	conn_tuple_t* t = conn_tup_from_tls_conn(pd, conn_pointer, pid_tgid);
 	if (t == NULL) {
 		return 1;
