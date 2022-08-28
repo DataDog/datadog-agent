@@ -39,31 +39,16 @@ var (
 var (
 	// List of functions to look for in the binary.
 	functionsToFind = []string{
-		"crypto/tls.(*Conn).Write",
-		"crypto/tls.(*Conn).Read",
-		"crypto/tls.(*Conn).Close"}
+		bininspect.WriteGoTLSFunc,
+		bininspect.ReadGoTLSFunc,
+		bininspect.CloseGoTLSFunc}
 	// List of struct field to look for in the binary.
 	FieldsToFind = []bininspect.FieldIdentifier{
-		{
-			StructName: "crypto/tls.Conn",
-			FieldName:  "conn",
-		},
-		{
-			StructName: "net.TCPConn",
-			FieldName:  "conn",
-		},
-		{
-			StructName: "net.conn",
-			FieldName:  "fd",
-		},
-		{
-			StructName: "net.netFD",
-			FieldName:  "pfd",
-		},
-		{
-			StructName: "internal/poll.FD",
-			FieldName:  "Sysfd",
-		},
+		bininspect.StructOffsetTLSConn,
+		bininspect.StructOffsetTCPConn,
+		bininspect.StructOffsetNetConnFd,
+		bininspect.StructOffsetNetFdPfd,
+		bininspect.StructOffsetPollFdSysfd,
 	}
 )
 
@@ -158,7 +143,7 @@ func run(
 				OutputZeroValue: "nil",
 				DocComment:      `GetWriteParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Write`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).Functions["crypto/tls.(*Conn).Write"].Parameters
+					return (r).(*bininspect.Result).Functions[bininspect.WriteGoTLSFunc].Parameters
 				},
 			},
 			{
@@ -167,7 +152,7 @@ func run(
 				OutputZeroValue: "nil",
 				DocComment:      `GetReadParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Read`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).Functions["crypto/tls.(*Conn).Read"].Parameters
+					return (r).(*bininspect.Result).Functions[bininspect.ReadGoTLSFunc].Parameters
 				},
 			},
 			{
@@ -176,7 +161,7 @@ func run(
 				OutputZeroValue: "nil",
 				DocComment:      `GetWriteParams gets the parameter metadata (positions/types) for crypto/tls.(*Conn).Close`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).Functions["crypto/tls.(*Conn).Close"].Parameters
+					return (r).(*bininspect.Result).Functions[bininspect.CloseGoTLSFunc].Parameters
 				},
 			},
 			{
@@ -185,10 +170,7 @@ func run(
 				OutputZeroValue: "0",
 				DocComment:      `GetTLSConnInnerConnOffset gets the offset of the "conn" field in the "crypto/tls.Conn" struct`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
-						StructName: "crypto/tls.Conn",
-						FieldName:  "conn",
-					}]
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetTLSConn]
 				},
 			},
 			{
@@ -197,10 +179,7 @@ func run(
 				OutputZeroValue: "0",
 				DocComment:      `GetTCPConnInnerConnOffset gets the offset of the "conn" field in the "net.TCPConn" struct`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
-						StructName: "net.TCPConn",
-						FieldName:  "conn",
-					}]
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetTCPConn]
 				},
 			},
 			{
@@ -209,10 +188,7 @@ func run(
 				OutputZeroValue: "0",
 				DocComment:      `GetConnFDOffset gets the offset of the "fd" field in the "net.conn" struct`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
-						StructName: "net.conn",
-						FieldName:  "fd",
-					}]
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetNetConnFd]
 				},
 			},
 			{
@@ -221,10 +197,7 @@ func run(
 				OutputZeroValue: "0",
 				DocComment:      `GetNetFD_PFDOffset gets the offset of the "pfd" field in the "net.netFD" struct`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
-						StructName: "net.netFD",
-						FieldName:  "pfd",
-					}]
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetNetFdPfd]
 				},
 			},
 			{
@@ -233,10 +206,7 @@ func run(
 				OutputZeroValue: "0",
 				DocComment:      `GetFD_SysfdOffset gets the offset of the "Sysfd" field in the "internal/poll.FD" struct`,
 				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.FieldIdentifier{
-						StructName: "internal/poll.FD",
-						FieldName:  "Sysfd",
-					}]
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetPollFdSysfd]
 				},
 			},
 		},
