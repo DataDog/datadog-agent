@@ -145,13 +145,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	}
 
 	sslProgram, _ := newSSLProgram(c, sockFD)
+	goTLSProgram, _ := NewGoTLSProgram(c)
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            []subprogram{sslProgram, goTLSProgram},
 	}
 
 	return program, nil
