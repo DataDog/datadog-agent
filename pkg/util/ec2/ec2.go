@@ -271,16 +271,39 @@ func extractClusterName(tags []string) (string, error) {
 }
 
 func doHTTPRequest(ctx context.Context, url string) (string, error) {
-	headers := map[string]string{}
 	if config.Datadog.GetBool("ec2_prefer_imdsv2") {
-		tokenValue, err := token.Get(ctx)
-		if err != nil {
-			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
-		} else {
-			headers["X-aws-ec2-metadata-token"] = tokenValue
+		resp, errv2 := doHTTPRequestV2(ctx, url)
+		if errv2 == nil {
+			return resp, errv2
 		}
+		resp, errv1 := doHTTPRequestV1(ctx, url)
+		if errv1 == nil {
+			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed with IMDSv2 and fell back to IMDSv1: %s", errv2)
+		}
+		return resp, errv1
+	}
+	resp, errv1 := doHTTPRequestV1(ctx, url)
+	if errv1 == nil {
+		return resp, errv1
+	}
+	resp, errv2 := doHTTPRequestV2(ctx, url)
+	if errv2 == nil {
+		log.Warnf("ec2_prefer_imdsv2 is set to false in the configuration but the agent was unable to proceed with IMDSv1 and fell back to IMDSv2: %s", errv1)
+	}
+	return resp, errv2
+}
+
+func doHTTPRequestV1(ctx context.Context, url string) (string, error) {
+	return httputils.Get(ctx, url, map[string]string{}, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
+}
+
+func doHTTPRequestV2(ctx context.Context, url string) (string, error) {
+	tokenValue, err := token.Get(ctx)
+	if err != nil {
+		return "", err
 	}
 
+	headers := map[string]string{"X-aws-ec2-metadata-token": tokenValue}
 	return httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
 }
 

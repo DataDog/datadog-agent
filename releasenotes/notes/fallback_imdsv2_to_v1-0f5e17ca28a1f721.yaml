@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    When ``ec2_prefer_imdsv2`` is ``false``, the Agent tries IMDSv2 when IMDSv1
+    access fails.
