@@ -880,8 +880,9 @@ api_key:
 
 {{- if (eq .OS "windows")}}
   ## @param windows_counter_refresh_interval - number - optional - default: 60
-  ## This changes the interval for which windows performance counters are refreshed by the agent.
-  ## Refreshes are necessary for the discovery of new counters/countersets and instances. 
+  ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
+  ## Refreshes are necessary for the discovery of new counters/countersets and instances.
+  ## Refresh can be disabled by setting the interval to 0.
   #
   # windows_counter_refresh_interval: 60
 {{ end }}
