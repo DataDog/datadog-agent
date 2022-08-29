@@ -11,6 +11,7 @@ package kprobe
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"unsafe"
 
@@ -147,6 +148,9 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 				},
 			})
 	}
+
+	mapErrTelemetryMapKeys := buildMapErrTelemetryKeys(m)
+	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, mapErrTelemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
@@ -213,6 +217,9 @@ func (t *kprobeTracer) Stop() {
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case string(probes.SockByPidFDMap):
+		m, _, _ := t.m.GetMap(name)
+		return m
+	case string(probes.MapErrTelemetryMap):
 		m, _, _ := t.m.GetMap(name)
 		return m
 	default:
@@ -506,4 +513,20 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	default:
 		stats.Direction = network.OUTGOING
 	}
+}
+
+func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
+	var keys []manager.ConstantEditor
+
+	h := fnv.New64a()
+	for _, m := range mgr.Maps {
+		h.Write([]byte(m.Name))
+		keys = append(keys, manager.ConstantEditor{
+			Name:  m.Name + "_telemetry_key",
+			Value: h.Sum64(),
+		})
+		h.Reset()
+	}
+
+	return keys
 }

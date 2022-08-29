@@ -33,6 +33,13 @@
 # error "kernel version not included?"
 #endif
 
+struct map_err_telemetry {
+    unsigned int err_count[BPF_FUNC_map_delete_elem+1];
+};
+
+
+BPF_HASH_MAP(map_err_telemetry_map, unsigned long, struct map_err_telemetry, 128)
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, u8 state) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;

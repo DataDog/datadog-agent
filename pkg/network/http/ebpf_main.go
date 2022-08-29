@@ -10,8 +10,10 @@ package http
 
 import (
 	"fmt"
+	"hash/fnv"
 	"math"
 	"os"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -59,6 +61,7 @@ type ebpfProgram struct {
 	mapCleaner  *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
+	mapErrTelemetryMap     *ebpf.Map
 }
 
 type subprogram interface {
@@ -68,7 +71,7 @@ type subprogram interface {
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, errMap *ebpf.Map) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -133,6 +136,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
 		subprograms:            []subprogram{sslProgram},
+		mapErrTelemetryMap:     errMap,
 	}
 
 	return program, nil
@@ -151,6 +155,7 @@ func (e *ebpfProgram) Init() error {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
 
+	mapErrTelemetryMapKeys := buildMapErrTelemetryKeys(e.Manager)
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -158,8 +163,9 @@ func (e *ebpfProgram) Init() error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				Type: ebpf.Hash,
+				//	MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},
 			httpBatchesMap: {
@@ -201,8 +207,10 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: e.offsets,
+		ConstantEditors: append(e.offsets, mapErrTelemetryMapKeys...),
 	}
+	options.MapEditors = make(map[string]*ebpf.Map)
+	options.MapEditors[string(probes.MapErrTelemetryMap)] = e.mapErrTelemetryMap
 
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
@@ -212,6 +220,9 @@ func (e *ebpfProgram) Init() error {
 	if err != nil {
 		return err
 	}
+
+	errMap, _, _ := e.GetMap(string(probes.MapErrTelemetryMap))
+	initializeMapErrTelemetryMap(e.Manager, errMap)
 
 	return nil
 }
@@ -286,4 +297,42 @@ func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
 	}
 
 	return
+}
+func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
+	var keys []manager.ConstantEditor
+
+	h := fnv.New64a()
+	for _, m := range mgr.Maps {
+		h.Write([]byte(m.Name))
+		keys = append(keys, manager.ConstantEditor{
+			Name:  m.Name + "_telemetry_key",
+			Value: h.Sum64(),
+		})
+		h.Reset()
+	}
+
+	return keys
+}
+
+type zeroArr struct {
+	x1 uint32
+	x2 uint32
+	x3 uint32
+	x4 uint32
+	x5 uint32
+}
+
+func initializeMapErrTelemetryMap(mgr *manager.Manager, errMap *ebpf.Map) {
+	z := new(zeroArr)
+	h := fnv.New64a()
+
+	for _, m := range mgr.Maps {
+		h.Write([]byte(m.Name))
+		key := h.Sum64()
+		err := errMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		if err != nil {
+			fmt.Printf("err; %v\n", err)
+		}
+		h.Reset()
+	}
 }
