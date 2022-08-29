@@ -105,6 +105,13 @@ func TestObfuscateDefaults(t *testing.T) {
 	})
 }
 
+func agentWithDefaults() (agnt *Agent, stop func()) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	return NewAgent(ctx, cfg), cancelFunc
+}
+
 func TestObfuscateConfig(t *testing.T) {
 	// testConfig returns a test function which creates a span of type typ,
 	// having a tag with key/val, runs the obfuscator on it using the given
