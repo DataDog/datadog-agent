@@ -25,7 +25,7 @@ After you have refactored, if needed, and listed the packages that you want to e
  	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
     )
     ```
-1. Update the `DEFAULT_MODULES` dictionary on the `tasks/modules.py` file. You need to create a new module, specifying the path, targets and a condition to run tests (if any).
+1. Update the `DEFAULT_MODULES` dictionary in the `tasks/modules.py` file. You need to create a new module, specifying the path, targets, and a condition to run tests (if any).
    For example, if `pkg/A` depends on `pkg/B` and `pkg/B` is Windows only, we would specify:
    ```python
    DEFAULT_MODULES = {
