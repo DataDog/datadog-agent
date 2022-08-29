@@ -93,11 +93,22 @@ func TestStopServer(t *testing.T) {
 // properly protected from multiple accesses by `cachedTlmLock`.
 // The main purpose of this test is to detect early if a future code change is
 // introducing a data race.
-// Has to be run with the -race option.
 func TestNoRaceOriginTagMaps(t *testing.T) {
+	const N = 100
 	s := &Server{cachedTlmOriginIds: make(map[string]cachedTagsOriginMap)}
-	for i := 0; i < 100; i++ {
-		go func() { s.createOriginTagMaps("an origin") }()
+	sync := make(chan struct{})
+	done := make(chan struct{}, N)
+	for i := 0; i < N; i++ {
+		id := fmt.Sprintf("%d", i)
+		go func() {
+			defer func() { done <- struct{}{} }()
+			<-sync
+			s.createOriginTagMaps(id)
+		}()
+	}
+	close(sync)
+	for i := 0; i < N; i++ {
+		<-done
 	}
 }
 
