@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The APM Agent now logs a warning when it's falling behind.
