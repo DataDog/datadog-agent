@@ -112,8 +112,9 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
 struct bpf_map_def SEC("maps/task_in_coredump") tasks_in_coredump = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
-    .value_size = sizeof(u64),
+    .value_size = sizeof(u8),
     .max_entries = 1024,
+    .map_flags = BPF_F_NO_COMMON_LRU,
     .pinning = 0,
     .namespace = "",
 };
@@ -510,7 +511,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 SEC("kprobe/do_coredump")
 int kprobe_do_coredump(struct pt_regs *ctx) {
     u64 key = bpf_get_current_pid_tgid();
-    u64 in_coredump = 1;
+    u8 in_coredump = 1;
 
     bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
 
@@ -547,7 +548,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
         event.exit_code = (long)PT_REGS_PARM1(ctx);
-        u64 *in_coredump = (u64 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
+        u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
         if (in_coredump) {
             event.exit_code |= 0x80;
             bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
