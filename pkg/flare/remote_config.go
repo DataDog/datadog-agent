@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.etcd.io/bbolt"
 )
 
@@ -42,9 +41,9 @@ func zipRemoteConfigDB(tempDir, hostname string) error {
 	defer dstDB.Close()
 
 	err = dstDB.Update(func(tx *bbolt.Tx) error {
-		return tx.ForEach(func(name []byte, b *bbolt.Bucket) error {
+		var targetFilesBuckets [][]byte
+		err := tx.ForEach(func(name []byte, b *bbolt.Bucket) error {
 			if strings.HasSuffix(string(name), "_targets") {
-				log.Errorf("replacing targets")
 				newBucket, err := tx.CreateBucket([]byte(fmt.Sprintf("%s_hashed", string(name))))
 				if err != nil {
 					return err
@@ -55,12 +54,20 @@ func zipRemoteConfigDB(tempDir, hostname string) error {
 						return err
 					}
 				}
-				if err := b.DeleteBucket(name); err != nil {
-					return err
-				}
+				targetFilesBuckets = append(targetFilesBuckets, name)
 			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
+		// Delete the buckets with target files content
+		for _, name := range targetFilesBuckets {
+			if err := tx.DeleteBucket(name); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		// Prevent from having a clear db here
