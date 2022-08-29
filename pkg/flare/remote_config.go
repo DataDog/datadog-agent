@@ -55,7 +55,9 @@ func zipRemoteConfigDB(tempDir, hostname string) error {
 						return err
 					}
 				}
-				b.DeleteBucket(name)
+				if err := b.DeleteBucket(name); err != nil {
+					return err
+				}
 			}
 			return nil
 		})
