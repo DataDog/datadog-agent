@@ -7,16 +7,22 @@ package file
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	yamlv2 "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var ReportedFields = []string{
@@ -49,7 +55,7 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 		path = file.Glob
 	}
 
-	path, err = ResolvePath(e, path)
+	path, err = fileutils.ResolvePath(e, path)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +136,7 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 	return resources.NewResolvedInstances(instances), nil
 }
 
-func fileQuery(path string, get Getter) eval.Function {
+func fileQuery(path string, get fileutils.Getter) eval.Function {
 	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 1 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
@@ -144,19 +150,91 @@ func fileQuery(path string, get Getter) eval.Function {
 }
 
 func fileJQ(path string) eval.Function {
-	return fileQuery(path, JSONGetter)
+	return fileQuery(path, fileutils.JSONGetter)
 }
 
 func fileYAML(path string) eval.Function {
-	return fileQuery(path, YAMLGetter)
+	return fileQuery(path, fileutils.YAMLGetter)
 }
 
 func fileRegexp(path string) eval.Function {
-	return fileQuery(path, RegexpGetter)
+	return fileQuery(path, fileutils.RegexpGetter)
+}
+
+type contentParser func([]byte) (interface{}, error)
+
+var contentParsers = map[string]contentParser{
+	"json": parseJSONContent,
+	"yaml": parseYAMLContent,
+	"raw":  parseRawContent,
+}
+
+func parseRawContent(data []byte) (interface{}, error) {
+	return string(data), nil
+}
+
+func parseJSONContent(data []byte) (interface{}, error) {
+	var content interface{}
+
+	if err := json.Unmarshal(data, &content); err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+func parseYAMLContent(data []byte) (interface{}, error) {
+	var content interface{}
+
+	if err := yaml.Unmarshal(data, &content); err != nil {
+		if err := yamlv2.Unmarshal(data, &content); err != nil {
+			return nil, err
+		}
+	}
+
+	content = jsonquery.NormalizeYAMLForGoJQ(content)
+	return content, nil
+}
+
+func validateParserKind(parser string) (string, error) {
+	if parser == "" {
+		return "", nil
+	}
+
+	normParser := strings.ToLower(parser)
+	if _, ok := contentParsers[normParser]; !ok {
+		return "", fmt.Errorf("undefined file content parser %s", parser)
+	}
+	return normParser, nil
+}
+
+// readContent unmarshal file
+func readContent(filePath, parser string) (interface{}, error) {
+	if parser == "" {
+		return "", nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	parserFunc := contentParsers[parser]
+	if parserFunc != nil {
+		return parserFunc(data)
+	}
+
+	return string(data), nil
 }
 
 // QueryValueFromFile retrieves a value from a file with the provided getter func
-func QueryValueFromFile(filePath string, query string, get Getter) (string, error) {
+func QueryValueFromFile(filePath string, query string, get fileutils.Getter) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err

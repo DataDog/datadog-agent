@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +38,7 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 		return nil, fmt.Errorf("audit client not configured")
 	}
 
-	path, err := file.ResolvePath(e, audit.Path)
+	path, err := fileutils.ResolvePath(e, audit.Path)
 	if err != nil {
 		return nil, err
 	}

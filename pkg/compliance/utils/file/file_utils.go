@@ -8,7 +8,6 @@ package file
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yamlv2 "gopkg.in/yaml.v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -83,51 +81,6 @@ func ResolvePath(e env.Env, path string) (string, error) {
 // Getter applies jq query to get string value from json or yaml raw data
 type Getter func([]byte, string) (string, error)
 
-type contentParser func([]byte) (interface{}, error)
-
-var contentParsers = map[string]contentParser{
-	"json": parseJSONContent,
-	"yaml": parseYAMLContent,
-	"raw":  parseRawContent,
-}
-
-func validateParserKind(parser string) (string, error) {
-	if parser == "" {
-		return "", nil
-	}
-
-	normParser := strings.ToLower(parser)
-	if _, ok := contentParsers[normParser]; !ok {
-		return "", fmt.Errorf("undefined file content parser %s", parser)
-	}
-	return normParser, nil
-}
-
-// readContent unmarshal file
-func readContent(filePath, parser string) (interface{}, error) {
-	if parser == "" {
-		return "", nil
-	}
-
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return "", err
-	}
-
-	parserFunc := contentParsers[parser]
-	if parserFunc != nil {
-		return parserFunc(data)
-	}
-
-	return string(data), nil
-}
-
 // JSONGetter retrieves a property from a JSON file (jq style syntax)
 func JSONGetter(data []byte, query string) (string, error) {
 	var jsonContent interface{}
@@ -162,31 +115,4 @@ func RegexpGetter(data []byte, expr string) (string, error) {
 	}
 
 	return string(match), nil
-}
-
-func parseRawContent(data []byte) (interface{}, error) {
-	return string(data), nil
-}
-
-func parseJSONContent(data []byte) (interface{}, error) {
-	var content interface{}
-
-	if err := json.Unmarshal(data, &content); err != nil {
-		return nil, err
-	}
-
-	return content, nil
-}
-
-func parseYAMLContent(data []byte) (interface{}, error) {
-	var content interface{}
-
-	if err := yaml.Unmarshal(data, &content); err != nil {
-		if err := yamlv2.Unmarshal(data, &content); err != nil {
-			return nil, err
-		}
-	}
-
-	content = jsonquery.NormalizeYAMLForGoJQ(content)
-	return content, nil
 }

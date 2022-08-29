@@ -37,10 +37,10 @@ func TestMapperRelative(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m := pathMapper{
+			m := PathMapper{
 				hostMountPath: test.hostMountPath,
 			}
-			assert.Equal(t, test.expectedPath, m.relativeToHostRoot(test.path))
+			assert.Equal(t, test.expectedPath, m.RelativeToHostRoot(test.path))
 		})
 	}
 }
