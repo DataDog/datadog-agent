@@ -3,7 +3,7 @@
 
 #include "bpf_helpers.h"
 #include "go-tls-types.h"
-#include "go-tls-maps.h"
+#include "http-maps.h"
 #include "ip.h"
 #include "port_range.h"
 

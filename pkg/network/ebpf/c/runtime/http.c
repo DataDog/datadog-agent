@@ -11,6 +11,10 @@
 #include "port_range.h"
 #include "https.h"
 #include "conn-tuple.h"
+#include "go-tls-types.h"
+#include "go-tls-goid.h"
+#include "go-tls-location.h"
+#include "go-tls-conn.h"
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
 #error "http runtime compilation is only supported for kernel >= 4.5"
@@ -519,3 +523,171 @@ int kretprobe__do_sys_openat2(struct pt_regs *ctx) {
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 
 char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+
+// GO TLS PROBES
+
+static __always_inline tls_probe_data_t* get_probe_data(uint32_t key) {
+	return bpf_map_lookup_elem(&probe_data, &key);
+}
+
+// func (c *Conn) Write(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Write")
+int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
+	log_debug("##### WRITE\n");
+
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+	u64 pid = pid_tgid >> 32;
+
+	tls_probe_data_t* pd = get_probe_data(pid);
+	if (pd == NULL)
+		return 1;
+
+	void* conn_pointer = NULL;
+	if (read_location(ctx, &pd->write_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
+		return 1;
+	}
+
+	void* b_data = NULL;
+	if (read_location(ctx, &pd->write_buffer.ptr, sizeof(b_data), &b_data)) {
+		return 1;
+	}
+	uint64_t b_len = 0;
+	if (read_location(ctx, &pd->write_buffer.len, sizeof(b_len), &b_len)) {
+		return 1;
+	}
+
+	conn_tuple_t* t = conn_tup_from_tls_conn(pd, conn_pointer, pid_tgid);
+	if (t == NULL) {
+		return 1;
+	}
+
+    https_process(t, b_data, b_len, GO);
+    return 0;
+}
+
+// func (c *Conn) Read(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Read")
+int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
+    log_debug("##### READ\n");
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+	tls_probe_data_t* pd = get_probe_data(pid);
+	if (pd == NULL)
+		return 1;
+
+	// Read the TGID and goroutine ID to make the partial call key
+	read_partial_call_key_t call_key = {0};
+	call_key.tgid = pid_tgid >> 32;
+	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+		return 1;
+	}
+
+	// Read the parameters to make the partial call data
+	// (since the parameters might not be live by the time the return probe is hit).
+	read_partial_call_data_t call_data = {0};
+	if (read_location(ctx, &pd->read_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
+		return 1;
+	}
+	if (read_location(ctx, &pd->read_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
+		return 1;
+	}
+
+	bpf_map_update_elem(&read_partial_calls, &call_key, &call_data, BPF_ANY);
+
+	return 0;
+}
+
+// func (c *Conn) Read(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Read/return")
+int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
+	log_debug("##### READ RETURN\n");
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+	tls_probe_data_t* pd = get_probe_data(pid);
+	if (pd == NULL)
+		return 1;
+
+	// Read the TGID and goroutine ID to make the partial call key
+	read_partial_call_key_t call_key = {0};
+	call_key.tgid = pid;
+
+	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+		return 1;
+	}
+
+	read_partial_call_data_t* call_data_ptr = bpf_map_lookup_elem(&read_partial_calls, &call_key);
+	if (call_data_ptr == NULL) {
+		return 1;
+	}
+	read_partial_call_data_t call_data = *call_data_ptr;
+    bpf_map_delete_elem(&read_partial_calls, &call_key);
+
+	uint64_t bytes_read = 0;
+	if (read_location(ctx, &pd->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
+		return 1;
+	}
+
+	conn_tuple_t* t = conn_tup_from_tls_conn(pd, (void*) call_data.conn_pointer, pid_tgid);
+	if (t == NULL) {
+		return 1;
+	}
+
+	// The error return value of Read isn't useful here
+	// unless we can determine whether it is equal to io.EOF
+	// (and if so, treat it like there's no error at all),
+	// and I didn't find a straightforward way of doing this.
+
+    https_process(t, (void*) call_data.b_data, bytes_read, GO);
+
+	return 0;
+}
+
+// func (c *Conn) Close(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Close")
+int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
+    log_debug("##### CLOSE\n");
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+	tls_probe_data_t* pd = get_probe_data(pid);
+	if (pd == NULL)
+		return 1;
+
+	void* conn_pointer = NULL;
+	if (read_location(ctx, &pd->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
+		return 1;
+	}
+
+	conn_tuple_t* t = conn_tup_from_tls_conn(pd, conn_pointer, pid_tgid);
+	if (t == NULL) {
+		return 1;
+	}
+
+    char buffer[100];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+
+    https_finish(t);
+
+	// Clear the element in the map since this connection is closed
+    bpf_map_delete_elem(&conn_tup_by_tls_conn, &conn_pointer);
+
+    return 0;
+}
+
+static __always_inline void* get_tls_base(struct task_struct* task) {
+    #if defined(__x86_64__)
+        #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+            return (void*) task->thread.fs;
+        #else
+            return (void*) task->thread.fsbase;
+        #endif
+    #elif defined(__aarch64__)
+        #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+            return (void*) task->thread.tp_value;
+        #else
+            return (void*) task->thread.uw.tp_value;
+        #endif
+    #else
+        #error "Unsupported platform"
+    #endif
+}

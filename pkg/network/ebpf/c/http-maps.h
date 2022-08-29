@@ -4,6 +4,7 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "http-types.h"
+#include "go-tls-types.h"
 
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 struct bpf_map_def SEC("maps/http_in_flight") http_in_flight = {
@@ -109,8 +110,40 @@ struct bpf_map_def SEC("maps/shared_libraries") shared_libraries = {
     .namespace = "",
 };
 
+/* This map passes data from user-space to the probes before they get attached */
+struct bpf_map_def SEC("maps/probe_data") probe_data = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(uint32_t),
+    .value_size = sizeof(tls_probe_data_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This map facilitates assocating entry probe calls from return probe calls
+   for the crypto/tls.(*Conn).Read function */
+struct bpf_map_def SEC("maps/read_partial_calls") read_partial_calls = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(read_partial_call_key_t),
+    .value_size = sizeof(read_partial_call_data_t),
+    .max_entries = 1024, // TODO overwrite at runtime
+    .pinning = 0,
+    .namespace = "",
+};
+
+/* This map associates crypto/tls.(*Conn) values to the corresponding conn_tuple_t* value.
+   It is used to implement a simplified version of tup_from_ssl_ctx from http.c */
+struct bpf_map_def SEC("maps/conn_tup_by_tls_conn") conn_tup_by_tls_conn = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(uint32_t),
+    .value_size = sizeof(conn_tuple_t),
+    .max_entries = 1024, // TODO overwrite at runtime
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* Map used to store the sub program actually used by the socket filter.
- * This is done to avoid memory limitation when attaching a filter to 
+ * This is done to avoid memory limitation when attaching a filter to
  * a socket.
  * See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters */
 #define HTTP_PROG 0
@@ -122,3 +155,4 @@ struct bpf_map_def SEC("maps/http_progs") http_progs = {
 };
 
 #endif
+

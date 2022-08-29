@@ -7,7 +7,7 @@
 #include "bpf_helpers.h"
 #include "go-tls-types.h"
 #include "go-tls-location.h"
-#include "go-tls-maps.h"
+#include "http-maps.h"
 
 // Implemented either in c/runtime/runtime-get-tls-base.h or in ____ (TODO add offset-guessed version)
 static void* get_tls_base(struct task_struct* task);
@@ -24,7 +24,13 @@ static __always_inline int read_goroutine_id_from_tls(goroutine_id_metadata_t* m
 
     // Get the Goroutine ID, which is stored in thread local storage.
     uintptr_t g_addr;
-    if (bpf_probe_read(&g_addr, sizeof(uintptr_t), get_tls_base(task) + m->runtime_g_tls_addr_offset)) {
+
+    void* base = get_tls_base(task);
+    if (base == NULL) {
+        return 1;
+    }
+
+    if (bpf_probe_read(&g_addr, sizeof(uintptr_t), base + m->runtime_g_tls_addr_offset)) {
         return 1;
 	}
 	void* goroutine_id_ptr = (void*) (g_addr + m->goroutine_id_offset);
@@ -56,9 +62,8 @@ static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, 
 static __always_inline int read_goroutine_id(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {
 	if (m->runtime_g_in_register) {
 		return read_goroutine_id_from_register(ctx, m, dest);
-	} else {
-		return read_goroutine_id_from_tls(m, dest);
 	}
+	return read_goroutine_id_from_tls(m, dest);
 }
 
 #endif //__GO_TLS_GOID_H

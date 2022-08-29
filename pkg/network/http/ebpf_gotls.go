@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	BINARY       = "/proc/23662/exe"
+	BINARY       = "/proc/18904/exe"
 	probeDataMap = "probe_data"
 
 	writeFuncName      = "uprobe__crypto_tls_Conn_Write"
@@ -80,7 +80,6 @@ func (p *GoTLSProgram) ConfigureManager(m *manager.Manager) {
 
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
-		// TODO add maps
 		{Name: probeDataMap},
 	}...)
 	// Hooks will be added in runtime for each binary
@@ -113,7 +112,7 @@ func (p *GoTLSProgram) Start() {
 	// watcher, so we will run on more than one binary in one goTLSProgram.
 	p.addInspectionResultToMap(result, binPath)
 
-	//p.attachHooks(result, binPath)
+	p.attachHooks(result, binPath)
 
 }
 
@@ -198,7 +197,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 	for _, probe := range probes {
 		err := p.manager.AddHook(uid, probe)
 		if err != nil {
-			log.Errorf("could not add hook for %q in offset %d due to: %w", probe.HookFuncName, probe.UprobeOffset, err)
+			log.Errorf("could not add hook for %q in offset %d due to: %w", probe.EBPFFuncName, probe.UprobeOffset, err)
 			return
 		}
 	}
