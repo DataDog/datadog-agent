@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	BINARY       = "/proc/16391/exe"
+	BINARY       = "/proc/23662/exe"
 	probeDataMap = "probe_data"
 
 	writeFuncName      = "uprobe__crypto_tls_Conn_Write"
@@ -72,10 +72,13 @@ func NewGoTLSProgram(c *config.Config) (*GoTLSProgram, error) {
 	return &GoTLSProgram{}, nil
 }
 
-func (p GoTLSProgram) ConfigureManager(m *manager.Manager) {
-	p.manager = m
-
+func (p *GoTLSProgram) ConfigureManager(m *manager.Manager) {
 	// TODO check if we support go TLS on the current arch
+	if p == nil {
+		return
+	}
+
+	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
 		// TODO add maps
 		{Name: probeDataMap},
@@ -83,10 +86,12 @@ func (p GoTLSProgram) ConfigureManager(m *manager.Manager) {
 	// Hooks will be added in runtime for each binary
 }
 
-func (p GoTLSProgram) ConfigureOptions(options *manager.Options) {}
+func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {}
 
-func (p GoTLSProgram) Start() {
-
+func (p *GoTLSProgram) Start() {
+	if p == nil {
+		return
+	}
 	// In the future Start() should just initiate the new processes listener
 	// and this implementation should be done for each new process found.
 
@@ -108,11 +113,11 @@ func (p GoTLSProgram) Start() {
 	// watcher, so we will run on more than one binary in one goTLSProgram.
 	p.addInspectionResultToMap(result, binPath)
 
-	p.attachHooks(result, binPath)
+	//p.attachHooks(result, binPath)
 
 }
 
-func (p GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPath string) {
+func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPath string) {
 	probeData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		log.Errorf("error while parsing inspection result: %w", err)
@@ -128,18 +133,17 @@ func (p GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPat
 	pidStr := strings.Split(binPath, "/")[2]
 	pid, err := strconv.ParseInt(pidStr, 10, 32)
 	if err != nil {
-		log.Errorf("failed extracting pid number binary %q: %w", binPath, err)
+		log.Errorf("failed extracting pid number for binary %q: %w", binPath, err)
 		return
 	}
-
-	err = dataMap.Put(pid, probeData)
+	err = dataMap.Put(uint32(pid), probeData)
 	if err != nil {
 		log.Errorf("failed writing binary inspection result to map for binary %q: %w", binPath, err)
 		return
 	}
 }
 
-func (p GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
+func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 	uid := getUID(binPath)
 
 	for i, offset := range result.Functions[bininspect.ReadGoTLSFunc].ReturnLocations {
@@ -200,6 +204,9 @@ func (p GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 	}
 }
 
-func (p GoTLSProgram) Stop() {
+func (p *GoTLSProgram) Stop() {
+	if p == nil {
+		return
+	}
 	// In the future, this should stop the new process listener.
 }

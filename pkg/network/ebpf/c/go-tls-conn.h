@@ -24,14 +24,6 @@ static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr
 		return 1;
 	}
 
-	// Check that the itab entry for the (net.TCPConn,net.Conn) (type,interface) pair
-	// is the same as the tab pointer in the interface.
-	// However, this check is only possible if the binary wasn't stripped.
-	// If the interface type is 0, skip the check.
-	if (cl->tcp_conn_interface_type && ((uint64_t) inner_conn_iface.itab) != cl->tcp_conn_interface_type) {
-		return 1;
-	}
-
 	void* tcp_conn_inner_conn_ptr = ((void*) inner_conn_iface.ptr) + cl->tcp_conn_inner_conn_offset;
 	// the net.conn struct is embedded in net.TCPConn, so just add the offset again
 	void* conn_fd_ptr_ptr = tcp_conn_inner_conn_ptr + cl->conn_fd_offset;

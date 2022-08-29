@@ -574,9 +574,9 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 	// Read the TGID and goroutine ID to make the partial call key
 	read_partial_call_key_t call_key = {0};
 	call_key.tgid = pid_tgid >> 32;
-	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
-		return 1;
-	}
+//	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+//		return 1;
+//	}
 
 	// Read the parameters to make the partial call data
 	// (since the parameters might not be live by the time the return probe is hit).
@@ -606,9 +606,9 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 	// Read the TGID and goroutine ID to make the partial call key
 	read_partial_call_key_t call_key = {0};
 	call_key.tgid = pid;
-	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
-		return 1;
-	}
+//	if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+//		return 1;
+//	}
 
 	read_partial_call_data_t* call_data_ptr = bpf_map_lookup_elem(&read_partial_calls, &call_key);
 	if (call_data_ptr == NULL) {
