@@ -26,6 +26,7 @@ import (
 )
 
 func openTestFile(test *testModule, testFile string, flags int) (int, error) {
+	fmt.Println("celia", testFile)
 	testFilePtr, err := syscall.BytePtrFromString(testFile)
 	if err != nil {
 		return 0, err
@@ -42,6 +43,7 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 		return 0, error(errno)
 	}
 
+	fmt.Println("yuen", testFile)
 	return int(fd), nil
 }
 
@@ -107,6 +109,9 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		ID:         "test_rule",
 		Expression: `open.filename =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
+	// Catch open events on files that have basename of no-approver-* at {root}/ AND have flags of O_CREAT or O_SYNC
+	// No approvers for this rule because of the wildcard in the basename
+	// Opening `test-obc-2` should create a discarder because it definitely does not match the rule
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
@@ -148,6 +153,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
+	// expects an error because there should be NO event
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
 		if err != nil {
