@@ -28,10 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
+	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -739,7 +739,7 @@ func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error)
 		}
 	}
 
-	return command.ValueFromShellCommand(cmd, shellAndArgs...)
+	return commandutils.ValueFromShellCommand(cmd, shellAndArgs...)
 }
 
 func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
@@ -757,7 +757,7 @@ func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) 
 		cmdArgs = append(cmdArgs, s)
 	}
 
-	return command.ValueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
+	return commandutils.ValueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
 }
 
 func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {

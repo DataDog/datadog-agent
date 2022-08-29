@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
+	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
 
 	assert "github.com/stretchr/testify/require"
 )
@@ -35,7 +37,7 @@ type commandFixture struct {
 	expectReport *compliance.Report
 }
 
-func (f *commandFixture) mockRunCommand(t *testing.T) commandRunnerFunc {
+func (f *commandFixture) mockRunCommand(t *testing.T) command.RunnerFunc {
 	return func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 		assert.Equal(t, f.expectCommandName, name)
 		assert.Equal(t, f.expectCommandArgs, args)
@@ -105,8 +107,8 @@ func TestCommandCheck(t *testing.T) {
 			commandExitCode:   0,
 			commandOutput:     "output",
 			commandError:      nil,
-			expectCommandName: getDefaultShell().Name,
-			expectCommandArgs: append(getDefaultShell().Args, "my command --foo=bar --baz"),
+			expectCommandName: commandutils.GetDefaultShell().Name,
+			expectCommandArgs: append(commandutils.GetDefaultShell().Args, "my command --foo=bar --baz"),
 			expectReport: &compliance.Report{
 				Passed: true,
 				Data: event.Data{

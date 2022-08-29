@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
+	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +40,7 @@ func Resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.Resou
 	// Create `execCommand` from `command` model
 	// Binary takes precedence over Shell
 	if execCommand == nil {
-		execCommand = shellCmdToBinaryCmd(command.ShellCmd)
+		execCommand = commandutils.ShellCmdToBinaryCmd(command.ShellCmd)
 	}
 
 	commandTimeout := compliance.DefaultTimeout
@@ -50,7 +51,7 @@ func Resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.Resou
 	context, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
 
-	exitCode, stdout, err := commandRunner(context, execCommand.Name, execCommand.Args, true)
+	exitCode, stdout, err := commandutils.Runner(context, execCommand.Name, execCommand.Args, true)
 	if exitCode == -1 && err != nil {
 		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
 	}

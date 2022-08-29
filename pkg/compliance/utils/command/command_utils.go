@@ -16,13 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type commandRunnerFunc func(context.Context, string, []string, bool) (int, []byte, error)
+type RunnerFunc func(context.Context, string, []string, bool) (int, []byte, error)
 
 var (
-	commandRunner commandRunnerFunc = runCommand
+	Runner RunnerFunc = runCommand
 )
 
-func getDefaultShell() *compliance.BinaryCmd {
+func GetDefaultShell() *compliance.BinaryCmd {
 	switch runtime.GOOS {
 	case "windows":
 		return &compliance.BinaryCmd{
@@ -37,12 +37,12 @@ func getDefaultShell() *compliance.BinaryCmd {
 	}
 }
 
-func shellCmdToBinaryCmd(shellCmd *compliance.ShellCmd) *compliance.BinaryCmd {
+func ShellCmdToBinaryCmd(shellCmd *compliance.ShellCmd) *compliance.BinaryCmd {
 	var execCmd *compliance.BinaryCmd
 	if shellCmd.Shell != nil {
 		execCmd = shellCmd.Shell
 	} else {
-		execCmd = getDefaultShell()
+		execCmd = GetDefaultShell()
 	}
 
 	execCmd.Args = append(execCmd.Args, shellCmd.Run)
@@ -53,7 +53,7 @@ func runBinaryCmd(execCommand *compliance.BinaryCmd, timeout time.Duration) (int
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	exitCode, stdout, err := commandRunner(ctx, execCommand.Name, execCommand.Args, true)
+	exitCode, stdout, err := Runner(ctx, execCommand.Name, execCommand.Args, true)
 	return exitCode, string(stdout), err
 }
 
@@ -69,7 +69,7 @@ func ValueFromShellCommand(command string, shellAndArgs ...string) (interface{},
 			Args: shellAndArgs[1:],
 		}
 	}
-	execCommand := shellCmdToBinaryCmd(shellCmd)
+	execCommand := ShellCmdToBinaryCmd(shellCmd)
 	exitCode, stdout, err := runBinaryCmd(execCommand, compliance.DefaultTimeout)
 	if exitCode != 0 || err != nil {
 		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)

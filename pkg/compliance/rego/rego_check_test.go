@@ -55,7 +55,7 @@ func (f *regoFixture) run(t *testing.T) {
 	assert := assert.New(t)
 
 	cache.Cache.Delete(processutils.ProcessCacheKey)
-	processutils.ProcessFetcher = func() (processutils.Processes, error) {
+	processutils.Fetcher = func() (processutils.Processes, error) {
 		return f.processes, nil
 	}
 

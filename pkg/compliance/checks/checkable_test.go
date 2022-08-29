@@ -93,15 +93,14 @@ func TestCheckableList(t *testing.T) {
 			env := &mocks.Env{}
 			env.On("MaxEventsPerRun").Return(2)
 
-			var list checkableList
+			var reports []*compliance.Report
 
 			for _, outcome := range test.list {
 				c := &mockCheckable{}
 				c.On("check", env).Return(outcome.reports)
-				list = append(list, c)
+				reports = append(reports, c.Check(env)...)
 			}
 
-			reports := list.check(env)
 			assert.Equal(test.expected.reports, reports)
 		})
 	}

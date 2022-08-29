@@ -108,7 +108,7 @@ const (
 )
 
 var (
-	ProcessFetcher = fetchProcesses
+	Fetcher = fetchProcesses
 )
 
 func (p Processes) FindProcessesByName(name string) []*CheckedProcess {
@@ -147,7 +147,7 @@ func GetProcesses(maxAge time.Duration) (Processes, error) {
 	}
 
 	log.Debug("Updating process cache")
-	rawProcesses, err := ProcessFetcher()
+	rawProcesses, err := Fetcher()
 	if err != nil {
 		return nil, err
 	}
