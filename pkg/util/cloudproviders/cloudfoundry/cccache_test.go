@@ -273,7 +273,9 @@ func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
 	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
+
 	cc.refreshCacheOnMiss = false
 	cc.readData()
 }
@@ -282,6 +284,7 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
 	globalCCClientCounter.Reset()
+
 	wg := sync.WaitGroup{}
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -292,7 +295,9 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
 	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3AppByGUID"))
+
 	cc.refreshCacheOnMiss = false
 	cc.readData()
 }
@@ -301,6 +306,7 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
 	globalCCClientCounter.Reset()
+
 	wg := sync.WaitGroup{}
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -310,7 +316,9 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
 	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
+
 	cc.refreshCacheOnMiss = false
 	cc.readData()
 }
@@ -319,6 +327,7 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
 	globalCCClientCounter.Reset()
+
 	wg := sync.WaitGroup{}
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -328,7 +337,9 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
 	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
+
 	cc.refreshCacheOnMiss = false
 	cc.readData()
 }
@@ -337,12 +348,13 @@ func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
 	globalCCClientCounter.Reset()
+
 	wg := sync.WaitGroup{}
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := cc.GetCFApplication(fmt.Sprintf(cfApp1.GUID))
+			_, err := cc.GetCFApplication(cfApp1.GUID)
 			assert.Nil(t, err)
 		}()
 	}

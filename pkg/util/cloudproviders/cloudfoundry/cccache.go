@@ -276,6 +276,7 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(appGUID)
 
+		// check the cache in case the resource was fetched while we were waiting
 		ccc.RLock()
 		processes, ok = ccc.processesByAppGUID[appGUID]
 		ccc.RUnlock()
@@ -332,12 +333,13 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find CF application %s in cloud controller cache", guid)
 		}
 
-		// Apps and CFApplication share the same guid which causes a deadlock in the ccc.activeResources map if not properly handled
+		// cfclient.V3App and CFApplication share the same guid which causes a deadlock in the ccc.activeResources map if not properly handled
 		cfappGUID := "cfapp" + guid
 
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(cfappGUID)
 
+		// check the cache in case the resource was fetched while we were waiting
 		ccc.RLock()
 		cfapp, ok = ccc.cfApplicationsByGUID[guid]
 		ccc.RUnlock()
@@ -439,6 +441,15 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(guid)
 
+		// check the cache in case the resource was fetched while we were waiting
+		ccc.RLock()
+		app, ok = ccc.appsByGUID[guid]
+		ccc.RUnlock()
+
+		if ok {
+			return app, nil
+		}
+
 		// set the resource as active to prevent other goroutines from fetching it
 		err := ccc.setResourceActive(guid)
 		if err != nil {
@@ -477,6 +488,7 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(guid)
 
+		// check the cache in case the resource was fetched while we were waiting
 		ccc.RLock()
 		space, ok = ccc.spacesByGUID[guid]
 		ccc.RUnlock()
@@ -523,6 +535,7 @@ func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(guid)
 
+		// check the cache in case the resource was fetched while we were waiting
 		ccc.RLock()
 		org, ok = ccc.orgsByGUID[guid]
 		ccc.RUnlock()
