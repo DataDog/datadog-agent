@@ -23,23 +23,6 @@ type RuleCommon struct {
 	SkipOnK8s    bool          `yaml:"skipOnKubernetes,omitempty"`
 }
 
-// ConditionFallbackRule defines a rule in a compliance config
-type ConditionFallbackRule struct {
-	RuleCommon   `yaml:",inline"`
-	ResourceType string     `yaml:"resourceType,omitempty"`
-	Resources    []Resource `yaml:"resources,omitempty"`
-}
-
-// ResourceCount returns the count of resources
-func (r *ConditionFallbackRule) ResourceCount() int {
-	return len(r.Resources)
-}
-
-// Common returns the common field between all rules
-func (r *ConditionFallbackRule) Common() *RuleCommon {
-	return &r.RuleCommon
-}
-
 // RegoRule defines a rule in a compliance config
 type RegoRule struct {
 	RuleCommon `yaml:",inline"`

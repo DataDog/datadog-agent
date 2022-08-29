@@ -49,12 +49,6 @@ type ResourceCommon struct {
 	Custom        *Custom             `yaml:"custom,omitempty"`
 }
 
-// Resource describes supported resource types observed by a Rule
-type Resource struct {
-	ResourceCommon `yaml:",inline"`
-	Condition      string `yaml:"condition"`
-}
-
 // RegoInput describes supported resource types observed by a Rego Rule
 type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
