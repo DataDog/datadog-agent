@@ -695,8 +695,6 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 		return ad.EncodeJSON()
 	case dump.PROTOBUF:
 		return ad.EncodeProtobuf()
-	case dump.PROTOJSON:
-		return ad.EncodeProtoJSON()
 	case dump.DOT:
 		return ad.EncodeDOT()
 	case dump.Profile:
@@ -704,24 +702,6 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 	default:
 		return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", ad.GetSelectorStr(), format)
 	}
-}
-
-// EncodeJSON encodes an activity dump in the JSON format
-func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
-	ad.Lock()
-	defer ad.Unlock()
-
-	msgpRaw, err := ad.MarshalMsg(nil)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
-	}
-
-	raw := bytes.NewBuffer(nil)
-	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
-	}
-	return raw, nil
 }
 
 // EncodeProtobuf encodes an activity dump in the Protobuf format
@@ -739,8 +719,8 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 	return bytes.NewBuffer(raw), nil
 }
 
-// EncodeProtoJSON encodes an activity dump in the ProtoJSON format
-func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
+// EncodeJSON encodes an activity dump in the ProtoJSON format
+func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -754,7 +734,7 @@ func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOJSON, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }

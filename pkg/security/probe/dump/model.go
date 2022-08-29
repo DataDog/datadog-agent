@@ -107,8 +107,6 @@ var (
 	JSON StorageFormat = "json"
 	// PROTOBUF is used to request the protobuf format
 	PROTOBUF StorageFormat = "protobuf"
-	// PROTOJSON is used to request the JSON protobuf format
-	PROTOJSON StorageFormat = "protojson"
 	// DOT is used to request the dot format
 	DOT StorageFormat = "dot"
 	// Profile is used to request the Secl profile format
@@ -119,7 +117,7 @@ var (
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{JSON, PROTOBUF, PROTOJSON, DOT, Profile}
+	return []StorageFormat{JSON, PROTOBUF, DOT, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input
