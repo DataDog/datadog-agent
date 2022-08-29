@@ -7,6 +7,7 @@ package flare
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,9 +17,12 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func hashedRCTargets(raw []byte) []byte {
+func stripRCTargets(raw []byte) []byte {
 	hash := sha256.Sum256(raw)
-	return hash[:]
+	// Convert it to readable hexa
+	s := hex.EncodeToString(hash[:])
+
+	return []byte(s)
 }
 
 func zipRemoteConfigDB(tempDir, hostname string) error {
@@ -44,7 +48,7 @@ func zipRemoteConfigDB(tempDir, hostname string) error {
 			if strings.HasSuffix(string(name), "_targets") {
 				cursor := b.Cursor()
 				for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-					if err := b.Put(k, hashedRCTargets(v)); err != nil {
+					if err := b.Put(k, stripRCTargets(v)); err != nil {
 						return err
 					}
 				}
