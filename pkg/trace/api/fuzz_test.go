@@ -113,7 +113,7 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 		}
 		defer func() {
 			if err = resp.Body.Close(); err != nil {
-				t.Log("Couldn't close response body:", err)
+				t.Errorf("Couldn't close response body: %v", err)
 			}
 		}()
 		body, err := io.ReadAll(resp.Body)
@@ -193,7 +193,7 @@ func FuzzHandleStats(f *testing.F) {
 		}
 		defer func() {
 			if err = resp.Body.Close(); err != nil {
-				t.Logf("Couldn't close response body: %v", err)
+				t.Errorf("Couldn't close response body: %v", err)
 			}
 		}()
 		body, err := io.ReadAll(resp.Body)
