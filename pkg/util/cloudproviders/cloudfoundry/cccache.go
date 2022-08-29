@@ -184,7 +184,7 @@ func (ccc *CCCache) waitForResource(guid string) {
 	ccc.RLock()
 	ch, ok := ccc.activeResources[guid]
 	ccc.RUnlock()
-	if ok {
+	if ok && ch != nil {
 		// wait for the resource to be released
 		<-ch
 	}
@@ -192,11 +192,11 @@ func (ccc *CCCache) waitForResource(guid string) {
 
 func (ccc *CCCache) setResourceActive(guid string) error {
 	ccc.RLock()
-	_, ok := ccc.activeResources[guid]
+	ch, ok := ccc.activeResources[guid]
 	ccc.RUnlock()
 
 	// resource is already active
-	if ok {
+	if ok && ch != nil {
 		return fmt.Errorf("resource with guid %s is already active", guid)
 	}
 
@@ -211,10 +211,15 @@ func (ccc *CCCache) setResourceActive(guid string) error {
 
 func (ccc *CCCache) setResourceInactive(guid string) {
 	ccc.RLock()
-	defer ccc.RUnlock()
-	if ch, ok := ccc.activeResources[guid]; ok {
+	ch, ok := ccc.activeResources[guid]
+	ccc.RUnlock()
+
+	if ok && ch != nil {
 		// release the resource
 		close(ch)
+		ccc.Lock()
+		ccc.activeResources[guid] = nil
+		ccc.Unlock()
 	}
 }
 
@@ -271,6 +276,14 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(appGUID)
 
+		ccc.RLock()
+		processes, ok = ccc.processesByAppGUID[appGUID]
+		ccc.RUnlock()
+
+		if ok {
+			return processes, nil
+		}
+
 		// set the resource as active to prevent other goroutines from fetching it
 		err := ccc.setResourceActive(appGUID)
 		if err != nil {
@@ -324,6 +337,13 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(cfappGUID)
+
+		ccc.RLock()
+		cfapp, ok = ccc.cfApplicationsByGUID[guid]
+		ccc.RUnlock()
+		if ok {
+			return cfapp, nil
+		}
 
 		// set the resource as active to prevent other goroutines from fetching it
 		err := ccc.setResourceActive(cfappGUID)
@@ -457,6 +477,14 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(guid)
 
+		ccc.RLock()
+		space, ok = ccc.spacesByGUID[guid]
+		ccc.RUnlock()
+
+		if ok {
+			return space, nil
+		}
+
 		// set the resource as active to prevent other goroutines from fetching it
 		err := ccc.setResourceActive(guid)
 		if err != nil {
@@ -494,6 +522,13 @@ func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
 
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(guid)
+
+		ccc.RLock()
+		org, ok = ccc.orgsByGUID[guid]
+		ccc.RUnlock()
+		if ok {
+			return org, nil
+		}
 
 		// set the resource as active to prevent other goroutines from fetching it
 		err := ccc.setResourceActive(guid)
@@ -789,4 +824,19 @@ func (ccc *CCCache) readData() {
 	if firstUpdate {
 		close(ccc.updatedOnce)
 	}
+}
+
+func (ccc *CCCache) reset() {
+	ccc.Lock()
+	defer ccc.Unlock()
+	ccc.activeResources = make(map[string]chan interface{})
+	ccc.segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
+	ccc.segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
+	ccc.sidecarsByAppGUID = make(map[string][]*CFSidecar)
+	ccc.appsByGUID = make(map[string]*cfclient.V3App)
+	ccc.spacesByGUID = make(map[string]*cfclient.V3Space)
+	ccc.orgsByGUID = make(map[string]*cfclient.V3Organization)
+	ccc.orgQuotasByGUID = make(map[string]*CFOrgQuota)
+	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
+	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
 }
