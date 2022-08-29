@@ -165,6 +165,9 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+
+	// enable/disable use of root net namespace
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
 }
 
 func join(pieces ...string) string {
