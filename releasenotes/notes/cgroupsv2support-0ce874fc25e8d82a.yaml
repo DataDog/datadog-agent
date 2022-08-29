@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Add support for looking up container IDs when using cgroups v2 api.
+    APM: Add support for looking up container IDs when using cgroups v2 API.
