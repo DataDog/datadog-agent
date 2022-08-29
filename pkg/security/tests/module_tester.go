@@ -306,7 +306,7 @@ func getInode(tb testing.TB, path string) uint64 {
 func which(tb testing.TB, name string) string {
 	executable, err := whichNonFatal(name)
 	if err != nil {
-		tb.Fatalf("could not resolve %s: %v", name, err)
+		tb.Fatalf("%s", err)
 	}
 	return executable
 }

@@ -164,6 +164,7 @@ if node['platform_family'] != 'windows'
         'HOST_PROC=/host/proc',
         'HOST_ETC=/host/etc',
         'HOST_SYS=/host/sys',
+        'PATH=$PATH:' + node['perl']['cpanm']['path'],
       ]
       privileged true
     end
