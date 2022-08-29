@@ -95,21 +95,21 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 		pbTraces := testutil.GetTestTraces(n, n, true)
 		traces, err := encode(pbTraces)
 		if err != nil {
-			f.Fatal("Couldn't generate seed corpus:", err)
+			f.Fatalf("Couldn't generate seed corpus: %v", err)
 		}
 		f.Add(traces)
 	}
 	f.Fuzz(func(t *testing.T, traces []byte) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewReader(traces))
 		if err != nil {
-			t.Fatal("Couldn't create http request:", err)
+			t.Fatalf("Couldn't create http request: %v", err)
 		}
 		req.Header.Set("Content-Type", contentType)
 		var client http.Client
 		resp, err := client.Do(req)
 		if err != nil {
 			// Most likely caused by a network issue (out of scope)
-			t.Skip("Couldn't perform http request:", err)
+			t.Skipf("Couldn't perform http request: %v", err)
 		}
 		defer func() {
 			if err = resp.Body.Close(); err != nil {
@@ -118,14 +118,14 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 		}()
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			t.Fatal("Couldn't read response body:", err)
+			t.Fatalf("Couldn't read response body: %v", err)
 		}
 		decodeErr := decode(traces)
 		respContentType := resp.Header.Get("Content-Type")
 		switch resp.StatusCode {
 		case http.StatusOK:
 			if decodeErr != nil {
-				t.Fatal("Got status code 200 for invalid request payload:", decodeErr)
+				t.Fatalf("Got status code 200 for invalid request payload: %v", decodeErr)
 			}
 			switch respContentType {
 			case "text/plain; charset=utf-8":
@@ -137,7 +137,7 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 			case "application/json":
 				var traceResp traceResponse
 				if err := json.Unmarshal(body, &traceResp); err != nil {
-					t.Fatal("Got invalid response for status code 200:", err)
+					t.Fatalf("Got invalid response for status code 200: %v", err)
 				}
 			default:
 				t.Fatalf("Unexpected content type (%s)", respContentType)
@@ -174,13 +174,13 @@ func FuzzHandleStats(f *testing.F) {
 	pbStats := testutil.StatsPayloadSample()
 	stats, err := pbStats.MarshalMsg(nil)
 	if err != nil {
-		f.Fatal("Couldn't generate seed corpus:", err)
+		f.Fatalf("Couldn't generate seed corpus: %v", err)
 	}
 	f.Add(stats)
 	f.Fuzz(func(t *testing.T, stats []byte) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewReader(stats))
 		if err != nil {
-			t.Fatal("Couldn't create http request:", err)
+			t.Fatalf("Couldn't create http request: %v", err)
 		}
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang")
@@ -189,22 +189,22 @@ func FuzzHandleStats(f *testing.F) {
 		resp, err := client.Do(req)
 		if err != nil {
 			// Most likely caused by a network issue (out of scope)
-			t.Skip("Couldn't perform http request:", err)
+			t.Skipf("Couldn't perform http request: %v", err)
 		}
 		defer func() {
 			if err = resp.Body.Close(); err != nil {
-				t.Log("Couldn't close response body:", err)
+				t.Logf("Couldn't close response body: %v", err)
 			}
 		}()
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			t.Fatal("Couldn't read response body:", err)
+			t.Fatalf("Couldn't read response body: %v", err)
 		}
 		payload, decodeErr := decode(stats)
 		switch resp.StatusCode {
 		case http.StatusOK:
 			if decodeErr != nil {
-				t.Fatal("Got status code 200 for invalid request payload:", decodeErr)
+				t.Fatalf("Got status code 200 for invalid request payload: %v", decodeErr)
 			}
 			gotPayload, gotLang, gotVersion := mockProcessor.Got()
 			if !reflect.DeepEqual(payload, gotPayload) {

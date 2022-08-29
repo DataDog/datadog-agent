@@ -54,7 +54,7 @@ func fuzzNormalization(f *testing.F, seedCorpus []string, maxLen int, normalize 
 		}
 		normalizedTwice, err := normalize(normalized, lang)
 		if err != nil {
-			t.Fatal("Normalizing a normalized input returned an error: ", err)
+			t.Fatalf("Normalizing a normalized input returned an error: %v", err)
 		}
 		if normalizedTwice != normalized {
 			t.Fatalf("Normalizing a normalized input didn't return the same input: expected (%s) got (%s)", normalized, normalizedTwice)

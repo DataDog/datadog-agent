@@ -28,17 +28,17 @@ func FuzzProcessStats(f *testing.F) {
 	pbStats := testutil.StatsPayloadSample()
 	stats, err := encode(pbStats)
 	if err != nil {
-		f.Fatal("Couldn't generate seed corpus:", err)
+		f.Fatalf("Couldn't generate seed corpus: %v", err)
 	}
 	f.Add(stats, "java", "v1")
 	f.Fuzz(func(t *testing.T, stats []byte, lang, version string) {
 		pbStats, err := decode(stats)
 		if err != nil {
-			t.Skip("Skipping invalid payload:", err)
+			t.Skipf("Skipping invalid payload: %v", err)
 		}
 		processedStats := agent.processStats(pbStats, lang, version)
 		if _, err = encode(processedStats); err != nil {
-			t.Fatal("processStats returned an invalid stats payload:", err)
+			t.Fatalf("processStats returned an invalid stats payload: %v", err)
 		}
 	})
 }
@@ -74,18 +74,18 @@ func FuzzObfuscateSpan(f *testing.F) {
 	for _, span := range seedCorpus {
 		span, err := encode(span)
 		if err != nil {
-			f.Fatal("Couldn't generate seed corpus:", err)
+			f.Fatalf("Couldn't generate seed corpus: %v", err)
 		}
 		f.Add(span)
 	}
 	f.Fuzz(func(t *testing.T, span []byte) {
 		pbSpan, err := decode(span)
 		if err != nil {
-			t.Skip("Skipping invalid span:", err)
+			t.Skipf("Skipping invalid span: %v", err)
 		}
 		agent.obfuscateSpan(&pbSpan)
 		if _, err = encode(&pbSpan); err != nil {
-			t.Fatal("obfuscateSpan returned an invalid span:", err)
+			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
 		}
 	})
 }
@@ -102,20 +102,20 @@ func FuzzNormalizeTrace(f *testing.F) {
 	pbTrace := pb.Trace{newTestSpan(), newTestSpan()}
 	trace, err := encode(pbTrace)
 	if err != nil {
-		f.Fatal("Couldn't generate seed corpus:", err)
+		f.Fatalf("Couldn't generate seed corpus: %v", err)
 	}
 	f.Add(trace)
 	f.Fuzz(func(t *testing.T, trace []byte) {
 		pbTrace, err := decode(trace)
 		if err != nil {
-			t.Skip("Skipping invalid trace:", err)
+			t.Skipf("Skipping invalid trace: %v", err)
 		}
 		ts := newTagStats()
 		if err := normalizeTrace(ts, pbTrace); err != nil {
-			t.Skip("Skipping rejected trace:", err)
+			t.Skipf("Skipping rejected trace: %v", err)
 		}
 		if _, err = encode(pbTrace); err != nil {
-			t.Fatal("normalizeTrace returned an invalid trace:", err)
+			t.Fatalf("normalizeTrace returned an invalid trace: %v", err)
 		}
 	})
 }
