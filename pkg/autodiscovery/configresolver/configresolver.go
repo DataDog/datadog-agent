@@ -284,11 +284,10 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 			}
 			top.set(s)
 
-		case int, bool:
+		case nil, int, bool:
 
 		default:
 			log.Errorf("Unknown type: %T", elem)
-			continue
 		}
 	}
 
