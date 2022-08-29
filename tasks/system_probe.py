@@ -824,7 +824,13 @@ def ebpf_check_source_file(ctx, parallel_build, src_file):
 
 
 def build_object_files(
-    ctx, windows, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
+    ctx,
+    windows=is_windows,
+    major_version='7',
+    arch=CURRENT_ARCH,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
 ):
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
@@ -844,6 +850,11 @@ def build_object_files(
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
     ctx.run(f"ninja -d explain -f {nf_path}")
+
+
+@task
+def object_files(ctx, kernel_release=None):
+    build_object_files(ctx, kernel_release=kernel_release)
 
 
 def clean_object_files(
