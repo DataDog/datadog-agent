@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    The Windows installer uses the DDAGENTUSER_PASSWORD correctly when installing services on Domain Controller.
+    The Windows installer will now respect the DDAGENTUSER_PASSWORD option and update the services passwords when the user already exists.
