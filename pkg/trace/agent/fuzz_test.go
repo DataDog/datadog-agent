@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -37,8 +38,16 @@ func FuzzProcessStats(f *testing.F) {
 			t.Skipf("Skipping invalid payload: %v", err)
 		}
 		processedStats := agent.processStats(pbStats, lang, version)
-		if _, err = encode(processedStats); err != nil {
+		encPostProcess, err := encode(processedStats)
+		if err != nil {
 			t.Fatalf("processStats returned an invalid stats payload: %v", err)
+		}
+		decPostProcess, err := decode(encPostProcess)
+		if err != nil {
+			t.Fatalf("Couldn't decode stats after processing: %v", err)
+		}
+		if !reflect.DeepEqual(decPostProcess, processedStats) {
+			t.Fatalf("Inconsistent encoding/decoding after processing: (%v) is different from (%v)", decPostProcess, processedStats)
 		}
 	})
 }
@@ -47,11 +56,11 @@ func FuzzObfuscateSpan(f *testing.F) {
 	agent, cancel := agentWithDefaults()
 	defer cancel()
 	encode := func(pbSpan *pb.Span) ([]byte, error) {
-		return pbSpan.Marshal()
+		return pbSpan.MarshalMsg(nil)
 	}
 	decode := func(span []byte) (pb.Span, error) {
 		var pbSpan pb.Span
-		err := pbSpan.Unmarshal(span)
+		_, err := pbSpan.UnmarshalMsg(span)
 		return pbSpan, err
 	}
 	seedCorpus := []*pb.Span{
@@ -84,8 +93,16 @@ func FuzzObfuscateSpan(f *testing.F) {
 			t.Skipf("Skipping invalid span: %v", err)
 		}
 		agent.obfuscateSpan(&pbSpan)
-		if _, err = encode(&pbSpan); err != nil {
+		encPostObfuscate, err := encode(&pbSpan)
+		if err != nil {
 			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
+		}
+		decPostObfuscate, err := decode(encPostObfuscate)
+		if err != nil {
+			t.Fatalf("Couldn't decode span after obfuscation: %v", err)
+		}
+		if !reflect.DeepEqual(decPostObfuscate, pbSpan) {
+			t.Fatalf("Inconsistent encoding/decoding after obfuscation: (%#v) is different from (%#v)", decPostObfuscate, pbSpan)
 		}
 	})
 }
@@ -114,8 +131,16 @@ func FuzzNormalizeTrace(f *testing.F) {
 		if err := normalizeTrace(ts, pbTrace); err != nil {
 			t.Skipf("Skipping rejected trace: %v", err)
 		}
-		if _, err = encode(pbTrace); err != nil {
+		encPostNorm, err := encode(pbTrace)
+		if err != nil {
 			t.Fatalf("normalizeTrace returned an invalid trace: %v", err)
+		}
+		decPostNorm, err := decode(encPostNorm)
+		if err != nil {
+			t.Fatalf("Couldn't decode trace after normalization: %v", err)
+		}
+		if !reflect.DeepEqual(decPostNorm, pbTrace) {
+			t.Fatalf("Inconsistent encoding/decoding after normalization: (%#v) is different from (%#v)", decPostNorm, pbTrace)
 		}
 	})
 }
