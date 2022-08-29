@@ -19,15 +19,22 @@ import (
 // the samples that the TimeSamplers should have received.
 type TestAgentDemultiplexer struct {
 	*AgentDemultiplexer
-	receivedSamples []metrics.MetricSample
-	lateMetrics     []metrics.MetricSample
+	aggregatedSamples []metrics.MetricSample
+	noAggSamples      []metrics.MetricSample
 	sync.Mutex
 }
 
-// AddDSDSamples implements a noop timesampler, appending the samples in an internal slice.
-func (a *TestAgentDemultiplexer) AddDSDSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
+func (a *TestAgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
-	a.receivedSamples = append(a.receivedSamples, samples...)
+	a.aggregatedSamples = append(a.aggregatedSamples, samples...)
+	a.Unlock()
+}
+
+// AggregateSample implements a noop timesampler, appending the sample in an internal slice.
+func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
+	a.Lock()
+	a.aggregatedSamples = append(a.aggregatedSamples, sample)
 	a.Unlock()
 }
 
@@ -36,30 +43,23 @@ func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*me
 	return a.aggregator.GetBufferedChannels()
 }
 
-// AddDSDSample implements a noop timesampler, appending the sample in an internal slice.
-func (a *TestAgentDemultiplexer) AddDSDSample(sample metrics.MetricSample) {
-	a.Lock()
-	a.receivedSamples = append(a.receivedSamples, sample)
-	a.Unlock()
-}
-
-// AddTimedSamples implements a fake no aggregation pipeline ingestion part,
+// SendSamplesWithoutAggregation implements a fake no aggregation pipeline ingestion part,
 // there will be NO AUTOMATIC FLUSH as it could exist in the real implementation
 // Use Reset() to clean the buffer.
-func (a *TestAgentDemultiplexer) AddTimedSamples(metrics metrics.MetricSampleBatch) {
+func (a *TestAgentDemultiplexer) SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch) {
 	a.Lock()
-	a.lateMetrics = append(a.lateMetrics, metrics...)
+	a.noAggSamples = append(a.noAggSamples, metrics...)
 	a.Unlock()
 }
 
 func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	a.Lock()
-	ontime = make([]metrics.MetricSample, len(a.receivedSamples))
-	timed = make([]metrics.MetricSample, len(a.lateMetrics))
-	for i, s := range a.receivedSamples {
+	ontime = make([]metrics.MetricSample, len(a.aggregatedSamples))
+	timed = make([]metrics.MetricSample, len(a.noAggSamples))
+	for i, s := range a.aggregatedSamples {
 		ontime[i] = s
 	}
-	for i, s := range a.lateMetrics {
+	for i, s := range a.noAggSamples {
 		timed[i] = s
 	}
 	a.Unlock()
@@ -122,8 +122,8 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 // Reset resets the internal samples slice.
 func (a *TestAgentDemultiplexer) Reset() {
 	a.Lock()
-	a.receivedSamples = a.receivedSamples[0:0]
-	a.lateMetrics = a.lateMetrics[0:0]
+	a.aggregatedSamples = a.aggregatedSamples[0:0]
+	a.noAggSamples = a.noAggSamples[0:0]
 	a.Unlock()
 }
 

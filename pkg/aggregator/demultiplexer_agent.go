@@ -25,8 +25,8 @@ import (
 type DemultiplexerWithAggregator interface {
 	Demultiplexer
 	Aggregator() *BufferedAggregator
-	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-	AddCheckSample(sample metrics.MetricSample)
+	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
 }
 
@@ -258,7 +258,7 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 // to be sent on the next flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	if agentVersion != "" {
-		d.AddDSDSample(metrics.MetricSample{
+		d.AggregateSample(metrics.MetricSample{
 			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
 			Value:      1,
 			Tags:       d.aggregator.tags(true),
@@ -528,14 +528,14 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
-// AddTimedSamples buffers a bunch of late metrics. This data will be directly
+// SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly
 // transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.
-func (d *AgentDemultiplexer) AddTimedSamples(samples metrics.MetricSampleBatch) {
+func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
 	// safe-guard: if for some reasons we are receiving some metrics here despite
 	// having the no-aggregation pipeline disabled, they are redirected to the first
 	// time sampler.
 	if !d.options.EnableNoAggregationPipeline {
-		d.AddDSDSamples(TimeSamplerID(0), samples)
+		d.AggregateSamples(TimeSamplerID(0), samples)
 		return
 	}
 
@@ -543,9 +543,9 @@ func (d *AgentDemultiplexer) AddTimedSamples(samples metrics.MetricSampleBatch) 
 	d.statsd.noAggStreamWorker.addSamples(samples)
 }
 
-// AddDSDSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
-// If you have to submit a single metric sample see `AddDSDSample`.
-func (d *AgentDemultiplexer) AddDSDSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AggregateSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
+// If you have to submit a single metric sample see `AggregateSample`.
+func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	// distribute the samples on the different statsd samplers using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
@@ -554,15 +554,15 @@ func (d *AgentDemultiplexer) AddDSDSamples(shard TimeSamplerID, samples metrics.
 	d.statsd.workers[shard].samplesChan <- samples
 }
 
-// AddDSDSample adds a MetricSample in the first DogStatsD time sampler.
-func (d *AgentDemultiplexer) AddDSDSample(sample metrics.MetricSample) {
+// AggregateSample adds a MetricSample in the first DogStatsD time sampler.
+func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
 	d.statsd.workers[0].samplesChan <- batch[:1]
 }
 
-// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+func (d *AgentDemultiplexer) AggregateCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
 }
 
