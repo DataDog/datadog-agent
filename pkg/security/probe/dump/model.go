@@ -105,8 +105,6 @@ func (sf StorageFormat) String() string {
 var (
 	// JSON is used to request the JSON format
 	JSON StorageFormat = "json"
-	// MSGP is used to request the message pack format
-	MSGP StorageFormat = "msgp"
 	// PROTOBUF is used to request the protobuf format
 	PROTOBUF StorageFormat = "protobuf"
 	// PROTOJSON is used to request the JSON protobuf format
@@ -121,7 +119,7 @@ var (
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{JSON, MSGP, PROTOBUF, PROTOJSON, DOT, Profile}
+	return []StorageFormat{JSON, PROTOBUF, PROTOJSON, DOT, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input

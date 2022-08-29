@@ -693,8 +693,6 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 	switch format {
 	case dump.JSON:
 		return ad.EncodeJSON()
-	case dump.MSGP:
-		return ad.EncodeMSGP()
 	case dump.PROTOBUF:
 		return ad.EncodeProtobuf()
 	case dump.PROTOJSON:
@@ -710,29 +708,20 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 
 // EncodeJSON encodes an activity dump in the JSON format
 func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
-	msgpRaw, err := ad.EncodeMSGP()
-	if err != nil {
-		return nil, err
-	}
-
-	raw := bytes.NewBuffer(nil)
-	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw.Bytes())
-	if err != nil {
-		return nil, fmt.Errorf("couldn't encode %s: %v", dump.JSON, err)
-	}
-	return raw, nil
-}
-
-// EncodeMSGP encodes an activity dump in the MSGP format
-func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	raw, err := ad.MarshalMsg(nil)
+	msgpRaw, err := ad.MarshalMsg(nil)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
 	}
-	return bytes.NewBuffer(raw), nil
+
+	raw := bytes.NewBuffer(nil)
+	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
+	}
+	return raw, nil
 }
 
 // EncodeProtobuf encodes an activity dump in the Protobuf format
@@ -829,8 +818,6 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 // DecodeFromReader decodes an activity dump from a reader with the provided format
 func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFormat) error {
 	switch format {
-	case dump.MSGP:
-		return ad.DecodeMSGP(reader)
 	case dump.PROTOBUF:
 		return ad.DecodeProtobuf(reader)
 	default:
