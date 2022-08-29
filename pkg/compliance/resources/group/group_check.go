@@ -131,3 +131,7 @@ func readEtcGroup(r io.Reader, fn lineFunc) error {
 	}
 	return bs.Err()
 }
+
+func init() {
+	resources.RegisterHandler("group", Resolve, ReportedFields)
+}

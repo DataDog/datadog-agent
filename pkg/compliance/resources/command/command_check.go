@@ -71,3 +71,7 @@ func Resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.Resou
 
 	return resources.NewResolvedInstance(instance, execCommand.Name, "command"), nil
 }
+
+func init() {
+	resources.RegisterHandler("command", Resolve, ReportedFields)
+}

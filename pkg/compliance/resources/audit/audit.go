@@ -17,6 +17,7 @@ import (
 	"github.com/elastic/go-libaudit/rule/flags"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,4 +75,8 @@ func (c *auditClient) GetFileWatchRules() ([]*rule.FileWatchRule, error) {
 		}
 	}
 	return rules, nil
+}
+
+func init() {
+	resources.RegisterHandler("audit", Resolve, ReportedFields)
 }

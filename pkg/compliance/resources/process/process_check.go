@@ -112,3 +112,7 @@ func validateProcessFlagArg(args ...interface{}) (string, error) {
 	}
 	return flag, nil
 }
+
+func init() {
+	resources.RegisterHandler("process", Resolve, ReportedFields)
+}

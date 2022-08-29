@@ -373,3 +373,7 @@ func (it *dockerNetworkIterator) Next() (eval.Instance, error) {
 func (it *dockerNetworkIterator) Done() bool {
 	return it.index >= len(it.networks)
 }
+
+func init() {
+	resources.RegisterHandler("docker", Resolve, ReportedFields)
+}

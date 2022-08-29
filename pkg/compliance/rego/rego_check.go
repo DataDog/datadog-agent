@@ -27,14 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -561,30 +553,21 @@ func (h *regoPrintHook) Print(_ print.Context, value string) error {
 }
 
 func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) (resources.Resolver, []string, error) {
+	resourceHandler := resources.GetHandler(kind)
+	if resourceHandler == nil {
+		return nil, nil, ErrResourceKindNotSupported
+	}
+
 	switch kind {
-	case compliance.KindFile:
-		return file.Resolve, file.ReportedFields, nil
-	case compliance.KindAudit:
-		return audit.Resolve, audit.ReportedFields, nil
-	case compliance.KindGroup:
-		return group.Resolve, group.ReportedFields, nil
-	case compliance.KindCommand:
-		return command.Resolve, command.ReportedFields, nil
-	case compliance.KindProcess:
-		return process.Resolve, process.ReportedFields, nil
 	case compliance.KindDocker:
 		if env.DockerClient() == nil {
 			return nil, nil, log.Errorf("%s: docker client not initialized")
 		}
-		return docker.Resolve, docker.ReportedFields, nil
 	case compliance.KindKubernetes:
 		if env.KubeClient() == nil {
 			return nil, nil, log.Errorf("%s: kube client not initialized")
 		}
-		return kubeapiserver.Resolve, kubeapiserver.ReportedFields, nil
-	case compliance.KindConstants:
-		return constants.Resolve, nil, nil
-	default:
-		return nil, nil, ErrResourceKindNotSupported
 	}
+
+	return resourceHandler.Resolver, resourceHandler.ReportedFields, nil
 }

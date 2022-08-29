@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestAuditCheck(t *testing.T) {
 	tests := []struct {
 		name         string
 		rules        []*rule.FileWatchRule
-		resource     compliance.Resource
+		resource     compliance.RegoInput
 		hostPath     string
 		setup        setupEnvFunc
 		expectReport *compliance.Report
@@ -34,13 +35,12 @@ func TestAuditCheck(t *testing.T) {
 		{
 			name:  "no file rules",
 			rules: []*rule.FileWatchRule{},
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: "/etc/docker/daemon.json",
 					},
 				},
-				Condition: "audit.enabled",
 			},
 			hostPath: "./testdata/file/daemon.json",
 			expectReport: &compliance.Report{
@@ -60,13 +60,12 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: "/etc/docker/daemon.json",
 					},
 				},
-				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
 			hostPath: "./testdata/file/daemon.json",
 			expectReport: &compliance.Report{
@@ -80,13 +79,12 @@ func TestAuditCheck(t *testing.T) {
 		},
 		{
 			name: "file missing on the host",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: "/etc/docker/daemon.json",
 					},
 				},
-				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
 			hostPath: "./missing-file.json",
 			expectReport: &compliance.Report{
@@ -107,13 +105,12 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: `process.flag("docker", "--config-file")`,
 					},
 				},
-				Condition: `audit.enabled && audit.permissions =~ "r"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env) {
 				env.On("EvaluateFromCache", mock.Anything).Return("/etc/docker/daemon.json", nil)
@@ -153,10 +150,10 @@ func TestAuditCheck(t *testing.T) {
 				test.setup(t, env)
 			}
 
-			auditCheck, err := newResourceCheck(env, "rule-id", test.resource)
-			assert.NoError(err)
-
-			result := auditCheck.check(env)
+			auditCheck := rego.NewCheck(&compliance.RegoRule{
+				Inputs: []compliance.RegoInput{test.resource},
+			})
+			result := auditCheck.Check(env)
 
 			assert.Equal(test.expectReport.Passed, result[0].Passed)
 			assert.Equal(test.expectReport.Data, result[0].Data)
