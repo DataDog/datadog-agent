@@ -219,9 +219,9 @@ func (lc *ActivityDumpLoadController) releaseTracedCgroupSpot() error {
 	})
 }
 
-type CgroupsCounterEditor = func(*tracedCgroupsCounter) error
+type cgroupsCounterEditor = func(*tracedCgroupsCounter) error
 
-func (lc *ActivityDumpLoadController) editCgroupsCounter(editor CgroupsCounterEditor) error {
+func (lc *ActivityDumpLoadController) editCgroupsCounter(editor cgroupsCounterEditor) error {
 	if err := lc.tracedCgroupsLockMap.Update(ebpfutils.ZeroUint32MapItem, uint32(1), ebpf.UpdateNoExist); err != nil {
 		return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
 	}
