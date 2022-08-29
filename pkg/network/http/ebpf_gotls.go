@@ -112,7 +112,8 @@ func (p *GoTLSProgram) Start() {
 	// watcher, so we will run on more than one binary in one goTLSProgram.
 	p.addInspectionResultToMap(result, binPath)
 
-	p.attachHooks(result, binPath)
+	//p.attachHooks(result, binPath)
+	//p.attachHooks(result, binPath)
 
 }
 
