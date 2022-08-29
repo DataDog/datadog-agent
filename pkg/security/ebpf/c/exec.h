@@ -59,7 +59,7 @@ struct exit_event_t {
     struct process_context_t process;
     struct span_context_t span;
     struct container_context_t container;
-    u64 exit_code;
+    u32 exit_code;
 };
 
 struct _tracepoint_sched_process_fork {
@@ -547,7 +547,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *pc = fill_process_context(&event.process);
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
-        event.exit_code = (long)PT_REGS_PARM1(ctx);
+        event.exit_code = (u32)PT_REGS_PARM1(ctx);
         u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
         if (in_coredump) {
             event.exit_code |= 0x80;

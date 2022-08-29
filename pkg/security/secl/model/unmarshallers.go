@@ -251,25 +251,25 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal exit code
-	if len(data) < 8 {
+	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
-	exitStatus := ByteOrder.Uint64(data[0:8])
+	exitStatus := ByteOrder.Uint32(data[0:4])
 	if exitStatus&0x7F == 0x00 { // process terminated normally
 		e.Cause = uint32(ExitExited)
-		e.Code = uint32((exitStatus >> 8) & 0xFF)
+		e.Code = (exitStatus >> 8) & 0xFF
 	} else if exitStatus&0x7F != 0x7F { // process terminated because of a signal
 		if exitStatus&0x80 == 0x80 { // coredump signal
 			e.Cause = uint32(ExitCoreDumped)
-			e.Code = uint32(exitStatus & 0x7F)
+			e.Code = exitStatus & 0x7F
 		} else { // other signals
 			e.Cause = uint32(ExitSignaled)
-			e.Code = uint32(exitStatus & 0x7F)
+			e.Code = exitStatus & 0x7F
 		}
 	}
 
-	return 8, nil
+	return 4, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
