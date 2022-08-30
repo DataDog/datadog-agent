@@ -525,6 +525,7 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 	extractors := []event.Extractor{
 		event.NewMetricBasedExtractor(),
+		event.NewSingleSpanExtractor(),
 	}
 	if len(conf.AnalyzedSpansByService) > 0 {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
