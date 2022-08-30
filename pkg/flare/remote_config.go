@@ -27,40 +27,45 @@ func stripRCTargets(raw []byte) []byte {
 
 func zipRemoteConfigDB(tempDir, hostname string) error {
 	dstPath := filepath.Join(tempDir, hostname, "remote-config.db")
+	tempPath := filepath.Join(tempDir, hostname, "remote-config.temp.db")
 	srcPath := filepath.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 
-	err := util.CopyFileAll(srcPath, dstPath)
+	// Copies the db so it avoids bbolt from being locked
+	// Also avoid concurrent modifications
+	err := util.CopyFileAll(srcPath, tempPath)
+	// Delete the db at the end to avoid having target files content
+	defer os.Remove(tempPath)
 	if err != nil {
 		// Prevent from having a clear db here
-		os.Remove(dstPath)
 		return err
 	}
 
+	tempDB, err := bbolt.Open(tempPath, 0400, &bbolt.Options{ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer tempDB.Close()
 	dstDB, err := bbolt.Open(dstPath, 0600, &bbolt.Options{})
 	if err != nil {
-		os.Remove(dstPath)
 		return err
 	}
 	defer dstDB.Close()
 
-	err = dstDB.Update(func(tx *bbolt.Tx) error {
-		return tx.ForEach(func(name []byte, b *bbolt.Bucket) error {
-			if strings.HasSuffix(string(name), "_targets") {
-				cursor := b.Cursor()
-				for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-					if err := b.Put(k, stripRCTargets(v)); err != nil {
-						return err
-					}
+	return tempDB.View(func(tempTx *bbolt.Tx) error {
+		return tempTx.ForEach(func(bucketName []byte, tempBucket *bbolt.Bucket) error {
+			return dstDB.Update(func(dstTx *bbolt.Tx) error {
+				dstBucket, err := dstTx.CreateBucket(bucketName)
+				if err != nil {
+					return err
 				}
-			}
-			return nil
+				return tempBucket.ForEach(func(k, v []byte) error {
+					if strings.HasSuffix(string(bucketName), "_targets") {
+						return dstBucket.Put(k, stripRCTargets(v))
+					} else {
+						return dstBucket.Put(k, v)
+					}
+				})
+			})
 		})
 	})
-	if err != nil {
-		// Prevent from having a clear db here
-		os.Remove(dstPath)
-		return err
-	}
-
-	return nil
 }
