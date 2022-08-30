@@ -23,7 +23,7 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff*
 
     unsigned i = 0;
 
-#pragma unroll
+#pragma unroll(HTTP_BUFFER_SIZE / BLK_SIZE)
     for (; i < iter; i++) {
         if (offset + BLK_SIZE - 1 >= len) { break; }
 

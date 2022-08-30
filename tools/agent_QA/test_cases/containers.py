@@ -11,7 +11,8 @@ class ContainerTailJounald(TestCase):
             """ # Setup
 Mount /etc/machine-id and use the following configuration
 
-Create a `conf.yaml` at `$(pwd)/journald.conf.d`
+Create a `conf.yaml` at `$(pwd)/journald.d`
+
 ```
 logs:
   - type: journald
@@ -21,10 +22,8 @@ logs:
 ```
 docker run -d --name agent -e DD_API_KEY=... \\
   -e DD_LOGS_ENABLED=true \\
-  -v $(pwd)/journald.conf.d:/etc/datadog-agent/conf.d:ro \\
-  # To get container tags
+  -v $(pwd)/journald.d:/etc/datadog-agent/conf.d/journald.d:ro \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
-  # To read journald logs
   -v /etc/machine-id:/etc/machine-id:ro \\
   -v /var/log/journal:/var/log/journal:ro \\
   datadog/agent:<AGENT_IMAGE>
@@ -33,7 +32,9 @@ docker run -d --name agent -e DD_API_KEY=... \\
 ----
 # Test
 
-- Logs are properly tagged with the container metadata
+- Once the agent is running, run `agent stream-logs`
+- in another shell, `docker run --log-driver=journald --rm alpine:latest echo "hello world"`
+- Search the logs stream for the message. Make sure the source and service tags are set correctly (should be the short image name)
 """
         )
 

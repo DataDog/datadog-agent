@@ -75,3 +75,35 @@ The notion of `isOSHostnameUsable` means:
         1. If the previously detected hostname is a Windows default hostname for EC2:
             1. We fetch the instance ID and log a message about using `ec2_use_windows_prefix_detection` if it's
                different than the previously detected hostname.
+
+# Hostnames and Aliases on EC2
+
+Determining hostname and aliases on EC2 is particularly complicated.
+EC2 offers two versions of its metadata service, v1 and v2.
+The v1 interface can be disabled via the EC2 API.
+However, the v2 interface verifies the IP hop count in requests, and by default will not respond to TCP connections from more than one hop away.
+This causes a problem when the Agent tries to access IMDSv2 within a container that does not use the host's network, which introduces a second hop.
+Finally, the `ec2_prefer_imdsv2` config flag affects the agent's behavior.
+
+The results are as follows:
+
+| *IMDS*    | *ec2_prefer_imdsv2*   | *hops*    | _hostname_    | _aliases_     |
+|--------   |---------------------  |--------   |-------------  |------------   |
+| none      | false                 | 1         | os            | none          |
+| none      | true                  | 1         | os            | none          |
+| v2 only   | false                 | 1         | os            | none          |
+| v2 only   | true                  | 1         | aws (i-..)    | aws (i-..)    |
+| v1+v2     | false                 | 1         | aws (i-..)    | aws (i-..)    |
+| v1+v2     | true                  | 1         | aws (i-..)    | aws (i-..)    |
+| none      | false                 | 2+        | os            | none          |
+| none      | true                  | 2+        | os            | none          |
+| v2 only   | false                 | 2+        | os            | none          |
+| v2 only   | true                  | 2+        | os            | none          |
+| v1+v2     | false                 | 2+        | os            | aws (i-..)    |
+| v1+v2     | true                  | 2+        | os            | aws (i-..)    |
+
+ * The first column describes the EC2 IMDS configuration: "none" means IMDS is entirely disabled; "v2 only" means that IMDSv1 is disabled, and "v1+v2" is the default setting with both versions available
+ * The second column is the `ec2_prefer_imdsv2` configuration value.
+ * The third column contains the number of IP hops between the Agent and the IMDS, assuming the default limit of 1.
+ * The fourth column describes the selected hostname source
+ * The fifth column gives the discovered host aliased, if any (determined in pkg/util/ec2).

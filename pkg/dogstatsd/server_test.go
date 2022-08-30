@@ -266,13 +266,26 @@ func TestUDPReceive(t *testing.T) {
 	assert.Equal(t, sample.Name, "daemon2")
 	demux.Reset()
 
-	// Late metric
+	// Late gauge
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 0)
 	require.Len(t, timedSamples, 1)
 	sample = timedSamples[0]
 	require.NotNil(t, sample)
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
+
+	// Late count
+	conn.Write([]byte("daemon:666|c|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 0)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Mtype, metrics.CounterType)
 	assert.Equal(t, sample.Name, "daemon")
 	assert.Equal(t, sample.Timestamp, float64(1658328888))
 	demux.Reset()
@@ -285,6 +298,7 @@ func TestUDPReceive(t *testing.T) {
 	sample = timedSamples[0]
 	require.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
 	assert.Equal(t, sample.Timestamp, float64(1658328888))
 	sample = samples[0]
 	require.NotNil(t, sample)

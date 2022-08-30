@@ -247,7 +247,8 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
     }
 
     // fall back to the "normal" discarder check
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &params->discarder, params->event_type, params->now);
+    struct inode_discarder_t key = params->discarder;
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
         return 0;
     }
