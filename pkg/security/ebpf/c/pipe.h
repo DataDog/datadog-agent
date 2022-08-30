@@ -10,7 +10,7 @@ struct bpf_map_def SEC("maps/pipefs_mountid") pipefs_mountid = {
     .namespace = "",
 };
 
-#define DECLARE_EQUAL_TO_SUFFIXED(suffix, s) static inline int equal_to_##suffix(char *str) { \
+#define DECLARE_EQUAL_TO_SUFFIXED(suffix, s) static __attribute__((always_inline)) int equal_to_##suffix(char *str) { \
         char s1[sizeof(#s)];                                            \
         bpf_probe_read(&s1, sizeof(s1), str);                           \
         char s2[] = #s;                                                 \
@@ -31,14 +31,13 @@ DECLARE_EQUAL_TO(pipefs);
 int __attribute__((always_inline)) get_pipefs_mount_id(void) {
     u32 key = 0;
     u32* val = bpf_map_lookup_elem(&pipefs_mountid, &key);
-    if (val) return *val;
+    if (val) { return *val; }
     return 0;
 }
 
 int __attribute__((always_inline)) is_pipefs_mount_id(u32 id) {
     u32 pipefs_id = get_pipefs_mount_id();
-    if (!pipefs_id)
-        return 0;
+    if (!pipefs_id) { return 0; }
     return (pipefs_id == id);
 }
 
@@ -48,8 +47,9 @@ int kprobe_mntget(struct pt_regs* ctx) {
     struct vfsmount* vfsm = (struct vfsmount*)PT_REGS_PARM1(ctx);
 
     // check if we already have the pipefs mount id
-    if (get_pipefs_mount_id())
+    if (get_pipefs_mount_id()) {
         return 0;
+    }
 
     struct super_block* sb;
     bpf_probe_read(&sb, sizeof(sb), &vfsm->mnt_sb);

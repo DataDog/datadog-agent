@@ -178,10 +178,12 @@ func podPhaseTransformer(s aggregator.Sender, name string, metric ksmstore.DDMet
 }
 
 var allowedWaitingReasons = map[string]struct{}{
-	"errimagepull":      {},
-	"imagepullbackoff":  {},
-	"crashloopbackoff":  {},
-	"containercreating": {},
+	"errimagepull":         {},
+	"imagepullbackoff":     {},
+	"crashloopbackoff":     {},
+	"containercreating":    {},
+	"createcontainererror": {},
+	"invalidimagename":     {},
 }
 
 // containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason

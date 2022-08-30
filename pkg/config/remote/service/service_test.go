@@ -35,6 +35,7 @@ type mockAPI struct {
 
 const (
 	jsonDecodingError = "unexpected end of JSON input"
+	httpError         = "unexpected end of JSON input: simulated HTTP error"
 )
 
 func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error) {
@@ -142,6 +143,22 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	err := service.refresh()
 	assert.NotNil(t, err)
+
+	// Sending the http error too
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		HasError:                     true,
+		Error:                        httpError,
+	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
 	// We should be tracking an error now. With the default backoff config, our refresh interval
 	// should be somewhere in the range of 1 + [30,60], so [31,61]

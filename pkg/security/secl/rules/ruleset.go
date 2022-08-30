@@ -9,13 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 )
 
 // MacroID represents the ID of a macro
@@ -64,8 +64,6 @@ type Macro struct {
 // RuleID represents the ID of a rule
 type RuleID = string
 
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
-
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID                     RuleID             `yaml:"id"`
@@ -78,11 +76,6 @@ type RuleDefinition struct {
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
 	Policy                 *Policy
-}
-
-// CheckRuleID validates a ruleID
-func CheckRuleID(ruleID string) bool {
-	return ruleIDPattern.MatchString(ruleID)
 }
 
 // GetTags returns the tags associated to a rule
@@ -175,7 +168,7 @@ type RuleSet struct {
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
-	logger Logger
+	logger log.Logger
 	pool   *eval.ContextPool
 }
 
@@ -776,13 +769,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *RuleSet {
-	var logger Logger
-
-	if opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		logger = &NullLogger{}
-	}
+	logger := log.OrNullLogger(opts.Logger)
 
 	return &RuleSet{
 		model:            model,

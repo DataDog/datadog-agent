@@ -31,6 +31,9 @@ const (
 type Config struct {
 	ebpf.Config
 
+	// NPMEnabled is whether the network performance monitoring feature is explicitly enabled or not
+	NPMEnabled bool
+
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
@@ -158,6 +161,10 @@ type Config struct {
 
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
+
+	// EnableRootNetNs disables using the network namespace of the root process (1)
+	// for things like creating netlink sockets for conntrack updates, etc.
+	EnableRootNetNs bool
 }
 
 func join(pieces ...string) string {
@@ -172,6 +179,7 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
+		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
@@ -217,6 +225,8 @@ func New() *Config {
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+
+		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
@@ -276,5 +286,10 @@ func New() *Config {
 			c.EnableKernelHeaderDownload = true
 		}
 	}
+
+	if !c.EnableRootNetNs {
+		c.EnableConntrackAllNamespaces = false
+	}
+
 	return c
 }

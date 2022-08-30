@@ -12,7 +12,7 @@ enhancements:
     functions. This gauge metric measures the elapsed milliseconds from when
     the function returns the response to when the extensions finishes. This
     includes performing activities like sending telemetry data to a preferred
-    destination after the function’s response is returned. Note that
+    destination after the function's response is returned. Note that
     `aws.lambda.enhanced.duration` is equivalent to the sum of
     `aws.lambda.enhanced.runtime_duration` and
     `aws.lambda.enhanced.post_runtime_duration`.

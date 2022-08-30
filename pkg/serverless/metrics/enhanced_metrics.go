@@ -102,63 +102,63 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 	billedDuration := float64(args.BilledDurationMs)
 	memorySize := float64(args.MemorySizeMb)
 	postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
-	enhancedMetrics := []metrics.MetricSample{{
+	args.Demux.AddTimeSample(metrics.MetricSample{
 		Name:       maxMemoryUsedMetric,
 		Value:      float64(args.MaxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AddTimeSample(metrics.MetricSample{
 		Name:       memorySizeMetric,
 		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AddTimeSample(metrics.MetricSample{
 		Name:       billedDurationMetric,
 		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AddTimeSample(metrics.MetricSample{
 		Name:       durationMetric,
 		Value:      args.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AddTimeSample(metrics.MetricSample{
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AddTimeSample(metrics.MetricSample{
 		Name:       postRuntimeDurationMetric,
 		Value:      postRuntimeDuration,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}}
+	})
 	if args.InitDurationMs > 0 {
-		initDurationMetric := metrics.MetricSample{
+		args.Demux.AddTimeSample(metrics.MetricSample{
 			Name:       initDurationMetric,
 			Value:      args.InitDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
 			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
-		}
-		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
-	}
-
-	for _, metric := range enhancedMetrics {
-		args.Demux.AddTimeSample(metric)
+		})
 	}
 }
 

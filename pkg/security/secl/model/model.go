@@ -439,9 +439,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 type FileEvent struct {
 	FileFields `msg:"file_fields"`
 
-	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
-	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                        // File's filesystem
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                                    // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-" json:"-"`
 
@@ -873,11 +873,11 @@ type NetworkContext struct {
 // DNSEvent represents a DNS event
 type DNSEvent struct {
 	ID    uint16 `field:"-" msg:"-" json:"-"`
-	Name  string `field:"question.name" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
-	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`        // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`    // the class looked up by the DNS question
-	Size  uint16 `field:"question.size" msg:"size"`                               // the total DNS request size in bytes
-	Count uint16 `field:"question.count" msg:"count"`                             // the total count of questions in the DNS request
+	Name  string `field:"question.name,opts:length" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
+	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`                    // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`                // the class looked up by the DNS question
+	Size  uint16 `field:"question.length" msg:"length"`                                       // the total DNS request size in bytes
+	Count uint16 `field:"question.count" msg:"count"`                                         // the total count of questions in the DNS request
 }
 
 // BindEvent represents a bind event

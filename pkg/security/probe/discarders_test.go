@@ -49,7 +49,7 @@ func TestIsParentDiscarder(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(t, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.path != "/var/log/datadog/system-probe.log"`)
@@ -224,7 +224,7 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(t, rs, `unlink.file.path == "/var/lib/datadog/system-probe.cache"`)
@@ -356,7 +356,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	var listener testEventListener
 
@@ -399,7 +399,7 @@ func BenchmarkParentDiscarder(b *testing.B) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(b, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.path != "/var/log/datadog/system-probe.log"`)
