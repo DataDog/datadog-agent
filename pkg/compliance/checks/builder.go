@@ -28,10 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/docker"
 	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -116,7 +116,7 @@ func WithHostRootMount(hostRootMount string) BuilderOption {
 // WithDocker configures using docker
 func WithDocker() BuilderOption {
 	return func(b *builder) error {
-		cli, err := docker.NewDockerClient()
+		cli, err := dockerutils.NewDockerClient()
 		if err == nil {
 			b.dockerClient = cli
 		}
