@@ -43,6 +43,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
+const outOfCPULogThreshold uint32 = 5
+
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -591,7 +593,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	default:
 		// channel blocked, add a goroutine to ensure we never drop
 		r.wg.Add(1)
-		r.logOutOfCPU()
+		count := r.outOfCPUCounter.Inc()
+		if (count-1)%outOfCPULogThreshold == 0 {
+			// Log a warning on the first occurrence and every n+outOfCPULogThreshold occurrences.
+			log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
+		}
 		go func() {
 			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
 			defer func() {
@@ -600,17 +606,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			}()
 			r.out <- payload
 		}()
-	}
-}
-
-const outOfCPULogThreshold uint32 = 5
-
-// logOutOfCPU logs a warning on the first call and every n+outOfCPULogThreshold calls.
-// It should be called when the receiver spawns a new Goroutine to handle new requests.
-func (r *HTTPReceiver) logOutOfCPU() {
-	count := r.outOfCPUCounter.Inc()
-	if (count-1)%outOfCPULogThreshold == 0 {
-		log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
 	}
 }
 
