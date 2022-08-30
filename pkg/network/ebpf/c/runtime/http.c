@@ -30,7 +30,7 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
 
 #pragma unroll
     for (; i < iter; i++) {
-        if (offset + BLK_SIZE - 1 >= len) break;
+        if (offset + BLK_SIZE - 1 >= len) { break; }
 
         bpf_skb_load_bytes(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
         offset += BLK_SIZE;
@@ -44,36 +44,37 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
-    if (offset + 14 < len)
+    if (offset + 14 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 15);
-    else if (offset + 13 < len)
+    } else if (offset + 13 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 14);
-    else if (offset + 12 < len)
+    } else if (offset + 12 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 13);
-    else if (offset + 11 < len)
+    } else if (offset + 11 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 12);
-    else if (offset + 10 < len)
+    } else if (offset + 10 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 11);
-    else if (offset + 9 < len)
+    } else if (offset + 9 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 10);
-    else if (offset + 8 < len)
+    } else if (offset + 8 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 9);
-    else if (offset + 7 < len)
+    } else if (offset + 7 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 8);
-    else if (offset + 6 < len)
+    } else if (offset + 6 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 7);
-    else if (offset + 5 < len)
+    } else if (offset + 5 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 6);
-    else if (offset + 4 < len)
+    } else if (offset + 4 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 5);
-    else if (offset + 3 < len)
+    } else if (offset + 3 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 4);
-    else if (offset + 2 < len)
+    } else if (offset + 2 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 3);
-    else if (offset + 1 < len)
+    } else if (offset + 1 < len) {
         bpf_skb_load_bytes(skb, offset, buf, 2);
-    else if (offset < len)
+    } else if (offset < len) {
         bpf_skb_load_bytes(skb, offset, buf, 1);
+    }
 }
 
 // This entry point is needed to bypass a memory limit on socket filters
@@ -122,8 +123,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/tcp_sendmsg")
-int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
+SEC("kretprobe/security_sock_rcv_skb")
+int kretprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
     // send batch completion notification to userspace
     // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);
@@ -269,6 +270,21 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("uprobe/gnutls_handshake")
+int uprobe__gnutls_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/gnutls_handshake")
+int uretprobe__gnutls_handshake(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    return 0;
+}
+
 // void gnutls_transport_set_int (gnutls_session_t session, int fd)
 // Note: this function is implemented as a macro in gnutls
 // that calls gnutls_transport_set_int2, so no uprobe is needed
@@ -280,6 +296,7 @@ int uprobe__gnutls_transport_set_int2(struct pt_regs *ctx) {
     // Use the recv_fd and ignore the send_fd;
     // in most real-world scenarios, they are the same.
     int recv_fd = (int)PT_REGS_PARM2(ctx);
+    log_debug("gnutls_transport_set_int2: ctx=%llx fd=%d\n", ssl_session, recv_fd);
 
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
@@ -292,6 +309,7 @@ int uprobe__gnutls_transport_set_ptr(struct pt_regs *ctx) {
     void *ssl_session = (void *)PT_REGS_PARM1(ctx);
     // This is a void*, but it might contain the socket fd cast as a pointer.
     int fd = (int)PT_REGS_PARM2(ctx);
+    log_debug("gnutls_transport_set_ptr: ctx=%llx fd=%d\n", ssl_session, fd);
 
     init_ssl_sock(ssl_session, (u32)fd);
     return 0;
@@ -306,6 +324,7 @@ int uprobe__gnutls_transport_set_ptr2(struct pt_regs *ctx) {
     // in most real-world scenarios, they are the same.
     // This is a void*, but it might contain the socket fd cast as a pointer.
     int recv_fd = (int)PT_REGS_PARM2(ctx);
+    log_debug("gnutls_transport_set_ptr2: ctx=%llx fd=%d\n", ssl_session, recv_fd);
 
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
@@ -323,6 +342,7 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
         .buf = data,
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -340,6 +360,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     void *ssl_session = args->ctx;
+    log_debug("uret/gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         goto cleanup;
@@ -359,6 +380,7 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     size_t data_size = (size_t)PT_REGS_PARM3(ctx);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         return 0;
@@ -370,6 +392,7 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
 
 static __always_inline void gnutls_goodbye(void *ssl_session) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("gnutls_goodbye: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         return;

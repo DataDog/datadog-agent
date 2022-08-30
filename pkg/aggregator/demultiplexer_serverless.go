@@ -36,7 +36,7 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, hostname string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil, nil)
@@ -147,8 +147,8 @@ func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, sample
 	d.statsdWorker.samplesChan <- samples
 }
 
-// AddCheckSample doesn't do anything in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+// AddLateMetrics is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

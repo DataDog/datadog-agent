@@ -46,6 +46,8 @@ revert_latest_7:
         IMG_DESTINATIONS: agent:7-servercore-jmx,agent:latest-servercore-jmx
       - IMG_SOURCES: datadog/dogstatsd:${NEW_LATEST_RELEASE_7}
         IMG_DESTINATIONS: dogstatsd:7,dogstatsd:latest
+      - IMG_SOURCES: datadog/cluster-agent:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: cluster-agent:latest
 
 #
 # Use this step to delete a tag of a given image

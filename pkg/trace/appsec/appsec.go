@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
@@ -43,16 +42,16 @@ func NewIntakeReverseProxy(conf *config.AgentConfig) (http.Handler, error) {
 		log.Info("AppSec proxy disabled by configuration")
 		return disabled("appsec agent disabled by configuration"), nil
 	}
-	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, conf.NewHTTPTransport()), nil
+	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, conf.NewHTTPTransport(), conf.AgentVersion), nil
 }
 
 // newIntakeReverseProxy creates a reverse proxy to the intake backend using the
 // given transport round-tripper.
 // The reverse proxy handler also limits the request body size and adds extra
 // headers such as Dd-Api-Key and Via.
-func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64, transport http.RoundTripper) http.Handler {
+func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64, transport http.RoundTripper, agentVersion string) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	via := fmt.Sprintf("trace-agent %s", info.Version)
+	via := fmt.Sprintf("trace-agent %s", agentVersion)
 	// Wrap and overwrite the returned director to add extra headers
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {

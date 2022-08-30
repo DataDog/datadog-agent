@@ -7,11 +7,12 @@ import tempfile
 from subprocess import check_output
 
 from invoke import task
+from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .go import golangci_lint
 from .system_probe import CLANG_CMD as CLANG_BPF_CMD
-from .system_probe import CURRENT_ARCH, get_ebpf_build_flags
+from .system_probe import CURRENT_ARCH, generate_runtime_files, get_ebpf_build_flags
 from .test import environ
 from .utils import (
     REPO_PATH,
@@ -610,3 +611,63 @@ def generate_ad_proto(ctx):
             ctx.run(
                 f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
+
+
+@task
+def generate_cws_proto(ctx):
+    # API
+    ctx.run("protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto")
+
+    # Activity Dumps
+    generate_ad_proto(ctx)
+
+
+def get_git_dirty_files():
+    dirty_stats = check_output(["git", "status", "--porcelain=v1"]).decode('utf-8')
+    paths = []
+
+    # see https://git-scm.com/docs/git-status#_short_format for format documentation
+    for line in dirty_stats.splitlines():
+        if len(line) < 2:
+            continue
+
+        path_part = line[2:]
+        path = path_part.split()[0]
+        paths.append(path)
+    return paths
+
+
+class FailingTask:
+    def __init__(self, name, dirty_files):
+        self.name = name
+        self.dirty_files = dirty_files
+
+
+@task
+def go_generate_check(ctx):
+    tasks = [
+        [cws_go_generate],
+        [generate_cws_documentation],
+        [gen_mocks],
+        [generate_runtime_files],
+    ]
+    failing_tasks = []
+
+    for task_entry in tasks:
+        task, args = task_entry[0], task_entry[1:]
+        task(ctx, *args)
+        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
+        # this is especially visible in the Gitlab job logs
+        # we flush to ensure correct separation between steps
+        sys.stdout.flush()
+        sys.stderr.flush()
+        dirty_files = get_git_dirty_files()
+        if dirty_files:
+            failing_tasks.append(FailingTask(task.name, dirty_files))
+
+    if failing_tasks:
+        for ft in failing_tasks:
+            print(f"Task `{ft.name}` resulted in dirty files, please re-run it:")
+            for file in ft.dirty_files:
+                print(f"* {file}")
+            raise Exit(code=1)

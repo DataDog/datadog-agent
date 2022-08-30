@@ -31,6 +31,9 @@ const (
 type Config struct {
 	ebpf.Config
 
+	// NPMEnabled is whether the network performance monitoring feature is explicitly enabled or not
+	NPMEnabled bool
+
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
@@ -158,6 +161,10 @@ type Config struct {
 
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
+
+	// EnableRootNetNs disables using the network namespace of the root process (1)
+	// for things like creating netlink sockets for conntrack updates, etc.
+	EnableRootNetNs bool
 }
 
 func join(pieces ...string) string {
@@ -172,6 +179,7 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
+		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
@@ -203,7 +211,7 @@ func New() *Config {
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  100000,
+		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
@@ -217,6 +225,8 @@ func New() *Config {
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+
+		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
@@ -265,6 +275,21 @@ func New() *Config {
 			cfg.Set(join(netNS, "enable_https_monitoring"), true)
 			c.EnableHTTPSMonitoring = true
 		}
+
+		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
+			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
+			c.EnableRuntimeCompiler = true
+		}
+
+		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
+			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
+			c.EnableKernelHeaderDownload = true
+		}
 	}
+
+	if !c.EnableRootNetNs {
+		c.EnableConntrackAllNamespaces = false
+	}
+
 	return c
 }

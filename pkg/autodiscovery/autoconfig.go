@@ -34,7 +34,7 @@ var listenerCandidateIntl = 30 * time.Second
 // and then "schedule" or "unschedule" them by notifying subscribers.  See the
 // module README for details.
 type AutoConfig struct {
-	providers          []*configPoller
+	configPollers      []*configPoller
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]*listenerCandidate
 	listenerRetryStop  chan struct{}
@@ -45,7 +45,10 @@ type AutoConfig struct {
 	delService         chan listeners.Service
 	store              *store
 	cfgMgr             configManager
-	m                  sync.RWMutex
+
+	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
+	// not the values they point to.
+	m sync.RWMutex
 
 	// ranOnce is set to 1 once the AutoConfig has been executed
 	ranOnce *atomic.Bool
@@ -79,7 +82,7 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		cfgMgr = newSimpleConfigManager()
 	}
 	ac := &AutoConfig{
-		providers:          make([]*configPoller, 0, 9),
+		configPollers:      make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
@@ -147,11 +150,8 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	// stop polled config providers
-	for _, pd := range ac.providers {
+	// stop polled config providers without holding ac.m
+	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
 	}
 
@@ -160,6 +160,9 @@ func (ac *AutoConfig) Stop() {
 
 	// stop the meta scheduler
 	ac.scheduler.Stop()
+
+	ac.m.RLock()
+	defer ac.m.RUnlock()
 
 	// stop the listener retry logic if running
 	if ac.listenerRetryStop != nil {
@@ -178,30 +181,37 @@ func (ac *AutoConfig) Stop() {
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
 func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+	cp := newConfigPoller(provider, shouldPoll, pollInterval)
+
 	ac.m.Lock()
 	defer ac.m.Unlock()
-
-	for _, pd := range ac.providers {
-		if pd.provider == provider {
-			// we already know this configuration provider, don't do anything
-			log.Warnf("Provider %s was already added, skipping...", provider)
-			return
-		}
-	}
-
-	pd := newConfigPoller(provider, shouldPoll, pollInterval)
-	ac.providers = append(ac.providers, pd)
-	pd.start(ac)
+	ac.configPollers = append(ac.configPollers, cp)
 }
 
 // LoadAndRun loads all of the integration configs it can find
 // and schedules them. Should always be run once so providers
 // that don't need polling will be queried at least once
-func (ac *AutoConfig) LoadAndRun() {
-	scheduleAll := ac.getAllConfigs()
-	ac.applyChanges(scheduleAll)
+func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
+	for _, cp := range ac.getConfigPollers() {
+		cp.start(ctx, ac)
+		if cp.canPoll {
+			log.Infof("Started config provider %q, polled every %s", cp.provider.String(), cp.pollInterval.String())
+		} else {
+			log.Infof("Started config provider %q", cp.provider.String())
+		}
+
+		// TODO: this probably belongs somewhere inside the file config
+		// provider itself, but since it already lived in AD it's been
+		// moved here for the moment.
+		if fileConfPd, ok := cp.provider.(*providers.FileConfigProvider); ok {
+			// Grab any errors that occurred when reading the YAML file
+			for name, e := range fileConfPd.Errors {
+				errorStats.setConfigError(name, e)
+			}
+		}
+	}
+
 	ac.ranOnce.Store(true)
-	log.Debug("LoadAndRun done.")
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
@@ -218,65 +228,24 @@ func (ac *AutoConfig) HasRunOnce() bool {
 	return ac.ranOnce.Load()
 }
 
-// GetAllConfigs queries all the providers and returns all the integration
-// configurations found, resolving the ones it can
+// GetAllConfigs returns all resolved and non-template configs known to
+// AutoConfig.
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
-	return ac.getAllConfigs().schedule
-}
+	var configs []integration.Config
 
-// getAllConfigs queries all the providers and returns all the integration
-// configurations found, resolving the ones it can, and returns a configChanges to
-// schedule all of them.
-func (ac *AutoConfig) getAllConfigs() configChanges {
-	changes := configChanges{}
-
-	for _, pd := range ac.providers {
-		cfgs, err := pd.provider.Collect(context.TODO())
-		if err != nil {
-			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
+	ac.cfgMgr.mapOverLoadedConfigs(func(scheduledConfigs map[string]integration.Config) {
+		configs = make([]integration.Config, 0, len(scheduledConfigs))
+		for _, config := range scheduledConfigs {
+			configs = append(configs, config)
 		}
+	})
 
-		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-			var goodConfs []integration.Config
-			for _, cfg := range cfgs {
-				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
-				// instance configuration
-				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
-				if cfg.MetricConfig != nil {
-					// We don't want to save metric files, it's enough to store them in the map
-					ac.store.setJMXMetricsForConfigName(cfg.Name, cfg.MetricConfig)
-					continue
-				}
-
-				goodConfs = append(goodConfs, cfg)
-
-				// Clear any old errors if a valid config file is found
-				errorStats.removeConfigError(cfg.Name)
-			}
-
-			// Grab any errors that occurred when reading the YAML file
-			for name, e := range fileConfPd.Errors {
-				errorStats.setConfigError(name, e)
-			}
-
-			cfgs = goodConfs
-		}
-		// Store all raw configs in the provider
-		pd.overwriteConfigs(cfgs)
-
-		// resolve configs if needed
-		for _, config := range cfgs {
-			config.Provider = pd.provider.String()
-			changes.merge(ac.processNewConfig(config))
-		}
-	}
-
-	return changes
+	return configs
 }
 
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
-func (ac *AutoConfig) processNewConfig(config integration.Config) configChanges {
+func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
@@ -382,9 +351,6 @@ func (ac *AutoConfig) retryListenerCandidates() {
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
 	ac.scheduler.Register(name, s, replayConfigs)
 }
 
@@ -456,7 +422,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 	if !util.CcaInAD() {
 		// schedule a "service config" for logs-agent's benefit
-		changes.scheduleConfig(integration.Config{
+		changes.ScheduleConfig(integration.Config{
 			LogsConfig:      integration.Data{},
 			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
@@ -476,7 +442,7 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 
 	if !util.CcaInAD() {
 		// unschedule the "service config"
-		changes.unscheduleConfig(integration.Config{
+		changes.UnscheduleConfig(integration.Config{
 			LogsConfig:      integration.Data{},
 			ServiceID:       svc.GetServiceID(),
 			TaggerEntity:    svc.GetTaggerEntity(),
@@ -494,32 +460,43 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 // and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
 	errors := map[string]map[string]providers.ErrorMsgSet{}
-	for _, pd := range ac.providers {
-		configErrors := pd.provider.GetConfigErrors()
+	for _, cp := range ac.getConfigPollers() {
+		configErrors := cp.provider.GetConfigErrors()
 		if len(configErrors) > 0 {
-			errors[pd.provider.String()] = configErrors
+			errors[cp.provider.String()] = configErrors
 		}
 	}
 	return errors
 }
 
 // applyChanges applies a configChanges object. This always unschedules first.
-func (ac *AutoConfig) applyChanges(changes configChanges) {
-	if len(changes.unschedule) > 0 {
-		for _, conf := range changes.unschedule {
+func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
+	if len(changes.Unschedule) > 0 {
+		for _, conf := range changes.Unschedule {
 			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 		}
 
-		ac.scheduler.Unschedule(changes.unschedule)
+		ac.scheduler.Unschedule(changes.Unschedule)
 	}
 
-	if len(changes.schedule) > 0 {
-		for _, conf := range changes.schedule {
+	if len(changes.Schedule) > 0 {
+		for _, conf := range changes.Schedule {
 			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 		}
 
-		ac.scheduler.Schedule(changes.schedule)
+		ac.scheduler.Schedule(changes.Schedule)
 	}
+}
+
+// getConfigPollers gets a slice of config pollers that can be used without holding
+// ac.m.
+func (ac *AutoConfig) getConfigPollers() []*configPoller {
+	ac.m.RLock()
+	defer ac.m.RUnlock()
+
+	// this value is only ever appended to, so the sliced elements will not change and
+	// no race can occur.
+	return ac.configPollers
 }
 
 func configType(c integration.Config) string {

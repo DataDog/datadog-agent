@@ -143,7 +143,9 @@ func TestListenTCP(t *testing.T) {
 
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
-	r := newTestReceiverFromConfig(config.New())
+	cfg := config.New()
+	cfg.AgentVersion = "testVersion"
+	r := newTestReceiverFromConfig(cfg)
 	r.Start()
 	defer r.Stop()
 	data := msgpTraces(t, pb.Traces{
@@ -168,7 +170,7 @@ func TestStateHeaders(t *testing.T) {
 		_, ok := resp.Header["Datadog-Agent-Version"]
 		assert.True(ok)
 		v := resp.Header.Get("Datadog-Agent-Version")
-		assert.Equal(v, info.Version)
+		assert.Equal("testVersion", v)
 
 		_, ok = resp.Header["Datadog-Agent-State"]
 		assert.True(ok)
@@ -612,32 +614,7 @@ func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion
 }
 
 func TestHandleStats(t *testing.T) {
-	bucket := func(start, duration uint64) pb.ClientStatsBucket {
-		return pb.ClientStatsBucket{
-			Start:    start,
-			Duration: duration,
-			Stats: []pb.ClientGroupedStats{
-				{
-					Name:     "name",
-					Service:  "service",
-					Resource: "/asd/r",
-					Hits:     2,
-					Errors:   440,
-					Duration: 123,
-				},
-			},
-		}
-	}
-	p := pb.ClientStatsPayload{
-		Hostname: "h",
-		Env:      "env",
-		Version:  "1.2",
-		Stats: []pb.ClientStatsBucket{
-			bucket(1, 10),
-			bucket(500, 100342),
-		},
-	}
-
+	p := testutil.StatsPayloadSample()
 	t.Run("on", func(t *testing.T) {
 		cfg := newTestReceiverConfig()
 		rcv := newTestReceiverFromConfig(cfg)

@@ -22,21 +22,15 @@ import (
 // across domain.
 // If there is no traffic during the time period for a domain, no statistic is reported.
 type QueueDurationCapacity struct {
-	accumulators           map[string]*timeIntervalAccumulator
-	optionalDiskSpace      diskSpace
-	maxMemSizeInBytes      int
-	historyDuration        time.Duration
-	bucketDuration         time.Duration
-	queueDiskSpaceUsedList []QueueDiskSpaceUsed
+	accumulators      map[string]*timeIntervalAccumulator
+	optionalDiskSpace diskSpace
+	maxMemSizeInBytes int
+	historyDuration   time.Duration
+	bucketDuration    time.Duration
 }
 
 type diskSpace interface {
 	computeAvailableSpace(extraSize int64) (int64, error)
-}
-
-// QueueDiskSpaceUsed provides a method to get the disk space used by the retry queue.
-type QueueDiskSpaceUsed interface {
-	GetDiskSpaceUsed() int64
 }
 
 // NewQueueDurationCapacity creates a new instance of *QueueDurationCapacity.
@@ -47,8 +41,7 @@ func NewQueueDurationCapacity(
 	historyDuration time.Duration,
 	bucketDuration time.Duration,
 	maxMemSizeInBytes int,
-	optionalDiskSpace diskSpace,
-	queueDiskSpaceUsedList []QueueDiskSpaceUsed) *QueueDurationCapacity {
+	optionalDiskSpace diskSpace) *QueueDurationCapacity {
 	if optionalDiskSpace != nil && reflect.ValueOf(optionalDiskSpace).IsNil() {
 		optionalDiskSpace = nil
 	}
@@ -136,11 +129,6 @@ func (r *QueueDurationCapacity) getTotalDiskSpace() (int64, error) {
 		availableSpace, err = r.optionalDiskSpace.computeAvailableSpace(0)
 		if err != nil {
 			return 0, err
-		}
-
-		// Also count the disk space already used.
-		for _, queueDiskSpaceUsedList := range r.queueDiskSpaceUsedList {
-			availableSpace += queueDiskSpaceUsedList.GetDiskSpaceUsed()
 		}
 
 		// if capacity is exceeded, availableSpace may be negative.

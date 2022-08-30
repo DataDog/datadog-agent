@@ -2236,6 +2236,27 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.285-215.501.amzn2.aarch64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.287-215.504.amzn2.aarch64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.290-217.505.amzn2.aarch64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 3
 		},
@@ -2706,6 +2727,27 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.281-212.502.amzn2.x86_64",
+			"cindex": 5
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.285-215.501.amzn2.x86_64",
+			"cindex": 5
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.287-215.504.amzn2.x86_64",
+			"cindex": 5
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.290-217.505.amzn2.x86_64",
 			"cindex": 5
 		},
 		{
@@ -3581,6 +3623,20 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.66.1.el7.x86_64",
+			"cindex": 25
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.71.1.el7.x86_64",
+			"cindex": 25
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.76.1.el7.x86_64",
 			"cindex": 25
 		},
 		{
@@ -4868,6 +4924,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1139-aws",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-115-generic",
 			"cindex": 48
 		},
@@ -5163,6 +5226,20 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-188-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-189-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-191-generic",
 			"cindex": 50
 		},
 		{
@@ -7248,6 +7325,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1131-gcp",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1133-aws",
 			"cindex": 55
 		},
@@ -7264,6 +7348,13 @@
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1134-azure",
 			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1134-gcp",
+			"cindex": 55
 		},
 		{
 			"distrib": "ubuntu",
@@ -7297,6 +7388,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1139-aws",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1139-azure",
 			"cindex": 57
 		},
@@ -7312,6 +7410,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1145-azure",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1149-azure",
 			"cindex": 57
 		},
 		{
@@ -7613,6 +7718,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-188-generic",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-191-generic",
 			"cindex": 55
 		},
 		{

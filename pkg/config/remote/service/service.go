@@ -8,12 +8,14 @@ package service
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
 	"google.golang.org/grpc/codes"
@@ -307,6 +309,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	}
 
 	if !s.clients.active(request.Client) {
+		s.clients.seen(request.Client)
 		s.Unlock()
 		response := make(chan struct{})
 		s.newActiveClients.requests <- response
@@ -360,9 +363,14 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		}
 	}
 
+	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       targetsRaw,
+		Targets:       canonicalTargets,
 		TargetFiles:   filteredFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
@@ -403,7 +411,11 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, root)
+		canonicalRoot, err := enforceCanonicalJSON(root)
+		if err != nil {
+			return nil, err
+		}
+		roots = append(roots, canonicalRoot)
 	}
 	return roots, nil
 }
@@ -545,4 +557,13 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	}
 
 	return nil
+}
+
+func enforceCanonicalJSON(raw []byte) ([]byte, error) {
+	canonical, err := cjson.EncodeCanonical(json.RawMessage(raw))
+	if err != nil {
+		return nil, err
+	}
+
+	return canonical, nil
 }

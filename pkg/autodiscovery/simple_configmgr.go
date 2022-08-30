@@ -37,7 +37,7 @@ func newSimpleConfigManager() configManager {
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) configChanges {
+func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -66,16 +66,16 @@ func (cm *simpleConfigManager) processNewService(adIdentifiers []string, svc lis
 	}
 
 	// build the config changes to return
-	changes := configChanges{}
+	changes := integration.ConfigChanges{}
 	for _, v := range resolvedSet {
-		changes.scheduleConfig(v)
+		changes.ScheduleConfig(v)
 	}
 
 	return changes
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *simpleConfigManager) processDelService(ctx context.Context, svc listeners.Service) configChanges {
+func (cm *simpleConfigManager) processDelService(ctx context.Context, svc listeners.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -88,10 +88,10 @@ func (cm *simpleConfigManager) processDelService(ctx context.Context, svc listen
 	}
 
 	removedConfigs := cm.store.removeConfigsForService(svc.GetServiceID())
-	changes := configChanges{}
+	changes := integration.ConfigChanges{}
 	for _, c := range removedConfigs {
 		if cm.store.removeLoadedConfig(c) {
-			changes.unscheduleConfig(c)
+			changes.UnscheduleConfig(c)
 		}
 	}
 
@@ -99,10 +99,10 @@ func (cm *simpleConfigManager) processDelService(ctx context.Context, svc listen
 }
 
 // processNewConfig implements configManager#processNewConfig.
-func (cm *simpleConfigManager) processNewConfig(config integration.Config) configChanges {
+func (cm *simpleConfigManager) processNewConfig(config integration.Config) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
+	changes := integration.ConfigChanges{}
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
@@ -112,7 +112,7 @@ func (cm *simpleConfigManager) processNewConfig(config integration.Config) confi
 
 		// try to resolve the template
 		resolvedConfigs := cm.resolveTemplate(config)
-		if resolvedConfigs.isEmpty() {
+		if resolvedConfigs.IsEmpty() {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
 			errorStats.setResolveWarning(config.Name, e)
 			log.Debug(e)
@@ -128,17 +128,17 @@ func (cm *simpleConfigManager) processNewConfig(config integration.Config) confi
 		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
 		return changes // empty result
 	}
-	changes.scheduleConfig(config)
+	changes.ScheduleConfig(config)
 	cm.store.setLoadedConfig(config)
 
 	return changes
 }
 
 // processDelConfigs implements configManager#processDelConfigs.
-func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) configChanges {
+func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	changes := configChanges{}
+	changes := integration.ConfigChanges{}
 
 	for _, c := range configs {
 		if c.IsTemplate() {
@@ -147,7 +147,7 @@ func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) c
 			removedConfigs := cm.store.removeConfigsForTemplate(tplDigest)
 			for _, rc := range removedConfigs {
 				if cm.store.removeLoadedConfig(rc) {
-					changes.unscheduleConfig(rc)
+					changes.UnscheduleConfig(rc)
 				}
 			}
 
@@ -157,8 +157,15 @@ func (cm *simpleConfigManager) processDelConfigs(configs []integration.Config) c
 				log.Debugf("Could not delete template: %v", err)
 			}
 		} else {
+			// Secrets need to be resolved before being unscheduled as otherwise
+			// the computed hashes can be different from the ones computed at schedule time.
+			c, err := decryptConfig(c)
+			if err != nil {
+				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", c.Name, err.Error())
+			}
+
 			cm.store.removeLoadedConfig(c)
-			changes.unscheduleConfig(c)
+			changes.UnscheduleConfig(c)
 		}
 	}
 
@@ -203,7 +210,7 @@ func (cm *simpleConfigManager) resolveTemplateForService(tpl integration.Config,
 // The function might return an empty list in the case the configuration has a
 // list of Autodiscovery identifiers for services that are unknown to the
 // resolver at this moment.
-func (cm *simpleConfigManager) resolveTemplate(tpl integration.Config) configChanges {
+func (cm *simpleConfigManager) resolveTemplate(tpl integration.Config) integration.ConfigChanges {
 	// use a map to dedupe configurations
 	resolvedSet := map[string]integration.Config{}
 
@@ -233,9 +240,9 @@ func (cm *simpleConfigManager) resolveTemplate(tpl integration.Config) configCha
 	}
 
 	// build the config changes to return
-	changes := configChanges{}
+	changes := integration.ConfigChanges{}
 	for _, v := range resolvedSet {
-		changes.scheduleConfig(v)
+		changes.ScheduleConfig(v)
 	}
 
 	return changes

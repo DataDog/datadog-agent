@@ -155,6 +155,3 @@ go_mod_tidy_check:
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
-  artifacts:
-    paths:
-      - testmodule/

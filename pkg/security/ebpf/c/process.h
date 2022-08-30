@@ -60,12 +60,6 @@ static void __attribute__((always_inline)) fill_container_context(struct proc_ca
     }
 }
 
-static void __attribute__((always_inline)) fill_container_context_no_tracing(struct proc_cache_t *entry, struct container_context_t *context) {
-    if (entry) {
-        copy_container_id_no_tracing(entry->container.container_id, context->container_id);
-    }
-}
-
 struct credentials_t {
     u32 uid;
     u32 gid;
@@ -105,6 +99,15 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 16738,
+    .pinning = 0,
+    .namespace = "",
+};
+
 // defined in exec.h
 struct proc_cache_t *get_proc_from_cookie(u32 cookie);
 
@@ -139,6 +142,12 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &data->tid);
     if (netns != NULL) {
         data->netns = *netns;
+    }
+
+    // consider kworker a pid which is ignored
+    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &data->pid);
+    if (is_ignored) {
+        data->is_kworker = 1;
     }
 
     return get_proc_cache(tgid);
@@ -266,9 +275,13 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
         return inum;
     }
 
+#ifndef DO_NOT_USE_TC
     struct ns_common ns;
     bpf_probe_read(&ns, sizeof(ns), (void*)net + net_ns_offset);
     return ns.inum;
+#else
+    return 0;
+#endif
 }
 
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {

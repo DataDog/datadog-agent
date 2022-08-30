@@ -1,3 +1,5 @@
+import textwrap
+
 from test_builder import TestCase
 
 
@@ -9,7 +11,8 @@ class ContainerTailJounald(TestCase):
             """ # Setup
 Mount /etc/machine-id and use the following configuration
 
-Create a `conf.yaml` at `$(pwd)/journald.conf.d`
+Create a `conf.yaml` at `$(pwd)/journald.d`
+
 ```
 logs:
   - type: journald
@@ -19,10 +22,8 @@ logs:
 ```
 docker run -d --name agent -e DD_API_KEY=... \\
   -e DD_LOGS_ENABLED=true \\
-  -v $(pwd)/journald.conf.d:/etc/datadog-agent/conf.d:ro \\
-  # To get container tags
+  -v $(pwd)/journald.d:/etc/datadog-agent/conf.d/journald.d:ro \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
-  # To read journald logs
   -v /etc/machine-id:/etc/machine-id:ro \\
   -v /var/log/journal:/var/log/journal:ro \\
   datadog/agent:<AGENT_IMAGE>
@@ -31,7 +32,9 @@ docker run -d --name agent -e DD_API_KEY=... \\
 ----
 # Test
 
-- Logs are properly tagged with the container metadata
+- Once the agent is running, run `agent stream-logs`
+- in another shell, `docker run --log-driver=journald --rm alpine:latest echo "hello world"`
+- Search the logs stream for the message. Make sure the source and service tags are set correctly (should be the short image name)
 """
         )
 
@@ -298,3 +301,255 @@ To check:
 - All logs are properly tagged with container metadata
 """
         )
+
+
+class ContainerScenario(TestCase):
+    def __init__(self, k8s, cfgsource, cca, kcuf, dcuf):
+        super(ContainerScenario, self).__init__()
+        self.k8s = k8s
+        self.cfgsource = cfgsource
+        self.cca = cca
+        self.kcuf = kcuf
+        self.dcuf = dcuf
+
+        self.name = "Container Scenario: "
+        self.name += ('docker' if k8s == 'none' else 'k8s/' + k8s) + ', '
+        self.name += f"config source={cfgsource}, "
+        self.name += f"cca={cca}, "
+        self.name += f"kcuf={kcuf}, "
+        self.name += f"dcuf={dcuf}"
+
+    def build(self, config):  # noqa: U100
+        if self.k8s == 'docker':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # Set up Kubernetes
+
+                Set up a Kubernetes environment that uses docker as its container runtime, such as
+                `minikube --container-runtime=docker`.'''
+                )
+            )
+        elif self.k8s == 'containerd':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # Set up Kubernetes
+
+                Set up a Kubernetes environment that uses containerd as its container runtime, such as
+                a newly-minted GKE environment.'''
+                )
+            )
+        elif self.k8s == 'none':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # Set up Docker
+
+                Set up a simple Docker environment, prepared to run the agent in a container with the
+                necessary access to the host.'''
+                )
+            )
+
+        if self.k8s != 'none':
+            steps = textwrap.dedent(
+                f'''\
+                # Run the Agent
+
+                If you choose to use Helm, include the following in your values:
+
+                * `datadog.apiKey` = your API key
+                * `datadog.logs.enabled` = `true`
+                * `agents.image` = `7-rc`
+                * `datadog.logs.containerCollectAll` = `{'true' if self.cca else 'false'}`
+                * `datadog.logs.containerCollectUsingFiles` = `{'true' if self.kcuf else 'false'}`
+                * `agents.containers.agent.env`:
+
+                    ```
+                    - name: "DD_LOGS_CONFIG_CCA_IN_AD"
+                      value: "true"
+                    - name: "DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE"
+                      value: "{'true' if self.dcuf else 'false'}"
+                    ```
+                '''
+            )
+            if self.k8s == 'docker':
+                steps += textwrap.dedent(
+                    '''\
+                * `datadog.kubelet.tlsVerify` = `false` (for Minikube)
+                * `datadog.criSocketPath` `/var/run/docker.sock` (for Minikube)'''
+                )
+            if self.cfgsource == 'file':
+                steps += textwrap.dedent(
+                    '''\
+                * `datadog.confd`:
+
+                    ```
+                    "bash.yaml": |-
+                      ad_identifiers:
+                        - bash
+                      logs:
+                        service: TESTSVC
+                        source: TESTSRC
+                    ```
+                '''
+                )
+
+            self.append(steps)
+        else:
+            self.append(
+                textwrap.dedent(
+                    f'''\
+                # Run the Agent
+
+                ```
+                docker run -ti --rm --name dd-agent \\
+                        --net=host \\
+                        -e DOCKER_DD_AGENT= \\
+                        -e DD_API_KEY=$DD_API_KEY \\
+                        -e DD_LOGS_ENABLED=true \\
+                        -e DD_LOGS_CONFIG_CCA_IN_AD=true \\
+                        -e LOGS_CONFIG_CONTAINER_COLLECT_ALL={'true' if self.cca else 'false'} \\
+                        -e LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE={'true' if self.dcuf else 'false'} \\
+                        -e LOGS_CONFIG_K8S_CONTAINER_USE_FILE={'true' if self.dcuf else 'false'} \\
+                        -v /var/run/docker.sock:/var/run/docker.sock:ro \\
+                        -v /proc/:/host/proc/:ro \\
+                        -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \\
+                        -v /var/lib/docker/containers:/var/lib/docker/containers:ro \\
+                        datadog/agent:7-rc
+                ```
+                '''
+                )
+            )
+
+        self.append(
+            textwrap.dedent(
+                '''\
+            # Start `agent stream-logs`
+
+            Begin `agent stream-logs` before starting the tested container, so that you can see the totality
+            of the logged data.'''
+            )
+        )
+
+        if self.k8s == "none":
+            labelargs = "\\"
+            if self.cfgsource == "annotation":
+                labelargs = '''--label com.datadoghq.ad.logs='[{"source": "TESTSRC", "service": "TESTSVC"}]' \\'''
+            self.append(
+                textwrap.dedent(
+                    f'''\
+                # Start the Container
+
+                ```
+                docker run -ti --rm \\
+                    {labelargs}
+                    bash -c 'i=0; while true; do echo "HELLO $i at" $(date); i=$((i+1)); sleep 1; done'
+                ```
+                '''
+                )
+            )
+        else:
+            annotargs = "\\"
+            if self.cfgsource == "annotation":
+                annotargs = (
+                    '''--annotations ad.datadoghq.com/bash.logs='[{"source":"TESTSRC", "service":"TESTSVC"}]' \\'''
+                )
+            self.append(
+                textwrap.dedent(
+                    f'''\
+                # Start the Container
+
+                ```
+                k run bash --image=bash \\
+                    {annotargs}
+                    --command -- bash -c 'i=0; while true; do echo "HELLO $i at" $(date); i=$((i+1)); sleep 1; done'
+                ```
+                '''
+                )
+            )
+
+        if self.cfgsource == "none" and not self.cca:
+            self.append(
+                textwrap.dedent(
+                    f'''\
+                # Observe Nothing Logged
+
+                Check `agent stream-logs`.  This {'container' if self.k8s ==
+                'none' else 'pod'} has no configuration and container_collect_all
+                is disabled, so none of the "HELLO" output should be logged.'''
+                )
+            )
+        else:
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # Observe Logging
+
+                Check `agent stream-logs`:
+                 * "HELLO" output logged
+                 * First message included ("HELLO 0")
+                 * First message has appropriate source and service (TESTSRC / TESTSVC if those were configured,
+                   otherwise based on the image name)'''
+                )
+            )
+
+        self.special_case_type_docker()
+        self.special_case_empty_annotation()
+        self.special_case_no_docker_file_access()
+
+        self.append(
+            textwrap.dedent(
+                '''\
+            # Unexpected Results
+
+            If things aren't working as expected, compare to a run with
+            `cca_in_ad` false.  If the behavior is *better* with `cca_in_ad` set
+            to false, then the check has failed.'''
+            )
+        )
+
+    def special_case_type_docker(self):
+        if self.cfgsource == 'annotation':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # With `type:docker` in Annotation
+
+                As an additional check, delete the test pod and create a new
+                one with `"type": "docker"` added to the annotation.  The
+                result should be no worse than with `cca_in_ad: false`.
+
+                '''
+                )
+            )
+
+    def special_case_empty_annotation(self):
+        if self.cfgsource == 'annotation':
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # With Empty Annotation
+
+                As an additional check, delete the test pod and create a new
+                one with `ad.datadoghq.com/bash.logs='[{}]'` as the annotation.
+                The result should be that the pod is logged, but with default
+                source and service based on the image name.
+                '''
+                )
+            )
+
+    def special_case_no_docker_file_access(self):
+        if self.k8s == 'none' and self.dcuf:
+            self.append(
+                textwrap.dedent(
+                    '''\
+                # Without Access to Docker Directory
+
+                As an additional check, restart the dd-agent container omitting
+                the `-v /var/lib/docker/containers:/var/lib/docker/containers:ro`
+                argument.  The agent should still log the container (using the
+                Docker socket).
+                '''
+                )
+            )

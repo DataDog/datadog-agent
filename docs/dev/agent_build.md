@@ -21,7 +21,7 @@ invoke agent.build --build-exclude=systemd,python
 
 This is the complete list of the available components:
 
-* `apm`: make the APM agent execution available.
+* `apm`: make the APM agent execution available. For information on building the trace agent, see [the trace agent README](../trace-agent/README.md).
 * `consul`: enable consul as a configuration store
 * `python`: embed the Python interpreter.
 * `docker`: add Docker support (required by AutoDiscovery).
@@ -44,6 +44,8 @@ This is the complete list of the available components:
 
 Please note you might need to provide some extra dependencies in your dev
 environment to build certain bits (see [development environment][dev-env]).
+
+Also note that the trace agent needs to be built and run separately. For more information, see [the trace agent README](../trace-agent/README.md).
 
 ## Additional details
 

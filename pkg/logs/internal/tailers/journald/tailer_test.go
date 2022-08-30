@@ -95,8 +95,8 @@ func TestShouldDropEntry(t *testing.T) {
 	var tailer *Tailer
 	var err error
 
-	// expect only the specified service units to be dropped
-	source = sources.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}})
+	// expect only the specified service units or matching entries to be dropped
+	source = sources.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}, ExcludeMatches: []string{"quux=quuz"}})
 	tailer = NewTailer(source, nil, nil)
 	err = tailer.setup()
 	assert.Nil(t, err)
@@ -143,6 +143,27 @@ func TestShouldDropEntry(t *testing.T) {
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT: "qux",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
+			},
+		}))
+
+	assert.True(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"quux": "quuz",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"quux": "corge",
+			},
+		}))
+
+	assert.False(t, tailer.shouldDrop(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"grault": "garply",
 			},
 		}))
 
@@ -217,6 +238,7 @@ func TestShouldDropEntry(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "user@1000.service",
 			},
 		}))
+
 }
 
 func TestApplicationName(t *testing.T) {

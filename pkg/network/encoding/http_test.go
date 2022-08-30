@@ -177,6 +177,117 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	assert.Nil(t, serializedLatencies)
 }
 
+func TestIDCollisionRegression(t *testing.T) {
+	assert := assert.New(t)
+	connections := []network.ConnectionStats{
+		{
+			Source: util.AddressFromString("1.1.1.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  80,
+			Pid:    1,
+		},
+		{
+			Source: util.AddressFromString("1.1.1.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  80,
+			Pid:    2,
+		},
+	}
+
+	var httpStats http.RequestStats
+	httpKey := http.NewKey(
+		util.AddressFromString("1.1.1.1"),
+		util.AddressFromString("2.2.2.2"),
+		60000,
+		80,
+		"/",
+		true,
+		http.MethodGet,
+	)
+	httpStats.AddRequest(100, 1.0, 0)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
+		HTTP: map[http.Key]*http.RequestStats{
+			httpKey: &httpStats,
+		},
+	}
+
+	httpEncoder := newHTTPEncoder(in)
+
+	// asssert that the first connection matching the the HTTP data will get
+	// back a non-nil result
+	aggregations, _ := httpEncoder.GetHTTPAggregationsAndTags(connections[0])
+	assert.NotNil(aggregations)
+	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByResponseStatus[0].Count)
+
+	// assert that the other connections sharing the same (source,destination)
+	// addresses but different PIDs *won't* be associated with the HTTP stats
+	// object
+	aggregations, _ = httpEncoder.GetHTTPAggregationsAndTags(connections[1])
+	assert.Nil(aggregations)
+}
+
+func TestLocalhostScenario(t *testing.T) {
+	assert := assert.New(t)
+	connections := []network.ConnectionStats{
+		{
+			Source: util.AddressFromString("127.0.0.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("127.0.0.1"),
+			DPort:  80,
+			Pid:    1,
+		},
+		{
+			Source: util.AddressFromString("127.0.0.1"),
+			SPort:  80,
+			Dest:   util.AddressFromString("127.0.0.1"),
+			DPort:  60000,
+			Pid:    2,
+		},
+	}
+
+	var httpStats http.RequestStats
+	httpKey := http.NewKey(
+		util.AddressFromString("127.0.0.1"),
+		util.AddressFromString("127.0.0.1"),
+		60000,
+		80,
+		"/",
+		true,
+		http.MethodGet,
+	)
+	httpStats.AddRequest(100, 1.0, 0)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
+		HTTP: map[http.Key]*http.RequestStats{
+			httpKey: &httpStats,
+		},
+	}
+
+	httpEncoder := newHTTPEncoder(in)
+
+	// assert that both ends (client:server, server:client) of the connection
+	// will have HTTP stats
+	aggregations, _ := httpEncoder.GetHTTPAggregationsAndTags(connections[0])
+	assert.NotNil(aggregations)
+	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByResponseStatus[0].Count)
+
+	aggregations, _ = httpEncoder.GetHTTPAggregationsAndTags(connections[1])
+	assert.NotNil(aggregations)
+	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByResponseStatus[0].Count)
+}
+
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
 	var sketchPb sketchpb.DDSketch
 	err := proto.Unmarshal(bytes, &sketchPb)

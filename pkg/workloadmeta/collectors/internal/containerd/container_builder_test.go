@@ -9,12 +9,14 @@
 package containerd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -45,8 +47,16 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		"some_label": "some_val",
 	}
 	imgName := "datadog/agent:7"
-	envVars := map[string]string{
-		"test_env": "test_val",
+	envVarStrs := []string{
+		"test_env=test_val",
+	}
+	envVars := map[string]string{}
+	for _, s := range envVarStrs {
+		parts := strings.SplitN(s, "=", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		envVars[parts[0]] = parts[1]
 	}
 	hostName := "test_hostname"
 	createdAt, err := time.Parse("2006-01-02", "2021-10-11")
@@ -70,7 +80,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			}, nil
 		},
 		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
-			return &oci.Spec{Hostname: hostName}, nil
+			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
 		MockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil

@@ -36,8 +36,7 @@ class Suite:
         self.tests = tests
 
     def build(self, renderDelegate):
-        for test in self.tests:
-            t = test()
+        for t in self.tests:
             renderDelegate(t.name, t.render(self.config))
 
 
