@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 func TestBundleDependencies(t *testing.T) {
@@ -19,6 +20,7 @@ func TestBundleDependencies(t *testing.T) {
 		// instantiate all of the core components, since this is not done
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
+		fx.Invoke(func(log.Component) {}),
 
 		fx.Supply(BundleParams{}),
 		Bundle))
@@ -31,6 +33,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		// instantiate all of the core components, since this is not done
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
+		fx.Invoke(func(log.Component) {}),
 
 		fx.Supply(BundleParams{}),
 		MockBundle))

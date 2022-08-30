@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 // team: agent-shared-components
@@ -31,6 +32,7 @@ var Bundle = fx.Module(
 	componentName,
 
 	config.Module,
+	log.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
@@ -38,4 +40,5 @@ var MockBundle = fx.Module(
 	componentName,
 
 	config.MockModule,
+	log.Module,
 )
