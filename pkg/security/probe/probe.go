@@ -456,9 +456,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Remove all dentry entries belonging to the mountID
 		p.resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
 
-		if p.resolvers.MountResolver.IsOverlayFS(event.MountReleased.MountID) {
-			p.inodeDiscarders.setRevision(event.MountReleased.MountID, event.MountReleased.DiscarderRevision)
-		}
+		p.inodeDiscarders.setRevision(event.MountReleased.MountID, event.MountReleased.DiscarderRevision)
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
