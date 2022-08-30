@@ -170,7 +170,7 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 				Imports: []string{
-					"./testdata/helpers.rego",
+					"../../rego/rego_helpers/helpers.rego",
 				},
 				Module: `package datadog
 
