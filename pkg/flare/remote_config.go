@@ -61,9 +61,8 @@ func zipRemoteConfigDB(tempDir, hostname string) error {
 				return tempBucket.ForEach(func(k, v []byte) error {
 					if strings.HasSuffix(string(bucketName), "_targets") {
 						return dstBucket.Put(k, stripRCTargets(v))
-					} else {
-						return dstBucket.Put(k, v)
 					}
+					return dstBucket.Put(k, v)
 				})
 			})
 		})
