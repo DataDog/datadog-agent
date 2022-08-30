@@ -62,7 +62,7 @@ func (i *RegoInput) ValidateInputType() (string, error) {
 	case "object", "array":
 		return i.Type, nil
 	case "":
-		return "object", nil
+		return "array", nil
 	default:
 		return "", fmt.Errorf("invalid input type `%s`", i.Type)
 	}
