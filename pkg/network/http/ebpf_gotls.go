@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	BINARY       = "/proc/18904/exe"
-	probeDataMap = "probe_data"
+	BINARY              = "/proc/134121/exe"
+	probeDataMap        = "probe_data"
+	readPartialCallsMap = "read_partial_calls"
 
 	writeFuncName      = "uprobe__crypto_tls_Conn_Write"
 	readFuncName       = "uprobe__crypto_tls_Conn_Read"
@@ -81,6 +82,7 @@ func (p *GoTLSProgram) ConfigureManager(m *manager.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
 		{Name: probeDataMap},
+		{Name: readPartialCallsMap},
 	}...)
 	// Hooks will be added in runtime for each binary
 }
@@ -112,8 +114,7 @@ func (p *GoTLSProgram) Start() {
 	// watcher, so we will run on more than one binary in one goTLSProgram.
 	p.addInspectionResultToMap(result, binPath)
 
-	//p.attachHooks(result, binPath)
-	//p.attachHooks(result, binPath)
+	p.attachHooks(result, binPath)
 
 }
 
@@ -147,8 +148,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 	uid := getUID(binPath)
 
 	for i, offset := range result.Functions[bininspect.ReadGoTLSFunc].ReturnLocations {
-		retUid := makeReturnUID(uid, i)
-		err := p.manager.AddHook(retUid, &manager.Probe{
+		err := p.manager.AddHook("", &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  readReturnProbe,
 				EBPFFuncName: readReturnFuncName,
@@ -196,7 +196,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 	}
 
 	for _, probe := range probes {
-		err := p.manager.AddHook(uid, probe)
+		err := p.manager.AddHook("", probe)
 		if err != nil {
 			log.Errorf("could not add hook for %q in offset %d due to: %w", probe.EBPFFuncName, probe.UprobeOffset, err)
 			return
@@ -209,4 +209,5 @@ func (p *GoTLSProgram) Stop() {
 		return
 	}
 	// In the future, this should stop the new process listener.
+	// TODO detach hooks
 }

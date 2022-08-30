@@ -620,6 +620,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 	if (call_data_ptr == NULL) {
 		return 1;
 	}
+
 	read_partial_call_data_t call_data = *call_data_ptr;
     bpf_map_delete_elem(&read_partial_calls, &call_key);
 
@@ -674,18 +675,35 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     return 0;
 }
 
+struct bpf_map_def SEC("maps/task_thread") task_thread = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct thread_struct),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
 static __always_inline void* get_tls_base(struct task_struct* task) {
+    u32 key = 0;
+    struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
+    if (t == NULL) {
+            return (void *) 0;
+    }
+    if (bpf_probe_read(t, sizeof(struct thread_struct), &task->thread) < 0)
+            return NULL;
+
     #if defined(__x86_64__)
         #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-            return (void*) task->thread.fs;
+            return (void*) t->fs;
         #else
-            return (void*) task->thread.fsbase;
+            return (void*) t->fsbase;
         #endif
     #elif defined(__aarch64__)
         #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-            return (void*) task->thread.tp_value;
+            return (void*) t->tp_value;
         #else
-            return (void*) task->thread.uw.tp_value;
+            return (void*) t->uw.tp_value;
         #endif
     #else
         #error "Unsupported platform"
