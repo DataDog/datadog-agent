@@ -28,7 +28,7 @@ import (
 
 // Constraints on the maximum backoff time when errors occur
 const (
-	maximalMaxBackoffTime = 2 * time.Minute
+	maximalMaxBackoffTime = 90 * time.Second
 	minBackoffFactor      = 2.0
 	recoveryInterval      = 2
 )
