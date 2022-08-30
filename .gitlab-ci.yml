@@ -131,8 +131,8 @@ variables:
   S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
-  S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
-  USE_S3_CACHING: --omnibus-s3-cache
+  # S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  # USE_S3_CACHING: --omnibus-s3-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
