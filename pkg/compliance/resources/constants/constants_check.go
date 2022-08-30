@@ -38,3 +38,7 @@ func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 	resolvedInstance := resources.NewResolvedInstance(instance, resourceID, "constants")
 	return resolvedInstance, nil
 }
+
+func init() {
+	resources.RegisterHandler("constants", Resolve, nil)
+}
