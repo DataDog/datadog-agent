@@ -17,7 +17,12 @@ if [[ -z $REMOTE_MACHINE_IP ]]; then
   exit
 else
   echo "REMOTE_MACHINE_IP is set to $REMOTE_MACHINE_IP, using remote configuration"
-  # shellcheck disable=SC2002
   DD_AGENT_ROOT_DIR="/git/datadog-agent"
-  cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" "cd ${DD_AGENT_ROOT_DIR};bash --login"
+
+  # Exporting all relevant environment variables from current session os it will be available for the script in the SSH session
+  # Then change directory to the agent root directory to preserve the behaviour of a local run
+
+  # shellcheck disable=SC2002
+  cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" \
+   "export AGENT_SKIP_VENV=${DD_AGENT_ROOT_DIR} BUILD_COMMAND='${BUILD_COMMAND}' BINARY_TO_RUN='${BINARY_TO_RUN}';cd ${DD_AGENT_ROOT_DIR};bash --login"
 fi

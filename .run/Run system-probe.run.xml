@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Build agent" type="ShConfigurationType">
+  <configuration default="false" name="Run system-probe" type="ShConfigurationType">
     <option name="SCRIPT_TEXT" value="" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="$PROJECT_DIR$/.run/bash_runner.sh" />
@@ -12,7 +12,8 @@
     <option name="EXECUTE_IN_TERMINAL" value="true" />
     <option name="EXECUTE_SCRIPT_FILE" value="true" />
     <envs>
-      <env name="SCRIPT_TO_RUN" value=".run/build.sh" />
+      <env name="SCRIPT_TO_RUN" value=".run/run.sh" />
+      <env name="BINARY_TO_RUN" value="./bin/system-probe/system-probe" />
     </envs>
     <method v="2" />
   </configuration>
