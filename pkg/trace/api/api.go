@@ -43,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
-const outOfCPULogThreshold uint32 = 5
+const outOfCPULogThreshold uint32 = 10
 
 var bufferPool = sync.Pool{
 	New: func() interface{} {
