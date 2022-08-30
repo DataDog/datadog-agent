@@ -69,8 +69,10 @@ type CCCache struct {
 	sync.RWMutex
 	cancelContext        context.Context
 	configured           bool
+	refreshCacheOnMiss   bool
 	serveNozzleData      bool
-	advancedTagging      bool
+	sidecarsTags         bool
+	segmentsTags         bool
 	ccAPIClient          CCClientI
 	pollInterval         time.Duration
 	lastUpdated          time.Time
@@ -103,7 +105,7 @@ type CCClientI interface {
 var globalCCCache = &CCCache{}
 
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
-func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, serveNozzleData, advancedTagging bool, testing CCClientI) (*CCCache, error) {
+func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, refreshCacheOnMiss, serveNozzleData, sidecarsTags, segmentsTags bool, testing CCClientI) (*CCCache, error) {
 	globalCCCache.Lock()
 	defer globalCCCache.Unlock()
 
@@ -134,8 +136,10 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.updatedOnce = make(chan struct{})
 	globalCCCache.cancelContext = ctx
 	globalCCCache.configured = true
+	globalCCCache.refreshCacheOnMiss = refreshCacheOnMiss
 	globalCCCache.serveNozzleData = serveNozzleData
-	globalCCCache.advancedTagging = advancedTagging
+	globalCCCache.sidecarsTags = sidecarsTags
+	globalCCCache.segmentsTags = segmentsTags
 
 	go globalCCCache.start()
 
@@ -215,6 +219,9 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 	cfapp, ok = ccc.cfApplicationsByGUID[guid]
 	ccc.RUnlock()
 	if !ok {
+		if !ccc.refreshCacheOnMiss {
+			return nil, fmt.Errorf("could not find CF application %s in cloud controller cache", guid)
+		}
 		ccc.readData()
 		ccc.RLock()
 		cfapp, ok = ccc.cfApplicationsByGUID[guid]
@@ -335,7 +342,7 @@ func (ccc *CCCache) readData() {
 			v3App := app
 			appsByGUID[app.GUID] = &v3App
 
-			if ccc.advancedTagging {
+			if ccc.sidecarsTags {
 				// list app sidecars
 				var allSidecars []*CFSidecar
 				sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
@@ -444,7 +451,7 @@ func (ccc *CCCache) readData() {
 	var segmentBySpaceGUID map[string]*cfclient.IsolationSegment
 	var segmentByOrgGUID map[string]*cfclient.IsolationSegment
 
-	if ccc.advancedTagging {
+	if ccc.segmentsTags {
 		// List isolation segments
 		wg.Add(1)
 

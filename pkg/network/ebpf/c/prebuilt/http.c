@@ -27,9 +27,9 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff*
 
     unsigned i = 0;
 
-#pragma unroll
+#pragma unroll(HTTP_BUFFER_SIZE / BLK_SIZE)
     for (; i < iter; i++) {
-        if (offset + BLK_SIZE - 1 >= len) break;
+        if (offset + BLK_SIZE - 1 >= len) { break; }
 
         // There was a bug in the bpf translatter that was incorrectly clobbering r2 register,
         // which led to erasing r1 value in that case:

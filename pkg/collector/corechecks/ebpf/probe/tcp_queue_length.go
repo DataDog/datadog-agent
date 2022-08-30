@@ -44,7 +44,7 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, nil, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
 	if err != nil {
 		return nil, err
 	}

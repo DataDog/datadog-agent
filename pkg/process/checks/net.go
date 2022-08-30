@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,15 +47,17 @@ var (
 type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *procutil.LogLimit
+	notInitializedLogLimit *putil.LogLimit
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID *atomic.Value
+	probe          procutil.Probe
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
+	c.probe = newProcessProbe()
+	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
@@ -108,7 +111,12 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	dockerproxy.NewFilter().Filter(conns)
+	procs, err := c.probe.ProcessesByPID(time.Now(), false)
+	if err != nil {
+		log.Warnf("error collecting processes for proxy filter: %s", err)
+	} else {
+		dockerproxy.NewFilter(procs).Filter(conns)
+	}
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 

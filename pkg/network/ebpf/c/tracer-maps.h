@@ -1,186 +1,89 @@
 #ifndef __TRACER_MAPS_H
 #define __TRACER_MAPS_H
 
+#include "map-defs.h"
 #include "tracer.h"
 #include "bpf_helpers.h"
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
  */
-struct bpf_map_def SEC("maps/conn_stats") conn_stats = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(conn_stats_ts_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(conn_stats, conn_tuple_t, conn_stats_ts_t, 0)
+    
 /* This is a key/value store with the keys being a conn_tuple_t (but without the PID being used)
  * and the values being a tcp_stats_t *.
  */
-struct bpf_map_def SEC("maps/tcp_stats") tcp_stats = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(tcp_stats_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 
 /* Will hold the PIDs initiating TCP connections */
-struct bpf_map_def SEC("maps/tcp_ongoing_connect_pid") tcp_ongoing_connect_pid = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(__u64),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)
+    
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
-struct bpf_map_def SEC("maps/conn_close_event") conn_close_event = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(__u32),
-    .max_entries = 0, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32, 0)
 
 /* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
  * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
  * some of the Kernels we support (4.4 ~ 4.6)
  */
-struct bpf_map_def SEC("maps/conn_close_batch") conn_close_batch = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(batch_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1024)
+    
 /*
  * Map to hold struct sock parameter for tcp_sendmsg calls
  * to be used in kretprobe/tcp_sendmsg
  */
-struct bpf_map_def SEC("maps/tcp_sendmsg_args") tcp_sendmsg_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(struct sock*),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(tcp_sendmsg_args, __u64, struct sock *, 1024)
+    
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t
  */
-struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(udp_recv_sock_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(udp_recv_sock, __u64, udp_recv_sock_t, 1024)
+    
 /* This map is used to match the kprobe & kretprobe of udpv6_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a udp_recv_sock_t
  */
-struct bpf_map_def SEC("maps/udpv6_recv_sock") udpv6_recv_sock = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(udp_recv_sock_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(udpv6_recv_sock, __u64, udp_recv_sock_t, 1024)
+    
 /* This maps tracks listening TCP ports. Entries are added to the map via tracing the inet_csk_accept syscall.  The
  * key in the map is the network namespace inode together with the port and the value is a flag that
  * indicates if the port is listening or not. When the socket is destroyed (via tcp_v4_destroy_sock), we set the
  * value to be "port closed" to indicate that the port is no longer being listened on.  We leave the data in place
  * for the userspace side to read and clean up
  */
-struct bpf_map_def SEC("maps/port_bindings") port_bindings = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(port_binding_t),
-    .value_size = sizeof(__u32),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(port_bindings, port_binding_t, __u32, 0)
+    
 /* This behaves the same as port_bindings, except it tracks UDP ports.
  * Key: a port
  * Value: one of PORT_CLOSED, and PORT_OPEN
  */
-struct bpf_map_def SEC("maps/udp_port_bindings") udp_port_bindings = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(port_binding_t),
-    .value_size = sizeof(__u32),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(udp_port_bindings, port_binding_t, __u32, 0)
+    
 /* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
  *
  * Keys: the PID returned by bpf_get_current_pid_tgid()
  * Values: the args of the bind call  being instrumented.
  */
-struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(bind_syscall_args_t),
-    .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(pending_bind, __u64, bind_syscall_args_t, 8192)
+    
 /* This map is used for telemetry in kernelspace
  * only key 0 is used
  * value is a telemetry object
  */
-struct bpf_map_def SEC("maps/telemetry") telemetry = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(telemetry_t),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
+    
 // This map is used to to temporarily store function arguments (the struct sock*
 // mapped to the given fd_out) for do_sendfile function calls, so they can be
 // accessed by the corresponding kretprobe.
 // * Key is pid_tgid (u64)
 // * Value is (struct sock*)
-struct bpf_map_def SEC("maps/do_sendfile_args") do_sendfile_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(struct sock*),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
+    
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
-struct bpf_map_def SEC("maps/ip_make_skb_args") ip_make_skb_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(ip_make_skb_args_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
+    
 #endif

@@ -71,7 +71,7 @@ spec:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
-              admission.datadoghq.com/java-lib.custom-image: "gcr.io/datadoghq/dd-java-agent-init:latest"  # TODO: Use the default repo when ready
+              admission.datadoghq.com/java-lib.version: "latest"
           spec:
             containers:
               - command:

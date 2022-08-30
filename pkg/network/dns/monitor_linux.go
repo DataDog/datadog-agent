@@ -12,8 +12,11 @@ import (
 	"fmt"
 	"math"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/net/bpf"
+
+	"github.com/vishvananda/netns"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -66,8 +69,14 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	var (
 		packetSrc *filterpkg.AFPacketSource
 		srcErr    error
+		ns        netns.NsHandle
 	)
-	err = util.WithRootNS(cfg.ProcRoot, func() error {
+	if ns, err = cfg.GetRootNetNs(); err != nil {
+		return nil, err
+	}
+	defer ns.Close()
+
+	err = util.WithNS(cfg.ProcRoot, ns, func() error {
 		packetSrc, srcErr = filterpkg.NewPacketSource(filter, bpfFilter)
 		return srcErr
 	})

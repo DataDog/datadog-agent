@@ -100,7 +100,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
@@ -120,7 +120,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     }
 
     handle_tcp_stats(&t, sk, 0);
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
 }
 
 SEC("kprobe/tcp_close")
@@ -202,7 +202,7 @@ static __always_inline int handle_ip6_skb(struct sock* sk, size_t size, struct f
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -332,7 +332,7 @@ int kretprobe__ip_make_skb(struct pt_regs* ctx) {
 
     // segment count is not currently enabled on prebuilt.
     // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -345,7 +345,7 @@ int kretprobe__ip_make_skb(struct pt_regs* ctx) {
 //
 // On UDP side, no similar function exists in all kernel versions, though we may be able to use something like
 // skb_consume_udp (v4.10+, https://elixir.bootlin.com/linux/v4.10/source/net/ipv4/udp.c#L1500)
-static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* msg, int flags, struct bpf_map_def *udp_sock_map) {
+static __always_inline int handle_udp_recvmsg(struct sock* sk, struct msghdr* msg, int flags, void *udp_sock_map) {
     log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
     if (flags & MSG_PEEK) {
         return 0;
@@ -396,7 +396,7 @@ int kprobe__udpv6_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     return handle_udp_recvmsg(sk, msg, flags, &udpv6_recv_sock);
 }
 
-static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def *udp_sock_map) {
+static __always_inline int handle_ret_udp_recvmsg(int copied, void *udp_sock_map) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kretprobe/udp_recvmsg: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
@@ -433,7 +433,7 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, struct bpf_map_def
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
     // segment count is not currently enabled on prebuilt.
     // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE);
+    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE, st->sk);
 
     return 0;
 }
@@ -518,7 +518,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
     }
 
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE);
+    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
 
     log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
@@ -540,7 +540,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         return 0;
     }
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE);
+    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
 
     port_binding_t pb = {};
     pb.netns = t.netns;
@@ -816,7 +816,7 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
 
     ssize_t sent = (ssize_t)PT_REGS_RC(ctx);
     if (sent > 0) {
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, *sock);
     }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
