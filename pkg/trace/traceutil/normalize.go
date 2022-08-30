@@ -154,6 +154,7 @@ func NormalizeTag(v string) string {
 			chars++
 		default:
 			// illegal character
+			chars++
 			if n := len(cuts); n > 0 && cuts[n-1][1] >= i {
 				// merge intersecting cuts
 				cuts[n-1][1] += jump
