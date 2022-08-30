@@ -3,6 +3,8 @@
 # This script is a wrapper script for running a bash script either locally or on a remote machine using SSH
 # It runs the script in the given path SCRIPT_TO_RUN on a remote machine who's ip is REMOTE_MACHINE_IP, or locally
 # if REMOTE_MACHINE_IP is not set
+# Note that this script assumes that the remote machine was configured with the agent dev box vagrant scripts, for more
+# information about this setup see https://github.com/DataDog/croissant-integration-resources/tree/master/agent-dev_box
 
 if [[ -z $SCRIPT_TO_RUN ]]; then
   echo "SCRIPT_TO_RUN environment variable must be set"
@@ -16,5 +18,6 @@ if [[ -z $REMOTE_MACHINE_IP ]]; then
 else
   echo "REMOTE_MACHINE_IP is set to $REMOTE_MACHINE_IP, using remote configuration"
   # shellcheck disable=SC2002
-  cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP"
+  DD_AGENT_ROOT_DIR="/git/datadog-agent"
+  cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" "cd ${DD_AGENT_ROOT_DIR};bash --login"
 fi
