@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Extracted from https://github.com/ninja-build/ninja/blob/master/misc/ninja_syntax.py
+# commit c161199646ec6de76d92d653b6ce9f10f2b43d07
+#
 # Copyright 2011 Google Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
