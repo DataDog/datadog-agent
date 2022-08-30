@@ -1376,7 +1376,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}()
 
 	if IsServerless() {
-		log.Debug("No config file detected, using environment variable based configuration")
+		log.Debug("Running on a serverless environment. Ignoring config file. Using environment variable based configuration only")
 		return &warnings, nil
 	}
 
