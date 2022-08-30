@@ -1392,7 +1392,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		erpcRequest:          &ERPCRequest{},
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/20), 100),
 		flushingDiscarders:   atomic.NewBool(false),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
