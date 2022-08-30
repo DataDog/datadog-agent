@@ -9,13 +9,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/elastic/go-libaudit/rule"
-
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
 
+	"github.com/elastic/go-libaudit/rule"
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
 )
@@ -42,9 +42,10 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			hostPath: "./testdata/file/daemon.json",
+			hostPath: "./testdata/daemon.json",
 			expectReport: &compliance.Report{
 				Passed: false,
+				Data:   event.Data{},
 			},
 		},
 		{
@@ -67,7 +68,7 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			hostPath: "./testdata/file/daemon.json",
+			hostPath: "./testdata/daemon.json",
 			expectReport: &compliance.Report{
 				Passed: true,
 				Data: event.Data{
@@ -92,7 +93,6 @@ func TestAuditCheck(t *testing.T) {
 				Error:  errors.New("rule-id: audit resource path does not exist"),
 			},
 		},
-
 		{
 			name: "file rule present (resolve path)",
 			rules: []*rule.FileWatchRule{
@@ -115,7 +115,7 @@ func TestAuditCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env) {
 				env.On("EvaluateFromCache", mock.Anything).Return("/etc/docker/daemon.json", nil)
 			},
-			hostPath: "./testdata/file/daemon.json",
+			hostPath: "./testdata/daemon.json",
 			expectReport: &compliance.Report{
 				Passed: true,
 				Data: event.Data{
@@ -134,26 +134,86 @@ func TestAuditCheck(t *testing.T) {
 			client := &mocks.AuditClient{}
 			defer client.AssertExpectations(t)
 
-			if test.rules != nil {
-				client.On("GetFileWatchRules").Return(test.rules, nil)
-			}
-
 			env := &mocks.Env{}
 			defer env.AssertExpectations(t)
 
 			env.On("MaxEventsPerRun").Return(30).Maybe()
 			env.On("AuditClient").Return(client)
-
+			env.On("ProvidedInput", "rule-id").Return(nil).Maybe()
+			env.On("DumpInputPath").Return("").Maybe()
+			env.On("ShouldSkipRegoEval").Return(false).Maybe()
+			env.On("Hostname").Return("test-host").Maybe()
 			env.On("NormalizeToHostRoot", mock.AnythingOfType("string")).Return(test.hostPath)
+			if test.expectReport.Error == nil {
+				client.On("GetFileWatchRules").Return(test.rules, nil)
+			}
 
 			if test.setup != nil {
 				test.setup(t, env)
 			}
 
-			auditCheck := rego.NewCheck(&compliance.RegoRule{
-				Inputs: []compliance.RegoInput{test.resource},
-			})
+			regoRule := &compliance.RegoRule{
+				RuleCommon: compliance.RuleCommon{
+					ID: "rule-id",
+				},
+				Inputs: []compliance.RegoInput{
+					test.resource,
+					{
+						Type: "object",
+						ResourceCommon: compliance.ResourceCommon{
+							Constants: &compliance.ConstantsResource{
+								Values: map[string]interface{}{
+									"resource_type": "docker_daemon",
+								},
+							},
+						},
+					},
+				},
+				Imports: []string{
+					"./testdata/helpers.rego",
+				},
+				Module: `package datadog
+
+import data.datadog as dd
+import data.helpers as h
+
+enabled_audits = [audit | audit := input.audit[_]; audit.enabled]
+
+findings[f] {
+        count(enabled_audits) > 0
+        f := dd.passed_finding(
+				h.resource_type,
+                h.resource_id,
+				h.audit_data(input.audit[0]),
+        )
+}
+
+findings[f] {
+        h.has_key(input, "audit")
+        count(enabled_audits) == 0
+        f := dd.failing_finding(
+                h.resource_type,
+                h.resource_id,
+                {},
+        )
+}
+
+findings[f] {
+        not h.has_key(input, "audit")
+        f := dd.error_finding(
+                h.resource_type,
+                h.resource_id,
+                sprintf("%s: audit resource path does not exist", [input.context.ruleID]),
+        )
+}
+`,
+			}
+			auditCheck := rego.NewCheck(regoRule)
+			err := auditCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+			assert.NoError(err)
+
 			result := auditCheck.Check(env)
+			assert.NotEmpty(result)
 
 			assert.Equal(test.expectReport.Passed, result[0].Passed)
 			assert.Equal(test.expectReport.Data, result[0].Data)
