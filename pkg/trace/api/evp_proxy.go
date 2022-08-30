@@ -118,7 +118,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	containerID := req.Header.Get(headerContainerID)
 	contentType := req.Header.Get("Content-Type")
 	userAgent := req.Header.Get("User-Agent")
-	needsAppKey := (req.Header.Get("X-Datadog-NeedsAppKey") == "true")
+	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {

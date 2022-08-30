@@ -266,7 +266,7 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string
-	// APIKey is the main API Key (defaults to the main API key).
+	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
 	ApplicationKey string
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
