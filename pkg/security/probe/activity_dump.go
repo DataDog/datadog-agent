@@ -1425,7 +1425,7 @@ func (ad *ActivityDump) combineChildren(children map[string]*FileActivityNode) m
 	current := []inner{inputs[0]}
 
 	for _, a := range inputs[1:] {
-		next := make([]inner, 0)
+		next := make([]inner, 0, len(current))
 		shouldAppend := true
 		for _, b := range current {
 			if !areCompatibleFans(a.fan, b.fan) {
