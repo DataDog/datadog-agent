@@ -1,4 +1,4 @@
-#define RECORD_TELEMETRY
+#define RECORD_MAP_ERR_TELEMETRY
 #include "kconfig.h"
 #include "tracer.h"
 //#include "bpf_helpers.h"

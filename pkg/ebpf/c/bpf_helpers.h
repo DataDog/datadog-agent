@@ -4,7 +4,7 @@
 #include <linux/version.h>
 #include <uapi/linux/bpf.h>
 
-#ifdef RECORD_TELEMETRY
+#ifdef RECORD_MAP_ERR_TELEMETRY
 #define DEFINE_FN(fn) _##fn
 #else
 #define DEFINE_FN(fn) fn

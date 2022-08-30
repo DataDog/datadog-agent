@@ -1,7 +1,6 @@
-#define RECORD_TELEMETRY
+#define RECORD_MAP_ERR_TELEMETRY
 #include <linux/kconfig.h>
 #include "tracer.h"
-//#include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
 #include "ipv6.h"
