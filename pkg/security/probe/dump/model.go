@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -o=model_gen.go -tests=false
-
 package dump
 
 import (
@@ -25,12 +23,12 @@ func init() {
 
 // StorageRequest is used to request a type of storage for a dump
 type StorageRequest struct {
-	Type        StorageType   `msg:"storage_type"`
-	Format      StorageFormat `msg:"format"`
-	Compression bool          `msg:"bool"`
+	Type        StorageType
+	Format      StorageFormat
+	Compression bool
 
 	// LocalStorage specific parameters
-	OutputDirectory string `msg:"output_directory"`
+	OutputDirectory string
 }
 
 // NewStorageRequest returns a new StorageRequest instance
