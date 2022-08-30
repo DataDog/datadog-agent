@@ -6,7 +6,6 @@
 //go:build linux
 // +build linux
 
-//go:generate go run github.com/tinylib/msgp -o=activity_dump_gen_linux.go -tests=false
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
 package probe
@@ -30,7 +29,6 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
-	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -67,23 +65,23 @@ const (
 
 // DumpMetadata is used to provide context about the activity dump
 type DumpMetadata struct {
-	AgentVersion      string `msg:"agent_version" json:"agent_version"`
-	AgentCommit       string `msg:"agent_commit" json:"agent_commit"`
-	KernelVersion     string `msg:"kernel_version" json:"kernel_version"`
-	LinuxDistribution string `msg:"linux_distribution" json:"linux_distribution"`
-	Arch              string `msg:"arch" json:"arch"`
+	AgentVersion      string `json:"agent_version"`
+	AgentCommit       string `json:"agent_commit"`
+	KernelVersion     string `json:"kernel_version"`
+	LinuxDistribution string `json:"linux_distribution"`
+	Arch              string `json:"arch"`
 
-	Name              string        `msg:"name" json:"name"`
-	ProtobufVersion   string        `msg:"protobuf_version" json:"protobuf_version"`
-	DifferentiateArgs bool          `msg:"differentiate_args" json:"differentiate_args"`
-	Comm              string        `msg:"comm,omitempty" json:"comm,omitempty"`
-	ContainerID       string        `msg:"container_id,omitempty" json:"-"`
-	Start             time.Time     `msg:"start" json:"start"`
-	Timeout           time.Duration `msg:"-" json:"-"`
-	End               time.Time     `msg:"end" json:"end"`
-	timeoutRaw        int64         `msg:"-"`
-	Size              uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
-	Serialization     string        `msg:"serialization,omitempty" json:"serialization,omitempty"`
+	Name              string        `json:"name"`
+	ProtobufVersion   string        `json:"protobuf_version"`
+	DifferentiateArgs bool          `json:"differentiate_args"`
+	Comm              string        `json:"comm,omitempty"`
+	ContainerID       string        `json:"-"`
+	Start             time.Time     `json:"start"`
+	Timeout           time.Duration `json:"-"`
+	End               time.Time     `json:"end"`
+	timeoutRaw        int64
+	Size              uint64 `json:"activity_dump_size,omitempty"`
+	Serialization     string `json:"serialization,omitempty"`
 }
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
@@ -103,18 +101,18 @@ type ActivityDump struct {
 	nodeStats        ActivityDumpNodeStats
 
 	// standard attributes used by the intake
-	Host    string   `msg:"host" json:"host,omitempty"`
-	Service string   `msg:"service,omitempty" json:"service,omitempty"`
-	Source  string   `msg:"source" json:"ddsource,omitempty"`
-	Tags    []string `msg:"tags,omitempty" json:"-"`
-	DDTags  string   `msg:"-" json:"ddtags,omitempty"`
+	Host    string   `json:"host,omitempty"`
+	Service string   `json:"service,omitempty"`
+	Source  string   `json:"ddsource,omitempty"`
+	Tags    []string `json:"-"`
+	DDTags  string   `json:"ddtags,omitempty"`
 
-	CookiesNode         map[uint32]*ProcessActivityNode              `msg:"-" json:"-"`
-	ProcessActivityTree []*ProcessActivityNode                       `msg:"tree,omitempty" json:"-"`
-	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `msg:"storage_requests,omitempty" json:"-"`
+	CookiesNode         map[uint32]*ProcessActivityNode              `json:"-"`
+	ProcessActivityTree []*ProcessActivityNode                       `json:"-"`
+	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `json:"-"`
 
 	// Dump metadata
-	DumpMetadata `msg:"metadata"`
+	DumpMetadata
 }
 
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
@@ -803,18 +801,6 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFo
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
-}
-
-// DecodeMSGP decodes an activity dump as MSGP
-func (ad *ActivityDump) DecodeMSGP(reader io.Reader) error {
-	ad.Lock()
-	defer ad.Unlock()
-
-	msgpReader := msgp.NewReader(reader)
-	if err := ad.DecodeMsg(msgpReader); err != nil {
-		return fmt.Errorf("couldn't parse activity dump file: %w", err)
-	}
-	return nil
 }
 
 // DecodeProtobuf decodes an activity dump as PROTOBUF
