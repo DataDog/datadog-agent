@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -543,6 +545,51 @@ func TestTCPConnsReported(t *testing.T) {
 	// Client-side
 	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
+}
+
+func TestTCPFailedConnsReported(t *testing.T) {
+	DestIP := util.AddressFromString("127.0.0.1")
+	const DestPort = 8500
+
+	config := testConfig()
+	config.CollectTCPConns = true
+
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	cmd := fmt.Sprintf("iptables -A OUTPUT -p tcp -d %v --dport %v -j DROP", DestIP, DestPort)
+	nettestutil.RunCommand(cmd)
+	t.Cleanup(func() {
+		cmd := fmt.Sprintf("iptables -D OUTPUT -p tcp -d %v --dport %v -j DROP", DestIP, DestPort)
+		nettestutil.RunCommand(cmd)
+	})
+
+	sock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+	require.NoError(t, err, "could not create socket")
+
+	// Do not retry to transmit SYNs
+	err = syscall.SetsockoptInt(sock, syscall.SOL_TCP, syscall.TCP_SYNCNT, 1)
+	require.NoError(t, err)
+
+	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: DestPort, Addr: DestIP.As4()})
+	require.ErrorIs(t, err, syscall.ETIMEDOUT) // Check it timedout
+
+	_, srcPort := getAddrInfo(t, sock)
+
+	// Test
+	initTracerState(t, tr)
+	connections := getConnections(t, tr)
+
+	require.Equal(t, len(connections.BufferedData.FailedConns), 1)
+	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
+		Source:       DestIP,
+		Dest:         DestIP,
+		SPort:        srcPort,
+		DPort:        DestPort,
+		Pid:          uint32(os.Getpid()),
+		FailureCount: 1,
+	})
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -1880,4 +1927,12 @@ func skipIfWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test unavailable on windows")
 	}
+}
+
+func getAddrInfo(t *testing.T, sock int) (util.Address, uint16) {
+	sn, err := syscall.Getsockname(sock)
+	require.NoError(t, err)
+
+	local, _ := sn.(*syscall.SockaddrInet4)
+	return util.V4AddressFromBytes(local.Addr[:]), uint16(local.Port)
 }
