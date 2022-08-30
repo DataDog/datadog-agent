@@ -33,10 +33,12 @@ const (
 
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
-	ID         MacroID       `yaml:"id"`
-	Expression string        `yaml:"expression"`
-	Values     []string      `yaml:"values"`
-	Combine    CombinePolicy `yaml:"combine"`
+	ID                     MacroID       `yaml:"id"`
+	Expression             string        `yaml:"expression"`
+	Description            string        `yaml:"description"`
+	AgentVersionConstraint string        `yaml:"agent_version"`
+	Values                 []string      `yaml:"values"`
+	Combine                CombinePolicy `yaml:"combine"`
 }
 
 // MergeWith merges macro m2 into m
@@ -50,7 +52,7 @@ func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
 	case OverridePolicy:
 		m.Values = m2.Values
 	default:
-		return &ErrMacroLoad{Definition: m2, Err: ErrInternalIDConflict}
+		return &ErrMacroLoad{Definition: m2, Err: ErrDefinitionIDConflict}
 	}
 	return nil
 }
@@ -96,7 +98,7 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 		rd.Expression = rd2.Expression
 	default:
 		if !rd2.Disabled {
-			return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
 		}
 	}
 	rd.Disabled = rd2.Disabled
