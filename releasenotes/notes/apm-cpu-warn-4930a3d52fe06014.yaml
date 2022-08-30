@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    The APM Agent now logs a warning when it's falling behind.
+    APM: A warning is now logged when the agent is under heavy load.
