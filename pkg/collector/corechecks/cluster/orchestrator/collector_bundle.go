@@ -75,29 +75,15 @@ func (cb *CollectorBundle) prepare() {
 
 // prepareCollectors initializes the bundle collector list.
 func (cb *CollectorBundle) prepareCollectors() {
-	// Custom collector list provided in the check configuration.
-	if len(cb.check.instance.Collectors) > 0 {
-		for _, c := range cb.check.instance.Collectors {
-			cb.addCollectorFromConfig(c)
-		}
+	if ok := cb.importCollectorsFromCheckConfig(); ok {
+		return
+	}
+	if ok := cb.importCollectorsFromDiscovery(); ok {
 		return
 	}
 
-	// Discover collectors from the list of resources exposed by the API server.
-	if cb.discoverCollectors {
-		provider := NewAPIServerDiscoveryProvider()
+	cb.importCollectorsFromInventory()
 
-		if collectors, err := provider.Discover(cb.inventory); err != nil {
-			_ = cb.check.Warnf("Collector discovery failed: %s", err)
-		} else if len(cb.collectors) > 0 {
-			cb.collectors = append(cb.collectors, collectors...)
-			return
-		}
-	}
-
-	// Finally, fall back to the list of stable collectors with default
-	// versions.
-	cb.collectors = cb.inventory.StableCollectors()
 	return
 }
 
@@ -134,6 +120,48 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 	}
 
 	cb.collectors = append(cb.collectors, collector)
+}
+
+// importCollectorsFromCheckConfig tries to fill the bundle with the list of
+// collectors specified in the orchestrator check configuration. Returns true if
+// at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCollectorsFromCheckConfig() bool {
+	if len(cb.check.instance.Collectors) == 0 {
+		return false
+	}
+	for _, c := range cb.check.instance.Collectors {
+		cb.addCollectorFromConfig(c)
+	}
+	return true
+}
+
+// importCollectorsFromDiscovery tries to fill the bundle with the list of
+// collectors discovered through resources available from the API server.
+// Returns true if at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
+	if !cb.discoverCollectors {
+		return false
+	}
+
+	collectors, err := NewAPIServerDiscoveryProvider().Discover(cb.inventory)
+	if err != nil {
+		_ = cb.check.Warnf("Collector discovery failed: %s", err)
+		return false
+	}
+	if len(collectors) == 0 {
+		_ = cb.check.Warnf("Collector discovery returned no collector")
+		return false
+	}
+
+	cb.collectors = append(cb.collectors, collectors...)
+
+	return true
+}
+
+// importCollectorsFromInventory fills the bundle with the list of
+// stable collectors with default versions.
+func (cb *CollectorBundle) importCollectorsFromInventory() {
+	cb.collectors = cb.inventory.StableCollectors()
 }
 
 // prepareExtraSyncTimeout initializes the bundle extra sync timeout.

@@ -43,7 +43,7 @@ func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 }
 
 // Discover returns collectors to enable based on information exposed by the API server.
-func (kp *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
+func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
 	defer cancel()
 
@@ -73,26 +73,26 @@ func (kp *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInv
 	preferredResources, otherResources := identifyResources(groups, resources)
 
 	// First pass to enable server-preferred resources
-	kp.walkAPIResources(inventory, preferredResources)
+	p.walkAPIResources(inventory, preferredResources)
 
 	// Second pass to enable other resources
-	kp.walkAPIResources(inventory, otherResources)
+	p.walkAPIResources(inventory, otherResources)
 
-	return kp.result, nil
+	return p.result, nil
 }
 
-func (kp *APIServerDiscoveryProvider) addCollector(collector collectors.Collector) {
+func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector) {
 	// Make sure resource collectors are added at most once
-	if _, found := kp.seen[collector.Metadata().Name]; found {
+	if _, found := p.seen[collector.Metadata().Name]; found {
 		return
 	}
 
-	kp.result = append(kp.result, collector)
-	kp.seen[collector.Metadata().Name] = struct{}{}
+	p.result = append(p.result, collector)
+	p.seen[collector.Metadata().Name] = struct{}{}
 	log.Debugf("Discovered collector %s", collector.Metadata().FullName())
 }
 
-func (kp *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, resources []*v1.APIResourceList) {
+func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, resources []*v1.APIResourceList) {
 	for _, list := range resources {
 		for _, resource := range list.APIResources {
 			collector, err := inventory.CollectorForVersion(resource.Name, list.GroupVersion)
@@ -103,10 +103,10 @@ func (kp *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.Coll
 			// Enable the cluster collector when the node resource is discovered.
 			if collector.Metadata().NodeType == orchestrator.K8sNode {
 				clusterCollector, _ := inventory.CollectorForDefaultVersion("clusters")
-				kp.addCollector(clusterCollector)
+				p.addCollector(clusterCollector)
 			}
 
-			kp.addCollector(collector)
+			p.addCollector(collector)
 		}
 	}
 }
@@ -130,5 +130,5 @@ func identifyResources(groups []*v1.APIGroup, resources []*v1.APIResourceList) (
 		}
 	}
 
-	return
+	return preferred, others
 }
