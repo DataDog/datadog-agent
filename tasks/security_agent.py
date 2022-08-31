@@ -331,6 +331,8 @@ def build_functional_tests(
             kernel_release=kernel_release,
         )
 
+    build_embed_syscall_tester(ctx)
+
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -388,6 +390,7 @@ def build_stress_tests(
     kernel_release=None,
     skip_object_files=False,
 ):
+    build_embed_latency_tools(ctx)
     build_functional_tests(
         ctx,
         output=output,
@@ -414,8 +417,6 @@ def stress_tests(
     testflags='',
     skip_linters=False,
 ):
-    build_embed_latency_tools(ctx)
-
     build_stress_tests(
         ctx,
         go_version=go_version,
