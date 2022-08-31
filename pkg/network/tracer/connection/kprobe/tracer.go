@@ -222,6 +222,9 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	case string(probes.MapErrTelemetryMap):
 		m, _, _ := t.m.GetMap(name)
 		return m
+	case string(probes.HelperErrTelemetryMap):
+		m, _, _ := t.m.GetMap(name)
+		return m
 	default:
 		return nil
 	}

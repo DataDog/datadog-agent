@@ -160,6 +160,7 @@ const (
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
 	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
 	MapErrTelemetryMap    BPFMapName = "map_err_telemetry_map"
+	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
 )
 
 // SectionName returns the SectionName for the given BPF map

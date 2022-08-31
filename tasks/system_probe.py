@@ -965,6 +965,58 @@ def generate_runtime_files(ctx):
     run_ninja(ctx, explain=True, target="runtime-compilation")
 
 
+def replace_cgo_tag_absolute_path(file_path, windows=is_windows):
+    # read
+    f = open(file_path)
+    lines = []
+    for line in f:
+        if (windows and line.startswith("// cgo.exe -godefs")) or (not windows and line.startswith("// cgo -godefs")):
+            path = line.split()[-1]
+            if os.path.isabs(path):
+                _, filename = os.path.split(path)
+                lines.append(line.replace(path, filename))
+                continue
+        lines.append(line)
+    f.close()
+
+    # write
+    f = open(file_path, "w")
+    res = "".join(lines)
+    f.write(res)
+    f.close()
+
+
+@task
+def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
+    if windows:
+        platform = "windows"
+        def_files = ["./pkg/network/driver/types.go"]
+    else:
+        platform = "linux"
+        def_files = [
+            "./pkg/network/ebpf/offsetguess_types.go",
+            "./pkg/network/ebpf/conntrack_types.go",
+            "./pkg/network/ebpf/tuple_types.go",
+            "./pkg/network/ebpf/kprobe_types.go",
+            "./pkg//ebpf/telemetry_types.go",
+        ]
+
+    env = {}
+    if not is_windows:
+        env["CC"] = "clang"
+
+    for f in def_files:
+        fdir, file = os.path.split(f)
+        base, _ = os.path.splitext(file)
+        with ctx.cd(fdir):
+            output_file = f"{base}_{platform}.go"
+            ctx.run(f"go tool cgo -godefs -- -fsigned-char {file} > {output_file}", env=env)
+            ctx.run(f"gofmt -w -s {output_file}")
+            if replace_absolutes:
+                # replace absolute path with relative ones in generated file
+                replace_cgo_tag_absolute_path(file_path=os.path.join(fdir, output_file), windows=windows)
+
+
 @task
 def generate_lookup_tables(ctx, windows=is_windows):
     if windows:

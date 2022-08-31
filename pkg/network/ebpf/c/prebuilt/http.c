@@ -1,7 +1,5 @@
-#define RECORD_MAP_ERR_TELEMETRY
 #include "kconfig.h"
 #include "tracer.h"
-//#include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
 #include "ipv6.h"
@@ -86,12 +84,8 @@ SEC("uprobe/SSL_connect")
 int uprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-<<<<<<< HEAD
     log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
-=======
-    bpf_map_update_elem(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
->>>>>>> a14fa8786 (recording map failure telemetry)
     return 0;
 }
 
@@ -117,12 +111,8 @@ SEC("uprobe/BIO_new_socket")
 int uprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
-<<<<<<< HEAD
     log_debug("uprobe/BIO_new_socket: pid_tgid=%llx fd=%d\n", pid_tgid, socket_fd);
     bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
-=======
-    bpf_map_update_elem(bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
->>>>>>> a14fa8786 (recording map failure telemetry)
     return 0;
 }
 
@@ -140,7 +130,7 @@ int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
         goto cleanup;
     }
     u32 fd = *socket_fd; // copy map value into stack (required by older Kernels)
-    bpf_map_update_elem(fd_by_ssl_bio, &bio, &fd, BPF_ANY);
+    MAP_UPDATE(fd_by_ssl_bio, &bio, &fd, BPF_ANY);
 cleanup:
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
     return 0;
@@ -166,12 +156,8 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-<<<<<<< HEAD
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
-=======
-    bpf_map_update_elem(ssl_read_args, &pid_tgid, &args, BPF_ANY);
->>>>>>> a14fa8786 (recording map failure telemetry)
     return 0;
 }
 
@@ -258,7 +244,7 @@ SEC("uprobe/gnutls_handshake")
 int uprobe__gnutls_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    MAP_UPDATE(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -327,7 +313,7 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
-    bpf_map_update_elem(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+    MAP_UPDATE(ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -425,9 +411,10 @@ int uprobe__gnutls_deinit(struct pt_regs *ctx) {
 }
 
 static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument) {
+    int errno;
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
+        PROBE_READ_USER(&path->buf[i], 1, &path_argument[i], errno);
         if (path->buf[i] == 0) {
             path->len = i;
             break;
@@ -437,9 +424,11 @@ static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument)
 }
 
 static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
+    int errno;
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = {0};
-    if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
+    PROBE_READ_USER(path.buf, sizeof(path.buf), path_argument, errno);
+    if (errno >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
@@ -460,7 +449,7 @@ static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     path.pid = pid_tgid >> 32;
-    bpf_map_update_elem(open_at_args, &pid_tgid, &path, BPF_ANY);
+    MAP_UPDATE(open_at_args, &pid_tgid, &path, BPF_ANY);
     return 0;
 }
 

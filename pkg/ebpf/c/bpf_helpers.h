@@ -4,12 +4,6 @@
 #include <linux/version.h>
 #include <uapi/linux/bpf.h>
 
-#ifdef RECORD_MAP_ERR_TELEMETRY
-#define DEFINE_FN(fn) _##fn
-#else
-#define DEFINE_FN(fn) fn
-#endif
-
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  */
 #if DEBUG == 1
@@ -38,7 +32,7 @@
 
 /* helper functions called from eBPF programs written in C */
 static void* (*bpf_map_lookup_elem)(void* map, void* key) = (void*)BPF_FUNC_map_lookup_elem;
-static int (*DEFINE_FN(bpf_map_update_elem))(void* map, void* key, void* value,
+static int (*bpf_map_update_elem)(void* map, void* key, void* value,
     unsigned long long flags)
     = (void*)BPF_FUNC_map_update_elem;
 static int (*bpf_map_delete_elem)(void* map, void* key) = (void*)BPF_FUNC_map_delete_elem;

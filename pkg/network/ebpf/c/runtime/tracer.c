@@ -1,4 +1,3 @@
-#define RECORD_MAP_ERR_TELEMETRY
 #include "kconfig.h"
 #include "bpf_telemetry.h"
 #include "tracer.h"
@@ -62,7 +61,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     struct sock *parm1 = (struct sock *)PT_REGS_PARM1(ctx);
 #endif
     struct sock *skp = parm1;
-    bpf_map_update_elem(tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
+    MAP_UPDATE(tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
 
@@ -172,7 +171,7 @@ int kprobe__ip6_make_skb(struct pt_regs *ctx) {
     bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
     bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
     bpf_probe_read_kernel(&args.fl6, sizeof(args.fl6), &fl6);
-    bpf_map_update_elem(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+    MAP_UPDATE(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
 
     return 0;
 }
@@ -257,7 +256,7 @@ int kprobe__ip_make_skb(struct pt_regs *ctx) {
     bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
     bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
     bpf_probe_read_kernel(&args.fl4, sizeof(args.fl4), &fl4);
-    bpf_map_update_elem(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+    MAP_UPDATE(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
 
     return 0;
 }
@@ -346,7 +345,7 @@ static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
     // keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = {};
-    bpf_map_update_elem(udp_recv_sock, &pid_tgid, &t, BPF_ANY);
+    MAP_UPDATE(udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     return 0;
 }
 
@@ -466,7 +465,7 @@ int kprobe__tcp_connect(struct pt_regs *ctx) {
     log_debug("kprobe/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
-    bpf_map_update_elem(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
+    MAP_UPDATE(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
 
     return 0;
 }
@@ -611,7 +610,7 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
     bind_syscall_args_t args = {};
     args.port = sin_port;
 
-    bpf_map_update_elem(pending_bind, &tid, &args, BPF_ANY);
+    MAP_UPDATE(pending_bind, &tid, &args, BPF_ANY);
     log_debug("sys_enter_bind: started a bind on UDP port=%d sock=%llx tid=%u\n", sin_port, sock, tid);
 
     return 0;
@@ -698,7 +697,7 @@ int kprobe__sockfd_lookup_light(struct pt_regs *ctx) {
         return 0;
     }
 
-    bpf_map_update_elem(sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
+    MAP_UPDATE(sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
     return 0;
 }
 
@@ -740,8 +739,8 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
     };
 
     // These entries are cleaned up by tcp_close
-    bpf_map_update_elem(pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
-    bpf_map_update_elem(sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
+    MAP_UPDATE(pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
+    MAP_UPDATE(sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
 cleanup:
     bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
     return 0;
@@ -762,7 +761,7 @@ int kprobe__do_sendfile(struct pt_regs *ctx) {
 
     // bring map value to eBPF stack to satisfy Kernel 4.4 verifier
     struct sock *skp = *sock;
-    bpf_map_update_elem(do_sendfile_args, &pid_tgid, &skp, BPF_ANY);
+    MAP_UPDATE(do_sendfile_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
 

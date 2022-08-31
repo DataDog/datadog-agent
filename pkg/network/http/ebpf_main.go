@@ -62,6 +62,7 @@ type ebpfProgram struct {
 
 	batchCompletionHandler *ddebpf.PerfHandler
 	mapErrTelemetryMap     *ebpf.Map
+	helperErrTelemetryMap  *ebpf.Map
 }
 
 type subprogram interface {
@@ -71,7 +72,7 @@ type subprogram interface {
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, errMap *ebpf.Map) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD, errMap, helperErrMap *ebpf.Map) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -137,6 +138,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		batchCompletionHandler: batchCompletionHandler,
 		subprograms:            []subprogram{sslProgram},
 		mapErrTelemetryMap:     errMap,
+		helperErrTelemetryMap:  helperErrMap,
 	}
 
 	return program, nil
@@ -210,6 +212,7 @@ func (e *ebpfProgram) Init() error {
 	}
 	options.MapEditors = make(map[string]*ebpf.Map)
 	options.MapEditors[string(probes.MapErrTelemetryMap)] = e.mapErrTelemetryMap
+	options.MapEditors[string(probes.HelperErrTelemetryMap)] = e.helperErrTelemetryMap
 
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
@@ -313,16 +316,8 @@ func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 	return keys
 }
 
-type zeroArr struct {
-	x1 uint32
-	x2 uint32
-	x3 uint32
-	x4 uint32
-	x5 uint32
-}
-
 func initializeMapErrTelemetryMap(mgr *manager.Manager, errMap *ebpf.Map) {
-	z := new(zeroArr)
+	z := new(ddebpf.MapErrTelemetry)
 	h := fnv.New64a()
 
 	for _, m := range mgr.Maps {

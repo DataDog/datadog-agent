@@ -10,6 +10,7 @@
 //
 // This function is used for the uprobe-based HTTPS monitoring (eg. OpenSSL, GnuTLS etc)
 static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
+    int errno;
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
 
     // we read HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
@@ -18,7 +19,7 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
 // note: bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
 #pragma unroll(HTTP_BUFFER_SIZE - 1)
         for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
-            bpf_probe_read_user(&buffer[i], 1, &data[i]);
+            PROBE_READ_USER(&buffer[i], 1, &data[i], errno);
             if (buffer[i] == 0) {
                 return;
             }
