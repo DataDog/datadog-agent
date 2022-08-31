@@ -70,9 +70,9 @@ func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.Confi
 
 func normalize(policy *rules.Policy) {
 	// remove the version
-	els := strings.SplitN(policy.Name, ".", 2)
-	if len(els) > 1 {
-		policy.Name = els[1]
+	_, normalized, found := strings.Cut(policy.Name, ".")
+	if found {
+		policy.Name = normalized
 	}
 }
 
