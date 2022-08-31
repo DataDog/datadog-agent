@@ -4,4 +4,4 @@
 
 package runtime
 
-var Tracer = NewRuntimeAsset("tracer.c", "c1437715f5c830e2f0f7c58ec13e924c67e04e2e11724fea736b60b3872d3697")
+var Tracer = NewRuntimeAsset("tracer.c", "0d2593cc0ee7ec4f2c11e85b90712264bf30b90ebdae99a2e12d21a1cf561d96")

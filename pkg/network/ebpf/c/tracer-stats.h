@@ -20,6 +20,7 @@ static __always_inline conn_stats_ts_t* get_conn_stats(conn_tuple_t *t, struct s
     if (bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
         increment_telemetry_count(conn_stats_max_entries_hit);
     }
+
     return bpf_map_lookup_elem(&conn_stats, t);
 }
 

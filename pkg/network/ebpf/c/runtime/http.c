@@ -106,6 +106,10 @@ int socket__http_filter(struct __sk_buff *skb) {
         return 0;
     }
 
+#if LINUX_VESION_CODE >= KERNEL_VERSION(4, 12, 0)
+    http.conn_cookie = bpf_get_socket_cookie(skb);
+#endif
+
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
     http.owned_by_src_port = http.tup.sport;

@@ -76,14 +76,8 @@ int socket__http_filter_entry(struct __sk_buff *skb) {
     return 0;
 }
 
-
-SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-    http_transaction_t http;
-    __builtin_memset(&http, 0, sizeof(http));
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
+int __always_inline is_http(struct __sk_buff *skb, skb_info_t *skb_info, http_transaction_t *http) {
+    if (!read_conn_tuple_skb(skb, skb_info, &(http->tup))) {
         return 0;
     }
 
@@ -91,21 +85,54 @@ int socket__http_filter(struct __sk_buff* skb) {
     // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
     // Otherwise, don't bother to inspect packet contents
     // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
-    if (!(http.tup.metadata&CONN_TYPE_TCP)) {
+    if (!(http->tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
-    if ((http.tup.sport == HTTPS_PORT || http.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
+    if ((http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) && !(skb_info->tcp_flags & TCPHDR_FIN)) {
         return 0;
     }
 
+    return 1;
+}
+
+int __always_inline filter_http(struct __sk_buff *skb, skb_info_t *skb_info, http_transaction_t *http) {
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http.owned_by_src_port = http.tup.sport;
-    normalize_tuple(&http.tup);
+    http->owned_by_src_port = http->tup.sport;
+    normalize_tuple(&http->tup);
 
-    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    http_process(&http, &skb_info, NO_TAGS);
+    read_into_buffer_skb((char *)http->request_fragment, skb, skb_info);
+    http_process(http, skb_info, NO_TAGS);
     return 0;
+}
+
+SEC("socket/http_filter")
+int socket__http_filter(struct __sk_buff* skb) {
+    skb_info_t skb_info;
+    __builtin_memset(&skb_info, 0, sizeof(skb_info));
+    http_transaction_t http;
+    __builtin_memset(&http, 0, sizeof(http));
+
+    if (!is_http(skb, &skb_info, &http)) {
+        return 0;
+    }
+
+    return filter_http(skb, &skb_info, &http);
+}
+
+SEC("socket/http_filter")
+int socket__http_filter_4_12(struct __sk_buff *skb) {
+    skb_info_t skb_info;
+    __builtin_memset(&skb_info, 0, sizeof(skb_info));
+    http_transaction_t http;
+    __builtin_memset(&http, 0, sizeof(http));
+
+    if (!is_http(skb, &skb_info, &http)) {
+        return 0;
+    }
+
+    http.conn_cookie = bpf_get_socket_cookie(skb);
+    return filter_http(skb, &skb_info, &http);
 }
 
 SEC("kprobe/tcp_sendmsg")

@@ -119,19 +119,12 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 
 func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
 	return Key{
-		KeyTuple: KeyTuple{
-			SrcIPHigh: uint64(tx.tup.saddr_h),
-			SrcIPLow:  uint64(tx.tup.saddr_l),
-			SrcPort:   uint16(tx.tup.sport),
-			DstIPHigh: uint64(tx.tup.daddr_h),
-			DstIPLow:  uint64(tx.tup.daddr_l),
-			DstPort:   uint16(tx.tup.dport),
-		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
-		Method: Method(tx.request_method),
+		Method:     Method(tx.request_method),
+		ConnCookie: uint64(tx.conn_cookie),
 	}
 }
 
@@ -163,7 +156,7 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
+			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false), tx.String())
 		}
 		h.telemetry.malformed.Inc()
 		return "", true

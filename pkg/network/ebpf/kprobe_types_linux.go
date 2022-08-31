@@ -32,9 +32,10 @@ type ConnStats struct {
 	Recv_packets uint64
 }
 type Conn struct {
-	Tup        ConnTuple
-	Conn_stats ConnStats
-	Tcp_stats  TCPStats
+	Tup         ConnTuple
+	Conn_stats  ConnStats
+	Tcp_stats   TCPStats
+	Conn_cookie uint64
 }
 type Batch struct {
 	C0  Conn

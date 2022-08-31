@@ -14,9 +14,10 @@ import (
 	"os"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -213,12 +214,22 @@ func (e *ebpfProgram) Init() error {
 		ConstantEditors: e.offsets,
 	}
 
+	if !enableRuntimeCompilation(e.cfg) {
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return err
+		}
+
+		if kv >= kernel.VersionCode(4, 12, 0) {
+			options.TailCallRouter[0].ProbeIdentificationPair.EBPFFuncName = "socket__http_filter_4_12"
+		}
+	}
+
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
 	}
 
-	err := e.InitWithOptions(e.bytecode, options)
-	if err != nil {
+	if err := e.InitWithOptions(e.bytecode, options); err != nil {
 		return err
 	}
 

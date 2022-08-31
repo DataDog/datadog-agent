@@ -1667,3 +1667,16 @@ func TestShortWrite(t *testing.T) {
 
 	assert.Equal(t, sent, conn.MonotonicSum().SentBytes)
 }
+
+func TestHttpConnectionCookieSet(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTP monitoring feature not available")
+	}
+
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+}

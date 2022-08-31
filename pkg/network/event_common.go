@@ -285,6 +285,8 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+
+	Cookie uint64
 }
 
 // Via has info about the routing decision for a flow
@@ -441,7 +443,8 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
-	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", conn cookie = %d", c.Cookie)
+	str += fmt.Sprintf(", last update epoch: %d, stat cookies: %+v", c.LastUpdateEpoch, cookies)
 
 	return str
 }
