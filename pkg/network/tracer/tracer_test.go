@@ -1784,7 +1784,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 			for _, c := range payload.Conns {
-				t.Logf("conn sport %d dport %d tags %x connKey %v\n", c.SPort, c.DPort, c.Tags, network.HTTPKeyTupleFromConn(c))
+				possibleKeyTuples := network.HTTPKeyTuplesFromConn(c)
+				t.Logf("conn sport %d dport %d tags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, possibleKeyTuples[0], possibleKeyTuples[1])
 			}
 		}
 
