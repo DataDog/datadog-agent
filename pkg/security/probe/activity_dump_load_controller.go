@@ -13,15 +13,16 @@ import (
 	"fmt"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/avast/retry-go"
+	"github.com/cilium/ebpf"
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/avast/retry-go"
-	"github.com/cilium/ebpf"
-	"golang.org/x/time/rate"
 )
 
 // ActivityDumpLCConfig represents the dynamic configuration managed by the load controller
@@ -176,10 +177,6 @@ func (lc *ActivityDumpLoadController) reduceConfig() bool {
 }
 
 func (lc *ActivityDumpLoadController) propagateLoadSettings() error {
-	return retry.Do(lc.propagateLoadSettingsRaw)
-}
-
-func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	lcConfig := lc.getCurrentConfig()
 
 	// traced event types
@@ -203,28 +200,50 @@ func (lc *ActivityDumpLoadController) propagateLoadSettingsRaw() error {
 	}
 
 	// traced cgroups count
-	if err := lc.tracedCgroupsLockMap.Update(ebpfutils.ZeroUint32MapItem, uint32(1), ebpf.UpdateNoExist); err != nil {
-		return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
-	}
+	return retry.Do(lc.editCgroupsCounter(func(counter *tracedCgroupsCounter) error {
+		log.Debugf("AD: got counter = %v, when propagating config", counter)
+		counter.Max = lcConfig.tracedCgroupsCount
+		return nil
+	}))
+}
 
-	defer func() {
-		if err := lc.tracedCgroupsLockMap.Delete(ebpfutils.ZeroUint32MapItem); err != nil {
-			log.Errorf("failed to unlock traced cgroup counter: %v", err)
+func (lc *ActivityDumpLoadController) releaseTracedCgroupSpot() error {
+	return retry.Do(lc.editCgroupsCounter(func(counter *tracedCgroupsCounter) error {
+		if counter.Counter > 0 {
+			counter.Counter--
 		}
-	}()
+		return nil
+	}))
+}
 
-	var counter tracedCgroupsCounter
-	if err := lc.tracedCgroupsCounterMap.Lookup(ebpfutils.ZeroUint32MapItem, &counter); err != nil {
-		return fmt.Errorf("failed to get traced cgroup counter: %w", err)
+type cgroupsCounterEditor = func(*tracedCgroupsCounter) error
+
+func (lc *ActivityDumpLoadController) editCgroupsCounter(editor cgroupsCounterEditor) func() error {
+	return func() error {
+		if err := lc.tracedCgroupsLockMap.Update(ebpfutils.ZeroUint32MapItem, uint32(1), ebpf.UpdateNoExist); err != nil {
+			return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
+		}
+
+		defer func() {
+			if err := lc.tracedCgroupsLockMap.Delete(ebpfutils.ZeroUint32MapItem); err != nil {
+				log.Errorf("failed to unlock traced cgroup counter: %v", err)
+			}
+		}()
+
+		var counter tracedCgroupsCounter
+		if err := lc.tracedCgroupsCounterMap.Lookup(ebpfutils.ZeroUint32MapItem, &counter); err != nil {
+			return fmt.Errorf("failed to get traced cgroup counter: %w", err)
+		}
+
+		if err := editor(&counter); err != nil {
+			return err
+		}
+
+		if err := lc.tracedCgroupsCounterMap.Put(ebpfutils.ZeroUint32MapItem, counter); err != nil {
+			return fmt.Errorf("failed to change counter max: %w", err)
+		}
+		return nil
 	}
-	log.Debugf("AD: got counter = %v, when propagating config", counter)
-
-	counter.Max = lcConfig.tracedCgroupsCount
-	if err := lc.tracedCgroupsCounterMap.Put(ebpfutils.ZeroUint32MapItem, counter); err != nil {
-		return fmt.Errorf("failed to change counter max: %w", err)
-	}
-
-	return nil
 }
 
 func (lc *ActivityDumpLoadController) getCgroupWaitTimeout() time.Duration {

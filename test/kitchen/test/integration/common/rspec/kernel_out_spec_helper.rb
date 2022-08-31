@@ -2,9 +2,9 @@ require "rspec/core/formatters/base_text_formatter"
 
 COLORS = [
   :green,
-  :yellow,
   :blue,
   :magenta,
+  :yellow,
   :cyan,
 ]
 
@@ -13,8 +13,9 @@ class KernelOut
   color_idx = File.read('/tmp/system-probe-tests/color_idx').strip.to_i - 1
   @@color = COLORS[color_idx]
 
-  def self.format(text)
-    RSpec::Core::Formatters::ConsoleCodes.wrap("[#{@@release}] #{text}", @@color)
+  def self.format(text, tag="")
+    tag = "[#{tag}]" if tag != ""
+    RSpec::Core::Formatters::ConsoleCodes.wrap("[#{@@release}]#{tag} #{text}", @@color)
   end
 end
 

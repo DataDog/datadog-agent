@@ -21,8 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Constraints on the maximum backoff time when errors occur
+const (
+	maximalMaxBackoffTime = 90 * time.Second
+	minBackoffFactor      = 2.0
+	recoveryInterval      = 2
 )
 
 // Client is a remote-configuration client to obtain configurations from the local API
@@ -39,8 +47,10 @@ type Client struct {
 	agentVersion string
 	products     []string
 
-	pollInterval    time.Duration
-	lastUpdateError error
+	pollInterval      time.Duration
+	lastUpdateError   error
+	backoffPolicy     backoff.Policy
+	backoffErrorCount int
 
 	state *state.Repository
 
@@ -65,19 +75,30 @@ func NewClient(agentName string, agentVersion string, products []data.Product, p
 		return nil, err
 	}
 
+	// A backoff is calculated as a range from which a random value will be selected. The formula is as follows.
+	//
+	// min = pollInterval * 2^<NumErrors> / minBackoffFactor
+	// max = min(maxBackoffTime, pollInterval * 2 ^<NumErrors>)
+	//
+	// The following values mean each range will always be [pollInterval*2^<NumErrors-1>, min(maxBackoffTime, pollInterval*2^<NumErrors>)].
+	// Every success will cause numErrors to shrink by 2.
+	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
+		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
+
 	return &Client{
-		ID:           generateID(),
-		startupSync:  sync.Once{},
-		ctx:          ctx,
-		close:        close,
-		agentName:    agentName,
-		agentVersion: agentVersion,
-		products:     data.ProductListToString(products),
-		grpc:         grpcClient,
-		state:        repository,
-		pollInterval: pollInterval,
-		apmListeners: make([]func(update map[string]state.APMSamplingConfig), 0),
-		cwsListeners: make([]func(update map[string]state.ConfigCWSDD), 0),
+		ID:            generateID(),
+		startupSync:   sync.Once{},
+		ctx:           ctx,
+		close:         close,
+		agentName:     agentName,
+		agentVersion:  agentVersion,
+		products:      data.ProductListToString(products),
+		grpc:          grpcClient,
+		state:         repository,
+		pollInterval:  pollInterval,
+		backoffPolicy: backoffPolicy,
+		apmListeners:  make([]func(update map[string]state.APMSamplingConfig), 0),
+		cwsListeners:  make([]func(update map[string]state.ConfigCWSDD), 0),
 	}, nil
 }
 
@@ -106,13 +127,17 @@ func (c *Client) startFn() {
 // structure in startFn.
 func (c *Client) pollLoop() {
 	for {
+		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-time.After(c.pollInterval):
+		case <-time.After(c.pollInterval + interval):
 			c.lastUpdateError = c.update()
 			if c.lastUpdateError != nil {
+				c.backoffPolicy.IncError(c.backoffErrorCount)
 				log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+			} else {
+				c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
 	}

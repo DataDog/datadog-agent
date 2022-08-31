@@ -118,6 +118,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	containerID := req.Header.Get(headerContainerID)
 	contentType := req.Header.Get("Content-Type")
 	userAgent := req.Header.Get("User-Agent")
+	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
@@ -132,6 +133,10 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 	if !isValidQueryString(req.URL.RawQuery) {
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
+	}
+
+	if needsAppKey && t.conf.EVPProxy.ApplicationKey == "" {
+		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
 	}
 
 	// We don't want to forward arbitrary headers, clear them
@@ -151,6 +156,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
 	req.Header.Set(headerContainerID, containerID)
+	if needsAppKey {
+		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
+	}
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"
