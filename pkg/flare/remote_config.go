@@ -17,7 +17,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func stripRCTargets(raw []byte) []byte {
+func hashRCTargets(raw []byte) []byte {
 	hash := sha256.Sum256(raw)
 	// Convert it to readable hex
 	s := hex.EncodeToString(hash[:])
@@ -60,7 +60,7 @@ func zipRemoteConfigDB(tempDir, hostname string) error {
 				}
 				return tempBucket.ForEach(func(k, v []byte) error {
 					if strings.HasSuffix(string(bucketName), "_targets") {
-						return dstBucket.Put(k, stripRCTargets(v))
+						return dstBucket.Put(k, hashRCTargets(v))
 					}
 					return dstBucket.Put(k, v)
 				})
