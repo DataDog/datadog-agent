@@ -290,6 +290,7 @@
 /pkg/network/http/driver_*.go           @DataDog/windows-kernel-integrations
 /pkg/network/http/*_windows*.go         @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/tracer/cmd/gotls_client    @DataDog/universal-service-monitoring
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks
 /pkg/ebpf/bytecode/runtime/http.go      @DataDog/universal-service-monitoring

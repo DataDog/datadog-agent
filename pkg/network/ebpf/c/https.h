@@ -120,4 +120,33 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
+/**
+ * get_offsets_data retrieves the result of binary analysis for the
+ * current task binary's inode number.
+ */
+static __always_inline tls_offsets_data_t* get_offsets_data() {
+    struct task_struct *t = (struct task_struct *) bpf_get_current_task();
+    struct mm_struct *mm;
+    struct file *exe_file;
+    struct dentry *dentry;
+
+    bpf_probe_read(&mm, sizeof(mm), &t->mm);
+    bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
+    bpf_probe_read(&dentry, sizeof(dentry), &exe_file->f_path.dentry);
+
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    if (!d_inode) {
+        log_debug("get_offsets_data: could not read inode struct pointer\n");
+        return NULL;
+    }
+
+    unsigned long ino;
+    bpf_probe_read(&ino, sizeof(ino), &d_inode->i_ino);
+
+    log_debug("get_offsets_data: task binary inode number: %d\n", ino);
+
+    return bpf_map_lookup_elem(&offsets_data, &ino);
+}
+
 #endif

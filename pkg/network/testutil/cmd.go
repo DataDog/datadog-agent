@@ -14,7 +14,7 @@ import (
 
 // RunCommands runs each command in cmds individually and returns the output
 // as a []string, with each element corresponding to the respective command.
-// If ignoreErrors is true, it will fail the test via t.Fatal immediately upon error.
+// If ignoreErrors is false, it will fail the test via t.Fatal immediately upon error.
 // Otherwise, the output on errors will be logged via t.Log.
 func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
 	t.Helper()

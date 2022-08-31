@@ -17,9 +17,11 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	nethttp "net/http"
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -38,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	httptest "github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -1714,4 +1717,72 @@ func TestBlockingReadCounts(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond)
 
 	assert.Equal(t, uint64(n), conn.MonotonicSum().RecvBytes)
+}
+
+// GoTLS test
+
+func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
+	const (
+		ClientBin           = "./testutil/cmd/gotls_client/gotls_client"
+		ServerAddr          = "localhost:8081"
+		ExpectedOccurrences = 10
+	)
+
+	if runtime.GOARCH != "amd64" {
+		t.Skip("GoTLS support not available on non amd64 architectures")
+	}
+
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
+	}
+
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
+	// Setup
+	closeServer := httptest.HTTPServer(t, ServerAddr, httptest.Options{
+		EnableTLS: true,
+	})
+	defer closeServer()
+
+	cfg := config.New()
+	cfg.EnableRuntimeCompiler = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+	require.NoError(t, tr.RegisterClient("1"))
+
+	req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request", ServerAddr, nethttp.StatusOK), nil)
+	require.NoError(t, err)
+
+	// Test
+	clientBuildCmd := fmt.Sprintf("go build -o %s ./testutil/cmd/gotls_client", ClientBin)
+	clientCmd := fmt.Sprintf("%s %s %d", ClientBin, ServerAddr, ExpectedOccurrences)
+	t.Cleanup(func() { os.RemoveAll(ClientBin) })
+	_ = testutil.RunCommands(t, []string{clientBuildCmd, clientCmd}, false)
+
+	occurrences := 0
+	require.Eventually(t, func() bool {
+		stats, err := tr.GetActiveConnections("1")
+		require.NoError(t, err)
+		occurrences += countRequestOccurrences(t, stats, req)
+		return occurrences == ExpectedOccurrences
+	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured", ExpectedOccurrences, occurrences)
+}
+
+func countRequestOccurrences(t *testing.T, conns *network.Connections, req *nethttp.Request) (occurrences int) {
+	t.Helper()
+
+	expectedStatus := httptest.StatusFromPath(req.URL.Path)
+	for key, stats := range conns.HTTP {
+		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			occurrences++
+		}
+	}
+
+	return
 }
