@@ -998,7 +998,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             "./pkg/network/ebpf/conntrack_types.go",
             "./pkg/network/ebpf/tuple_types.go",
             "./pkg/network/ebpf/kprobe_types.go",
-            "./pkg//ebpf/telemetry_types.go",
+            "./pkg/network/telemetry/telemetry_types.go",
         ]
 
     env = {}

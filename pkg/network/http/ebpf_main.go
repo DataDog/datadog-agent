@@ -10,10 +10,8 @@ package http
 
 import (
 	"fmt"
-	"hash/fnv"
 	"math"
 	"os"
-	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -25,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -157,7 +156,7 @@ func (e *ebpfProgram) Init() error {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
 
-	mapErrTelemetryMapKeys := buildMapErrTelemetryKeys(e.Manager)
+	mapErrTelemetryMapKeys := errtelemetry.BuildMapErrTelemetryKeys(e.Manager)
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -224,7 +223,7 @@ func (e *ebpfProgram) Init() error {
 	}
 
 	errMap, _, _ := e.GetMap(string(probes.MapErrTelemetryMap))
-	initializeMapErrTelemetryMap(e.Manager, errMap)
+	errtelemetry.InitializeMapErrTelemetryMap(e.Manager, errMap)
 
 	return nil
 }
@@ -299,34 +298,4 @@ func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
 	}
 
 	return
-}
-func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
-	var keys []manager.ConstantEditor
-
-	h := fnv.New64a()
-	for _, m := range mgr.Maps {
-		h.Write([]byte(m.Name))
-		keys = append(keys, manager.ConstantEditor{
-			Name:  m.Name + "_telemetry_key",
-			Value: h.Sum64(),
-		})
-		h.Reset()
-	}
-
-	return keys
-}
-
-func initializeMapErrTelemetryMap(mgr *manager.Manager, errMap *ebpf.Map) {
-	z := new(ddebpf.MapErrTelemetry)
-	h := fnv.New64a()
-
-	for _, m := range mgr.Maps {
-		h.Write([]byte(m.Name))
-		key := h.Sum64()
-		err := errMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
-		if err != nil {
-			fmt.Printf("err; %v\n", err)
-		}
-		h.Reset()
-	}
 }

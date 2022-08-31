@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
@@ -149,9 +150,15 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 			})
 	}
 
-	mapErrTelemetryMapKeys := buildMapErrTelemetryKeys(m)
+	mapErrTelemetryMapKeys := errtelemetry.BuildMapErrTelemetryKeys(m)
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, mapErrTelemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
+	}
+
+	errMap, _, _ := m.GetMap(string(probes.MapErrTelemetryMap))
+	err = errtelemetry.InitializeMapErrTelemetryMap(m, errMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}

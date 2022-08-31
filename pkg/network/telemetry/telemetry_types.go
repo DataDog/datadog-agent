@@ -6,10 +6,10 @@
 //go:build ignore
 // +build ignore
 
-package ebpf
+package telemetry
 
 /*
-#include "./c/telemetry_types.h"
+#include "../../ebpf/c/telemetry_types.h"
 */
 import "C"
 
