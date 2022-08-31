@@ -150,6 +150,8 @@ type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw []byte
 
+	TotalSize uint64
+
 	Container *list.Element
 
 	next *ArgsEnvsCacheEntry
@@ -183,6 +185,8 @@ func (p *ArgsEnvsCacheEntry) release() {
 
 // Append an entry to the list
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
+	p.TotalSize += uint64(entry.Size)
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
