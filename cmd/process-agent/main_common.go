@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
@@ -148,6 +149,9 @@ func runAgent(exit chan struct{}) {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
 	}
+
+	// check if agent is running as a service:
+	misconfig.ToLog()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
