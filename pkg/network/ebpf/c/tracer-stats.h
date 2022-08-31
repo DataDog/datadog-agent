@@ -7,10 +7,16 @@
 
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
-static __always_inline conn_stats_ts_t* get_conn_stats(conn_tuple_t *t) {
+static __always_inline u32 get_sk_cookie(struct sock *sk) {
+    u64 t = bpf_ktime_get_ns();
+    return (u32) ((u64)sk ^ t);
+}
+
+static __always_inline conn_stats_ts_t* get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
+    empty.cookie = get_sk_cookie(sk);
     if (bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
         increment_telemetry_count(conn_stats_max_entries_hit);
     }
@@ -39,10 +45,10 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
-                                              __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type) {
+                                              __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
     conn_stats_ts_t *val;
 
-    val = get_conn_stats(t);
+    val = get_conn_stats(t, sk);
     if (!val) {
         return;
     }
@@ -119,11 +125,11 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
-                                          __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type)
+                                          __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk)
 {
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, sk);
 
     return 0;
 }

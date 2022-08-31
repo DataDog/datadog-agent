@@ -17,10 +17,11 @@ import (
 	"syscall"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -348,8 +349,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
 
-	t.retryConntrack(delta.Conns)
-
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
@@ -534,7 +533,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	now := time.Now()
 	// Byte keys of the connections to remove
-	keys := make([]string, 0, len(entries))
+	toRemove := make([]*network.ConnectionStats, 0, len(entries))
 	// Remove the entries from the eBPF Map
 	for i := range entries {
 		entry := &entries[i]
@@ -550,13 +549,12 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk := entry.ByteKey(t.buf)
-		keys = append(keys, string(bk))
+		toRemove = append(toRemove, entry)
 	}
 
-	t.state.RemoveConnections(keys)
+	t.state.RemoveConnections(toRemove)
 
-	log.Debugf("Removed %d connection entries in %s", len(keys), time.Now().Sub(now))
+	log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
@@ -749,13 +747,13 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 
 // DebugCachedConntrack dumps the cached NAT conntrack data
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
-	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
 	}
-	defer rootNSHandle.Close()
+	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(rootNSHandle)
+	rootNS, err := util.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -775,17 +773,17 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
-	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
 	}
-	defer rootNSHandle.Close()
+	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(rootNSHandle)
+	rootNS, err := util.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
-	table, err := netlink.DumpHostTable(ctx, t.config.ProcRoot)
+	table, err := netlink.DumpHostTable(ctx, t.config)
 	if err != nil {
 		return nil, err
 	}

@@ -234,7 +234,7 @@
                                                 "class": {
                                                     "type": "integer"
                                                 },
-                                                "size": {
+                                                "length": {
                                                     "type": "integer"
                                                 },
                                                 "count": {
@@ -245,7 +245,7 @@
                                                 "name",
                                                 "type",
                                                 "class",
-                                                "size",
+                                                "length",
                                                 "count"
                                             ]
                                         }

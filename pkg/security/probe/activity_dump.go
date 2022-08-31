@@ -329,9 +329,11 @@ func (ad *ActivityDump) Stop() {
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
 		copy(containerIDB, ad.DumpMetadata.ContainerID)
-		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
-		if err != nil {
+		if err := ad.adm.tracedCgroupsMap.Delete(containerIDB); err != nil {
 			seclog.Debugf("couldn't delete activity dump filter containerID(%s): %v", ad.DumpMetadata.ContainerID, err)
+		}
+		if err := ad.adm.loadController.releaseTracedCgroupSpot(); err != nil {
+			seclog.Debugf("couldn't release one traced cgroup spot for containerID(%s): %v", ad.DumpMetadata.ContainerID, err)
 		}
 	}
 
@@ -1423,7 +1425,7 @@ func (ad *ActivityDump) combineChildren(children map[string]*FileActivityNode) m
 	current := []inner{inputs[0]}
 
 	for _, a := range inputs[1:] {
-		next := make([]inner, 0)
+		next := make([]inner, 0, len(current))
 		shouldAppend := true
 		for _, b := range current {
 			if !areCompatibleFans(a.fan, b.fan) {
