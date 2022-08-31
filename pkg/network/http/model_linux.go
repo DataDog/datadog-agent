@@ -90,8 +90,8 @@ func (tx *ebpfHttpTx) Incomplete() bool {
 }
 
 func (tx *ebpfHttpTx) ReqFragment() []byte {
-	asslice := (*[1 << 30]byte)(unsafe.Pointer(&tx.request_fragment))[:int(C.HTTP_BUFFER_SIZE):int(C.HTTP_BUFFER_SIZE)]
-	return asslice
+	asSlice := (*[1 << 30]byte)(unsafe.Pointer(&tx.request_fragment))[:int(C.HTTP_BUFFER_SIZE):int(C.HTTP_BUFFER_SIZE)]
+	return asSlice
 }
 
 func (tx *ebpfHttpTx) isIPV4() bool {
