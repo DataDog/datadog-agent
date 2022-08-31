@@ -158,14 +158,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 			}
 			srvDoneFn()
 
-			// Ensure all captured transactions get sent to user-space
-			time.Sleep(10 * time.Millisecond)
-			stats := monitor.GetHTTPStats()
-
-			// Assert all requests made were correctly captured by the monitor
-			for _, req := range requests {
-				includesRequest(t, stats, req)
-			}
+			assertAllRequestsExists(t, monitor, requests)
 		})
 	}
 }
@@ -358,6 +351,21 @@ func TestRSTPacketRegression(t *testing.T) {
 	includesRequest(t, stats, &nethttp.Request{URL: url})
 }
 
+func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
+	requestsExist := make([]bool, len(requests))
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		stats := monitor.GetHTTPStats()
+		for reqIndex, req := range requests {
+			requestsExist[reqIndex] = requestsExist[reqIndex] || isRequestIncluded(stats, req)
+		}
+	}
+
+	for reqIndex, exists := range requestsExist {
+		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
+	}
+}
+
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
@@ -376,13 +384,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	srvDoneFn()
 
 	// Ensure all captured transactions get sent to user-space
-	time.Sleep(10 * time.Millisecond)
-	stats := monitor.GetHTTPStats()
-
-	// Assert all requests made were correctly captured by the monitor
-	for _, req := range requests {
-		includesRequest(t, stats, req)
-	}
+	assertAllRequestsExists(t, monitor, requests)
 }
 
 var (
