@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/security/secl
 
-go 1.18
+go 1.17
 
 require (
 	github.com/Masterminds/semver v1.5.0

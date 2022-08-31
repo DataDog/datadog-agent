@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/remoteconfig/state
 
-go 1.18
+go 1.17
 
 require (
 	github.com/stretchr/testify v1.7.1
