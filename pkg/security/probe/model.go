@@ -11,6 +11,7 @@ package probe
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -495,10 +496,12 @@ func (ev *Event) GetProcessServiceTag() string {
 		return ""
 	}
 
+	var serviceValues []string
+
 	// first search in the process context itself
 	if entry.EnvsEntry != nil {
 		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
-			return service
+			serviceValues = append(serviceValues, service)
 		}
 	}
 
@@ -512,12 +515,37 @@ func (ev *Event) GetProcessServiceTag() string {
 
 		if ancestor.EnvsEntry != nil {
 			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
-				return service
+				serviceValues = append(serviceValues, service)
 			}
 		}
 	}
 
-	return ""
+	return bestGuessServiceTag(serviceValues)
+}
+
+func bestGuessServiceTag(serviceValues []string) string {
+	if len(serviceValues) == 0 {
+		return ""
+	}
+
+	firstGuess := serviceValues[0]
+
+	// first we sort base on len, biggest len first
+	sort.Slice(serviceValues, func(i, j int) bool {
+		return serviceValues[j] < serviceValues[i] // reverse
+	})
+
+	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]
+	for i := 0; i < len(serviceValues)-1; i++ {
+		if !strings.HasPrefix(serviceValues[i], serviceValues[i+1]) {
+			// if it's not a prefix it means we have multiple disjoints services
+			// we then return the first guess, closest in the process tree
+			return firstGuess
+		}
+	}
+
+	// we have a prefix chain, let's return the biggest one
+	return serviceValues[0]
 }
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
