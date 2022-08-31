@@ -106,16 +106,17 @@ func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 			continue
 		}
 
-		parsedValue, err := strconv.ParseUint(value, 16, 64)
-		if err != nil {
-			return 0, 0, err
-		}
-
 		switch strings.TrimRight(capKind, ":") {
 		case "CapEff":
-			capEff = parsedValue
+			capEff, err = strconv.ParseUint(value, 16, 64)
+			if err != nil {
+				return 0, 0, err
+			}
 		case "CapPrm":
-			capPrm = parsedValue
+			capPrm, err = strconv.ParseUint(value, 16, 64)
+			if err != nil {
+				return 0, 0, err
+			}
 		}
 	}
 	return capEff, capPrm, nil
