@@ -260,7 +260,7 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*httpTX)
+		httpTxn, ok := val.(*ebpfHttpTx)
 		if !ok {
 			return false
 		}
