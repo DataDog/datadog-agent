@@ -43,8 +43,6 @@ func TestMetricBasedExtractor(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			testExtractor(t, NewMetricBasedExtractor(), test)
-		})
+		testExtractor(t, NewMetricBasedExtractor(), test)
 	}
 }
