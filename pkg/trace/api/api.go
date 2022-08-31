@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
@@ -41,6 +42,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
+
+// outOfCPULogThreshold is used to throttle the out-of-cpu warnning logs
+// i.e we log the warning on every outOfCPULogThreshold occurrences.
+// The value 10 is based on load test experiments and can be revisited in the future.
+const outOfCPULogThreshold uint32 = 10
 
 var bufferPool = sync.Pool{
 	New: func() interface{} {
@@ -75,6 +81,9 @@ type HTTPReceiver struct {
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
+
+	// outOfCPUCounter is counter to throttle the out of cpu warning log
+	outOfCPUCounter *atomic.Uint32
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -100,6 +109,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
+
+		outOfCPUCounter: atomic.NewUint32(0),
 	}
 }
 
@@ -585,6 +596,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	default:
 		// channel blocked, add a goroutine to ensure we never drop
 		r.wg.Add(1)
+		count := r.outOfCPUCounter.Inc()
+		if (count-1)%outOfCPULogThreshold == 0 {
+			// Log a warning on the first occurrence and every n+outOfCPULogThreshold occurrences.
+			log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
+		}
 		go func() {
 			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
 			defer func() {
