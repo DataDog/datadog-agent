@@ -832,10 +832,11 @@ def build_object_files(
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
     ctx.run(f"ninja -d explain -f {nf_path}")
 
-    runner = ctx.run if is_root() else ctx.sudo
-    runner(f"mkdir -p {EMBEDDED_SHARE_DIR}")
-    runner(f"cp -R {build_dir} {EMBEDDED_SHARE_DIR}")
-    runner(f"chown root:root -R {EMBEDDED_SHARE_DIR}")
+    if not windows:
+        runner = ctx.run if is_root() else ctx.sudo
+        runner(f"mkdir -p {EMBEDDED_SHARE_DIR}")
+        runner(f"cp -R {build_dir} {EMBEDDED_SHARE_DIR}")
+        runner(f"chown root:root -R {EMBEDDED_SHARE_DIR}")
 
 
 @task
