@@ -106,14 +106,16 @@ def clean(_, arch="x64", debug=False):
 
 
 @task
-def package(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False, rebuild=False):
+def package(ctx, vstudio_root=None, omnibus_base_dir="c:\\omnibus-ruby", arch="x64", major_version='7', debug=False, rebuild=False):
+    if os.getenv("OMNIBUS_BASE_DIR"):
+        omnibus_base_dir = os.getenv("OMNIBUS_BASE_DIR")
     if rebuild:
         clean(ctx, arch, debug)
     build(ctx, vstudio_root, arch, major_version, debug)
     for file in glob.glob(BIN_PATH + "\\customaction*"):
         shutil.copy2(
             file,
-            f"c:\\omnibus-ruby\\src\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\{os.path.basename(file)}",
+            f"{omnibus_base_dir}\\src\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\{os.path.basename(file)}",
         )
     cmd = "omnibus\\resources\\agent\\msi\\localbuild\\rebuild.bat"
     res = ctx.run(cmd, warn=True)
