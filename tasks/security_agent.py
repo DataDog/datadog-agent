@@ -14,6 +14,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
+    build_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -319,7 +320,17 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
     race=False,
+    kernel_release=None,
+    skip_object_files=False,
 ):
+    if not skip_object_files:
+        build_object_files(
+            ctx,
+            major_version=major_version,
+            arch=arch,
+            kernel_release=kernel_release,
+        )
+
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -374,6 +385,8 @@ def build_stress_tests(
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
+    kernel_release=None,
+    skip_object_files=False,
 ):
     build_functional_tests(
         ctx,
@@ -384,6 +397,8 @@ def build_stress_tests(
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
+        skip_object_files=skip_object_files,
     )
 
 
