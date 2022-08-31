@@ -163,6 +163,9 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     if (counter->counter < counter->max) {
         counter->counter++;
         res = true;
+    } else {
+        unlock_cgroups_counter();
+        return false;
     }
 
     int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
