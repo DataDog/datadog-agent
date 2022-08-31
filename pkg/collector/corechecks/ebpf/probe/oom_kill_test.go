@@ -62,7 +62,7 @@ func TestOOMKillCompile(t *testing.T) {
 
 	cfg := ebpf.NewConfig()
 	cfg.BPFDebug = true
-	_, err = runtime.OomKill.Compile(cfg, nil, statsd.Client)
+	_, err = runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 	require.NoError(t, err)
 }
 

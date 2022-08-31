@@ -1,7 +1,7 @@
 #ifndef __PORT_H
 #define __PORT_H
 
-static __always_inline void add_port_bind(port_binding_t *pb, struct bpf_map_def *pb_map) {
+static __always_inline void add_port_bind(port_binding_t *pb, void *pb_map) {
     __u32 *port_count = bpf_map_lookup_elem(pb_map, pb);
     if (!port_count) {
         __u32 tmpport = 0;
@@ -14,7 +14,7 @@ static __always_inline void add_port_bind(port_binding_t *pb, struct bpf_map_def
     __sync_fetch_and_add(port_count, 1);
 }
 
-static __always_inline void remove_port_bind(port_binding_t *pb, struct bpf_map_def *pb_map) {
+static __always_inline void remove_port_bind(port_binding_t *pb, void *pb_map) {
     __u32 *port_count = bpf_map_lookup_elem(pb_map, pb);
     if (!port_count) {
         return;

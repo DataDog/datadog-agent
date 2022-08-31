@@ -9,8 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/jsonpb"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"

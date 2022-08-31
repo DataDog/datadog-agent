@@ -13,8 +13,9 @@ import (
 
 	"sync"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -68,7 +69,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c.ProcRoot, filter)
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}

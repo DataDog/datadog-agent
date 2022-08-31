@@ -141,13 +141,14 @@ __attribute__((always_inline)) void unlock_cgroups_counter() {
     bpf_map_delete_elem(&traced_cgroups_lock, &key);
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
-    void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
-    if (already_in) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 timeout) {
+    if (!lock_cgroups_counter()) {
         return false;
     }
 
-    if (!lock_cgroups_counter()) {
+    void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
+    if (already_in) {
+        unlock_cgroups_counter();
         return false;
     }
 
@@ -162,6 +163,13 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     if (counter->counter < counter->max) {
         counter->counter++;
         res = true;
+    }
+
+    int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
+    if (ret < 0) {
+        // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
+        unlock_cgroups_counter();
+        return false;
     }
 
     unlock_cgroups_counter();
@@ -187,19 +195,12 @@ __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAI
 __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, char cgroup[CONTAINER_ID_LEN]) {
     u64 timeout = bpf_ktime_get_ns() + get_dump_timeout();
 
-    if (!reserve_traced_cgroup_spot(cgroup)) {
+    if (!reserve_traced_cgroup_spot(cgroup, timeout)) {
         // we're already tracing too many cgroups concurrently, ignore this one for now
         return 0;
     }
 
-
-    // try to lock an entry in traced_cgroups
-    int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
-    if (ret < 0) {
-        // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
-        return 0;
-    }
-    // lock acquired ! send cgroup tracing event
+    // send cgroup tracing event
     struct cgroup_tracing_event_t *evt = get_cgroup_tracing_event();
     if (evt == NULL) {
         // should never happen, ignore
@@ -313,7 +314,8 @@ __attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx
     }
 
     // is this event type traced ?
-    u64 *traced = bpf_map_lookup_elem(&traced_event_types, &params->event_type);
+    u64 event_type = params->event_type;
+    u64 *traced = bpf_map_lookup_elem(&traced_event_types, &event_type);
     if (traced == NULL) {
         params->activity_dump_state = NO_ACTIVITY_DUMP;
         return;

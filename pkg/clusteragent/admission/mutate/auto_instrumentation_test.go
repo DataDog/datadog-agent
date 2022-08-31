@@ -44,6 +44,13 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr:        false,
 		},
 		{
+			name:    "JAVA_TOOL_OPTIONS set via ValueFrom",
+			pod:     fakePodWithEnvFieldRefValue("java-pod", "JAVA_TOOL_OPTIONS", "path"),
+			lang:    "java",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			wantErr: true,
+		},
+		{
 			name:           "nominal case: js",
 			pod:            fakePod("js-pod"),
 			lang:           "js",
@@ -60,6 +67,13 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			expectedEnvKey: "NODE_OPTIONS",
 			expectedEnvVal: "predefined --require=/datadog-lib/node_modules/dd-trace/init",
 			wantErr:        false,
+		},
+		{
+			name:    "NODE_OPTIONS set via ValueFrom",
+			pod:     fakePodWithEnvFieldRefValue("js-pod", "NODE_OPTIONS", "path"),
+			lang:    "js",
+			image:   "gcr.io/datadoghq/dd-lib-js-init:v1",
+			wantErr: true,
 		},
 		{
 			name:           "nominal case: python",
@@ -79,11 +93,28 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			expectedEnvVal: "/datadog-lib/:predefined",
 			wantErr:        false,
 		},
+		{
+			name:    "PYTHONPATH set via ValueFrom",
+			pod:     fakePodWithEnvFieldRefValue("python-pod", "PYTHONPATH", "path"),
+			lang:    "python",
+			image:   "gcr.io/datadoghq/dd-lib-python-init:v1",
+			wantErr: true,
+		},
+		{
+			name:    "Unknown language",
+			pod:     fakePod("unknown-pod"),
+			lang:    "unknown",
+			image:   "gcr.io/datadoghq/dd-lib-unknown-init:v1",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := injectAutoInstruConfig(tt.pod, tt.lang, tt.image)
 			require.False(t, (err != nil) != tt.wantErr)
+			if err != nil {
+				return
+			}
 			assertLibConfig(t, tt.pod, tt.image, tt.expectedEnvKey, tt.expectedEnvVal)
 		})
 	}

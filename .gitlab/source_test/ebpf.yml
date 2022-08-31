@@ -10,7 +10,7 @@
   - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
 
 .build_sysprobe_artifacts:
-  - inv -e system-probe.object-files
+  # kitchen prepare also builds object files
   - inv -e system-probe.kitchen-prepare
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o

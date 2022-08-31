@@ -73,6 +73,15 @@ Suite(
     ],
 ).build(kube.add_card)
 
+# exceptions are omitted from the generated test cases
+CONTAINER_EXCEPTIONS = set(
+    # (k8s, cfgsource, cca, kcuf, dcuf)
+    # These cases have never worked. See AML-240
+    ('containerd', 'annotation', True, False, False),
+    ('containerd', 'annotation', False, False, True),
+    ('containerd', 'annotation', False, False, False),
+)
+
 containers = board.add_list("Container Runtimes")
 Suite(
     LinuxConfig(),
@@ -93,6 +102,7 @@ Suite(
         for cca in (True, False)
         for kcuf in (True, False)
         for dcuf in (True, False)
+        if (k8s, cfgsource, cca, kcuf, dcuf) not in CONTAINER_EXCEPTIONS
     ],
 ).build(containers.add_card)
 

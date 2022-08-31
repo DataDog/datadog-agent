@@ -135,7 +135,7 @@ static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, connt
     return 0;
 }
 
-static __always_inline bool proc_t_comm_prefix_equals(char* prefix, int prefix_len, proc_t c) {
+static __always_inline bool proc_t_comm_prefix_equals(const char* prefix, int prefix_len, proc_t c) {
     if (prefix_len > TASK_COMM_LEN) {
         return false;
     }

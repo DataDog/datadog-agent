@@ -38,7 +38,7 @@ type CIDRValues struct {
 	// caches
 	fieldValues []FieldValue
 
-	exists map[interface{}]bool
+	exists map[string]bool
 }
 
 // AppendCIDR append a CIDR notation
@@ -56,7 +56,7 @@ func (c *CIDRValues) AppendCIDR(cidr string) error {
 	c.fieldValues = append(c.fieldValues, FieldValue{Type: IPNetValueType, Value: *ipnet})
 
 	if c.exists == nil {
-		c.exists = make(map[interface{}]bool)
+		c.exists = make(map[string]bool)
 	}
 	c.exists[cidr] = true
 
@@ -104,7 +104,7 @@ func (c *CIDRValues) AppendIP(ip string) error {
 	c.fieldValues = append(c.fieldValues, FieldValue{Type: IPNetValueType, Value: *ipnet})
 
 	if c.exists == nil {
-		c.exists = make(map[interface{}]bool)
+		c.exists = make(map[string]bool)
 	}
 	c.exists[ip] = true
 
