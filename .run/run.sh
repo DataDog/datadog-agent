@@ -1,4 +1,5 @@
 #! /usr/bin/bash -ex
+set -e
 
 # This script is responsible for running a given module using dlv, so it will be possible to debug the module
 # It can get the following parameters:

@@ -1,4 +1,5 @@
 #! /usr/bin/bash -ex
+set -e
 
 # This script is responsible for building a given module in the agent
 # It can get the following parameters:

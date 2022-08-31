@@ -7,13 +7,12 @@
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
     <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
-    <option name="INTERPRETER_PATH" value="/bin/zsh" />
+    <option name="INTERPRETER_PATH" value="/bin/bash" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="EXECUTE_IN_TERMINAL" value="true" />
     <option name="EXECUTE_SCRIPT_FILE" value="true" />
     <envs>
       <env name="BUILD_COMMAND" value="inv process-agent.build --build-exclude=systemd" />
-      <env name="REMOTE_MACHINE_IP" value="" />
       <env name="SCRIPT_TO_RUN" value=".run/build.sh" />
     </envs>
     <method v="2" />
