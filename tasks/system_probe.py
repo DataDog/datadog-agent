@@ -63,7 +63,6 @@ def ninja_define_windows_resources(ctx, nw, major_version):
     )
 
 
-
 def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None):
     nw.variable("target", "-emit-llvm")
     nw.variable("ebpfflags", get_ebpf_build_flags())
