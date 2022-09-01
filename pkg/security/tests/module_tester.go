@@ -803,7 +803,7 @@ func (tm *testModule) RegisterEventDiscarderHandler(cb eventDiscarderHandler) {
 	tm.eventDiscarderHandler.Unlock()
 }
 
-func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *sprobe.Event, field string, fieldValue string) {
+func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *sprobe.Event, field string) {
 	tm.eventDiscarderHandler.RLock()
 	callback := tm.eventDiscarderHandler.callback
 	tm.eventDiscarderHandler.RUnlock()

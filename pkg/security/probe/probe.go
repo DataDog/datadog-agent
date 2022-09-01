@@ -67,7 +67,7 @@ type EventStream interface {
 	Resume() error
 }
 
-type NotifyDiscarderPushedCallback func(eventType string, event *Event, field string, fieldValue string)
+type NotifyDiscarderPushedCallback func(eventType string, event *Event, field string)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -852,13 +852,13 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 
 	if handlers, ok := allDiscarderHandlers[eventType]; ok {
 		for _, handler := range handlers {
-			fieldValue, _ := handler(rs, event, p, Discarder{Field: field})
+			discarderPushed, _ := handler(rs, event, p, Discarder{Field: field})
 
-			if fieldValue != "" {
+			if discarderPushed {
 				p.notifyDiscarderPushedCallbacksLock.Lock()
 				defer p.notifyDiscarderPushedCallbacksLock.Unlock()
 				for _, cb := range p.notifyDiscarderPushedCallbacks {
-					cb(eventType, event, field, fieldValue)
+					cb(eventType, event, field)
 				}
 			}
 		}

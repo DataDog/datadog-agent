@@ -82,7 +82,7 @@ func (e ErrDiscarderNotSupported) Error() string {
 	return fmt.Sprintf("discarder not supported for `%s`", e.Field)
 }
 
-type onDiscarderHandler func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (string, error)
+type onDiscarderHandler func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (bool, error)
 
 var (
 	allDiscarderHandlers = make(map[eval.EventType][]onDiscarderHandler)
@@ -508,27 +508,27 @@ func (id *inodeDiscarders) discardParentInode(req *ERPCRequest, rs *rules.RuleSe
 type inodeEventGetter = func(event *Event) (eval.Field, *model.FileEvent, bool)
 
 func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter) onDiscarderHandler {
-	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (string, error) {
+	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (bool, error) {
 		field, fileEvent, isDeleted := getter(event)
 
 		if fileEvent.PathResolutionError != nil {
-			return "", fileEvent.PathResolutionError
+			return false, fileEvent.PathResolutionError
 		}
 		mountID, inode, pathID := fileEvent.MountID, fileEvent.Inode, fileEvent.PathID
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
 			if err != nil {
-				return "", err
+				return false, err
 			}
 			filename := value.(string)
 
 			if filename == "" {
-				return "", nil
+				return false, nil
 			}
 
 			if isInvalidDiscarder(field, filename) {
-				return "", nil
+				return false, nil
 			}
 
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
@@ -549,10 +549,10 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 				err = fmt.Errorf("unable to set inode discarders for `%s` for event `%s`, inode: %d: %w", filename, eventType, parentInode, err)
 			}
 
-			return filename, err
+			return true, err
 		}
 
-		return "", nil
+		return false, nil
 	}
 }
 
@@ -585,22 +585,19 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 }
 
 func processDiscarderWrapper(eventType model.EventType) onDiscarderHandler {
-	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (string, error) {
+	return func(rs *rules.RuleSet, event *Event, probe *Probe, discarder Discarder) (bool, error) {
 		if discarder.Field == "process.file.path" {
 			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileEvent.Inode, event.ProcessContext.Pid)
 
 			// discard by PID for long running process
 			if err := probe.pidDiscarders.discardPid(probe.erpcRequest, eventType, event.ProcessContext.Pid); err != nil {
-				return "", err
+				return false, err
 			}
 
-			value, _ := event.GetFieldValue(discarder.Field)
-			processPath := value.(string)
-
-			return processPath, probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
+			return true, probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
 		}
 
-		return "", nil
+		return false, nil
 	}
 }
 
