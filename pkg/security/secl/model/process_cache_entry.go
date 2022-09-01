@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	maxArgEnvSize = 256
+	// MaxArgEnvSize maximum size of one argument or environment variable
+	MaxArgEnvSize = 256
 )
 
 // SetSpan sets the span
@@ -141,7 +142,7 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [maxArgEnvSize]byte
+	ValuesRaw [MaxArgEnvSize]byte
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
@@ -223,7 +224,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == maxArgEnvSize {
+		if err != nil || entry.Size == MaxArgEnvSize {
 			if len(v) > 0 {
 				v[len(v)-1] = v[len(v)-1] + "..."
 			}
