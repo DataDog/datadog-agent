@@ -118,7 +118,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 
 		parameters, err := funcConfig.paramLookupFunction(i.goVersion, string(i.elf.arch))
 		if err != nil {
-			return nil, fmt.Errorf("failed finding parameter of function %q: %w", funcName, err)
+			return nil, fmt.Errorf("failed finding parameters of function %q: %w", funcName, err)
 		}
 
 		functionMetadata[funcName] = FunctionMetadata{
