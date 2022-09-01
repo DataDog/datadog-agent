@@ -1094,21 +1094,21 @@ func etwHttpServiceSummary() {
 	log.Infof("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
 
 	/*
-	* dbtodo
-	*
-	* gopsutil on Windows causes bad things (WMI).  Decide if we need this info
-	* and if so get another way.
-	if curProc, err := process.NewProcess(int32(os.Getpid())); err == nil {
-		if cpu, err2 := curProc.CPUPercent(); err2 == nil {
-			log.Infof("  CPU:                      %.2f%%\n", cpu)
+		* dbtodo
+		*
+		* gopsutil on Windows causes bad things (WMI).  Decide if we need this info
+		* and if so get another way.
+		if curProc, err := process.NewProcess(int32(os.Getpid())); err == nil {
+			if cpu, err2 := curProc.CPUPercent(); err2 == nil {
+				log.Infof("  CPU:                      %.2f%%\n", cpu)
+			}
+
+			if memInfo, err2 := curProc.MemoryInfo(); err2 == nil {
+				log.Infof("  VMS(RSS):                 %v(%v)\n", bytesFormat(memInfo.VMS), bytesFormat(memInfo.RSS))
+			}
 		}
 
-		if memInfo, err2 := curProc.MemoryInfo(); err2 == nil {
-			log.Infof("  VMS(RSS):                 %v(%v)\n", bytesFormat(memInfo.VMS), bytesFormat(memInfo.RSS))
-		}
-	}
-
-	fmt.Print("\n")
+		fmt.Print("\n")
 	*/
 }
 

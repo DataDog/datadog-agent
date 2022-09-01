@@ -41,9 +41,9 @@ type httpDriverInterface struct {
 	eventLoopWG sync.WaitGroup
 	closed      bool
 	// configuration entries
-	maxTransactions        uint64
+	maxTransactions       uint64
 	notificationThreshold uint64
-	maxRequestFragment     uint64
+	maxRequestFragment    uint64
 }
 
 func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterface, error) {
