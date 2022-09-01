@@ -15,6 +15,8 @@ type Logger interface {
 	Debugf(format string, params ...interface{})
 	// Errorf is used to print an error
 	Errorf(format string, params ...interface{})
+
+	IsTracing() bool
 }
 
 // NullLogger is a default implementation of the Logger interface
@@ -34,6 +36,10 @@ func (l NullLogger) Errorf(format string, params ...interface{}) {
 
 // Infof is used to print an info
 func (l NullLogger) Infof(format string, params ...interface{}) {
+}
+
+func (l NullLogger) IsTracing() bool {
+	return false
 }
 
 // OrNullLogger ensures that the provided logger is non-nil by returning a NullLogger if it is

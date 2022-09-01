@@ -521,6 +521,12 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 	return nil
 }
 
+func (rs *RuleSet) tracefProxy(format string, params ...interface{}) {
+	if rs.logger.IsTracing() {
+		rs.logger.Tracef(format, params)
+	}
+}
+
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event.GetPointer())
@@ -533,11 +539,11 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	rs.tracefProxy("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			rs.tracefProxy("Rule `%s` matches with event `%s`\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -549,7 +555,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+		rs.tracefProxy("Looking for discarders for event of type `%s`", eventType)
 
 		for _, field := range bucket.fields {
 			if rs.opts.SupportedDiscarders != nil {

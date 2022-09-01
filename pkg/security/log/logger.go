@@ -119,7 +119,7 @@ func (l *PatternLogger) TraceTag(tag fmt.Stringer, v interface{}) {
 
 // TraceTagf is used to print a trace level log
 func (l *PatternLogger) TraceTagf(tag fmt.Stringer, format string, params ...interface{}) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
+	if !l.IsTracing() {
 		return
 	}
 
@@ -128,11 +128,18 @@ func (l *PatternLogger) TraceTagf(tag fmt.Stringer, format string, params ...int
 
 // Tracef is used to print a trace level log
 func (l *PatternLogger) Tracef(format string, params ...interface{}) {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
+	if !l.IsTracing() {
 		return
 	}
 
 	l.trace(&TagStringer{}, format, params...)
+}
+
+func (l *PatternLogger) IsTracing() bool {
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
+		return false
+	}
+	return true
 }
 
 // Debugf is used to print a trace level log
