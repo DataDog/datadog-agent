@@ -99,10 +99,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		}
 	}
 
+	batchManager, err := newBatchManager(batchMap, batchStateMap, numCPUs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
+	}
+
 	return &Monitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
-		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
 		telemetrySnapshot:      nil,
