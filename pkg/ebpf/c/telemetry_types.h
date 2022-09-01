@@ -4,7 +4,7 @@
 //#include <uapi/asm-generic/errno-base.h>
 
 //#define MAX_ERRNO (ERANGE + 1)
-#define MAX_ERRNO 35
+#define MAX_ERRNO 64
 typedef struct {
     unsigned int err_count[MAX_ERRNO];
 } map_err_telemetry_t;
