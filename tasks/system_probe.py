@@ -835,7 +835,7 @@ def build_object_files(
     if not windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"{sudo} cp -R {build_dir} {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
 
 
