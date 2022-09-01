@@ -2,6 +2,14 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "exit.json",
     "type": "object",
+    "anyOf": [
+        {
+            "$ref": "/schemas/container_event.json"
+        },
+        {
+            "$ref": "/schemas/host_event.json"
+        }
+    ],
     "allOf": [
         {
             "properties": {
@@ -10,29 +18,19 @@
                     "required" : [
                         "cause",
                         "code"
-                    ]
-                },
-                "process": {
-                    "type": "object",
-                    "required": [
-                        "pid",
-                        "ppid",
-                        "tid",
-                        "uid",
-                        "gid",
-                        "user",
-                        "group",
-                        "comm",
-                        "tty",
-                        "fork_time",
-                        "exec_time",
-                        "exit_time"
-                    ]
+                    ],
+                    "properties": {
+                        "cause": {
+                            "type": "string"
+                        },
+                        "code": {
+                            "type": "integer"
+                        }
+                    }
                 }
             },
             "required": [
-                "exit",
-                "process"
+                "exit"
             ]
         }
     ]

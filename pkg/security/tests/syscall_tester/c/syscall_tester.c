@@ -156,15 +156,18 @@ int ptrace_traceme() {
     return EXIT_SUCCESS;
 }
 
-int test_signal_sigusr(void) {
-    int child = fork();
+int test_signal_sigusr(int child, int sig) {
     if (child == 0) {
-        sleep(5);
-    } else {
-        kill(child, SIGUSR1);
-        sleep(1);
+        child = fork();
+        if (child == 0) {
+            sleep(5);
+            return EXIT_SUCCESS;
+        }
     }
-    return EXIT_SUCCESS;
+
+    int ret = kill(child, sig);
+    sleep(1);
+    return ret;
 }
 
 int test_signal_eperm(void) {
@@ -185,13 +188,24 @@ int test_signal_eperm(void) {
 }
 
 int test_signal(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "%s: Please pass a test case in: sigusr, eperm.\n", __FUNCTION__);
+    if (argc < 2) {
+        fprintf(stderr, "%s: Please pass a test case in: sigusr, eperm, and an optional pid.\n", __FUNCTION__);
         return EXIT_FAILURE;
     }
 
+    int pid = 0;
+    if (argc >= 3) {
+        pid = atoi(argv[2]);
+        if (pid < 1) {
+            fprintf(stderr, "invalid pid: %s\n", argv[2]);
+            return EXIT_FAILURE;
+        }
+    }
+
     if (!strcmp(argv[1], "sigusr"))
-        return test_signal_sigusr();
+        return test_signal_sigusr(pid, SIGUSR1);
+    if (!strcmp(argv[1], "sigusr2"))
+        return test_signal_sigusr(pid, SIGUSR2);
     else if (!strcmp(argv[1], "eperm"))
         return test_signal_eperm();
     fprintf(stderr, "%s: Unknown argument: %s.\n", __FUNCTION__, argv[1]);
@@ -220,23 +234,43 @@ int test_splice() {
     return EXIT_SUCCESS;
 }
 
-int test_mkdirat_error(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "%s: Please pass a path to mkdirat.\n", __FUNCTION__);
-        return EXIT_FAILURE;
-    }
-
+int test_setregid(int argc, char **argv) {
     if (setregid(1, 1) != 0) {
         fprintf(stderr, "setregid failed");
         return EXIT_FAILURE;
     }
 
+    return EXIT_SUCCESS;
+}
+
+int test_setreuid(int argc, char **argv) {
     if (setreuid(1, 1) != 0) {
         fprintf(stderr, "setreuid failed");
         return EXIT_FAILURE;
     }
 
-    if (mkdirat(0, argv[1], 0777) == 0) {
+    return EXIT_SUCCESS;
+}
+
+int test_mkdirat(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "%s: Please pass a path to mkdirat.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    return mkdirat(0, argv[1], 0777);
+}
+
+int test_mkdirat_error(int argc, char **argv) {
+    int ret = test_setregid(argc, argv);
+    if (ret)
+        return ret;
+
+    ret = test_setreuid(argc, argv);
+    if (ret)
+        return ret;
+
+    if ((ret = test_mkdirat(argc, argv)) == 0) {
         fprintf(stderr, "mkdirat succeeded even though we expected it to fail");
         return EXIT_FAILURE;
     }
@@ -331,7 +365,7 @@ int test_bind_af_inet(int argc, char** argv) {
         }
         addr.sin_addr.s_addr = htonl(ip32);
     } else {
-        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -350,7 +384,7 @@ int test_bind_af_inet6(int argc, char** argv) {
     }
 
     if (argc != 2) {
-        fprintf(stderr, "Please speficy an option in the list: any, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -364,7 +398,7 @@ int test_bind_af_inet6(int argc, char** argv) {
     } else if (!strcmp(ip, "custom_ip")) {
         inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
     } else {
-        fprintf(stderr, "Please speficy an option in the list: any, broadcast, custom_ip\n");
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
         return EXIT_FAILURE;
     }
 
@@ -400,7 +434,7 @@ int test_bind_af_unix(void) {
 
 int test_bind(int argc, char** argv) {
     if (argc <= 1) {
-        fprintf(stderr, "Please speficy an addr_type\n");
+        fprintf(stderr, "Please specify an addr_type\n");
         return EXIT_FAILURE;
     }
 
@@ -459,22 +493,24 @@ int test_forkexec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-int test_multi_open(int argc, char **argv) {
+int test_getchar(int argc, char **argv) {
+    getchar();
+    return EXIT_SUCCESS;
+}
+
+int test_open(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "Please speficy at least a file name \n");
+        fprintf(stderr, "Please specify at least a file name \n");
         return EXIT_FAILURE;
     }
 
     for (int i = 1; i != argc; i++) {
-        getchar();
-
         char *filename = argv[i];
         int fd = open(filename, O_RDONLY | O_CREAT, 0400);
         if (fd <= 0) {
             return EXIT_FAILURE;
         }
         close(fd);
-        unlink(filename);
     }
 
     return EXIT_SUCCESS;
@@ -498,42 +534,117 @@ int test_pipe_chown(void) {
     return EXIT_SUCCESS;
 }
 
+int test_unlink(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify at least a file name \n");
+        return EXIT_FAILURE;
+    }
+
+    for (int i = 1; i != argc; i++) {
+        if (unlink(argv[i]) < 0)
+            return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_set_signal_handler(int argc, char** argv) {
+    sigset_t set;
+    int sig;
+    int *sigptr = &sig;
+    int ret_val;
+
+    sigemptyset(&set);
+    sigaddset(&set, SIGUSR2);
+    sigprocmask( SIG_BLOCK, &set, NULL );
+
+    return EXIT_SUCCESS;
+}
+
+int test_wait_signal(int argc, char** argv) {
+    sigset_t set;
+    int sig;
+    int *sigptr = &sig;
+    int ret_val;
+
+    sigemptyset(&set);
+    sigaddset(&set, SIGUSR2);
+    return sigwait(&set, sigptr);
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
         return EXIT_FAILURE;
     }
 
-    char *cmd = argv[1];
+    for (int i = 1; i < argc; i++) {
+        char *cmd = argv[i];
 
-    if (strcmp(cmd, "check") == 0) {
-        return EXIT_SUCCESS;
-    } else if (strcmp(cmd, "span-exec") == 0) {
-        return span_exec(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "ptrace-traceme") == 0) {
-        return ptrace_traceme();
-    } else if (strcmp(cmd, "span-open") == 0) {
-        return span_open(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "signal") == 0) {
-        return test_signal(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "splice") == 0) {
-        return test_splice();
-    } else if (strcmp(cmd, "mkdirat-error") == 0) {
-        return test_mkdirat_error(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "process-credentials") == 0) {
-        return test_process_set(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "self-exec") == 0) {
-        return self_exec(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "bind") == 0) {
-        return test_bind(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "fork") == 0) {
-        return test_forkexec(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "multi-open") == 0) {
-        return test_multi_open(argc - 1, argv + 1);
-    } else if (strcmp(cmd, "pipe-chown") == 0) {
-        return test_pipe_chown();
-    } else {
-        fprintf(stderr, "Unknown command `%s`\n", cmd);
-        return EXIT_FAILURE;
+        int last_arg;
+        for (last_arg = i + 1; last_arg < argc; last_arg++) {
+            if (strcmp(argv[last_arg], ";") == 0) {
+                argv[last_arg] = NULL;
+                break;
+            }
+        }
+
+        int sub_argc = last_arg - i;
+        char **sub_argv = argv + i;
+        int exit_code = 0;
+
+        if (strcmp(cmd, "check") == 0) {
+            exit_code = EXIT_SUCCESS;
+        } else if (strcmp(cmd, "span-exec") == 0) {
+            exit_code = span_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "ptrace-traceme") == 0) {
+            exit_code = ptrace_traceme();
+        } else if (strcmp(cmd, "span-open") == 0) {
+            exit_code = span_open(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "pipe-chown") == 0) {
+            exit_code = test_pipe_chown();
+        } else if (strcmp(cmd, "signal") == 0) {
+            exit_code = test_signal(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "splice") == 0) {
+            exit_code = test_splice();
+        } else if (strcmp(cmd, "mkdirat") == 0) {
+            exit_code = test_mkdirat(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "mkdirat-error") == 0) {
+            exit_code = test_mkdirat_error(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "process-credentials") == 0) {
+            exit_code = test_process_set(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "self-exec") == 0) {
+            exit_code = self_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "bind") == 0) {
+            exit_code = test_bind(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "fork") == 0) {
+            return test_forkexec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "set-signal-handler") == 0) {
+            exit_code = test_set_signal_handler(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "wait-signal") == 0) {
+            exit_code = test_wait_signal(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "setregid") == 0) {
+            exit_code = test_setregid(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "setreuid") == 0) {
+            exit_code = test_setreuid(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "getchar") == 0) {
+            exit_code = test_getchar(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "open") == 0) {
+            exit_code = test_open(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "unlink") == 0) {
+            exit_code = test_unlink(sub_argc, sub_argv);
+        } else {
+            fprintf(stderr, "Unknown command `%s`\n", cmd);
+            exit_code = EXIT_FAILURE;
+        }
+
+        if (exit_code == EXIT_FAILURE) {
+            fprintf(stderr, "Command `%s` failed: %d\n", cmd, exit_code);
+            return exit_code;
+        }
+
+        i = last_arg;
     }
+
+    return EXIT_SUCCESS;
 }

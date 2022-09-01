@@ -1564,7 +1564,9 @@ func TestProcessResolution(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		var err error
 
-		args := []string{"multi-open", "/tmp/test-process-resolution", "/tmp/test-process-resolution"}
+		args := []string{"open", "/tmp/test-process-resolution", ";",
+			"getchar", ";",
+			"open", "/tmp/test-process-resolution"}
 
 		cmd := exec.Command(syscallTester, args...)
 		stdin, err = cmd.StdinPipe()
@@ -1575,8 +1577,6 @@ func TestProcessResolution(t *testing.T) {
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
-
-		_, err = io.WriteString(stdin, "\n")
 
 		return err
 	}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -1594,6 +1594,7 @@ func TestProcessResolution(t *testing.T) {
 		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
 			t.Helper()
 
+			assert.NotNil(t, entry1)
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
@@ -1612,15 +1613,15 @@ func TestProcessResolution(t *testing.T) {
 
 		equals(t, cacheEntry, mapsEntry)
 
+		// This makes use of the cache and do not parse /proc
+		// it still checks the ResolveFromProcfs returns the correct entry
 		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
 		if procEntry == nil {
-			t.Errorf("not able to resolve the entry")
+			t.Fatalf("not able to resolve the entry")
 		}
 
 		equals(t, cacheEntry, procEntry)
 
-		if _, err = io.WriteString(stdin, "\n"); err != nil {
-			t.Error(err)
-		}
+		io.WriteString(stdin, "\n")
 	})
 }

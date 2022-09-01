@@ -59,7 +59,7 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
 		duration := end.Sub(start).Milliseconds()
-		demux.AddTimeSample(metrics.MetricSample{
+		demux.AggregateSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
@@ -102,63 +102,63 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 	billedDuration := float64(args.BilledDurationMs)
 	memorySize := float64(args.MemorySizeMb)
 	postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
-	enhancedMetrics := []metrics.MetricSample{{
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       maxMemoryUsedMetric,
 		Value:      float64(args.MaxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       memorySizeMetric,
 		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       billedDurationMetric,
 		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       durationMetric,
 		Value:      args.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       postRuntimeDurationMetric,
 		Value:      postRuntimeDuration,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}}
+	})
 	if args.InitDurationMs > 0 {
-		initDurationMetric := metrics.MetricSample{
+		args.Demux.AggregateSample(metrics.MetricSample{
 			Name:       initDurationMetric,
 			Value:      args.InitDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
 			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
-		}
-		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
-	}
-
-	for _, metric := range enhancedMetrics {
-		args.Demux.AddTimeSample(metric)
+		})
 	}
 }
 
@@ -184,7 +184,7 @@ func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer)
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
-	demux.AddTimeSample(metrics.MetricSample{
+	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,

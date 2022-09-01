@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/cgroups
 
-go 1.17
+go 1.18
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log

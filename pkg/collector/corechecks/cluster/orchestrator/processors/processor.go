@@ -164,23 +164,24 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 			ContentType:     "json",
 		})
 	}
-	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 
-	// chunk orchestrator metadata and manifest
+	// Split messages in chunks for orchestrator metadata and manifest data.
+	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 	metadataChunks := chunkResources(resourceMetadataModels, chunkCount, ctx.Cfg.MaxPerMessage)
 	manifestChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
-
 	metadataMessages := make([]model.MessageBody, 0, chunkCount)
 	manifestMessages := make([]model.MessageBody, 0, chunkCount)
+
 	for i := 0; i < chunkCount; i++ {
 		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
 		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunks[i], chunkCount))
 	}
+
 	processResult = ProcessResult{
 		MetadataMessages: metadataMessages,
 		ManifestMessages: manifestMessages,
 	}
+
 	return processResult, len(resourceMetadataModels)
 }
 
