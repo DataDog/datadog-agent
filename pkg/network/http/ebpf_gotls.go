@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	BINARY              = "/proc/134121/exe"
+	BINARY              = "/proc/13839/exe"
 	probeDataMap        = "probe_data"
 	readPartialCallsMap = "read_partial_calls"
 

@@ -37,6 +37,8 @@ BPF_HASH_MAP(read_partial_calls, read_partial_call_key_t, read_partial_call_data
 
 BPF_HASH_MAP(conn_tup_by_tls_conn, __u32, conn_tuple_t, 1024)
 
+BPF_HASH_MAP(task_thread, __u32, struct thread_struct, 1)
+
 /* Map used to store the sub program actually used by the socket filter.
  * This is done to avoid memory limitation when attaching a filter to
  * a socket.

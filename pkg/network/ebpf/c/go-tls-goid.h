@@ -46,17 +46,25 @@ static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, 
     // and bpf_probe_read in the register value
     // (which in turn is a pointer to the current runtime.g).
     // Otherwise, the verifier rejects directly using the register value.
-    void* reg_ptr = read_register_indirect(ctx, m->runtime_g_in_register);
+    uint64_t* reg_ptr = (uint64_t*)read_register_indirect(ctx, m->runtime_g_in_register);
     if (!reg_ptr) {
         return 1;
     }
 
-    void* runtime_g_ptr = 0;
-    if (bpf_probe_read(&runtime_g_ptr, sizeof(runtime_g_ptr), reg_ptr)) {
+    uint64_t runtime_g_ptr = 0;
+    if (bpf_probe_read(&runtime_g_ptr, sizeof(int64_t), reg_ptr)) {
         return 1;
     }
 
-    return bpf_probe_read(dest, sizeof(*dest), runtime_g_ptr + m->goroutine_id_offset);
+    log_debug("######### runtime_g_ptr: %lld, goroutine_id_offset %d runtime_g_in_register %d \n", runtime_g_ptr, m->goroutine_id_offset, m->runtime_g_in_register);
+    int bla = bpf_probe_read_user(dest, sizeof(int64_t), (void*)(runtime_g_ptr + m->goroutine_id_offset));
+    if (bla) {
+        log_debug("######### err: %lld\n", bla);
+        return 1;
+    }
+    log_debug("######### dest: %lld\n", dest);
+
+    return 0;
 }
 
 static __always_inline int read_goroutine_id(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {

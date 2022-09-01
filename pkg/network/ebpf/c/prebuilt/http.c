@@ -668,15 +668,6 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     return 0;
 }
 
-struct bpf_map_def SEC("maps/task_thread") task_thread = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct thread_struct),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
 static __always_inline void* get_tls_base(struct task_struct* task) {
     u32 key = 0;
     struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
