@@ -321,9 +321,8 @@ func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry
 	if err != nil {
 		return nil, fmt.Errorf("error reading loclist section: %w", err)
 	}
-	if entry != nil {
-		return entry, nil
+	if entry == nil {
+		return nil, fmt.Errorf("no loclist entry found")
 	}
-
-	return nil, fmt.Errorf("no loclist entry found")
+	return entry, nil
 }
