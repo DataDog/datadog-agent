@@ -194,7 +194,7 @@ int test_signal(int argc, char **argv) {
     }
 
     int pid = 0;
-    if (argc >= 2) {
+    if (argc >= 3) {
         pid = atoi(argv[2]);
         if (pid < 1) {
             fprintf(stderr, "invalid pid: %s\n", argv[2]);
