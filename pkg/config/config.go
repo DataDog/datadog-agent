@@ -1141,6 +1141,10 @@ func InitConfig(config Config) {
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
+	// Windows Performance Counter refresh interval
+	// Controls if and how often Performance Counters need to be refreshed by the agent. This is mainly used in integrations that rely on Performance Counters.
+	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
+
 	// Vector integration
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
