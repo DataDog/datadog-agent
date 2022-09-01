@@ -726,8 +726,10 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
     # fallback to non-release-specific directories
     if len(linux_headers) == 0:
         if os.path.isdir(src_kernels_dir):
+            print("ISDIR YES1")
             linux_headers = [os.path.join(src_kernels_dir, d) for d in os.listdir(src_kernels_dir)]
         else:
+            print("ISNOTDIR YES2")
             linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
 
     # fallback to /usr as a last report
