@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+import "strings"
 
 var (
 	fakeInodeMSW = uint64(0xdeadc001)
@@ -390,10 +391,10 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) s
 // ResolveFromCache resolves path from the cache
 func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string, error) {
 	var path *PathEntry
-	var filename string
 	var err error
 	depth := int64(0)
 	key := PathKey{MountID: mountID, Inode: inode}
+	filenameParts := make([]string, 0, 128)
 
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
@@ -411,13 +412,10 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '\x00' && path.Name[0] != '/' {
-			filename = "/" + path.Name + filename
+			filenameParts = append(filenameParts, path.Name)
 		}
 
 		if path.Parent.Inode == 0 {
-			if len(filename) == 0 {
-				filename = "/"
-			}
 			break
 		}
 
@@ -429,7 +427,29 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string
 		dr.hitsCounters[entry].Add(depth)
 	}
 
-	return filename, err
+	return computeFilenameFromParts(filenameParts), err
+}
+
+func computeFilenameFromParts(parts []string) string {
+	if len(parts) == 0 {
+		return "/"
+	}
+
+	var builder strings.Builder
+
+	// pre-allocation
+	for _, part := range parts {
+		builder.Grow(len(part) + 1)
+	}
+
+	// reverse iteration
+	for i := 0; i < len(parts); i++ {
+		j := len(parts) - 1 - i
+
+		builder.WriteRune('/')
+		builder.WriteString(parts[j])
+	}
+	return builder.String()
 }
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
