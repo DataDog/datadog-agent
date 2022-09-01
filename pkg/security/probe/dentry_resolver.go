@@ -632,7 +632,6 @@ func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []*PathEntry) {
 func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var segment string
 	var resolutionErr error
-	var cacheKey PathKey
 	depth := int64(0)
 
 	entry := counterEntry{
@@ -656,10 +655,6 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
 	for i < dr.erpcSegmentSize-17 {
 		depth++
-
-		// parse the path_key_t structure
-		cacheKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
-		cacheKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
 
 		// check challenge
 		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
@@ -689,6 +684,12 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 			i += len(segment) + 1
 		} else {
 			break
+		}
+
+		// parse the path_key_t structure
+		cacheKey := PathKey{
+			Inode:   model.ByteOrder.Uint64(dr.erpcSegment[i : i+8]),
+			MountID: model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12]),
 		}
 
 		if !IsFakeInode(cacheKey.Inode) && cache {
