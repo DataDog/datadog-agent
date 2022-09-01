@@ -83,6 +83,16 @@ func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
 		pod.Spec.Containers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.Containers[i].Env...)
 		injected = true
 	}
+	for i, ctr := range pod.Spec.InitContainers {
+		if contains(ctr.Env, env.Name) {
+			log.Debugf("Ignoring init container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
+			continue
+		}
+		// prepend rather than append so that our new vars precede container vars in the final list, so that they
+		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
+		pod.Spec.InitContainers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.InitContainers[i].Env...)
+		injected = true
+	}
 	return injected
 }
 
@@ -99,6 +109,9 @@ func injectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 	pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
 	for i := range pod.Spec.Containers {
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, volumeMount)
+	}
+	for i := range pod.Spec.InitContainers {
+		pod.Spec.InitContainers[i].VolumeMounts = append(pod.Spec.InitContainers[i].VolumeMounts, volumeMount)
 	}
 
 	return true
