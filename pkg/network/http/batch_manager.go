@@ -36,7 +36,7 @@ type batchManager struct {
 	numCPUs    int
 }
 
-func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) (*batchManager, error) {
+func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 	batch := new(httpBatch)
 	stateByCPU := make([]usrBatchState, numCPUs)
 
