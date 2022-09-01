@@ -248,14 +248,11 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		})
 	}
 
-	// if metadata were added for a check not in the collector we still need
-	// to add them to the payloadCheckMeta (this happens when using the
-	// 'check' command)
+	// if metadata were added for a check not in the collector we clear the cache. This can happen when a check
+	// submit metadata after being unscheduled but before exiting its last run.
 	for id := range checkMetadata {
 		if _, found := foundInCollector[id]; !found {
-			// id should be "check_name:check_hash"
-			parts := strings.SplitN(id, ":", 2)
-			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, "", "", "", withConfigs))
+			delete(checkMetadata, id)
 		}
 	}
 
@@ -281,6 +278,24 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		AgentMetadata: &payloadAgentMeta,
 		HostMetadata:  getHostMetadata(),
 	}
+}
+
+// GetCheckMetadata returns metadata for a check instance
+func GetCheckMetadata(c check.Check) *CheckInstanceMetadata {
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
+	checkID := string(c.ID())
+	if _, found := checkMetadata[checkID]; found {
+		return createCheckInstanceMetadata(
+			checkID,
+			strings.Split(c.ConfigSource(), ":")[0],
+			c.InitConfig(),
+			c.InstanceConfig(),
+			false,
+		)
+	}
+	return nil
 }
 
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
