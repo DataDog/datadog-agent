@@ -342,9 +342,9 @@ type Process struct {
 	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
 	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName     string      `field:"tty_name" msg:"tty,omitempty"`  // Name of the TTY associated with the process
-	Comm        string      `field:"comm" msg:"comm"`               // Comm attribute of the process
-	LinuxBinprm LinuxBinprm `field:"interpreter" msg:"interpreter"` // Script interpreter
+	TTYName     string      `field:"tty_name" msg:"tty,omitempty"`            // Name of the TTY associated with the process
+	Comm        string      `field:"comm" msg:"comm"`                         // Comm attribute of the process
+	LinuxBinprm LinuxBinprm `field:"interpreter" msg:"interpreter,omitempty"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`

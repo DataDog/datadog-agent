@@ -334,15 +334,13 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
-    struct path *interpreter_path = &file->f_path; // TODO (celia): Figure out why bpf_probe_read(&interpreter_path, sizeof(interpreter_path), &file->f_path) is blank in at least Ubuntu 5.4
-
-    syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, interpreter_path);
+    syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, &file->f_path);
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(0);
 
 #ifdef DEBUG
     bpf_printk("interpreter file: %llx\n", file);
     bpf_printk("interpreter inode: %u\n", syscall->exec.linux_binprm.interpreter.ino);
-    bpf_printk("interpreter mount id: %u %u %u\n", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(interpreter_path));
+    bpf_printk("interpreter mount id: %u %u %u\n", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
     bpf_printk("interpreter path id: %u\n", syscall->exec.linux_binprm.interpreter.path_id);
 #endif
 
