@@ -692,6 +692,10 @@ def get_kernel_arch():
     )
 
 
+def stringify_version_tuple(version):
+    return '.'.join(map(lambda x: str(x), minimal_kernel_release))
+
+
 def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
     if not kernel_release:
         os_info = os.uname()
@@ -702,7 +706,7 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
         version_tuple = list(map(int, map(lambda x: x or '0', match.group(1, 2, 4))))
         if version_tuple < minimal_kernel_release:
             print(
-                f"You need to have kernel headers for at least {'.'.join(map(lambda x: str(x), minimal_kernel_release))} to enable all system-probe features"
+                f"You need to have kernel headers for at least {stringify_version_tuple(minimal_kernel_release)} to enable all system-probe features (currently using {stringify_version_tuple(version_tuple)})"
             )
 
     src_kernels_dir = "/usr/src/kernels"
