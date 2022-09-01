@@ -833,10 +833,10 @@ def build_object_files(
     ctx.run(f"ninja -d explain -f {nf_path}")
 
     if not windows:
-        runner = ctx.run if is_root() else ctx.sudo
-        runner(f"mkdir -p {EMBEDDED_SHARE_DIR}")
-        runner(f"cp -R {build_dir} {EMBEDDED_SHARE_DIR}")
-        runner(f"chown root:root -R {EMBEDDED_SHARE_DIR}")
+        sudo = "" if is_root() else "sudo"
+        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"{sudo} cp -R {build_dir} {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
 
 
 @task
@@ -851,8 +851,8 @@ def clean_object_files(
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
 
-    runner = ctx.run if is_root() else ctx.sudo
-    runner(f"ninja -f {nf_path} -t clean")
+    sudo = "" if is_root() else "sudo"
+    ctx.run(f"{sudo} ninja -f {nf_path} -t clean")
 
 
 # deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
