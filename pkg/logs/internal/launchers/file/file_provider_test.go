@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -75,7 +77,7 @@ func (suite *ProviderTestSuite) TearDownTest() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit)
+	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
 	files := fileProvider.filesToTail(logSources)
@@ -88,7 +90,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit)
+	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
@@ -113,7 +115,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	// with wildcard
 
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit)
+	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	files, err := fileProvider.collectFiles(logSources[0])
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
@@ -124,7 +126,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	// without wildcard
 
 	path = fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider = newFileProvider(suite.filesLimit)
+	fileProvider = newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources = suite.newLogSources(path)
 	files, err = fileProvider.collectFiles(logSources[0])
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
@@ -135,7 +137,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWithRightPermissions() {
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit)
+	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
 	files := fileProvider.filesToTail(logSources)
@@ -150,7 +152,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard() {
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit)
+	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
@@ -174,7 +176,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	filesLimit := 6
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := newFileProvider(filesLimit)
+	fileProvider := newFileProvider(filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	files := fileProvider.filesToTail(logSources)
 	suite.Equal(5, len(files))
@@ -190,7 +192,7 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 
 func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit)
+	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.filesToTail(logSources)
@@ -206,7 +208,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 
 func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	filesLimit := 2
-	fileProvider := newFileProvider(filesLimit)
+	fileProvider := newFileProvider(filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
@@ -257,7 +259,7 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 	filesLimit := 6
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	excludePaths := []string{fmt.Sprintf("%s/2/*.log", suite.testDir)}
-	fileProvider := newFileProvider(filesLimit)
+	fileProvider := newFileProvider(filesLimit, sortReverseLexicographical, greedySelection)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
@@ -274,4 +276,310 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 
 func TestProviderTestSuite(t *testing.T) {
 	suite.Run(t, new(ProviderTestSuite))
+}
+
+func TestCollectFiles(t *testing.T) {
+	t.Run("Invalid Pattern", func(t *testing.T) {
+		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: "//\\///*"})
+		files, err := fileProvider.collectFiles(source)
+		assert.Len(t, files, 0)
+		assert.Error(t, err)
+	})
+	t.Run("ReverseLexicographical", func(t *testing.T) {
+		testDir := t.TempDir()
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+		}
+		createFile("a")
+		createFile("b")
+		createFile("c")
+		createFile("d")
+
+		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("*")})
+		files, err := fileProvider.collectFiles(source)
+		assert.Nil(t, err)
+		assert.Len(t, files, 4)
+		assert.Equal(t, path("d"), files[0].Path)
+		assert.Equal(t, path("c"), files[1].Path)
+		assert.Equal(t, path("b"), files[2].Path)
+		assert.Equal(t, path("a"), files[3].Path)
+	})
+
+	t.Run("Mtime", func(t *testing.T) {
+		testDir := t.TempDir()
+		baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
+
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string, time time.Time) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+			err = os.Chtimes(path(name), time, time)
+			assert.Nil(t, err)
+		}
+
+		// Given 4 files with descending mtimes
+		createFile("a.log", baseTime.Add(time.Second*4))
+		createFile("q.log", baseTime.Add(time.Second*3))
+		createFile("t.log", baseTime.Add(time.Second*2))
+		createFile("z.log", baseTime.Add(time.Second*1))
+
+		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("*")})
+		files, err := fileProvider.collectFiles(source)
+		assert.Nil(t, err)
+		assert.Len(t, files, 4)
+		assert.Equal(t, path("a.log"), files[0].Path)
+		assert.Equal(t, path("q.log"), files[1].Path)
+		assert.Equal(t, path("t.log"), files[2].Path)
+		assert.Equal(t, path("z.log"), files[3].Path)
+	})
+}
+
+func TestFilesToTail(t *testing.T) {
+	t.Run("Reverse Lexicographical - Greedy", func(t *testing.T) {
+		testDir := t.TempDir()
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+		}
+		mkDir := func(name string) {
+			err := os.Mkdir(path(name), os.ModePerm)
+			assert.Nil(t, err)
+		}
+
+		mkDir("a")
+		createFile("a/a")
+		createFile("a/b")
+		createFile("a/z")
+		mkDir("b")
+		createFile("b/a")
+		createFile("b/b")
+		createFile("b/z")
+
+		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		sources := []*sources.LogSource{
+			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("a/*")}),
+			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: path("b/*")}),
+		}
+		files := fileProvider.filesToTail(sources)
+		assert.Len(t, files, 2)
+		assert.Equal(t, path("a/z"), files[0].Path)
+		assert.Equal(t, path("a/b"), files[1].Path)
+	})
+	t.Run("Reverse Lexicographical - Global", func(t *testing.T) {
+		t.Skip()
+		testDir := t.TempDir()
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+		}
+		mkDir := func(name string) {
+			err := os.Mkdir(path(name), os.ModePerm)
+			assert.Nil(t, err)
+		}
+
+		mkDir("a")
+		createFile("a/a")
+		createFile("a/b")
+		createFile("a/z")
+		mkDir("b")
+		createFile("b/a")
+		createFile("b/b")
+		createFile("b/z")
+
+		fileProvider := newFileProvider(2, sortReverseLexicographical, globalSelection)
+		sources := []*sources.LogSource{
+			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("a/*")}),
+			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: path("b/*")}),
+		}
+		files := fileProvider.filesToTail(sources)
+		assert.Len(t, files, 2)
+		assert.Equal(t, path("b/z"), files[0].Path)
+		assert.Equal(t, path("b/b"), files[1].Path)
+	})
+	t.Run("Mtime - Greedy", func(t *testing.T) {
+		testDir := t.TempDir()
+		baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
+
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string, time time.Time) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+			err = os.Chtimes(path(name), time, time)
+			assert.Nil(t, err)
+		}
+
+		// Given 4 files with descending mtimes
+		createFile("a.log", baseTime.Add(time.Second*4))
+		createFile("q.log", baseTime.Add(time.Second*3))
+		createFile("t.log", baseTime.Add(time.Second*2))
+		createFile("z.log", baseTime.Add(time.Second*1))
+		// TODO test behavior when time is equal
+
+		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		sources := []*sources.LogSource{
+			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("*")}),
+		}
+		files := fileProvider.filesToTail(sources)
+		assert.Len(t, files, 2)
+		assert.Equal(t, path("a.log"), files[0].Path)
+		assert.Equal(t, path("q.log"), files[1].Path)
+	})
+	t.Run("Mtime - Global", func(t *testing.T) {
+		t.Skip()
+		testDir := t.TempDir()
+		baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
+
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string, time time.Time) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+			err = os.Chtimes(path(name), time, time)
+			assert.Nil(t, err)
+		}
+		mkDir := func(name string) {
+			err := os.Mkdir(path(name), os.ModePerm)
+			assert.Nil(t, err)
+		}
+
+		// Given 4 files with descending mtimes
+		mkDir("a")
+		createFile("a/a", baseTime.Add(time.Second*4))
+		createFile("a/b", baseTime.Add(time.Second*3))
+		createFile("a/c", baseTime.Add(time.Second*8))
+		mkDir("b")
+		createFile("b/a", baseTime.Add(time.Second*6))
+		createFile("b/b", baseTime.Add(time.Second*7))
+		createFile("b/c", baseTime.Add(time.Second*8))
+
+		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		sources := []*sources.LogSource{
+			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("a/*")}),
+			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: path("b/*")}),
+		}
+		files := fileProvider.filesToTail(sources)
+		assert.Len(t, files, 2)
+		assert.Equal(t, path("a/c"), files[0].Path)
+		assert.Equal(t, path("b/c"), files[1].Path)
+	})
+}
+
+func TestApplyOrdering(t *testing.T) {
+	t.Run("Mtime", func(t *testing.T) {
+		testDir := t.TempDir()
+		baseTime := time.Date(2010, time.August, 25, 0, 0, 0, 0, time.UTC)
+
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string, time time.Time) {
+			_, err := os.Create(path(name))
+			assert.Nil(t, err)
+			err = os.Chtimes(path(name), time, time)
+			assert.Nil(t, err)
+		}
+
+		// Given 4 files with descending mtimes
+		createFile("a.log", baseTime.Add(time.Second*4))
+		createFile("t.log", baseTime.Add(time.Second*2))
+		createFile("q.log", baseTime.Add(time.Second*3))
+		createFile("z.log", baseTime.Add(time.Second*1))
+
+		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		files := []string{
+			path("t.log"),
+			path("a.log"),
+			path("z.log"),
+			path("q.log"),
+		}
+		// When we apply ordering
+		fileProvider.applyOrdering(files)
+		// Then we should see all files in descending mtime order
+		assert.Len(t, files, 4)
+		assert.Equal(t, path("a.log"), files[0])
+		assert.Equal(t, path("q.log"), files[1])
+		assert.Equal(t, path("t.log"), files[2])
+		assert.Equal(t, path("z.log"), files[3])
+	})
+
+	t.Run("Reverse Lexicographical", func(t *testing.T) {
+		fileProvider := newFileProvider(0, sortReverseLexicographical, greedySelection)
+		// For lexicographical ordering, we don't actually need the files
+		// to exist on the FS, so that part is skipped for these tests
+		t.Run("Flat Directory", func(t *testing.T) {
+			files := []string{
+				"a.log",
+				"t.log",
+				"q.log",
+				"z.log",
+			}
+			fileProvider.applyOrdering(files)
+
+			assert.Len(t, files, 4)
+			assert.Equal(t, "z.log", files[0])
+			assert.Equal(t, "t.log", files[1])
+			assert.Equal(t, "q.log", files[2])
+			assert.Equal(t, "a.log", files[3])
+		})
+		t.Run("Multiple Directories dated log file", func(t *testing.T) {
+			paths := []string{
+				"/tmp/1/2018.log",
+				"/tmp/1/2017.log",
+				"/tmp/2/2018.log",
+				"/tmp/1/2016.log",
+			}
+			fileProvider.applyOrdering(paths)
+			assert.Equal(t, "/tmp/2/2018.log", paths[0])
+			assert.Equal(t, "/tmp/1/2018.log", paths[1])
+			assert.Equal(t, "/tmp/1/2017.log", paths[2])
+			assert.Equal(t, "/tmp/1/2016.log", paths[3])
+		})
+
+		t.Run("Multiple Directories - dated directory", func(t *testing.T) {
+			paths := []string{
+				"/tmp/2020-02-20/error.log",
+				"/tmp/2020-02-21/error.log",
+				"/tmp/2020-02-22/error.log",
+			}
+			fileProvider.applyOrdering(paths)
+			assert.Equal(t, "/tmp/2020-02-22/error.log", paths[0])
+			assert.Equal(t, "/tmp/2020-02-21/error.log", paths[1])
+			assert.Equal(t, "/tmp/2020-02-20/error.log", paths[2])
+		})
+		t.Run("Multiple Directories - Out of order input", func(t *testing.T) {
+			t.Skip() // See FIXME in 'applyOrdering', this test currently fails
+			paths := []string{
+				"/tmp/1/2018.log",
+				"/tmp/2/2018.log",
+				"/tmp/3/2016.log",
+				"/tmp/3/2018.log",
+				"/tmp/1/2017.log",
+			}
+			fileProvider.applyOrdering(paths)
+
+			assert.Equal(t, "/tmp/3/2018.log", paths[0])
+			assert.Equal(t, "/tmp/3/2016.log", paths[1])
+			assert.Equal(t, "/tmp/2/2018.log", paths[2])
+			assert.Equal(t, "/tmp/1/2018.log", paths[3])
+			assert.Equal(t, "/tmp/1/2017.log", paths[4])
+		})
+	})
 }

@@ -63,7 +63,7 @@ type Launcher struct {
 func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           newFileProvider(tailingLimit),
+		fileProvider:           newFileProvider(tailingLimit, sortReverseLexicographical, greedySelection),
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
@@ -136,8 +136,8 @@ func (s *Launcher) scan() {
 		// It is a hack to let two tailers tail the same file (it's happening
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
-		tailerKey := file.GetScanKey()
-		tailer, isTailed := s.tailers[tailerKey]
+		scanKey := file.GetScanKey()
+		tailer, isTailed := s.tailers[scanKey]
 		if isTailed && tailer.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
@@ -155,7 +155,7 @@ func (s *Launcher) scan() {
 				continue
 			}
 			tailersLen++
-			filesTailed[tailerKey] = true
+			filesTailed[scanKey] = true
 			continue
 		}
 
@@ -172,7 +172,7 @@ func (s *Launcher) scan() {
 			}
 		}
 
-		filesTailed[tailerKey] = true
+		filesTailed[scanKey] = true
 	}
 
 	for scanKey, tailer := range s.tailers {

@@ -23,24 +23,47 @@ import (
 // files are tailed
 const openFilesLimitWarningType = "open_files_limit_warning"
 
+// sortOptions controls what ordering is applied to discovered files
+type sortOptions string
+
+const (
+	sortReverseLexicographical = "SortReverseLexicographical"
+	sortMtime                  = "SortMtime"
+)
+
+// selectionStrategy controls how the `filesLimit` slots we have are filled given a list of sources
+type selectionStrategy string
+
+const (
+	// greedySelection will consider each source one-by-one, filling as many
+	// slots as is possible from that source before proceeding to the next one
+	greedySelection = "ChooseGreedily"
+	// globalSelection will consider files from all sources together and will choose the
+	// top `filesLimit` files based on the `sortMode` ordering
+	globalSelection = "ChooseGlobally"
+)
+
 // fileProvider implements the logic to retrieve at most filesLimit Files defined in sources
 type fileProvider struct {
 	filesLimit      int
+	sortMode        sortOptions
+	selectionMode   selectionStrategy
 	shouldLogErrors bool
 }
 
 // newFileProvider returns a new Provider
-func newFileProvider(filesLimit int) *fileProvider {
+func newFileProvider(filesLimit int, sortMode sortOptions, selectionMode selectionStrategy) *fileProvider {
 	return &fileProvider{
 		filesLimit:      filesLimit,
+		sortMode:        sortMode,
+		selectionMode:   selectionMode,
 		shouldLogErrors: true,
 	}
 }
 
 // filesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
-// For now, there is no way to prioritize specific Files over others,
-// they are just returned in reverse lexicographical order, see `searchFiles`
+// Files are collected according to the fileProvider's sortMode and chooseStrategy
 func (p *fileProvider) filesToTail(sources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
@@ -92,7 +115,8 @@ func (p *fileProvider) filesToTail(sources []*sources.LogSource) []*tailer.File 
 	return filesToTail
 }
 
-// collectFiles returns all the files matching the source path.
+// collectFiles takes a 'LogSource' and produces a list of tailers matching this source
+// with ordering defined by 'sortMode'
 func (p *fileProvider) collectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
 	_, err := os.Stat(path)
@@ -103,14 +127,21 @@ func (p *fileProvider) collectFiles(source *sources.LogSource) ([]*tailer.File, 
 		}, nil
 	case config.ContainsWildcard(path):
 		pattern := path
-		return p.searchFiles(pattern, source)
+		paths, err := p.searchFiles(pattern)
+		if err != nil {
+			return nil, err
+		}
+		p.applyOrdering(paths)
+		files, err := createIncludedTailers(paths, source)
+
+		return files, err
 	default:
 		return nil, fmt.Errorf("cannot read file %s: %s", path, err)
 	}
 }
 
 // searchFiles returns all the files matching the source path pattern.
-func (p *fileProvider) searchFiles(pattern string, source *sources.LogSource) ([]*tailer.File, error) {
+func (p *fileProvider) searchFiles(pattern string) ([]string, error) {
 	paths, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
@@ -119,23 +150,47 @@ func (p *fileProvider) searchFiles(pattern string, source *sources.LogSource) ([
 		// no file was found, its parent directories might have wrong permissions or it just does not exist
 		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are executable", pattern)
 	}
-	var files []*tailer.File
 
-	// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
-	// contains information in the file datetime. Most of the time we want the most recent files.
-	// Here, we reverse paths to have stable sort keep reverse lexicographical order w.r.t dir names. Example:
-	// [/tmp/1/2017.log, /tmp/1/2018.log, /tmp/2/2018.log] becomes [/tmp/2/2018.log, /tmp/1/2018.log, /tmp/1/2017.log]
-	// then kept as is by the sort below.
-	// https://github.com/golang/go/wiki/SliceTricks#reversing
-	for i := len(paths)/2 - 1; i >= 0; i-- {
-		opp := len(paths) - 1 - i
-		paths[i], paths[opp] = paths[opp], paths[i]
+	return paths, nil
+}
+
+// applyOrdering sorts the 'paths' slice in-place by the currently configured 'sortMode'
+// While 'paths' are just strings, they _must_ exist on the filesystem. Otherwise behavior is undefined.
+func (p *fileProvider) applyOrdering(paths []string) {
+	if p.sortMode == sortMtime {
+		// sort paths descending by mtime
+		sort.SliceStable(paths, func(i, j int) bool {
+			statI, _ := os.Stat(paths[i])
+			statJ, _ := os.Stat(paths[j])
+
+			return statI.ModTime().After(statJ.ModTime())
+		})
+	} else if p.sortMode == sortReverseLexicographical {
+		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
+		// This is true in the current go implementation, but it is unsafe to assume
+		// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=363;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
+		// https://github.com/golang/go/issues/17153
+		//
+		// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
+		// contains information in the file datetime. Most of the time we want the most recent files.
+		// Here, we reverse paths to have stable sort keep reverse lexicographical order w.r.t dir names. Example:
+		// [/tmp/1/2017.log, /tmp/1/2018.log, /tmp/2/2018.log] becomes [/tmp/2/2018.log, /tmp/1/2018.log, /tmp/1/2017.log]
+		// then kept as is by the sort below.
+
+		// https://github.com/golang/go/wiki/SliceTricks#reversing
+		for i := len(paths)/2 - 1; i >= 0; i-- {
+			opp := len(paths) - 1 - i
+			paths[i], paths[opp] = paths[opp], paths[i]
+		}
+		// sort paths by descending filenames
+		sort.SliceStable(paths, func(i, j int) bool {
+			return filepath.Base(paths[i]) > filepath.Base(paths[j])
+		})
 	}
-	// sort paths by descending filenames
-	sort.SliceStable(paths, func(i, j int) bool {
-		return filepath.Base(paths[i]) > filepath.Base(paths[j])
-	})
 
+}
+
+func createIncludedTailers(paths []string, source *sources.LogSource) ([]*tailer.File, error) {
 	// Resolve excluded path(s)
 	excludedPaths := make(map[string]int)
 	for _, excludePattern := range source.Config.ExcludePaths {
@@ -152,6 +207,7 @@ func (p *fileProvider) searchFiles(pattern string, source *sources.LogSource) ([
 		}
 	}
 
+	var files []*tailer.File
 	for _, path := range paths {
 		if excludedPaths[path] == 0 {
 			files = append(files, tailer.NewFile(path, source, true))
