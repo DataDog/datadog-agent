@@ -67,6 +67,7 @@ type EventStream interface {
 	Resume() error
 }
 
+// NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type NotifyDiscarderPushedCallback func(eventType string, event *Event, field string)
 
 // Probe represents the runtime security eBPF probe in charge of
@@ -823,6 +824,7 @@ func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
 	event.ResolveContainerTags(&event.ContainerContext)
 }
 
+// AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCallback) {
 	p.notifyDiscarderPushedCallbacksLock.Lock()
 	defer p.notifyDiscarderPushedCallbacksLock.Unlock()
