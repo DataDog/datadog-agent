@@ -237,3 +237,12 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.Manager.DumpMaps(maps...)
 }
+
+func (m *Monitor) GetAllMapsNames() []string {
+	var names []string
+	for _, m := range m.ebpfProgram.Maps {
+		names = append(names, m.Name)
+	}
+
+	return names
+}

@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -47,12 +48,13 @@ const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config      *config.Config
-	state       network.State
-	conntracker netlink.Conntracker
-	reverseDNS  dns.ReverseDNS
-	httpMonitor *http.Monitor
-	ebpfTracer  connection.Tracer
+	config       *config.Config
+	state        network.State
+	conntracker  netlink.Conntracker
+	reverseDNS   dns.ReverseDNS
+	httpMonitor  *http.Monitor
+	ebpfTracer   connection.Tracer
+	bpfTelemetry *errtelemetry.BPFTelemetry
 
 	// Telemetry
 	skippedConns *atomic.Int64 `stats:""`
@@ -142,9 +144,17 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
+	bpfTelemetry := errtelemetry.NewBPFTelemetry()
+
 	ebpfTracer, err := kprobe.New(config, constantEditors)
 	if err != nil {
 		return nil, err
+	}
+	bpfTelemetry.MapErrMap = ebpfTracer.GetMap(string(probes.MapErrTelemetryMap))
+	bpfTelemetry.HelperErrMap = ebpfTracer.GetMap(string(probes.HelperErrTelemetryMap))
+
+	if err := bpfTelemetry.RegisterMaps(ebpfTracer.GetAllMapsNames()); err != nil {
+		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
 	}
 
 	conntracker, err := newConntracker(config)
@@ -169,7 +179,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
-		httpMonitor:                newHTTPMonitor(config, ebpfTracer, constantEditors),
+		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -185,6 +195,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedConns:      atomic.NewInt64(0),
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
+		bpfTelemetry:     bpfTelemetry,
 	}
 
 	err = ebpfTracer.Start(tr.storeClosedConnections)
@@ -592,6 +603,7 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	bpfHelperStats
 )
 
 var allStats = []statsComp{
@@ -603,6 +615,7 @@ var allStats = []statsComp{
 	kprobesStats,
 	stateStats,
 	tracerStats,
+	bpfHelperStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -635,6 +648,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case bpfHelperStats:
+			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
 		}
 	}
 
@@ -778,18 +793,20 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *errtelemetry.BPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
 
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
-	mapErrMap := tracer.GetMap(string(probes.MapErrTelemetryMap))
-	helperErrMap := tracer.GetMap(string(probes.HelperErrTelemetryMap))
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, mapErrMap, helperErrMap)
+	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry.MapErrMap, bpfTelemetry.HelperErrMap)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
+		return nil
+	}
+	if err := bpfTelemetry.RegisterMaps(monitor.GetAllMapsNames()); err != nil {
+		log.Errorf("could not register maps for telemetry: %v", err)
 		return nil
 	}
 

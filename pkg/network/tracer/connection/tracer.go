@@ -32,4 +32,6 @@ type Tracer interface {
 	GetMap(string) *ebpf.Map
 	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 	DumpMaps(maps ...string) (string, error)
+	// Returns the names of all the maps
+	GetAllMapsNames() []string
 }
