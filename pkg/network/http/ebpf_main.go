@@ -16,6 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -166,7 +166,7 @@ func (e *ebpfProgram) Init() error {
 	}
 	e.Manager.DumpHandler = dumpMapsHandler
 
-	numCPUs, err := utils.NumCPU()
+	onlineCPUs, err := cpupossible.Get()
 	if err != nil {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
@@ -184,7 +184,7 @@ func (e *ebpfProgram) Init() error {
 			},
 			httpBatchesMap: {
 				Type:       ebpf.Hash,
-				MaxEntries: uint32(numCPUs * HTTPBatchPages),
+				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
