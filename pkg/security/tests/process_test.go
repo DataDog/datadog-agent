@@ -1683,7 +1683,7 @@ chmod 755 pyscript.py
 				t.Logf(string(output))
 
 				offsets, _ := testModule.probe.GetOffsetConstants()
-				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmFileField, offsets[constantfetch.OffsetNameLinuxBinprmFileField])
+				t.Logf("%s: %+v\n", constantfetch.OffsetName_LinuxBinprm_File, offsets[constantfetch.OffsetName_LinuxBinprm_File])
 
 				return nil
 			}, func(event *sprobe.Event, rule *rules.Rule) {

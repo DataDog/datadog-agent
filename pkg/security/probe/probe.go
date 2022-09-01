@@ -1640,7 +1640,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
 
 	// Interpreter constants
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmFileField, "struct linux_binprm", "file", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetName_LinuxBinprm_File, "struct linux_binprm", "file", "linux/binfmts.h")
 
 	if !kv.IsRH7Kernel() {
 		constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
