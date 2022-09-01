@@ -16,22 +16,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func TestExtractCronJob(t *testing.T) {
+func TestExtractCronJobV1(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 	lastScheduleTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input    batchv1beta1.CronJob
+		input    batchv1.CronJob
 		expected model.CronJob
 	}{
 		"full cron job (active)": {
-			input: batchv1beta1.CronJob{
+			input: batchv1.CronJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						"annotation": "my-annotation",
@@ -45,15 +44,15 @@ func TestExtractCronJob(t *testing.T) {
 					ResourceVersion: "220593670",
 					UID:             types.UID("0ff96226-578d-4679-b3c8-72e8a485c0ef"),
 				},
-				Spec: batchv1beta1.CronJobSpec{
-					ConcurrencyPolicy:          batchv1beta1.ForbidConcurrent,
+				Spec: batchv1.CronJobSpec{
+					ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 					FailedJobsHistoryLimit:     int32Ptr(4),
 					Schedule:                   "*/5 * * * *",
 					StartingDeadlineSeconds:    int64Ptr(120),
 					SuccessfulJobsHistoryLimit: int32Ptr(2),
 					Suspend:                    boolPtr(false),
 				},
-				Status: batchv1beta1.CronJobStatus{
+				Status: batchv1.CronJobStatus{
 					Active: []corev1.ObjectReference{
 						{
 							APIVersion:      "batch/v1",
@@ -100,26 +99,10 @@ func TestExtractCronJob(t *testing.T) {
 				},
 			},
 		},
-		"cronjob with resources": {
-			input: batchv1beta1.CronJob{
-				Spec: batchv1beta1.CronJobSpec{
-					JobTemplate: batchv1beta1.JobTemplateSpec{
-						Spec: batchv1.JobSpec{Template: getTemplateWithResourceRequirements()},
-					},
-				},
-			},
-			expected: model.CronJob{
-				Metadata: &model.Metadata{},
-				Spec: &model.CronJobSpec{
-					ResourceRequirements: getExpectedModelResourceRequirements(),
-				},
-				Status: &model.CronJobStatus{},
-			},
-		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractCronJob(&tc.input))
+			assert.Equal(t, &tc.expected, ExtractCronJobV1(&tc.input))
 		})
 	}
 }

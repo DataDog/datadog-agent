@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -o=model_gen.go -tests=false
-
 package dump
 
 import (
@@ -25,12 +23,12 @@ func init() {
 
 // StorageRequest is used to request a type of storage for a dump
 type StorageRequest struct {
-	Type        StorageType   `msg:"storage_type"`
-	Format      StorageFormat `msg:"format"`
-	Compression bool          `msg:"bool"`
+	Type        StorageType
+	Format      StorageFormat
+	Compression bool
 
 	// LocalStorage specific parameters
-	OutputDirectory string `msg:"output_directory"`
+	OutputDirectory string
 }
 
 // NewStorageRequest returns a new StorageRequest instance
@@ -105,12 +103,8 @@ func (sf StorageFormat) String() string {
 var (
 	// JSON is used to request the JSON format
 	JSON StorageFormat = "json"
-	// MSGP is used to request the message pack format
-	MSGP StorageFormat = "msgp"
 	// PROTOBUF is used to request the protobuf format
 	PROTOBUF StorageFormat = "protobuf"
-	// PROTOJSON is used to request the JSON protobuf format
-	PROTOJSON StorageFormat = "protojson"
 	// DOT is used to request the dot format
 	DOT StorageFormat = "dot"
 	// Profile is used to request the Secl profile format
@@ -121,7 +115,7 @@ var (
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{JSON, MSGP, PROTOBUF, PROTOJSON, DOT, Profile}
+	return []StorageFormat{JSON, PROTOBUF, DOT, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input

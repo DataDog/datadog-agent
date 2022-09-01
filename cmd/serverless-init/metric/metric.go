@@ -24,7 +24,7 @@ func AddShutdownMetric(tags []string, timestamp time.Time, demux aggregator.Demu
 
 func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
-	demux.AddTimeSample(metrics.MetricSample{
+	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,

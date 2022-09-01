@@ -1,6 +1,7 @@
 ---
 .system-probe_build_common:
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
@@ -10,7 +11,6 @@
     # TODO: remove this once we switch to k8s runners, they won't have this problem
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
-    - inv -e deps
     # Retrieve nikos from S3
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
     - mkdir -p $NIKOS_EMBEDDED_PATH
@@ -42,7 +42,7 @@ build_system-probe-x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check"]
+  needs: ["go_deps"]
   extends: .system-probe_build_common
   variables:
     ARCH: amd64
@@ -52,7 +52,7 @@ build_system-probe-arm64:
     !reference [.on_all_builds]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["go_mod_tidy_check"]
+  needs: ["go_deps"]
   tags: ["runner:docker-arm", "platform:arm64"]
   extends: .system-probe_build_common
   variables:

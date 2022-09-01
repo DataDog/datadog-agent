@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewDeploymentCollectorVersions builds the group of collector versions.
+func NewDeploymentCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewDeploymentCollector(),
+	)
+}
+
 // DeploymentCollector is a collector for Kubernetes Deployments.
 type DeploymentCollector struct {
 	informer  appsv1Informers.DeploymentInformer
@@ -33,9 +40,11 @@ type DeploymentCollector struct {
 func NewDeploymentCollector() *DeploymentCollector {
 	return &DeploymentCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "deployments",
-			NodeType: orchestrator.K8sDeployment,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "deployments",
+			NodeType:         orchestrator.K8sDeployment,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
 	}

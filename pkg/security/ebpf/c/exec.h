@@ -127,6 +127,16 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/task_in_coredump") tasks_in_coredump = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u64),
+    .value_size = sizeof(u8),
+    .max_entries = 64,
+    .map_flags = BPF_F_NO_COMMON_LRU,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
     if (!cookie) {
         return NULL;
@@ -556,6 +566,16 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     return 0;
 }
 
+SEC("kprobe/do_coredump")
+int kprobe_do_coredump(struct pt_regs *ctx) {
+    u64 key = bpf_get_current_pid_tgid();
+    u8 in_coredump = 1;
+
+    bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
+
+    return 0;
+}
+
 SEC("kprobe/do_exit")
 int kprobe_do_exit(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -586,6 +606,11 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
         event.exit_code = (u32)PT_REGS_PARM1(ctx);
+        u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
+        if (in_coredump) {
+            event.exit_code |= 0x80;
+            bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
+        }
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();

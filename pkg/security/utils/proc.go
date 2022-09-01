@@ -101,12 +101,12 @@ func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 	}
 	lines := strings.Split(string(contents), "\n")
 	for _, line := range lines {
-		tabParts := strings.SplitN(line, "\t", 2)
-		if len(tabParts) < 2 {
+		capKind, value, found := strings.Cut(line, "\t")
+		if !found {
 			continue
 		}
-		value := tabParts[1]
-		switch strings.TrimRight(tabParts[0], ":") {
+
+		switch strings.TrimRight(capKind, ":") {
 		case "CapEff":
 			capEff, err = strconv.ParseUint(value, 16, 64)
 			if err != nil {

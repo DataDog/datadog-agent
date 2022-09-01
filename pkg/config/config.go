@@ -1005,6 +1005,7 @@ func InitConfig(config Config) {
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
+	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
@@ -1376,6 +1377,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}()
 
 	if err := config.ReadInConfig(); err != nil {
+		if IsServerless() {
+			log.Debug("No config file detected, using environment variable based configuration only")
+			return &warnings, nil
+		}
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		} else {

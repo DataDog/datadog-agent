@@ -254,6 +254,7 @@ func (s *Service) refresh() error {
 	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	err = s.uptane.Update(response)

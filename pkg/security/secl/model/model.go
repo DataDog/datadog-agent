@@ -147,7 +147,7 @@ type ContainerContext struct {
 type Event struct {
 	ID           string    `field:"-" json:"-"`
 	Type         uint32    `field:"-"`
-	Async        bool      `field:"async" msg:"async" event:"*"` // True if the syscall was asynchronous
+	Async        bool      `field:"async" event:"*"` // True if the syscall was asynchronous
 	TimestampRaw uint64    `field:"-" json:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 

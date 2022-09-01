@@ -14,9 +14,9 @@ import (
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 )
 
-// ExtractCronJob returns the protobuf model corresponding to a Kubernetes
+// ExtractCronJobV1Beta1 returns the protobuf model corresponding to a Kubernetes
 // CronJob resource.
-func ExtractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
+func ExtractCronJobV1Beta1(cj *batchv1beta1.CronJob) *model.CronJob {
 	cronJob := model.CronJob{
 		Metadata: extractMetadata(&cj.ObjectMeta),
 		Spec: &model.CronJobSpec{

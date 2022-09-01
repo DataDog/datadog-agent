@@ -774,7 +774,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+			if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
+				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+			} else {
+				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+			}
+
 			return
 		}
 	case model.BindEventType:
