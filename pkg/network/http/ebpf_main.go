@@ -258,8 +258,8 @@ func (e *ebpfProgram) setupMapCleaner() {
 		return
 	}
 
-	ttl := maxRequestLinger.Nanoseconds()
-	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
+	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
 		httpTX, ok := val.(*httpTX)
 		if !ok {
 			return false

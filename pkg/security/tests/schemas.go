@@ -207,12 +207,6 @@ func validateBindSchema(t *testing.T, event *sprobe.Event) bool {
 }
 
 //nolint:deadcode,unused
-func validateActivityDumpSchema(t *testing.T, ad string) bool {
-	t.Helper()
-	return validateStringSchema(t, ad, "file:///schemas/activity_dump.schema.json")
-}
-
-//nolint:deadcode,unused
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")
