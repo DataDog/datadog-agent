@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build linux_bpf
+// +build linux_bpf
+
 package bininspect
 
 import (
@@ -139,17 +142,10 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 		return 0, errors.New("got nil elf file")
 	}
 
-	regularSymbols, regularSymbolsErr := f.Symbols()
-	dynamicSymbols, dynamicSymbolsErr := f.DynamicSymbols()
-
-	// Only if we failed getting both regular and dynamic symbols - then we abort.
-	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
-		return 0, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
+	syms, err := GetAllSymbolsByName(f)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get all symbols from file: %w", err)
 	}
-
-	// Concatenating into a single list.
-	// The list can have duplications, but we will find the first occurrence which is sufficient.
-	syms := append(regularSymbols, dynamicSymbols...)
 
 	var sectionsToSearchForSymbol []*elf.Section
 
@@ -159,16 +155,21 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 		}
 	}
 
+	if len(sectionsToSearchForSymbol) == 0 {
+		return 0, fmt.Errorf("symbol %s not found in file - no sections to search", symbol)
+	}
+
 	var executableSection *elf.Section
 
-	for j := range syms {
-		if syms[j].Name == symbol {
+	for symbolName, symbolData := range syms {
+		if symbolName == symbol {
 			// Find what section the symbol is in by checking the executable section's
 			// addr space.
 			for m := range sectionsToSearchForSymbol {
-				if syms[j].Value > sectionsToSearchForSymbol[m].Addr &&
-					syms[j].Value < sectionsToSearchForSymbol[m].Addr+sectionsToSearchForSymbol[m].Size {
+				if symbolData.Value > sectionsToSearchForSymbol[m].Addr &&
+					symbolData.Value < sectionsToSearchForSymbol[m].Addr+sectionsToSearchForSymbol[m].Size {
 					executableSection = sectionsToSearchForSymbol[m]
+					break
 				}
 			}
 
@@ -176,7 +177,7 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 				return 0, errors.New("could not find symbol in executable sections of binary")
 			}
 
-			return uint32(syms[j].Value - executableSection.Addr + executableSection.Offset), nil
+			return uint32(symbolData.Value - executableSection.Addr + executableSection.Offset), nil
 		}
 	}
 
