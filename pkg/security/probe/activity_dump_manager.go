@@ -531,7 +531,7 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
 	if totalSize > uint64(maxTotalADSize) {
 		if err := adm.loadController.reduceConfig(); err != nil {
-			seclog.Errorf("configuration reduction failed: %w", err)
+			seclog.Errorf("configuration reduction failed: %v", err)
 		}
 	}
 }
