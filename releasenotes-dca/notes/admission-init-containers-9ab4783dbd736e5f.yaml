@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The admission controller now injects variables and volume mounts to init containers in addition to regular one.
+    The admission controller now injects variables and volume mounts to init containers in addition to regular containers.
