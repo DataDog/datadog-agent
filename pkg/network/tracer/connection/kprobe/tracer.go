@@ -12,8 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sync/atomic"
 	"unsafe"
+
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -21,13 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -46,17 +48,24 @@ type kprobeTracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions int64
+	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
 
 	telemetry telemetry
 }
 
 type telemetry struct {
-	tcpConns4, tcpConns6 int64 `stats:"atomic"`
-	udpConns4, udpConns6 int64 `stats:"atomic"`
+	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
+	udpConns4, udpConns6 *atomic.Int64 `stats:""`
+}
 
-	reporter stats.Reporter
+func newTelemetry() telemetry {
+	return telemetry{
+		tcpConns4: atomic.NewInt64(0),
+		udpConns4: atomic.NewInt64(0),
+		tcpConns6: atomic.NewInt64(0),
+		udpConns6: atomic.NewInt64(0),
+	}
 }
 
 func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
@@ -151,7 +160,9 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		m:             m,
 		config:        config,
 		closeConsumer: closeConsumer,
+		pidCollisions: atomic.NewInt64(0),
 		removeTuple:   &netebpf.ConnTuple{},
+		telemetry:     newTelemetry(),
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -164,11 +175,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
-	}
-
-	tr.telemetry.reporter, err = stats.NewReporter(&tr.telemetry)
-	if err != nil {
-		return nil, fmt.Errorf("error creating stats reporter: %w", err)
 	}
 
 	return tr, nil
@@ -222,7 +228,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
 
-	var tel telemetry
+	tel := newTelemetry()
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats)
@@ -233,7 +239,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 			continue
 		}
 		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, tcp)
+			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 		*buffer.Next() = *conn
 	}
@@ -248,10 +254,10 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 }
 
 func (t *telemetry) assign(other telemetry) {
-	atomic.StoreInt64(&t.tcpConns4, other.tcpConns4)
-	atomic.StoreInt64(&t.tcpConns6, other.tcpConns6)
-	atomic.StoreInt64(&t.udpConns4, other.udpConns4)
-	atomic.StoreInt64(&t.udpConns6, other.udpConns6)
+	t.tcpConns4.Store(other.tcpConns4.Load())
+	t.tcpConns6.Store(other.tcpConns6.Load())
+	t.udpConns4.Store(other.udpConns4.Load())
+	t.udpConns6.Store(other.udpConns6.Load())
 }
 
 func (t *telemetry) addConnection(conn *network.ConnectionStats) {
@@ -259,15 +265,15 @@ func (t *telemetry) addConnection(conn *network.ConnectionStats) {
 	switch conn.Family {
 	case network.AFINET6:
 		if isTcp {
-			atomic.AddInt64(&t.tcpConns6, 1)
+			t.tcpConns6.Inc()
 		} else {
-			atomic.AddInt64(&t.udpConns6, 1)
+			t.udpConns6.Inc()
 		}
 	case network.AFINET:
 		if isTcp {
-			atomic.AddInt64(&t.tcpConns4, 1)
+			t.tcpConns4.Inc()
 		} else {
-			atomic.AddInt64(&t.udpConns4, 1)
+			t.udpConns4.Inc()
 		}
 	}
 }
@@ -277,21 +283,21 @@ func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
 	switch conn.Family {
 	case network.AFINET6:
 		if isTcp {
-			atomic.AddInt64(&t.tcpConns6, -1)
+			t.tcpConns6.Dec()
 		} else {
-			atomic.AddInt64(&t.udpConns6, -1)
+			t.udpConns6.Dec()
 		}
 	case network.AFINET:
 		if isTcp {
-			atomic.AddInt64(&t.tcpConns4, -1)
+			t.tcpConns4.Dec()
 		} else {
-			atomic.AddInt64(&t.udpConns4, -1)
+			t.udpConns4.Dec()
 		}
 	}
 }
 
 func (t *telemetry) get() map[string]interface{} {
-	return t.reporter.Report()
+	return atomicstats.Report(t)
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
@@ -349,7 +355,7 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	}
 
 	closeStats := t.closeConsumer.GetStats()
-	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
+	pidCollisions := t.pidCollisions.Load()
 
 	stats := map[string]int64{
 		"closed_conn_polling_lost":     closeStats[perfLostStat],
@@ -414,13 +420,16 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	conn.Monotonic.Retransmits = tcpStats.Retransmits
-	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+
+	m, _ := conn.Monotonic.Get(cookie)
+	m.Retransmits = tcpStats.Retransmits
+	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.Monotonic.Put(cookie, m)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -440,8 +449,9 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
-			atomic.AddInt64(&t.pidCollisions, 1)
+			t.pidCollisions.Inc()
 			stats.Retransmits = 0
+			stats.State_transitions = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}
@@ -460,15 +470,17 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic: network.StatCounters{
-			SentBytes:   s.Sent_bytes,
-			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
-		},
-		LastUpdateEpoch: s.Timestamp,
-		IsAssured:       s.IsAssured(),
+		Monotonic:        make(network.StatCountersByCookie, 0, 3),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
 	}
+
+	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
+	})
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

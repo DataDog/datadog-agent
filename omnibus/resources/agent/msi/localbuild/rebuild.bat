@@ -3,6 +3,8 @@ rem
 @set WD=%CD%
 cd %~dp0
 
+if NOT DEFINED OMNIBUS_BASE_DIR set OMNIBUS_BASE_DIR=C:\omnibus-ruby
+
 REM Copy few resource files locally, source.wxs AS IS and
 REM localization-en-us.wxl.erb replace template value currently via "Agent",
 REM unless localization-en-us.wxl already exhists (e.g. from previous copy)
@@ -35,7 +37,7 @@ heat.exe dir "c:\opt\datadog-agent" -nologo -srd -sreg -gg -cg ProjectDir -dr PR
 REM 
 REM run HEAT on the extras
 REM
-for /D %%D in (c:\omnibus-ruby\src\etc\datadog-agent\extra_package_files\*.*) do (
+for /D %%D in (%OMNIBUS_BASE_DIR%\src\etc\datadog-agent\extra_package_files\*.*) do (
     heat.exe dir %%D -nologo -srd -gg -cg Extra%%~nD -dr %%~nD -var "var.Extra%%~nD" -out "extra-%%~nD.wxs"
     set CANDLE_VARS=%CANDLE_VARS% -dExtra%%~nD="%%D"
     set WXS_LIST=%WX_LIST% extra-%%~nD.wxs
@@ -43,7 +45,7 @@ for /D %%D in (c:\omnibus-ruby\src\etc\datadog-agent\extra_package_files\*.*) do
 )
 
 @set wix_extension_switches=-ext WixUtilExtension
-candle -arch x64 %wix_extension_switches% -dProjectSourceDir="c:\opt\datadog-agent" -dExtraEXAMPLECONFSLOCATION="C:\omnibus-ruby\src\etc\datadog-agent\extra_package_files\EXAMPLECONFSLOCATION" project-files.wxs %WXS_LIST% source.wxs
+candle -arch x64 %wix_extension_switches% -dProjectSourceDir="c:\opt\datadog-agent" -dExtraEXAMPLECONFSLOCATION="%OMNIBUS_BASE_DIR%\src\etc\datadog-agent\extra_package_files\EXAMPLECONFSLOCATION" project-files.wxs %WXS_LIST% source.wxs
 
 if not "%ERRORLEVEL%" == "0" goto :done
 light -ext WixUIExtension -ext WixBalExtension %wix_extension_switches% -cultures:en-us -loc localization-en-us.wxl project-files.wixobj source.wixobj %WIXOBJ_LIST% -out ddagent.msi

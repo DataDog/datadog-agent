@@ -137,7 +137,7 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1"
     command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools3.rb
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==6.4.0"
@@ -423,6 +423,13 @@ build do
     block do
       # We have to run these operations in block, so they get applied after operations
       # from the last block
+
+      # Patch applies to only one file: set it explicitly as a target, no need for -p
+      if windows?
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
+      else
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/__init__.py"
+      end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       if windows?

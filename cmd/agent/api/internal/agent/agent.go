@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -94,7 +94,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname(r.Context())
+	hname, err := hostname.Get(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""
@@ -414,38 +414,39 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	payloadType := vars["payload"]
 
-	var jsonPayload []byte
+	var scrubbed []byte
 	var err error
 
 	switch payloadType {
 	case "v5":
 		ctx := context.Background()
-		hostnameData, err := util.GetHostnameData(ctx)
+		hostnameDetected, err := hostname.GetWithProvider(ctx)
 		if err != nil {
 			setJSONError(w, err, 500)
 			return
 		}
 
-		payload := v5.GetPayload(ctx, hostnameData)
-		jsonPayload, err = json.MarshalIndent(payload, "", "    ")
+		payload := v5.GetPayload(ctx, hostnameDetected)
+		jsonPayload, err := json.MarshalIndent(payload, "", "    ")
 		if err != nil {
 			setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 			return
 		}
+
+		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
+		if err != nil {
+			setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+			return
+		}
 	case "inventory":
-		jsonPayload, err = inventories.GetLastPayload()
+		// GetLastPayload already return scrubbed data
+		scrubbed, err = inventories.GetLastPayload()
 		if err != nil {
 			setJSONError(w, err, 500)
 			return
 		}
 	default:
 		setJSONError(w, log.Errorf("Unknown metadata payload requested: %s", payloadType), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
 		return
 	}
 

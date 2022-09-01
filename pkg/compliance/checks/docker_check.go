@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
 )
 
 var (
@@ -249,7 +250,7 @@ type dockerContainerIterator struct {
 }
 
 func newDockerContainerIterator(ctx context.Context, client env.DockerClient) (eval.Iterator, error) {
-	containers, err := client.ContainerList(ctx, types.ContainerListOptions{All: true})
+	containers, err := client.ContainerList(ctx, types.ContainerListOptions{}) // only running containers
 	if err != nil {
 		return nil, err
 	}

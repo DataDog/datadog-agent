@@ -80,15 +80,7 @@ func configAndLogSetup() error {
 	}
 
 	// log level is always off since this might be use by other agent to get the hostname
-	err = config.SetupLogger(
-		loggerName,
-		config.Datadog.GetString("log_level"),
-		common.DefaultLogFile,
-		config.GetSyslogURI(),
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
-	)
+	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
 
 	if err != nil {
 		return fmt.Errorf("error while setting up logging, exiting: %v", err)

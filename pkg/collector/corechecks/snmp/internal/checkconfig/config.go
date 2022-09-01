@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -210,11 +211,11 @@ func (c *CheckConfig) GetStaticTags() []string {
 	}
 
 	if c.UseDeviceIDAsHostname {
-		hostname, err := coreutil.GetHostname(context.TODO())
+		hname, err := hostname.Get(context.TODO())
 		if err != nil {
 			log.Warnf("Error getting the hostname: %v", err)
 		} else {
-			tags = append(tags, "agent_host:"+hostname)
+			tags = append(tags, "agent_host:"+hname)
 		}
 	}
 	return tags

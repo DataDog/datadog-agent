@@ -13,9 +13,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/cilium/ebpf"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -151,7 +152,7 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 
 		conn := buffer.Next()
 		populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
-		updateTCPStats(conn, &ct.Tcp_stats)
+		updateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
 	}
 }
 

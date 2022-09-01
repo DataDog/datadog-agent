@@ -147,7 +147,10 @@ void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder
     // keep them for a while in the map to avoid userspace to reinsert it with a pending userspace event
     if (params->is_retained) {
         if (params->expire_at < now) {
-            bpf_map_delete_elem(discarder_map, key);
+            // important : never modify the discarder maps during the flush as may corrupt the iteration
+            if (!is_flushing_discarders()) {
+                bpf_map_delete_elem(discarder_map, key);
+            }
         }
         return NULL;
     }
@@ -165,7 +168,7 @@ void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder
 }
 
 // do not remove it directly, first mark it as on hold for a period of time, after that it will be removed
-void __attribute__((always_inline)) remove_discarder(struct bpf_map_def *discarder_map, void *key) {
+void __attribute__((always_inline)) expire_discarder(struct bpf_map_def *discarder_map, void *key) {
     struct discarder_params_t *params = bpf_map_lookup_elem(discarder_map, key);
     if (params) {
         u64 retention;
@@ -244,7 +247,8 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
     }
 
     // fall back to the "normal" discarder check
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &params->discarder, params->event_type, params->now);
+    struct inode_discarder_t key = params->discarder;
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
         return 0;
     }
@@ -252,7 +256,7 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
     return inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
 }
 
-void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 inode) {
+void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
     u64 retention;
     LOAD_CONSTANT("discarder_retention", retention);
 
@@ -288,13 +292,12 @@ void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 in
     }
 }
 
-int __attribute__((always_inline)) expire_inode_discarder(u32 mount_id, u64 inode) {
+void __attribute__((always_inline)) expire_inode_discarder(u32 mount_id, u64 inode) {
     if (!mount_id || !inode) {
-        return 0;
+        return;
     }
 
-    remove_inode_discarders(mount_id, inode);
-    return 0;
+    expire_inode_discarders(mount_id, inode);
 }
 
 static __always_inline u32 is_runtime_discarded() {
@@ -334,6 +337,11 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
 
         if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
+        }
+
+        u64 tm = bpf_ktime_get_ns();
+        if (pid_params->params.is_retained && pid_params->params.expire_at < tm) {
+            pid_params->params.is_retained = 0;
         }
     } else {
         struct pid_discarder_params_t new_pid_params = {};
@@ -375,14 +383,14 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
             return 1;
         }
 
-        struct proc_cache_t *entry = get_proc_cache(tgid);
-        if (entry != NULL) {
+        struct proc_cache_t *pc = get_proc_cache(tgid);
+        if (pc != NULL) {
             struct is_discarded_by_inode_t params = {
                 .event_type = event_type,
                 .discarder = {
                     .path_key = {
-                        .ino = entry->executable.path_key.ino,
-                        .mount_id = entry->executable.path_key.mount_id,
+                        .ino = pc->entry.executable.path_key.ino,
+                        .mount_id = pc->entry.executable.path_key.mount_id,
                         // we don't want to copy the path_id
                     },
                 },
@@ -396,12 +404,16 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
     return 0;
 }
 
-void __attribute__((always_inline)) remove_pid_discarder(u32 tgid) {
+void __attribute__((always_inline)) expire_pid_discarder(u32 tgid) {
+    if (!tgid) {
+        return;
+    }
+
     struct pid_discarder_t key = {
         .tgid = tgid,
     };
 
-    remove_discarder(&pid_discarders, &key);
+    expire_discarder(&pid_discarders, &key);
 }
 
 #endif

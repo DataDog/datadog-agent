@@ -12,9 +12,10 @@ import (
 	"os"
 	"strings"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -29,9 +30,13 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.TCPCleanupRBuf:       "kprobe__tcp_cleanup_rbuf",
 	probes.TCPClose:             "kprobe__tcp_close",
 	probes.TCPCloseReturn:       "kretprobe__tcp_close",
+	probes.TCPConnect:           "kprobe__tcp_connect",
+	probes.TCPFinishConnect:     "kprobe__tcp_finish_connect",
 	probes.TCPSetState:          "kprobe__tcp_set_state",
 	probes.IPMakeSkb:            "kprobe__ip_make_skb",
+	probes.IPMakeSkbReturn:      "kretprobe__ip_make_skb",
 	probes.IP6MakeSkb:           "kprobe__ip6_make_skb",
+	probes.IP6MakeSkbReturn:     "kretprobe__ip6_make_skb",
 	probes.UDPRecvMsg:           "kprobe__udp_recvmsg",
 	probes.UDPRecvMsgReturn:     "kretprobe__udp_recvmsg",
 	probes.UDPv6RecvMsg:         "kprobe__udpv6_recvmsg",
@@ -67,6 +72,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
+			{Name: string(probes.TcpConnectSockPidMap)},
 			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
 			{Name: "udpv6_recv_sock"},
@@ -79,6 +85,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
 			{Name: string(probes.TcpSendMsgArgsMap)},
+			{Name: string(probes.IpMakeSkbArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{

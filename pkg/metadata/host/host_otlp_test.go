@@ -11,8 +11,9 @@ package host
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetOtlpMetaWithOtlp(t *testing.T) {

@@ -58,11 +58,7 @@ func TestMacroMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -81,13 +77,13 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -102,7 +98,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader); err == nil {
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected macro ID conflict")
 	}
 }
@@ -132,11 +128,7 @@ func TestRuleMerge(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
@@ -146,13 +138,13 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -167,7 +159,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader); err == nil {
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected rule ID conflict")
 	}
 }
@@ -315,22 +307,19 @@ func TestActionSetVariable(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -406,27 +395,24 @@ func TestActionSetVariableConflict(t *testing.T) {
 		}},
 	}
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() == nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Version) (*RuleSet, *multierror.Error) {
+func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
 	enabled := map[eval.EventType]bool{"*": true}
 
 	var evalOpts eval.Opts
@@ -441,23 +427,20 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Versio
 
 	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
 
-	tmpDir, err := os.MkdirTemp("", "test-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
 
 	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, agentVersion)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	loader := NewPolicyLoader(provider)
 
-	return rs, rs.LoadPolicies(loader)
+	return rs, rs.LoadPolicies(loader, policyOpts)
 }
 
 func TestRuleErrorLoading(t *testing.T) {
@@ -478,7 +461,7 @@ func TestRuleErrorLoading(t *testing.T) {
 		},
 	}
 
-	rs, err := loadPolicy(t, testPolicy, nil)
+	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 2)
 	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: internal rule ID conflict")
@@ -542,7 +525,16 @@ func TestRuleAgentConstraint(t *testing.T) {
 			agentVersion, err := semver.NewVersion(entry.agentVersion)
 			assert.Nil(t, err)
 
-			rs, err := loadPolicy(t, testPolicy, agentVersion)
+			agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
+			assert.Nil(t, err)
+
+			policyOpts := PolicyLoaderOpts{
+				RuleFilters: []RuleFilter{
+					agentVersionFilter,
+				},
+			}
+
+			rs, err := loadPolicy(t, testPolicy, policyOpts)
 			assert.Nil(t, err)
 
 			if entry.expectLoad {
@@ -552,6 +544,35 @@ func TestRuleAgentConstraint(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRuleIDFilter(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test1",
+				Expression: `open.filename == "/tmp/test"`,
+			},
+			{
+				ID:         "test2",
+				Expression: `open.filename != "/tmp/test"`,
+			},
+		},
+	}
+
+	policyOpts := PolicyLoaderOpts{
+		RuleFilters: []RuleFilter{
+			&RuleIDFilter{
+				ID: "test2",
+			},
+		},
+	}
+
+	rs, err := loadPolicy(t, testPolicy, policyOpts)
+	assert.Nil(t, err)
+
+	assert.NotContains(t, rs.rules, "test1")
+	assert.Contains(t, rs.rules, "test2")
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
@@ -570,7 +591,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("policy should fail to load")
 		} else {
 			t.Log(err)
@@ -595,7 +616,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -620,7 +641,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -641,7 +662,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -673,7 +694,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -704,7 +725,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -736,7 +757,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)

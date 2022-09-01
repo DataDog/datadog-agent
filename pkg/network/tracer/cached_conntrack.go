@@ -15,13 +15,14 @@ import (
 	"os"
 	"sync"
 
+	"github.com/golang/groupcache/lru"
+	"golang.org/x/sys/unix"
+	"inet.af/netaddr"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/golang/groupcache/lru"
-	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
 )
 
 type cachedConntrack struct {

@@ -26,8 +26,10 @@ from . import (
     system_probe,
     systray,
     trace_agent,
+    vscode,
 )
-from .build_tags import audit_tag_impact
+from .build_tags import audit_tag_impact, print_default_build_tags
+from .fuzz import fuzz
 from .go import (
     check_mod_tidy,
     deps,
@@ -76,6 +78,7 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(audit_tag_impact)
+ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
 ns.add_task(download_tools)
@@ -84,6 +87,7 @@ ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(generate_config)
 ns.add_task(junit_upload)
+ns.add_task(fuzz)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -106,7 +110,7 @@ ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
-
+ns.add_collection(vscode)
 ns.configure(
     {
         'run': {

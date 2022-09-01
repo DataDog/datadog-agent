@@ -10,9 +10,10 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/theupdateframework/go-tuf/client"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {
@@ -92,9 +93,10 @@ func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {
 }
 
 func TestRemoteStoreConfig(t *testing.T) {
-	db := getTestDB()
-	targetStore, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB(t))
+	defer db.commit()
+
+	targetStore := newTargetStore(db, "testcachekey")
 	store := newRemoteStoreConfig(targetStore)
 
 	testUpdate1 := generateUpdate(1)
@@ -157,9 +159,9 @@ func TestRemoteStoreConfig(t *testing.T) {
 }
 
 func TestRemoteStoreDirector(t *testing.T) {
-	db := getTestDB()
-	targetStore, err := newTargetStore(db, "testcachekey")
-	assert.NoError(t, err)
+	db := newTransactionalStore(getTestDB(t))
+	defer db.commit()
+	targetStore := newTargetStore(db, "testcachekey")
 	store := newRemoteStoreDirector(targetStore)
 
 	testUpdate1 := generateUpdate(1)

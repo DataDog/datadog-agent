@@ -62,6 +62,23 @@ func (m MetricType) String() string {
 	}
 }
 
+// ToAPIType returns the equivalent of MetricType in APIMetricType type.
+// APIMetricType only supports gauges, counts and rates and will default on gauges
+// for every other inputs.
+// This is used by the no-aggregation pipeline to infer an API type from a MetricType.
+func (m MetricType) ToAPIType() APIMetricType {
+	switch m {
+	case GaugeType:
+		return APIGaugeType
+	case CounterType:
+		return APICountType
+	case RateType:
+		return APIRateType
+	default:
+		return APIGaugeType
+	}
+}
+
 // MetricSampleContext allows to access a sample context data
 type MetricSampleContext interface {
 	GetName() string
@@ -72,7 +89,7 @@ type MetricSampleContext interface {
 	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
 	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
 	// should be appended to the metricBuffer.
-	GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator)
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator)
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
@@ -107,7 +124,7 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator) {
+func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
 	metricBuffer.Append(m.Tags...)
 	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
 }

@@ -128,7 +128,7 @@ func (l *KubeEndpointsListener) Stop() {
 func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	if isLockForLE(castedObj) {
@@ -141,8 +141,18 @@ func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 func (l *KubeEndpointsListener) endpointsDeleted(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Received unexpected object: %T", obj)
+			return
+		}
+
+		castedObj, ok = deletedState.Obj.(*v1.Endpoints)
+		if !ok {
+			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Endpoints, got: %T", deletedState.Obj)
+			return
+		}
 	}
 	if isLockForLE(castedObj) {
 		// Ignore Endpoints objects used for leader election
@@ -155,7 +165,7 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	if isLockForLE(castedObj) {
@@ -165,7 +175,7 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	// Cast the old object, consider it an add on cast failure
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %v", old)
+		log.Errorf("Expected an *v1.Endpoints type, got: %T", old)
 		l.createService(castedObj, true)
 		return
 	}
@@ -179,14 +189,14 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", obj)
+		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 
 	// Cast the old object, consider it an add on cast failure
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		log.Errorf("Expected a Service type, got: %v", old)
+		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		l.createService(l.endpointsForService(castedObj), false)
 		return
 	}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
@@ -11,8 +16,8 @@ import (
 
 var timeNow = time.Now
 
-// floWrapper contains flow information and additional flush related data
-type flowWrapper struct {
+// flowContext contains flow information and additional flush related data
+type flowContext struct {
 	flow                *common.Flow
 	nextFlush           time.Time
 	lastSuccessfulFlush time.Time
@@ -20,53 +25,61 @@ type flowWrapper struct {
 
 // flowAccumulator is used to accumulate aggregated flows
 type flowAccumulator struct {
-	flows             map[uint64]flowWrapper
+	flows             map[uint64]flowContext
 	mu                sync.Mutex
 	flowFlushInterval time.Duration
 	flowContextTTL    time.Duration
 }
 
-func newFlowWrapper(flow *common.Flow) flowWrapper {
+func newFlowContext(flow *common.Flow) flowContext {
 	now := timeNow()
-	return flowWrapper{
+	return flowContext{
 		flow:      flow,
 		nextFlush: now,
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration) *flowAccumulator {
 	return &flowAccumulator{
-		flows:             make(map[uint64]flowWrapper),
+		flows:             make(map[uint64]flowContext),
 		flowFlushInterval: aggregatorFlushInterval,
-		flowContextTTL:    aggregatorFlushInterval * 5,
+		flowContextTTL:    aggregatorFlowContextTTL,
 	}
 }
 
 // flush will flush specific flow context (distinct hash) if nextFlush is reached
 // once a flow context is flushed nextFlush will be updated to the next flush time
-// Specific flow context in `flowAccumulator.flows` map will be deleted if `flowContextTTL`
+//
+// flowContextTTL:
+// flowContextTTL defines the duration we should keep a specific flowContext in `flowAccumulator.flows`
+// after `lastSuccessfulFlush`. // Flow context in `flowAccumulator.flows` map will be deleted if `flowContextTTL`
 // is reached to avoid keeping flow context that are not seen anymore.
+// We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
+// to be able to flush at regular interval (`flowFlushInterval`).
+// Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
 func (f *flowAccumulator) flush() []*common.Flow {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	var flowsToFlush []*common.Flow
-	for key, flow := range f.flows {
+	for key, flowCtx := range f.flows {
 		now := timeNow()
-		if flow.nextFlush.After(now) {
-			continue
-		}
-		if flow.flow != nil {
-			flowsToFlush = append(flowsToFlush, flow.flow)
-			flow.lastSuccessfulFlush = now
-			flow.flow = nil
-		} else if flow.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now) {
-			// delete flow wrapper if there is no successful flushes since `flowContextTTL`
+		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
+			log.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
+			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
 			delete(f.flows, key)
 			continue
 		}
-		flow.nextFlush = flow.nextFlush.Add(f.flowFlushInterval)
-		f.flows[key] = flow
+		if flowCtx.nextFlush.After(now) {
+			continue
+		}
+		if flowCtx.flow != nil {
+			flowsToFlush = append(flowsToFlush, flowCtx.flow)
+			flowCtx.lastSuccessfulFlush = now
+			flowCtx.flow = nil
+		}
+		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
+		f.flows[key] = flowCtx
 	}
 	return flowsToFlush
 }
@@ -83,7 +96,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		f.flows[aggHash] = newFlowWrapper(flowToAdd)
+		f.flows[aggHash] = newFlowContext(flowToAdd)
 		return
 	}
 	if aggFlow.flow == nil {
@@ -97,4 +110,11 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
 	}
 	f.flows[aggHash] = aggFlow
+}
+
+func (f *flowAccumulator) getFlowContextCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.flows)
 }

@@ -11,9 +11,10 @@ package modules
 import (
 	"time"
 
+	"golang.org/x/sys/windows/svc/eventlog"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"golang.org/x/sys/windows/svc/eventlog"
 )
 
 // All System Probe modules should register their factories here

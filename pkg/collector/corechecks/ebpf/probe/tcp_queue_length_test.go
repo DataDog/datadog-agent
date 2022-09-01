@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTCPQueueLengthCompile(t *testing.T) {
@@ -31,7 +33,7 @@ func TestTCPQueueLengthCompile(t *testing.T) {
 
 	cfg := ebpf.NewConfig()
 	cfg.BPFDebug = true
-	_, err = runtime.TcpQueueLength.Compile(cfg, nil)
+	_, err = runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
 	require.NoError(t, err)
 }
 

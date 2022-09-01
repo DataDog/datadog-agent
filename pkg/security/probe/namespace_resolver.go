@@ -15,7 +15,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -192,7 +192,7 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.RWMutex
-	state  int64
+	state  *atomic.Int64
 	probe  *Probe
 	client statsd.ClientInterface
 
@@ -202,6 +202,7 @@ type NamespaceResolver struct {
 // NewNamespaceResolver returns a new instance of NamespaceResolver
 func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 	nr := &NamespaceResolver{
+		state:  atomic.NewInt64(0),
 		probe:  probe,
 		client: probe.statsdClient,
 	}
@@ -220,12 +221,12 @@ func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 
 // SetState sets state of the namespace resolver
 func (nr *NamespaceResolver) SetState(state int64) {
-	atomic.StoreInt64(&nr.state, state)
+	nr.state.Store(state)
 }
 
 // GetState returns the state of the namespace resolver
 func (nr *NamespaceResolver) GetState() int64 {
-	return atomic.LoadInt64(&nr.state)
+	return nr.state.Load()
 }
 
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
@@ -356,10 +357,7 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 	}
 
 	_, isNewEntry := nr.SaveNetworkNamespaceHandle(nsID, nsPath)
-	if !isNewEntry {
-		return false
-	}
-	return true
+	return isNewEntry
 }
 
 // QueueNetworkDevice adds the input device to the map of queued network devices. Once a handle for the network namespace

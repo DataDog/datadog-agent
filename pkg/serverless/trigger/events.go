@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package trigger
 
 import (
@@ -131,6 +136,10 @@ func GetEventType(payload map[string]interface{}) AWSEventType {
 		return EventBridgeEvent
 	}
 
+	if isLambdaFunctionURLEvent(payload) {
+		return LambdaFunctionURLEvent
+	}
+
 	return Unknown
 }
 
@@ -228,6 +237,14 @@ func isAppSyncResolverEvent(event map[string]interface{}) bool {
 
 func isEventBridgeEvent(event map[string]interface{}) bool {
 	return json.GetNestedValue(event, "detail-type") != nil && json.GetNestedValue(event, "source") != "aws.events"
+}
+
+func isLambdaFunctionURLEvent(event map[string]interface{}) bool {
+	lambdaURL, ok := json.GetNestedValue(event, "requestcontext", "domainname").(string)
+	if !ok {
+		return false
+	}
+	return strings.Contains(lambdaURL, "lambda-url")
 }
 
 func eventRecordsKeyExists(event map[string]interface{}, key string) bool {

@@ -7,16 +7,15 @@ package netlink
 
 import (
 	"math"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	tickInterval  = 3 * time.Second
-	breakerOpen   = int64(1)
-	breakerClosed = int64(0)
+	tickInterval = 3 * time.Second
 
 	// The lower this number is the more amortized the average is
 	// For example, if ewmaWeight is 1, a single burst of events might
@@ -32,18 +31,17 @@ type CircuitBreaker struct {
 	maxEventsPerSec int64
 
 	// The number of events elapsed since the last tick
-	eventCount int64
+	eventCount *atomic.Int64
 
 	// An exponentially weighted average of the event rate (per second)
 	// This is what actually compare against maxEventsPersec
-	eventRate int64
+	eventRate *atomic.Int64
 
 	// Represents the status of the cicuit breaker.
-	// 1 means open, 0 means closed
-	status int64
+	isOpen *atomic.Bool
 
 	// The timestamp in nanoseconds of when we last updated eventRate
-	lastUpdate int64
+	lastUpdate *atomic.Int64
 
 	done chan struct{}
 }
@@ -57,6 +55,10 @@ func NewCircuitBreaker(maxEventsPerSec int64) *CircuitBreaker {
 	}
 
 	c := &CircuitBreaker{
+		eventCount:      atomic.NewInt64(0),
+		eventRate:       atomic.NewInt64(0),
+		isOpen:          atomic.NewBool(false),
+		lastUpdate:      atomic.NewInt64(0),
 		maxEventsPerSec: maxEventsPerSec,
 		done:            make(chan struct{}),
 	}
@@ -80,25 +82,25 @@ func NewCircuitBreaker(maxEventsPerSec int64) *CircuitBreaker {
 // IsOpen returns true when the circuit breaker trips and remain
 // unchanched until Reset() is called.
 func (c *CircuitBreaker) IsOpen() bool {
-	return atomic.LoadInt64(&c.status) == breakerOpen
+	return c.isOpen.Load()
 }
 
 // Tick represents one or more events passing through the circuit breaker.
 func (c *CircuitBreaker) Tick(n int) {
-	atomic.AddInt64(&c.eventCount, int64(n))
+	c.eventCount.Add(int64(n))
 }
 
 // Rate returns the current rate of events
 func (c *CircuitBreaker) Rate() int64 {
-	return atomic.LoadInt64(&c.eventRate)
+	return c.eventRate.Load()
 }
 
 // Reset closes the circuit breaker and its state.
 func (c *CircuitBreaker) Reset() {
-	atomic.StoreInt64(&c.eventCount, 0)
-	atomic.StoreInt64(&c.eventRate, 0)
-	atomic.StoreInt64(&c.lastUpdate, time.Now().UnixNano())
-	atomic.StoreInt64(&c.status, breakerClosed)
+	c.eventCount.Store(0)
+	c.eventRate.Store(0)
+	c.lastUpdate.Store(time.Now().UnixNano())
+	c.isOpen.Store(false)
 }
 
 // Stop stops the circuit breaker.
@@ -111,7 +113,7 @@ func (c *CircuitBreaker) update(now time.Time) {
 		return
 	}
 
-	lastUpdate := atomic.LoadInt64(&c.lastUpdate)
+	lastUpdate := c.lastUpdate.Load()
 	deltaInSec := float64(now.UnixNano()-lastUpdate) / float64(time.Second.Nanoseconds())
 
 	// This is to avoid a divide by 0 panic or a spurious spike due
@@ -121,8 +123,8 @@ func (c *CircuitBreaker) update(now time.Time) {
 	}
 
 	// Calculate the event rate (EWMA)
-	eventCount := atomic.SwapInt64(&c.eventCount, 0)
-	prevEventRate := atomic.LoadInt64(&c.eventRate)
+	eventCount := c.eventCount.Swap(0)
+	prevEventRate := c.eventRate.Load()
 	newEventRate := ewmaWeight*float64(eventCount)/deltaInSec + (1-ewmaWeight)*float64(prevEventRate)
 
 	// If we just started we don't amortize the value.
@@ -131,8 +133,8 @@ func (c *CircuitBreaker) update(now time.Time) {
 		newEventRate = float64(eventCount) / deltaInSec
 	}
 
-	atomic.StoreInt64(&c.lastUpdate, now.UnixNano())
-	atomic.StoreInt64(&c.eventRate, int64(newEventRate))
+	c.lastUpdate.Store(now.UnixNano())
+	c.eventRate.Store(int64(newEventRate))
 
 	// Update circuit breaker status accordingly
 	if int64(newEventRate) > c.maxEventsPerSec {
@@ -141,6 +143,6 @@ func (c *CircuitBreaker) update(now time.Time) {
 			c.maxEventsPerSec,
 			int(newEventRate),
 		)
-		atomic.StoreInt64(&c.status, breakerOpen)
+		c.isOpen.Store(true)
 	}
 }

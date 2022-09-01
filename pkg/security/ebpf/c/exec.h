@@ -45,7 +45,8 @@ struct exec_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
-    struct proc_cache_t proc_entry;
+    struct container_context_t container;
+    struct process_entry_t proc_entry;
     struct pid_cache_t pid_entry;
     u32 args_id;
     u32 args_truncated;
@@ -104,15 +105,6 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .key_size = sizeof(struct exec_path),
     .value_size = sizeof(u64),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 16738,
     .pinning = 0,
     .namespace = "",
 };
@@ -261,21 +253,23 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u32 tgid = pid_tgid >> 32;
 
     struct dentry *exec_dentry = get_path_dentry(path);
-    struct proc_cache_t entry = {
-        .executable = {
-            .path_key = {
-                .ino = syscall->exec.file.path_key.ino,
-                .mount_id = get_path_mount_id(path),
-                .path_id = syscall->exec.file.path_key.path_id,
+    struct proc_cache_t pc = {
+        .entry = {
+            .executable = {
+                .path_key = {
+                    .ino = syscall->exec.file.path_key.ino,
+                    .mount_id = get_path_mount_id(path),
+                    .path_id = syscall->exec.file.path_key.path_id,
+                },
+                .flags = syscall->exec.file.flags
             },
-            .flags = syscall->exec.file.flags,
+            .exec_timestamp = bpf_ktime_get_ns(),
         },
         .container = {},
-        .exec_timestamp = bpf_ktime_get_ns(),
     };
-    fill_file_metadata(exec_dentry, &entry.executable.metadata);
-    set_file_inode(exec_dentry, &entry.executable, 0);
-    bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
+    fill_file_metadata(exec_dentry, &pc.entry.executable.metadata);
+    set_file_inode(exec_dentry, &pc.entry.executable, 0);
+    bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
@@ -283,17 +277,17 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     if (fork_entry) {
         // Fetch the parent proc cache entry
         u32 parent_cookie = fork_entry->cookie;
-        struct proc_cache_t *parent_entry = get_proc_from_cookie(parent_cookie);
-        if (parent_entry) {
+        struct proc_cache_t *parent_pc = get_proc_from_cookie(parent_cookie);
+        if (parent_pc) {
             // inherit the parent container context
-            fill_container_context(parent_entry, &entry.container);
+            fill_container_context(parent_pc, &pc.container);
         }
     }
 
     // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
     // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
     u32 cookie = bpf_get_prandom_u32();
-    bpf_map_update_elem(&proc_cache, &cookie, &entry, BPF_ANY);
+    bpf_map_update_elem(&proc_cache, &cookie, &pc, BPF_ANY);
 
     // update pid <-> cookie mapping
     if (fork_entry) {
@@ -424,31 +418,6 @@ int kretprobe__task_pid_nr_ns(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("tracepoint/sched/sched_process_exec")
-int sched_process_exec(struct _tracepoint_sched_process_exec *args) {
-    // prepare filename pointer
-    unsigned short __offset = args->data_loc_filename & 0xFFFF;
-    char *filename = (char *)args + __offset;
-
-    struct exec_path key = {};
-    bpf_probe_read_str(&key.filename, MAX_PATH_LEN, filename);
-
-    struct bpf_map_def *exec_count = select_buffer(&exec_count_fb, &exec_count_bb, SYSCALL_MONITOR_KEY);
-    if (exec_count == NULL) {
-        return 0;
-    }
-
-    u64 zero = 0;
-    u64 *count = bpf_map_lookup_or_try_init(exec_count, &key, &zero);
-    if (count == NULL) {
-        return 0;
-    }
-
-    __sync_fetch_and_add(count, 1);
-
-    return 0;
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
@@ -464,7 +433,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         return 0;
     }
 
-    u32 parent_pid = args->parent_pid;
+    u32 parent_pid = 0;
     bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
@@ -510,9 +479,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         event.pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
-        struct proc_cache_t *parent_proc_entry = get_proc_from_cookie(event.pid_entry.cookie);
-        if (parent_proc_entry) {
-            copy_proc_cache_except_comm(parent_proc_entry, &event.proc_entry);
+        struct proc_cache_t *parent_pc = get_proc_from_cookie(event.pid_entry.cookie);
+        if (parent_pc) {
+            fill_container_context(parent_pc, &event.container);
+            copy_proc_entry_except_comm(&parent_pc->entry, &event.proc_entry);
         }
     }
 
@@ -520,7 +490,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &event.pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, event.proc_entry.container.container_id, event.proc_entry.comm);
+    inherit_traced_state(args, ppid, pid, event.container.container_id, event.proc_entry.comm);
 
     // send the entry to maintain userspace cache
     send_event(args, EVENT_FORK, event);
@@ -544,9 +514,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     bpf_map_delete_elem(&netns_cache, &pid);
 
     if (tgid == pid) {
-        if (!is_flushing_discarders()) {
-            remove_pid_discarder(tgid);
-        }
+        expire_pid_discarder(tgid);
 
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
@@ -556,8 +524,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
-        struct proc_cache_t *cache_entry = fill_process_context(&event.process);
-        fill_container_context(cache_entry, &event.container);
+        struct proc_cache_t *pc = fill_process_context(&event.process);
+        fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
         event.exit_code = (u32)PT_REGS_PARM1(ctx);
         send_event(ctx, EVENT_EXIT, event);
@@ -581,8 +549,8 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    struct proc_cache_t *entry = get_proc_cache(tgid);
-    if (entry) {
+    struct proc_cache_t *pc = get_proc_cache(tgid);
+    if (pc) {
         u64 tty_offset;
         LOAD_CONSTANT("tty_offset", tty_offset);
 
@@ -592,7 +560,7 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
         struct tty_struct *tty;
         bpf_probe_read(&tty, sizeof(tty), (char *)signal + tty_offset);
         if (tty) {
-            bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
+            bpf_probe_read_str(pc->entry.tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
         }
     }
 
@@ -649,11 +617,12 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
     if (pid_entry) {
         u32 cookie = pid_entry->cookie;
-        struct proc_cache_t *proc_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
-        if (proc_entry) {
+        struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
+        if (pc) {
             struct exec_event_t event = {};
-            // copy proc_cache entry data
-            copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
+            // copy proc_cache data
+            fill_container_context(pc, &event.container);
+            copy_proc_entry_except_comm(&pc->entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
 
             // copy pid_cache entry data
@@ -666,7 +635,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             fill_args_envs(&event, syscall);
 
             // [activity_dump] check if this process should be traced
-            should_trace_new_process(ctx, now, tgid, event.proc_entry.container.container_id, event.proc_entry.comm);
+            should_trace_new_process(ctx, now, tgid, event.container.container_id, event.proc_entry.comm);
 
             // send the entry to maintain userspace cache
             send_event(ctx, EVENT_EXEC, event);

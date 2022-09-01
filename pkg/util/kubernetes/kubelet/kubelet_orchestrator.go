@@ -13,11 +13,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // KubeUtilInterface defines the interface for kubelet api

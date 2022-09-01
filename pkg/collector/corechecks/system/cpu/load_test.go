@@ -10,8 +10,9 @@ package cpu
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/v3/load"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 var (
