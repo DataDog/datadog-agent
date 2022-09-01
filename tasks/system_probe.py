@@ -693,7 +693,7 @@ def get_kernel_arch():
 
 
 def stringify_version_tuple(version):
-    return '.'.join(map(lambda x: str(x), minimal_kernel_release))
+    return '.'.join(map(lambda x: str(x), version))
 
 
 def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
