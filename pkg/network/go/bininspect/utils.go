@@ -156,7 +156,7 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 	}
 
 	if len(sectionsToSearchForSymbol) == 0 {
-		return 0, fmt.Errorf("symbol %s not found in file - no sections to search", symbol)
+		return 0, fmt.Errorf("symbol %q not found in file - no sections to search", symbol)
 	}
 
 	var executableSection *elf.Section
