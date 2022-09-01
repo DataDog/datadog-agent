@@ -40,12 +40,12 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
             map_err_telemetry_t *entry =                                    \
                 bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key); \
             if (entry) {                                                         \
-                if (errno_ret >= MAX_ERRNO) {                                    \
+                if (errno_ret <= -MAX_ERRNO) {                                    \
                     errno_slot = MAX_ERRNO - 1;                                  \
                 } else {                                                         \
-                    errno_slot = errno_ret - 1;                                  \
+                    errno_slot = MAX_ERRNO - (errno_ret + MAX_ERRNO);            \
                 }                                                                \
-                if ((errno_slot >= 0)) {                                         \
+                if ((errno_slot >= 0) && (errno_slot < MAX_ERRNO)) {                                         \
                     __sync_fetch_and_add(&entry->err_count[errno_slot], 1);      \
                 }                                                                \
             }                                                                    \
