@@ -135,6 +135,7 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 	l.trace(&TagStringer{}, format, params...)
 }
 
+// IsTracing is used to check if TraceF would actually log
 func (l *PatternLogger) IsTracing() bool {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
 		return false

@@ -38,6 +38,7 @@ func (l NullLogger) Errorf(format string, params ...interface{}) {
 func (l NullLogger) Infof(format string, params ...interface{}) {
 }
 
+// IsTracing is used to check if TraceF would actually log
 func (l NullLogger) IsTracing() bool {
 	return false
 }
