@@ -851,8 +851,7 @@ def clean_object_files(
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
 
-    sudo = "" if is_root() else "sudo"
-    ctx.run(f"{sudo} ninja -f {nf_path} -t clean")
+    ctx.run(f"ninja -f {nf_path} -t clean")
 
 
 # deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
