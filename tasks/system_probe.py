@@ -835,7 +835,7 @@ def build_object_files(
     if not windows:
         runner = ctx.run if is_root() else ctx.sudo
         runner(f"mkdir -p {EMBEDDED_SHARE_DIR}")
-        runner(f"cp -R {build_dir} {EMBEDDED_SHARE_DIR}")
+        runner(f"cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         runner(f"chown root:root -R {EMBEDDED_SHARE_DIR}")
 
 
