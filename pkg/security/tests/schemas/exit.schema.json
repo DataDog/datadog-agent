@@ -30,8 +30,7 @@
                 }
             },
             "required": [
-                "exit",
-                "process"
+                "exit"
             ]
         }
     ]
