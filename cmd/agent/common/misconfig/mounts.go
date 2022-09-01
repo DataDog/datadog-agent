@@ -25,6 +25,7 @@ import (
 
 func init() {
 	registerCheck("proc mount", procMount)
+	registerProcessAgentCheck("proc mount", procMount)
 }
 
 func procMount() error {

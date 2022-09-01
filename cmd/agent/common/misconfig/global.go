@@ -16,11 +16,24 @@ func ToLog() {
 	}
 }
 
+func ToLogProcessAgent() {
+	for name, check := range processAgentChecks {
+		if err := check(); err != nil {
+			log.Warnf("misconfig: %s: %v", name, err)
+		}
+	}
+}
+
 type checkFn func() error
 
 var checks = map[string]checkFn{}
+var processAgentChecks = map[string]checkFn{}
 
 // nolint: deadcode, unused
 func registerCheck(name string, c checkFn) {
 	checks[name] = c
+}
+
+func registerProcessAgentCheck(name string, c checkFn) {
+	processAgentChecks[name] = c
 }

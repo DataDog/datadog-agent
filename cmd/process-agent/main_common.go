@@ -150,9 +150,6 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	// check if agent is running as a service:
-	misconfig.ToLog()
-
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
 	err = manager.ConfigureAutoExit(mainCtx)
@@ -166,6 +163,9 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running on platform: %s", hostInfo.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
+
+	// Only logging when process agent is running
+	misconfig.ToLogProcessAgent()
 
 	// Start workload metadata store before tagger (used for containerCollection)
 	store := workloadmeta.GetGlobalStore()
