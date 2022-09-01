@@ -630,8 +630,8 @@ func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []*PathEntry) {
 
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
 func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
-	var filename, segment string
-	var err, resolutionErr error
+	var segment string
+	var resolutionErr error
 	var cacheKey PathKey
 	depth := int64(0)
 
@@ -649,6 +649,8 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	var keys []PathKey
 	var entries []*PathEntry
+
+	filenameParts := make([]string, 0, 128)
 
 	i := 0
 	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
@@ -683,7 +685,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 		if dr.erpcSegment[i] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[i])))
-			filename = "/" + segment + filename
+			filenameParts = append(filenameParts, segment)
 			i += len(segment) + 1
 		} else {
 			break
@@ -697,10 +699,6 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		}
 	}
 
-	if len(filename) == 0 {
-		filename = "/"
-	}
-
 	if resolutionErr == nil {
 		dr.cacheEntries(keys, entries)
 
@@ -711,7 +709,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		dr.missCounters[entry].Inc()
 	}
 
-	return filename, resolutionErr
+	return computeFilenameFromParts(filenameParts), resolutionErr
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
