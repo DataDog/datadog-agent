@@ -1761,6 +1761,10 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 		zb0001Len--
 		zb0001Mask |= 0x40
 	}
+	if z.LinuxBinprm == (LinuxBinprm{}) {
+		zb0001Len--
+		zb0001Mask |= 0x100
+	}
 	if z.Cookie == 0 {
 		zb0001Len--
 		zb0001Mask |= 0x1000
@@ -1920,21 +1924,23 @@ func (z *Process) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "Comm")
 		return
 	}
-	// write "interpreter"
-	err = en.Append(0xab, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72)
-	if err != nil {
-		return
-	}
-	// map header, size 1
-	// write "file"
-	err = en.Append(0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
-	if err != nil {
-		return
-	}
-	err = z.LinuxBinprm.FileEvent.EncodeMsg(en)
-	if err != nil {
-		err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
-		return
+	if (zb0001Mask & 0x100) == 0 { // if not empty
+		// write "interpreter"
+		err = en.Append(0xab, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72)
+		if err != nil {
+			return
+		}
+		// map header, size 1
+		// write "file"
+		err = en.Append(0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+		if err != nil {
+			return
+		}
+		err = z.LinuxBinprm.FileEvent.EncodeMsg(en)
+		if err != nil {
+			err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
+			return
+		}
 	}
 	// write "fork_time"
 	err = en.Append(0xa9, 0x66, 0x6f, 0x72, 0x6b, 0x5f, 0x74, 0x69, 0x6d, 0x65)
@@ -2147,6 +2153,10 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 		zb0001Len--
 		zb0001Mask |= 0x40
 	}
+	if z.LinuxBinprm == (LinuxBinprm{}) {
+		zb0001Len--
+		zb0001Mask |= 0x100
+	}
 	if z.Cookie == 0 {
 		zb0001Len--
 		zb0001Mask |= 0x1000
@@ -2230,15 +2240,17 @@ func (z *Process) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "comm"
 	o = append(o, 0xa4, 0x63, 0x6f, 0x6d, 0x6d)
 	o = msgp.AppendString(o, z.Comm)
-	// string "interpreter"
-	o = append(o, 0xab, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72)
-	// map header, size 1
-	// string "file"
-	o = append(o, 0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
-	o, err = z.LinuxBinprm.FileEvent.MarshalMsg(o)
-	if err != nil {
-		err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
-		return
+	if (zb0001Mask & 0x100) == 0 { // if not empty
+		// string "interpreter"
+		o = append(o, 0xab, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x70, 0x72, 0x65, 0x74, 0x65, 0x72)
+		// map header, size 1
+		// string "file"
+		o = append(o, 0x81, 0xa4, 0x66, 0x69, 0x6c, 0x65)
+		o, err = z.LinuxBinprm.FileEvent.MarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, "LinuxBinprm", "FileEvent")
+			return
+		}
 	}
 	// string "fork_time"
 	o = append(o, 0xa9, 0x66, 0x6f, 0x72, 0x6b, 0x5f, 0x74, 0x69, 0x6d, 0x65)
