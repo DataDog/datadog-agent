@@ -5,26 +5,32 @@
 
 package network
 
+type ConnStatsBuffer = ConnectionBuffer[ConnectionStats]
+type FailedConnStatsBuffer = ConnectionBuffer[FailedConnStats]
+
+var NewConnStatsBuf = NewConnectionBuffer[ConnectionStats]
+var NewFailedConnStatsBuf = NewConnectionBuffer[FailedConnStats]
+
 // ConnectionBuffer encapsulates a resizing buffer for ConnectionStat objects
-type ConnectionBuffer struct {
-	buf           []ConnectionStats
+type ConnectionBuffer[T any] struct {
+	buf           []T
 	off           int
 	minBufferSize int
 }
 
 // NewConnectionBuffer creates a ConnectionBuffer with initial size `size`.
-func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
-	return &ConnectionBuffer{
-		buf:           make([]ConnectionStats, initSize),
+func NewConnectionBuffer[T any](initSize, minSize int) *ConnectionBuffer[T] {
+	return &ConnectionBuffer[T]{
+		buf:           make([]T, initSize),
 		minBufferSize: minSize,
 	}
 }
 
 // Next returns the next `ConnectionStats` object available for writing.
 // It will resize the internal buffer if necessary.
-func (b *ConnectionBuffer) Next() *ConnectionStats {
+func (b *ConnectionBuffer[T]) Next() *T {
 	if b.off >= len(b.buf) {
-		b.buf = append(b.buf, ConnectionStats{})
+		b.buf = append(b.buf, *new(T))
 	}
 	c := &b.buf[b.off]
 	b.off++
@@ -32,13 +38,13 @@ func (b *ConnectionBuffer) Next() *ConnectionStats {
 }
 
 // Append slice to ConnectionBuffer
-func (b *ConnectionBuffer) Append(slice []ConnectionStats) {
+func (b *ConnectionBuffer[T]) Append(slice []T) {
 	b.buf = append(b.buf[:b.off], slice...)
 	b.off += len(slice)
 }
 
 // Reclaim captures the last n entries for usage again.
-func (b *ConnectionBuffer) Reclaim(n int) {
+func (b *ConnectionBuffer[T]) Reclaim(n int) {
 	b.off -= n
 	if b.off < 0 {
 		b.off = 0
@@ -47,105 +53,31 @@ func (b *ConnectionBuffer) Reclaim(n int) {
 
 // Connections returns a slice of all the `ConnectionStats` objects returned via `Next`
 // since the last `Reset`.
-func (b *ConnectionBuffer) Connections() []ConnectionStats {
+func (b *ConnectionBuffer[T]) Connections() []T {
 	return b.buf[:b.off]
 }
 
 // Len returns the count of the number of written `ConnectionStats` objects since last `Reset`.
-func (b *ConnectionBuffer) Len() int {
+func (b *ConnectionBuffer[T]) Len() int {
 	return b.off
 }
 
 // Capacity returns the current capacity of the buffer
-func (b *ConnectionBuffer) Capacity() int {
+func (b *ConnectionBuffer[T]) Capacity() int {
 	return cap(b.buf)
 }
 
 // Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.
-func (b *ConnectionBuffer) Reset() {
+func (b *ConnectionBuffer[T]) Reset() {
 	// shrink buffer if less than half used
 	half := cap(b.buf) / 2
 	if b.off <= half && half >= b.minBufferSize {
-		b.buf = make([]ConnectionStats, half)
+		b.buf = make([]T, half)
 		b.off = 0
 		return
 	}
 
-	zero := ConnectionStats{}
-	for i := 0; i < b.off; i++ {
-		b.buf[i] = zero
-	}
-	b.off = 0
-}
-
-// FailedConnBuffer encapsulates a resizing buffer for FailedConnStat objects
-// TODO: Make this generic once we get Go >= 1.18
-type FailedConnBuffer struct {
-	buf           []FailedConnStats
-	off           int
-	minBufferSize int
-}
-
-// NewConnectionBuffer creates a FailedConnBuffer with initial size `size`.
-func NewFailedConnBuffer(initSize, minSize int) *FailedConnBuffer {
-	return &FailedConnBuffer{
-		buf:           make([]FailedConnStats, initSize),
-		minBufferSize: minSize,
-	}
-}
-
-// Next returns the next `FailedConnStats` object available for writing.
-// It will resize the internal buffer if necessary.
-func (b *FailedConnBuffer) Next() *FailedConnStats {
-	if b.off >= len(b.buf) {
-		b.buf = append(b.buf, FailedConnStats{})
-	}
-	c := &b.buf[b.off]
-	b.off++
-	return c
-}
-
-// Append slice to FailedConnBuffer
-func (b *FailedConnBuffer) Append(slice []FailedConnStats) {
-	b.buf = append(b.buf[:b.off], slice...)
-	b.off += len(slice)
-}
-
-// Reclaim captures the last n entries for usage again.
-func (b *FailedConnBuffer) Reclaim(n int) {
-	b.off -= n
-	if b.off < 0 {
-		b.off = 0
-	}
-}
-
-// Connections returns a slice of all the `FailedConnStats` objects returned via `Next`
-// since the last `Reset`.
-func (b *FailedConnBuffer) Connections() []FailedConnStats {
-	return b.buf[:b.off]
-}
-
-// Len returns the count of the number of written `FailedConnStats` objects since last `Reset`.
-func (b *FailedConnBuffer) Len() int {
-	return b.off
-}
-
-// Capacity returns the current capacity of the buffer
-func (b *FailedConnBuffer) Capacity() int {
-	return cap(b.buf)
-}
-
-// Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.
-func (b *FailedConnBuffer) Reset() {
-	// shrink buffer if less than half used
-	half := cap(b.buf) / 2
-	if b.off <= half && half >= b.minBufferSize {
-		b.buf = make([]FailedConnStats, half)
-		b.off = 0
-		return
-	}
-
-	zero := FailedConnStats{}
+	zero := *new(T)
 	for i := 0; i < b.off; i++ {
 		b.buf[i] = zero
 	}

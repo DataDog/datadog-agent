@@ -233,7 +233,7 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	}
 }
 
-func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+func (t *kprobeTracer) GetConnections(buffer *network.ConnStatsBuffer, filter func(*network.ConnectionStats) bool) error {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
@@ -267,7 +267,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 	return nil
 }
 
-func (t *kprobeTracer) GetFailedConnections(buffer *network.FailedConnBuffer, filter func(*network.FailedConnStats) bool) error {
+func (t *kprobeTracer) GetFailedConnections(buffer *network.FailedConnStatsBuffer, filter func(*network.FailedConnStats) bool) error {
 	failedConns := t.failedConnConsumer.GetStats()
 
 	for key, stats := range failedConns {

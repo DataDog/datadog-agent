@@ -73,8 +73,8 @@ type Tracer struct {
 	connStatsMapSize *atomic.Int64 `stats:""`
 	lastCheck        *atomic.Int64 `stats:""`
 
-	activeBuffer *network.ConnectionBuffer
-	failedBuffer *network.FailedConnBuffer
+	activeBuffer *network.ConnStatsBuffer
+	failedBuffer *network.FailedConnStatsBuffer
 	bufferLock   sync.Mutex
 
 	// Internal buffer used to compute bytekeys
@@ -171,8 +171,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(config, ebpfTracer, constantEditors),
-		activeBuffer:               network.NewConnectionBuffer(512, 256),
-		failedBuffer:               network.NewFailedConnBuffer(512, 256),
+		activeBuffer:               network.NewConnStatsBuf(512, 256),
+		failedBuffer:               network.NewFailedConnStatsBuf(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -473,7 +473,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer, failedBuffer *network.FailedConnBuffer) (latestUint uint64, err error) {
+func (t *Tracer) getConnections(activeBuffer *network.ConnStatsBuffer, failedBuffer *network.FailedConnStatsBuffer) (latestUint uint64, err error) {
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
@@ -665,8 +665,8 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
-	activeBuffer := network.NewConnectionBuffer(512, 512)
-	failedBuffer := network.NewFailedConnBuffer(512, 512)
+	activeBuffer := network.NewConnStatsBuf(512, 512)
+	failedBuffer := network.NewFailedConnStatsBuf(512, 512)
 	_, err := t.getConnections(activeBuffer, failedBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)

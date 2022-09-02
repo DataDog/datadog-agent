@@ -191,7 +191,7 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
 // It returns the count of connections added to the active and closed buffers, respectively.
-func (di *DriverInterface) GetConnectionStats(activeBuf *ConnectionBuffer, closedBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
+func (di *DriverInterface) GetConnectionStats(activeBuf *ConnStatsBuffer, closedBuf *ConnStatsBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
 	di.bufferLock.Lock()
 	defer di.bufferLock.Unlock()
 

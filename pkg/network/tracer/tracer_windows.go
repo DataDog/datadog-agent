@@ -41,8 +41,8 @@ type Tracer struct {
 	reverseDNS      dns.ReverseDNS
 	httpMonitor     http.Monitor
 
-	activeBuffer *network.ConnectionBuffer
-	closedBuffer *network.ConnectionBuffer
+	activeBuffer *network.ConnStatsBuffer
+	closedBuffer *network.ConnStatsBuffer
 	connLock     sync.Mutex
 
 	timerInterval int
@@ -89,8 +89,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
-		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		activeBuffer:    network.NewConnStatsBuf(defaultBufferSize, minBufferSize),
+		closedBuffer:    network.NewConnStatsBuf(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
 		httpMonitor:     newHttpMonitor(config, di.GetHandle()),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),

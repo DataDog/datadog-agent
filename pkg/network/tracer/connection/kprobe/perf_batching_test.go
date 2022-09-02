@@ -36,7 +36,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.C2.Tup.Pid = 3
 		batch.C3.Tup.Pid = 4
 
-		buffer := network.NewConnectionBuffer(256, 256)
+		buffer := network.NewConnStatsBuf(256, 256)
 		manager.ExtractBatchInto(buffer, batch, 0)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 4)
@@ -61,7 +61,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 			0: {offset: 3},
 		}
 
-		buffer := network.NewConnectionBuffer(256, 256)
+		buffer := network.NewConnStatsBuf(256, 256)
 		manager.ExtractBatchInto(buffer, batch, 0)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 1)
@@ -86,7 +86,7 @@ func TestGetPendingConns(t *testing.T) {
 	}
 	updateBatch()
 
-	buffer := network.NewConnectionBuffer(256, 256)
+	buffer := network.NewConnStatsBuf(256, 256)
 	manager.GetPendingConns(buffer)
 	pendingConns := buffer.Connections()
 	assert.GreaterOrEqual(t, len(pendingConns), 2)
@@ -139,7 +139,7 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	err := manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
 	require.NoError(t, err)
 
-	buffer := network.NewConnectionBuffer(256, 256)
+	buffer := network.NewConnStatsBuf(256, 256)
 	manager.GetPendingConns(buffer)
 	_, ok := manager.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)

@@ -31,7 +31,7 @@ type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
 	batchManager *perfBatchManager
 	requests     chan chan struct{}
-	buffer       *network.ConnectionBuffer
+	buffer       *network.ConnStatsBuffer
 	once         sync.Once
 
 	// Telemetry
@@ -59,7 +59,7 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
-		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
+		buffer:       network.NewConnStatsBuf(netebpf.BatchSize, netebpf.BatchSize),
 		perfReceived: atomic.NewInt64(0),
 		perfLost:     atomic.NewInt64(0),
 	}
@@ -129,7 +129,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
+				oneTimeBuffer := network.NewConnStatsBuf(32, 32)
 				c.batchManager.GetPendingConns(oneTimeBuffer)
 				callback(oneTimeBuffer.Connections())
 				close(request)

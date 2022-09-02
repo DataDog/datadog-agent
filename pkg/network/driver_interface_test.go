@@ -66,8 +66,8 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 	startSize := 10
 	minSize := 10
 
-	activeBuf := NewConnectionBuffer(startSize, minSize)
-	closedBuf := NewConnectionBuffer(startSize, minSize)
+	activeBuf := NewConnStatsBuf(startSize, minSize)
+	closedBuf := NewConnStatsBuf(startSize, minSize)
 
 	di, err := NewDriverInterface(config.New(), func(flags uint32, handleType driver.HandleType) (driver.Handle, error) {
 		return &TestDriverHandleInfiniteLoop{t: t}, nil

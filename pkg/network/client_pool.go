@@ -15,8 +15,8 @@ const defaultClientBufferSize = 1024
 // calls `GetConnections`.
 type clientBuffer struct {
 	clientID       string
-	connsBuf       *ConnectionBuffer
-	failedConnsBuf *FailedConnBuffer
+	connsBuf       *ConnStatsBuffer
+	failedConnsBuf *FailedConnStatsBuffer
 	// TODO: consider recycling objects for HTTP and DNS data as well
 }
 
@@ -37,8 +37,8 @@ func (p *clientBufferPool) Get(clientID string) *clientBuffer {
 
 	return &clientBuffer{
 		clientID:       clientID,
-		connsBuf:       NewConnectionBuffer(defaultClientBufferSize, 256),
-		failedConnsBuf: NewFailedConnBuffer(defaultClientBufferSize, 256),
+		connsBuf:       NewConnStatsBuf(defaultClientBufferSize, 256),
+		failedConnsBuf: NewFailedConnStatsBuf(defaultClientBufferSize, 256),
 	}
 }
 

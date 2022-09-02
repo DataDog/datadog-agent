@@ -19,10 +19,10 @@ type Tracer interface {
 	Stop()
 	// GetConnections returns the list of currently active connections, using the buffer provided.
 	// The optional filter function is used to prevent unwanted connections from being returned and consuming resources.
-	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
+	GetConnections(buffer *network.ConnStatsBuffer, filter func(*network.ConnectionStats) bool) error
 	// GetFailedConnections returns the list of failed connections, using the buffer provided.
 	// The optional filter function is used to prevent unwanted connections from being returned and consuming resources.
-	GetFailedConnections(buffer *network.FailedConnBuffer, filter func(*network.FailedConnStats) bool) error
+	GetFailedConnections(buffer *network.FailedConnStatsBuffer, filter func(*network.FailedConnStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
 	// Remove deletes the connection from tracking state.
