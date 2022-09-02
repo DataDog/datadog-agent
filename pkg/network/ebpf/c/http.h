@@ -144,23 +144,9 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
     return http_ebpf;
 }
 
-static __always_inline http_transaction_t* http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    // this can happen in the context of keep-alives
-    bool must_flush = (packet_type == HTTP_REQUEST && http->request_started) ||
+static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
+    return (packet_type == HTTP_REQUEST && http->request_started) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
-
-    if (!must_flush) {
-        return NULL;
-    }
-
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
-    if (batch_state == NULL) {
-        return NULL;
-    }
-
-    __builtin_memcpy(&batch_state->scratch_tx, http, sizeof(http_transaction_t));
-    return &batch_state->scratch_tx;
 }
 
 static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *skb_info, u16 pre_norm_src_port) {
@@ -191,7 +177,10 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         return 0;
     }
 
-    http_transaction_t *to_flush = http_should_flush_previous_state(http, packet_type);
+    if (http_should_flush_previous_state(http, packet_type)) {
+        http_enqueue(http);
+    }
+
     if (packet_type == HTTP_REQUEST) {
         http_begin_request(http, method, buffer);
     } else if (packet_type == HTTP_RESPONSE) {
@@ -206,22 +195,8 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
-    bool conn_closed = http_closed(http, skb_info, http_stack->owned_by_src_port);
-
-    // It's a bit confusing that we're potentially overriding the return value
-    // of the call to `http_should_flush_previous_state` above, but in reality
-    // when `conn_closed` is true the previous value of `to_flush` should be
-    // null.  We write the code in this way to avoid inlining `http_enqueue`
-    // multiple times and keep the number of eBPF instructions to a minimum.
-    if (conn_closed) {
-        to_flush = http;
-    }
-
-    if (to_flush) {
-        http_enqueue(to_flush);
-    }
-
-    if (conn_closed) {
+    if (http_closed(http, skb_info, http_stack->owned_by_src_port)) {
+        http_enqueue(http);
         bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
     }
 

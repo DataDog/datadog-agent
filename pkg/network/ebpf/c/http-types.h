@@ -67,8 +67,6 @@ typedef struct {
 } http_transaction_t;
 
 typedef struct {
-    http_transaction_t scratch_tx;
-
     // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
     // this is useful for detecting race conditions that result in a batch being overrriden
     // before it gets consumed from userspace
