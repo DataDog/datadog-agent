@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	"path"
 	"strings"
 	"time"
@@ -20,7 +19,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -28,9 +26,6 @@ import (
 )
 
 const (
-	// discarderRevisionSize array size used to store discarder revisions
-	discarderRevisionSize = 4096
-
 	// DiscardRetention time a discard is retained but not discarding. This avoid race for pending event is userspace
 	// pipeline for already deleted file in kernel space.
 	DiscardRetention = 5 * time.Second
@@ -193,8 +188,6 @@ func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
 type inodeDiscarders struct {
 	*lib.Map
 	erpc           *ERPC
-	revisions      *lib.Map
-	revisionCache  [discarderRevisionSize]uint32
 	dentryResolver *DentryResolver
 	rs             *rules.RuleSet
 
@@ -208,7 +201,6 @@ func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryReso
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
-		revisions:      revisionsMap,
 		dentryResolver: dentryResolver,
 	}
 
@@ -260,26 +252,6 @@ func (id *inodeDiscarders) expireInodeDiscarder(req *ERPCRequest, mountID uint32
 	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
 	return id.erpc.Request(req)
-}
-
-func (id *inodeDiscarders) setRevision(mountID uint32, revision uint32) {
-	key := mountID % discarderRevisionSize
-	id.revisionCache[key] = revision
-}
-
-func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
-	var revision uint32
-
-	if mountEvent.IsOverlayFS() {
-		revision = uint32(rand.Intn(math.MaxUint16) + 1)
-	}
-
-	key := mountEvent.MountID % discarderRevisionSize
-	id.revisionCache[key] = revision
-
-	if err := id.revisions.Put(ebpf.Uint32MapItem(key), ebpf.Uint32MapItem(revision)); err != nil {
-		seclog.Errorf("unable to initialize discarder revisions: %s", err)
-	}
 }
 
 var (
