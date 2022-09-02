@@ -16,10 +16,12 @@ const (
 
 // Offset names in the format "OffsetName[Struct Name]Struct[Field Name]"
 const (
-	OffsetNameSuperBlockStructSMagic          = "sb_magic_offset"
-	OffsetNameSignalStructStructTTY           = "tty_offset"
-	OffsetNameTTYStructStructName             = "tty_name_offset"
-	OffsetNameCredStructUID                   = "creds_uid_offset"
+	OffsetNameSuperBlockStructSMagic = "sb_magic_offset"
+	OffsetNameSignalStructStructTTY  = "tty_offset"
+	OffsetNameTTYStructStructName    = "tty_name_offset"
+	OffsetNameCredStructUID          = "creds_uid_offset"
+
+	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"
 	OffsetNameBPFMapStructName                = "bpf_map_name_offset"
 	OffsetNameBPFMapStructMapType             = "bpf_map_type_offset"
@@ -29,19 +31,25 @@ const (
 	OffsetNameBPFProgStructExpectedAttachType = "bpf_prog_attach_type_offset"
 	OffsetNameBPFProgAuxStructID              = "bpf_prog_aux_id_offset"
 	OffsetNameBPFProgAuxStructName            = "bpf_prog_aux_name_offset"
-	OffsetNamePIDStructLevel                  = "pid_level_offset"
-	OffsetNamePIDStructNumbers                = "pid_numbers_offset"
-	OffsetNameDentryStructDSB                 = "dentry_sb_offset"
-	OffsetNamePipeInodeInfoStructBufs         = "pipe_inode_info_bufs_offset"
-	OffsetNameNetDeviceStructIfIndex          = "net_device_ifindex_offset"
-	OffsetNameNetStructNS                     = "net_ns_offset"
-	OffsetNameNetStructProcInum               = "net_proc_inum_offset"
-	OffsetNameSockCommonStructSKCNet          = "sock_common_skc_net_offset"
-	OffsetNameSocketStructSK                  = "socket_sock_offset"
-	OffsetNameNFConnStructCTNet               = "nf_conn_ct_net_offset"
-	OffsetNameSockCommonStructSKCFamily       = "sock_common_skc_family_offset"
-	OffsetNameFlowI4StructSADDR               = "flowi4_saddr_offset"
-	OffsetNameFlowI6StructSADDR               = "flowi6_saddr_offset"
-	OffsetNameFlowI4StructULI                 = "flowi4_uli_offset"
-	OffsetNameFlowI6StructULI                 = "flowi6_uli_offset"
+
+	// namespace nr offsets
+	OffsetNamePIDStructLevel   = "pid_level_offset"
+	OffsetNamePIDStructNumbers = "pid_numbers_offset"
+	OffsetNameDentryStructDSB  = "dentry_sb_offset"
+
+	// splice event
+	OffsetNamePipeInodeInfoStructBufs = "pipe_inode_info_bufs_offset"
+
+	// network related constants
+	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"
+	OffsetNameNetStructNS               = "net_ns_offset"
+	OffsetNameNetStructProcInum         = "net_proc_inum_offset"
+	OffsetNameSockCommonStructSKCNet    = "sock_common_skc_net_offset"
+	OffsetNameSocketStructSK            = "socket_sock_offset"
+	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
+	OffsetNameSockCommonStructSKCFamily = "sock_common_skc_family_offset"
+	OffsetNameFlowI4StructSADDR         = "flowi4_saddr_offset"
+	OffsetNameFlowI6StructSADDR         = "flowi6_saddr_offset"
+	OffsetNameFlowI4StructULI           = "flowi4_uli_offset"
+	OffsetNameFlowI6StructULI           = "flowi6_uli_offset"
 )
