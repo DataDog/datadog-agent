@@ -231,12 +231,12 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 						continue
 					}
 
-					name, description, found := strings.Cut(strings.TrimPrefix(comment.Text, generateConstantsAnnotationPrefix), ",")
-					if !found {
+					meta := strings.SplitN(strings.TrimPrefix(comment.Text, generateConstantsAnnotationPrefix), ",", 2)
+					if len(meta) != 2 {
 						continue
 					}
-					consts.Name = name
-					consts.Description = description
+					consts.Name = meta[0]
+					consts.Description = meta[1]
 					break
 				}
 				if len(consts.Name) == 0 || len(consts.Description) == 0 {

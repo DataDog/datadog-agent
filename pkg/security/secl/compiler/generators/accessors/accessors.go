@@ -182,7 +182,9 @@ type seclField struct {
 
 func parseFieldDef(def string) (seclField, error) {
 	def = strings.TrimSpace(def)
-	alias, options, splitted := strings.Cut(def, ",")
+	splitted := strings.SplitN(def, ",", 2)
+
+	alias := splitted[0]
 	field := seclField{name: alias}
 
 	if alias == "-" {
@@ -190,8 +192,8 @@ func parseFieldDef(def string) (seclField, error) {
 	}
 
 	// arguments
-	if splitted {
-		for _, el := range strings.Split(options, ",") {
+	if len(splitted) > 1 {
+		for _, el := range strings.Split(splitted[1], ",") {
 			kv := strings.Split(el, ":")
 
 			key, value := kv[0], kv[1]

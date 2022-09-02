@@ -12,13 +12,12 @@ import (
 // GetTagValue returns the value of the given tag in the given list
 func GetTagValue(tagName string, tags []string) string {
 	for _, tag := range tags {
-		key, value, found := strings.Cut(tag, ":")
-		if !found {
+		kv := strings.SplitN(tag, ":", 2)
+		if len(kv) != 2 {
 			continue
 		}
-
-		if key == tagName {
-			return value
+		if kv[0] == tagName {
+			return kv[1]
 		}
 	}
 	return ""
@@ -26,10 +25,9 @@ func GetTagValue(tagName string, tags []string) string {
 
 // GetTagName returns the key of a tag in the tag_name:tag_value format
 func GetTagName(tag string) string {
-	key, _, found := strings.Cut(tag, ":")
-	if !found {
+	kv := strings.SplitN(tag, ":", 2)
+	if len(kv) != 2 {
 		return ""
 	}
-
-	return key
+	return kv[0]
 }

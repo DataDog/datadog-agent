@@ -342,15 +342,15 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 
 	var i int
 	for _, value := range values {
-		k, _, found := strings.Cut(value, "=")
-		if !found {
+		kv := strings.SplitN(value, "=", 2)
+		if len(kv) != 2 {
 			continue
 		}
 
-		if envsWithValue[k] {
+		if envsWithValue[kv[0]] {
 			p.filteredEnvs[i] = value
 		} else {
-			p.filteredEnvs[i] = k
+			p.filteredEnvs[i] = kv[0]
 		}
 		i++
 	}
@@ -367,9 +367,11 @@ func (p *EnvsEntry) toMap() {
 	p.kv = make(map[string]string, len(values))
 
 	for _, value := range values {
-		k, v, found := strings.Cut(value, "=")
-		if found {
-			p.kv[k] = v
+		kv := strings.SplitN(value, "=", 2)
+		k := kv[0]
+
+		if len(kv) == 2 {
+			p.kv[k] = kv[1]
 		}
 	}
 }

@@ -42,8 +42,9 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
 		for _, field := range strings.Split(mnt.Optional, " ") {
-			target, value, found := strings.Cut(field, ":")
-			if found {
+			optionSplit := strings.SplitN(field, ":", 2)
+			if len(optionSplit) == 2 {
+				target, value := optionSplit[0], optionSplit[1]
 				if target == "shared" || target == "master" {
 					groupID, err := strconv.ParseUint(value, 10, 32)
 					return uint32(groupID), err
