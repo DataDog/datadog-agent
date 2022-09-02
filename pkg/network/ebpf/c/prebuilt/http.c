@@ -11,9 +11,7 @@
 #include "sock.h"
 #include "port_range.h"
 
-#define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
-
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues

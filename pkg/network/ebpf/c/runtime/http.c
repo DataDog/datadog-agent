@@ -12,7 +12,6 @@
 #include "https.h"
 #include "conn-tuple.h"
 
-#define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
 
 // This entry point is needed to bypass a memory limit on socket filters

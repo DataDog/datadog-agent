@@ -10,6 +10,8 @@
 #include "sockfd.h"
 #include "tags-types.h"
 
+#define HTTPS_PORT 443
+
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type);
 
 static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
