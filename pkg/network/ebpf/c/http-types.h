@@ -8,7 +8,7 @@
 // This controls the number of HTTP transactions read from userspace at a time
 #define HTTP_BATCH_SIZE 15
 // The greater this number is the less likely are colisions/data-races between the flushes
-#define HTTP_BATCH_PAGES 15
+#define HTTP_BATCH_PAGES 5
 
 // HTTP/1.1 XXX
 // _________^
@@ -75,11 +75,11 @@ typedef struct {
     __u64 idx;
     // pos indicates the batch slot where the next http transaction should be written to
     __u8 pos;
-    // idx_to_notify is used to track which batch completions were notified to userspace
-    // * if idx_to_notify == idx, the current index is still being appended to;
-    // * if idx_to_notify < idx, the batch at idx_to_notify needs to be sent to userspace;
-    // (note that idx will never be less than idx_to_notify);
-    __u64 idx_to_notify;
+    // idx_to_flush is used to track which batches were flushed to userspace
+    // * if idx_to_flush == idx, the current index is still being appended to;
+    // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
+    // (note that idx will never be less than idx_to_flush);
+    __u64 idx_to_flush;
 } http_batch_state_t;
 
 typedef struct {
@@ -87,19 +87,6 @@ typedef struct {
     __u8 pos;
     http_transaction_t txs[HTTP_BATCH_SIZE];
 } http_batch_t;
-
-// http_batch_notification_t is flushed to userspace every time we complete a
-// batch (that is, when we fill a page with HTTP_BATCH_SIZE entries). uppon
-// receiving this notification the userpace program is then supposed to fetch
-// the full batch by doing a map lookup using `cpu` and then retrieving the full
-// page using batch_idx param. why just not flush the batch itself via the
-// perf-ring? we do this because prior to Kernel 4.11 bpf_perf_event_output
-// requires the data to be allocated in the eBPF stack. that makes batching
-// virtually impossible given the stack limit of 512bytes.
-typedef struct {
-    __u32 cpu;
-    __u64 batch_idx;
-} http_batch_notification_t;
 
 // OpenSSL types
 typedef struct {

@@ -28,10 +28,10 @@ import (
 )
 
 const (
-	httpInFlightMap          = "http_in_flight"
-	httpBatchesMap           = "http_batches"
-	httpBatchStateMap        = "http_batch_state"
-	httpNotificationsPerfMap = "http_notifications"
+	httpInFlightMap   = "http_in_flight"
+	httpBatchesMap    = "http_batches"
+	httpBatchStateMap = "http_batch_state"
+	httpBatchEvents   = "http_batch_events"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
@@ -107,9 +107,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
-				Map: manager.Map{Name: httpNotificationsPerfMap},
+				Map: manager.Map{Name: httpBatchEvents},
 				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
+					// revisit this before merging
+					PerfRingBufferSize: 128 * os.Getpagesize(),
 					Watermark:          1,
 					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,

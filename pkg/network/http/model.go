@@ -27,19 +27,8 @@ const (
 )
 
 type httpTX C.http_transaction_t
-type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
-
-func toHTTPNotification(data []byte) httpNotification {
-	return *(*httpNotification)(unsafe.Pointer(&data[0]))
-}
-
-// Prepare the httpBatchKey for a map lookup
-func (k *httpBatchKey) Prepare(n httpNotification) {
-	k.cpu = n.cpu
-	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
-}
 
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.
@@ -105,14 +94,6 @@ func (tx *httpTX) String() string {
 	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
-}
-
-// IsDirty detects whether the batch page we're supposed to read from is still
-// valid.  A "dirty" page here means that between the time the
-// http_notification_t message was sent to userspace and the time we performed
-// the batch lookup the page was overridden.
-func (batch *httpBatch) IsDirty(notification httpNotification) bool {
-	return batch.idx != notification.batch_idx
 }
 
 // Transactions returns the slice of HTTP transactions embedded in the batch
