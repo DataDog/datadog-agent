@@ -32,14 +32,7 @@ int socket__http_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    // If the socket is for https and it is finishing,
-    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
-    // Otherwise, don't bother to inspect packet contents
-    // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
-    if (!(http.tup.metadata & CONN_TYPE_TCP)) {
-        return 0;
-    }
-    if ((http.tup.sport == HTTPS_PORT || http.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
+    if (!http_allow_packet(&http, skb, &skb_info)) {
         return 0;
     }
 

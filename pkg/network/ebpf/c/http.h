@@ -4,6 +4,7 @@
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
+#include "https.h"
 
 #include <uapi/linux/ptrace.h>
 
@@ -189,9 +190,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     http->tags |= tags;
 
-    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
-    // This is to prevent things such as keep-alives adding up to the transaction latency
-    if (buffer[0] != 0) {
+    if (http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
@@ -202,5 +201,25 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     return 0;
 }
+
+// this function is called by the socket-filter program to decide whether or not we should inspect
+// the contents of a certain packet, in order to avoid the cost of processing packets that are not
+// of interest such as empty ACKs, UDP data or encrypted traffic.
+static __always_inline bool http_allow_packet(http_transaction_t *http, struct __sk_buff* skb, skb_info_t *skb_info) {
+    // we're only interested in TCP traffic
+    if (!(http->tup.metadata&CONN_TYPE_TCP)) {
+        return false;
+    }
+
+    // if payload data is empty or if this is an encrypted packet, we only
+    // process it if the packet represents a TCP termination
+    bool empty_payload = skb_info->data_off == skb->len;
+    if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
+        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+    }
+
+    return true;
+}
+
 
 #endif
