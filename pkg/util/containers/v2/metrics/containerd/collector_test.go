@@ -43,14 +43,13 @@ func TestGetContainerIDForPID(t *testing.T) {
 		MockNamespaces: func(ctx context.Context) ([]string, error) {
 			return []string{"ns"}, nil
 		},
-		MockSetCurrentNamespace: func(namespace string) {},
-		MockContainers: func() ([]containerd.Container, error) {
+		MockContainers: func(namespace string) ([]containerd.Container, error) {
 			return []containerd.Container{
 				mockedContainer{id: "cID1"},
 				mockedContainer{id: "cID2"},
 			}, nil
 		},
-		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return pidMap[ctn.ID()], nil
 		},
 	}
@@ -83,21 +82,20 @@ func TestGetContainerIDForPID(t *testing.T) {
 //   - 2) Define functions like Info, Spec, etc. so they don't return errors.
 func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
 	return &fake.MockedContainerdClient{
-		MockTaskMetrics: func(ctn containerd.Container) (*types.Metric, error) {
+		MockTaskMetrics: func(namespace string, ctn containerd.Container) (*types.Metric, error) {
 			return metrics, nil
 		},
-		MockContainer: func(id string) (containerd.Container, error) {
+		MockContainer: func(namespace string, id string) (containerd.Container, error) {
 			return mockedContainer{}, nil
 		},
-		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{}, nil
 		},
-		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
 			return nil, nil
 		},
-		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
-		MockSetCurrentNamespace: func(namespace string) {},
 	}
 }
