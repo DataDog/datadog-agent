@@ -482,6 +482,71 @@ func TestFilesToTail(t *testing.T) {
 	})
 }
 
+func BenchmarkApplyOrdering(b *testing.B) {
+	b.Run("Mtime", func(b *testing.B) {
+		testDir := b.TempDir()
+		baseTime := time.Date(2010, time.August, 25, 0, 0, 0, 0, time.UTC)
+
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string, time time.Time) {
+			_, err := os.Create(path(name))
+			assert.Nil(b, err)
+			err = os.Chtimes(path(name), time, time)
+			assert.Nil(b, err)
+		}
+
+		createFile("a.log", baseTime.Add(time.Second*4))
+		createFile("b.log", baseTime.Add(time.Second*2))
+		createFile("c.log", baseTime.Add(time.Second*5))
+		createFile("d.log", baseTime.Add(time.Second*5))
+
+		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		files := []string{
+			path("a.log"),
+			path("b.log"),
+			path("c.log"),
+			path("d.log"),
+		}
+		for n := 0; n < b.N; n++ {
+			fileProvider.applyOrdering(files)
+		}
+	})
+
+	b.Run("ReverseLexicographical", func(b *testing.B) {
+		testDir := b.TempDir()
+		baseTime := time.Date(2010, time.August, 25, 0, 0, 0, 0, time.UTC)
+
+		path := func(name string) string {
+			return fmt.Sprintf("%s/%s", testDir, name)
+		}
+		createFile := func(name string, time time.Time) {
+			_, err := os.Create(path(name))
+			assert.Nil(b, err)
+			err = os.Chtimes(path(name), time, time)
+			assert.Nil(b, err)
+		}
+
+		createFile("a.log", baseTime.Add(time.Second*4))
+		createFile("b.log", baseTime.Add(time.Second*2))
+		createFile("c.log", baseTime.Add(time.Second*5))
+		createFile("d.log", baseTime.Add(time.Second*5))
+
+		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		files := []string{
+			path("a.log"),
+			path("b.log"),
+			path("c.log"),
+			path("d.log"),
+		}
+		for n := 0; n < b.N; n++ {
+			fileProvider.applyOrdering(files)
+		}
+	})
+
+}
+
 func TestApplyOrdering(t *testing.T) {
 	t.Run("Mtime", func(t *testing.T) {
 		testDir := t.TempDir()
