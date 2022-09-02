@@ -30,6 +30,7 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.TCPCleanupRBuf:       "kprobe__tcp_cleanup_rbuf",
 	probes.TCPClose:             "kprobe__tcp_close",
 	probes.TCPCloseReturn:       "kretprobe__tcp_close",
+	probes.TCPDone:              "kprobe__tcp_done",
 	probes.TCPConnect:           "kprobe__tcp_connect",
 	probes.TCPFinishConnect:     "kprobe__tcp_finish_connect",
 	probes.TCPSetState:          "kprobe__tcp_set_state",

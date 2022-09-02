@@ -54,6 +54,8 @@ const (
 	TCPCleanupRBuf ProbeName = "kprobe/tcp_cleanup_rbuf"
 	// TCPClose traces the tcp_close() system call
 	TCPClose ProbeName = "kprobe/tcp_close"
+	// TCPDone traces the tcp_done() kernel function
+	TCPDone ProbeName = "kprobe/tcp_done"
 	// TCPCloseReturn traces the return of tcp_close() system call
 	TCPCloseReturn ProbeName = "kretprobe/tcp_close"
 
