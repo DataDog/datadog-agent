@@ -20,7 +20,7 @@ func (ev *Event) ResolveFields(forADs bool) {
 {{- range $Key, $Field := .Fields}}
     {{- if and (eq $Field.Event "*") (ne $Field.Handler "") (not $Field.Iterator) (eq $Field.CachelessResolution false) }}
         {{- if (eq $Field.Prefix "") }}
-            _ = {{ print "ev." $Field.Handler "(ev)"}}
+            _ = ev.{{ $Field.Handler }}(ev)
         {{- else}}
             {{$Ptr := "&"}}
             {{$Parent := index $.AllFields $Field.Prefix}}
@@ -30,7 +30,7 @@ func (ev *Event) ResolveFields(forADs bool) {
 
             {{ $resolver := print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")" }}
             {{ if not (hasKey $uniqueResolvers $resolver) }}
-            _ = {{ print $resolver }}
+            _ = {{ $resolver }}
             {{ $_ := set $uniqueResolvers $resolver "" }}
             {{ end }}
         {{- end}}
@@ -46,7 +46,7 @@ func (ev *Event) ResolveFields(forADs bool) {
             {{- $Field := index $.Fields $FieldName }}
                 {{- if and (ne $Field.Handler "") (not $Field.Iterator) (eq $Field.CachelessResolution false) }}
                     {{- if (eq $Field.Prefix "") }}
-                        _ = {{ print "ev." $Field.Handler "(ev)"}}
+                        _ = ev.{{ $Field.Handler }}(ev)
                     {{- else}}
                         {{$Ptr := "&"}}
                         {{$Parent := index $.AllFields $Field.Prefix}}
@@ -54,7 +54,7 @@ func (ev *Event) ResolveFields(forADs bool) {
                             {{$Ptr = ""}}
                         {{end}}
 
-                        _ = {{ print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")"}}
+                        _ = ev.{{ $Field.Handler }}({{ $Ptr}}ev.{{ $Field.Prefix }})
                     {{- end}}
                 {{- end -}}
             {{end}}
