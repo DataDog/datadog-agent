@@ -167,16 +167,20 @@ func (m *Module) Start() error {
 		seclog.Errorf("failed to parse agent version: %v", err)
 	}
 
-	filters := make([]rules.RuleFilter, 0, 1)
+	var macroFilters []rules.MacroFilter
+	var ruleFilters []rules.RuleFilter
+
 	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
 	if err != nil {
 		seclog.Errorf("failed to create agent version filter: %v", err)
 	} else {
-		filters = append(filters, agentVersionFilter)
+		macroFilters = append(macroFilters, agentVersionFilter)
+		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
 	m.policyOpts = rules.PolicyLoaderOpts{
-		RuleFilters: filters,
+		MacroFilters: macroFilters,
+		RuleFilters:  ruleFilters,
 	}
 
 	// directory policy provider

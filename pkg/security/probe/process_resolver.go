@@ -101,11 +101,17 @@ type ProcessResolver struct {
 	pidCacheMap      *lib.Map
 	cacheSize        *atomic.Int64
 	opts             ProcessResolverOpts
-	hitsStats        map[string]*atomic.Int64
-	missStats        *atomic.Int64
-	addedEntries     *atomic.Int64
-	flushedEntries   *atomic.Int64
-	pathErrStats     *atomic.Int64
+
+	// stats
+	hitsStats      map[string]*atomic.Int64
+	missStats      *atomic.Int64
+	addedEntries   *atomic.Int64
+	flushedEntries *atomic.Int64
+	pathErrStats   *atomic.Int64
+	argsTruncated  *atomic.Int64
+	argsSize       *atomic.Int64
+	envsTruncated  *atomic.Int64
+	envsSize       *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -308,6 +314,30 @@ func (p *ProcessResolver) SendStats() error {
 	if count := p.pathErrStats.Swap(0); count > 0 {
 		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send process_resolver path error metric: %w", err)
+		}
+	}
+
+	if count := p.argsTruncated.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverArgsTruncated, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send args truncated metric: %w", err)
+		}
+	}
+
+	if count := p.argsSize.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverArgsSize, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send args size metric: %w", err)
+		}
+	}
+
+	if count := p.envsTruncated.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverEnvsTruncated, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send envs truncated metric: %w", err)
+		}
+	}
+
+	if count := p.envsSize.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverEnvsSize, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send envs size metric: %w", err)
 		}
 	}
 
@@ -817,8 +847,15 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
+		if pce.ArgsTruncated {
+			p.argsTruncated.Inc()
+		}
+
+		entry := e.(*model.ArgsEnvsCacheEntry)
+		p.argsSize.Add(int64(entry.TotalSize))
+
 		pce.ArgsEntry = &model.ArgsEntry{
-			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+			ArgsEnvsCacheEntry: entry,
 		}
 
 		// attach to a process thus retain the head of the chain
@@ -881,8 +918,15 @@ func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, b
 // SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
+		if pce.EnvsTruncated {
+			p.envsTruncated.Inc()
+		}
+
+		entry := e.(*model.ArgsEnvsCacheEntry)
+		p.envsSize.Add(int64(entry.TotalSize))
+
 		pce.EnvsEntry = &model.EnvsEntry{
-			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+			ArgsEnvsCacheEntry: entry,
 		}
 
 		// attach to a process thus retain the head of the chain
@@ -1245,6 +1289,10 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 		addedEntries:   atomic.NewInt64(0),
 		flushedEntries: atomic.NewInt64(0),
 		pathErrStats:   atomic.NewInt64(0),
+		argsTruncated:  atomic.NewInt64(0),
+		argsSize:       atomic.NewInt64(0),
+		envsTruncated:  atomic.NewInt64(0),
+		envsSize:       atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)

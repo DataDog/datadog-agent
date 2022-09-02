@@ -42,6 +42,7 @@ func (m *mockedImage) Name() string {
 }
 
 func TestBuildWorkloadMetaContainer(t *testing.T) {
+	namespace := "default"
 	containerID := "10"
 	labels := map[string]string{
 		"some_label": "some_val",
@@ -69,28 +70,28 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 
 	client := fake.MockedContainerdClient{
-		MockEnvVars: func(ctn containerd.Container) (map[string]string, error) {
+		MockEnvVars: func(namespace string, ctn containerd.Container) (map[string]string, error) {
 			return envVars, nil
 		},
-		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{
 				Labels:    labels,
 				CreatedAt: createdAt,
 				Image:     imgName,
 			}, nil
 		},
-		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
-		MockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}
 
-	result, err := buildWorkloadMetaContainer(&container, &client)
+	result, err := buildWorkloadMetaContainer(namespace, &container, &client)
 	assert.NoError(t, err)
 
 	expected := workloadmeta.Container{

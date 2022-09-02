@@ -625,6 +625,15 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	return rules.NewAgentVersionFilter(agentVersion)
+}
+
 func checkPoliciesInner(dir string) error {
 	cfg := &secconfig.Config{
 		PoliciesDir:         dir,
@@ -653,17 +662,15 @@ func checkPoliciesInner(dir string) error {
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
-	agentVersion, err := utils.GetAgentSemverVersion()
-	if err != nil {
-		return err
-	}
-
-	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
+	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
 		return fmt.Errorf("failed to create agent version filter: %w", err)
 	}
 
 	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
 		RuleFilters: []rules.RuleFilter{
 			agentVersionFilter,
 		},
@@ -788,7 +795,15 @@ func evalRule(cmd *cobra.Command, args []string) error {
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
 	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
 		RuleFilters: []rules.RuleFilter{
 			&rules.RuleIDFilter{
 				ID: evalArgs.ruleID,

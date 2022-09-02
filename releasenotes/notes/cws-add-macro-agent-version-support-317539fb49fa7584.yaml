@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Cloud Workload Security now has Agent version constraints for Macros in SECL expressions.
