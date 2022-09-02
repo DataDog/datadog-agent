@@ -523,9 +523,15 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 	defer adm.Unlock()
 
 	// we first compute the total size used by current activity dumps
-	var totalSize uint64
+	var totalSize, dumpSize uint64
 	for _, ad := range adm.activeDumps {
-		totalSize += ad.computeMemorySize()
+		dumpSize = ad.computeMemorySize()
+		totalSize += dumpSize
+
+		// look for image_name and image_tag tags
+		if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{}, 1); err != nil {
+			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
+		}
 	}
 
 	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
