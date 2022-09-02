@@ -8,7 +8,7 @@
 
 package constantfetch
 
-// Offset names in the format "OffsetName_[Struct Name]_[Field Name]"
+// Offset names in the format "OffsetName[Struct Name]Struct[Field Name]"
 const (
-	OffsetName_LinuxBinprm_File = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
 )
