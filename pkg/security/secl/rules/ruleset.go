@@ -523,7 +523,7 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 
 func (rs *RuleSet) tracefProxy(format string, params ...interface{}) {
 	if rs.logger.IsTracing() {
-		rs.logger.Tracef(format, params)
+		rs.logger.Tracef(format, params...)
 	}
 }
 
