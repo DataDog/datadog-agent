@@ -81,7 +81,7 @@ func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
 
 func (og *OffsetGuesser) guess(id string) error {
 	switch id {
-	case OffsetName_PID_Numbers:
+	case OffsetNamePIDStructNumbers:
 		offset, err := og.guessPidNumbersOfsset()
 		if err != nil {
 			return err

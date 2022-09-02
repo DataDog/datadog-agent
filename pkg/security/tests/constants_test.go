@@ -20,7 +20,7 @@ import (
 )
 
 var BTFHubPossiblyMissingConstants = []string{
-	constantfetch.OffsetName_NFConn_CTNet,
+	constantfetch.OffsetNameNFConnStructCTNet,
 }
 
 func TestOctogonConstants(t *testing.T) {

@@ -46,12 +46,12 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 	switch field {
 	case "bpf.map.name":
-		if offset, found := m.probe.constantOffsets[constantfetch.OffsetName_BPFMap_Name]; !found || offset == constantfetch.ErrorSentinel {
+		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
 			return fmt.Errorf("%s is not available on this kernel version", field)
 		}
 
 	case "bpf.prog.name":
-		if offset, found := m.probe.constantOffsets[constantfetch.OffsetName_BPFProgAux_Name]; !found || offset == constantfetch.ErrorSentinel {
+		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 			return fmt.Errorf("%s is not available on this kernel version", field)
 		}
 	}
