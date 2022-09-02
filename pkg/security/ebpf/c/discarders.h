@@ -248,17 +248,19 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
     }
 
     bool is_discarded = inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
+    if (!is_discarded) {
+        return 0;
+    }
 
     // should we ignore the discarder check because of an activity dump ?
     if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
         // do not discard this event
-        if (should_be_discarded && is_discarded) {
+        if (should_be_discarded) {
             *should_be_discarded = true;
         }
         return 0;
-    } else {
-        return is_discarded;
     }
+    return 1;
 }
 
 void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
