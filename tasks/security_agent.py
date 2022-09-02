@@ -705,3 +705,32 @@ def go_generate_check(ctx):
             for file in ft.dirty_files:
                 print(f"* {file}")
             raise Exit(code=1)
+
+
+@task
+def kitchen_prepare(ctx):
+    nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
+    testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
+    cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
+
+    testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
+    build_functional_tests(
+        ctx, bundle_ebpf=False, race=True, output=testsuite_out_path, nikos_embedded_path=nikos_embedded_path
+    )
+    stresssuite_out_path = os.path.join(cookbook_files_dir, "stresssuite")
+    build_stress_tests(ctx, output=stresssuite_out_path)
+
+    # Copy clang binaries
+    for bin in ["clang-bpf", "llc-bpf"]:
+        ctx.run(f"cp /tmp/{bin} {cookbook_files_dir}/{bin}")
+
+    ctx.run(f"cp /tmp/nikos.tar.gz {cookbook_files_dir}/")
+
+    ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
+    ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
+    src_path = os.environ.get("SRC_PATH", ".")
+    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+
+    ctx.run(f"mkdir -p {ebpf_runtime_dir}")
+    ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
+    ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
