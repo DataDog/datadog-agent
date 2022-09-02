@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	file_provider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -47,7 +48,7 @@ type Launcher struct {
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
 	tailingLimit        int
-	fileProvider        *fileProvider
+	fileProvider        *file_provider.FileProvider
 	tailers             map[string]*tailer.Tailer
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
@@ -63,7 +64,7 @@ type Launcher struct {
 func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           newFileProvider(tailingLimit, sortReverseLexicographical, greedySelection),
+		fileProvider:           file_provider.NewFileProvider(tailingLimit, file_provider.SortReverseLexicographical, file_provider.GreedySelection),
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
@@ -122,7 +123,7 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
-	files := s.fileProvider.filesToTail(s.activeSources)
+	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
 
@@ -203,7 +204,7 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
-	files, err := s.fileProvider.collectFiles(source)
+	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
 		source.Status.Error(err)
 		log.Warnf("Could not collect files: %v", err)

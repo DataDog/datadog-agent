@@ -6,7 +6,7 @@
 //go:build !windows
 // +build !windows
 
-package file
+package file_provider
 
 import (
 	"fmt"
@@ -77,10 +77,10 @@ func (suite *ProviderTestSuite) TearDownTest() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(1, len(files))
 	suite.False(files[0].IsWildcardPath)
@@ -90,10 +90,10 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -115,9 +115,9 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	// with wildcard
 
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
-	files, err := fileProvider.collectFiles(logSources[0])
+	files, err := fileProvider.CollectFiles(logSources[0])
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
 	for _, file := range files {
 		suite.True(file.IsWildcardPath, "this file has been found with a wildcard pattern.")
@@ -126,9 +126,9 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	// without wildcard
 
 	path = fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider = newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider = NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources = suite.newLogSources(path)
-	files, err = fileProvider.collectFiles(logSources[0])
+	files, err = fileProvider.CollectFiles(logSources[0])
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
 	for _, file := range files {
 		suite.False(file.IsWildcardPath, "this file has not been found using a wildcard pattern.")
@@ -137,10 +137,10 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWithRightPermissions() {
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(2, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -152,10 +152,10 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard() {
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -176,9 +176,9 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	filesLimit := 6
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := newFileProvider(filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(5, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -192,10 +192,10 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 
 func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := newFileProvider(suite.filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -208,13 +208,13 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 
 func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	filesLimit := 2
-	fileProvider := newFileProvider(filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
 	status.InitStatus(util.CreateSources(logSources))
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -234,7 +234,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	os.Remove(fmt.Sprintf("%s/1/2.log", suite.testDir))
 	os.Remove(fmt.Sprintf("%s/1/3.log", suite.testDir))
 	os.Remove(fmt.Sprintf("%s/2/2.log", suite.testDir))
-	files = fileProvider.filesToTail(logSources)
+	files = fileProvider.FilesToTail(logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -248,7 +248,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 
 	os.Remove(fmt.Sprintf("%s/2/1.log", suite.testDir))
 
-	files = fileProvider.filesToTail(logSources)
+	files = fileProvider.FilesToTail(logSources)
 	suite.Equal(1, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -259,12 +259,12 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 	filesLimit := 6
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	excludePaths := []string{fmt.Sprintf("%s/2/*.log", suite.testDir)}
-	fileProvider := newFileProvider(filesLimit, sortReverseLexicographical, greedySelection)
+	fileProvider := NewFileProvider(filesLimit, SortReverseLexicographical, GreedySelection)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
 
-	files := fileProvider.filesToTail(logSources)
+	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(3, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -280,9 +280,9 @@ func TestProviderTestSuite(t *testing.T) {
 
 func TestCollectFiles(t *testing.T) {
 	t.Run("Invalid Pattern", func(t *testing.T) {
-		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		fileProvider := NewFileProvider(2, SortReverseLexicographical, GreedySelection)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: "//\\///*"})
-		files, err := fileProvider.collectFiles(source)
+		files, err := fileProvider.CollectFiles(source)
 		assert.Len(t, files, 0)
 		assert.Error(t, err)
 	})
@@ -300,9 +300,9 @@ func TestCollectFiles(t *testing.T) {
 		createFile("c")
 		createFile("d")
 
-		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		fileProvider := NewFileProvider(2, SortReverseLexicographical, GreedySelection)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("*")})
-		files, err := fileProvider.collectFiles(source)
+		files, err := fileProvider.CollectFiles(source)
 		assert.Nil(t, err)
 		assert.Len(t, files, 4)
 		assert.Equal(t, path("d"), files[0].Path)
@@ -331,9 +331,9 @@ func TestCollectFiles(t *testing.T) {
 		createFile("t.log", baseTime.Add(time.Second*2))
 		createFile("z.log", baseTime.Add(time.Second*1))
 
-		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		fileProvider := NewFileProvider(2, SortMtime, GreedySelection)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("*")})
-		files, err := fileProvider.collectFiles(source)
+		files, err := fileProvider.CollectFiles(source)
 		assert.Nil(t, err)
 		assert.Len(t, files, 4)
 		assert.Equal(t, path("a.log"), files[0].Path)
@@ -367,12 +367,12 @@ func TestFilesToTail(t *testing.T) {
 		createFile("b/b")
 		createFile("b/z")
 
-		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		fileProvider := NewFileProvider(2, SortReverseLexicographical, GreedySelection)
 		sources := []*sources.LogSource{
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: path("b/*")}),
 		}
-		files := fileProvider.filesToTail(sources)
+		files := fileProvider.FilesToTail(sources)
 		assert.Len(t, files, 2)
 		assert.Equal(t, path("a/z"), files[0].Path)
 		assert.Equal(t, path("a/b"), files[1].Path)
@@ -401,12 +401,12 @@ func TestFilesToTail(t *testing.T) {
 		createFile("b/b")
 		createFile("b/z")
 
-		fileProvider := newFileProvider(2, sortReverseLexicographical, globalSelection)
+		fileProvider := NewFileProvider(2, SortReverseLexicographical, GlobalSelection)
 		sources := []*sources.LogSource{
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: path("b/*")}),
 		}
-		files := fileProvider.filesToTail(sources)
+		files := fileProvider.FilesToTail(sources)
 		assert.Len(t, files, 2)
 		assert.Equal(t, path("b/z"), files[0].Path)
 		assert.Equal(t, path("b/b"), files[1].Path)
@@ -432,11 +432,11 @@ func TestFilesToTail(t *testing.T) {
 		createFile("z.log", baseTime.Add(time.Second*1))
 		// TODO test behavior when time is equal
 
-		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		fileProvider := NewFileProvider(2, SortMtime, GreedySelection)
 		sources := []*sources.LogSource{
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("*")}),
 		}
-		files := fileProvider.filesToTail(sources)
+		files := fileProvider.FilesToTail(sources)
 		assert.Len(t, files, 2)
 		assert.Equal(t, path("a.log"), files[0].Path)
 		assert.Equal(t, path("q.log"), files[1].Path)
@@ -470,12 +470,12 @@ func TestFilesToTail(t *testing.T) {
 		createFile("b/b", baseTime.Add(time.Second*7))
 		createFile("b/c", baseTime.Add(time.Second*8))
 
-		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		fileProvider := NewFileProvider(2, SortMtime, GreedySelection)
 		sources := []*sources.LogSource{
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: path("b/*")}),
 		}
-		files := fileProvider.filesToTail(sources)
+		files := fileProvider.FilesToTail(sources)
 		assert.Len(t, files, 2)
 		assert.Equal(t, path("a/c"), files[0].Path)
 		assert.Equal(t, path("b/c"), files[1].Path)
@@ -502,7 +502,7 @@ func BenchmarkApplyOrdering(b *testing.B) {
 		createFile("c.log", baseTime.Add(time.Second*5))
 		createFile("d.log", baseTime.Add(time.Second*5))
 
-		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		fileProvider := NewFileProvider(2, SortMtime, GreedySelection)
 		files := []string{
 			path("a.log"),
 			path("b.log"),
@@ -533,7 +533,7 @@ func BenchmarkApplyOrdering(b *testing.B) {
 		createFile("c.log", baseTime.Add(time.Second*5))
 		createFile("d.log", baseTime.Add(time.Second*5))
 
-		fileProvider := newFileProvider(2, sortReverseLexicographical, greedySelection)
+		fileProvider := NewFileProvider(2, SortReverseLexicographical, GreedySelection)
 		files := []string{
 			path("a.log"),
 			path("b.log"),
@@ -568,7 +568,7 @@ func TestApplyOrdering(t *testing.T) {
 		createFile("q.log", baseTime.Add(time.Second*3))
 		createFile("z.log", baseTime.Add(time.Second*1))
 
-		fileProvider := newFileProvider(2, sortMtime, greedySelection)
+		fileProvider := NewFileProvider(2, SortMtime, GreedySelection)
 		files := []string{
 			path("t.log"),
 			path("a.log"),
@@ -586,7 +586,7 @@ func TestApplyOrdering(t *testing.T) {
 	})
 
 	t.Run("Reverse Lexicographical", func(t *testing.T) {
-		fileProvider := newFileProvider(0, sortReverseLexicographical, greedySelection)
+		fileProvider := NewFileProvider(0, SortReverseLexicographical, GreedySelection)
 		// For lexicographical ordering, we don't actually need the files
 		// to exist on the FS, so that part is skipped for these tests
 		t.Run("Flat Directory", func(t *testing.T) {

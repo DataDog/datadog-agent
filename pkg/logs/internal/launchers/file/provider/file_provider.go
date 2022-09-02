@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package file
+package file_provider
 
 import (
 	"fmt"
@@ -27,33 +27,33 @@ const openFilesLimitWarningType = "open_files_limit_warning"
 type sortOptions string
 
 const (
-	sortReverseLexicographical = "SortReverseLexicographical"
-	sortMtime                  = "SortMtime"
+	SortReverseLexicographical = "SortReverseLexicographical"
+	SortMtime                  = "SortMtime"
 )
 
 // selectionStrategy controls how the `filesLimit` slots we have are filled given a list of sources
 type selectionStrategy string
 
 const (
-	// greedySelection will consider each source one-by-one, filling as many
+	// GreedySelection will consider each source one-by-one, filling as many
 	// slots as is possible from that source before proceeding to the next one
-	greedySelection = "ChooseGreedily"
-	// globalSelection will consider files from all sources together and will choose the
+	GreedySelection = "ChooseGreedily"
+	// GlobalSelection will consider files from all sources together and will choose the
 	// top `filesLimit` files based on the `sortMode` ordering
-	globalSelection = "ChooseGlobally"
+	GlobalSelection = "ChooseGlobally"
 )
 
-// fileProvider implements the logic to retrieve at most filesLimit Files defined in sources
-type fileProvider struct {
+// FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
+type FileProvider struct {
 	filesLimit      int
 	sortMode        sortOptions
 	selectionMode   selectionStrategy
 	shouldLogErrors bool
 }
 
-// newFileProvider returns a new Provider
-func newFileProvider(filesLimit int, sortMode sortOptions, selectionMode selectionStrategy) *fileProvider {
-	return &fileProvider{
+// NewFileProvider returns a new Provider
+func NewFileProvider(filesLimit int, sortMode sortOptions, selectionMode selectionStrategy) *FileProvider {
+	return &FileProvider{
 		filesLimit:      filesLimit,
 		sortMode:        sortMode,
 		selectionMode:   selectionMode,
@@ -61,10 +61,10 @@ func newFileProvider(filesLimit int, sortMode sortOptions, selectionMode selecti
 	}
 }
 
-// filesToTail returns all the Files matching paths in sources,
+// FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's sortMode and chooseStrategy
-func (p *fileProvider) filesToTail(sources []*sources.LogSource) []*tailer.File {
+func (p *FileProvider) FilesToTail(sources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -72,7 +72,7 @@ func (p *fileProvider) filesToTail(sources []*sources.LogSource) []*tailer.File 
 	for i := 0; i < len(sources); i++ {
 		source := sources[i]
 		tailedFileCounter := 0
-		files, err := p.collectFiles(source)
+		files, err := p.CollectFiles(source)
 		isWildcardPath := config.ContainsWildcard(source.Config.Path)
 		if err != nil {
 			source.Status.Error(err)
@@ -115,9 +115,9 @@ func (p *fileProvider) filesToTail(sources []*sources.LogSource) []*tailer.File 
 	return filesToTail
 }
 
-// collectFiles takes a 'LogSource' and produces a list of tailers matching this source
+// CollectFiles takes a 'LogSource' and produces a list of tailers matching this source
 // with ordering defined by 'sortMode'
-func (p *fileProvider) collectFiles(source *sources.LogSource) ([]*tailer.File, error) {
+func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
 	_, err := os.Stat(path)
 	switch {
@@ -141,7 +141,7 @@ func (p *fileProvider) collectFiles(source *sources.LogSource) ([]*tailer.File, 
 }
 
 // searchFiles returns all the files matching the source path pattern.
-func (p *fileProvider) searchFiles(pattern string) ([]string, error) {
+func (p *FileProvider) searchFiles(pattern string) ([]string, error) {
 	paths, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
@@ -156,8 +156,8 @@ func (p *fileProvider) searchFiles(pattern string) ([]string, error) {
 
 // applyOrdering sorts the 'paths' slice in-place by the currently configured 'sortMode'
 // While 'paths' are just strings, they _must_ exist on the filesystem. Otherwise behavior is undefined.
-func (p *fileProvider) applyOrdering(paths []string) {
-	if p.sortMode == sortMtime {
+func (p *FileProvider) applyOrdering(paths []string) {
+	if p.sortMode == SortMtime {
 		// sort paths descending by mtime
 		sort.SliceStable(paths, func(i, j int) bool {
 			statI, _ := os.Stat(paths[i])
@@ -165,7 +165,7 @@ func (p *fileProvider) applyOrdering(paths []string) {
 
 			return statI.ModTime().After(statJ.ModTime())
 		})
-	} else if p.sortMode == sortReverseLexicographical {
+	} else if p.sortMode == SortReverseLexicographical {
 		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
 		// This is true in the current go implementation, but it is unsafe to assume
 		// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=363;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
