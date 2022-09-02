@@ -8,6 +8,7 @@
 
 package constantfetch
 
+// Struct sizes
 const (
 	SizeOfInode = "sizeof_inode"
 	SizeOfUPID  = "sizeof_upid"
