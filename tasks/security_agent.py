@@ -14,6 +14,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
+    build_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -319,7 +320,17 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
     race=False,
+    kernel_release=None,
 ):
+    build_object_files(
+        ctx,
+        major_version=major_version,
+        arch=arch,
+        kernel_release=kernel_release,
+    )
+
+    build_embed_syscall_tester(ctx)
+
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -374,7 +385,9 @@ def build_stress_tests(
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
+    kernel_release=None,
 ):
+    build_embed_latency_tools(ctx)
     build_functional_tests(
         ctx,
         output=output,
@@ -384,6 +397,7 @@ def build_stress_tests(
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
     )
 
 
@@ -398,9 +412,8 @@ def stress_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
+    kernel_release=None,
 ):
-    build_embed_latency_tools(ctx)
-
     build_stress_tests(
         ctx,
         go_version=go_version,
@@ -409,6 +422,7 @@ def stress_tests(
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
     )
 
     run_functional_tests(
@@ -431,6 +445,7 @@ def functional_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
+    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -441,6 +456,7 @@ def functional_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         race=race,
+        kernel_release=kernel_release,
     )
 
     run_functional_tests(
@@ -492,6 +508,7 @@ def docker_functional_tests(
     static=False,
     bundle_ebpf=True,
     skip_linters=False,
+    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -502,6 +519,7 @@ def docker_functional_tests(
         bundle_ebpf=bundle_ebpf,
         static=static,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
     )
 
     dockerfile = """
