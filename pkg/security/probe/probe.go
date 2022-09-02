@@ -1616,55 +1616,55 @@ func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus
 
 // AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
 func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher, kv *kernel.Version) {
-	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest("dentry_sb_offset", "struct dentry", "d_sb", "linux/dcache.h")
-	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
-	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
-	constantFetcher.AppendOffsetofRequest("creds_uid_offset", "struct cred", "uid", "linux/cred.h")
+	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfInode, "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb", "linux/dcache.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name", "linux/tty.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid", "linux/cred.h")
 
 	// bpf offsets
-	constantFetcher.AppendOffsetofRequest("bpf_map_id_offset", "struct bpf_map", "id", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
-		constantFetcher.AppendOffsetofRequest("bpf_map_name_offset", "struct bpf_map", "name", "linux/bpf.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructName, "struct bpf_map", "name", "linux/bpf.h")
 	}
-	constantFetcher.AppendOffsetofRequest("bpf_map_type_offset", "struct bpf_map", "map_type", "linux/bpf.h")
-	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_id_offset", "struct bpf_prog_aux", "id", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructMapType, "struct bpf_map", "map_type", "linux/bpf.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgAuxStructID, "struct bpf_prog_aux", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
-		constantFetcher.AppendOffsetofRequest("bpf_prog_aux_name_offset", "struct bpf_prog_aux", "name", "linux/bpf.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgAuxStructName, "struct bpf_prog_aux", "name", "linux/bpf.h")
 	}
-	constantFetcher.AppendOffsetofRequest("bpf_prog_tag_offset", "struct bpf_prog", "tag", "linux/filter.h")
-	constantFetcher.AppendOffsetofRequest("bpf_prog_aux_offset", "struct bpf_prog", "aux", "linux/filter.h")
-	constantFetcher.AppendOffsetofRequest("bpf_prog_type_offset", "struct bpf_prog", "type", "linux/filter.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructTag, "struct bpf_prog", "tag", "linux/filter.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructAux, "struct bpf_prog", "aux", "linux/filter.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructType, "struct bpf_prog", "type", "linux/filter.h")
 
 	if kv.Code != 0 && (kv.Code > kernel.Kernel4_16 || kv.IsSuse12Kernel() || kv.IsSuse15Kernel()) {
-		constantFetcher.AppendOffsetofRequest("bpf_prog_attach_type_offset", "struct bpf_prog", "expected_attach_type", "linux/filter.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFProgStructExpectedAttachType, "struct bpf_prog", "expected_attach_type", "linux/filter.h")
 	}
 	// namespace nr offsets
-	constantFetcher.AppendOffsetofRequest("pid_level_offset", "struct pid", "level", "linux/pid.h")
-	constantFetcher.AppendOffsetofRequest("pid_numbers_offset", "struct pid", "numbers", "linux/pid.h")
-	constantFetcher.AppendSizeofRequest("sizeof_upid", "struct upid", "linux/pid.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructLevel, "struct pid", "level", "linux/pid.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePIDStructNumbers, "struct pid", "numbers", "linux/pid.h")
+	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfUPID, "struct upid", "linux/pid.h")
 
 	// splice event
-	constantFetcher.AppendOffsetofRequest("pipe_inode_info_bufs_offset", "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs", "linux/pipe_fs_i.h")
 
 	// network related constants
-	constantFetcher.AppendOffsetofRequest("net_device_ifindex_offset", "struct net_device", "ifindex", "linux/netdevice.h")
-	constantFetcher.AppendOffsetofRequest("sock_common_skc_net_offset", "struct sock_common", "skc_net", "net/sock.h")
-	constantFetcher.AppendOffsetofRequest("sock_common_skc_family_offset", "struct sock_common", "skc_family", "net/sock.h")
-	constantFetcher.AppendOffsetofRequest("flowi4_saddr_offset", "struct flowi4", "saddr", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest("flowi4_uli_offset", "struct flowi4", "uli", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest("flowi6_saddr_offset", "struct flowi6", "saddr", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest("flowi6_uli_offset", "struct flowi6", "uli", "net/flow.h")
-	constantFetcher.AppendOffsetofRequest("socket_sock_offset", "struct socket", "sk", "linux/net.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex", "linux/netdevice.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family", "net/sock.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructSADDR, "struct flowi4", "saddr", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructULI, "struct flowi4", "uli", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli", "net/flow.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk", "linux/net.h")
 
 	if !kv.IsRH7Kernel() {
-		constantFetcher.AppendOffsetofRequest("nf_conn_ct_net_offset", "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net", "net/netfilter/nf_conntrack.h")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
-		constantFetcher.AppendOffsetofRequest("net_proc_inum_offset", "struct net", "proc_inum", "net/net_namespace.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructProcInum, "struct net", "proc_inum", "net/net_namespace.h")
 	} else {
-		constantFetcher.AppendOffsetofRequest("net_ns_offset", "struct net", "ns", "net/net_namespace.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructNS, "struct net", "ns", "net/net_namespace.h")
 	}
 }
