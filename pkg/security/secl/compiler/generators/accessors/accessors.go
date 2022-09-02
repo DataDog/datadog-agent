@@ -549,6 +549,23 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
+func getFieldResolver(allFields map[string]*common.StructField, field *common.StructField) string {
+	if field.Handler == "" || field.Iterator != nil || field.CachelessResolution {
+		return ""
+	}
+
+	if field.Prefix == "" {
+		return fmt.Sprintf("ev.%s(ev)", field.Handler)
+	}
+
+	ptr := "&"
+	if allFields[field.Prefix].IsOrigTypePtr {
+		ptr = ""
+	}
+
+	return fmt.Sprintf("ev.%s(%sev.%s)", field.Handler, ptr, field.Prefix)
+}
+
 func override(str string, mock bool) string {
 	if !strings.Contains(str, ".") && !mock {
 		return "model." + str
@@ -557,10 +574,11 @@ func override(str string, mock bool) string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix": strings.TrimPrefix,
-	"TrimSuffix": strings.TrimSuffix,
-	"NewField":   newField,
-	"Override":   override,
+	"TrimPrefix":       strings.TrimPrefix,
+	"TrimSuffix":       strings.TrimSuffix,
+	"NewField":         newField,
+	"Override":         override,
+	"GetFieldResolver": getFieldResolver,
 }
 
 //go:embed accessors.tmpl
