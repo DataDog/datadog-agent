@@ -337,7 +337,14 @@ func (l *Collector) run(exit chan struct{}) error {
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	var checkNames []string
+	checkNamesLength := len(l.enabledChecks)
+	if !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
+		// as well as the original check name
+		checkNamesLength = checkNamesLength * 2
+	}
+
+	checkNames := make([]string, 0, checkNamesLength)
 	for _, check := range l.enabledChecks {
 		checkNames = append(checkNames, check.Name())
 
