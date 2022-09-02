@@ -21,7 +21,7 @@ func (ev *Event) ResolveFields(forADs bool) {
     {{- if and (eq $Field.Event "*") }}
         {{ $resolver := $Field | GetFieldResolver $.AllFields }}
         {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
-        _ = {{ $resolver }}
+        {{ $resolver | FieldADPrint $Field }}
         {{ $_ := set $uniqueResolvers $resolver "" }}
         {{ end }}
     {{- end -}}
@@ -36,7 +36,7 @@ func (ev *Event) ResolveFields(forADs bool) {
             {{- $Field := index $.Fields $FieldName }}
                 {{ $resolver := $Field | GetFieldResolver $.AllFields }}
                 {{ if and (ne $resolver "") }}
-                _ = {{ $resolver }}
+                {{ $resolver | FieldADPrint $Field }}
                 {{ end }}
             {{end}}
         {{- end}}

@@ -566,6 +566,14 @@ func getFieldResolver(allFields map[string]*common.StructField, field *common.St
 	return fmt.Sprintf("ev.%s(%sev.%s)", field.Handler, ptr, field.Prefix)
 }
 
+func fieldADPrint(field *common.StructField, resolver string) string {
+	if field.SkipADResolution {
+		return fmt.Sprintf("if !forADs { _ = %s }", resolver)
+	} else {
+		return fmt.Sprintf("_ = %s", resolver)
+	}
+}
+
 func override(str string, mock bool) string {
 	if !strings.Contains(str, ".") && !mock {
 		return "model." + str
@@ -579,6 +587,7 @@ var funcMap = map[string]interface{}{
 	"NewField":         newField,
 	"Override":         override,
 	"GetFieldResolver": getFieldResolver,
+	"FieldADPrint":     fieldADPrint,
 }
 
 //go:embed accessors.tmpl
