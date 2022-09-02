@@ -709,9 +709,6 @@ def go_generate_check(ctx):
 
 @task
 def kitchen_prepare(ctx):
-    build_embed_syscall_tester(ctx)
-    build_embed_latency_tools(ctx)
-
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
     testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
     cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
