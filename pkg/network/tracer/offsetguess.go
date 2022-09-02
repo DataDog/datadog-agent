@@ -33,6 +33,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
@@ -210,7 +211,7 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
-	netns, err := ownNetNS()
+	netns, err := util.GetCurrentIno()
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +231,7 @@ func expectedValues(conn net.Conn) (*fieldValues, error) {
 		daddr:  daddr,
 		sport:  sport,
 		dport:  dport,
-		netns:  uint32(netns),
+		netns:  netns,
 		family: syscall.AF_INET,
 		rtt:    tcpInfo.Rtt,
 		rttVar: tcpInfo.Rttvar,
@@ -300,14 +301,6 @@ func compareIPv6(a [4]uint32, b [4]uint32) bool {
 		}
 	}
 	return true
-}
-
-func ownNetNS() (uint64, error) {
-	var s syscall.Stat_t
-	if err := syscall.Stat("/proc/self/ns/net", &s); err != nil {
-		return 0, err
-	}
-	return s.Ino, nil
 }
 
 func htons(a uint16) uint16 {
@@ -525,6 +518,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 	case netebpf.GuessNetNS:
 		if status.Netns == expected.netns {
 			logAndAdvance(status, status.Offset_netns, netebpf.GuessRTT)
+			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", status.Offset_ino)
 			break
 		}
 		status.Offset_ino++
@@ -695,6 +689,7 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 	if err != nil {
 		return nil, errors.Wrap(err, "error retrieving expected value")
 	}
+	log.Tracef("expected values: %+v", expected)
 
 	err = eventGenerator.populateUDPExpectedValues(expected)
 	if err != nil {

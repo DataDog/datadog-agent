@@ -1,13 +1,15 @@
 #ifndef __IPV6_H
 #define __IPV6_H
 
+#include "bpf_telemetry.h"
+
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
  * https://tools.ietf.org/html/rfc4291#section-2.5.5
  * the addresses are stored in network byte order so IPv4 adddress is stored
  * in the most significant 32 bits of part saddr_l and daddr_l.
  * Meanwhile the end of the mask is stored in the least significant 32 bits.
  */
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __u64 saddr_l, __u64 daddr_h, __u64 daddr_l) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

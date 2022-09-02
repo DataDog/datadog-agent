@@ -153,7 +153,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(config, bpfTelemetry)
+	conntracker, err := newConntracker(config, bpfTelemetry, constantEditors)
 	if err != nil {
 		return nil, err
 	}
@@ -207,29 +207,27 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
 
 	var c netlink.Conntracker
 	var err error
-	if cfg.EnableRuntimeCompiler {
-		c, err = NewEBPFConntracker(cfg, bpfTelemetry)
-		if err == nil {
-			return c, nil
-		}
-
-		if !cfg.AllowPrecompiledFallback {
-			if cfg.IgnoreConntrackInitFailure {
-				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
-				return netlink.NewNoOpConntracker(), nil
-			}
-			return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
-		}
-
-		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
+	c, err = NewEBPFConntracker(cfg, bpfTelemetry, constants)
+	if err == nil {
+		return c, nil
 	}
+
+	if !cfg.AllowPrecompiledFallback {
+		if cfg.IgnoreConntrackInitFailure {
+			log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
+			return netlink.NewNoOpConntracker(), nil
+		}
+		return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	}
+
+	log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 
 	c, err = netlink.NewConntracker(cfg)
 	if err != nil {

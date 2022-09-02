@@ -9,17 +9,20 @@
 package tracer
 
 import (
+	"fmt"
 	"net"
 	"runtime"
 	"testing"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -34,16 +37,17 @@ const (
 func TestConntrackers(t *testing.T) {
 	conntrackers := []struct {
 		name   string
-		create func(*config.Config) (netlink.Conntracker, error)
+		create func(*testing.T, *config.Config) (netlink.Conntracker, error)
 	}{
 		{"netlink", setupNetlinkConntracker},
-		{"eBPF", setupEBPFConntracker},
+		{"eBPF-prebuilt", setupPrebuiltEBPFConntracker},
+		{"eBPF-runtime", setupRuntimeEBPFConntracker},
 	}
 	for _, conntracker := range conntrackers {
 		t.Run(conntracker.name, func(t *testing.T) {
 			t.Run("IPv4", func(t *testing.T) {
 				cfg := config.New()
-				ct, err := conntracker.create(cfg)
+				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
 				defer ct.Close()
 
@@ -53,7 +57,7 @@ func TestConntrackers(t *testing.T) {
 			})
 			t.Run("IPv6", func(t *testing.T) {
 				cfg := config.New()
-				ct, err := conntracker.create(cfg)
+				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
 				defer ct.Close()
 
@@ -64,7 +68,7 @@ func TestConntrackers(t *testing.T) {
 			t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
 				cfg := config.New()
 				cfg.EnableConntrackAllNamespaces = true
-				ct, err := conntracker.create(cfg)
+				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
 				defer ct.Close()
 
@@ -73,7 +77,7 @@ func TestConntrackers(t *testing.T) {
 			t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
 				cfg := config.New()
 				cfg.EnableConntrackAllNamespaces = true
-				ct, err := conntracker.create(cfg)
+				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
 				defer ct.Close()
 
@@ -83,13 +87,33 @@ func TestConntrackers(t *testing.T) {
 	}
 }
 
-func setupEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
-	cfg.EnableRuntimeCompiler = true
-	cfg.AllowPrecompiledFallback = false
-	return NewEBPFConntracker(cfg, nil)
+func getOffsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
+	}
+	defer offsetBuf.Close()
+	return runOffsetGuessing(cfg, offsetBuf)
 }
 
-func setupNetlinkConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
+	cfg.BPFDebug = true
+	//cfg.OffsetGuessThreshold = 200
+	consts, err := getOffsets(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return NewEBPFConntracker(cfg, nil, consts)
+}
+
+func setupRuntimeEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
+	cfg.BPFDebug = true
+	cfg.EnableRuntimeCompiler = true
+	cfg.AllowPrecompiledFallback = false
+	return NewEBPFConntracker(cfg, nil, nil)
+}
+
+func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	ct, err := netlink.NewConntracker(cfg)

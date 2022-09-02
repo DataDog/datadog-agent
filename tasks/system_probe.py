@@ -209,7 +209,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
     network_flags = "-Ipkg/network/ebpf/c -g"
     network_co_re_flags = f"-I{network_co_re_dir}"
-    network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "conntrack"]
     network_co_re_programs = []
 
     for prog in network_programs:
@@ -283,7 +283,7 @@ def ninja_cgo_type_files(nw, windows):
         go_platform = "linux"
         def_files = {
             "pkg/network/ebpf/offsetguess_types.go": ["pkg/network/ebpf/c/prebuilt/offset-guess.h"],
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/runtime/conntrack-types.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
             "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",

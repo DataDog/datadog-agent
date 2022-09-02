@@ -1,0 +1,20 @@
+#ifndef __CONNTRACK_MAPS_H
+#define __CONNTRACK_MAPS_H
+
+#include "bpf_helpers.h"
+#include "map-defs.h"
+#include "tracer.h"
+#include "conntrack-types.h"
+
+/* This map is used for tracking conntrack entries
+ */
+// TODO see if we can substitute LRU at runtime :)
+BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1024)
+
+/* This map is used for conntrack telemetry in kernelspace
+ * only key 0 is used
+ * value is a telemetry object
+ */
+BPF_ARRAY_MAP(conntrack_telemetry, conntrack_telemetry_t, 1)
+
+#endif
