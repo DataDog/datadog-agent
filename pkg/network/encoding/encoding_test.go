@@ -133,6 +133,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	}
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
+		out.Conns[1].TagsChecksum = uint32(3241915907)
 	}
 	return out
 }
