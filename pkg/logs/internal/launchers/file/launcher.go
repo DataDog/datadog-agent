@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
-	file_provider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
+	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -48,7 +48,7 @@ type Launcher struct {
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
 	tailingLimit        int
-	fileProvider        *file_provider.FileProvider
+	fileProvider        *fileprovider.FileProvider
 	tailers             map[string]*tailer.Tailer
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
@@ -64,7 +64,7 @@ type Launcher struct {
 func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           file_provider.NewFileProvider(tailingLimit, file_provider.SortReverseLexicographical, file_provider.GreedySelection),
+		fileProvider:           fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection),
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
@@ -204,6 +204,10 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
+	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
+	if len(s.tailers) >= s.tailingLimit {
+		return
+	}
 	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
 		source.Status.Error(err)

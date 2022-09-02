@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package file_provider
+package fileprovider
 
 import (
 	"fmt"
@@ -23,12 +23,14 @@ import (
 // files are tailed
 const openFilesLimitWarningType = "open_files_limit_warning"
 
-// sortOptions controls what ordering is applied to discovered files
-type sortOptions string
+// wildcardOrdering controls what ordering is applied to wildcard files
+type wildcardOrdering string
 
 const (
-	SortReverseLexicographical = "SortReverseLexicographical"
-	SortMtime                  = "SortMtime"
+	// WildcardReverseLexicographical is the default option and does a pseudo reverse alpha sort
+	WildcardReverseLexicographical = "SortReverseLexicographical"
+	// WildcardMtime sorts based on the most recently modified time for each matching wildcard file
+	WildcardMtime = "SortMtime"
 )
 
 // selectionStrategy controls how the `filesLimit` slots we have are filled given a list of sources
@@ -46,48 +48,46 @@ const (
 // FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
 type FileProvider struct {
 	filesLimit      int
-	sortMode        sortOptions
+	wildcardOrder   wildcardOrdering
 	selectionMode   selectionStrategy
 	shouldLogErrors bool
 }
 
 // NewFileProvider returns a new Provider
-func NewFileProvider(filesLimit int, sortMode sortOptions, selectionMode selectionStrategy) *FileProvider {
+func NewFileProvider(filesLimit int, wildcardOrder wildcardOrdering, selectionMode selectionStrategy) *FileProvider {
 	return &FileProvider{
 		filesLimit:      filesLimit,
-		sortMode:        sortMode,
+		wildcardOrder:   wildcardOrder,
 		selectionMode:   selectionMode,
 		shouldLogErrors: true,
 	}
 }
 
+type matchCount struct {
+	added int
+	total int
+}
+
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's sortMode and chooseStrategy
-func (p *FileProvider) FilesToTail(sources []*sources.LogSource) []*tailer.File {
+func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	for i := 0; i < len(sources); i++ {
-		source := sources[i]
-		tailedFileCounter := 0
-		files, err := p.CollectFiles(source)
-		isWildcardPath := config.ContainsWildcard(source.Config.Path)
-		if err != nil {
-			source.Status.Error(err)
-			if isWildcardPath {
-				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files)))
-			}
-			if shouldLogErrors {
-				log.Warnf("Could not collect files: %v", err)
-			}
-			continue
-		}
+	matchedFileCountBySource := map[*sources.LogSource]matchCount{}
+	consumeFiles := func(files []*tailer.File) {
 		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
 			file := files[j]
 			filesToTail = append(filesToTail, file)
-			tailedFileCounter++
+			src := file.Source.UnderlyingSource()
+			if config.ContainsWildcard(src.Config.Path) {
+				// TODO refactor this nonsense into a struct or something
+				matchCnt := matchedFileCountBySource[src]
+				matchCnt.added++
+				matchedFileCountBySource[src] = matchCnt
+			}
 		}
 
 		if len(filesToTail) >= p.filesLimit {
@@ -101,10 +101,64 @@ func (p *FileProvider) FilesToTail(sources []*sources.LogSource) []*tailer.File 
 		} else {
 			status.RemoveGlobalWarning(openFilesLimitWarningType)
 		}
+	}
 
-		if isWildcardPath {
-			source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files)))
+	wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
+
+	// Process sources, saving wildcard sources for later if they're found
+	for i := 0; i < len(inputSources); i++ {
+		source := inputSources[i]
+		isWildcardSource := config.ContainsWildcard(source.Config.Path)
+		if isWildcardSource {
+			// if global, save all wildcards for later
+			if p.selectionMode == GlobalSelection {
+				wildcardSources = append(wildcardSources, source)
+				continue
+			} // else if greedy, collect now one-by-one.
 		}
+		files, err := p.CollectFiles(source)
+		if err != nil {
+			if isWildcardSource {
+				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("0 files tailed out of %d files matching", len(files)))
+			}
+
+			source.Status.Error(err)
+			if shouldLogErrors {
+				log.Warnf("Could not collect files: %v", err)
+			}
+			continue
+		}
+
+		if isWildcardSource {
+			matchCnt := matchedFileCountBySource[source]
+			matchCnt.total = len(files)
+			matchedFileCountBySource[source] = matchCnt
+		}
+
+		consumeFiles(files)
+	}
+
+	// Then process wildcard sources
+	if p.selectionMode == GlobalSelection {
+		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
+		for _, source := range wildcardSources {
+			files, err := p.filesMatchingSource(source)
+			if err != nil {
+				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("0 files tailed out of %d files matching", len(files)))
+				continue
+			}
+			wildcardFiles = append(wildcardFiles, files...)
+			matchCnt := matchedFileCountBySource[source]
+			matchCnt.total = len(files)
+			matchedFileCountBySource[source] = matchCnt
+		}
+
+		p.applyOrdering(wildcardFiles)
+		fmt.Printf("Files after ordering: %v\n", wildcardFiles)
+		consumeFiles(wildcardFiles)
+	}
+	for source, matchCnt := range matchedFileCountBySource {
+		source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", matchCnt.added, matchCnt.total))
 	}
 
 	if len(filesToTail) == p.filesLimit {
@@ -126,13 +180,11 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 			tailer.NewFile(path, source, false),
 		}, nil
 	case config.ContainsWildcard(path):
-		pattern := path
-		paths, err := p.searchFiles(pattern)
+		files, err := p.filesMatchingSource(source)
 		if err != nil {
 			return nil, err
 		}
-		p.applyOrdering(paths)
-		files, err := createIncludedTailers(paths, source)
+		p.applyOrdering(files)
 
 		return files, err
 	default:
@@ -140,8 +192,9 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 	}
 }
 
-// searchFiles returns all the files matching the source path pattern.
-func (p *FileProvider) searchFiles(pattern string) ([]string, error) {
+// filesMatchingSource returns all the files matching the source path pattern.
+func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer.File, error) {
+	pattern := source.Config.Path
 	paths, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
@@ -151,47 +204,6 @@ func (p *FileProvider) searchFiles(pattern string) ([]string, error) {
 		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are executable", pattern)
 	}
 
-	return paths, nil
-}
-
-// applyOrdering sorts the 'paths' slice in-place by the currently configured 'sortMode'
-// While 'paths' are just strings, they _must_ exist on the filesystem. Otherwise behavior is undefined.
-func (p *FileProvider) applyOrdering(paths []string) {
-	if p.sortMode == SortMtime {
-		// sort paths descending by mtime
-		sort.SliceStable(paths, func(i, j int) bool {
-			statI, _ := os.Stat(paths[i])
-			statJ, _ := os.Stat(paths[j])
-
-			return statI.ModTime().After(statJ.ModTime())
-		})
-	} else if p.sortMode == SortReverseLexicographical {
-		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
-		// This is true in the current go implementation, but it is unsafe to assume
-		// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=363;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
-		// https://github.com/golang/go/issues/17153
-		//
-		// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
-		// contains information in the file datetime. Most of the time we want the most recent files.
-		// Here, we reverse paths to have stable sort keep reverse lexicographical order w.r.t dir names. Example:
-		// [/tmp/1/2017.log, /tmp/1/2018.log, /tmp/2/2018.log] becomes [/tmp/2/2018.log, /tmp/1/2018.log, /tmp/1/2017.log]
-		// then kept as is by the sort below.
-
-		// https://github.com/golang/go/wiki/SliceTricks#reversing
-		for i := len(paths)/2 - 1; i >= 0; i-- {
-			opp := len(paths) - 1 - i
-			paths[i], paths[opp] = paths[opp], paths[i]
-		}
-		// sort paths by descending filenames
-		sort.SliceStable(paths, func(i, j int) bool {
-			return filepath.Base(paths[i]) > filepath.Base(paths[j])
-		})
-	}
-
-}
-
-func createIncludedTailers(paths []string, source *sources.LogSource) ([]*tailer.File, error) {
-	// Resolve excluded path(s)
 	excludedPaths := make(map[string]int)
 	for _, excludePattern := range source.Config.ExcludePaths {
 		excludedGlob, err := filepath.Glob(excludePattern)
@@ -207,11 +219,47 @@ func createIncludedTailers(paths []string, source *sources.LogSource) ([]*tailer
 		}
 	}
 
-	var files []*tailer.File
+	files := make([]*tailer.File, 0, len(paths))
 	for _, path := range paths {
 		if excludedPaths[path] == 0 {
 			files = append(files, tailer.NewFile(path, source, true))
 		}
 	}
+
 	return files, nil
+}
+
+// applyOrdering sorts the 'files' slice in-place by the currently configured 'sortMode'
+func (p *FileProvider) applyOrdering(files []*tailer.File) {
+	if p.wildcardOrder == WildcardMtime {
+		// sort paths descending by mtime
+		sort.SliceStable(files, func(i, j int) bool {
+			statI, _ := os.Stat(files[i].Path)
+			statJ, _ := os.Stat(files[j].Path)
+
+			return statI.ModTime().After(statJ.ModTime())
+		})
+	} else if p.wildcardOrder == WildcardReverseLexicographical {
+		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
+		// This is true in the current go implementation, but it is unsafe to assume
+		// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=330;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
+		// https://github.com/golang/go/issues/17153
+		//
+		// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
+		// contains information in the file datetime. Most of the time we want the most recent files.
+		// Here, we reverse paths to have stable sort keep reverse lexicographical order w.r.t dir names. Example:
+		// [/tmp/1/2017.log, /tmp/1/2018.log, /tmp/2/2018.log] becomes [/tmp/2/2018.log, /tmp/1/2018.log, /tmp/1/2017.log]
+		// then kept as is by the sort below.
+
+		// https://github.com/golang/go/wiki/SliceTricks#reversing
+		for i := len(files)/2 - 1; i >= 0; i-- {
+			opp := len(files) - 1 - i
+			files[i], files[opp] = files[opp], files[i]
+		}
+		// sort paths by descending filenames
+		sort.SliceStable(files, func(i, j int) bool {
+			return filepath.Base(files[i].Path) > filepath.Base(files[j].Path)
+		})
+	}
+
 }
