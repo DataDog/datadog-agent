@@ -46,7 +46,8 @@ struct linux_binprm_t {
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
-    u32 discarded;
+    u16 discarded;
+    u16 ad_saved;
     u8 async;
 
     struct dentry_resolver_input_t resolver;

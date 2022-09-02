@@ -145,11 +145,12 @@ type ContainerContext struct {
 //msgp:ignore Event
 // genaccessors
 type Event struct {
-	ID           string    `field:"-" json:"-"`
-	Type         uint32    `field:"-"`
-	Async        bool      `field:"async" event:"*"` // True if the syscall was asynchronous
-	TimestampRaw uint64    `field:"-" json:"-"`
-	Timestamp    time.Time `field:"-"` // Timestamp of the event
+	ID                   string    `field:"-" json:"-"`
+	Type                 uint32    `field:"-"`
+	Async                bool      `field:"async" event:"*"` // True if the syscall was asynchronous
+	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
+	TimestampRaw         uint64    `field:"-" json:"-"`
+	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
