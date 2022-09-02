@@ -569,9 +569,8 @@ func getFieldResolver(allFields map[string]*common.StructField, field *common.St
 func fieldADPrint(field *common.StructField, resolver string) string {
 	if field.SkipADResolution {
 		return fmt.Sprintf("if !forADs { _ = %s }", resolver)
-	} else {
-		return fmt.Sprintf("_ = %s", resolver)
 	}
+	return fmt.Sprintf("_ = %s", resolver)
 }
 
 func override(str string, mock bool) string {
