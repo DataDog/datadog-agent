@@ -82,19 +82,6 @@ func (m *EtwMonitor) process(transactionBatch []etw.Http, err error) {
 	m.statkeeper.Process(transactions)
 }
 
-func (m *EtwMonitor) removeDuplicates(stats map[Key]*RequestStats) {
-	// With localhost traffic, the driver will create a flow for both endpoints. Both
-	// these flows will be normalized so that source=client and dest=server, which
-	// results in 2 identical http transactions being sent up to userspace & processed.
-	// To fix this, we'll find all localhost keys and half their transaction counts.
-
-	for k, v := range stats {
-		if isLocalhost(k) {
-			v.HalfAllCounts()
-		}
-	}
-}
-
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
 func (m *EtwMonitor) GetHTTPStats() map[Key]*RequestStats {
@@ -112,7 +99,6 @@ func (m *EtwMonitor) GetHTTPStats() map[Key]*RequestStats {
 	defer m.mux.Unlock()
 
 	stats := m.statkeeper.GetAndResetAllStats()
-	m.removeDuplicates(stats)
 
 	delta := m.telemetry.reset()
 	delta.report()
