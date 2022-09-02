@@ -80,12 +80,9 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 
 	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
 	e.Type = ByteOrder.Uint32(data[16:20])
-	if data[20] != 0 {
-		e.Async = true
-	} else {
-		e.Async = false
-	}
-	// 21-24: padding
+	e.Async = data[20] != 0
+	e.SavedByActivityDumps = data[21] != 0
+	// 22-24: padding
 
 	return 24, nil
 }

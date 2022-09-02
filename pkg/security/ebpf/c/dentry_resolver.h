@@ -154,7 +154,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
-            if (is_discarded_by_inode(params)) {
+            if (is_discarded_by_inode(params, NULL)) {
                 return DENTRY_DISCARDED;
             }
         }
