@@ -176,6 +176,7 @@ type seclField struct {
 	iterator            string
 	handler             string
 	cachelessResolution bool
+	skipADResolution    bool
 	lengthField         bool
 	weight              int64
 }
@@ -214,6 +215,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.cachelessResolution = true
 					case "length":
 						field.lengthField = true
+					case "skip_ad":
+						field.skipADResolution = true
 					}
 				}
 			}
@@ -329,6 +332,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OpOverrides:         opOverrides,
 								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
+								SkipADResolution:    seclField.skipADResolution,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -355,6 +359,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OpOverrides:         opOverrides,
 								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
+								SkipADResolution:    seclField.skipADResolution,
 								IsOrigTypePtr:       isPointer,
 							}
 

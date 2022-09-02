@@ -137,8 +137,8 @@ type ChownEvent struct {
 // ContainerContext holds the container context of an event
 //msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                 // ID of the container
-	Tags []string `field:"tags,handler:ResolveContainerTags,weight:9999"` // Tags of the container
+	ID   string   `field:"id,handler:ResolveContainerID"`                              // ID of the container
+	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
