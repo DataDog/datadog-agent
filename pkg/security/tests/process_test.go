@@ -12,11 +12,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"io"
 	"math"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -1526,6 +1528,172 @@ func TestProcessBusybox(t *testing.T) {
 			assert.Equal(t, "test_busybox_4", rule.ID, "wrong rule triggered")
 		})
 	})
+}
+
+func TestProcessIdentifyInterpreter(t *testing.T) {
+	python, whichPythonErr := whichNonFatal("python")
+	if whichPythonErr != nil {
+		python = which(t, "python3")
+	}
+	perl := which(t, "perl")
+
+	tests := []struct {
+		name            string
+		rule            *rules.RuleDefinition
+		scriptName      string
+		executedScript  string
+		innerScriptName string
+		check           func(event *sprobe.Event, rule *rules.Rule)
+	}{
+		{
+			name: "regular exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_regular_exec",
+				Expression: fmt.Sprintf(`exec.file.name == ~"*python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`), // RHEL python is platform-python3.6
+			},
+			scriptName: "regularExec.sh",
+			executedScript: fmt.Sprintf(`#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+%s - << EOF
+print('Executing print inside a python (%s) script')
+
+EOF
+
+echo "Back to bash"`, python, python),
+		},
+		{
+			name: "regular exec with interpreter rule",
+			rule: &rules.RuleDefinition{
+				ID:         "test_regular_exec_with_interpreter_rule",
+				Expression: fmt.Sprintf(`exec.file.name == "perl" && exec.interpreter.file.name == "perl"`),
+			},
+			scriptName: "regularExecWithInterpreterRule.sh",
+			executedScript: fmt.Sprintf(`#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+%s <<__HERE__
+#!%s
+
+print "Executing print inside a perl (%s) script\n";
+__HERE__
+
+echo "Back to bash"`, perl, perl, perl),
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
+			},
+		},
+		{
+			name: "interpreted exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_interpreted_event",
+				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"*python*" && exec.file.name == "pyscript.py"`),
+			},
+			scriptName:      "interpretedExec.sh",
+			innerScriptName: "pyscript.py",
+			executedScript: fmt.Sprintf(`#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+cat << EOF > pyscript.py
+#!%s
+
+print('Executing print inside a python (%s) script')
+
+EOF
+
+echo "Back to bash"
+
+chmod 755 pyscript.py
+./pyscript.py`, python, python),
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
+			},
+		},
+		// TODO: Test for snapshotted processes
+		// TODO: Nested interpreted exec is unsupported for now
+		//		{
+		//			name: "nested interpreted exec",
+		//			rule: &rules.RuleDefinition{
+		//				ID:         "test_nested_interpreted_event",
+		//				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"perl"`),
+		//			},
+		//			scriptName: "nestedInterpretedExec.sh",
+		//			executedScript: `#!/bin/bash
+		//
+		//echo "Executing echo inside a bash script"
+		//
+		//cat << '__HERE__' > hello.pl
+		//#!/usr/bin/perl
+		//
+		//my $foo = "Hello from Perl";
+		//print "$foo\n";
+		//
+		//__HERE__
+		//
+		//chmod 755 hello.pl
+		//
+		//cat << EOF > pyscript.py
+		//#!/usr/bin/python3
+		//
+		//import subprocess
+		//
+		//print('Executing print inside a python script')
+		//
+		//subprocess.run(["perl", "./hello.pl"])
+		//
+		//EOF
+		//
+		//echo "Back to bash"
+		//
+		//chmod 755 pyscript.py
+		//./pyscript.py`,
+		//		},
+	}
+
+	var ruleList []*rules.RuleDefinition
+	for _, test := range tests {
+		ruleList = append(ruleList, test.rule)
+	}
+
+	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testModule.Close()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755)
+			defer os.Remove(scriptLocation)
+			defer os.Remove(test.innerScriptName) // script created by script is in working directory
+
+			if scriptWriteErr != nil {
+				t.Logf("could not write %s: %s", scriptLocation, scriptWriteErr)
+			}
+			testModule.WaitSignal(t, func() error {
+				cmd := exec.Command(scriptLocation)
+				output, scriptRunErr := cmd.CombinedOutput()
+				if scriptRunErr != nil {
+					t.Logf("could not run %s: %s", scriptLocation, scriptRunErr)
+				}
+				t.Logf(string(output))
+
+				offsets, _ := testModule.probe.GetOffsetConstants()
+				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
+
+				return nil
+			}, func(event *sprobe.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, test.rule.ID)
+				if test.check != nil {
+					test.check(event, rule)
+				}
+			})
+		})
+	}
 }
 
 func TestProcessResolution(t *testing.T) {

@@ -139,13 +139,15 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     data->pid = tgid;
     data->tid = pid_tgid;
 
-    u32 *netns = bpf_map_lookup_elem(&netns_cache, &data->tid);
+    u32 tid = data->tid; // This looks unnecessary but it actually is to address this issue https://github.com/iovisor/bcc/issues/347 in at least Ubuntu 4.15.
+    u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
     if (netns != NULL) {
         data->netns = *netns;
     }
 
+    u32 pid = data->pid;
     // consider kworker a pid which is ignored
-    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &data->pid);
+    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
     if (is_ignored) {
         data->is_kworker = 1;
     }

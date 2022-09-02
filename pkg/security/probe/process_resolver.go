@@ -451,6 +451,33 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	// Heuristic to detect likely interpreter event
+	// Cannot detect when a script if as follows:
+	// perl <<__HERE__
+	//#!/usr/bin/perl
+	//
+	//sleep 10;
+	//
+	//print "Hello from Perl\n";
+	//__HERE__
+	// Because the entry only has 1 argument (perl in this case). But can detect when a script is as follows:
+	//cat << EOF > perlscript.pl
+	//#!/usr/bin/perl
+	//
+	//sleep 15;
+	//
+	//print "Hello from Perl\n";
+	//
+	//EOF
+	if valueCount := len(entry.ArgsEntry.Values); valueCount > 1 {
+		firstArg := entry.ArgsEntry.Values[0]
+		lastArg := entry.ArgsEntry.Values[valueCount-1]
+		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
+		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
+			entry.LinuxBinprm.FileEvent = entry.FileEvent
+		}
+	}
+
 	// add netns
 	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
 
@@ -589,29 +616,30 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	if entry.FileEvent.Inode == 0 || entry.FileEvent.MountID == 0 {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, error) {
+
+	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+		fileEvent.SetPathnameStr("")
+		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields)
 	if err != nil {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+		fileEvent.SetPathnameStr("")
+		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
 
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
-	entry.FileEvent.SetPathnameStr(pathnameStr)
-	entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 
-	return entry.FileEvent.PathnameStr, nil
+	fileEvent.SetPathnameStr(pathnameStr)
+	fileEvent.SetBasenameStr(path.Base(fileEvent.PathnameStr))
+
+	return fileEvent.PathnameStr, nil
 }
 
 func isBusybox(pathname string) bool {
@@ -669,8 +697,15 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(entry); err != nil {
+	if _, err := p.SetProcessPath(&entry.FileEvent); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+
+	// TODO: Is there a better way to determine if there's no interpreter?
+	if (entry.LinuxBinprm.FileEvent.Inode != 0 && entry.LinuxBinprm.FileEvent.MountID != 0) && (entry.LinuxBinprm.FileEvent.Inode != entry.FileEvent.Inode) {
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
+			return fmt.Errorf("failed to resolve interpreter path: %w", err)
+		}
 	}
 
 	p.SetProcessArgs(entry)

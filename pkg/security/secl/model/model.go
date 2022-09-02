@@ -325,6 +325,11 @@ func (e *Process) GetPathResolutionError() string {
 	return ""
 }
 
+// LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
+type LinuxBinprm struct {
+	FileEvent FileEvent `field:"file" msg:"file"`
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext `msg:"pid_context"`
@@ -337,8 +342,9 @@ type Process struct {
 	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
 	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`              // Comm attribute of the process
+	TTYName     string      `field:"tty_name" msg:"tty,omitempty"`            // Name of the TTY associated with the process
+	Comm        string      `field:"comm" msg:"comm"`                         // Comm attribute of the process
+	LinuxBinprm LinuxBinprm `field:"interpreter" msg:"interpreter,omitempty"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`

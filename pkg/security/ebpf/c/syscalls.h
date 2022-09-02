@@ -37,6 +37,12 @@ union selinux_write_payload_t {
     } status;
 };
 
+// linux_binprm_t contains content from the linux_binprm struct, which holds the arguments used for loading binaries
+// We only need enough information from the executable field to be able to resolve the dentry.
+struct linux_binprm_t {
+    struct path_key_t interpreter;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -130,6 +136,7 @@ struct syscall_cache_t {
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
             struct span_context_t span_context;
+            struct linux_binprm_t linux_binprm;
             u32 next_tail;
             u8 is_parsed;
         } exec;

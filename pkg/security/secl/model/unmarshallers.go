@@ -151,7 +151,7 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
-// UnmarshalProcEntryBinary unmarshalls Unmarshal proc_entry_t
+// UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 	const size = 160
 	if len(data) < size {
@@ -219,7 +219,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 240
+	const size = 256 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -236,6 +236,21 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	read += n
+
+	// Unmarshal linux_binprm_t
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.LinuxBinprm.FileEvent.Inode = ByteOrder.Uint64(data[read : read+8])
+	e.LinuxBinprm.FileEvent.MountID = ByteOrder.Uint32(data[read+8 : read+12])
+	e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+
+	read += 16
+
+	if len(data[read:]) < 16 {
+		return 0, ErrNotEnoughData
+	}
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
