@@ -136,6 +136,18 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
+	// Tags: -
+	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
+	// MetricProcessResolverArgsSize is the name of the metric used to report the number of args size
+	// Tags: -
+	MetricProcessResolverArgsSize = newRuntimeMetric(".process_resolver.args.size")
+	// MetricProcessResolverEnvsTruncated is the name of the metric used to report the number of envs truncated
+	// Tags: -
+	MetricProcessResolverEnvsTruncated = newRuntimeMetric(".process_resolver.envs.truncated")
+	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
+	// Tags: -
+	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
 
 	// Activity dump metrics
 
