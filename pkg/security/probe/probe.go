@@ -67,6 +67,9 @@ type EventStream interface {
 	Resume() error
 }
 
+// NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
+type NotifyDiscarderPushedCallback func(eventType string, event *Event, field string)
+
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
@@ -93,13 +96,15 @@ type Probe struct {
 	activityDumpHandler ActivityDumpHandler
 
 	// Approvers / discarders section
-	erpc                 *ERPC
-	erpcRequest          *ERPCRequest
-	pidDiscarders        *pidDiscarders
-	inodeDiscarders      *inodeDiscarders
-	flushingDiscarders   *atomic.Bool
-	approvers            map[eval.EventType]activeApprovers
-	discarderRateLimiter *rate.Limiter
+	erpc                               *ERPC
+	erpcRequest                        *ERPCRequest
+	pidDiscarders                      *pidDiscarders
+	inodeDiscarders                    *inodeDiscarders
+	flushingDiscarders                 *atomic.Bool
+	approvers                          map[eval.EventType]activeApprovers
+	discarderRateLimiter               *rate.Limiter
+	notifyDiscarderPushedCallbacks     []NotifyDiscarderPushedCallback
+	notifyDiscarderPushedCallbacksLock sync.Mutex
 
 	constantOffsets map[string]uint64
 	runtimeCompiled bool
@@ -824,6 +829,14 @@ func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
 	event.ResolveContainerTags(&event.ContainerContext)
 }
 
+// AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
+func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCallback) {
+	p.notifyDiscarderPushedCallbacksLock.Lock()
+	defer p.notifyDiscarderPushedCallbacksLock.Unlock()
+
+	p.notifyDiscarderPushedCallbacks = append(p.notifyDiscarderPushedCallbacks, cb)
+}
+
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field, eventType eval.EventType) error {
 	// discarders disabled
@@ -844,8 +857,18 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handler, ok := allDiscarderHandlers[eventType]; ok {
-		return handler(rs, event, p, Discarder{Field: field})
+	if handlers, ok := allDiscarderHandlers[eventType]; ok {
+		for _, handler := range handlers {
+			discarderPushed, _ := handler(rs, event, p, Discarder{Field: field})
+
+			if discarderPushed {
+				p.notifyDiscarderPushedCallbacksLock.Lock()
+				defer p.notifyDiscarderPushedCallbacksLock.Unlock()
+				for _, cb := range p.notifyDiscarderPushedCallbacks {
+					cb(eventType, event, field)
+				}
+			}
+		}
 	}
 
 	return nil
