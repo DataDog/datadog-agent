@@ -173,26 +173,27 @@ of flags you may want to apply to your check's config on a check by check basis
 via their respective config files, by using the following directives in the
 `init_config` section:
 
-- `frames`: the number of stack frames to consider. Please note that this is the total
+- `profile_memory`: optional directory in which to dump the snapshot files.
+- `profile_memory_frames`: the number of stack frames to consider. Please note that this is the total
 number of frames considered, not the depth of the call-tree. Therefore, in some cases,
 you may need to set this value to a considerably high value to get a good enough
 understanding of how your agent is behaving. Default: 100.
-- `gc`: whether or not to run the garbage collector before each snapshot to remove noise.
+- `profile_memory_gc`: whether or not to run the garbage collector before each snapshot to remove noise.
 Garbage collections will not run by default (?) while tracemalloc is in action. That is
 to allow us to more easily identify sources of allocations without the interference of
 the GC. Note that the GC is not permanently disabled, this is only enforced during the
 check run while tracemalloc is tracking allocations. Default: disabled.
-- `combine`: whether or not to aggregate over all traceback frames. useful only to tell
+- `profile_memory_combine`: whether or not to aggregate over all traceback frames. useful only to tell
 which particular usage of a function triggered areas of interest.
-- `sort`: what to group results by between: `lineno` | `filename` | `traceback`. Default:
+- `profile_memory_sort`: what to group results by between: `lineno` | `filename` | `traceback`. Default:
 `lineno`.
-- `limit`: the maximum number of sorted results to show. Default: 30.
-- `diff`: how to order diff results between:
+- `profile_memory_limit`: the maximum number of sorted results to show. Default: 30.
+- `profile_memory_diff`: how to order diff results between:
     * `absolute`: absolute value of the difference between consecutive snapshots. Default.
     * `positive`: same as absolute, but memory increases will be shown first.
-- `filters`: comma-separated list of file path glob patterns to filter by.
-- `unit`: the binary unit to represent memory usage (kib, mb, etc.). Default: dynamic.
-- `verbose`: whether or not to include potentially noisy sources. Default: false.
+- `profile_memory_filters`: comma-separated list of file path glob patterns to filter by.
+- `profile_memory_unit`: the binary unit to represent memory usage (kib, mb, etc.). Default: dynamic.
+- `profile_memory_verbose`: whether or not to include potentially noisy sources. Default: false.
 
 
 You may also want to run tracemalloc and take a look at the actual debug
