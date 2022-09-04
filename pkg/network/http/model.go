@@ -103,6 +103,7 @@ func (tx *httpTX) String() string {
 	output.WriteString("Method: '" + Method(tx.request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags(), 16) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
+	output.WriteString("Fragment: '" + string(fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }

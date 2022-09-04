@@ -527,8 +527,6 @@ static __always_inline tls_probe_data_t* get_probe_data(uint32_t key) {
 // func (c *Conn) Write(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Write")
 int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
-	log_debug("##### WRITE\n");
-
 	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u64 pid = pid_tgid >> 32;
 
@@ -562,8 +560,6 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read")
 int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
-    log_debug("##### READ\n");
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
 	tls_probe_data_t* pd = get_probe_data(pid);
@@ -588,14 +584,12 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 	}
 
 	bpf_map_update_elem(&read_partial_calls, &call_key, &call_data, BPF_ANY);
-
 	return 0;
 }
 
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
-	log_debug("##### READ RETURN\n");
 	u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
 	tls_probe_data_t* pd = get_probe_data(pid);
@@ -614,6 +608,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 	if (call_data_ptr == NULL) {
 		return 1;
 	}
+
 	read_partial_call_data_t call_data = *call_data_ptr;
     bpf_map_delete_elem(&read_partial_calls, &call_key);
 
@@ -633,14 +628,12 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 	// and I didn't find a straightforward way of doing this.
 
     https_process(t, (void*) call_data.b_data, bytes_read, GO);
-
 	return 0;
 }
 
 // func (c *Conn) Close(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Close")
 int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
-    log_debug("##### CLOSE\n");
 	u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
 	tls_probe_data_t* pd = get_probe_data(pid);
@@ -693,5 +686,3 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
         #error "Unsupported platform"
     #endif
 }
-
-
