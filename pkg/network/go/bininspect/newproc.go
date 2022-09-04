@@ -42,9 +42,6 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 	if err != nil {
 		return nil, err
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	_, includesDebugInfo := HasDwarfInfo(elfFile)
 
@@ -64,6 +61,11 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 		goVersion: goVersion,
 	}
 
+	goroutineIDMetadata, err := inspector.getGoroutineIDMetadata(abi)
+	if err != nil {
+		return nil, err
+	}
+
 	functionsData, err := inspector.findFunctions(functions)
 	if err != nil {
 		return nil, err
@@ -76,11 +78,6 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 			return nil, err
 		}
 		structOffsets[structID] = structOffset
-	}
-
-	goroutineIDMetadata, err := inspector.getGoroutineIDMetadata(abi)
-	if err != nil {
-		return nil, err
 	}
 
 	return &Result{
@@ -120,6 +117,9 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 		}
 
 		parameters, err := funcConfig.ParamLookupFunction(i.goVersion, string(i.elf.arch))
+		if err != nil {
+			return nil, fmt.Errorf("failed finding parameter of function %q: %w", funcName, err)
+		}
 
 		functionMetadata[funcName] = FunctionMetadata{
 			EntryLocation:   uint64(offset),
@@ -183,7 +183,7 @@ func (i *newProcessBinaryInspector) getRuntimeGAddrTLSOffset() (uint64, error) {
 		return tlsg.Value + uint64(i.elf.arch.PointerSize()*2) + ((tls.Vaddr - uint64(i.elf.arch.PointerSize()*2)) & (tls.Align - 1)), nil
 
 	default:
-		return 0, fmt.Errorf("binary is for unsupported architecture")
+		return 0, errors.New("binary is for unsupported architecture")
 	}
 }
 
@@ -215,11 +215,9 @@ func (i *newProcessBinaryInspector) getGoroutineIDMetadata(abi GoABI) (Goroutine
 	// the runtime.g pointer is stored on a register.
 	// On x86_64 pre-Go 1.17 and on x86 (in all Go versions),
 	// the runtime.g pointer is stored in the thread's thread-local-storage.
-	var runtimeGInRegister bool
+	runtimeGInRegister := true
 	if i.elf.arch == GoArchX86_64 {
 		runtimeGInRegister = abi == GoABIRegister
-	} else {
-		runtimeGInRegister = true
 	}
 
 	var runtimeGRegister int

@@ -1,4 +1,4 @@
-# Each section from every releasenote are combined when the
+# Each section from every release note are combined when the
 # CHANGELOG.rst is rendered. So the text needs to be worded so that
 # it does not depend on any information only available in another
 # section. This may mean repeating some details, but each section
@@ -6,8 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-
-fixes:
+enhancements:
   - |
-    On Windows, properly installs on Read Only Domain Controller.
-    Adds rights to domain-created user in local GPOs.
+    Agents are now built with Go 1.18.5.
