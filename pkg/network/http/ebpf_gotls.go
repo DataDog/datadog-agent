@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	BINARY              = "/proc/65465/exe"
 	probeDataMap        = "probe_data"
 	readPartialCallsMap = "read_partial_calls"
 
@@ -96,7 +95,7 @@ func (p *GoTLSProgram) Start() {
 	// In the future Start() should just initiate the new processes listener
 	// and this implementation should be done for each new process found.
 
-	binPath := BINARY
+	binPath := os.Getenv("GO_TLS_TEST")
 	f, err := os.Open(binPath)
 	if err != nil {
 		log.Errorf("could not open file %q due to %w", binPath, err)
