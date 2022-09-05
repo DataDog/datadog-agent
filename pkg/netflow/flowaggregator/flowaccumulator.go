@@ -103,6 +103,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow = flowToAdd
 	} else {
 		// accumulate flowToAdd with existing flow(s) with same hash
+		aggFlow.flow.AgentAggregatedFlows += flowToAdd.AgentAggregatedFlows
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
 		aggFlow.flow.StartTimestamp = common.MinUint64(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)

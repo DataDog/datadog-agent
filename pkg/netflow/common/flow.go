@@ -12,10 +12,11 @@ import (
 // Flow contains flow info used for aggregation
 // json annotations are used in AsJSONString() for debugging purpose
 type Flow struct {
-	Namespace    string
-	FlowType     FlowType
-	SamplingRate uint64
-	Direction    uint32
+	Namespace            string
+	FlowType             FlowType
+	AgentAggregatedFlows uint32
+	SamplingRate         uint64
+	Direction            uint32
 
 	// Device information
 	DeviceAddr []byte

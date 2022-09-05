@@ -35,41 +35,44 @@ func Test_flowAccumulator_add(t *testing.T) {
 
 	// Given
 	flowA1 := &common.Flow{
-		FlowType:       common.TypeNetFlow9,
-		DeviceAddr:     []byte{127, 0, 0, 1},
-		StartTimestamp: 1234568,
-		EndTimestamp:   1234569,
-		Bytes:          20,
-		Packets:        4,
-		SrcAddr:        []byte{10, 10, 10, 10},
-		DstAddr:        []byte{10, 10, 10, 20},
-		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
-		TCPFlags:       synFlag,
+		FlowType:             common.TypeNetFlow9,
+		AgentAggregatedFlows: 1,
+		DeviceAddr:           []byte{127, 0, 0, 1},
+		StartTimestamp:       1234568,
+		EndTimestamp:         1234569,
+		Bytes:                20,
+		Packets:              4,
+		SrcAddr:              []byte{10, 10, 10, 10},
+		DstAddr:              []byte{10, 10, 10, 20},
+		IPProtocol:           uint32(6),
+		SrcPort:              uint32(2000),
+		DstPort:              uint32(80),
+		TCPFlags:             synFlag,
 	}
 	flowA2 := &common.Flow{
-		FlowType:       common.TypeNetFlow9,
-		DeviceAddr:     []byte{127, 0, 0, 1},
-		StartTimestamp: 1234578,
-		EndTimestamp:   1234579,
-		Bytes:          10,
-		Packets:        2,
-		SrcAddr:        []byte{10, 10, 10, 10},
-		DstAddr:        []byte{10, 10, 10, 20},
-		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
-		TCPFlags:       ackFlag,
+		FlowType:             common.TypeNetFlow9,
+		AgentAggregatedFlows: 1,
+		DeviceAddr:           []byte{127, 0, 0, 1},
+		StartTimestamp:       1234578,
+		EndTimestamp:         1234579,
+		Bytes:                10,
+		Packets:              2,
+		SrcAddr:              []byte{10, 10, 10, 10},
+		DstAddr:              []byte{10, 10, 10, 20},
+		IPProtocol:           uint32(6),
+		SrcPort:              uint32(2000),
+		DstPort:              uint32(80),
+		TCPFlags:             ackFlag,
 	}
 	flowB1 := &common.Flow{
-		FlowType:       common.TypeNetFlow9,
-		DeviceAddr:     []byte{127, 0, 0, 1},
-		StartTimestamp: 1234568,
-		EndTimestamp:   1234569,
-		Bytes:          10,
-		Packets:        2,
-		SrcAddr:        []byte{10, 10, 10, 10},
+		FlowType:             common.TypeNetFlow9,
+		AgentAggregatedFlows: 1,
+		DeviceAddr:           []byte{127, 0, 0, 1},
+		StartTimestamp:       1234568,
+		EndTimestamp:         1234569,
+		Bytes:                10,
+		Packets:              2,
+		SrcAddr:              []byte{10, 10, 10, 10},
 		// different destination addr
 		DstAddr:    []byte{10, 10, 10, 30},
 		IPProtocol: uint32(6),
@@ -94,10 +97,12 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
+	assert.Equal(t, uint32(2), wrappedFlowA.flow.AgentAggregatedFlows)
 
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 30}, wrappedFlowB.flow.DstAddr)
+	assert.Equal(t, uint32(1), wrappedFlowB.flow.AgentAggregatedFlows)
 }
 
 func Test_flowAccumulator_flush(t *testing.T) {

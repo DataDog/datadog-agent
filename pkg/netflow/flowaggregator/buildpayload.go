@@ -15,9 +15,10 @@ import (
 func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos
-		FlowType:     string(aggFlow.FlowType),
-		SamplingRate: aggFlow.SamplingRate,
-		Direction:    enrichment.RemapDirection(aggFlow.Direction),
+		FlowType:             string(aggFlow.FlowType),
+		AgentAggregatedFlows: aggFlow.AgentAggregatedFlows,
+		SamplingRate:         aggFlow.SamplingRate,
+		Direction:            enrichment.RemapDirection(aggFlow.Direction),
 		Device: payload.Device{
 			IP:        common.IPBytesToString(aggFlow.DeviceAddr),
 			Namespace: aggFlow.Namespace,
