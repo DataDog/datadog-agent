@@ -96,12 +96,22 @@ func injectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 		}
 	}
 
-	pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
-	for i := range pod.Spec.Containers {
+	shouldInject := false
+	for i, container := range pod.Spec.Containers {
+		if containsVolumeMount(container.VolumeMounts, volumeMount) {
+			// Ensure volume mount name and path uniqueness
+			log.Debugf("Ignoring container %q in pod %q: a volume mount with name %q or path %q already exists", container.Name, podStr, volumeMount.Name, volumeMount.MountPath)
+			continue
+		}
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, volumeMount)
+		shouldInject = true
 	}
 
-	return true
+	if shouldInject {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
+	}
+
+	return shouldInject
 }
 
 // podString returns a string that helps identify the pod
@@ -110,4 +120,18 @@ func podString(pod *corev1.Pod) string {
 		return fmt.Sprintf("with generate name %s", pod.GetGenerateName())
 	}
 	return fmt.Sprintf("%s/%s", pod.GetNamespace(), pod.GetName())
+}
+
+// containsVolumeMount returns whether a list of volume mounts contains
+// at least one volume mount with a given name or mount path
+func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.VolumeMount) bool {
+	for _, volumeMount := range volumeMounts {
+		if volumeMount.Name == element.Name {
+			return true
+		}
+		if volumeMount.MountPath == element.MountPath {
+			return true
+		}
+	}
+	return false
 }
