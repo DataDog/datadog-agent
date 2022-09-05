@@ -12,8 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"code.cloudfoundry.org/garden"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -144,6 +147,39 @@ func (c *collector) Pull(ctx context.Context) error {
 		if err != nil {
 			log.Debugf("Unable to fetch CF tags from cluster agent, CF tags will be missing, err: %v", err)
 		}
+	}
+
+	// inject container tags into the containers
+	for _, container := range containers {
+		containerID := container.Handle()
+
+		// extract container tags
+		tags := allContainersTags[containerID]
+
+		// add host tags
+		hostTags := host.GetHostTags(context.TODO(), true)
+		tags = append(tags, hostTags.System...)
+		tags = append(tags, hostTags.GoogleCloudPlatform...)
+
+		// write tags to a file inside the container
+		p, err := container.Run(garden.ProcessSpec{
+			Path: "/usr/bin/tee",
+			Args: []string{"/home/vcap/app/.datadog/node_agent_tags.txt"},
+			User: "vcap",
+		}, garden.ProcessIO{
+			Stdin: strings.NewReader(strings.Join(tags, ",")),
+		})
+		if err != nil {
+			log.Errorf("Error running a process inside container %s: %s", containerID, err)
+			continue
+		}
+		go func() {
+			exitCode, err := p.Wait()
+			if err != nil {
+				log.Errorf("Error while running process %s: %s", p.ID(), err)
+			}
+			log.Debugf("Process %s exit code: %d", p.ID(), exitCode)
+		}()
 	}
 
 	currentTime := time.Now()
