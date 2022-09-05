@@ -521,29 +521,6 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 	return nil
 }
 
-// Since the logger is passed to the ruleset as an interface coming from an external package
-// the call to `Tracef` cannot be inlined, requiring the passing of all its argument as an
-// array on the heap. To fight this, and keep a low-overhead `Tracef`, we use those 2 functions
-// that will first check if tracing is actually enabled before passing the arguments to the trace
-// function. Because the go inliner is stupid, we cannot use a trace proxy with variadic parameters
-// because it disables the inlining of the proxy function. We thus need to define those 2 horrible
-// functions.
-// To ensure that those 2 functions are actually inlined, you can use
-// gcflags = `github.com/DataDog/datadog-agent/pkg/security/secl/rules=-m`
-// when compiling the system probe and look at the optimizer output
-
-func (rs *RuleSet) tracefProxy1(format string, param1 interface{}) {
-	if rs.logger.IsTracing() {
-		rs.logger.Tracef(format, param1)
-	}
-}
-
-func (rs *RuleSet) tracefProxy2(format string, param1, param2 interface{}) {
-	if rs.logger.IsTracing() {
-		rs.logger.Tracef(format, param1, param2)
-	}
-}
-
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event.GetPointer())
@@ -556,11 +533,19 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	rs.tracefProxy2("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+
+	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
+	// through the heap. To improve this situation we first check if we actually need to call the function.
+	if rs.logger.IsTracing() {
+		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	}
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			rs.tracefProxy2("Rule `%s` matches with event `%s`\n", rule.ID, event)
+
+			if rs.logger.IsTracing() {
+				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			}
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -572,7 +557,9 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		rs.tracefProxy1("Looking for discarders for event of type `%s`", eventType)
+		if rs.logger.IsTracing() {
+			rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+		}
 
 		for _, field := range bucket.fields {
 			if rs.opts.SupportedDiscarders != nil {
