@@ -37,18 +37,21 @@ func Getpid() int32 {
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
 
+// NetNSPath represents a network namespace path
 type NetNSPath struct {
 	mu         sync.Mutex
 	pid        uint32
 	cachedPath string
 }
 
+// NetNSPathFromPid returns a new NetNSPath from the given Pid
 func NetNSPathFromPid(pid uint32) *NetNSPath {
 	return &NetNSPath{
 		pid: pid,
 	}
 }
 
+// GetPath returns the path for the given network namespace
 func (path *NetNSPath) GetPath() string {
 	path.mu.Lock()
 	defer path.mu.Unlock()
