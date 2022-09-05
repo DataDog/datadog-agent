@@ -196,7 +196,6 @@ def ninja_runtime_compilation_files(nw):
 
 def ninja_cgo_type_files(nw, windows):
     # TODO we could probably preprocess the input files to find out the dependencies
-    in_regex = "^(\\/\\/ cgo -godefs [^\\/]+) \\/.+\\/([^\\/]+)$$"
     nw.pool(name="cgo_pool", depth=1)
     if windows:
         go_platform = "windows"
@@ -205,11 +204,8 @@ def ninja_cgo_type_files(nw, windows):
             name="godefs",
             pool="cgo_pool",
             command="powershell -Command \"(cd $in_dir) -and "
-            + "(go tool cgo -godefs -- -fsigned-char $in_file > $out_file) -and "
-            + "(gofmt -w -s $out_file) -and "
-            + "((Get-content $out_file) | "
-            + f"Foreach-Object {{$$_ -replace ([regex]::Escape('{in_regex}')), '$$1 $$2'}} | "
-            + "Set-Content $out_file)\"",
+            + "(go tool cgo -godefs -- -fsigned-char $in_file | "
+            + "go run $script_path > $out_file)"
         )
     else:
         go_platform = "linux"
@@ -223,16 +219,20 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tags-types.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
+            "pkg/network/http/http_types.go": [
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/http-types.h",
+            ]
         }
         nw.rule(
             name="godefs",
             pool="cgo_pool",
             command="cd $in_dir && "
-            + "CC=clang go tool cgo -godefs -- -fsigned-char $in_file > $out_file && "
-            + "gofmt -w -s $out_file && "
-            + f"sed -i -E 's/{in_regex}/\\1 \\2/g' $out_file",
+            + "CC=clang go tool cgo -godefs -- -fsigned-char $in_file | "
+            + "go run $script_path > $out_file"
         )
 
+    script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
     for f, headers in def_files.items():
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
@@ -246,6 +246,7 @@ def ninja_cgo_type_files(nw, windows):
                 "in_dir": in_dir,
                 "in_file": in_file,
                 "out_file": out_file,
+                "script_path": script_path,
             },
         )
 
