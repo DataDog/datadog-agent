@@ -47,7 +47,6 @@ struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
     u8 discarded;
-    u8 saved_by_ad;
     u8 async;
 
     struct dentry_resolver_input_t resolver;

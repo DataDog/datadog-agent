@@ -37,8 +37,7 @@ struct open_event_t {
 
 int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
-    bool should_be_discarded = false;
-    if (is_discarded_by_process2(policy.mode, EVENT_OPEN, &should_be_discarded)) {
+    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
     }
 
@@ -46,7 +45,6 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
         .type = EVENT_OPEN,
         .policy = policy,
         .async = async,
-        .saved_by_ad = should_be_discarded,
         .open = {
             .flags = flags,
             .mode = mode & S_IALLUGO,
@@ -384,15 +382,10 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
         return 0;
     }
 
-    bool saved_by_ad = syscall->saved_by_ad;
-    if (syscall->resolver.ret == DENTRY_SAVED_BY_AD) {
-        saved_by_ad = true;
-    }
-
     struct open_event_t event = {
         .syscall.retval = retval,
         .event.async = syscall->async,
-        .event.saved_by_ad = saved_by_ad,
+        .event.saved_by_ad = syscall->resolver.ret == DENTRY_SAVED_BY_AD,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
