@@ -46,7 +46,7 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
         .type = EVENT_OPEN,
         .policy = policy,
         .async = async,
-        .ad_saved = should_be_discarded,
+        .saved_by_ad = should_be_discarded,
         .open = {
             .flags = flags,
             .mode = mode & S_IALLUGO,
@@ -387,7 +387,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     struct open_event_t event = {
         .syscall.retval = retval,
         .event.async = syscall->async,
-        .event.ad_saved = syscall->ad_saved,
+        .event.saved_by_ad = syscall->saved_by_ad || syscall->resolver.saved_by_ad,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

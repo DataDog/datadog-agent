@@ -136,6 +136,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     /*u64 max_discarder_depth;
     LOAD_CONSTANT("max_discarder_depth", max_discarder_depth);*/
 
+    bool should_be_discarded = false;
+
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
@@ -154,8 +156,12 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
-            if (is_discarded_by_inode(params, NULL)) {
+            should_be_discarded = false;
+            if (is_discarded_by_inode(params, &should_be_discarded)) {
                 return DENTRY_DISCARDED;
+            }
+            if (should_be_discarded) {
+                input->saved_by_ad = true;
             }
         }
 

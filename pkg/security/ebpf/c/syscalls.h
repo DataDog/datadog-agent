@@ -26,6 +26,7 @@ struct dentry_resolver_input_t {
     int callback;
     int ret;
     int iteration;
+    int saved_by_ad;
 };
 
 union selinux_write_payload_t {
@@ -47,7 +48,7 @@ struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
     u8 discarded;
-    u8 ad_saved;
+    u8 saved_by_ad;
     u8 async;
 
     struct dentry_resolver_input_t resolver;
