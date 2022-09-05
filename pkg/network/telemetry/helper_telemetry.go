@@ -30,7 +30,7 @@ type BPFTelemetry struct {
 	mapKeys      map[string]uint64
 }
 
-// Initialize a new BPFTelemetry object
+// NewBPFTelemetry initializes a new BPFTelemetry object
 func NewBPFTelemetry() *BPFTelemetry {
 	b := new(BPFTelemetry)
 	b.mapKeys = make(map[string]uint64)
@@ -38,14 +38,14 @@ func NewBPFTelemetry() *BPFTelemetry {
 	return b
 }
 
-// Register a ebpf map entry in the map error telemetry map, to have
-// failing operation telemetry recorded.
+// RegisterMaps registers a ebpf map entry in the map error telemetry map,
+// to have failing operation telemetry recorded.
 func (b *BPFTelemetry) RegisterMaps(maps []string) error {
 	b.maps = append(b.maps, maps...)
 	return b.initializeMapErrTelemetryMap()
 }
 
-// Returns a map of error telemetry for each ebpf map
+// GetMapsTelemetry returns a map of error telemetry for each ebpf map
 func (b *BPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	var val MapErrTelemetry
 	t := make(map[string]interface{})
@@ -79,7 +79,7 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
 	return errCount
 }
 
-// This functions builds the keys used to index in the map error telemetry ebpf map
+// BuildMapErrTelemetryKeys functions builds the keys used to index in the map error telemetry ebpf map
 // for recording map operation failure telemetry. The keys are built using the map names
 func BuildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 	var keys []manager.ConstantEditor
