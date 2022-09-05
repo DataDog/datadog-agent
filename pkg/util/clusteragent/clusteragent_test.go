@@ -397,8 +397,8 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrlInvalid() {
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
 	mockConfig.Set("cluster_agent.url", "")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	os.Setenv(clusterAgentServiceHost, "127.0.0.1")
-	os.Setenv(clusterAgentServicePort, "443")
+	suite.T().Setenv(clusterAgentServiceHost, "127.0.0.1")
+	suite.T().Setenv(clusterAgentServicePort, "443")
 
 	endpoint, err := getClusterAgentEndpoint()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -408,14 +408,14 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpty() {
 	mockConfig.Set("cluster_agent.url", "")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	os.Setenv(clusterAgentServiceHost, "127.0.0.1")
-	os.Setenv(clusterAgentServicePort, "")
+	suite.T().Setenv(clusterAgentServiceHost, "127.0.0.1")
+	suite.T().Setenv(clusterAgentServicePort, "")
 
 	_, err := getClusterAgentEndpoint()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	os.Setenv(clusterAgentServiceHost, "")
-	os.Setenv(clusterAgentServicePort, "443")
+	suite.T().Setenv(clusterAgentServiceHost, "")
+	suite.T().Setenv(clusterAgentServicePort, "443")
 	_, err = getClusterAgentEndpoint()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
