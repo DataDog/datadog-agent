@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"io"
 	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -32,6 +33,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -342,7 +344,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "args-overflow", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -366,8 +368,17 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
-			assert.Equal(t, 254, len(argv[1]), "wrong arg length")
+			assert.Equal(t, 255, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
+
+			// truncated is reported if a single argument is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.args_truncated")
+			if err != nil {
+				t.Errorf("not able to get args truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("arg not truncated: %s", args.(string))
+			}
 
 			argv0, err := event.GetFieldValue("exec.argv0")
 			if err != nil {
@@ -375,16 +386,18 @@ func TestProcessContext(t *testing.T) {
 			}
 			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
 		}))
+	})
 
-		var arg string
-		for i := 0; i != 300; i++ {
-			arg += "a"
-		}
+	test.Run(t, "args-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
 
 		// number of args overflow
-		nArgs, args := 200, []string{"-al"}
+		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
-			args = append(args, arg)
+			args = append(args, eval.RandString(50))
 		}
 
 		test.WaitSignal(t, func() error {
@@ -393,20 +406,70 @@ func TestProcessContext(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
-			args, err := event.GetFieldValue("exec.args")
+			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
 			}
 
-			argv := strings.Split(args.(string), " ")
-			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
+			argv := strings.Split(execArgs.(string), " ")
+			assert.Equal(t, 132, len(argv), "incorrect number of args: %s", argv)
 
+			for i := 0; i != 132; i++ {
+				assert.Equal(t, args[i], argv[i], "expected arg not found")
+			}
+
+			// truncated is reported if a single argument is truncated or if the list is truncated
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
 				t.Errorf("not able to get args truncated")
 			}
 			if !truncated.(bool) {
-				t.Errorf("arg not truncated: %s", args.(string))
+				t.Errorf("arg not truncated: %s", execArgs.(string))
+			}
+		}))
+	})
+
+	test.Run(t, "args-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
+
+		// number of args overflow
+		nArgs, args := 1024, []string{"-al"}
+		for i := 0; i != nArgs; i++ {
+			args = append(args, eval.RandString(500))
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			// we need to ignore the error because the string of "a" generates a "File name too long" error
+			_ = cmd.Run()
+			return nil
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execArgs, err := event.GetFieldValue("exec.args")
+			if err != nil {
+				t.Errorf("not able to get args")
+			}
+
+			argv := strings.Split(execArgs.(string), " ")
+			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
+
+			for i := 0; i != 159; i++ {
+				expected := args[i]
+				if len(expected) > model.MaxArgEnvSize {
+					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+				}
+				assert.Equal(t, expected, argv[i], "expected arg not found")
+			}
+
+			// truncated is reported if a single argument is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.args_truncated")
+			if err != nil {
+				t.Errorf("not able to get args truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
 		}))
 	})
