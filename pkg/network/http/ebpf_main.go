@@ -209,9 +209,17 @@ func (e *ebpfProgram) Init() error {
 		},
 		ConstantEditors: append(e.offsets, mapErrTelemetryMapKeys...),
 	}
-	options.MapEditors = make(map[string]*ebpf.Map)
-	options.MapEditors[string(probes.MapErrTelemetryMap)] = e.mapErrTelemetryMap
-	options.MapEditors[string(probes.HelperErrTelemetryMap)] = e.helperErrTelemetryMap
+
+	if (e.mapErrTelemetryMap != nil) || (e.helperErrTelemetryMap != nil) {
+		options.MapEditors = make(map[string]*ebpf.Map)
+	}
+
+	if e.mapErrTelemetryMap != nil {
+		options.MapEditors[string(probes.MapErrTelemetryMap)] = e.mapErrTelemetryMap
+	}
+	if e.helperErrTelemetryMap != nil {
+		options.MapEditors[string(probes.HelperErrTelemetryMap)] = e.helperErrTelemetryMap
+	}
 
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
