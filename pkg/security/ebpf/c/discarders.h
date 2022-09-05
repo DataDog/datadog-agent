@@ -88,13 +88,7 @@ int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
 
     // bump only already > 0 meaning that the user space decided that for this mount_id
     // all the discarders will be invalidated
-    if (*revision > 0) {
-        if (*revision + 1 == 0) {
-            __sync_fetch_and_add(revision, 2); // handle overflow
-        } else {
-            __sync_fetch_and_add(revision, 1);
-        }
-    }
+    __sync_fetch_and_add(revision, 1);
 
     return *revision;
 }
@@ -208,10 +202,16 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 
     u64 *discarder_timestamp;
     u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
+    int revision = get_discarder_revision(mount_id);
 
     struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
     if (inode_params) {
-        inode_params->params.event_mask |= 1 << (event_type - EVENT_FIRST_DISCARDER);
+        // the revision change, all the discarders are invalidated,
+        // we need to add only the current event type add to use the current revision
+        if (inode_params->revision != revision) {
+            inode_params->params.event_mask = 0;
+            inode_params->revision = revision;
+        }
         add_event_to_mask(&inode_params->params.event_mask, event_type);
 
         if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
@@ -224,7 +224,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         }
     } else {
         struct inode_discarder_params_t new_inode_params = {
-            .revision = get_discarder_revision(mount_id),
+            .revision = revision,
         };
         add_event_to_mask(&new_inode_params.params.event_mask, event_type);
 
