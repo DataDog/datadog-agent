@@ -177,26 +177,22 @@ func initPerfMapStatsArray() [model.MaxKernelEventType]PerfMapStats {
 	return arr
 }
 
-// getLostCount is an internal function, it can segfault if its parameters are incorrect.
-func (pbm *PerfBufferMonitor) getLostCount(perfMap string, cpu int) uint64 {
-	return pbm.readLostEvents[perfMap][cpu].Load()
-}
-
 // GetLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
 // return the sum of all the lost events of all the cpus.
 func (pbm *PerfBufferMonitor) GetLostCount(perfMap string, cpu int) uint64 {
-	var total uint64
-
-	switch {
-	case cpu == -1:
-		for i := range pbm.readLostEvents[perfMap] {
-			total += pbm.getLostCount(perfMap, i)
+	if cpu == -1 {
+		var total uint64
+		for _, perCPU := range pbm.readLostEvents[perfMap] {
+			total += perCPU.Load()
 		}
-	case cpu >= 0 && pbm.numCPU > cpu:
-		total += pbm.getLostCount(perfMap, cpu)
+		return total
 	}
 
-	return total
+	if 0 <= cpu && cpu < pbm.numCPU {
+		return pbm.readLostEvents[perfMap][cpu].Load()
+	}
+
+	return 0
 }
 
 // getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
@@ -243,17 +239,19 @@ func (pbm *PerfBufferMonitor) getAndResetReadLostCount(perfMap string, cpu int) 
 // provided, the function will reset the counters of all the cpus for the provided map, and return the sum of all the
 // lost events of all the cpus of the provided map.
 func (pbm *PerfBufferMonitor) GetAndResetLostCount(perfMap string, cpu int) uint64 {
-	var total uint64
-
-	switch {
-	case cpu == -1:
-		for i := range pbm.readLostEvents[perfMap] {
-			total += pbm.getAndResetReadLostCount(perfMap, i)
+	if cpu == -1 {
+		var total uint64
+		for _, perCPU := range pbm.readLostEvents[perfMap] {
+			total += perCPU.Swap(0)
 		}
-	case cpu >= 0 && pbm.numCPU > cpu:
-		total += pbm.getAndResetReadLostCount(perfMap, cpu)
+		return total
 	}
-	return total
+
+	if 0 <= cpu && cpu < pbm.numCPU {
+		return pbm.readLostEvents[perfMap][cpu].Swap(0)
+	}
+
+	return 0
 }
 
 // getEventCount is an internal function, it can segfault if its parameters are incorrect.
