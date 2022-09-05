@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	MaxErrno    = 35
+	MaxErrno    = 64
 	MaxErrnoStr = "other"
 )
 
@@ -66,7 +66,7 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
 		if (i + 1) == MaxErrno {
 			errCount[MaxErrnoStr] = count
 		} else {
-			errCount[syscall.Errno(i+1).Error()] = count
+			errCount[syscall.Errno(i).Error()] = count
 		}
 	}
 

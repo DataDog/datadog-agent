@@ -3,8 +3,10 @@
 
 //#include <uapi/asm-generic/errno-base.h>
 
-//#define MAX_ERRNO (ERANGE + 1)
+// We use a power of 2 array size so the upper bound of a map
+// access can be easily constrained with an 'and' operation
 #define T_MAX_ERRNO 64
+
 typedef struct {
     unsigned int err_count[T_MAX_ERRNO];
 } map_err_telemetry_t;

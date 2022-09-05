@@ -44,10 +44,7 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
                if (errno_slot >= T_MAX_ERRNO) { \
                    errno_slot = T_MAX_ERRNO - 1; \
                } \
-               else { \
-                   errno_slot = errno_slot - 1; \
-               } \
-                errno_slot = errno_slot & (T_MAX_ERRNO - 1); \
+               errno_slot = errno_slot & (T_MAX_ERRNO - 1); \
                __sync_fetch_and_add(&entry->err_count[errno_slot], 1);      \
             }                                                                    \
         }                                                                        \
