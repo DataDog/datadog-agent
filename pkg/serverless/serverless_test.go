@@ -7,7 +7,6 @@ package serverless
 
 import (
 	"fmt"
-	"os"
 	"runtime/debug"
 	"sort"
 	"testing"
@@ -31,8 +30,8 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	deadlineMs := (time.Now().UnixNano())/1000000 + 20
 
 	//setting DD_TAGS and DD_EXTRA_TAGS
-	os.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
-	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
+	t.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
+	t.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
 	architecture := fmt.Sprintf("architecture:%s", tags.ResolveRuntimeArch())

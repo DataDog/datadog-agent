@@ -115,8 +115,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 }
 
 func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
-	defer os.Unsetenv(functionNameEnvVar)
-	os.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv(functionNameEnvVar, "TestFunction")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
@@ -202,8 +201,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 }
 
 func TestCompleteInferredSpanWithStartTime(t *testing.T) {
-	defer os.Unsetenv(functionNameEnvVar)
-	os.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv(functionNameEnvVar, "TestFunction")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
@@ -258,8 +256,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 }
 
 func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
-	defer os.Unsetenv(functionNameEnvVar)
-	os.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv(functionNameEnvVar, "TestFunction")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},

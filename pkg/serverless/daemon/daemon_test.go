@@ -8,7 +8,6 @@ package daemon
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -68,8 +67,7 @@ func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 }
 
 func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
-	os.Setenv(localTestEnvVar, "1")
-	defer os.Unsetenv(localTestEnvVar)
+	t.Setenv(localTestEnvVar, "1")
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
@@ -171,8 +169,7 @@ func TestSetTraceTagOk(t *testing.T) {
 		"key0": "value0",
 	}
 	var agent = &trace.ServerlessTraceAgent{}
-	os.Setenv("DD_API_KEY", "x")
-	defer os.Unsetenv("DD_API_KEY")
+	t.Setenv("DD_API_KEY", "x")
 	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"})
 	defer agent.Stop()
 	d := Daemon{

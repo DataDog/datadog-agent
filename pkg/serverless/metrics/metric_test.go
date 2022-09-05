@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -79,8 +78,7 @@ func TestStartWithProxy(t *testing.T) {
 	defer config.Datadog.Set(statsDMetricBlocklistKey, originalValues)
 	config.Datadog.Set(statsDMetricBlocklistKey, []string{})
 
-	os.Setenv(proxyEnabledEnvVar, "true")
-	defer os.Unsetenv(proxyEnabledEnvVar)
+	t.Setenv(proxyEnabledEnvVar, "true")
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
