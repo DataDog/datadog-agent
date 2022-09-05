@@ -238,7 +238,7 @@ struct kevent_t {
     u64 timestamp;
     u32 type;
     u8 async;
-    u8 ad_saved;
+    u8 saved_by_ad;
     u8 padding[2];
 };
 

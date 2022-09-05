@@ -239,28 +239,31 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params, bool *should_be_discarded) {
+typedef enum discard_check_state {
+    NOT_DISCARDED,
+    DISCARDED,
+    SAVED_BY_AD,
+} discard_check_state;
+
+discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // fall back to the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
     struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
-        return 0;
+        return NOT_DISCARDED;
     }
 
     bool is_discarded = inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
     if (!is_discarded) {
-        return 0;
+        return NOT_DISCARDED;
     }
 
     // should we ignore the discarder check because of an activity dump ?
     if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
         // do not discard this event
-        if (should_be_discarded) {
-            *should_be_discarded = true;
-        }
-        return 0;
+        return SAVED_BY_AD;
     }
-    return 1;
+    return DISCARDED;
 }
 
 void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
@@ -373,7 +376,7 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
     return is_discarded(&pid_discarders, &key, event_type, bpf_ktime_get_ns()) != NULL;
 }
 
-int __attribute__((always_inline)) is_discarded_by_process2(const char mode, u64 event_type, bool *should_be_discarded) {
+int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -402,17 +405,13 @@ int __attribute__((always_inline)) is_discarded_by_process2(const char mode, u64
                     },
                 },
             };
-            if (is_discarded_by_inode(&params, should_be_discarded)) {
+            if (is_discarded_by_inode(&params) == DISCARDED) {
                 return 1;
             }
         }
     }
 
     return 0;
-}
-
-int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
-    return is_discarded_by_process2(mode, event_type, NULL);
 }
 
 void __attribute__((always_inline)) expire_pid_discarder(u32 tgid) {
