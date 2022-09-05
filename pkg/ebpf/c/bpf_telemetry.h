@@ -41,12 +41,13 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
                 bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key); \
             if (entry) {                                                         \
                 errno_slot = errno_ret * -1; \
-               if (errno_slot >= MAX_ERRNO) { \
-                   errno_slot = MAX_ERRNO - 1; \
+               if (errno_slot >= T_MAX_ERRNO) { \
+                   errno_slot = T_MAX_ERRNO - 1; \
                } \
                else { \
-                   errno_slot = errno_slot & (MAX_ERRNO - 1); \
+                   errno_slot = errno_slot - 1; \
                } \
+                errno_slot = errno_slot & (T_MAX_ERRNO - 1); \
                __sync_fetch_and_add(&entry->err_count[errno_slot], 1);      \
             }                                                                    \
         }                                                                        \
@@ -69,13 +70,13 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
                 } else if (IS_PROBE_READ_KERNEL(fn)) {                                                  \
                     helper_indx = read_kernel_indx;                                                     \
                 }                                                                                       \
-                if (errno_ret >= MAX_ERRNO) {                                                           \
-                    errno_slot = MAX_ERRNO - 1;                                                         \
+                if (errno_ret >= T_MAX_ERRNO) {                                                           \
+                    errno_slot = T_MAX_ERRNO - 1;                                                         \
                 } else {                                                                                \
                     errno_slot = errno_ret - 1;                                                         \
                 }                                                                                       \
                 if ((helper_indx >= 0) && (errno_slot >= 0)) {                                          \
-                    __sync_fetch_and_add(&entry->err_count[(helper_indx * MAX_ERRNO) + errno_slot], 1); \
+                    __sync_fetch_and_add(&entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot], 1); \
                 }                                                                                       \
             }                                                                                           \
         }                                                                                               \

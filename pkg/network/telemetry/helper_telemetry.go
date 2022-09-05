@@ -56,7 +56,7 @@ func (b *BPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 }
 
 func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
-	var errCount map[string]uint32
+	errCount := make(map[string]uint32)
 
 	for i, count := range v.Count {
 		if count == 0 {
@@ -66,7 +66,7 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
 		if (i + 1) == MaxErrno {
 			errCount[MaxErrnoStr] = count
 		} else {
-			errCount[syscall.Errno(count).Error()] = count
+			errCount[syscall.Errno(i+1).Error()] = count
 		}
 	}
 
