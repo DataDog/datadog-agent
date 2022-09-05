@@ -28,12 +28,15 @@ type BPFTelemetry struct {
 	HelperErrMap *ebpf.Map
 	maps         []string
 	mapKeys      map[string]uint64
+	probes       []string
+	probeKeys    map[string]uint64
 }
 
 // NewBPFTelemetry initializes a new BPFTelemetry object
 func NewBPFTelemetry() *BPFTelemetry {
 	b := new(BPFTelemetry)
 	b.mapKeys = make(map[string]uint64)
+	b.probeKeys = make(map[string]uint64)
 
 	return b
 }
@@ -43,6 +46,11 @@ func NewBPFTelemetry() *BPFTelemetry {
 func (b *BPFTelemetry) RegisterMaps(maps []string) error {
 	b.maps = append(b.maps, maps...)
 	return b.initializeMapErrTelemetryMap()
+}
+
+func (b *BPFTelemetry) RegisterProbes(probes []string) error {
+	b.probes = append(b.probes, probes...)
+	return b.initializeHelperErrTelemetryMap()
 }
 
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
@@ -79,9 +87,14 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
 	return errCount
 }
 
-// BuildMapErrTelemetryKeys functions builds the keys used to index in the map error telemetry ebpf map
-// for recording map operation failure telemetry. The keys are built using the map names
-func BuildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
+// BuildTelemetryKeys returns the keys used to index the maps holding telemetry
+// information for bpf helper errors.
+func BuildTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
+	keys := buildMapErrTelemetryKeys(mgr)
+	return append(buildHelperErrTelemetryKeys(mgr), keys...)
+}
+
+func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 	var keys []manager.ConstantEditor
 
 	h := fnv.New64a()
@@ -89,6 +102,22 @@ func BuildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 		h.Write([]byte(m.Name))
 		keys = append(keys, manager.ConstantEditor{
 			Name:  m.Name + "_telemetry_key",
+			Value: h.Sum64(),
+		})
+		h.Reset()
+	}
+
+	return keys
+}
+
+func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
+	var keys []manager.ConstantEditor
+
+	h := fnv.New64a()
+	for _, p := range mgr.Probes {
+		h.Write([]byte(p.EBPFFuncName))
+		keys = append(keys, manager.ConstantEditor{
+			Name:  "telemetry_program_id_key",
 			Value: h.Sum64(),
 		})
 		h.Reset()
@@ -111,6 +140,25 @@ func (b *BPFTelemetry) initializeMapErrTelemetryMap() error {
 		h.Reset()
 
 		b.mapKeys[m] = key
+	}
+
+	return nil
+}
+
+func (b *BPFTelemetry) initializeHelperErrTelemetryMap() error {
+	z := new(HelperErrTelemetry)
+	h := fnv.New64a()
+
+	for _, p := range b.probes {
+		h.Write([]byte(p))
+		key := h.Sum64()
+		err := b.HelperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		if err != nil {
+			return fmt.Errorf("failed to initialize telemetry struct for map %s", p)
+		}
+		h.Reset()
+
+		b.probeKeys[p] = key
 	}
 
 	return nil

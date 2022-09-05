@@ -113,7 +113,9 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
-    bpf_probe_read_kernel(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
+    int errno;
+    PROBE_READ_KERNEL(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out, errno);
+    //bpf_probe_read_kernel(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
     bpf_probe_read_kernel(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {

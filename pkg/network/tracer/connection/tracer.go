@@ -34,4 +34,6 @@ type Tracer interface {
 	DumpMaps(maps ...string) (string, error)
 	// Returns the names of all the maps
 	GetAllMapsNames() []string
+	// Returns the names of all probes
+	GetAllProbesNames() []string
 }

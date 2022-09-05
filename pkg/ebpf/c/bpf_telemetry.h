@@ -27,8 +27,13 @@
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
+#define TO_STR(x) STR(x)
+#define MACRO_CONCAT(x,y) CONCAT(x,y)
+#define CONCAT(x,y) x##y
+#define MK_PROGRAM_ID_VAR(prefix) TO_STR(MACRO_CONCAT(prefix, __COUNTER__))
+
 BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
-BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
+BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
 
 #define map_update_with_telemetry(fn, map, args...)                              \
     do {                                                                         \
@@ -44,7 +49,7 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
                if (errno_slot >= T_MAX_ERRNO) { \
                    errno_slot = T_MAX_ERRNO - 1; \
                } \
-               errno_slot = errno_slot & (T_MAX_ERRNO - 1); \
+               errno_slot &= (T_MAX_ERRNO - 1); \
                __sync_fetch_and_add(&entry->err_count[errno_slot], 1);      \
             }                                                                    \
         }                                                                        \
@@ -54,11 +59,12 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
     do {                                                                                                \
         int helper_indx = -1;                                                                           \
         int errno_slot;                                                                                 \
-        int indx = 1;                                                                                   \
         errno_ret = fn(dst, sz, src);                                                                   \
         if (errno_ret < 0) {                                                                            \
+            unsigned long telemetry_program_id; \
+            LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id); \
             helper_err_telemetry_t *entry =                                                        \
-                bpf_map_lookup_elem(&helper_err_telemetry_map, &indx);                                  \
+                bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);                                  \
             if (entry) {                                                                                \
                 if (IS_PROBE_READ(fn)) {                                                                \
                     helper_indx = read_indx;                                                            \
@@ -67,12 +73,12 @@ BPF_ARRAY_MAP(helper_err_telemetry_map, helper_err_telemetry_t, 1)
                 } else if (IS_PROBE_READ_KERNEL(fn)) {                                                  \
                     helper_indx = read_kernel_indx;                                                     \
                 }                                                                                       \
-                if (errno_ret >= T_MAX_ERRNO) {                                                           \
+                errno_slot = errno_ret * -1; \
+                if (errno_slot >= T_MAX_ERRNO) {                                                           \
                     errno_slot = T_MAX_ERRNO - 1;                                                         \
-                } else {                                                                                \
-                    errno_slot = errno_ret - 1;                                                         \
                 }                                                                                       \
-                if ((helper_indx >= 0) && (errno_slot >= 0)) {                                          \
+                errno_slot &= (T_MAX_ERRNO - 1); \
+                if (helper_indx >= 0) {                                          \
                     __sync_fetch_and_add(&entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot], 1); \
                 }                                                                                       \
             }                                                                                           \

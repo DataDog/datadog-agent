@@ -156,6 +156,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	if err := bpfTelemetry.RegisterMaps(ebpfTracer.GetAllMapsNames()); err != nil {
 		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
 	}
+	if err := bpfTelemetry.RegisterProbes(ebpfTracer.GetAllProbesNames()); err != nil {
+		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
+	}
 
 	conntracker, err := newConntracker(config)
 	if err != nil {
@@ -806,6 +809,10 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *er
 		return nil
 	}
 	if err := bpfTelemetry.RegisterMaps(monitor.GetAllMapsNames()); err != nil {
+		log.Errorf("could not register maps for telemetry: %v", err)
+		return nil
+	}
+	if err := bpfTelemetry.RegisterProbes(monitor.GetAllProbesNames()); err != nil {
 		log.Errorf("could not register maps for telemetry: %v", err)
 		return nil
 	}

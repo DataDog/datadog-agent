@@ -156,7 +156,7 @@ func (e *ebpfProgram) Init() error {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
 
-	mapErrTelemetryMapKeys := errtelemetry.BuildMapErrTelemetryKeys(e.Manager)
+	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(e.Manager)
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -207,7 +207,7 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: append(e.offsets, mapErrTelemetryMapKeys...),
+		ConstantEditors: append(e.offsets, telemetryMapKeys...),
 	}
 
 	if (e.mapErrTelemetryMap != nil) || (e.helperErrTelemetryMap != nil) {

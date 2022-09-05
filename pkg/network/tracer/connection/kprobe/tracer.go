@@ -149,8 +149,8 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 			})
 	}
 
-	mapErrTelemetryMapKeys := errtelemetry.BuildMapErrTelemetryKeys(m)
-	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, mapErrTelemetryMapKeys...)
+	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
@@ -393,11 +393,22 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 	return t.m.DumpMaps(maps...)
 }
 
+// GetAllMapsNames returns the names of the maps managed by the manager
 func (t *kprobeTracer) GetAllMapsNames() []string {
 	var names []string
 
 	for _, m := range t.m.Maps {
 		names = append(names, m.Name)
+	}
+
+	return names
+}
+
+// GetAllProbesNames returns the names of the probes managed by the manager
+func (t *kprobeTracer) GetAllProbesNames() []string {
+	var names []string
+	for _, p := range t.m.Probes {
+		names = append(names, p.EBPFFuncName)
 	}
 
 	return names

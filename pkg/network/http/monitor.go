@@ -246,3 +246,12 @@ func (m *Monitor) GetAllMapsNames() []string {
 
 	return names
 }
+
+func (m *Monitor) GetAllProbesNames() []string {
+	var names []string
+	for _, p := range m.ebpfProgram.Probes {
+		names = append(names, p.EBPFFuncName)
+	}
+
+	return names
+}
