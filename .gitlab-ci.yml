@@ -146,7 +146,6 @@ variables:
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v9472974-a8f8b46
   DATADOG_AGENT_NIKOS_BUILDIMAGES:  v9472974-a8f8b46
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DOCKER_X64_BUILDER: v2718644-9ce6565-18.09.6-py3
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
