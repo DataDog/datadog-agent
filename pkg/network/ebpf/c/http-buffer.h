@@ -19,7 +19,7 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
 // note: bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
 #pragma unroll(HTTP_BUFFER_SIZE - 1)
         for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
-            PROBE_READ_USER(&buffer[i], 1, &data[i], errno);
+            bpf_probe_read_user(&buffer[i], 1, &data[i]);
             if (buffer[i] == 0) {
                 return;
             }
