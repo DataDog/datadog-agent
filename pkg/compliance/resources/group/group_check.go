@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ReportedFields = []string{
+var reportedFields = []string{
 	compliance.GroupFieldName,
 	compliance.GroupFieldUsers,
 	compliance.GroupFieldID,
@@ -32,7 +32,7 @@ var ReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func Resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}
@@ -133,5 +133,5 @@ func readEtcGroup(r io.Reader, fn lineFunc) error {
 }
 
 func init() {
-	resources.RegisterHandler("group", Resolve, ReportedFields)
+	resources.RegisterHandler("group", resolve, reportedFields)
 }

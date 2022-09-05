@@ -7,21 +7,21 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// RunnerFunc describes a function in charge of executing commands
 type RunnerFunc func(context.Context, string, []string, bool) (int, []byte, error)
 
 var (
+	// Runner holds the singleton for command execution
 	Runner RunnerFunc = runCommand
 )
 
+// GetDefaultShell returns the shell for the current environment
 func GetDefaultShell() *compliance.BinaryCmd {
 	switch runtime.GOOS {
 	case "windows":
@@ -37,6 +37,7 @@ func GetDefaultShell() *compliance.BinaryCmd {
 	}
 }
 
+// ShellCmdToBinaryCmd returns the passed command to be executed by a shell command
 func ShellCmdToBinaryCmd(shellCmd *compliance.ShellCmd) *compliance.BinaryCmd {
 	var execCmd *compliance.BinaryCmd
 	if shellCmd.Shell != nil {
@@ -49,43 +50,11 @@ func ShellCmdToBinaryCmd(shellCmd *compliance.ShellCmd) *compliance.BinaryCmd {
 	return execCmd
 }
 
-func runBinaryCmd(execCommand *compliance.BinaryCmd, timeout time.Duration) (int, string, error) {
+// RunBinaryCmd executes the specific command and timeout, returing its return code and output
+func RunBinaryCmd(execCommand *compliance.BinaryCmd, timeout time.Duration) (int, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	exitCode, stdout, err := Runner(ctx, execCommand.Name, execCommand.Args, true)
 	return exitCode, string(stdout), err
-}
-
-func ValueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
-	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
-
-	shellCmd := &compliance.ShellCmd{
-		Run: command,
-	}
-	if len(shellAndArgs) > 0 {
-		shellCmd.Shell = &compliance.BinaryCmd{
-			Name: shellAndArgs[0],
-			Args: shellAndArgs[1:],
-		}
-	}
-	execCommand := ShellCmdToBinaryCmd(shellCmd)
-	exitCode, stdout, err := runBinaryCmd(execCommand, compliance.DefaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
-	}
-	return stdout, nil
-}
-
-func ValueFromBinaryCommand(name string, args ...string) (interface{}, error) {
-	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
-	execCommand := &compliance.BinaryCmd{
-		Name: name,
-		Args: args,
-	}
-	exitCode, stdout, err := runBinaryCmd(execCommand, compliance.DefaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
-	}
-	return stdout, nil
 }

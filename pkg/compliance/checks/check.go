@@ -13,6 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
+	// Register compliance resources
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
@@ -21,8 +25,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // eventNotify is a callback invoked when a compliance check reported an event

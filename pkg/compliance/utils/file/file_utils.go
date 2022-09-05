@@ -20,14 +20,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// PathMapper binds paths between a folder and its bind mount
 type PathMapper struct {
 	hostMountPath string
 }
 
+// NormalizeToHostRoot returns the bind mounted path value for a path
 func (m PathMapper) NormalizeToHostRoot(path string) string {
 	return filepath.Join(m.hostMountPath, path)
 }
 
+// RelativeToHostRoot returns a path relative to its bind mount ropt
 func (m PathMapper) RelativeToHostRoot(path string) string {
 	// TODO: This used to use filepath.HasPrefix, which is broken and does not have
 	// a suitable stdlib replacement. I changed it to strings.HasPrefix to be explicit
@@ -45,12 +48,14 @@ func (m PathMapper) RelativeToHostRoot(path string) string {
 	return path
 }
 
+// NewPathMapper returns a new path mapper
 func NewPathMapper(path string) *PathMapper {
 	return &PathMapper{
 		hostMountPath: path,
 	}
 }
 
+// ResolvePath resolves the bind mounted path of a path
 func ResolvePath(e env.Env, path string) (string, error) {
 	pathExpr, err := eval.Cache.ParsePath(path)
 	if err != nil {

@@ -52,6 +52,7 @@ type regoCheck struct {
 	regoModuleArgs []func(*rego.Rego)
 }
 
+// NewCheck returns a new rego based check
 func NewCheck(rule *compliance.RegoRule, m metrics.Metrics) *regoCheck {
 	return &regoCheck{
 		ruleID:  rule.ID,
@@ -561,11 +562,11 @@ func resourceKindToResolverAndFields(env env.Env, kind compliance.ResourceKind) 
 	switch kind {
 	case compliance.KindDocker:
 		if env.DockerClient() == nil {
-			return nil, nil, log.Errorf("%s: docker client not initialized")
+			return nil, nil, log.Error("docker client not initialized")
 		}
 	case compliance.KindKubernetes:
 		if env.KubeClient() == nil {
-			return nil, nil, log.Errorf("%s: kube client not initialized")
+			return nil, nil, log.Error("kube client not initialized")
 		}
 	}
 

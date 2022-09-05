@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-var ReportedFields = []string{
+var reportedFields = []string{
 	compliance.KubeResourceFieldName,
 	compliance.KubeResourceFieldGroup,
 	compliance.KubeResourceFieldVersion,
@@ -36,7 +36,7 @@ type kubeUnstructureResolvedResource struct {
 	eval.Instance
 }
 
-func Resolve(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -151,5 +151,5 @@ func kubeResourceJQ(resource unstructured.Unstructured) eval.Function {
 }
 
 func init() {
-	resources.RegisterHandler("kubernetes", Resolve, ReportedFields)
+	resources.RegisterHandler("kubernetes", resolve, reportedFields)
 }

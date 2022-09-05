@@ -719,6 +719,39 @@ func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Functio
 	}
 }
 
+func valueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
+	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
+
+	shellCmd := &compliance.ShellCmd{
+		Run: command,
+	}
+	if len(shellAndArgs) > 0 {
+		shellCmd.Shell = &compliance.BinaryCmd{
+			Name: shellAndArgs[0],
+			Args: shellAndArgs[1:],
+		}
+	}
+	execCommand := commandutils.ShellCmdToBinaryCmd(shellCmd)
+	exitCode, stdout, err := commandutils.RunBinaryCmd(execCommand, compliance.DefaultTimeout)
+	if exitCode != 0 || err != nil {
+		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
+	}
+	return stdout, nil
+}
+
+func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
+	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
+	execCommand := &compliance.BinaryCmd{
+		Name: name,
+		Args: args,
+	}
+	exitCode, stdout, err := commandutils.RunBinaryCmd(execCommand, compliance.DefaultTimeout)
+	if exitCode != 0 || err != nil {
+		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
+	}
+	return stdout, nil
+}
+
 func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
@@ -740,7 +773,7 @@ func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error)
 		}
 	}
 
-	return commandutils.ValueFromShellCommand(cmd, shellAndArgs...)
+	return valueFromShellCommand(cmd, shellAndArgs...)
 }
 
 func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
@@ -758,7 +791,7 @@ func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) 
 		cmdArgs = append(cmdArgs, s)
 	}
 
-	return commandutils.ValueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
+	return valueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
 }
 
 func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {

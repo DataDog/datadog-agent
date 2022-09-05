@@ -11,11 +11,13 @@ var (
 	resourceRegistry = map[compliance.ResourceKind]*ResourceHandler{}
 )
 
+// ResourceHandler holds the resolver for a specific resource type and the fields reported for it
 type ResourceHandler struct {
 	Resolver       Resolver
 	ReportedFields []string
 }
 
+// RegisterHandler registers the resolver and reported fields for a resource type
 func RegisterHandler(name compliance.ResourceKind, resolver Resolver, fields []string) {
 	resourceRegistry[name] = &ResourceHandler{
 		Resolver:       resolver,
@@ -23,6 +25,7 @@ func RegisterHandler(name compliance.ResourceKind, resolver Resolver, fields []s
 	}
 }
 
+// GetHandler returns the registered handler for a resource type
 func GetHandler(name compliance.ResourceKind) *ResourceHandler {
 	return resourceRegistry[name]
 }

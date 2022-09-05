@@ -18,11 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ReportedFields = []string{
+var reportedFields = []string{
 	compliance.CommandFieldExitCode,
 }
 
-func Resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -73,5 +73,5 @@ func Resolve(ctx context.Context, _ env.Env, ruleID string, res compliance.Resou
 }
 
 func init() {
-	resources.RegisterHandler("command", Resolve, ReportedFields)
+	resources.RegisterHandler("command", resolve, reportedFields)
 }

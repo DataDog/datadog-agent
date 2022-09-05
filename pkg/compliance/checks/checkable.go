@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 )
 
-// checkable abstracts a resource check
+// Checkable abstracts a resource check
 type Checkable interface {
 	Check(env env.Env) []*compliance.Report
 }

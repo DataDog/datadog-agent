@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// DefaultTimeout holds the default duration for checks timeout
 	DefaultTimeout = 30 * time.Second
 )
 

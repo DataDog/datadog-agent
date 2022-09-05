@@ -21,16 +21,17 @@ import (
 )
 
 const (
+	// CacheValidity holds the default validity duration for a process in the cache
 	CacheValidity time.Duration = 10 * time.Minute
 )
 
-var ReportedFields = []string{
+var reportedFields = []string{
 	compliance.ProcessFieldName,
 	compliance.ProcessFieldExe,
 	compliance.ProcessFieldCmdLine,
 }
 
-func Resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -115,5 +116,5 @@ func validateProcessFlagArg(args ...interface{}) (string, error) {
 }
 
 func init() {
-	resources.RegisterHandler("process", Resolve, ReportedFields)
+	resources.RegisterHandler("process", resolve, reportedFields)
 }

@@ -13,9 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 )
 
-type Resolved interface {
-}
+// Resolved maps an evaluation instance and a resource
+type Resolved interface{}
 
+// ResolvedInstance maps an evaluation instance and a resource
 type ResolvedInstance interface {
 	eval.Instance
 	ID() string
@@ -36,6 +37,7 @@ func (ri *resolvedInstance) Type() string {
 	return ri.kind
 }
 
+// NewResolvedInstance returns a new resolved instance
 func NewResolvedInstance(instance eval.Instance, resourceID, resourceType string) *resolvedInstance {
 	return &resolvedInstance{
 		Instance: instance,
@@ -48,12 +50,14 @@ type resolvedIterator struct {
 	eval.Iterator
 }
 
+// NewResolvedIterator returns an iterator of resolved instances
 func NewResolvedIterator(iterator eval.Iterator) *resolvedIterator {
 	return &resolvedIterator{
 		Iterator: iterator,
 	}
 }
 
+// NewResolvedInstances returns an iterator from a list of resolved instances
 func NewResolvedInstances(resolvedInstances []ResolvedInstance) *resolvedIterator {
 	instances := make([]eval.Instance, len(resolvedInstances))
 	for i, ri := range resolvedInstances {
@@ -62,4 +66,5 @@ func NewResolvedInstances(resolvedInstances []ResolvedInstance) *resolvedIterato
 	return NewResolvedIterator(newInstanceIterator(instances))
 }
 
+// Resolver is a function to resolve a resource from its definition
 type Resolver func(ctx context.Context, e env.Env, ruleID string, resource compliance.ResourceCommon, rego bool) (Resolved, error)

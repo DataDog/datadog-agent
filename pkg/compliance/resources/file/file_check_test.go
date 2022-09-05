@@ -182,14 +182,14 @@ func TestFileCheck(t *testing.T) {
 			`
 
 	tests := []struct {
-		name            string
-		module          string
-		resource        compliance.RegoInput
-		setup           setupFileFunc
-		validate        validateFunc
-		max_permissions string
-		expectError     error
-		processes       processutils.Processes
+		name           string
+		module         string
+		resource       compliance.RegoInput
+		setup          setupFileFunc
+		validate       validateFunc
+		maxPermissions string
+		expectError    error
+		processes      processutils.Processes
 	}{
 		{
 			name: "file permissions",
@@ -266,7 +266,7 @@ func TestFileCheck(t *testing.T) {
 				assert.Equal("root", report.Data["file.user"])
 				assert.Contains([]string{"root", "wheel"}, report.Data["file.group"])
 			},
-			max_permissions: "777",
+			maxPermissions: "777",
 		},
 		{
 			name: "jq(log-driver) - passed",
@@ -517,8 +517,8 @@ func TestFileCheck(t *testing.T) {
 			}
 
 			regoRule := resource_test.NewTestRule(test.resource, "file", test.module)
-			if test.max_permissions != "" {
-				regoRule.Inputs[1].Constants.Values["max_permissions"] = test.max_permissions
+			if test.maxPermissions != "" {
+				regoRule.Inputs[1].Constants.Values["max_permissions"] = test.maxPermissions
 			} else {
 				regoRule.Inputs[1].Constants.Values["max_permissions"] = "644"
 			}

@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	ReportedFields = []string{
+	reportedFields = []string{
 		compliance.DockerImageFieldID,
 		compliance.DockerImageFieldTags,
 		compliance.DockerContainerFieldID,
@@ -76,7 +76,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func Resolve(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -375,5 +375,5 @@ func (it *dockerNetworkIterator) Done() bool {
 }
 
 func init() {
-	resources.RegisterHandler("docker", Resolve, ReportedFields)
+	resources.RegisterHandler("docker", resolve, reportedFields)
 }

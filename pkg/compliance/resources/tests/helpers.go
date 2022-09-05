@@ -7,9 +7,11 @@ package tests
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	// Register constant resource so that unit tests don't have to
 	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
 )
 
+// NewTestRule returns a new basic Rego based to be used by tests
 func NewTestRule(resource compliance.RegoInput, kind, module string) *compliance.RegoRule {
 	return &compliance.RegoRule{
 		RuleCommon: compliance.RuleCommon{

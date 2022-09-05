@@ -20,13 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ReportedFields = []string{
+var reportedFields = []string{
 	compliance.AuditFieldPath,
 	compliance.AuditFieldEnabled,
 	compliance.AuditFieldPermissions,
 }
 
-func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -103,4 +103,8 @@ func auditPermissionsString(r *rule.FileWatchRule) string {
 		}
 	}
 	return permissions
+}
+
+func init() {
+	resources.RegisterHandler("audit", resolve, reportedFields)
 }

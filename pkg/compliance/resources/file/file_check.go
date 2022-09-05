@@ -25,7 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var ReportedFields = []string{
+var reportedFields = []string{
 	compliance.FileFieldGlob,
 	compliance.FileFieldPath,
 	compliance.FileFieldPermissions,
@@ -33,7 +33,7 @@ var ReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func Resolve(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
+func resolve(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon, rego bool) (resources.Resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -250,5 +250,5 @@ func QueryValueFromFile(filePath string, query string, get fileutils.Getter) (st
 }
 
 func init() {
-	resources.RegisterHandler("file", Resolve, ReportedFields)
+	resources.RegisterHandler("file", resolve, reportedFields)
 }

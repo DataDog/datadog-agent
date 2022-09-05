@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
+// NewDockerClient returns a new docker client
 func NewDockerClient() (env.DockerClient, error) {
 	queryTimeout := config.Datadog.GetDuration("docker_query_timeout") * time.Second
 
