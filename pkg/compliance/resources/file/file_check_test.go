@@ -215,8 +215,8 @@ func TestFileCheck(t *testing.T) {
 				assert.True(report.Passed)
 				assert.Equal(file.Path, report.Data["file.path"])
 				assert.Equal(json.Number(strconv.Itoa(0644)), report.Data["file.permissions"])
-
 			},
+			maxPermissions: "644",
 		},
 		{
 			name: "file permissions (glob)",
@@ -246,6 +246,7 @@ func TestFileCheck(t *testing.T) {
 				assert.Regexp("/etc/test-[0-9]-[0-9]+", report.Data["file.path"])
 				assert.Equal(json.Number(strconv.Itoa(0644)), report.Data["file.permissions"])
 			},
+			maxPermissions: "644",
 		},
 		{
 			name: "file user and group",
@@ -266,7 +267,6 @@ func TestFileCheck(t *testing.T) {
 				assert.Equal("root", report.Data["file.user"])
 				assert.Contains([]string{"root", "wheel"}, report.Data["file.group"])
 			},
-			maxPermissions: "777",
 		},
 		{
 			name: "jq(log-driver) - passed",
@@ -520,7 +520,7 @@ func TestFileCheck(t *testing.T) {
 			if test.maxPermissions != "" {
 				regoRule.Inputs[1].Constants.Values["max_permissions"] = test.maxPermissions
 			} else {
-				regoRule.Inputs[1].Constants.Values["max_permissions"] = "644"
+				regoRule.Inputs[1].Constants.Values["max_permissions"] = "777"
 			}
 			regoRule.Inputs[1].Constants.Values["resource_type"] = "docker_daemon"
 			fileCheck := rego.NewCheck(regoRule)
