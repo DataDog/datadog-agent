@@ -48,6 +48,8 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 		RecordGetter:  m.recordPool.Get,
 	}
 
+	m.reOrderer.lostHandler = m.handleLostEvents
+
 	if config.EventStreamBufferSize != 0 {
 		m.perfMap.PerfMapOptions.PerfRingBufferSize = config.EventStreamBufferSize
 	}

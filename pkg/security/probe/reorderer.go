@@ -183,6 +183,7 @@ type ReOrderer struct {
 	ctx         context.Context
 	queue       chan *perf.Record
 	handler     func(*perf.Record)
+	lostHandler func(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager)
 	heap        *reOrdererHeap
 	extractInfo func(*perf.Record) (uint64, uint64, error) // timestamp
 	opts        ReOrdererOpts
@@ -246,12 +247,25 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 	}
 }
 
+func (r *ReOrderer) handleLostEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
+	if r.lostHandler != nil {
+		cpu, _, err := r.extractInfo(record)
+		if err != nil {
+			return
+		}
+		r.lostHandler(int(cpu), 1, perfMap, manager)
+	}
+}
+
 // HandleEvent handle event form perf ring
 func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	select {
 	case r.queue <- record:
 		return
 	case <-r.ctx.Done():
+		return
+	default:
+		r.handleLostEvent(record, perfMap, manager)
 		return
 	}
 }
