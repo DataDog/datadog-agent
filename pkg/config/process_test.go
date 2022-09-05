@@ -419,41 +419,37 @@ func TestEnvVarOverride(t *testing.T) {
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
-			reset := setEnvForTest(tc.env, tc.value)
+			t.Setenv(tc.env, tc.value)
 			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
-			reset()
 		})
 
 		// Also test the DD_PROCESS_AGENT prefix if it has one
 		if strings.HasPrefix(tc.env, "DD_PROCESS_CONFIG") {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
-				reset := setEnvForTest(env, tc.value)
+				t.Setenv(env, tc.value)
 				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
-				reset()
 			})
 		}
 	}
 
 	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
 	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
-		reset := setEnvForTest("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
+		t.Setenv("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
 		assert.Equal(t, map[string][]string{
 			"https://process.datadoghq.com": {
 				"fakeAPIKey",
 			},
 		}, cfg.GetStringMapStringSlice("process_config.additional_endpoints"))
-		reset()
 	})
 
 	t.Run("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
-		reset := setEnvForTest("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", `{"https://process-events.datadoghq.io": ["fakeAPIKey"]}`)
+		t.Setenv("DD_PROCESS_CONFIG_EVENTS_ADDITIONAL_ENDPOINTS", `{"https://process-events.datadoghq.io": ["fakeAPIKey"]}`)
 		assert.Equal(t, map[string][]string{
 			"https://process-events.datadoghq.io": {
 				"fakeAPIKey",
 			},
 		}, cfg.GetStringMapStringSlice("process_config.events_additional_endpoints"))
-		reset()
 	})
 }
 
@@ -492,10 +488,9 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 		for _, envPrefix := range expectedPrefixes {
 			e := envPrefix + "CUSTOM_SENSITIVE_WORDS"
 			t.Run(fmt.Sprintf("scrub sensitive words/%d/%s", i, e), func(t *testing.T) {
-				reset := setEnvForTest(e, tc.words)
+				t.Setenv(e, tc.words)
 				args := cfg.GetStringSlice("process_config.custom_sensitive_words")
 				assert.Equal(t, tc.expected, args)
-				reset()
 			})
 		}
 	}
@@ -539,10 +534,9 @@ func TestProcBindEnv(t *testing.T) {
 	assert.False(t, cfg.IsSet("process_config.foo.bar"))
 
 	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
-	reset := setEnvForTest("DD_PROCESS_CONFIG_FOO_BAR", "baz")
+	t.Setenv("DD_PROCESS_CONFIG_FOO_BAR", "baz")
 	assert.True(t, cfg.IsSet("process_config.foo.bar"))
 	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
-	reset()
 }
 
 func TestProcConfigEnabledTransform(t *testing.T) {
