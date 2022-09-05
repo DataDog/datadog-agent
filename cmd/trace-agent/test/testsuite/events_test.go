@@ -8,7 +8,6 @@ package testsuite
 import (
 	"encoding/json"
 	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
@@ -67,8 +66,7 @@ func TestAPMEvents(t *testing.T) {
 	})
 
 	t.Run("env", func(t *testing.T) {
-		os.Setenv("DD_APM_ANALYZED_SPANS", "coffee-house|servlet.request=1")
-		defer os.Unsetenv("DD_APM_ANALYZED_SPANS")
+		t.Setenv("DD_APM_ANALYZED_SPANS", "coffee-house|servlet.request=1")
 		if err := runner.RunAgent(nil); err != nil {
 			t.Fatal(err)
 		}
