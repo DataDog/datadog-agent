@@ -6,23 +6,17 @@
 package main
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildDebugString(t *testing.T) {
-	os.Setenv("DD_AAA", "aaa")
-	os.Setenv("DD_CCC", "ccc")
-	os.Setenv("DD_BBB", "bbb")
-	os.Setenv("DD_API_KEY", "dontShowIt")
-	os.Setenv("hi", "hello")
-	defer os.Unsetenv("DD_AAA")
-	defer os.Unsetenv("DD_CCC")
-	defer os.Unsetenv("DD_BBB")
-	defer os.Unsetenv("hi")
-	defer os.Unsetenv("DD_API_KEY")
+	t.Setenv("DD_AAA", "aaa")
+	t.Setenv("DD_CCC", "ccc")
+	t.Setenv("DD_BBB", "bbb")
+	t.Setenv("DD_API_KEY", "dontShowIt")
+	t.Setenv("hi", "hello")
 
 	res := buildDebugString()
 	// cannot check for strict equality as the CI adds some env variables (ie : DD_REPO_BRANCH_NAME)

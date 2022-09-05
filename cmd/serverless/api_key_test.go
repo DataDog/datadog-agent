@@ -8,7 +8,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/kms"
@@ -74,8 +73,7 @@ func (mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.
 }
 
 func TestDecryptKMSWithEncryptionContext(t *testing.T) {
-	os.Setenv(functionNameEnvVar, mockFunctionName)
-	defer os.Setenv(functionNameEnvVar, "")
+	t.Setenv(functionNameEnvVar, mockFunctionName)
 
 	client := mockKMSClientWithEncryptionContext{}
 	result, _ := decryptKMS(client, mockEncryptedAPIKeyBase64)
