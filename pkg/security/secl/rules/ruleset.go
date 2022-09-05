@@ -533,11 +533,19 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+
+	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
+	// through the heap. To improve this situation we first check if we actually need to call the function.
+	if rs.logger.IsTracing() {
+		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	}
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+
+			if rs.logger.IsTracing() {
+				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			}
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -549,7 +557,9 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+		if rs.logger.IsTracing() {
+			rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+		}
 
 		for _, field := range bucket.fields {
 			if rs.opts.SupportedDiscarders != nil {
