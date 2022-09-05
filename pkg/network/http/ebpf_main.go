@@ -164,9 +164,8 @@ func (e *ebpfProgram) Init() error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
-				Type: ebpf.Hash,
-				//MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				MaxEntries: 1,
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
 			httpBatchesMap: {
