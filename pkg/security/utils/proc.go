@@ -51,6 +51,13 @@ func NetNSPathFromPid(pid uint32) *NetNSPath {
 	}
 }
 
+// NetNSPathFromPath returns a new NetNSPath from the given path
+func NetNSPathFromPath(path string) *NetNSPath {
+	return &NetNSPath{
+		cachedPath: path,
+	}
+}
+
 // GetPath returns the path for the given network namespace
 func (path *NetNSPath) GetPath() string {
 	path.mu.Lock()

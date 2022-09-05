@@ -549,7 +549,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
 			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID)
-			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountPath)
+			mountNetNSPath := utils.NetNSPathFromPath(mountPath)
+			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
 		}
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
