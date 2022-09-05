@@ -176,6 +176,7 @@ type seclField struct {
 	iterator            string
 	handler             string
 	cachelessResolution bool
+	skipADResolution    bool
 	lengthField         bool
 	weight              int64
 }
@@ -214,6 +215,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.cachelessResolution = true
 					case "length":
 						field.lengthField = true
+					case "skip_ad":
+						field.skipADResolution = true
 					}
 				}
 			}
@@ -329,6 +332,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OpOverrides:         opOverrides,
 								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
+								SkipADResolution:    seclField.skipADResolution,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -355,6 +359,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								OpOverrides:         opOverrides,
 								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
+								SkipADResolution:    seclField.skipADResolution,
 								IsOrigTypePtr:       isPointer,
 							}
 
@@ -544,6 +549,30 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
+func getFieldResolver(allFields map[string]*common.StructField, field *common.StructField) string {
+	if field.Handler == "" || field.Iterator != nil || field.CachelessResolution {
+		return ""
+	}
+
+	if field.Prefix == "" {
+		return fmt.Sprintf("ev.%s(ev)", field.Handler)
+	}
+
+	ptr := "&"
+	if allFields[field.Prefix].IsOrigTypePtr {
+		ptr = ""
+	}
+
+	return fmt.Sprintf("ev.%s(%sev.%s)", field.Handler, ptr, field.Prefix)
+}
+
+func fieldADPrint(field *common.StructField, resolver string) string {
+	if field.SkipADResolution {
+		return fmt.Sprintf("if !forADs { _ = %s }", resolver)
+	}
+	return fmt.Sprintf("_ = %s", resolver)
+}
+
 func override(str string, mock bool) string {
 	if !strings.Contains(str, ".") && !mock {
 		return "model." + str
@@ -552,10 +581,12 @@ func override(str string, mock bool) string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix": strings.TrimPrefix,
-	"TrimSuffix": strings.TrimSuffix,
-	"NewField":   newField,
-	"Override":   override,
+	"TrimPrefix":       strings.TrimPrefix,
+	"TrimSuffix":       strings.TrimSuffix,
+	"NewField":         newField,
+	"Override":         override,
+	"GetFieldResolver": getFieldResolver,
+	"FieldADPrint":     fieldADPrint,
 }
 
 //go:embed accessors.tmpl

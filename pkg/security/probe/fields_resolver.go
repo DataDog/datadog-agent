@@ -9,10 +9,12 @@
 package probe
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
-func (ev *Event) ResolveFields() {
+func (ev *Event) ResolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.ResolveContainerID(&ev.ContainerContext)
-	_ = ev.ResolveContainerTags(&ev.ContainerContext)
+	if !forADs {
+		_ = ev.ResolveContainerTags(&ev.ContainerContext)
+	}
 	_ = ev.ResolveNetworkDeviceIfName(&ev.NetworkContext.Device)
 	_ = ev.ResolveProcessArgs(&ev.ProcessContext.Process)
 	_ = ev.ResolveProcessArgsTruncated(&ev.ProcessContext.Process)
