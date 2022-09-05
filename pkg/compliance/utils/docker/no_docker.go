@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 )
 
-func newDockerClient() (env.DockerClient, error) {
+// NewDockerClient returns a new docker client
+func NewDockerClient() (env.DockerClient, error) {
 	return nil, errors.New("docker client requires docker build flag")
 }
