@@ -715,7 +715,12 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
-	path, err := dr.ResolveFromCache(mountID, inode)
+	var path string
+	var err = ErrEntryNotFound
+
+	if cache {
+		path, err = dr.ResolveFromCache(mountID, inode)
+	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		path, err = dr.ResolveFromERPC(mountID, inode, pathID, cache)
 	}
