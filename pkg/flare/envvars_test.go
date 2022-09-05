@@ -107,7 +107,7 @@ func TestEnvvarFiltering(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d: %s", i, test.name), func(t *testing.T) {
 			os.Clearenv()
 			for k, v := range test.in {
-				os.Setenv(k, v)
+				t.Setenv(k, v)
 			}
 
 			result := getAllowedEnvvars()
