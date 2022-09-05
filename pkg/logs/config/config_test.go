@@ -6,7 +6,6 @@
 package config
 
 import (
-	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -149,10 +148,9 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.Set("logs_config.sender_recovery_reset", true)
 	suite.config.Set("logs_config.use_v2_api", false)
 
-	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
+	suite.T().Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
 	{"api_key": "456", "host": "additional.endpoint.1", "port": 1234, "use_compression": true, "compression_level": 2},
 	{"api_key": "789", "host": "additional.endpoint.2", "port": 1234, "use_compression": true, "compression_level": 2}]`)
-	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -211,8 +209,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
 	suite.config.Set("logs_config.dev_mode_use_proto", true)
 
-	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
-	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
+	suite.T().Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -475,11 +472,9 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.config.Set("api_key", "123")
 
-	os.Setenv("DD_SITE", "mydomain.com")
-	defer os.Unsetenv("DD_SITE")
+	suite.T().Setenv("DD_SITE", "mydomain.com")
 
-	os.Setenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT", "10")
-	defer os.Unsetenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT")
+	suite.T().Setenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT", "10")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source")
