@@ -7,7 +7,6 @@ package config
 
 import (
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -125,8 +124,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 	ddOrchestratorURL := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
 	expectedValue := "123.datadoghq.com"
-	os.Setenv(ddOrchestratorURL, expectedValue)
-	defer os.Unsetenv(ddOrchestratorURL)
+	suite.T().Setenv(ddOrchestratorURL, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -138,8 +136,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedValue := "50"
-	os.Setenv(ddMaxMessage, expectedValue)
-	defer os.Unsetenv(ddMaxMessage)
+	suite.T().Setenv(ddMaxMessage, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -154,8 +151,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedDefaultValue := 100
 
-	os.Setenv(ddMaxMessage, "150")
-	defer os.Unsetenv(ddMaxMessage)
+	suite.T().Setenv(ddMaxMessage, "150")
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -167,8 +163,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	ddSensitiveWords := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_WORDS"
 	expectedValue := "token consul"
-	os.Setenv(ddSensitiveWords, expectedValue)
-	defer os.Unsetenv(ddSensitiveWords)
+	suite.T().Setenv(ddSensitiveWords, expectedValue)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
