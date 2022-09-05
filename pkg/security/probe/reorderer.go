@@ -257,11 +257,13 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 	}
 }
 
+// QuickInfo represents the info quickly extractable from an event, that can be used for reordering
 type QuickInfo struct {
 	cpu       uint64
 	timestamp uint64
 }
 
+// QuickInfoExtractor represents a function that takes a record, and returns the quick infos
 type QuickInfoExtractor = func(record *perf.Record) (QuickInfo, error)
 
 // NewReOrderer returns a new ReOrderer
