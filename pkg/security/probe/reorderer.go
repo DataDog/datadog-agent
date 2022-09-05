@@ -185,7 +185,7 @@ type ReOrderer struct {
 	handler     func(*perf.Record)
 	lostHandler func(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager)
 	heap        *reOrdererHeap
-	extractInfo func(*perf.Record) (uint64, uint64, error) // timestamp
+	extractInfo QuickInfoExtractor // timestamp
 	opts        ReOrdererOpts
 	metric      ReOrdererMetric
 	Metrics     chan ReOrdererMetric
@@ -203,15 +203,16 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 	defer metricTicker.Stop()
 
 	var lastTm, tm uint64
-	var err error
 
 	for {
 		select {
 		case record := <-r.queue:
 			if len(record.RawSample) > 0 {
-				if _, tm, err = r.extractInfo(record); err != nil {
+				info, err := r.extractInfo(record)
+				if err != nil {
 					continue
 				}
+				tm = info.timestamp
 			} else {
 				tm = lastTm
 			}
@@ -249,11 +250,11 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 
 func (r *ReOrderer) handleLostEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	if r.lostHandler != nil {
-		cpu, _, err := r.extractInfo(record)
+		info, err := r.extractInfo(record)
 		if err != nil {
 			return
 		}
-		r.lostHandler(int(cpu), 1, perfMap, manager)
+		r.lostHandler(int(info.cpu), 1, perfMap, manager)
 	}
 }
 
@@ -270,8 +271,15 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 	}
 }
 
+type QuickInfo struct {
+	cpu       uint64
+	timestamp uint64
+}
+
+type QuickInfoExtractor = func(record *perf.Record) (QuickInfo, error)
+
 // NewReOrderer returns a new ReOrderer
-func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo func(record *perf.Record) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
+func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo QuickInfoExtractor, opts ReOrdererOpts) *ReOrderer {
 	return &ReOrderer{
 		ctx:     ctx,
 		queue:   make(chan *perf.Record, opts.QueueSize),
