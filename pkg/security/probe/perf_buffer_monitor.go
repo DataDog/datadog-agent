@@ -350,10 +350,12 @@ func (pbm *PerfBufferMonitor) getAndResetSortingErrorCount(eventType model.Event
 // CountLostEvent adds `count` to the counter of lost events
 func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, mapName string, cpu int) {
 	// sanity check
-	if (pbm.readLostEvents[mapName] == nil) || (len(pbm.readLostEvents[mapName]) <= cpu) {
+	mapStats := pbm.readLostEvents[mapName]
+	if mapStats == nil || cpu >= len(mapStats) {
 		return
 	}
-	pbm.readLostEvents[mapName][cpu].Add(count)
+
+	mapStats[cpu].Add(count)
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
@@ -366,13 +368,23 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 		pbm.lastTimestamp = timestamp
 	}
 
+	mapStats := pbm.stats[mapName]
+
 	// sanity check
-	if (pbm.stats[mapName] == nil) || (len(pbm.stats[mapName]) <= cpu) || (len(pbm.stats[mapName][cpu]) <= int(eventType)) {
+	if mapStats == nil || cpu >= len(mapStats) {
 		return
 	}
 
-	pbm.stats[mapName][cpu][eventType].Count.Add(count)
-	pbm.stats[mapName][cpu][eventType].Bytes.Add(size)
+	cpuStats := mapStats[cpu]
+
+	// sanity check
+	if int(eventType) >= len(cpuStats) {
+		return
+	}
+
+	etStats := cpuStats[eventType]
+	etStats.Count.Add(count)
+	etStats.Bytes.Add(size)
 }
 
 func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) error {
