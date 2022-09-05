@@ -149,17 +149,22 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
-    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+    u64 *pid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
+    if (!pid_p) {
+        return 0;
+    }
+    u64 pid = *pid_p;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+
+    // Should actually delete something only if the connection never got established
+    if (!read_conn_tuple(&t, sk, pid, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    // Should actually delete something only if the connection never got established
-    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        __u32 cpu = bpf_get_smp_processor_id();
-        log_debug("kprobe/tcp_done failed conn: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
-        bpf_perf_event_output(ctx, &failed_conn_events, cpu, &t, sizeof(t));
-    }
+    __u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &failed_conn_events, cpu, &t, sizeof(t));
 
+    log_debug("kprobe/tcp_done failed conn: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return 0;
 }
 

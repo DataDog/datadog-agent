@@ -548,7 +548,7 @@ func TestTCPConnsReported(t *testing.T) {
 }
 
 func TestTCPFailedConnsReported(t *testing.T) {
-	DestIP := util.AddressFromString("127.0.0.1")
+	destIP := util.AddressFromString("127.0.0.1")
 	const DestPort = 8500
 
 	config := testConfig()
@@ -558,10 +558,10 @@ func TestTCPFailedConnsReported(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	cmd := fmt.Sprintf("iptables -A OUTPUT -p tcp -d %v --dport %v -j DROP", DestIP, DestPort)
+	cmd := fmt.Sprintf("iptables -A OUTPUT -p tcp -d %v --dport %v -j DROP", destIP, DestPort)
 	nettestutil.RunCommand(cmd)
 	t.Cleanup(func() {
-		cmd := fmt.Sprintf("iptables -D OUTPUT -p tcp -d %v --dport %v -j DROP", DestIP, DestPort)
+		cmd := fmt.Sprintf("iptables -D OUTPUT -p tcp -d %v --dport %v -j DROP", destIP, DestPort)
 		nettestutil.RunCommand(cmd)
 	})
 
@@ -572,22 +572,24 @@ func TestTCPFailedConnsReported(t *testing.T) {
 	err = syscall.SetsockoptInt(sock, syscall.SOL_TCP, syscall.TCP_SYNCNT, 1)
 	require.NoError(t, err)
 
-	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: DestPort, Addr: DestIP.As4()})
+	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: DestPort, Addr: destIP.As4()})
 	require.ErrorIs(t, err, syscall.ETIMEDOUT) // Check it timedout
 
 	_, srcPort := getAddrInfo(t, sock)
+	ns, _ := util.GetCurrentIno()
 
 	// Test
 	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
-	require.Equal(t, len(connections.BufferedData.FailedConns), 1)
+	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
 	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
-		Source:       DestIP,
-		Dest:         DestIP,
+		Source:       destIP,
+		Dest:         destIP,
 		SPort:        srcPort,
 		DPort:        DestPort,
 		Pid:          uint32(os.Getpid()),
+		NetNS:        ns,
 		FailureCount: 1,
 	})
 }
