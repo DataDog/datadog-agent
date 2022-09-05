@@ -9,19 +9,56 @@
 package file
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
+	resource_test "github.com/DataDog/datadog-agent/pkg/compliance/resources/tests"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
 )
+
+func setDefaultHooks(env *mocks.Env) {
+	env.On("ProvidedInput", "rule-id").Return(nil).Maybe()
+	env.On("DumpInputPath").Return("").Maybe()
+	env.On("ShouldSkipRegoEval").Return(false).Maybe()
+	env.On("Hostname").Return("test-host").Maybe()
+}
+
+func normalizePath(t *testing.T, env *mocks.Env, file *compliance.File) {
+	t.Helper()
+	env.On("MaxEventsPerRun").Return(30).Maybe()
+	env.On("NormalizeToHostRoot", file.Path).Return(file.Path)
+	env.On("RelativeToHostRoot", file.Path).Return(file.Path)
+	setDefaultHooks(env)
+}
+
+func createTempFiles(t *testing.T, numFiles int) (string, []string) {
+	paths := make([]string, 0, numFiles)
+	dir := t.TempDir()
+
+	for i := 0; i < numFiles; i++ {
+		fileName := fmt.Sprintf("test-%d-%d.dat", i, time.Now().Unix())
+		filePath := path.Join(dir, fileName)
+		paths = append(paths, filePath)
+
+		f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+		assert.NoError(t, err)
+		defer f.Close()
+	}
+
+	return dir, paths
+}
 
 func TestFileCheck(t *testing.T) {
 	assert := assert.New(t)
@@ -29,70 +66,170 @@ func TestFileCheck(t *testing.T) {
 	type setupFileFunc func(t *testing.T, env *mocks.Env, file *compliance.File)
 	type validateFunc func(t *testing.T, file *compliance.File, report *compliance.Report)
 
-	normalizePath := func(t *testing.T, env *mocks.Env, file *compliance.File) {
-		t.Helper()
-		env.On("MaxEventsPerRun").Return(30).Maybe()
-		env.On("NormalizeToHostRoot", file.Path).Return(file.Path)
-		env.On("RelativeToHostRoot", file.Path).Return(file.Path)
+	objectModule := `package datadog
+
+	import data.datadog as dd
+	import data.helpers as h
+
+	valid_file(file) {
+		%s
 	}
 
-	createTempFiles := func(t *testing.T, numFiles int) (string, []string) {
-		paths := make([]string, 0, numFiles)
-		dir := t.TempDir()
-
-		for i := 0; i < numFiles; i++ {
-			fileName := fmt.Sprintf("test-%d-%d.dat", i, time.Now().Unix())
-			filePath := path.Join(dir, fileName)
-			paths = append(paths, filePath)
-
-			f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
-			assert.NoError(err)
-			defer f.Close()
-		}
-
-		return dir, paths
+	max_permissions(file, consts) {
+			file.permissions == bits.and(file.permissions, parse_octal(consts.max_permissions))
 	}
+	
+	findings[f] {
+			max_permissions(input.file, input.constants)
+			valid_file(input.file)
+			f := dd.passed_finding(
+					h.resource_type,
+					h.resource_id,
+					h.file_data(input.file),
+			)
+	}
+	
+	findings[f] {
+			not max_permissions(input.file, input.constants)
+			valid_file(input.file)
+			f := dd.failing_finding(
+					h.resource_type,
+					h.resource_id,
+					h.file_data(input.file),
+			)
+	}
+
+	findings[f] {
+			count(input.file) == 0
+			f := dd.error_finding(
+					h.resource_type,
+					h.resource_id,
+					sprintf("no files found for file check \"%%s\"", [input.context.input.file.file.path]),
+			)
+	}
+	
+	findings[f] {
+			not h.has_key(input, "file")
+			f := dd.error_finding(
+					h.resource_type,
+					h.resource_id,
+					sprintf("failed to resolve path: empty path from %%s", [input.context.input.file.file.path]),
+			)
+	}
+
+	findings[f] {
+		not valid_file(input.file)
+		f := dd.failing_finding(
+			h.resource_type,
+			h.resource_id,
+			h.file_data(input.file),
+		)
+	}
+`
+
+	arrayModule := `package datadog
+
+			import data.datadog as dd
+			import data.helpers as h
+
+			max_permissions(file, consts) {
+					file.permissions == bits.and(file.permissions, parse_octal(consts.max_permissions))
+			}
+
+			valid_file(file) {
+				%s
+			}
+
+			findings[f] {
+					file := input.file[_]
+					valid_file(file)
+					max_permissions(file, input.constants)
+					f := dd.passed_finding(
+							h.resource_type,
+							h.resource_id,
+							h.file_data(file),
+					)
+			}
+
+			findings[f] {
+					file := input.file[_]
+					valid_file(file)
+					not max_permissions(file, input.constants)
+					f := dd.failing_finding(
+							h.resource_type,
+							h.resource_id,
+							h.file_data(file),
+					)
+			}
+
+			findings[f] {
+					count(input.file) == 0
+					f := dd.error_finding(
+							h.resource_type,
+							h.resource_id,
+							sprintf("no files found for file check \"%%s\"", [input.context.input.file.file.path]),
+					)
+			}
+
+			findings[f] {
+					not h.has_key(input, "file")
+					f := dd.error_finding(
+							h.resource_type,
+							h.resource_id,
+							sprintf("failed to resolve path: empty path from %%s", [input.context.input.file.file.path]),
+					)
+			}
+			`
 
 	tests := []struct {
-		name        string
-		resource    compliance.Resource
-		setup       setupFileFunc
-		validate    validateFunc
-		expectError error
+		name            string
+		module          string
+		resource        compliance.RegoInput
+		setup           setupFileFunc
+		validate        validateFunc
+		max_permissions string
+		expectError     error
+		processes       processutils.Processes
 	}{
 		{
 			name: "file permissions",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/test-permissions.dat",
 					},
 				},
-				Condition: "file.permissions == 0644",
+				// Condition: "file.permissions == 0644",
+				Type: "object",
 			},
+			module: fmt.Sprintf(objectModule, "true"),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				_, filePaths := createTempFiles(t, 1)
 
 				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return(filePaths[0])
 				env.On("RelativeToHostRoot", filePaths[0]).Return(file.Path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
 				assert.Equal(file.Path, report.Data["file.path"])
-				assert.Equal(uint64(0644), report.Data["file.permissions"])
+				assert.Equal(json.Number(strconv.Itoa(0644)), report.Data["file.permissions"])
+
 			},
 		},
 		{
 			name: "file permissions (glob)",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Glob: "/etc/*.dat",
 					},
 				},
-				Condition: "file.permissions == 0644",
+				Type: "array",
+				// Condition: "file.permissions == 0644",
 			},
+			module: fmt.Sprintf(arrayModule, "true"),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
 
@@ -102,45 +239,53 @@ func TestFileCheck(t *testing.T) {
 				}
 
 				env.On("NormalizeToHostRoot", file.Path).Return(path.Join(tempDir, "/*.dat"))
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
 				assert.Regexp("/etc/test-[0-9]-[0-9]+", report.Data["file.path"])
-				assert.Equal(uint64(0644), report.Data["file.permissions"])
+				assert.Equal(json.Number(strconv.Itoa(0644)), report.Data["file.permissions"])
 			},
 		},
 		{
 			name: "file user and group",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/tmp",
 					},
 				},
-				Condition: `file.user == "root" && file.group in ["root", "wheel"]`,
+				Type: "object",
+				// Condition: `file.user == "root" && file.group in ["root", "wheel"]`,
 			},
-			setup: normalizePath,
+			module: fmt.Sprintf(objectModule, `true`),
+			setup:  normalizePath,
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
 				assert.Equal("/tmp", report.Data["file.path"])
 				assert.Equal("root", report.Data["file.user"])
 				assert.Contains([]string{"root", "wheel"}, report.Data["file.group"])
 			},
+			max_permissions: "777",
 		},
 		{
 			name: "jq(log-driver) - passed",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: "/etc/docker/daemon.json",
+						Path:   "/etc/docker/daemon.json",
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".\"log-driver\"") == "json-file"`,
+				Type: "object",
+				// Condition: `file.jq(".\"log-driver\"") == "json-file"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["log-driver"] == "json-file"`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
-				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
-				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/daemon.json").Return(file.Path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
@@ -151,18 +296,22 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "jq(experimental) - failed",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: "/etc/docker/daemon.json",
+						Path:   "/etc/docker/daemon.json",
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".experimental") == "true"`,
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "true"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["experimental"] == true`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
-				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
-				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/daemon.json").Return(file.Path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.False(report.Passed)
@@ -173,20 +322,24 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "jq(experimental) and path expression",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: `process.flag("dockerd", "--config-file")`,
+						Path:   `process.flag("dockerd", "--config-file")`,
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".experimental") == "false"`,
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "false"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				path := "/etc/docker/daemon.json"
 				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return(path, nil)
-				env.On("NormalizeToHostRoot", path).Return("./testdata/file/daemon.json")
-				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(path)
+				env.On("NormalizeToHostRoot", path).Return("./testdata/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/daemon.json").Return(path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
@@ -197,66 +350,88 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "jq(experimental) and path expression - empty path",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: `process.flag("dockerd", "--config-file")`,
+						Path:   `process.flag("dockerd", "--config-file")`,
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".experimental") == "false"`,
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "false"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return("", nil)
+				setDefaultHooks(env)
 			},
 			expectError: errors.New(`failed to resolve path: empty path from process.flag("dockerd", "--config-file")`),
 		},
 		{
 			name: "jq(experimental) and path expression - wrong type",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: `process.flag("dockerd", "--config-file")`,
+						Path:   `process.flag("dockerd", "--config-file")`,
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".experimental") == "false"`,
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "false"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return(true, nil)
+				setDefaultHooks(env)
 			},
-			expectError: errors.New(`failed to resolve path: expected string from process.flag("dockerd", "--config-file") got "true"`),
+			expectError: errors.New(`failed to resolve path`),
+			processes: processutils.Processes{
+				42: {
+					Name:    "dockerd",
+					Cmdline: []string{"dockerd", "--config-file=/etc/docker/daemon.json"},
+				},
+			},
 		},
 		{
 			name: "jq(experimental) and path expression - expression failed",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: `process.unknown()`,
+						Path:   `process.unknown()`,
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".experimental") == "false"`,
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "false"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return(nil, errors.New("1:1: unknown function process.unknown()"))
+				setDefaultHooks(env)
 			},
-			expectError: errors.New(`failed to resolve path: 1:1: unknown function process.unknown()`),
+			expectError: errors.New(`failed to resolve path`),
 		},
 		{
 			name: "jq(ulimits)",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: "/etc/docker/daemon.json",
+						Path:   "/etc/docker/daemon.json",
+						Parser: "json",
 					},
 				},
-				Condition: `file.jq(".[\"default-ulimits\"].nofile.Hard") == "64000"`,
+				Type: "object",
+				// Condition: `file.jq(".[\"default-ulimits\"].nofile.Hard") == "64000"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["default-ulimits"].nofile.Hard == 64000`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
-				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
-				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/daemon.json").Return(file.Path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
@@ -267,18 +442,22 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "yaml(apiVersion)",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: "/etc/pod.yaml",
+						Path:   "/etc/pod.yaml",
+						Parser: "yaml",
 					},
 				},
-				Condition: `file.yaml(".apiVersion") == "v1"`,
+				Type: "object",
+				// Condition: `file.yaml(".apiVersion") == "v1"`,
 			},
+			module: fmt.Sprintf(objectModule, `file.content["apiVersion"] == "v1"`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
-				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/pod.yaml")
-				env.On("RelativeToHostRoot", "./testdata/file/pod.yaml").Return(file.Path)
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/pod.yaml")
+				env.On("RelativeToHostRoot", "./testdata/pod.yaml").Return(file.Path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
@@ -289,18 +468,22 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "regexp",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
-						Path: "/proc/mounts",
+						Path:   "/proc/mounts",
+						Parser: "raw",
 					},
 				},
-				Condition: `file.regexp("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+") != ""`,
+				Type: "object",
+				// Condition: `file.regexp("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+") != ""`,
 			},
+			module: fmt.Sprintf(objectModule, `regex.match("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+", file.content)`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				env.On("MaxEventsPerRun").Return(30).Maybe()
-				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/mounts")
-				env.On("RelativeToHostRoot", "./testdata/file/mounts").Return(file.Path)
+				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/mounts")
+				env.On("RelativeToHostRoot", "./testdata/mounts").Return(file.Path)
+				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
@@ -320,13 +503,37 @@ func TestFileCheck(t *testing.T) {
 				test.setup(t, env, test.resource.File)
 			}
 
-			fileCheck, err := newResourceCheck(env, "rule-id", test.resource)
+			if len(test.processes) > 0 {
+				previousFetcher := processutils.Fetcher
+				processutils.Fetcher = func() (processutils.Processes, error) {
+					for pid, p := range test.processes {
+						p.Pid = pid
+					}
+					return test.processes, nil
+				}
+				defer func() {
+					processutils.Fetcher = previousFetcher
+				}()
+			}
+
+			regoRule := resource_test.NewTestRule(test.resource, "file", test.module)
+			if test.max_permissions != "" {
+				regoRule.Inputs[1].Constants.Values["max_permissions"] = test.max_permissions
+			} else {
+				regoRule.Inputs[1].Constants.Values["max_permissions"] = "644"
+			}
+			regoRule.Inputs[1].Constants.Values["resource_type"] = "docker_daemon"
+			fileCheck := rego.NewCheck(regoRule)
+			err := fileCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 			assert.NoError(err)
 
-			reports := fileCheck.check(env)
+			reports := fileCheck.Check(env)
+			jsonReports, err := json.MarshalIndent(reports, "", "  ")
+			assert.NoError(err)
+			t.Log(string(jsonReports))
 
 			if test.expectError != nil {
-				assert.EqualError(reports[0].Error, test.expectError.Error())
+				assert.Contains(reports[0].Error.Error(), test.expectError.Error())
 			} else {
 				assert.NoError(err)
 				test.validate(t, test.resource.File, reports[0])

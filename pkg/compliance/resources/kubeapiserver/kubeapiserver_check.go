@@ -151,5 +151,5 @@ func kubeResourceJQ(resource unstructured.Unstructured) eval.Function {
 }
 
 func init() {
-	resources.RegisterHandler("kubeapiserver", Resolve, ReportedFields)
+	resources.RegisterHandler("kubernetes", Resolve, ReportedFields)
 }

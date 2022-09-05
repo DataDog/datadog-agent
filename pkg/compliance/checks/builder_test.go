@@ -179,12 +179,12 @@ func TestResolveValueFrom(t *testing.T) {
 		},
 		{
 			name:        "from json file",
-			expression:  `json("daemon.json", ".\"log-driver\"")`,
+			expression:  `json("audit/testdata/daemon.json", ".\"log-driver\"")`,
 			expectValue: "json-file",
 		},
 		{
 			name:        "from file yaml",
-			expression:  `yaml("pod.yaml", ".apiVersion")`,
+			expression:  `yaml("file/testdata/pod.yaml", ".apiVersion")`,
 			expectValue: "v1",
 		},
 	}
@@ -192,7 +192,7 @@ func TestResolveValueFrom(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reporter := &mocks.Reporter{}
-			b, err := NewBuilder(reporter, WithHostRootMount("./testdata/file/"))
+			b, err := NewBuilder(reporter, WithHostRootMount("../resources/"))
 			assert.NoError(err)
 
 			env, ok := b.(env.Env)

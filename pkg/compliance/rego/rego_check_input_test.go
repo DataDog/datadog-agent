@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
@@ -91,7 +93,7 @@ func (f *regoInputFixture) run(t *testing.T) {
 		ruleID: expected,
 	}
 
-	assert.Equal(res, expectedGlobal)
+	assert.Equal(expectedGlobal, res)
 }
 
 func TestRegoInputCheck(t *testing.T) {
@@ -138,7 +140,8 @@ func TestRegoInputCheck(t *testing.T) {
 								"--path": "foo",
 								"arg1": ""
 							},
-							"name": "proc1"
+							"name": "proc1",
+							"pid": 42
 						}
 					]
 				}

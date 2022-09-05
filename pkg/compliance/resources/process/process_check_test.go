@@ -6,21 +6,70 @@
 package process
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
+	resource_test "github.com/DataDog/datadog-agent/pkg/compliance/resources/tests"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
+	"github.com/open-policy-agent/opa/metrics"
 	assert "github.com/stretchr/testify/require"
 )
 
+var processModule = `package datadog
+			
+import data.datadog as dd
+import data.helpers as h
+
+compliant(process) {
+	%s
+}
+
+findings[f] {
+	count(input.process) == 0
+	f := dd.failing_finding(
+			"process",
+			"",
+			null,
+	)
+}
+
+findings[f] {
+		compliant(input.process)
+		f := dd.passed_finding(
+				"process",
+				input.process.pid,
+				{ "process.exe": input.process.exe,
+				  "process.name": input.process.name,
+				  "process.cmdLine": input.process.cmdLine,
+				  "process.pid": input.process.pid }
+		)
+}
+
+findings[f] {
+		not compliant(input.process)
+		f := dd.failing_finding(
+				"process",
+				input.process.pid,
+				{ "process.exe": input.process.exe,
+				  "process.name": input.process.name,
+				  "process.cmdLine": input.process.cmdLine,
+				  "process.pid": input.process.pid }
+		)
+}`
+
 type processFixture struct {
 	name     string
-	resource compliance.Resource
+	module   string
+	resource compliance.RegoInput
 
-	processes    processes
+	processes    processutils.Processes
 	useCache     bool
 	expectReport *compliance.Report
 	expectError  error
@@ -31,21 +80,30 @@ func (f *processFixture) run(t *testing.T) {
 	assert := assert.New(t)
 
 	if !f.useCache {
-		cache.Cache.Delete(processCacheKey)
+		cache.Cache.Delete(processutils.ProcessCacheKey)
 	}
-	processFetcher = func() (processes, error) {
+	processutils.Fetcher = func() (processutils.Processes, error) {
 		return f.processes, nil
 	}
 
 	env := &mocks.Env{}
 	env.On("MaxEventsPerRun").Return(30).Maybe()
+	env.On("ProvidedInput", "rule-id").Return(nil).Maybe()
+	env.On("DumpInputPath").Return("").Maybe()
+	env.On("ShouldSkipRegoEval").Return(false).Maybe()
+	env.On("Hostname").Return("test-host").Maybe()
 
 	defer env.AssertExpectations(t)
 
-	processCheck, err := newResourceCheck(env, "rule-id", f.resource)
+	regoRule := resource_test.NewTestRule(f.resource, "group", f.module)
+
+	var m metrics.Metrics
+	processCheck := rego.NewCheck(regoRule, m)
+	err := processCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
-	reports := processCheck.check(env)
+	reports := processCheck.Check(env)
+
 	assert.Equal(f.expectReport, reports[0])
 	assert.Equal(f.expectError, reports[0].Error)
 }
@@ -54,72 +112,87 @@ func TestProcessCheck(t *testing.T) {
 	tests := []processFixture{
 		{
 			name: "simple case",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
 				},
-				Condition: `process.flag("--path") == "foo"`,
+				Type: "object",
+				// Condition: `process.flag("--path") == "foo"`,
 			},
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
 				Data: event.Data{
 					"process.name":    "proc1",
 					"process.exe":     "",
-					"process.cmdLine": []string{"arg1", "--path=foo"},
+					"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+					"process.pid":     json.Number("42"),
 				},
 				Resource: compliance.ReportResource{
 					ID:   "42",
 					Type: "process",
 				},
+				Evaluator: "rego",
 			},
 		},
 		{
 			name: "process not found",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
 				},
-				Condition: `process.flag("--path") == "foo"`,
+				Type: "object",
+				// Condition: `process.flag("--path") == "foo"`,
 			},
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
-				NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
+			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
+				43: processutils.NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
 			},
 			expectReport: &compliance.Report{
-				Passed: false,
+				Passed:    false,
+				Evaluator: "rego",
+				Resource: compliance.ReportResource{
+					ID:   "",
+					Type: "process",
+				},
 			},
 		},
 		{
 			name: "argument not found",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
 				},
-				Condition: `process.flag("--path") == "foo"`,
+				Type: "object",
+				// Condition: `process.flag("--path") == "foo"`,
 			},
-			processes: processes{
-				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
+			module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
+			processes: processutils.Processes{
+				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
 				Data: event.Data{
 					"process.name":    "proc1",
 					"process.exe":     "",
-					"process.cmdLine": []string{"arg1", "--paths=foo"},
+					"process.cmdLine": []interface{}{"arg1", "--paths=foo"},
+					"process.pid":     json.Number("42"),
 				},
 				Resource: compliance.ReportResource{
 					ID:   "42",
 					Type: "process",
 				},
+				Evaluator: "rego",
 			},
 		},
 	}
@@ -134,28 +207,32 @@ func TestProcessCheckCache(t *testing.T) {
 	// Run first fixture, populating cache
 	firstContent := processFixture{
 		name: "simple case",
-		resource: compliance.Resource{
+		resource: compliance.RegoInput{
 			ResourceCommon: compliance.ResourceCommon{
 				Process: &compliance.Process{
 					Name: "proc1",
 				},
 			},
-			Condition: `process.flag("--path") == "foo"`,
+			Type: "object",
+			// Condition: `process.flag("--path") == "foo"`,
 		},
-		processes: processes{
-			NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+		module: fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
+		processes: processutils.Processes{
+			42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,
 			Data: event.Data{
 				"process.name":    "proc1",
 				"process.exe":     "",
-				"process.cmdLine": []string{"arg1", "--path=foo"},
+				"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+				"process.pid":     json.Number("42"),
 			},
 			Resource: compliance.ReportResource{
 				ID:   "42",
 				Type: "process",
 			},
+			Evaluator: "rego",
 		},
 	}
 	firstContent.run(t)
@@ -163,26 +240,30 @@ func TestProcessCheckCache(t *testing.T) {
 	// Run second fixture, using cache
 	secondFixture := processFixture{
 		name: "simple case",
-		resource: compliance.Resource{
+		resource: compliance.RegoInput{
 			ResourceCommon: compliance.ResourceCommon{
 				Process: &compliance.Process{
 					Name: "proc1",
 				},
 			},
-			Condition: `process.flag("--path") == "foo"`,
+			Type: "object",
+			// Condition: `process.flag("--path") == "foo"`,
 		},
+		module:   fmt.Sprintf(processModule, `process.flags["--path"] == "foo"`),
 		useCache: true,
 		expectReport: &compliance.Report{
 			Passed: true,
 			Data: event.Data{
 				"process.name":    "proc1",
 				"process.exe":     "",
-				"process.cmdLine": []string{"arg1", "--path=foo"},
+				"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+				"process.pid":     json.Number("42"),
 			},
 			Resource: compliance.ReportResource{
 				ID:   "42",
 				Type: "process",
 			},
+			Evaluator: "rego",
 		},
 	}
 	secondFixture.run(t)

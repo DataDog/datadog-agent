@@ -69,6 +69,7 @@ func Resolve(_ context.Context, e env.Env, id string, res compliance.ResourceCom
 				"exe":     exe,
 				"cmdLine": cmdLine,
 				"flags":   flagValues,
+				"pid":     mp.Pid,
 			},
 		)
 		instances = append(instances, resources.NewResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))

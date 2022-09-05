@@ -7,11 +7,14 @@ package kubeapiserver
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
+	resource_test "github.com/DataDog/datadog-agent/pkg/compliance/resources/tests"
 
 	assert "github.com/stretchr/testify/require"
 
@@ -105,7 +108,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 
 type kubeApiserverFixture struct {
 	name         string
-	resource     compliance.Resource
+	module       string
+	resource     compliance.RegoInput
 	objects      []runtime.Object
 	expectReport *compliance.Report
 }
@@ -147,6 +151,10 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 
 	env := &mocks.Env{}
 	env.On("MaxEventsPerRun").Return(30).Maybe()
+	env.On("ProvidedInput", "rule-id").Return(nil).Maybe()
+	env.On("DumpInputPath").Return("").Maybe()
+	env.On("ShouldSkipRegoEval").Return(false).Maybe()
+	env.On("Hostname").Return("test-host").Maybe()
 
 	defer env.AssertExpectations(t)
 
@@ -155,10 +163,14 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	}
 	env.On("KubeClient").Return(kubeClient)
 
-	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)
+	regoRule := resource_test.NewTestRule(f.resource, "kuberapiserver", f.module)
+
+	kubeCheck := rego.NewCheck(regoRule)
+	err := kubeCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 	assert.NoError(err)
 
-	reports := kubeCheck.check(env)
+	reports := kubeCheck.Check(env)
+
 	assert.Equal(f.expectReport.Passed, reports[0].Passed)
 	assert.Equal(f.expectReport.Data, reports[0].Data)
 	assert.Equal(f.expectReport.Resource, reports[0].Resource)
@@ -168,10 +180,63 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 }
 
 func TestKubeApiserverCheck(t *testing.T) {
+	module := `package datadog
+
+	import data.datadog as dd
+	import data.helpers as h
+
+	compliant(obj) {
+		%s
+	}
+
+	compliant_objs = [obj | obj := input.myobjs[_]; compliant(obj)]
+
+	findings[f] {
+		not input.myobjs
+		f := dd.error_finding(
+				"",
+				"",
+				"unable to get Kube resource:'mygroup.com/v1, Resource=myobjs', ns:'testns' name:'dummy1', err: myobjs.mygroup.com \"dummy1\" not found",
+		)
+	}
+
+	findings[f] {
+		obj := input.myobjs[_]
+		compliant(obj)
+		f := dd.passed_finding(
+				"kube_myobj",
+				obj.resource.Object.metadata.uid,
+				{
+					"kube.resource.group": obj.group,
+					"kube.resource.kind": obj.kind,
+					"kube.resource.name": obj.name,
+					"kube.resource.namespace": obj.namespace,
+					"kube.resource.version": obj.version,
+				}
+		)
+	}
+	
+	findings[f] {
+		obj := input.myobjs[_]
+		not compliant(obj)
+		f := dd.failing_finding(
+				"kube_myobj",
+				obj.resource.Object.metadata.uid,
+				{
+					"kube.resource.group": obj.group,
+					"kube.resource.kind": obj.kind,
+					"kube.resource.name": obj.name,
+					"kube.resource.namespace": obj.namespace,
+					"kube.resource.version": obj.version,
+				}
+		)
+	}
+	`
+
 	tests := []kubeApiserverFixture{
 		{
 			name: "List case no ns",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -183,8 +248,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.stringAttribute == "foo"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "100"),
 			},
@@ -205,7 +272,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		},
 		{
 			name: "List case with ns",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -217,8 +284,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.stringAttribute") != "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.stringAttribute") != "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.stringAttribute != "foo"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "102"),
 				newMyObj("testns2", "dummy1", "103"),
@@ -240,7 +309,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		},
 		{
 			name: "List case multiple matches",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -252,8 +321,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.stringAttribute == "foo"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "104"),
 				newMyObj("testns", "dummy2", "105"),
@@ -276,7 +347,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		},
 		{
 			name: "Get case",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -289,8 +360,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.stringAttribute == "foo"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "107"),
 				newMyObj("testns2", "dummy1", "108"),
@@ -312,7 +385,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		},
 		{
 			name: "Get case all type of args",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -325,8 +398,13 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.structAttribute.name") == "nestedFoo" && kube.resource.jq(".spec.boolAttribute") == "true" && kube.resource.jq(".spec.listAttribute.[0]") == "listFoo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.structAttribute.name") == "nestedFoo" && kube.resource.jq(".spec.boolAttribute") == "true" && kube.resource.jq(".spec.listAttribute.[0]") == "listFoo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.structAttribute.name == "nestedFoo"
+				obj.resource.Object.spec.boolAttribute == true
+				obj.resource.Object.spec.listAttribute[0] == "listFoo"
+				`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "109"),
 				newMyObj("testns", "dummy2", "110"),
@@ -348,7 +426,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		},
 		{
 			name: "Error case object not found",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -361,8 +439,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.stringAttribute") == "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.stringAttribute == "foo"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy2", "111"),
 			},
@@ -373,7 +453,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		},
 		{
 			name: "Error case property does not exist",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -386,8 +466,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.jq(".spec.DoesNotExist") == "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.jq(".spec.DoesNotExist") == "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.resource.Object.spec.DoesNotExist == "foo"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "112"),
 			},
@@ -407,33 +489,8 @@ func TestKubeApiserverCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "Error case attribute syntax is wrong",
-			resource: compliance.Resource{
-				ResourceCommon: compliance.ResourceCommon{
-					KubeApiserver: &compliance.KubernetesResource{
-						Group:     "mygroup.com",
-						Version:   "v1",
-						Kind:      "myobjs",
-						Namespace: "testns",
-						APIRequest: compliance.KubernetesAPIRequest{
-							Verb:         "get",
-							ResourceName: "dummy1",
-						},
-					},
-				},
-				Condition: `kube.resource.jq(".spec[@@@]") == "foo"`,
-			},
-			objects: []runtime.Object{
-				newMyObj("testns", "dummy1", "113"),
-			},
-			expectReport: &compliance.Report{
-				Passed: false,
-				Error:  errors.New(`1:1: call to "kube.resource.jq()" failed: unexpected token "@"`),
-			},
-		},
-		{
 			name: "List with json query selectors",
-			resource: compliance.Resource{
+			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
@@ -445,8 +502,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 						},
 					},
 				},
-				Condition: `kube.resource.namespace != "testns2" || kube.resource.jq(".spec.stringAttribute") == "foo"`,
+				TagName: "myobjs",
+				// Condition: `kube.resource.namespace != "testns2" || kube.resource.jq(".spec.stringAttribute") == "foo"`,
 			},
+			module: fmt.Sprintf(module, `obj.namespace != "testns2"`),
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1", "114"),
 				newMyObj("testns2", "dummy1", "115"),

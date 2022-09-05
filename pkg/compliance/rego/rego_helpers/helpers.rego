@@ -104,6 +104,7 @@ file_data(file) = d {
 		"file.path": file.path,
 		"file.permissions": file.permissions,
 		"file.user": file.user,
+		"file.content": file.content,
 	}
 }
 
