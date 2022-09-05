@@ -12,7 +12,8 @@
 
 #define DENTRY_INVALID -1
 #define DENTRY_DISCARDED -2
-#define DENTRY_ERROR -3
+#define DENTRY_SAVED_BY_AD -3
+#define DENTRY_ERROR -4
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
@@ -161,7 +162,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
                 return DENTRY_DISCARDED;
             }
             if (should_be_discarded) {
-                input->saved_by_ad = true;
+                return DENTRY_SAVED_BY_AD;
             }
         }
 

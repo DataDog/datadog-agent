@@ -26,7 +26,6 @@ struct dentry_resolver_input_t {
     int callback;
     int ret;
     int iteration;
-    int saved_by_ad;
 };
 
 union selinux_write_payload_t {
