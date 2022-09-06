@@ -129,6 +129,9 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
     }
 }
 
+// This function is doing the same thing as the one before, but can only work if `params` is a pointer to a map value
+// and not a pointer to the stack since kernels < 4.15 does not allow this. On the other hand it is faster and needs less
+// instructions.
 u64* __attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
     if (EVENT_FIRST_DISCARDER <= event_type && event_type < EVENT_LAST_DISCARDER) {
         return &params->timestamps[event_type-EVENT_FIRST_DISCARDER];
