@@ -76,7 +76,10 @@ func (b *BPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 		}
-		t[m] = getMapErrCount(&val)
+		t[m], err = getMapErrCount(&val)
+		if err != nil {
+			delete(t, m)
+		}
 	}
 
 	return t
@@ -137,9 +140,10 @@ func getErrCount(v *HelperErrTelemetry, indx int) (map[string]uint32, error) {
 	return errCount, err
 }
 
-func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
+func getMapErrCount(v *MapErrTelemetry) (map[string]uint32, error) {
 	errCount := make(map[string]uint32)
 
+	err := errIgnore
 	for i, count := range v.Count {
 		if count == 0 {
 			continue
@@ -150,9 +154,10 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
 		} else {
 			errCount[syscall.Errno(i).Error()] = count
 		}
+		err = nil
 	}
 
-	return errCount
+	return errCount, err
 }
 
 // BuildTelemetryKeys returns the keys used to index the maps holding telemetry
