@@ -205,8 +205,10 @@ struct io_open {
 
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
+    void *raw_req = (void *)PT_REGS_PARM1(ctx);
+
     struct io_open req;
-    if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
+    if (bpf_probe_read(&req, sizeof(req), raw_req)) {
         return 0;
     }
 
@@ -215,11 +217,13 @@ int kprobe_io_openat2(struct pt_regs *ctx) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
         return trace__sys_openat(ASYNC_SYSCALL, flags, mode);
+    } else {
+        syscall->open.pid_tgid = get_pid_tgid_from_iouring(raw_req);
     }
     return 0;
 }
 
-int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int retval, int dr_type, u64 pid_tgid) {
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
@@ -234,8 +238,6 @@ int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int ret
     if (syscall->discarded) {
         return 0;
     }
-
-    syscall->open.pid_tgid = pid_tgid;
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
@@ -252,10 +254,6 @@ int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int ret
     return 0;
 }
 
-
-int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
-    return sys_open_ret_with_pid_tgid(ctx, retval, dr_type, 0);
-}
 
 int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
@@ -321,21 +319,10 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
     return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) handle_io_openat_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
-    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
-    return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
-}
-
-SEC("kretprobe/io_openat")
-int kretprobe_io_openat(struct pt_regs *ctx) {
-    return handle_io_openat_ret(ctx);
-}
-
 SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
-    return handle_io_openat_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE);
 }
 
 SEC("kprobe/filp_close")
