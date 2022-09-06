@@ -1,6 +1,85 @@
 #include "stdafx.h"
 #include "TargetMachine.h"
 
+bool canInstall(const CustomActionData &data, bool &bResetPassword)
+{
+    bool ddUserExists = false;
+    bool ddServiceExists = false;
+    bool isDC = false;
+    bool isReadOnlyDC = false;
+    bool isNtAuthority = false;
+    bool isServiceAccount = false;
+    bool isUserDomainUser = false;
+    bool haveUserPassword = false;
+    std::wstring userDomain;
+    std::wstring computerDomain;
+
+    // ddUserExists
+    ddUserExists = data.DoesUserExist();
+
+    // isServiceAccount
+    isServiceAccount = data.IsServiceAccount();
+
+    // ddServiceExists
+    {
+        auto result = doesServiceExist(agentService);
+        if (-1 == result) {
+            // error, call it false?
+            ddServiceExists = false;
+        } else if (0 == result) {
+            ddServiceExists = false;
+        } else if (1 == result) {
+            ddServiceExists = true;
+        }
+    }
+
+    // isNtAuthority
+    if (ddUserExists) {
+        const auto ntAuthoritySid = WellKnownSID::NTAuthority();
+        if (!ntAuthoritySid.has_value())
+        {
+            WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
+        }
+        else
+        {
+            isNtAuthority = EqualPrefixSid(data.Sid(), ntAuthoritySid.value().get());
+        }
+    } else {
+        isNtAuthority = false;
+    }
+
+    // isUserDomainUser
+    isUserDomainUser = data.isUserDomainUser();
+
+    // haveUserPassword
+    haveUserPassword = data.present(propertyDDAgentUserPassword);
+
+    // isDC
+    isDC = data.GetTargetMachine()->IsDomainController();
+
+    // isReadOnlyDC
+    isReadOnlyDC = data.GetTargetMachine()->IsReadOnlyDomainController();
+
+    // userDomain
+    userDomain = data.Domain();
+
+    // computerDomain
+    computerDomain = data.GetTargetMachine()->JoinedDomainName().c_str();
+
+    return canInstall(
+        isDC,
+        isReadOnlyDC,
+        ddUserExists,
+        isServiceAccount,
+        isNtAuthority,
+        isUserDomainUser,
+        haveUserPassword,
+        userDomain,
+        computerDomain,
+        ddServiceExists,
+        bResetPassword);
+}
+
 /**
  *  canInstall determines if the install can proceed based on the current
  * configuration of the machine, and whether we have enough information
@@ -12,25 +91,24 @@
  *
  * @param ddServiceExists whether or not the datadog agent service is already configured on the system
  *
- * @param data custom action data passed into the custom action by way of properties from the core install
- *
  * @param bResetPassword on return, set to true if the password needs to be reset based on configuration,
  *                       otherwise false.
  */
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword)
+bool canInstall(
+    bool isDC,
+    bool isReadOnlyDC,
+    bool ddUserExists,
+    bool isServiceAccount,
+    bool isNtAuthority,
+    bool isUserDomainUser,
+    bool haveUserPassword,
+    std::wstring userDomain,
+    std::wstring computerDomain,
+    bool ddServiceExists,
+    bool &bResetPassword)
 {
     bResetPassword = false;
     bool bRet = true;
-    bool isNtAuthority = false;
-    const auto ntAuthoritySid = WellKnownSID::NTAuthority();
-    if (!ntAuthoritySid.has_value())
-    {
-        WcaLog(LOGMSG_STANDARD, "Cannot check user SID against NT AUTHORITY: memory allocation failed");
-    }
-    else
-    {
-        isNtAuthority = ddUserExists && EqualPrefixSid(data.Sid(), ntAuthoritySid.value().get());
-    }
 
     ///////////////////////////////////////////////////////////////////////////
     //
@@ -64,7 +142,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     //       use password if provided, otherwise generate
     if (isDC)
     {
-        if (!ddUserExists && data.GetTargetMachine()->IsReadOnlyDomainController())
+        if (!ddUserExists && isReadOnlyDC)
         {
             WcaLog(LOGMSG_STANDARD,
                    "(Configuration Error) Can't create user on RODC; install on a writable domain controller first");
@@ -76,10 +154,10 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
             WcaLog(LOGMSG_STANDARD, "(Configuration Error) Invalid configuration; no DD user, but service exists");
             bRet = false;
         }
-        if ((!ddUserExists || !ddServiceExists) && !data.IsServiceAccount())
+        if ((!ddUserExists || !ddServiceExists) && !isServiceAccount)
         {
             // case (4) and case (2)
-            if (!data.present(propertyDDAgentUserPassword) && !isNtAuthority)
+            if (!haveUserPassword && !isNtAuthority)
             {
                 // error case of case 2 & 4.  Must have the password to create the user in the domain,
                 // because it must be reused by other domain controllers in domain.
@@ -90,8 +168,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
             }
         }
 
-        if (!ddUserExists && data.GetTargetMachine()->IsDomainController() &&
-            _wcsicmp(data.Domain().c_str(), data.GetTargetMachine()->JoinedDomainName().c_str()) != 0)
+        if (!ddUserExists && isDC && _wcsicmp(userDomain.c_str(), computerDomain.c_str()) != 0)
         {
             // on a domain controller, we can only create a user in this controller's domain.
             // check and reject an attempt to create a user not in this domain
@@ -103,20 +180,20 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     }
     else
     {
-        if (!ddUserExists && data.isUserDomainUser())
+        if (!ddUserExists && isUserDomainUser)
         {
             WcaLog(LOGMSG_STANDARD, "(Configuration Error) Can't create a domain user when not on a domain controller");
             WcaLog(LOGMSG_STANDARD,
                    "(Configuration Error) Install Datadog Agent on the domain controller for the %S domain",
-                   data.Domain().c_str());
+                   userDomain.c_str());
             bRet = false;
         }
         if (ddUserExists)
         {
-            if (data.isUserDomainUser())
+            if (isUserDomainUser)
             {
                 // if it's a domain user. We need the password if the service isn't here
-                if (!ddServiceExists && !data.present(propertyDDAgentUserPassword))
+                if (!ddServiceExists && !haveUserPassword)
                 {
                     // really an error case of (2). Even though we're not in a domain, if
                     // they supplied a domain user, we have to use it, which means we need
@@ -131,7 +208,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 if (!ddServiceExists)
                 {
                     // case (6)
-                    WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.FullyQualifiedUsername().c_str());
+                    WcaLog(LOGMSG_STANDARD, "dd user exists, but not service.  Continuing");
                     if (!isNtAuthority) // Don't reset password for NT AUTHORITY\* users
                     {
                         bResetPassword = true;

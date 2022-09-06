@@ -5,10 +5,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
 
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
-    CustomActionData data;
-    // first, get the necessary initialization data
-    // need the dd-agent-username (if provided)
-    // need the dd-agent-password (if provided)
+    std::optional<CustomActionData> data;
     hr = WcaInitialize(hInstall, "CA: FinalizeInstall");
     ExitOnFailure(hr, "Failed to initialize");
     WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -16,13 +13,19 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
 #ifdef _DEBUG
     MessageBox(NULL, L"hi", L"bye", MB_OK);
 #endif
-    if (!data.init(hInstall))
-    {
+    // first, get the necessary initialization data
+    // need the dd-agent-username (if provided)
+    // need the dd-agent-password (if provided)
+    try {
+        auto propertyView = std::make_shared<DeferredCAPropertyView>(hInstall);
+        data.emplace(propertyView);
+    } catch (...) {
         WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
-    er = doFinalizeInstall(data);
+
+    er = doFinalizeInstall(data.value());
 
 LExit:
     if (er == ERROR_SUCCESS)

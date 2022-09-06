@@ -85,7 +85,21 @@ BOOL DeleteFilesInDirectory(const wchar_t *dirname, const wchar_t *ext, bool dir
 BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID);
 
 // caninstall.cpp
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword);
+bool canInstall(
+    const CustomActionData &data,
+    bool &bResetPassword);
+bool canInstall(
+    bool isDC,
+    bool isReadOnlyDC,
+    bool ddUserExists,
+    bool isServiceAccount,
+    bool isNtAuthority,
+    bool isUserDomainUser,
+    bool haveUserPassword,
+    std::wstring userDomain,
+    std::wstring computerDomain,
+    bool ddServiceExists,
+    bool &bResetPassword);
 extern HMODULE hDllModule;
 // rights we might be interested in
 /*

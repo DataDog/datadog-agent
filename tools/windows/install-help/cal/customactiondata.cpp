@@ -4,58 +4,12 @@
 #include "PropertyReplacer.h"
 #include "LogonCli.h"
 
-CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
-: _hInstall(NULL)
-, _domainUser(false)
-, _doInstallSysprobe(true)
-, _ddnpmPresent(false)
-, _ddUserExists(false)
-, _targetMachine(std::move(targetMachine))
-, _logonCli(nullptr)
+static void parseKeyValueString(
+    const std::wstring kvstring,
+    std::map<std::wstring, std::wstring> &values)
 {
-}
-
-CustomActionData::CustomActionData()
-: CustomActionData(std::make_shared<TargetMachine>())
-{
-
-}
-
-CustomActionData::~CustomActionData()
-{
-    delete _logonCli;
-}
-
-bool CustomActionData::init(MSIHANDLE hi)
-{
-    _hInstall = hi;
-    try
-    {
-        _logonCli = new LogonCli();
-    }
-    catch (std::exception &e)
-    {
-        WcaLog(LOGMSG_STANDARD, "Could not load logonCli.dll: %s", e.what());
-    }
-    
-    std::wstring data;
-    if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
-    {
-        return false;
-    }
-    return init(data);
-}
-
-bool CustomActionData::init(const std::wstring &data)
-{
-    DWORD errCode = _targetMachine->Detect();
-    if (errCode != ERROR_SUCCESS)
-    {
-        WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %S", FormatErrorMessage(errCode).c_str());
-        return false;
-    }
-
-    std::wstringstream ss(data);
+    // Parse values out of property
+    std::wstringstream ss(kvstring);
     std::wstring token;
 
     while (std::getline(ss, token))
@@ -70,19 +24,19 @@ bool CustomActionData::init(const std::wstring &data)
             trim_string(val);
             if (!key.empty() && !val.empty())
             {
-                this->values[key] = val;
+                values[key] = val;
             }
         }
     }
-    return parseUsernameData() && parseSysprobeData();
+
 }
 
-bool CustomActionData::present(const std::wstring &key) const
+bool IPropertyView::present(const std::wstring &key) const
 {
     return this->values.count(key) != 0 ? true : false;
 }
 
-bool CustomActionData::value(const std::wstring &key, std::wstring &val) const
+bool IPropertyView::value(const std::wstring &key, std::wstring &val) const
 {
     const auto kvp = values.find(key);
     if (kvp == values.end())
@@ -91,6 +45,90 @@ bool CustomActionData::value(const std::wstring &key, std::wstring &val) const
     }
     val = kvp->second;
     return true;
+}
+
+CAPropertyView::CAPropertyView(MSIHANDLE hi)
+: _hInstall(hi)
+{
+}
+
+DeferredCAPropertyView::DeferredCAPropertyView(MSIHANDLE hi)
+: CAPropertyView(hi)
+{
+    /*
+     * Deferred custom actions have limited access to installation
+     * details, so we must load our properties from the CustomActionData propety.
+     * https://docs.microsoft.com/en-us/windows/win32/msi/obtaining-context-information-for-deferred-execution-custom-actions
+     */
+
+    // Load CustomActionData property
+    std::wstring data;
+    if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
+    {
+        throw;
+    }
+
+    parseKeyValueString(data, this->values);
+}
+
+
+TestPropertyView::TestPropertyView(std::wstring &data)
+{
+    parseKeyValueString(data, this->values);
+}
+
+CustomActionData::CustomActionData(
+    std::shared_ptr<IPropertyView> propertyView,
+    std::shared_ptr<ITargetMachine> targetMachine)
+: _domainUser(false)
+, _doInstallSysprobe(true)
+, _ddnpmPresent(false)
+, _ddUserExists(false)
+, _targetMachine(std::move(targetMachine))
+, _propertyView(std::move(propertyView))
+, _logonCli(nullptr)
+{
+    try
+    {
+        _logonCli = new LogonCli();
+    }
+    catch (std::exception &e)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not load logonCli.dll: %s", e.what());
+    }
+
+    DWORD errCode = _targetMachine->Detect();
+    if (errCode != ERROR_SUCCESS)
+    {
+        WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %S", FormatErrorMessage(errCode).c_str());
+        throw;
+    }
+
+    // Process some data now
+    if (!parseUsernameData() || !parseSysprobeData()) {
+        throw;
+    }
+}
+
+CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView)
+: CustomActionData(std::move(propertyView), std::make_shared<TargetMachine>())
+{
+
+}
+
+CustomActionData::~CustomActionData()
+{
+    delete _logonCli;
+}
+
+bool CustomActionData::present(const std::wstring &key) const
+{
+    return this->_propertyView->present(key);
+}
+
+bool CustomActionData::value(const std::wstring &key, std::wstring &val) const
+{
+    return this->_propertyView->value(key, val);
 }
 
 bool CustomActionData::isUserDomainUser() const
@@ -165,7 +203,7 @@ bool CustomActionData::parseSysprobeData()
     std::wstring npmFeature;
     this->_doInstallSysprobe = false;
     this->_ddnpmPresent = false;
-    if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
+    if (!this->_propertyView->value(L"SYSPROBE_PRESENT", sysprobePresent))
     {
         // key isn't even there.
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT not present");
@@ -180,7 +218,7 @@ bool CustomActionData::parseSysprobeData()
     }
     this->_doInstallSysprobe = true;
 
-    if(!this->value(L"NPM", npm))
+    if(!this->_propertyView->value(L"NPM", npm))
     {
         WcaLog(LOGMSG_STANDARD, "NPM property not present");
     }
@@ -191,7 +229,7 @@ bool CustomActionData::parseSysprobeData()
     }
 
 
-    if (this->value(L"NPMFEATURE", npmFeature))
+    if (this->_propertyView->value(L"NPMFEATURE", npmFeature))
     {
         // this property is set to "on" or "off" depending on the desired installed state
         // of the NPM feature.
@@ -228,7 +266,7 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
 {
     User user;
     std::wstring tmpName;
-    if (!value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
+    if (!this->_propertyView->value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
     {
         WcaLog(LOGMSG_STANDARD, "no username information detected from command line");
         return std::nullopt;
