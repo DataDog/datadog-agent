@@ -27,11 +27,6 @@
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
-#define TO_STR(x) STR(x)
-#define MACRO_CONCAT(x,y) CONCAT(x,y)
-#define CONCAT(x,y) x##y
-#define MK_PROGRAM_ID_VAR(prefix) TO_STR(MACRO_CONCAT(prefix, __COUNTER__))
-
 BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
 
