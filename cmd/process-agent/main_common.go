@@ -164,8 +164,10 @@ func runAgent(exit chan struct{}) {
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
+	fmt.Println("helloo")
+
 	// Only logging when process agent is running
-	misconfig.ToLogProcessAgent()
+	misconfig.ToLog(string(loggerName))
 
 	// Start workload metadata store before tagger (used for containerCollection)
 	store := workloadmeta.GetGlobalStore()

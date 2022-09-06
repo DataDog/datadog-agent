@@ -8,32 +8,25 @@ package misconfig
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 // ToLog outputs warnings about common misconfigurations in the logs
-func ToLog() {
-	for name, check := range checks {
-		if err := check(); err != nil {
-			log.Warnf("misconfig: %s: %v", name, err)
-		}
-	}
-}
-
-func ToLogProcessAgent() {
-	for name, check := range processAgentChecks {
-		if err := check(); err != nil {
-			log.Warnf("misconfig: %s: %v", name, err)
+func ToLog(agent string) {
+	for _, check := range checks {
+		if check.Agent == agent {
+			if err := check.Run(); err != nil {
+				log.Warnf("misconfig: %s: %v", agent, err)
+			}
 		}
 	}
 }
 
 type checkFn func() error
+type check struct {
+	Agent string
+	Run   checkFn
+}
 
-var checks = map[string]checkFn{}
-var processAgentChecks = map[string]checkFn{}
+var checks = map[string]check{}
 
 // nolint: deadcode, unused
 func registerCheck(name string, c checkFn) {
-	checks[name] = c
-}
-
-func registerProcessAgentCheck(name string, c checkFn) {
-	processAgentChecks[name] = c
+	checks[name] = check{Agent: name, Run: c}
 }
