@@ -363,6 +363,8 @@ int kretprobe_io_openat2(struct pt_regs *ctx) {
     u64 pid_tgid = 0;
     if (pid_tgid_ptr != NULL) {
         pid_tgid = *pid_tgid_ptr;
+    } else {
+        pid_tgid = bpf_get_current_pid_tgid();
     }
 
     return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
