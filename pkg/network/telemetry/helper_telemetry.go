@@ -59,6 +59,8 @@ func (b *BPFTelemetry) RegisterMaps(maps []string) error {
 	return b.initializeMapErrTelemetryMap()
 }
 
+// RegisterProbes registers a ebpf map entry in the helper error telemetry map,
+// to have failing helper operation telemetry recorded.
 func (b *BPFTelemetry) RegisterProbes(probes []string) error {
 	b.probes = append(b.probes, probes...)
 	return b.initializeHelperErrTelemetryMap()
@@ -80,6 +82,7 @@ func (b *BPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	return t
 }
 
+// GetHelperTelemetry returns a map of error telemetry for each ebpf program
 func (b *BPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 	var val HelperErrTelemetry
 	t := make(map[string]interface{})
