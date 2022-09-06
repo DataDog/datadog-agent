@@ -77,7 +77,7 @@ VOID DoStopAllServices();
 DWORD DoStartSvc(std::wstring &svcName);
 int doesServiceExist(std::wstring &svcName);
 int installServices(CustomActionData &data, PSID sid, const wchar_t *password);
-int uninstallServices(CustomActionData &data);
+int uninstallServices();
 int verifyServices(CustomActionData &data);
 
 // delfiles.cpp

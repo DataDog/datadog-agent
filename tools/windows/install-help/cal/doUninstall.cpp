@@ -62,7 +62,6 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
 {
 
     DWORD er = ERROR_SUCCESS;
-    CustomActionData data;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
     ddRegKey regkey;
@@ -189,7 +188,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))
     {
         // uninstall the services
-        uninstallServices(data);
+        uninstallServices();
     }
     else
     {

@@ -503,7 +503,7 @@ DWORD DoStartSvc(std::wstring &svcname)
     {
         WcaLog(LOGMSG_STANDARD, "Service started successfully (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
     }
-    else if(ssStatus.dwCurrentState == SERVICE_START_PENDING) 
+    else if(ssStatus.dwCurrentState == SERVICE_START_PENDING)
     {
         WcaLog(LOGMSG_STANDARD, "Service start in progress, continuing install (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
     }
@@ -747,7 +747,7 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
     SC_HANDLE hService = NULL;
     int retval = 0;
     // Get a handle to the SCM database.
-    
+
 #ifdef __REGISTER_ALL_SERVICES
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
@@ -839,7 +839,7 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
     CloseServiceHandle(hScManager);
     return retval;
 }
-int uninstallServices(CustomActionData &data)
+int uninstallServices()
 {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
@@ -849,20 +849,20 @@ int uninstallServices(CustomActionData &data)
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), NULL),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, NULL, NULL),
         serviceDef(traceService.c_str(), L"Datadog Trace Agent", L"Send tracing metrics to Datadog", trace_exe.c_str(),
-                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.FullyQualifiedUsername().c_str(), NULL),
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), L"\0\0", SERVICE_DEMAND_START, NULL, NULL)
 
     };
 #else
 #define NUM_SERVICES 1
     serviceDef services[NUM_SERVICES] = {
         serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, data.FullyQualifiedUsername().c_str(), NULL),
+                   L"winmgmt\0\0", SERVICE_AUTO_START, NULL, NULL),
     };
 #endif
     WcaLog(LOGMSG_STANDARD, "Uninstalling services");
@@ -933,18 +933,18 @@ int verifyServices(CustomActionData &data)
         WcaLog(LOGMSG_STANDARD, "OpenSCManager failed (%d)\n", GetLastError());
         return -1;
     }
-    for (int i = 0; i < servicesToInstall; i++) 
+    for (int i = 0; i < servicesToInstall; i++)
     {
         WcaLog(LOGMSG_STANDARD, "updating service %d", i);
         retval = services[i].verify(hScManager);
-        if (retval != 0) 
+        if (retval != 0)
         {
             if(ERROR_SERVICE_DOES_NOT_EXIST == retval && i > 1)
             {
                 // i > 1 b/c we can't do this for core or trace, since they run as
                 // ddagentuser and we don't have the password.  process & npm run
                 // as local system, so there's no password to need.
-                
+
                 // since we're adding a new service later (npm), on upgrade we
                 // must have the core agent.  Any of the subservices, if they're not
                 // present, accept that (they might be newly added) and just try
@@ -978,7 +978,7 @@ int verifyServices(CustomActionData &data)
                     retval = 0;
                     continue;
                 }
-            } else 
+            } else
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
                 break;
