@@ -171,7 +171,7 @@ require (
 	go.opentelemetry.io/collector/pdata v0.56.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
-	go.uber.org/zap v1.22.0
+	go.uber.org/zap v1.23.0
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
