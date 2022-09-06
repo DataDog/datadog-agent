@@ -64,6 +64,13 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/io_openat",
+			EBPFFuncName: "kretprobe_io_openat",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
 			EBPFSection:  "kretprobe/io_openat2",
 			EBPFFuncName: "kretprobe_io_openat2",
 		},

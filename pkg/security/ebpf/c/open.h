@@ -354,10 +354,8 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
     return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-SEC("kretprobe/io_openat2")
-int kretprobe_io_openat2(struct pt_regs *ctx) {
+int __attribute__((always_inline)) handle_io_openat_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
-
     void *raw_req = (void*) PT_REGS_PARM1(ctx);
     u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
     u64 pid_tgid = 0;
@@ -368,6 +366,16 @@ int kretprobe_io_openat2(struct pt_regs *ctx) {
     }
 
     return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
+}
+
+SEC("kretprobe/io_openat")
+int kretprobe_io_openat(struct pt_regs *ctx) {
+    return handle_io_openat_ret(ctx);
+}
+
+SEC("kretprobe/io_openat2")
+int kretprobe_io_openat2(struct pt_regs *ctx) {
+    return handle_io_openat_ret(ctx);
 }
 
 SEC("kprobe/filp_close")
