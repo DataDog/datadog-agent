@@ -15,13 +15,15 @@ import (
 	"syscall"
 	"time"
 
-	netstats "github.com/DataDog/datadog-agent/pkg/network/stats"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type routeKey struct {
@@ -51,8 +53,6 @@ type routeCache struct {
 	misses  *atomic.Uint64 `stats:""`
 	lookups *atomic.Uint64 `stats:""`
 	expires *atomic.Uint64 `stats:""`
-
-	reporter netstats.Reporter
 }
 
 const defaultTTL = 2 * time.Minute
@@ -91,12 +91,6 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		misses:  atomic.NewUint64(0),
 		lookups: atomic.NewUint64(0),
 		expires: atomic.NewUint64(0),
-	}
-
-	var err error
-	rc.reporter, err = netstats.NewReporter(rc)
-	if err != nil {
-		panic("could not create stats reporter for route cache")
 	}
 
 	return rc
@@ -139,7 +133,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 }
 
 func (c *routeCache) GetStats() map[string]interface{} {
-	stats := c.reporter.Report()
+	stats := atomicstats.Report(c)
 	stats["router"] = c.router.GetStats()
 	return stats
 }
@@ -180,24 +174,24 @@ type netlinkRouter struct {
 	ifCacheMisses  *atomic.Uint64 `stats:""`
 	ifCacheSize    *atomic.Uint64 `stats:""`
 	ifCacheErrors  *atomic.Uint64 `stats:""`
-
-	reporter netstats.Reporter
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
-func NewNetlinkRouter(procRoot string) (Router, error) {
-	return newNetlinkRouter(procRoot)
-}
+func NewNetlinkRouter(cfg *config.Config) (Router, error) {
+	rootNs, err := cfg.GetRootNetNs()
+	if err != nil {
+		return nil, err
+	}
+	defer rootNs.Close()
 
-func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
-	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
+	rootNsIno, err := util.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = util.WithRootNS(procRoot, func() (sockErr error) {
+	err = util.WithNS(cfg.ProcRoot, rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}
@@ -211,7 +205,7 @@ func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 	}
 
 	nr := &netlinkRouter{
-		rootNs:  rootNs,
+		rootNs:  rootNsIno,
 		ioctlFD: fd,
 		// ifcache should ideally fit all interfaces on a given node
 		ifcache:  lru.New(128),
@@ -227,11 +221,6 @@ func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 		ifCacheErrors:  atomic.NewUint64(0),
 	}
 
-	nr.reporter, err = netstats.NewReporter(nr)
-	if err != nil {
-		return nil, fmt.Errorf("error creating stats reporter: %w", err)
-	}
-
 	return nr, nil
 }
 
@@ -241,7 +230,7 @@ func (n *netlinkRouter) Close() {
 }
 
 func (n *netlinkRouter) GetStats() map[string]interface{} {
-	return n.reporter.Report()
+	return atomicstats.Report(n)
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {

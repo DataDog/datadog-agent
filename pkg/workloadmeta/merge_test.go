@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func container1(testTime time.Time) Container {

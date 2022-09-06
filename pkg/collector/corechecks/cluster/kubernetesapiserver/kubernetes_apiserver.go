@@ -119,7 +119,7 @@ func KubernetesASFactory() check.Check {
 
 // Configure parses the check configuration and init the check.
 func (k *KubeASCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(config, source)
+	err := k.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -353,7 +353,7 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 
 	ctx := context.TODO()
 	hostnameDetected, _ := hostname.Get(ctx)
-	clusterName := clustername.GetClusterName(ctx, hostnameDetected)
+	clusterName := clustername.GetRFC1123CompliantClusterName(ctx, hostnameDetected)
 
 	for id, bundle := range bundlesByObject {
 		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)

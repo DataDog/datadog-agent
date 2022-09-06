@@ -14,11 +14,12 @@ import (
 
 // NetflowConfig contains configuration for NetFlow collector.
 type NetflowConfig struct {
-	Listeners               []ListenerConfig `mapstructure:"listeners"`
-	StopTimeout             int              `mapstructure:"stop_timeout"`
-	AggregatorBufferSize    int              `mapstructure:"aggregator_buffer_size"`
-	AggregatorFlushInterval int              `mapstructure:"aggregator_flush_interval"`
-	LogPayloads             bool             `mapstructure:"log_payloads"`
+	Listeners                []ListenerConfig `mapstructure:"listeners"`
+	StopTimeout              int              `mapstructure:"stop_timeout"`
+	AggregatorBufferSize     int              `mapstructure:"aggregator_buffer_size"`
+	AggregatorFlushInterval  int              `mapstructure:"aggregator_flush_interval"`
+	AggregatorFlowContextTTL int              `mapstructure:"aggregator_flow_context_ttl"`
+	LogPayloads              bool             `mapstructure:"log_payloads"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -68,6 +69,11 @@ func ReadConfig() (*NetflowConfig, error) {
 	}
 	if mainConfig.AggregatorFlushInterval == 0 {
 		mainConfig.AggregatorFlushInterval = common.DefaultAggregatorFlushInterval
+	}
+	if mainConfig.AggregatorFlowContextTTL == 0 {
+		// Set AggregatorFlowContextTTL to AggregatorFlushInterval to keep flow context around
+		// for 1 flush-interval time after a flush.
+		mainConfig.AggregatorFlowContextTTL = mainConfig.AggregatorFlushInterval
 	}
 	if mainConfig.AggregatorBufferSize == 0 {
 		mainConfig.AggregatorBufferSize = common.DefaultAggregatorBufferSize

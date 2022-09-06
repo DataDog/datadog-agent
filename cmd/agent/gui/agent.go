@@ -15,6 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -22,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
-	yaml "gopkg.in/yaml.v2"
 )
 
 // Adds the specific handlers for /agent/ endpoints

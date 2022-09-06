@@ -8,33 +8,12 @@
 // sockfd_lookup_light function calls, so they can be accessed by the corresponding kretprobe.
 // * Key is the pid_tgid;
 // * Value the socket FD;
-struct bpf_map_def SEC("maps/sockfd_lookup_args") sockfd_lookup_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(__u32),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
+BPF_HASH_MAP(sockfd_lookup_args, __u64, __u32, 1024)
 
-struct bpf_map_def SEC("maps/sock_by_pid_fd") sock_by_pid_fd = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(pid_fd_t),
-    .value_size = sizeof(struct sock*),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock*),
-    .value_size = sizeof(pid_fd_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
+BPF_HASH_MAP(sock_by_pid_fd, pid_fd_t, struct sock *, 1024)
+    
+BPF_HASH_MAP(pid_fd_by_sock, struct sock *, pid_fd_t, 1024)
+    
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void clear_sockfd_maps(struct sock* sock) {

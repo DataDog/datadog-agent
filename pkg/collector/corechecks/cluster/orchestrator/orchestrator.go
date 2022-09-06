@@ -14,6 +14,8 @@ import (
 	"math/rand"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -24,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 
 	"gopkg.in/yaml.v2"
 )
@@ -95,7 +96,7 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, source string) error {
 	o.BuildID(config, initConfig)
 
-	err := o.CommonConfigure(config, source)
+	err := o.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}

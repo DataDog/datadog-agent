@@ -8,8 +8,9 @@ package uptane
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func TestTargetStore(t *testing.T) {

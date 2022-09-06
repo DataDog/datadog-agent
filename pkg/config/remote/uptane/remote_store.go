@@ -10,8 +10,9 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/theupdateframework/go-tuf/client"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 type role string

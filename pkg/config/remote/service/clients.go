@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/benbjohnson/clock"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 type client struct {

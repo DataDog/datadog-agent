@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -130,6 +131,8 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	}()
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if check == checks.Connections.Name() {
+		// use a different client ID to prevent destructive querying of connections data
+		checks.ProcessAgentClientID = "process-agent-cli-check-id"
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 		// Clean up the process check state only after the connections check is executed

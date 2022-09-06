@@ -18,6 +18,14 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
+	libnetlink "github.com/mdlayher/netlink"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -25,12 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
-	"github.com/cilium/ebpf"
-	libnetlink "github.com/mdlayher/netlink"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 )
 
 var tuplePool = sync.Pool{
@@ -134,7 +136,11 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
-	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
+	var err error
+	e.consumer, err = netlink.NewConsumer(cfg)
+	if err != nil {
+		return err
+	}
 	defer e.consumer.Stop()
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -147,7 +153,9 @@ func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Con
 			return err
 		}
 	}
-	e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"})
+	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"}); err != nil {
+		log.Debugf("detachHook %s/kprobe_ctnetlink_fill_info : %w", string(probes.ConntrackFillInfo), err)
+	}
 	return nil
 }
 

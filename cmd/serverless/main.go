@@ -201,6 +201,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Error("No API key configured, exiting")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
+	config.LoadProxyFromEnv(config.Datadog)
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
@@ -240,7 +241,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			serverlessLogs.SetupLogAgent(logChannel)
+			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
 		}
 	}()
 

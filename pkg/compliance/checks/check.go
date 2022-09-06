@@ -62,6 +62,14 @@ func (c *complianceCheck) ID() check.ID {
 	return check.ID(c.ruleID)
 }
 
+func (c *complianceCheck) InitConfig() string {
+	return ""
+}
+
+func (c *complianceCheck) InstanceConfig() string {
+	return ""
+}
+
 func (c *complianceCheck) GetWarnings() []error {
 	return nil
 }

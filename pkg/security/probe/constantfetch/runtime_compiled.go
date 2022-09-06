@@ -20,10 +20,11 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 type rcSymbolPair struct {
@@ -117,7 +118,7 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	if cf.statsdClient != nil {
 		telemetry := runtimeCompiler.GetRCTelemetry()
 		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-			log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
+			seclog.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
 		}
 	}
 
@@ -166,7 +167,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		cf.result[sym.Name] = value
 	}
 
-	log.Infof("runtime compiled constants: %v", cf.result)
+	seclog.Infof("runtime compiled constants: %v", cf.result)
 	return cf.result, nil
 }
 

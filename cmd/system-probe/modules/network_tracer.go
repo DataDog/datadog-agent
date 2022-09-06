@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers

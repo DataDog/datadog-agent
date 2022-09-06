@@ -61,5 +61,6 @@ func (tf *TrapForwarder) sendTrap(packet *SnmpPacket) {
 		log.Errorf("failed to format packet: %s", err)
 		return
 	}
+	log.Tracef("send trap payload: %s", string(data))
 	tf.sender.EventPlatformEvent(string(data), epforwarder.EventTypeSnmpTraps)
 }

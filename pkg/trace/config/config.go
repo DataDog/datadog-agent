@@ -266,6 +266,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string
+	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
+	ApplicationKey string
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -288,6 +290,7 @@ type DebuggerProxyConfig struct {
 type AgentConfig struct {
 	Enabled      bool
 	AgentVersion string
+	GitCommit    string
 	Site         string // the intake site to use (e.g. "datadoghq.com")
 
 	// FargateOrchestrator specifies the name of the Fargate orchestrator. e.g. "ECS", "EKS", "Unknown"

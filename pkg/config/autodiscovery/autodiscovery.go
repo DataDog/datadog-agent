@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -81,19 +82,39 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		return detectedProviders, detectedListeners
 	}
 
-	if config.IsFeaturePresent(config.Docker) || config.IsFeaturePresent(config.Containerd) || config.IsFeaturePresent(config.Podman) || config.IsFeaturePresent(config.ECSFargate) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
-		if !config.IsFeaturePresent(config.Kubernetes) {
+	// Upon retiring this flag, see comment in `KubeContainerConfigProvider`
+	kubeContainerOn := util.CcaInAD()
+	isContainerEnv := config.IsFeaturePresent(config.Docker) ||
+		config.IsFeaturePresent(config.Containerd) ||
+		config.IsFeaturePresent(config.Podman) ||
+		config.IsFeaturePresent(config.ECSFargate)
+	isKubeEnv := config.IsFeaturePresent(config.Kubernetes)
+
+	if kubeContainerOn && (isContainerEnv || isKubeEnv) {
+		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer})
+		log.Info("Adding KubeContainer provider from environment")
+	}
+
+	if isContainerEnv {
+		if !kubeContainerOn {
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.Container, Polling: true, PollInterval: "1s"})
+			log.Info("Adding Container provider from environment")
+		}
+
+		if !isKubeEnv {
 			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
 			log.Info("Adding Container listener from environment")
 		}
-		log.Info("Adding Container provider from environment")
 	}
 
-	if config.IsFeaturePresent(config.Kubernetes) {
-		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
+	if isKubeEnv {
+		if !kubeContainerOn {
+			detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "kubelet", Polling: true})
+			log.Info("Adding Kubelet provider from environment")
+		}
+
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "kubelet"})
-		log.Info("Adding Kubelet autodiscovery provider and listener from environment")
+		log.Info("Adding Kubelet listener from environment")
 	}
 
 	return detectedProviders, detectedListeners

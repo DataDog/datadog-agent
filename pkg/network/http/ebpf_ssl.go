@@ -18,13 +18,14 @@ import (
 
 	"github.com/twmb/murmur3"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 )
 
 var openSSLProbes = map[string]string{
@@ -46,6 +47,8 @@ var cryptoProbes = map[string]string{
 }
 
 var gnuTLSProbes = map[string]string{
+	"uprobe/gnutls_handshake":          "uprobe__gnutls_handshake",
+	"uretprobe/gnutls_handshake":       "uretprobe__gnutls_handshake",
 	"uprobe/gnutls_transport_set_int2": "uprobe__gnutls_transport_set_int2",
 	"uprobe/gnutls_transport_set_ptr":  "uprobe__gnutls_transport_set_ptr",
 	"uprobe/gnutls_transport_set_ptr2": "uprobe__gnutls_transport_set_ptr2",
@@ -258,11 +261,14 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 			}
 
 			program := p.Program()
-			m.DetachHook(manager.ProbeIdentificationPair{
+			err := m.DetachHook(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
 				EBPFFuncName: funcName,
 				UID:          uid,
 			})
+			if err != nil {
+				log.Debugf("detachhook %s/%s/%d : %w", sec, funcName, uid, err)
+			}
 			if program != nil {
 				program.Close()
 			}

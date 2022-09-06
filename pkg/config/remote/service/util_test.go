@@ -9,8 +9,9 @@ import (
 	"encoding/base32"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 )
 
 func TestRemoteConfigKey(t *testing.T) {

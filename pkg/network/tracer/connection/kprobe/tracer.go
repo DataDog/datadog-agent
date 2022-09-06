@@ -14,20 +14,22 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -55,8 +57,6 @@ type kprobeTracer struct {
 type telemetry struct {
 	tcpConns4, tcpConns6 *atomic.Int64 `stats:""`
 	udpConns4, udpConns6 *atomic.Int64 `stats:""`
-
-	reporter stats.Reporter
 }
 
 func newTelemetry() telemetry {
@@ -177,11 +177,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
 	}
 
-	tr.telemetry.reporter, err = stats.NewReporter(&tr.telemetry)
-	if err != nil {
-		return nil, fmt.Errorf("error creating stats reporter: %w", err)
-	}
-
 	return tr, nil
 }
 
@@ -244,7 +239,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 			continue
 		}
 		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, tcp)
+			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 		*buffer.Next() = *conn
 	}
@@ -302,7 +297,7 @@ func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
 }
 
 func (t *telemetry) get() map[string]interface{} {
-	return t.reporter.Report()
+	return atomicstats.Report(t)
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
@@ -425,13 +420,16 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	conn.Monotonic.Retransmits = tcpStats.Retransmits
-	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+
+	m, _ := conn.Monotonic.Get(cookie)
+	m.Retransmits = tcpStats.Retransmits
+	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.Monotonic.Put(cookie, m)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -453,6 +451,7 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 		if _, reported := seen[*tuple]; reported {
 			t.pidCollisions.Inc()
 			stats.Retransmits = 0
+			stats.State_transitions = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}
@@ -471,15 +470,17 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic: network.StatCounters{
-			SentBytes:   s.Sent_bytes,
-			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
-		},
-		LastUpdateEpoch: s.Timestamp,
-		IsAssured:       s.IsAssured(),
+		Monotonic:        make(network.StatCountersByCookie, 0, 3),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
 	}
+
+	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
+	})
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

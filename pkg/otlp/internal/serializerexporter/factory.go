@@ -8,16 +8,18 @@ package serializerexporter
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 const (
 	// TypeStr defines the serializer exporter type string.
-	TypeStr = "serializer"
+	TypeStr   = "serializer"
+	stability = component.StabilityLevelStable
 )
 
 type factory struct {
@@ -31,7 +33,7 @@ func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
 	return component.NewExporterFactory(
 		TypeStr,
 		newDefaultConfig,
-		component.WithMetricsExporter(f.createMetricExporter),
+		component.WithMetricsExporterAndStabilityLevel(f.createMetricExporter, stability),
 	)
 }
 

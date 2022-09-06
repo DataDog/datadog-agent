@@ -11,10 +11,11 @@ package metrics
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
-	"github.com/stretchr/testify/require"
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {

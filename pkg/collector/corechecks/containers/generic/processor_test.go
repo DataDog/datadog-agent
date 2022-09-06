@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
 )
 
 func createContainerMeta(runtime, cID string) *workloadmeta.Container {

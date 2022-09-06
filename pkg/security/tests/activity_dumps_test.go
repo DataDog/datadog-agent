@@ -21,12 +21,13 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var expectedFormats = []string{"json", "msgp", "protobuf", "protojson"}
+var expectedFormats = []string{"json", "protobuf"}
 
 func TestActivityDumps(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{enableActivityDump: true})
@@ -67,15 +68,17 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("syscall_tester")
-			if node == nil {
-				t.Fatal("Node not found in activity dump")
+			nodes := ad.FindMatchingNodes("syscall_tester")
+			if nodes == nil {
+				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
-			for _, s := range node.Sockets {
-				if s.Family == "AF_INET" {
-					for _, bindNode := range s.Bind {
-						if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
-							return true
+			for _, node := range nodes {
+				for _, s := range node.Sockets {
+					if s.Family == "AF_INET" {
+						for _, bindNode := range s.Bind {
+							if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
+								return true
+							}
 						}
 					}
 				}
@@ -86,8 +89,11 @@ func TestActivityDumps(t *testing.T) {
 
 	test.Run(t, "activity-dump-comm-dns", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO: Oracle because we are missing offsets. See dns_test.go
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		})
 
-		expectedFormats := []string{"json", "msgp"}
 		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
@@ -103,13 +109,15 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("testsuite")
-			if node == nil {
+			nodes := ad.FindMatchingNodes("testsuite")
+			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
-			for name := range node.DNSNames {
-				if name == "foo.bar" {
-					return true
+			for _, node := range nodes {
+				for name := range node.DNSNames {
+					if name == "foo.bar" {
+						return true
+					}
 				}
 			}
 			return false
@@ -140,21 +148,23 @@ func TestActivityDumps(t *testing.T) {
 		tempPathParts := strings.Split(temp.Name(), "/")
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("testsuite")
-			if node == nil {
+			nodes := ad.FindMatchingNodes("testsuite")
+			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
 
-			current := node.Files
-			for _, part := range tempPathParts {
-				if part == "" {
-					continue
+			for _, node := range nodes {
+				current := node.Files
+				for _, part := range tempPathParts {
+					if part == "" {
+						continue
+					}
+					next, found := current[part]
+					if !found {
+						return false
+					}
+					current = next.Children
 				}
-				next, found := current[part]
-				if !found {
-					return false
-				}
-				current = next.Children
 			}
 
 			return true
@@ -184,24 +194,26 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
-			node := ad.FindFirstMatchingNode("syscall_tester")
-			if node == nil {
+			nodes := ad.FindMatchingNodes("syscall_tester")
+			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
 			var exitOK, execveOK bool
-			for _, s := range node.Syscalls {
-				if s == int(model.SysExit) || s == int(model.SysExitGroup) {
-					exitOK = true
-				}
-				if s == int(model.SysExecve) || s == int(model.SysExecveat) {
-					execveOK = true
+			for _, node := range nodes {
+				for _, s := range node.Syscalls {
+					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+						exitOK = true
+					}
+					if s == int(model.SysExecve) || s == int(model.SysExecveat) {
+						execveOK = true
+					}
 				}
 			}
 			if !exitOK {
-				t.Errorf("exit syscall not found in activity dump: %+v", node.Syscalls)
+				t.Errorf("exit syscall not found in activity dump")
 			}
 			if !execveOK {
-				t.Errorf("execve syscall not found in activity dump: %+v", node.Syscalls)
+				t.Errorf("execve syscall not found in activity dump")
 			}
 			return exitOK && execveOK
 		})
@@ -227,7 +239,7 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !validateActivityDumpSchema(t, string(content)) {
+			if !validateActivityDumpProtoSchema(t, string(content)) {
 				t.Error(string(content))
 			}
 			perExtOK[ext] = true
@@ -243,28 +255,6 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 				t.Error(err)
 			}
 			perExtOK[ext] = true
-
-		case ".protojson":
-			content, err := os.ReadFile(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !validateActivityDumpProtoSchema(t, string(content)) {
-				t.Error(string(content))
-			}
-			perExtOK[ext] = true
-
-		case ".msgp":
-			ad, err := test.DecodeMSPActivityDump(t, f)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			found := msgpValidator(ad)
-			if !found {
-				t.Error("Invalid activity dump")
-			}
-			perExtOK[ext] = found
 
 		default:
 			t.Fatal("Unexpected output file")

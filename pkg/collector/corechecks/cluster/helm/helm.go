@@ -12,12 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
@@ -36,7 +36,8 @@ const (
 	checkName               = "helm"
 	serviceCheckName        = "helm.release_state"
 	maximumWaitForAPIServer = 10 * time.Second
-	informerSyncTimeout     = 60 * time.Second
+	defaultExtraSyncTimeout = 120 * time.Second
+	defaultResyncInterval   = 10 * time.Minute
 	labelSelector           = "owner=helm"
 )
 
@@ -63,15 +64,14 @@ type HelmCheck struct {
 	runLeaderElection bool
 	eventsManager     *eventsManager
 	informerFactory   informers.SharedInformerFactory
-
-	// existingReleasesStored indicates whether the releases deployed before the
-	// agent was started have already been stored. This is needed to avoid
-	// emitting events for those releases.
-	existingReleasesStored bool
+	startTS           time.Time
+	once              sync.Once
 }
 
 type checkConfig struct {
-	CollectEvents bool `yaml:"collect_events"`
+	CollectEvents                  bool `yaml:"collect_events"`
+	ExtraSyncTimeoutSeconds        int  `yaml:"extra_sync_timeout_seconds"`
+	InformersResyncIntervalMinutes int  `yaml:"informers_resync_interval_minutes"`
 }
 
 // Parse parses the config and sets default values
@@ -96,17 +96,12 @@ func factory() check.Check {
 func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
 	hc.BuildID(config, initConfig)
 
-	err := hc.CommonConfigure(config, source)
+	err := hc.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
 
 	if err = hc.instance.Parse(config); err != nil {
-		return err
-	}
-
-	err = hc.CommonConfigure(initConfig, source)
-	if err != nil {
 		return err
 	}
 
@@ -118,16 +113,10 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 		return err
 	}
 
-	// Add the releases present before setting up the informers. This allows us
-	// to avoid emitting events for releases that were deployed before the agent
-	// started.
-	if err = hc.addExistingReleases(apiClient); err != nil {
-		return err
-	}
+	hc.setSharedInformerFactory(apiClient)
+	hc.startTS = time.Now()
 
-	hc.informerFactory = sharedInformerFactory(apiClient)
-
-	return hc.setupInformers()
+	return nil
 }
 
 // Run executes the check
@@ -149,6 +138,14 @@ func (hc *HelmCheck) Run() error {
 			return nil
 		}
 	}
+
+	hc.once.Do(func() {
+		// We sync the informers here in Run to avoid blocking
+		// Configure for several seconds/minutes depending on the number of configmaps/secrets.
+		if err = hc.setupInformers(); err != nil {
+			log.Errorf("Couldn't setup informers: %v", err)
+		}
+	})
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
@@ -189,48 +186,18 @@ func (hc *HelmCheck) setupInformers() error {
 			"helm-secrets":    secretInformer.Informer(),
 			"helm-configmaps": configmapInformer.Informer(),
 		},
-		informerSyncTimeout,
+		hc.getExtraSyncTimeout(),
 	)
 }
 
-func sharedInformerFactory(apiClient *apiserver.APIClient) informers.SharedInformerFactory {
-	return informers.NewSharedInformerFactoryWithOptions(
+func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
+	hc.informerFactory = informers.NewSharedInformerFactoryWithOptions(
 		apiClient.Cl,
-		time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))*time.Second,
+		hc.getInformersResyncPeriod(),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
 		}),
 	)
-}
-
-func (hc *HelmCheck) addExistingReleases(apiClient *apiserver.APIClient) error {
-	selector := labels.Set{"owner": "helm"}.AsSelector()
-
-	initialHelmSecrets, err := apiClient.Cl.CoreV1().Secrets(v1.NamespaceAll).List(
-		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, secret := range initialHelmSecrets.Items {
-		hc.addSecret(&secret)
-	}
-
-	initialHelmConfigMaps, err := apiClient.Cl.CoreV1().ConfigMaps(v1.NamespaceAll).List(
-		context.Background(), metav1.ListOptions{LabelSelector: selector.String()},
-	)
-	if err != nil {
-		return err
-	}
-
-	for _, configMap := range initialHelmConfigMaps.Items {
-		hc.addConfigmap(&configMap)
-	}
-
-	hc.existingReleasesStored = true
-
-	return nil
 }
 
 func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
@@ -282,7 +249,7 @@ func tagsForServiceCheck(release *release, storageDriver helmStorage) []string {
 func (hc *HelmCheck) addSecret(obj interface{}) {
 	secret, ok := obj.(*v1.Secret)
 	if !ok {
-		log.Warnf("Expected secret, got: %v", obj)
+		log.Warnf("Expected *v1.Secret, got: %T", obj)
 		return
 	}
 
@@ -290,14 +257,24 @@ func (hc *HelmCheck) addSecret(obj interface{}) {
 		return
 	}
 
-	hc.addRelease(string(secret.Data["release"]), k8sSecrets)
+	hc.addRelease(string(secret.Data["release"]), secret.GetCreationTimestamp(), k8sSecrets)
 }
 
 func (hc *HelmCheck) deleteSecret(obj interface{}) {
 	secret, ok := obj.(*v1.Secret)
 	if !ok {
-		log.Warnf("Expected secret, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Warnf("Received unexpected object: %T", obj)
+			return
+		}
+
+		secret, ok = deletedState.Obj.(*v1.Secret)
+		if !ok {
+			log.Warnf("Expected DeletedFinalStateUnknown to contain *v1.Secret, got: %T", deletedState.Obj)
+			return
+		}
 	}
 
 	if !isManagedByHelm(secret) {
@@ -307,14 +284,30 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
-func (hc *HelmCheck) updateSecret(_, obj interface{}) {
-	hc.addSecret(obj)
+func (hc *HelmCheck) updateSecret(old, new interface{}) {
+	oldSecret, ok := old.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected *v1.Secret, got: %T", old)
+		return
+	}
+
+	newSecret, ok := new.(*v1.Secret)
+	if !ok {
+		log.Warnf("Expected *v1.Secret, got: %T", new)
+		return
+	}
+
+	if oldSecret.ResourceVersion == newSecret.ResourceVersion {
+		return
+	}
+
+	hc.addSecret(newSecret)
 }
 
 func (hc *HelmCheck) addConfigmap(obj interface{}) {
 	configmap, ok := obj.(*v1.ConfigMap)
 	if !ok {
-		log.Warnf("Expected configmap, got: %v", obj)
+		log.Warnf("Expected *v1.ConfigMap, got: %T", obj)
 		return
 	}
 
@@ -322,14 +315,24 @@ func (hc *HelmCheck) addConfigmap(obj interface{}) {
 		return
 	}
 
-	hc.addRelease(configmap.Data["release"], k8sConfigmaps)
+	hc.addRelease(configmap.Data["release"], configmap.GetCreationTimestamp(), k8sConfigmaps)
 }
 
 func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 	configmap, ok := obj.(*v1.ConfigMap)
 	if !ok {
-		log.Warnf("Expected configmap, got: %v", obj)
-		return
+		// It's possible that we got a DeletedFinalStateUnknown here
+		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Warnf("Received unexpected object: %T", obj)
+			return
+		}
+
+		configmap, ok = deletedState.Obj.(*v1.ConfigMap)
+		if !ok {
+			log.Warnf("Expected DeletedFinalStateUnknown to contain *v1.ConfigMap, got: %T", deletedState.Obj)
+			return
+		}
 	}
 
 	if !isManagedByHelm(configmap) {
@@ -339,18 +342,34 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
-func (hc *HelmCheck) updateConfigmap(_, obj interface{}) {
-	hc.addConfigmap(obj)
-}
-
-func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage) {
-	decodedRelease, err := decodeRelease(encodedRelease)
-	if err != nil {
-		log.Debugf("error while decoding Helm release: %s", err)
+func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
+	oldConfigmap, ok := old.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected *v1.ConfigMap, got: %T", old)
 		return
 	}
 
-	needToEmitEvent := hc.instance.CollectEvents && hc.existingReleasesStored
+	newConfigmap, ok := new.(*v1.ConfigMap)
+	if !ok {
+		log.Warnf("Expected *v1.ConfigMap, got: %T", new)
+		return
+	}
+
+	if oldConfigmap.ResourceVersion == newConfigmap.ResourceVersion {
+		return
+	}
+
+	hc.addConfigmap(newConfigmap)
+}
+
+func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, storageDriver helmStorage) {
+	decodedRelease, err := decodeRelease(encodedRelease)
+	if err != nil {
+		log.Debugf("Error while decoding Helm release: %s", err)
+		return
+	}
+
+	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
 
 	if needToEmitEvent {
 		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
@@ -366,7 +385,7 @@ func (hc *HelmCheck) addRelease(encodedRelease string, storageDriver helmStorage
 func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
 	decodedRelease, err := decodeRelease(encodedRelease)
 	if err != nil {
-		log.Debugf("error while decoding Helm release: %s", err)
+		log.Debugf("Error while decoding Helm release: %s", err)
 		return
 	}
 
@@ -413,4 +432,18 @@ func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
 			}
 		}
 	}
+}
+
+func (hc *HelmCheck) getExtraSyncTimeout() time.Duration {
+	if hc.instance != nil && hc.instance.ExtraSyncTimeoutSeconds > 0 {
+		return time.Duration(hc.instance.ExtraSyncTimeoutSeconds) * time.Second
+	}
+	return defaultExtraSyncTimeout
+}
+
+func (hc *HelmCheck) getInformersResyncPeriod() time.Duration {
+	if hc.instance != nil && hc.instance.InformersResyncIntervalMinutes > 0 {
+		return time.Duration(hc.instance.InformersResyncIntervalMinutes) * time.Minute
+	}
+	return defaultResyncInterval
 }

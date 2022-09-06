@@ -9,13 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 )
 
 // MacroID represents the ID of a macro
@@ -33,10 +33,12 @@ const (
 
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
-	ID         MacroID       `yaml:"id"`
-	Expression string        `yaml:"expression"`
-	Values     []string      `yaml:"values"`
-	Combine    CombinePolicy `yaml:"combine"`
+	ID                     MacroID       `yaml:"id"`
+	Expression             string        `yaml:"expression"`
+	Description            string        `yaml:"description"`
+	AgentVersionConstraint string        `yaml:"agent_version"`
+	Values                 []string      `yaml:"values"`
+	Combine                CombinePolicy `yaml:"combine"`
 }
 
 // MergeWith merges macro m2 into m
@@ -50,7 +52,7 @@ func (m *MacroDefinition) MergeWith(m2 *MacroDefinition) error {
 	case OverridePolicy:
 		m.Values = m2.Values
 	default:
-		return &ErrMacroLoad{Definition: m2, Err: ErrInternalIDConflict}
+		return &ErrMacroLoad{Definition: m2, Err: ErrDefinitionIDConflict}
 	}
 	return nil
 }
@@ -64,8 +66,6 @@ type Macro struct {
 // RuleID represents the ID of a rule
 type RuleID = string
 
-var ruleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
-
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID                     RuleID             `yaml:"id"`
@@ -78,10 +78,6 @@ type RuleDefinition struct {
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
 	Policy                 *Policy
-}
-
-func checkRuleID(ruleID string) bool {
-	return ruleIDPattern.MatchString(ruleID)
 }
 
 // GetTags returns the tags associated to a rule
@@ -102,7 +98,7 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 		rd.Expression = rd2.Expression
 	default:
 		if !rd2.Disabled {
-			return &ErrRuleLoad{Definition: rd2, Err: ErrInternalIDConflict}
+			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
 		}
 	}
 	rd.Disabled = rd2.Disabled
@@ -174,7 +170,7 @@ type RuleSet struct {
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
-	logger Logger
+	logger log.Logger
 	pool   *eval.ContextPool
 }
 
@@ -537,11 +533,19 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	if !exists {
 		return result
 	}
-	rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+
+	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
+	// through the heap. To improve this situation we first check if we actually need to call the function.
+	if rs.logger.IsTracing() {
+		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+	}
 
 	for _, rule := range bucket.rules {
 		if rule.GetEvaluator().Eval(ctx) {
-			rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+
+			if rs.logger.IsTracing() {
+				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+			}
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -553,7 +557,9 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	if !result {
-		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+		if rs.logger.IsTracing() {
+			rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
+		}
 
 		for _, field := range bucket.fields {
 			if rs.opts.SupportedDiscarders != nil {
@@ -775,13 +781,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *RuleSet {
-	var logger Logger
-
-	if opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		logger = &NullLogger{}
-	}
+	logger := log.OrNullLogger(opts.Logger)
 
 	return &RuleSet{
 		model:            model,

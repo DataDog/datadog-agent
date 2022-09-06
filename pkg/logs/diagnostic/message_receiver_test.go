@@ -7,10 +7,11 @@ package diagnostic
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestEnableDisable(t *testing.T) {

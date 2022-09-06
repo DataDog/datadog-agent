@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -42,7 +43,17 @@ func main() {
 
 	abiList := strings.Split(abis, ",")
 
-	syscalls, err := getSyscallTable(inputTableURL, abiList)
+	var (
+		syscalls []*syscallDefinition
+		err      error
+	)
+
+	if strings.HasSuffix(inputTableURL, ".tbl") {
+		syscalls, err = parseSyscallTable(inputTableURL, abiList)
+	} else {
+		syscalls, err = parseUnistdTable(inputTableURL)
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -68,23 +79,68 @@ type syscallDefinition struct {
 	CamelCaseName string
 }
 
-func getSyscallTable(url string, abis []string) ([]syscallDefinition, error) {
+func parseLinuxFile(url string, perLine func(string) (*syscallDefinition, error)) ([]*syscallDefinition, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	scanner := bufio.NewScanner(resp.Body)
-	syscalls := make([]syscallDefinition, 0)
+	syscalls := make([]*syscallDefinition, 0)
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
+
+		def, err := perLine(trimmed)
+		if err != nil {
+			return nil, err
 		}
 
-		parts := strings.Fields(trimmed)
+		if def != nil {
+			syscalls = append(syscalls, def)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return syscalls, nil
+}
+
+var unistdDefinedRe = regexp.MustCompile(`#define __NR(3264)?_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
+
+func parseUnistdTable(url string) ([]*syscallDefinition, error) {
+	return parseLinuxFile(url, func(line string) (*syscallDefinition, error) {
+		subs := unistdDefinedRe.FindStringSubmatch(line)
+		if subs != nil {
+			name := subs[2]
+			nr, err := strconv.ParseInt(subs[3], 10, 0)
+			if err != nil {
+				return nil, err
+			}
+
+			camelCaseName := snakeToCamelCase(name)
+
+			return &syscallDefinition{
+				Number:        int(nr),
+				Name:          name,
+				CamelCaseName: camelCaseName,
+			}, nil
+		}
+		return nil, nil
+	})
+}
+
+func parseSyscallTable(url string, abis []string) ([]*syscallDefinition, error) {
+	return parseLinuxFile(url, func(line string) (*syscallDefinition, error) {
+		if line == "" || strings.HasPrefix(line, "#") {
+			return nil, nil
+		}
+
+		parts := strings.Fields(line)
 		if len(parts) < 3 {
 			return nil, errors.New("found syscall with missing fields")
 		}
@@ -98,20 +154,15 @@ func getSyscallTable(url string, abis []string) ([]syscallDefinition, error) {
 		camelCaseName := snakeToCamelCase(name)
 
 		if containsStringSlice(abis, abi) {
-			syscalls = append(syscalls, syscallDefinition{
+			return &syscallDefinition{
 				Number:        int(number),
 				Abi:           abi,
 				Name:          name,
 				CamelCaseName: camelCaseName,
-			})
+			}, nil
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return syscalls, nil
+		return nil, nil
+	})
 }
 
 const outputTemplateContent = `
@@ -136,7 +187,7 @@ const (
 )
 `
 
-func generateEnumCode(syscalls []syscallDefinition) (string, error) {
+func generateEnumCode(syscalls []*syscallDefinition) (string, error) {
 	tmpl, err := template.New("enum-code").Parse(outputTemplateContent)
 	if err != nil {
 		return "", err

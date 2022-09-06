@@ -13,17 +13,18 @@ import (
 	_ "embed"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
-	"github.com/stretchr/testify/assert"
 )
 
-//go:embed testdata/adv1.msgp
+//go:embed testdata/adv1.protobuf
 var v1testdata []byte
 
 func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
 	ad := probe.NewEmptyActivityDump()
-	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), dump.MSGP); err != nil {
+	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), dump.PROTOBUF); err != nil {
 		tb.Fatal(err)
 	}
 	return ad
@@ -45,12 +46,6 @@ func runEncoding(b *testing.B, encode func(ad *probe.ActivityDump) (*bytes.Buffe
 	b.ReportMetric(float64(size), "output_size")
 }
 
-func BenchmarkMsgpackEncoding(b *testing.B) {
-	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeMSGP()
-	})
-}
-
 func BenchmarkProtobufEncoding(b *testing.B) {
 	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
 		return ad.EncodeProtobuf()
@@ -59,7 +54,7 @@ func BenchmarkProtobufEncoding(b *testing.B) {
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
 	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeProtoJSON()
+		return ad.EncodeJSON()
 	})
 }
 
@@ -71,15 +66,39 @@ func TestProtobufDecoding(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decoded := probe.NewEmptyActivityDump()
-	if err := decoded.DecodeProtobuf(bytes.NewReader(out.Bytes())); err != nil {
-		t.Fatal(err)
-	}
-
-	newOut, err := ad.EncodeProtobuf()
+	decoded, err := decodeAD(out)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, out.Len(), newOut.Len())
+	newOut, err := decoded.EncodeProtobuf()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !assert.Equal(t, out.Len(), newOut.Len()) {
+		diffActivityDumps(t, out, newOut)
+	}
+}
+
+func decodeAD(buffer *bytes.Buffer) (*probe.ActivityDump, error) {
+	decoded := probe.NewEmptyActivityDump()
+	if err := decoded.DecodeProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
+func diffActivityDumps(tb testing.TB, a, b *bytes.Buffer) {
+	ad, err := decodeAD(a)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	bd, err := decodeAD(b)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	assert.Equal(tb, ad, bd)
 }

@@ -17,6 +17,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -28,17 +34,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/network/stats"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -84,27 +86,36 @@ type Tracer struct {
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
-
-	statsReporter stats.Reporter
 }
 
 func NewTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", err)
+		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
-		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
+		log.Warn("could not detect the kernel version, will use kprobes from kernel version >= 4.1.0")
 	}
 
 	// check to see if current kernel is earlier than version 4.1.0
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
-		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", currKernelVersion)
+		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
+	}
+
+	usmSupported := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+	if !usmSupported && config.ServiceMonitoringEnabled {
+		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of 4.14.0 or higher. We detected %s", currKernelVersion)
+		if !config.NPMEnabled {
+			return nil, fmt.Errorf(errStr)
+		}
+		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
+		config.EnableHTTPMonitoring = false
+		config.EnableHTTPSMonitoring = false
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
@@ -160,7 +171,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
-		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
+		httpMonitor:                newHTTPMonitor(config, ebpfTracer, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -176,10 +187,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedConns:      atomic.NewInt64(0),
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
-	}
-
-	if tr.statsReporter, err = stats.NewReporter(tr); err != nil {
-		return nil, fmt.Errorf("could not initialize stats: %w", err)
 	}
 
 	err = ebpfTracer.Start(tr.storeClosedConnections)
@@ -213,10 +220,10 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
 				return netlink.NewNoOpConntracker(), nil
 			}
-			return nil, fmt.Errorf("error compiling ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+			return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 		}
 
-		log.Warnf("error compiling ebpf conntracker, falling back to netlink version: %s", err)
+		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
 	c, err = netlink.NewConntracker(cfg)
@@ -341,8 +348,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
-
-	t.retryConntrack(delta.Conns)
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
@@ -528,7 +533,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	now := time.Now()
 	// Byte keys of the connections to remove
-	keys := make([]string, 0, len(entries))
+	toRemove := make([]*network.ConnectionStats, 0, len(entries))
 	// Remove the entries from the eBPF Map
 	for i := range entries {
 		entry := &entries[i]
@@ -544,13 +549,12 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		t.conntracker.DeleteTranslation(*entry)
 
 		// Append the connection key to the keys to remove from the userspace state
-		bk := entry.ByteKey(t.buf)
-		keys = append(keys, string(bk))
+		toRemove = append(toRemove, entry)
 	}
 
-	t.state.RemoveConnections(keys)
+	t.state.RemoveConnections(toRemove)
 
-	log.Debugf("Removed %d connection entries in %s", len(keys), time.Now().Sub(now))
+	log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
@@ -627,7 +631,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
-			tracerStats := t.statsReporter.Report()
+			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		}
@@ -743,13 +747,13 @@ func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
 
 // DebugCachedConntrack dumps the cached NAT conntrack data
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
-	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
 	}
-	defer rootNSHandle.Close()
+	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(rootNSHandle)
+	rootNS, err := util.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -769,17 +773,17 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
-	rootNSHandle, err := util.GetRootNetNamespace(t.config.ProcRoot)
+	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
 	}
-	defer rootNSHandle.Close()
+	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(rootNSHandle)
+	rootNS, err := util.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
-	table, err := netlink.DumpHostTable(ctx, t.config.ProcRoot)
+	table, err := netlink.DumpHostTable(ctx, t.config)
 	if err != nil {
 		return nil, err
 	}
@@ -793,15 +797,11 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
 
-	if !supported {
-		log.Warnf("http monitoring is not supported by this kernel version. please refer to system-probe's documentation")
-		return nil
-	}
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
 	monitor, err := http.NewMonitor(c, offsets, sockFDMap)

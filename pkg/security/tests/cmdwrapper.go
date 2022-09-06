@@ -19,11 +19,12 @@ import (
 type wrapperType string
 
 const (
+	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
 	multiWrapperType  wrapperType = "multi"
 
-	defaultDockerImage = "ubuntu:focal"
+	defaultDockerImage = "public.ecr.aws/ubuntu/ubuntu:20.04"
 )
 
 type cmdWrapper interface {

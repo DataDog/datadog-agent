@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
 )
 
 type versionHistoryEntry struct {

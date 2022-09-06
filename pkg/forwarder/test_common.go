@@ -13,8 +13,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 )
 
 type testTransaction struct {
@@ -169,6 +170,11 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 
 // SubmitOrchestratorChecks mock
 func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitOrchestratorManifests mock
+func (tf *MockedForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
 

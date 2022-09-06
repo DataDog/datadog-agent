@@ -14,11 +14,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,7 +117,7 @@ func getAndWriteStatus(statusURL string, w io.Writer, options ...util.StatusOpti
 }
 
 func getStatusURL() (string, error) {
-	addressPort, err := api.GetAPIAddressPort()
+	addressPort, err := ddconfig.GetProcessAPIAddressPort()
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}
@@ -136,23 +133,7 @@ var StatusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
-	err := config.LoadConfigIfExists(cmd.Flag(flags.CfgPath).Value.String())
-	if err != nil {
-		writeError(os.Stdout, err)
-		return err
-	}
-
-	err = ddconfig.SetupLogger(
-		"process",
-		ddconfig.Datadog.GetString("log_level"),
-		"",
-		"",
-		false,
-		true,
-		false,
-	)
-	if err != nil {
-		writeError(os.Stdout, err)
+	if err := initConfig(os.Stdout, cmd); err != nil {
 		return err
 	}
 

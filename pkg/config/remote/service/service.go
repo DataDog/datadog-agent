@@ -8,16 +8,20 @@ package service
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -28,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.etcd.io/bbolt"
 )
 
 const (
@@ -251,6 +254,7 @@ func (s *Service) refresh() error {
 	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	err = s.uptane.Update(response)
@@ -306,6 +310,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	}
 
 	if !s.clients.active(request.Client) {
+		s.clients.seen(request.Client)
 		s.Unlock()
 		response := make(chan struct{})
 		s.newActiveClients.requests <- response
@@ -359,9 +364,14 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 		}
 	}
 
+	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       targetsRaw,
+		Targets:       canonicalTargets,
 		TargetFiles:   filteredFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
@@ -402,7 +412,11 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, root)
+		canonicalRoot, err := enforceCanonicalJSON(root)
+		if err != nil {
+			return nil, err
+		}
+		roots = append(roots, canonicalRoot)
 	}
 	return roots, nil
 }
@@ -544,4 +558,13 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	}
 
 	return nil
+}
+
+func enforceCanonicalJSON(raw []byte) ([]byte, error) {
+	canonical, err := cjson.EncodeCanonical(json.RawMessage(raw))
+	if err != nil {
+		return nil, err
+	}
+
+	return canonical, nil
 }

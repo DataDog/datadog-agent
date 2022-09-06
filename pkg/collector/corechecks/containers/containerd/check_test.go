@@ -11,11 +11,12 @@ package containerd
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestContainerdCheckGenericPart(t *testing.T) {

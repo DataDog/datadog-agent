@@ -40,50 +40,61 @@ func (m *Model) NewEventWithType(kind EventType) eval.Event {
 	}
 }
 
-// ValidateField validates the value of a field
-func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	// check that all path are absolute
-	if strings.HasSuffix(field, "path") {
+// check that all path are absolute
+func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
+	// do not support regular expression on path, currently unable to support discarder for regex value
+	if fieldValue.Type == eval.RegexpValueType {
+		return fmt.Errorf("regexp not supported on path `%s`", field)
+	}
 
-		// do not support regular expression on path, currently unable to support discarder for regex value
-		if fieldValue.Type == eval.RegexpValueType {
-			return fmt.Errorf("regexp not supported on path `%s`", field)
+	if value, ok := fieldValue.Value.(string); ok {
+		errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+		errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
+		errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+
+		if value == "" {
+			return nil
 		}
 
-		if value, ok := fieldValue.Value.(string); ok {
-			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
-			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
-			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+		if value != path.Clean(value) {
+			return errAbs
+		}
 
-			if value != path.Clean(value) {
+		if value == "*" {
+			return errAbs
+		}
+
+		if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
+			return errAbs
+		}
+
+		if strings.HasPrefix(value, "~") {
+			return errAbs
+		}
+
+		// check resolution limitations
+		segments := strings.Split(value, "/")
+		if len(segments) > MaxPathDepth {
+			return errDepth
+		}
+		for _, segment := range segments {
+			if segment == ".." {
 				return errAbs
 			}
+			if len(segment) > MaxSegmentLength {
+				return errSegment
+			}
+		}
+	}
 
-			if value == "*" {
-				return errAbs
-			}
+	return nil
+}
 
-			if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
-				return errAbs
-			}
-
-			if strings.HasPrefix(value, "~") {
-				return errAbs
-			}
-
-			// check resolution limitations
-			segments := strings.Split(value, "/")
-			if len(segments) > MaxPathDepth {
-				return errDepth
-			}
-			for _, segment := range segments {
-				if segment == ".." {
-					return errAbs
-				}
-				if len(segment) > MaxSegmentLength {
-					return errSegment
-				}
-			}
+// ValidateField validates the value of a field
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+	if strings.HasSuffix(field, "path") {
+		if err := validatePath(field, fieldValue); err != nil {
+			return err
 		}
 	}
 
@@ -126,8 +137,8 @@ type ChownEvent struct {
 // ContainerContext holds the container context of an event
 //msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                 // ID of the container
-	Tags []string `field:"tags,handler:ResolveContainerTags,weight:9999"` // Tags of the container
+	ID   string   `field:"id,handler:ResolveContainerID"`                              // ID of the container
+	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
@@ -136,7 +147,7 @@ type ContainerContext struct {
 type Event struct {
 	ID           string    `field:"-" json:"-"`
 	Type         uint32    `field:"-"`
-	Async        bool      `field:"async" msg:"async" event:"*"` // True if the syscall was asynchronous
+	Async        bool      `field:"async" event:"*"` // True if the syscall was asynchronous
 	TimestampRaw uint64    `field:"-" json:"-"`
 	Timestamp    time.Time `field:"-"` // Timestamp of the event
 
@@ -314,6 +325,11 @@ func (e *Process) GetPathResolutionError() string {
 	return ""
 }
 
+// LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
+type LinuxBinprm struct {
+	FileEvent FileEvent `field:"file" msg:"file"`
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext `msg:"pid_context"`
@@ -326,8 +342,9 @@ type Process struct {
 	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
 	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`              // Comm attribute of the process
+	TTYName     string      `field:"tty_name" msg:"tty,omitempty"`            // Name of the TTY associated with the process
+	Comm        string      `field:"comm" msg:"comm"`                         // Comm attribute of the process
+	LinuxBinprm LinuxBinprm `field:"interpreter" msg:"interpreter,omitempty"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`
@@ -428,9 +445,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 type FileEvent struct {
 	FileFields `msg:"file_fields"`
 
-	PathnameStr string `field:"path,handler:ResolveFilePath" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
-	BasenameStr string `field:"name,handler:ResolveFileBasename" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                        // File's filesystem
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" msg:"path" op_override:"ProcessSymlinkPathname"`     // File's path
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" msg:"name" op_override:"ProcessSymlinkBasename"` // File's basename
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem" msg:"filesystem"`                                    // File's filesystem
 
 	PathResolutionError error `field:"-" msg:"-" json:"-"`
 
@@ -659,9 +676,10 @@ type ProcessContext struct {
 
 // PIDContext holds the process context of an kernel event
 type PIDContext struct {
-	Pid   uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
-	Tid   uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
-	NetNS uint32 `field:"-" msg:"-"`
+	Pid       uint32 `field:"pid" msg:"pid"` // Process ID of the process (also called thread group ID)
+	Tid       uint32 `field:"tid" msg:"tid"` // Thread ID of the thread
+	NetNS     uint32 `field:"-" msg:"-"`
+	IsKworker bool   `field:"is_kworker" msg:"is_kworker"` // Indicates whether the process is a kworker
 }
 
 // RenameEvent represents a rename event
@@ -861,11 +879,11 @@ type NetworkContext struct {
 // DNSEvent represents a DNS event
 type DNSEvent struct {
 	ID    uint16 `field:"-" msg:"-" json:"-"`
-	Name  string `field:"question.name" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
-	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`        // a two octet code which specifies the DNS question type
-	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`    // the class looked up by the DNS question
-	Size  uint16 `field:"question.size" msg:"size"`                               // the total DNS request size in bytes
-	Count uint16 `field:"question.count" msg:"count"`                             // the total count of questions in the DNS request
+	Name  string `field:"question.name,opts:length" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
+	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`                    // a two octet code which specifies the DNS question type
+	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`                // the class looked up by the DNS question
+	Size  uint16 `field:"question.length" msg:"length"`                                       // the total DNS request size in bytes
+	Count uint16 `field:"question.count" msg:"count"`                                         // the total count of questions in the DNS request
 }
 
 // BindEvent represents a bind event

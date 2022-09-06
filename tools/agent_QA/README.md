@@ -8,13 +8,15 @@ A collection of scripts that generate release QA tasks for the logs agent in a T
 2. `source venv/bin/activate`
 3. `pip install -r requirements.txt`
 
-create a `.env` file (or supply env vars via CLI) with:
+In order to actually make a new board, create a `.env` file (or supply env vars via CLI) with:
 
 ```
 API_KEY=<TRELLO API KEY>
 API_SECRET=<TRELLO API SECRET>
 ORG_ID=<TRELLO ORG ID>
 ```
+
+If these are omitted, then the board is rendered to the console.
 
 ## Generate the board 
 

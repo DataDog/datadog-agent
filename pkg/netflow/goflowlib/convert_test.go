@@ -6,10 +6,12 @@
 package goflowlib
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"testing"
+
 	flowpb "github.com/netsampler/goflow2/pb"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 func Test_convertFlowType(t *testing.T) {

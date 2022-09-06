@@ -15,10 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 
+	"github.com/aws/aws-lambda-go/events"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 )
 
 func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event events.APIGatewayProxyRequest, region string) {
@@ -94,6 +95,9 @@ func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEve
 }
 
 func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
+	}
 	lp.addTag("function_trigger.event_source", "s3")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractS3EventArn(event))
 }

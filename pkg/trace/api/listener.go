@@ -10,9 +10,10 @@ import (
 	"net"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"go.uber.org/atomic"
 )
 
 // measuredListener wraps an existing net.Listener and emits metrics upon accepting connections.

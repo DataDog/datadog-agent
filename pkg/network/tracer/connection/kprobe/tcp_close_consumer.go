@@ -12,13 +12,14 @@ import (
 	"sync"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"go.uber.org/atomic"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"go.uber.org/atomic"
 )
 
 const (

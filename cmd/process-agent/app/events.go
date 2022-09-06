@@ -105,7 +105,7 @@ func printEvents(events ...*model.ProcessEvent) error {
 		return printEventsJSON(events)
 	}
 
-	fmtEvents := fmtProcessEvents(events)
+	fmtEvents := checks.FmtProcessEvents(events)
 	procCollector := &payload.CollectorProcEvent{Events: fmtEvents}
 	msgs := []payload.MessageBody{procCollector}
 	return checks.HumanFormatProcessEvents(msgs, os.Stdout, false)
@@ -206,54 +206,4 @@ func runEventStore(cmd *cobra.Command, args []string) error {
 	log.Flush()
 
 	return nil
-}
-
-// fmtProcessEvents formats process lifecyle events as an agent payload
-// The function in the checks package can't be exported without breaking the android build for the core-agent
-// TODO: fix it
-func fmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {
-	payloadEvents := make([]*payload.ProcessEvent, 0, len(events))
-
-	for _, e := range events {
-		pE := &payload.ProcessEvent{
-			CollectionTime: e.CollectionTime.UnixNano(),
-			Pid:            e.Pid,
-			ContainerId:    e.ContainerID,
-			Command: &payload.Command{
-				Exe:  e.Exe,
-				Args: e.Cmdline,
-				Ppid: int32(e.Ppid),
-			},
-			User: &payload.ProcessUser{
-				Name: e.Username,
-				Uid:  int32(e.UID),
-				Gid:  int32(e.GID),
-			},
-		}
-
-		switch e.EventType {
-		case model.Exec:
-			pE.Type = payload.ProcEventType_exec
-			exec := &payload.ProcessExec{
-				ForkTime: e.ForkTime.UnixNano(),
-				ExecTime: e.ExecTime.UnixNano(),
-			}
-			pE.TypedEvent = &payload.ProcessEvent_Exec{Exec: exec}
-		case model.Exit:
-			pE.Type = payload.ProcEventType_exit
-			exit := &payload.ProcessExit{
-				ExecTime: e.ExecTime.UnixNano(),
-				ExitTime: e.ExitTime.UnixNano(),
-				ExitCode: 0,
-			}
-			pE.TypedEvent = &payload.ProcessEvent_Exit{Exit: exit}
-		default:
-			log.Error("Unexpected event type, dropping it")
-			continue
-		}
-
-		payloadEvents = append(payloadEvents, pE)
-	}
-
-	return payloadEvents
 }

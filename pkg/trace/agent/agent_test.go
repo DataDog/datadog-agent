@@ -1264,6 +1264,7 @@ func benchThroughput(file string) func(*testing.B) {
 				time.Sleep(time.Millisecond)
 				continue
 			}
+			resp.Body.Close()
 			if resp.StatusCode == 400 {
 				break
 			}

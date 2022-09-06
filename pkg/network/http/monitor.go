@@ -13,11 +13,13 @@ import (
 
 	"sync"
 
+	"github.com/cilium/ebpf"
+
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 )
 
 // HTTPMonitorStats is used for holding two kinds of stats:
@@ -62,22 +64,17 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilter, EBPFFuncName: "socket__http_filter", UID: probeUID})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c.ProcRoot, filter)
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
 	batchMap, _, err := mgr.GetMap(httpBatchesMap)
-	if err != nil {
-		return nil, err
-	}
-
-	batchStateMap, _, err := mgr.GetMap(httpBatchStateMap)
 	if err != nil {
 		return nil, err
 	}
@@ -97,10 +94,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		}
 	}
 
+	batchManager, err := newBatchManager(batchMap, numCPUs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
+	}
+
 	return &Monitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
-		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
 		telemetrySnapshot:      nil,

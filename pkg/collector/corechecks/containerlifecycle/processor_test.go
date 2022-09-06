@@ -11,6 +11,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 

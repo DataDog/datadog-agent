@@ -6,9 +6,7 @@
 package api
 
 import (
-	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -25,6 +23,7 @@ func setupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/agent/status", statusHandler).Methods("GET")
+	r.HandleFunc("/agent/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 }
 
@@ -34,7 +33,7 @@ func StartServer() error {
 	r := mux.NewRouter()
 	setupHandlers(r)
 
-	addr, err := GetAPIAddressPort()
+	addr, err := ddconfig.GetProcessAPIAddressPort()
 	if err != nil {
 		return err
 	}
@@ -55,21 +54,4 @@ func StartServer() error {
 		}
 	}()
 	return nil
-}
-
-// GetAPIAddressPort returns a listening connection
-func GetAPIAddressPort() (string, error) {
-	address, err := ddconfig.GetIPCAddress()
-	if err != nil {
-		return "", err
-	}
-
-	port := ddconfig.Datadog.GetInt("process_config.cmd_port")
-	if port <= 0 {
-		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, ddconfig.DefaultProcessCmdPort)
-		port = ddconfig.DefaultProcessCmdPort
-	}
-
-	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
-	return addrPort, nil
 }

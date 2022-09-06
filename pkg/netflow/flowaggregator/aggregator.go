@@ -9,10 +9,11 @@ import (
 	"encoding/json"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
@@ -35,9 +36,11 @@ type FlowAggregator struct {
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
+	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	return &FlowAggregator{
 		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:           newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
+		flowAcc:           newFlowAccumulator(flushInterval, flowContextTTL),
 		flushInterval:     flowAggregatorFlushInterval,
 		sender:            sender,
 		stopChan:          make(chan struct{}),
@@ -118,14 +121,15 @@ func (agg *FlowAggregator) flushLoop() {
 
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
+	flowsContexts := agg.flowAcc.getFlowContextCount()
+	now := time.Now()
 	flowsToFlush := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder", len(flowsToFlush))
-	if len(flowsToFlush) == 0 {
-		return 0
-	}
-	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
+	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
 
-	agg.sendFlows(flowsToFlush)
+	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
+	if len(flowsToFlush) > 0 {
+		agg.sendFlows(flowsToFlush)
+	}
 
 	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)

@@ -487,6 +487,10 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Unlock()
 
 	for sub, evs := range filteredEvents {
+		if len(evs) == 0 {
+			continue
+		}
+
 		notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
@@ -539,10 +543,6 @@ func (s *store) unsubscribeAll() {
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
-	if len(events) == 0 {
-		return
-	}
-
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,

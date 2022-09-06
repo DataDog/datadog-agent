@@ -7,15 +7,17 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {

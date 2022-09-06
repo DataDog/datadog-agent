@@ -133,16 +133,25 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 		AlertType:      b.alertType,
-		Text: fmt.Sprintf(
-			"%%%%%% \n%s \n _Events emitted by the %s seen at %s since %s_ \n\n %%%%%%",
-			formatStringIntMap(b.countByAction),
-			b.component,
-			time.Unix(int64(b.lastTimestamp), 0),
-			time.Unix(int64(b.timeStamp), 0),
-		),
+		Text:           b.formatEventText(),
 	}
 
 	return output, nil
+}
+
+func (b *kubernetesEventBundle) formatEventText() string {
+	eventText := fmt.Sprintf(
+		"%%%%%% \n%s \n _Events emitted by the %s seen at %s since %s_ \n\n %%%%%%",
+		formatStringIntMap(b.countByAction),
+		b.component,
+		time.Unix(int64(b.lastTimestamp), 0),
+		time.Unix(int64(b.timeStamp), 0),
+	)
+
+	// Escape the ~ character to not strike out the text
+	eventText = strings.ReplaceAll(eventText, "~", "\\~")
+
+	return eventText
 }
 
 // getKindTag returns the kube_<kind>:<name> tag.
