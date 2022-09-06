@@ -15,15 +15,6 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/io_uring_req_pid") io_uring_req_pid = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(void*),
-    .value_size = sizeof(u64),
-    .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -204,30 +195,6 @@ struct io_open {
     struct openat2_open_how how;
 };
 
-void __attribute__((always_inline)) cache_io_openat_prep_pid(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
-}
-
-SEC("kprobe/__io_openat_prep")
-int kprobe___io_openat_prep(struct pt_regs *ctx) {
-    cache_io_openat_prep_pid(ctx);
-    return 0;
-}
-
-SEC("kprobe/io_openat_prep")
-int kprobe_io_openat_prep(struct pt_regs *ctx) {
-    cache_io_openat_prep_pid(ctx);
-    return 0;
-}
-
-SEC("kprobe/io_openat2_prep")
-int kprobe_io_openat2_prep(struct pt_regs *ctx) {
-    cache_io_openat_prep_pid(ctx);
-    return 0;
-}
-
 #ifndef VALID_OPEN_FLAGS
 #define VALID_OPEN_FLAGS \
         (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | \
@@ -357,14 +324,7 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 int __attribute__((always_inline)) handle_io_openat_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     void *raw_req = (void*) PT_REGS_PARM1(ctx);
-    u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
-    u64 pid_tgid = 0;
-    if (pid_tgid_ptr != NULL) {
-        pid_tgid = *pid_tgid_ptr;
-    } else {
-        pid_tgid = bpf_get_current_pid_tgid();
-    }
-
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
     return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
 }
 

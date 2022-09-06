@@ -36,22 +36,8 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/__io_openat_prep",
-			EBPFFuncName: "kprobe___io_openat_prep",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/io_openat_prep",
-			EBPFFuncName: "kprobe_io_openat_prep",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/io_openat2_prep",
-			EBPFFuncName: "kprobe_io_openat2_prep",
+			EBPFSection:  "kretprobe/io_ring_ctx_alloc",
+			EBPFFuncName: "kretprobe_io_ring_ctx_alloc",
 		},
 	},
 	{
