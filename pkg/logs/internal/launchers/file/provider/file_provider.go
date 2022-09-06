@@ -64,8 +64,31 @@ func NewFileProvider(filesLimit int, wildcardOrder wildcardOrdering, selectionMo
 }
 
 type matchCount struct {
-	added int
-	total int
+	tracked int
+	total   int
+}
+
+// wildcardFileCounter tracks how many files a wildcard source matches, and how many of those are actually tailed.
+type wildcardFileCounter struct {
+	counts map[*sources.LogSource]matchCount
+}
+
+func newWildcardFileCounter() wildcardFileCounter {
+	return wildcardFileCounter{
+		counts: map[*sources.LogSource]matchCount{},
+	}
+}
+
+func (w *wildcardFileCounter) addTracked(src *sources.LogSource) {
+	matchCnt, _ := w.counts[src]
+	matchCnt.tracked++
+	w.counts[src] = matchCnt
+}
+
+func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
+	matchCnt, _ := w.counts[src]
+	matchCnt.total = total
+	w.counts[src] = matchCnt
 }
 
 // FilesToTail returns all the Files matching paths in sources,
@@ -76,17 +99,17 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	matchedFileCountBySource := map[*sources.LogSource]matchCount{}
+	wildcardFileCounter := newWildcardFileCounter()
+	wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
+
 	consumeFiles := func(files []*tailer.File) {
+		// Add each file one by one
 		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
 			file := files[j]
 			filesToTail = append(filesToTail, file)
 			src := file.Source.UnderlyingSource()
 			if config.ContainsWildcard(src.Config.Path) {
-				// TODO refactor this nonsense into a struct or something
-				matchCnt := matchedFileCountBySource[src]
-				matchCnt.added++
-				matchedFileCountBySource[src] = matchCnt
+				wildcardFileCounter.addTracked(src)
 			}
 		}
 
@@ -103,8 +126,6 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		}
 	}
 
-	wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
-
 	// Process sources, saving wildcard sources for later if they're found
 	for i := 0; i < len(inputSources); i++ {
 		source := inputSources[i]
@@ -114,12 +135,12 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 			if p.selectionMode == GlobalSelection {
 				wildcardSources = append(wildcardSources, source)
 				continue
-			} // else if greedy, collect now one-by-one.
+			} // else if greedy, collect now source-by-source
 		}
 		files, err := p.CollectFiles(source)
 		if err != nil {
 			if isWildcardSource {
-				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("0 files tailed out of %d files matching", len(files)))
+				wildcardFileCounter.setTotal(source, len(files))
 			}
 
 			source.Status.Error(err)
@@ -130,9 +151,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		}
 
 		if isWildcardSource {
-			matchCnt := matchedFileCountBySource[source]
-			matchCnt.total = len(files)
-			matchedFileCountBySource[source] = matchCnt
+			wildcardFileCounter.setTotal(source, len(files))
 		}
 
 		consumeFiles(files)
@@ -143,22 +162,20 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
 		for _, source := range wildcardSources {
 			files, err := p.filesMatchingSource(source)
+			wildcardFileCounter.setTotal(source, len(files))
 			if err != nil {
-				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("0 files tailed out of %d files matching", len(files)))
 				continue
 			}
 			wildcardFiles = append(wildcardFiles, files...)
-			matchCnt := matchedFileCountBySource[source]
-			matchCnt.total = len(files)
-			matchedFileCountBySource[source] = matchCnt
 		}
 
 		p.applyOrdering(wildcardFiles)
-		fmt.Printf("Files after ordering: %v\n", wildcardFiles)
 		consumeFiles(wildcardFiles)
 	}
-	for source, matchCnt := range matchedFileCountBySource {
-		source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", matchCnt.added, matchCnt.total))
+
+	// Record what ratio of files each wildcard source tracked
+	for source, matchCnt := range wildcardFileCounter.counts {
+		source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", matchCnt.tracked, matchCnt.total))
 	}
 
 	if len(filesToTail) == p.filesLimit {
