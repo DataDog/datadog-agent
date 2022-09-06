@@ -616,7 +616,7 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		IsKworker:     ps.IsKworker,
 	}
 
-	if ps.LinuxBinprm.FileEvent.Inode != 0 {
+	if ps.HasInterpreter() {
 		psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
 	}
 
