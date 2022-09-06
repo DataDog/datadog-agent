@@ -112,15 +112,13 @@ struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
 struct proc_cache_t *get_proc_from_cookie(u32 cookie);
 
 struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
-    struct proc_cache_t *entry = NULL;
-
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
-    if (pid_entry) {
-        // Select the cache entry
-        u32 cookie = pid_entry->cookie;
-        entry = get_proc_from_cookie(cookie);
+    if (!pid_entry) {
+        return NULL;
     }
-    return entry;
+
+    // Select the cache entry
+    return get_proc_from_cookie(pid_entry->cookie);
 }
 
 struct bpf_map_def SEC("maps/netns_cache") netns_cache = {
