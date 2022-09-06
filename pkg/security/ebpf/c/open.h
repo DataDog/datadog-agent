@@ -26,7 +26,7 @@ struct open_event_t {
     u32 mode;
 };
 
-int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
+int __attribute__((always_inline)) trace__sys_openat2(u8 async, int flags, umode_t mode, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
     if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
@@ -42,9 +42,17 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
         }
     };
 
+    if (pid_tgid > 0) {
+        syscall.open.pid_tgid = pid_tgid;
+    }
+
     cache_syscall(&syscall);
 
     return 0;
+}
+
+int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
+    return trace__sys_openat2(async, flags, mode, 0);
 }
 
 SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
@@ -203,8 +211,7 @@ struct io_open {
          O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
 
-SEC("kprobe/io_openat2")
-int kprobe_io_openat2(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace_io_openat(struct pt_regs *ctx) {
     void *raw_req = (void *)PT_REGS_PARM1(ctx);
 
     struct io_open req;
@@ -212,15 +219,27 @@ int kprobe_io_openat2(struct pt_regs *ctx) {
         return 0;
     }
 
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
-        return trace__sys_openat(ASYNC_SYSCALL, flags, mode);
+        return trace__sys_openat2(ASYNC_SYSCALL, flags, mode, pid_tgid);
     } else {
         syscall->open.pid_tgid = get_pid_tgid_from_iouring(raw_req);
     }
     return 0;
+}
+
+SEC("kprobe/io_openat")
+int kprobe_io_openat(struct pt_regs *ctx) {
+    return trace_io_openat(ctx);
+}
+
+SEC("kprobe/io_openat2")
+int kprobe_io_openat2(struct pt_regs *ctx) {
+    return trace_io_openat(ctx);
 }
 
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
