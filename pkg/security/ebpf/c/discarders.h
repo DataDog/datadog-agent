@@ -129,6 +129,13 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
     }
 }
 
+u64* __attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
+    if (EVENT_FIRST_DISCARDER <= event_type && event_type < EVENT_LAST_DISCARDER) {
+        return &params->timestamps[event_type-EVENT_FIRST_DISCARDER];
+    }
+    return NULL;
+}
+
 void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
     if (entry == NULL) {
@@ -149,7 +156,7 @@ void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder
         return NULL;
     }
 
-    u64* pid_tm = get_discarder_timestamp(params, event_type);
+    u64* pid_tm = get_discarder_timestamp_from_map(params, event_type);
     if (pid_tm != NULL && *pid_tm && *pid_tm <= now) {
         return NULL;
     }
@@ -214,7 +221,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         }
         add_event_to_mask(&inode_params->params.event_mask, event_type);
 
-        if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
+        if ((discarder_timestamp = get_discarder_timestamp_from_map(&inode_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
 
@@ -345,7 +352,7 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
     if (pid_params) {
         add_event_to_mask(&pid_params->params.event_mask, event_type);
 
-        if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
+        if ((discarder_timestamp = get_discarder_timestamp_from_map(&pid_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
 
