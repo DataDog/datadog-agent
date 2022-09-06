@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	collectorID   = "cloudfoundry"
-	componentName = "workloadmeta-cloudfoundry"
+	collectorID             = "cloudfoundry"
+	componentName           = "workloadmeta-cloudfoundry"
+	sharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
 )
 
 type collector struct {
@@ -54,14 +55,14 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 	c.store = store
 
-	// Detect if we're on a PCF container by checking the cloud_foundry_buildpack property
+	// Detect if we're on a PCF container
 	if config.Datadog.GetBool("cloud_foundry_buildpack") {
-		log.Debugf("[PCF] Buildpack Container detected")
-		hostname, err := os.Hostname()
+		log.Infof("PCF container detected")
+		containerHostname, err := os.Hostname()
 		if err != nil {
 			return nil
 		}
-		c.nodeName = hostname
+		c.nodeName = containerHostname
 		return nil
 	}
 
@@ -82,8 +83,8 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 }
 
 func (c *collector) Pull(ctx context.Context) error {
-	// Detect if we're on a PCF container by checking the cloud_foundry_buildpack property
-	if config.Datadog.GetBool("cloudfoundry_buildpack") {
+	// Detect if we're on a PCF container
+	if config.Datadog.GetBool("cloud_foundry_buildpack") {
 		// In PCF, the container_id is the hostname
 		id, err := os.Hostname()
 		if err != nil {
@@ -100,19 +101,19 @@ func (c *collector) Pull(ctx context.Context) error {
 				Name: id,
 			},
 			Runtime: workloadmeta.ContainerRuntimeGarden,
-			State: workloadmeta.ContainerState{
-				Running: false, // TODO: Noueman - check the behavior of this property
-			},
 		}
 
 		containerEntity.CollectorTags = []string{
 			fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, id),
-			fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, id),
 		}
 
-		if dd_tags, ok := os.LookupEnv("DD_TAGS"); ok {
-			custom_dd_tags := strings.Split(dd_tags, ",")
-			containerEntity.CollectorTags = append(containerEntity.CollectorTags, custom_dd_tags...)
+		// read shared node tags file if it exists
+		sharedNodeTagsBytes, err := os.ReadFile(sharedNodeAgentTagsFile)
+		if err != nil {
+			log.Errorf("Error reading shared node agent tags file under '%s': %s", sharedNodeAgentTagsFile, err)
+		} else {
+			sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
+			containerEntity.CollectorTags = append(containerEntity.CollectorTags, sharedNodeTags...)
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
@@ -161,10 +162,12 @@ func (c *collector) Pull(ctx context.Context) error {
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)
 
+		log.Infof("Injecting tags into container %s", containerID)
+
 		// write tags to a file inside the container
 		p, err := container.Run(garden.ProcessSpec{
 			Path: "/usr/bin/tee",
-			Args: []string{"/home/vcap/app/.datadog/node_agent_tags.txt"},
+			Args: []string{sharedNodeAgentTagsFile},
 			User: "vcap",
 		}, garden.ProcessIO{
 			Stdin: strings.NewReader(strings.Join(tags, ",")),
