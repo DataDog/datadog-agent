@@ -38,8 +38,10 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
 #define map_update_with_telemetry(fn, map, args...)                              \
     do {                                                                         \
         int errno_ret, errno_slot;                                               \
+        long is4dot14; \
+        LOAD_CONSTANT("is4dot14", is4dot14); \
         errno_ret = fn(&map, args);                                              \
-        if (errno_ret < 0) {                                                     \
+        if ((is4dot14) && (errno_ret < 0)) {                                                     \
             unsigned long err_telemetry_key;                                     \
             LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                       \
             map_err_telemetry_t *entry =                                         \
@@ -59,8 +61,10 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
     do {                                                                                                  \
         int helper_indx = -1;                                                                             \
         int errno_slot;                                                                                   \
+        long is4dot14; \
+        LOAD_CONSTANT("is4dot14", is4dot14); \
         errno_ret = fn(dst, sz, src);                                                                     \
-        if (errno_ret < 0) {                                                                              \
+        if ((is4dot14) && (errno_ret < 0)) {                                                                              \
             unsigned long telemetry_program_id;                                                           \
             LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                              \
             helper_err_telemetry_t *entry =                                                               \
