@@ -54,7 +54,7 @@ func GetAllSymbolsByName(elfFile *elf.File, filePath string) (map[string]elf.Sym
 
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
 	if dynamicSymbolsErr != nil {
-		log.Warnf("failed getting dynamic symbols of elf file %q", filePath)
+		log.Warnf("Failed getting dynamic symbols of elf file %q", filePath)
 	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
