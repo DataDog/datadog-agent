@@ -411,10 +411,9 @@ int uprobe__gnutls_deinit(struct pt_regs *ctx) {
 }
 
 static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument) {
-    int errno;
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        PROBE_READ_USER(&path->buf[i], 1, &path_argument[i], errno);
+        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
         if (path->buf[i] == 0) {
             path->len = i;
             break;
