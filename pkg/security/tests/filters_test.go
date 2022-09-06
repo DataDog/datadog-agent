@@ -45,7 +45,7 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 	return int(fd), nil
 }
 
-func TestOpenBasenameApproverFilter(t *testing.T) {
+func TestFilterOpenBasenameApprover(t *testing.T) {
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -100,7 +100,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenLeafDiscarderFilter(t *testing.T) {
+func TestFilterOpenLeafDiscarder(t *testing.T) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -159,7 +159,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	}
 }
 
-func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
+func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -224,15 +224,15 @@ func testOpenParentDiscarderFilter(t *testing.T, parents ...string) {
 	}
 }
 
-func TestOpenParentDiscarderFilter(t *testing.T) {
-	testOpenParentDiscarderFilter(t, "parent")
+func TestFilterOpenParentDiscarder(t *testing.T) {
+	testFilterOpenParentDiscarder(t, "parent")
 }
 
-func TestOpenGrandParentDiscarderFilter(t *testing.T) {
-	testOpenParentDiscarderFilter(t, "grandparent", "parent")
+func TestFilterOpenGrandParentDiscarder(t *testing.T) {
+	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
-func TestDiscarderFilterMask(t *testing.T) {
+func TestFilterDiscarderMask(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mask_open_rule",
@@ -304,7 +304,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 	}))
 }
 
-func TestOpenFlagsApproverFilter(t *testing.T) {
+func TestFilterOpenFlagsApprover(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
@@ -357,7 +357,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenProcessPidDiscarder(t *testing.T) {
+func TestFilterOpenProcessPidDiscarder(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/test-oba-1" && process.file.path == "/bin/aaa"`,
@@ -421,7 +421,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	}
 }
 
-func TestDiscarderRetentionFilter(t *testing.T) {
+func TestFilterDiscarderRetention(t *testing.T) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{

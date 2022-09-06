@@ -675,6 +675,10 @@
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
         },
+        "interpreter": {
+          "$ref": "#/$defs/File",
+          "description": "File information of the interpreter"
+        },
         "container": {
           "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
@@ -786,6 +790,10 @@
         "executable": {
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
+        },
+        "interpreter": {
+          "$ref": "#/$defs/File",
+          "description": "File information of the interpreter"
         },
         "container": {
           "$ref": "#/$defs/ContainerContext",

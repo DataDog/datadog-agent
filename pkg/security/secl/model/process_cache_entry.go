@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	maxArgEnvSize = 256
+	// MaxArgEnvSize maximum size of one argument or environment variable
+	MaxArgEnvSize = 256
 )
 
 // SetSpan sets the span
@@ -113,6 +114,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
+	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
 	childEntry.SetParent(pc)
@@ -141,7 +143,7 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [maxArgEnvSize]byte
+	ValuesRaw [MaxArgEnvSize]byte
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
@@ -149,6 +151,8 @@ type ArgsEnvs struct {
 type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw []byte
+
+	TotalSize uint64
 
 	Container *list.Element
 
@@ -183,6 +187,8 @@ func (p *ArgsEnvsCacheEntry) release() {
 
 // Append an entry to the list
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
+	p.TotalSize += uint64(entry.Size)
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
@@ -223,7 +229,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == maxArgEnvSize {
+		if err != nil || entry.Size == MaxArgEnvSize {
 			if len(v) > 0 {
 				v[len(v)-1] = v[len(v)-1] + "..."
 			}

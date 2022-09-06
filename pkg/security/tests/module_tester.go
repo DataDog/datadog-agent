@@ -304,16 +304,26 @@ func getInode(tb testing.TB, path string) uint64 {
 
 //nolint:deadcode,unused
 func which(tb testing.TB, name string) string {
+	executable, err := whichNonFatal(name)
+	if err != nil {
+		tb.Fatalf("%s", err)
+	}
+	return executable
+}
+
+//nolint:deadcode,unused
+// whichNonFatal is "which" which returns an error instead of fatal
+func whichNonFatal(name string) (string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
-		tb.Fatalf("couldn't resolve %s: %v", name, err)
+		return "", fmt.Errorf("could not resolve %s: %v", name, err)
 	}
 
 	if dest, err := filepath.EvalSymlinks(executable); err == nil {
-		return dest
+		return dest, nil
 	}
 
-	return executable
+	return executable, nil
 }
 
 //nolint:deadcode,unused
@@ -730,6 +740,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		rs.AddListener(testMod)
 	})
 
+	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
+
 	if err := testMod.module.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
 	}
@@ -792,19 +804,22 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	}
 }
 
+func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+}
+
 func (tm *testModule) RegisterEventDiscarderHandler(cb eventDiscarderHandler) {
 	tm.eventDiscarderHandler.Lock()
 	tm.eventDiscarderHandler.callback = cb
 	tm.eventDiscarderHandler.Unlock()
 }
 
-func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *sprobe.Event, field string) {
 	tm.eventDiscarderHandler.RLock()
 	callback := tm.eventDiscarderHandler.callback
 	tm.eventDiscarderHandler.RUnlock()
 
 	if callback != nil {
-		discarder := &testDiscarder{event: event.(*sprobe.Event), field: field, eventType: eventType}
+		discarder := &testDiscarder{event: event, field: field, eventType: eventType}
 		_ = callback(discarder)
 	}
 }

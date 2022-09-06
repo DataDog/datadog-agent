@@ -14,6 +14,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
+    build_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -319,7 +320,17 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
     race=False,
+    kernel_release=None,
 ):
+    build_object_files(
+        ctx,
+        major_version=major_version,
+        arch=arch,
+        kernel_release=kernel_release,
+    )
+
+    build_embed_syscall_tester(ctx)
+
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
@@ -374,7 +385,9 @@ def build_stress_tests(
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
+    kernel_release=None,
 ):
+    build_embed_latency_tools(ctx)
     build_functional_tests(
         ctx,
         output=output,
@@ -384,6 +397,7 @@ def build_stress_tests(
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
     )
 
 
@@ -398,9 +412,8 @@ def stress_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
+    kernel_release=None,
 ):
-    build_embed_latency_tools(ctx)
-
     build_stress_tests(
         ctx,
         go_version=go_version,
@@ -409,6 +422,7 @@ def stress_tests(
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
     )
 
     run_functional_tests(
@@ -431,6 +445,7 @@ def functional_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
+    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -441,6 +456,7 @@ def functional_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         race=race,
+        kernel_release=kernel_release,
     )
 
     run_functional_tests(
@@ -492,6 +508,7 @@ def docker_functional_tests(
     static=False,
     bundle_ebpf=True,
     skip_linters=False,
+    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -502,6 +519,7 @@ def docker_functional_tests(
         bundle_ebpf=bundle_ebpf,
         static=static,
         skip_linters=skip_linters,
+        kernel_release=kernel_release,
     )
 
     dockerfile = """
@@ -687,3 +705,32 @@ def go_generate_check(ctx):
             for file in ft.dirty_files:
                 print(f"* {file}")
             raise Exit(code=1)
+
+
+@task
+def kitchen_prepare(ctx):
+    nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
+    testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
+    cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
+
+    testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
+    build_functional_tests(
+        ctx, bundle_ebpf=False, race=True, output=testsuite_out_path, nikos_embedded_path=nikos_embedded_path
+    )
+    stresssuite_out_path = os.path.join(cookbook_files_dir, "stresssuite")
+    build_stress_tests(ctx, output=stresssuite_out_path)
+
+    # Copy clang binaries
+    for bin in ["clang-bpf", "llc-bpf"]:
+        ctx.run(f"cp /tmp/{bin} {cookbook_files_dir}/{bin}")
+
+    ctx.run(f"cp /tmp/nikos.tar.gz {cookbook_files_dir}/")
+
+    ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
+    ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
+    src_path = os.environ.get("SRC_PATH", ".")
+    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+
+    ctx.run(f"mkdir -p {ebpf_runtime_dir}")
+    ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
+    ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")

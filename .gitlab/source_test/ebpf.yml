@@ -68,19 +68,9 @@ tests_ebpf_x64:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
     - export PATH=$PATH:$GOPATH/bin
-    - invoke -e security-agent.build-embed-syscall-tester
-    - invoke -e security-agent.build-embed-latency-tools
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --no-bundle-ebpf --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --race --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Copy nikos archive to be extracted in kitchen tests
-    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-     # Copy files needed for runtime compilation
+    - invoke -e security-agent.kitchen-prepare
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -102,19 +92,9 @@ tests_ebpf_arm64:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
     - export PATH=$PATH:$GOPATH/bin
-    - invoke -e security-agent.build-embed-syscall-tester --arch arm64
-    - invoke -e security-agent.build-embed-latency-tools
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --no-bundle-ebpf --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --race --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Copy nikos archive to be extracted in kitchen tests
-    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-    # Copy files needed for runtime compilation
+    - invoke -e security-agent.kitchen-prepare
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
