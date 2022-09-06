@@ -49,12 +49,12 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 func GetAllSymbolsByName(elfFile *elf.File, filePath string) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := elfFile.Symbols()
 	if regularSymbolsErr != nil {
-		log.Warnf("Failed getting regular symbols of elf file %q", filePath)
+		log.Warnf("Failed getting regular symbols of elf file %q: %w", filePath, regularSymbolsErr)
 	}
 
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
 	if dynamicSymbolsErr != nil {
-		log.Warnf("Failed getting dynamic symbols of elf file %q", filePath)
+		log.Warnf("Failed getting dynamic symbols of elf file %q: %w", filePath, dynamicSymbolsErr)
 	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
