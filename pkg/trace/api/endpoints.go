@@ -120,4 +120,8 @@ var endpoints = []Endpoint{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
 	},
+	{
+		Pattern: "/dogstatsd/v1/proxy",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
+	},
 }
