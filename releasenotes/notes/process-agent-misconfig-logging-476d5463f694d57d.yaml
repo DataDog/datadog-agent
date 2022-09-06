@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Logs a warning for misconfig check when hidepid=2 for the process agent.
