@@ -52,6 +52,12 @@ class CAPropertyView : public IPropertyView
     virtual ~CAPropertyView() { }
 };
 
+class ImmediateCAPropertyView : public CAPropertyView
+{
+  public:
+    ImmediateCAPropertyView(MSIHANDLE hInstall);
+};
+
 class DeferredCAPropertyView : public CAPropertyView
 {
   public:

@@ -52,6 +52,27 @@ CAPropertyView::CAPropertyView(MSIHANDLE hi)
 {
 }
 
+ImmediateCAPropertyView::ImmediateCAPropertyView(MSIHANDLE hi)
+: CAPropertyView(hi)
+{
+    std::wstring propertyNames[] = {
+        propertyDDAgentUserName,
+        propertyDDAgentUserPassword,
+        L"SYSPROBE_PRESENT",
+        L"NPM",
+        L"NPMFEATURE",
+    };
+
+    for ( auto propertyName : propertyNames ) {
+        std::wstring propertyValue;
+        if (loadPropertyString(this->_hInstall, propertyName.c_str(), propertyValue)) {
+            if (!propertyValue.empty()) {
+                this->values[propertyName] = propertyValue;
+            }
+        }
+    }
+}
+
 DeferredCAPropertyView::DeferredCAPropertyView(MSIHANDLE hi)
 : CAPropertyView(hi)
 {

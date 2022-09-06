@@ -87,7 +87,8 @@ BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID);
 // caninstall.cpp
 bool canInstall(
     const CustomActionData &data,
-    bool &bResetPassword);
+    bool &bResetPassword,
+    std::wstring *resultMessage);
 bool canInstall(
     bool isDC,
     bool isReadOnlyDC,
@@ -99,7 +100,8 @@ bool canInstall(
     std::wstring userDomain,
     std::wstring computerDomain,
     bool ddServiceExists,
-    bool &bResetPassword);
+    bool &bResetPassword,
+    std::wstring *resultMessage);
 extern HMODULE hDllModule;
 // rights we might be interested in
 /*

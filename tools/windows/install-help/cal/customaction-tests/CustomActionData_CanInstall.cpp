@@ -20,7 +20,8 @@ TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_WithPasswo
         L"",   /*userDomain*/
         L"",   /*computerDomain*/
         false, /*ddServiceExists*/
-        shouldResetPass);
+        shouldResetPass,
+        NULL);
     EXPECT_TRUE(result);
     EXPECT_FALSE(shouldResetPass);
 }
@@ -39,7 +40,8 @@ TEST_F(CustomActionDataTest, When_ServiceExists_And_NoUser_ReturnsFalse) {
         L"",   /*userDomain*/
         L"",   /*computerDomain*/
         true,  /*ddServiceExists*/
-        shouldResetPass);
+        shouldResetPass,
+        NULL);
 
     EXPECT_FALSE(result);
     EXPECT_FALSE(shouldResetPass);
@@ -59,7 +61,8 @@ TEST_F(CustomActionDataTest, When_ServiceExists_And_UserDoesNotExists_WithUserIn
         L"a",  /*userDomain*/
         L"b",  /*computerDomain*/
         true,  /*ddServiceExists*/
-        shouldResetPass);
+        shouldResetPass,
+        NULL);
 
     EXPECT_FALSE(result);
     EXPECT_FALSE(shouldResetPass);
@@ -80,7 +83,8 @@ TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserDoesNotExists_Wit
         L"a",  /*userDomain*/
         L"a",  /*computerDomain*/
         false, /*ddServiceExists*/
-        shouldResetPass);
+        shouldResetPass,
+        NULL);
 
     EXPECT_TRUE(result);
     EXPECT_FALSE(shouldResetPass);
@@ -101,7 +105,8 @@ TEST_F(CustomActionDataTest, When_User_Is_NTAUTHORITY_Dont_Reset_Password)
         L"",   /*userDomain*/
         L"",   /*computerDomain*/
         false, /*ddServiceExists*/
-        shouldResetPass);
+        shouldResetPass,
+        NULL);
 
     EXPECT_TRUE(result);
     EXPECT_FALSE(shouldResetPass);

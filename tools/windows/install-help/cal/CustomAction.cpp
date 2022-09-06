@@ -150,3 +150,53 @@ extern "C" BOOL WINAPI DllMain(__in HINSTANCE hInst, __in ULONG ulReason, __in L
 
     return TRUE;
 }
+
+/*
+ * Immediate custom action executed at the DDAgentUserDlg dialog
+ *
+ * Checks the provided username and password with the system
+ * state to ensure install should not fail.
+ *
+ */
+extern "C" UINT __stdcall ValidateDDAgentUserDlgInput(MSIHANDLE hInstall)
+{
+    UINT er = 0;
+    std::optional<CustomActionData> data;
+    bool bResetPassword = false;
+    std::wstring resultMessage;
+
+    HRESULT hr = WcaInitialize(hInstall, "CA: " __FUNCTION__);
+    ExitOnFailure(hr, "Failed to initialize");
+    WcaLog(LOGMSG_STANDARD, "Initialized.");
+
+    try {
+        auto propertyView = std::make_shared<ImmediateCAPropertyView>(hInstall);
+        data.emplace(propertyView);
+    } catch (...) {
+        WcaLog(LOGMSG_STANDARD, "Failed to load installer property data");
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
+    }
+
+    if (!canInstall(data.value(), bResetPassword, &resultMessage))
+    {
+        MsiSetProperty(hInstall, L"DDAgentUser_Valid", L"False");
+        MsiSetProperty(hInstall, L"DDAgentUser_ResultMessage", resultMessage.c_str());
+        // Must return success for the installer to continue
+        er = ERROR_SUCCESS;
+        goto LExit;
+    } else {
+        MsiSetProperty(hInstall, L"DDAgentUser_Valid", L"True");
+        MsiSetProperty(hInstall, L"DDAgentUser_ResultMessage", L"");
+        er = ERROR_SUCCESS;
+        goto LExit;
+    }
+
+LExit:
+    if (er == ERROR_SUCCESS)
+    {
+        er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    }
+    return WcaFinalize(er);
+}
+
