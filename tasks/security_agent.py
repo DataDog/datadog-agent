@@ -697,7 +697,7 @@ def go_generate_check(ctx):
         sys.stderr.flush()
         dirty_files = get_git_dirty_files()
         if dirty_files:
-            failing_tasks.append(FailingTask(task.name, dirty_files))
+            failing_tasks.append(FailingTask(task.__name__, dirty_files))
 
     if failing_tasks:
         for ft in failing_tasks:
