@@ -159,6 +159,84 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	}
 }
 
+// This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
+// This means that the event is actually forwarded to user space, but the rule should not be evaluated
+func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
+	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
+	// a discarder is created).
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.filename =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{enableActivityDump: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd int
+	var testFile string
+
+	testFile, _, err = test.Path("test-obc-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	outputDir := t.TempDir()
+	_, err = test.StartActivityDumpComm(t, "testsuite", outputDir, []string{"protobuf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if err := test.StopActivityDumpComm(t, "testsuite"); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	if err := test.GetEventDiscarder(t, func() error {
+		// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
+		// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
+		// retention period to expire, we're making sure that a newly created discarder will properly take effect.
+		time.Sleep(probe.DiscardRetention)
+
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(d *testDiscarder) bool {
+		e := d.event.(*probe.Event)
+		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+			return false
+		}
+		v, _ := e.GetFieldValue("open.file.path")
+		return v == testFile
+	}); err != nil {
+		inode := getInode(t, testFile)
+		parentInode := getInode(t, path.Dir(testFile))
+
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
+	}
+
+	// Check that we get a probe event "saved by activity dumps"
+	if err := test.GetProbeEvent(func() error {
+		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, func(event *probe.Event) bool {
+		return event.GetType() == "open" &&
+			event.SavedByActivityDumps &&
+			event.Open.File.Inode == getInode(t, testFile)
+	}, 3*time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
