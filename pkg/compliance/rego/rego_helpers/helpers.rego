@@ -1,6 +1,7 @@
 package helpers
 
 import data.datadog as dd
+import future.keywords.if
 
 has_key(o, k) {
 	_ := o[k]
@@ -122,4 +123,10 @@ audit_data(audit) = d {
 		"audit.path": audit.path,
 		"audit.permissions": audit.permissions,
 	}
+}
+
+file_process_flag(name) := resource if {
+	process := input.process
+	process.flags[name]
+	resource := json.patch(input.context.input.file.file, [{"op": "replace", "path": "/path", "value": process.flags[name]}]) 
 }

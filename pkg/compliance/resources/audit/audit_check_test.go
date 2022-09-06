@@ -6,6 +6,7 @@
 package audit
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -32,22 +33,24 @@ func TestAuditCheck(t *testing.T) {
 		setup        setupEnvFunc
 		expectReport *compliance.Report
 	}{
-		{
-			name:  "no file rules",
-			rules: []*rule.FileWatchRule{},
-			resource: compliance.RegoInput{
-				ResourceCommon: compliance.ResourceCommon{
-					Audit: &compliance.Audit{
-						Path: "/etc/docker/daemon.json",
+		/*
+			{
+				name:  "no file rules",
+				rules: []*rule.FileWatchRule{},
+				resource: compliance.RegoInput{
+					ResourceCommon: compliance.ResourceCommon{
+						Audit: &compliance.Audit{
+							Path: "/etc/docker/daemon.json",
+						},
 					},
 				},
+				hostPath: "./testdata/daemon.json",
+				expectReport: &compliance.Report{
+					Passed: false,
+					Data:   event.Data{},
+				},
 			},
-			hostPath: "./testdata/daemon.json",
-			expectReport: &compliance.Report{
-				Passed: false,
-				Data:   event.Data{},
-			},
-		},
+		*/
 		{
 			name: "file rule present",
 			rules: []*rule.FileWatchRule{
@@ -108,7 +111,7 @@ func TestAuditCheck(t *testing.T) {
 			resource: compliance.RegoInput{
 				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
-						Path: `process.flag("docker", "--config-file")`,
+						Path: `process.flag("dockerd", "--config-file")`,
 					},
 				},
 			},
@@ -194,7 +197,7 @@ findings[f] {
         f := dd.failing_finding(
                 h.resource_type,
                 h.resource_id,
-                {},
+                { "error": input },
         )
 }
 
@@ -214,6 +217,9 @@ findings[f] {
 
 			result := auditCheck.Check(env)
 			assert.NotEmpty(result)
+
+			jsonResult, _ := json.MarshalIndent(result, "", "  ")
+			t.Log(string(jsonResult))
 
 			assert.Equal(test.expectReport.Passed, result[0].Passed)
 			assert.Equal(test.expectReport.Data, result[0].Data)

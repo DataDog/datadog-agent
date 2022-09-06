@@ -14,13 +14,13 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
+	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	resource_test "github.com/DataDog/datadog-agent/pkg/compliance/resources/tests"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 
@@ -129,67 +129,68 @@ func TestFileCheck(t *testing.T) {
 
 	arrayModule := `package datadog
 
-			import data.datadog as dd
-			import data.helpers as h
+	import data.datadog as dd
+	import data.helpers as h
 
-			max_permissions(file, consts) {
-					file.permissions == bits.and(file.permissions, parse_octal(consts.max_permissions))
-			}
+	max_permissions(file, consts) {
+			file.permissions == bits.and(file.permissions, parse_octal(consts.max_permissions))
+	}
 
-			valid_file(file) {
-				%s
-			}
+	valid_file(file) {
+		%s
+	}
 
-			findings[f] {
-					file := input.file[_]
-					valid_file(file)
-					max_permissions(file, input.constants)
-					f := dd.passed_finding(
-							h.resource_type,
-							h.resource_id,
-							h.file_data(file),
-					)
-			}
+	findings[f] {
+			file := input.file[_]
+			valid_file(file)
+			max_permissions(file, input.constants)
+			f := dd.passed_finding(
+					h.resource_type,
+					h.resource_id,
+					h.file_data(file),
+			)
+	}
 
-			findings[f] {
-					file := input.file[_]
-					valid_file(file)
-					not max_permissions(file, input.constants)
-					f := dd.failing_finding(
-							h.resource_type,
-							h.resource_id,
-							h.file_data(file),
-					)
-			}
+	findings[f] {
+			file := input.file[_]
+			valid_file(file)
+			not max_permissions(file, input.constants)
+			f := dd.failing_finding(
+					h.resource_type,
+					h.resource_id,
+					h.file_data(file),
+			)
+	}
 
-			findings[f] {
-					count(input.file) == 0
-					f := dd.error_finding(
-							h.resource_type,
-							h.resource_id,
-							sprintf("no files found for file check \"%%s\"", [input.context.input.file.file.path]),
-					)
-			}
+	findings[f] {
+			count(input.file) == 0
+			f := dd.error_finding(
+					h.resource_type,
+					h.resource_id,
+					sprintf("no files found for file check \"%%s\"", [input.context.input.file.file.path]),
+			)
+	}
 
-			findings[f] {
-					not h.has_key(input, "file")
-					f := dd.error_finding(
-							h.resource_type,
-							h.resource_id,
-							sprintf("failed to resolve path: empty path from %%s", [input.context.input.file.file.path]),
-					)
-			}
-			`
+	findings[f] {
+			not h.has_key(input, "file")
+			f := dd.error_finding(
+					h.resource_type,
+					h.resource_id,
+					sprintf("failed to resolve path: empty path from %%s", [input.context.input.file.file.path]),
+			)
+	}
+	`
 
 	tests := []struct {
-		name           string
-		module         string
-		resource       compliance.RegoInput
-		setup          setupFileFunc
-		validate       validateFunc
-		maxPermissions string
-		expectError    error
-		processes      processutils.Processes
+		name                string
+		module              string
+		additionalResources []compliance.RegoInput
+		resource            compliance.RegoInput
+		setup               setupFileFunc
+		validate            validateFunc
+		maxPermissions      string
+		expectError         error
+		processes           processutils.Processes
 	}{
 		{
 			name: "file permissions",
@@ -214,7 +215,6 @@ func TestFileCheck(t *testing.T) {
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
 				assert.Equal(file.Path, report.Data["file.path"])
-				assert.Equal(json.Number(strconv.Itoa(0644)), report.Data["file.permissions"])
 			},
 			maxPermissions: "644",
 		},
@@ -244,7 +244,6 @@ func TestFileCheck(t *testing.T) {
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.True(report.Passed)
 				assert.Regexp("/etc/test-[0-9]-[0-9]+", report.Data["file.path"])
-				assert.Equal(json.Number(strconv.Itoa(0644)), report.Data["file.permissions"])
 			},
 			maxPermissions: "644",
 		},
@@ -315,6 +314,49 @@ func TestFileCheck(t *testing.T) {
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
 				assert.False(report.Passed)
+				assert.Equal("/etc/docker/daemon.json", report.Data["file.path"])
+				assert.NotEmpty(report.Data["file.user"])
+				assert.NotEmpty(report.Data["file.group"])
+			},
+		},
+		{
+			name: "jq(experimental) and path expression",
+			additionalResources: []compliance.RegoInput{{
+				ResourceCommon: compliance.ResourceCommon{
+					Process: &compliance.Process{
+						Name: "dockerd",
+					},
+				},
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "false"`,
+			}},
+			resource: compliance.RegoInput{
+				ResourceCommon: compliance.ResourceCommon{
+					File: &compliance.File{
+						Path:   `process.flag("dockerd", "--config-file")`,
+						Parser: "json",
+					},
+				},
+				Type: "object",
+				// Condition: `file.jq(".experimental") == "false"`,
+				Transform: `h.file_process_flag("--config-file")`,
+			},
+			processes: processutils.Processes{
+				42: {
+					Name:    "dockerd",
+					Cmdline: []string{"dockerd", "--config-file=/etc/docker/daemon.json"},
+				},
+			},
+			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
+			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				path := "/etc/docker/daemon.json"
+				env.On("MaxEventsPerRun").Return(30).Maybe()
+				env.On("NormalizeToHostRoot", path).Return("./testdata/daemon.json")
+				env.On("RelativeToHostRoot", "./testdata/daemon.json").Return(path)
+				setDefaultHooks(env)
+			},
+			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
+				assert.True(report.Passed)
 				assert.Equal("/etc/docker/daemon.json", report.Data["file.path"])
 				assert.NotEmpty(report.Data["file.user"])
 				assert.NotEmpty(report.Data["file.group"])
@@ -523,6 +565,7 @@ func TestFileCheck(t *testing.T) {
 				regoRule.Inputs[1].Constants.Values["max_permissions"] = "777"
 			}
 			regoRule.Inputs[1].Constants.Values["resource_type"] = "docker_daemon"
+			regoRule.Inputs = append(test.additionalResources, regoRule.Inputs...)
 			fileCheck := rego.NewCheck(regoRule)
 			err := fileCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
 			assert.NoError(err)

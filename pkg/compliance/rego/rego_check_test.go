@@ -38,9 +38,14 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		Findings: f.findings,
 	}
 
+	inputs := make([]regoInput, len(f.inputs))
+	for i, input := range f.inputs {
+		inputs[i] = regoInput{RegoInput: input}
+	}
+
 	regoCheck := &regoCheck{
 		ruleID: ruleID,
-		inputs: f.inputs,
+		inputs: inputs,
 	}
 
 	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {

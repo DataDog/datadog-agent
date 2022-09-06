@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 )
 
 const regoEvaluator = "rego"
+const regoParseTimeout = 20 * time.Second
 const regoEvalTimeout = 20 * time.Second
 
 var (
@@ -42,21 +44,32 @@ var (
 	ErrResourceFailedToResolve = errors.New("failed to resolve resource")
 )
 
+type regoInput struct {
+	compliance.RegoInput
+	preparedTransformQuery rego.PreparedEvalQuery
+}
+
 type regoCheck struct {
 	evalLock sync.Mutex
 
-	metrics        metrics.Metrics
-	ruleID         string
-	ruleScope      compliance.RuleScope
-	inputs         []compliance.RegoInput
-	regoModuleArgs []func(*rego.Rego)
+	metrics           metrics.Metrics
+	ruleID            string
+	ruleScope         compliance.RuleScope
+	inputs            []regoInput
+	regoModuleArgs    []func(*rego.Rego)
+	preparedEvalQuery rego.PreparedEvalQuery
 }
 
 // NewCheck returns a new rego based check
 func NewCheck(rule *compliance.RegoRule, m metrics.Metrics) *regoCheck {
+	inputs := make([]regoInput, len(rule.Inputs))
+	for i, input := range rule.Inputs {
+		inputs[i] = regoInput{RegoInput: input}
+	}
+
 	return &regoCheck{
 		ruleID:  rule.ID,
-		inputs:  rule.Inputs,
+		inputs:  inputs,
 		metrics: m,
 	}
 }
@@ -77,8 +90,48 @@ func importModule(importPath, parentDir string, required bool) (string, error) {
 	return string(mod), nil
 }
 
+func importRuleModules(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), error) {
+	var parentDir string
+	if meta.Source != "" {
+		parentDir = filepath.Dir(meta.Source)
+	}
+
+	var options []func(*rego.Rego)
+	alreadyImported := make(map[string]bool)
+
+	// import rego file with the same name as the rule id
+	imp := fmt.Sprintf("%s.rego", rule.ID)
+	mod, err := importModule(imp, parentDir, false)
+	if err != nil {
+		return nil, err
+	}
+	if mod != "" {
+		options = append(options, rego.Module(imp, mod))
+	}
+	alreadyImported[imp] = true
+
+	// import explicitly required imports
+	for _, imp := range rule.Imports {
+		if imp == "" || alreadyImported[imp] {
+			continue
+		}
+
+		mod, err := importModule(imp, parentDir, true)
+		if err != nil {
+			return nil, err
+		}
+
+		if mod != "" {
+			options = append(options, rego.Module(imp, mod))
+		}
+		alreadyImported[imp] = true
+	}
+
+	return options, nil
+}
+
 func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), string, error) {
-	options := make([]func(*rego.Rego), 0)
+	var options []func(*rego.Rego)
 
 	options = append(options, rego.Module("datadog_helpers.rego", helpers))
 
@@ -102,42 +155,66 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 		log.Infof("defaulting rego query to `%s`", query)
 	}
 
-	var parentDir string
-	if meta.Source != "" {
-		parentDir = filepath.Dir(meta.Source)
-	}
-
-	alreadyImported := make(map[string]bool)
-
-	// import rego file with the same name as the rule id
-	imp := fmt.Sprintf("%s.rego", rule.ID)
-	mod, err := importModule(imp, parentDir, false)
+	ruleModules, err := importRuleModules(rule, meta)
 	if err != nil {
 		return nil, "", err
 	}
-	if mod != "" {
-		options = append(options, rego.Module(imp, mod))
-	}
-	alreadyImported[imp] = true
 
-	// import explicitly required imports
-	for _, imp := range rule.Imports {
-		if imp == "" || alreadyImported[imp] {
-			continue
-		}
+	return append(options, ruleModules...), query, nil
+}
 
-		mod, err := importModule(imp, parentDir, true)
-		if err != nil {
-			return nil, "", err
-		}
+func computeRuleTransform(rule *compliance.RegoRule, res compliance.RegoInput, meta *compliance.SuiteMeta) ([]func(*rego.Rego), string, error) {
+	var options []func(*rego.Rego)
 
-		if mod != "" {
-			options = append(options, rego.Module(imp, mod))
-		}
-		alreadyImported[imp] = true
+	options = append(options, rego.Module("datadog_helpers.rego", helpers))
+
+	input := res.Transform
+	if !strings.HasSuffix(input, "package ") {
+		input = `package datadog
+				
+		import data.datadog as dd
+		import data.helpers as h
+		import future.keywords.if
+
+		` + string(res.Kind()) + " := " + res.Transform
 	}
 
-	return options, query, nil
+	mod, err := ast.ParseModule(fmt.Sprintf("__gen__rule_%s_transform.rego", rule.ID), input)
+	if err != nil {
+		return nil, "", err
+	}
+
+	options = append(options, rego.ParsedModule(mod))
+
+	query := fmt.Sprintf("%v.%s", mod.Package.Path, res.Kind())
+
+	ruleModules, err := importRuleModules(rule, meta)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return append(options, ruleModules...), query, nil
+}
+
+func (r *regoCheck) prepareQuery(moduleArgs []func(*rego.Rego), query string) (rego.PreparedEvalQuery, error) {
+	log.Debugf("rego query: %v", query)
+	moduleArgs = append(moduleArgs, rego.Query(query))
+
+	// rego builtins
+	moduleArgs = append(moduleArgs, regoBuiltins...)
+
+	moduleArgs = append(
+		moduleArgs,
+		rego.EnablePrintStatements(true),
+		rego.PrintHook(&regoPrintHook{}),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), regoParseTimeout)
+	defer cancel()
+
+	return rego.New(
+		moduleArgs...,
+	).PrepareForEval(ctx)
 }
 
 func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
@@ -155,24 +232,71 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 		rego.Metrics(r.metrics))
 
 	moduleArgs = append(moduleArgs, ruleModules...)
-	moduleArgs = append(moduleArgs, rego.Query(query))
 
-	log.Debugf("rego query: %v", query)
+	preparedEvalQuery, err := r.prepareQuery(moduleArgs, query)
+	if err != nil {
+		return err
+	}
 
+	r.preparedEvalQuery = preparedEvalQuery
+	r.ruleScope = ruleScope
 	r.regoModuleArgs = moduleArgs
+
+	// resource transformers
+	for i, input := range r.inputs {
+		if input.Transform == "" {
+			continue
+		}
+
+		moduleArgs = make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
+
+		ruleModules, query, err = computeRuleTransform(rule, input.RegoInput, meta)
+		if err != nil {
+			return err
+		}
+		moduleArgs = append(moduleArgs, ruleModules...)
+
+		preparedTransformQuery, err := r.prepareQuery(moduleArgs, query)
+		if err != nil {
+			return err
+		}
+
+		r.inputs[i].preparedTransformQuery = preparedTransformQuery
+	}
 
 	return nil
 }
 
 func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
-	objectsPerTags := make(map[string]interface{})
-	arraysPerTags := make(map[string][]interface{})
-
 	contextInput := r.buildContextInput(env)
-	objectsPerTags["context"] = contextInput
 
-	for _, input := range r.inputs {
-		resolve, _, err := resourceKindToResolverAndFields(env, input.Kind())
+	input := make(map[string]interface{})
+	input["context"] = contextInput
+
+	addObjectInput := func(tagName string, obj interface{}) {
+		input[tagName] = obj
+	}
+
+	addArrayInput := func(tagName string, obj interface{}) error {
+		vars, exists := input[tagName]
+		if !exists {
+			vars = []interface{}{}
+		}
+
+		array, ok := vars.([]interface{})
+		if !ok {
+			return fmt.Errorf("mixing array and object for '%s'", tagName)
+		}
+
+		if obj != nil {
+			input[tagName] = append(array, obj)
+		}
+
+		return nil
+	}
+
+	for _, regoInput := range r.inputs {
+		resolve, _, err := resourceKindToResolverAndFields(env, regoInput.Kind())
 		if err != nil {
 			return nil, err
 		}
@@ -180,20 +304,38 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), compliance.DefaultTimeout)
 		defer cancel()
 
-		resolved, err := resolve(ctx, env, r.ruleID, input.ResourceCommon, true)
+		if regoInput.Transform != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
+			defer cancel()
+
+			results, err := regoInput.preparedTransformQuery.Eval(ctx, rego.EvalInput(input))
+			if err != nil {
+				return nil, err
+			}
+
+			if len(results) == 0 || len(results[0].Expressions) == 0 {
+				return nil, errors.New("failed to retrieve transformed resource")
+			}
+
+			if err := parseResource(&regoInput.ResourceCommon, results[0].Expressions[0].Value, string(regoInput.Kind())); err != nil {
+				return nil, err
+			}
+		}
+
+		resolved, err := resolve(ctx, env, r.ruleID, regoInput.ResourceCommon, true)
 		if err != nil {
 			log.Warnf("failed to resolve input: %v", err)
 			continue
 		}
 
-		tagName := extractTagName(&input)
+		tagName := extractTagName(&regoInput.RegoInput)
 
-		inputType, err := input.ValidateInputType()
+		inputType, err := regoInput.ValidateInputType()
 		if err != nil {
 			return nil, err
 		}
 
-		if _, present := objectsPerTags[tagName]; present {
+		if _, present := input[tagName]; present {
 			return nil, fmt.Errorf("already defined tag: `%s`", tagName)
 		}
 
@@ -201,18 +343,20 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		case nil:
 			switch inputType {
 			case "array":
-				r.appendInstance(arraysPerTags, tagName, nil)
+				addArrayInput(tagName, nil)
 			case "object":
-				objectsPerTags[tagName] = &struct{}{}
+				// objectsPerTags[tagName] = &struct{}{}
+				addObjectInput(tagName, &struct{}{})
 			default:
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
 		case resources.ResolvedInstance:
 			switch inputType {
 			case "array":
-				r.appendInstance(arraysPerTags, tagName, res)
+				addArrayInput(tagName, res.RegoInput())
 			case "object":
-				objectsPerTags[tagName] = res.RegoInput()
+				// objectsPerTags[tagName] = res.RegoInput()
+				addObjectInput(tagName, res.RegoInput())
 			default:
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
 			}
@@ -220,8 +364,9 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			// create an empty array as a base
 			// this is useful if the iterator is empty for example, as it will ensure we at least
 			// export an empty array to the rego input
-			if _, present := arraysPerTags[tagName]; !present && inputType == "array" {
-				arraysPerTags[tagName] = []interface{}{}
+			if _, present := input[tagName]; !present && inputType == "array" {
+				// arraysPerTags[tagName] = []interface{}{}
+				input[tagName] = []interface{}{}
 			}
 
 			var instance eval.Instance
@@ -234,28 +379,17 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 				}
 
 				if inputType == "array" {
-					r.appendInstance(arraysPerTags, tagName, instance)
+					addArrayInput(tagName, instance.RegoInput())
 				}
 			}
 
 			if inputType == "object" {
 				if instanceCount != 1 {
-					return nil, fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(input.Kind()), instanceCount, inputType)
+					return nil, fmt.Errorf("input `%s` returned %d entries, expected 1 with kind `%s`", string(regoInput.Kind()), instanceCount, inputType)
 				}
-				objectsPerTags[tagName] = instance.RegoInput()
+				addObjectInput(tagName, instance.RegoInput())
 			}
 		}
-	}
-
-	input := make(map[string]interface{})
-	for k, v := range objectsPerTags {
-		input[k] = v
-	}
-	for k, v := range arraysPerTags {
-		if _, present := input[k]; present {
-			return nil, fmt.Errorf("multiple definitions of tag: `%s`", k)
-		}
-		input[k] = v
 	}
 
 	return input, nil
@@ -280,17 +414,17 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 	}
 }
 
-func buildMappedInputs(inputs []compliance.RegoInput) map[string]compliance.RegoInput {
+func buildMappedInputs(inputs []regoInput) map[string]compliance.RegoInput {
 	res := make(map[string]compliance.RegoInput)
 	for _, input := range inputs {
-		tagName := extractTagName(&input)
+		tagName := extractTagName(&input.RegoInput)
 
 		if _, present := res[tagName]; present {
 			log.Warnf("error building mapped input context: duplicated tag")
 			return nil
 		}
 
-		res[tagName] = input
+		res[tagName] = input.RegoInput
 	}
 	return res
 }
@@ -517,6 +651,24 @@ func (finding *regoFinding) normalizeStatus() error {
 	}
 
 	finding.Status = mapped
+	return nil
+}
+
+func parseResource(res *compliance.ResourceCommon, regoData interface{}, tagName string) error {
+	m, ok := regoData.(map[string]interface{})
+	if !ok {
+		return errors.New("failed to parse finding")
+	}
+
+	objInput := map[string]interface{}{
+		tagName: m,
+	}
+
+	var decodeMetadata mapstructure.Metadata
+	if err := mapstructure.DecodeMetadata(objInput, res, &decodeMetadata); err != nil {
+		return err
+	}
+
 	return nil
 }
 
