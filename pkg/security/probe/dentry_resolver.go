@@ -457,7 +457,6 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	var cacheKey PathKey
 	var cacheEntry *PathEntry
 	var err, resolutionErr error
-	var filename string
 	var name string
 	var path PathLeaf
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
@@ -472,11 +471,13 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	var keys []PathKey
 	var entries []*PathEntry
 
+	filenameParts := make([]string, 0, 128)
+
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
 		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
-			filename = ""
+			filenameParts = nil
 			err = errDentryPathKeyNotFound
 			break
 		}
@@ -498,7 +499,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 			name = "/"
 		} else {
 			name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			filename = "/" + name + filename
+			filenameParts = append(filenameParts, name)
 		}
 
 		// do not cache fake path keys in the case of rename events
@@ -517,9 +518,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		key = path.Parent
 	}
 
-	if len(filename) == 0 {
-		filename = "/"
-	}
+	filename := computeFilenameFromParts(filenameParts)
 
 	// resolution errors are more important than regular map lookup errors
 	if resolutionErr != nil {
