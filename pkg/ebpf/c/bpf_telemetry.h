@@ -6,10 +6,7 @@
 #include "map-defs.h"
 #include "defs.h"
 
-// The telemetry functions with fail on kernel 4.4, due to
-// reasons described here: https://github.com/DataDog/datadog-agent/blob/main/pkg/network/ebpf/c/http.h#L74
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || RHEL_MAJOR == 7
-
 #define IS_PROBE_READ(fn) \
     ((((unsigned long)fn) == BPF_FUNC_probe_read) || (((unsigned long)fn) == BPF_FUNC_probe_read_str))
 #else
@@ -30,11 +27,12 @@
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-
 BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
 
+// The telemetry functions with fail on kernel 4.4, due to
+// reasons described here: https://github.com/DataDog/datadog-agent/blob/main/pkg/network/ebpf/c/http.h#L74
+// Therefore we shortcircuit if the kernel version we are running on is not 4.14
 #define map_update_with_telemetry(fn, map, args...)                              \
     do {                                                                         \
         int errno_ret, errno_slot;                                               \
@@ -88,15 +86,6 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
             }                                                                                             \
         }                                                                                                 \
     } while (0)
-
-#else
-#define map_update_with_telemetry(fn, map, args...) \
-    fn(&map, args)
-
-#define helper_with_telemetry(fn, errno_ret, dst, sz, src) \
-    errno_ret = fn(dst, sz, src)
-
-#endif // LINUX_VERSION_CODE >= 4.14.0
 
 #define MAP_UPDATE(map, key, val, flags) \
     map_update_with_telemetry(bpf_map_update_elem, map, key, val, flags)
