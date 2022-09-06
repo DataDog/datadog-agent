@@ -129,6 +129,16 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
     }
 }
 
+// This function is doing the same thing as the one before, but can only work if `params` is a pointer to a map value
+// and not a pointer to the stack since kernels < 4.15 does not allow this. On the other hand it is faster and needs less
+// instructions.
+u64* __attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
+    if (EVENT_FIRST_DISCARDER <= event_type && event_type < EVENT_LAST_DISCARDER) {
+        return &params->timestamps[event_type-EVENT_FIRST_DISCARDER];
+    }
+    return NULL;
+}
+
 void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
     if (entry == NULL) {
@@ -149,7 +159,7 @@ void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder
         return NULL;
     }
 
-    u64* pid_tm = get_discarder_timestamp(params, event_type);
+    u64* pid_tm = get_discarder_timestamp_from_map(params, event_type);
     if (pid_tm != NULL && *pid_tm && *pid_tm <= now) {
         return NULL;
     }
@@ -214,7 +224,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         }
         add_event_to_mask(&inode_params->params.event_mask, event_type);
 
-        if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
+        if ((discarder_timestamp = get_discarder_timestamp_from_map(&inode_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
 
@@ -239,21 +249,31 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
-    // should we ignore the discarder check because of an activity dump ?
-    if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
-        // do not discard this event
-        return 0;
-    }
+typedef enum discard_check_state {
+    NOT_DISCARDED,
+    DISCARDED,
+    SAVED_BY_AD,
+} discard_check_state;
 
-    // fall back to the "normal" discarder check
+discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+    // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
     struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
-        return 0;
+        return NOT_DISCARDED;
     }
 
-    return inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
+    bool is_discarded = inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
+    if (!is_discarded) {
+        return NOT_DISCARDED;
+    }
+
+    // should we ignore the discarder check because of an activity dump ?
+    if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
+        // do not discard this event
+        return SAVED_BY_AD;
+    }
+    return DISCARDED;
 }
 
 void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
@@ -335,7 +355,7 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
     if (pid_params) {
         add_event_to_mask(&pid_params->params.event_mask, event_type);
 
-        if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
+        if ((discarder_timestamp = get_discarder_timestamp_from_map(&pid_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
 
@@ -395,7 +415,7 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
                     },
                 },
             };
-            if (is_discarded_by_inode(&params)) {
+            if (is_discarded_by_inode(&params) == DISCARDED) {
                 return 1;
             }
         }
