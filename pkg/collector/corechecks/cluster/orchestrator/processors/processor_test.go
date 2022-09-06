@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Item struct {
@@ -42,4 +44,34 @@ func TestChunkItems(t *testing.T) {
 
 	actual := chunkResources(items, 3, 2)
 	assert.ElementsMatch(t, expected, actual)
+}
+
+func TestSortedMarshal(t *testing.T) {
+	p := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-pod",
+			Annotations: map[string]string{
+				"b-annotation":   "test",
+				"ab-annotation":  "test",
+				"a-annotation":   "test",
+				"ac-annotation":  "test",
+				"ba-annotation":  "test",
+				"1ab-annotation": "test",
+			},
+		},
+	}
+	yaml, err := json.Marshal(p)
+	assert.NoError(t, err)
+
+	/*	Expected order should be :
+			"1ab-annotation": "test",
+		    "a-annotation":   "test",
+			"ab-annotation":  "test",
+			"ac-annotation":  "test",
+			"b-annotation":   "test",
+			"ba-annotation":  "test",
+	*/
+	expectedYaml := `{"metadata":{"name":"test-pod","creationTimestamp":null,"annotations":{"1ab-annotation":"test","a-annotation":"test","ab-annotation":"test","ac-annotation":"test","b-annotation":"test","ba-annotation":"test"}},"spec":{"containers":null},"status":{}}`
+	actualYaml := string(yaml)
+	assert.Equal(t, expectedYaml, actualYaml)
 }

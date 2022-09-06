@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
 // ProcessorContext holds resource processing attributes
 type ProcessorContext struct {
 	APIClient  *apiserver.APIClient
@@ -141,7 +143,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		p.h.ScrubBeforeMarshalling(ctx, resource)
 
 		// Marshal the resource to generate the YAML field.
-		yaml, err := jsoniter.Marshal(resource)
+		yaml, err := json.Marshal(resource)
 		if err != nil {
 			log.Warnf(newMarshallingError(err).Error())
 			continue
