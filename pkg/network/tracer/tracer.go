@@ -146,12 +146,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	var bpfTelemetrySupported uint64
 	if usmSupported {
-		bpfTelemetrySupported = 1
+		bpfTelemetrySupported = (1 << 64) - 1
 	} else {
 		bpfTelemetrySupported = 0
 	}
 	constantEditors = append(constantEditors, manager.ConstantEditor{
-		Name:  "is4dot14",
+		Name:  "k414mask",
 		Value: bpfTelemetrySupported,
 	})
 	ebpfTracer, err := kprobe.New(config, constantEditors)
@@ -823,12 +823,12 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *er
 
 	var bpfTelemetrySupported uint64
 	if currKernelVersion >= kernel.VersionCode(4, 14, 0) {
-		bpfTelemetrySupported = 1
+		bpfTelemetrySupported = (1 << 64) - 1
 	} else {
 		bpfTelemetrySupported = 0
 	}
 	offsets = append(offsets, manager.ConstantEditor{
-		Name:  "is4dot14",
+		Name:  "k414mask",
 		Value: bpfTelemetrySupported,
 	})
 

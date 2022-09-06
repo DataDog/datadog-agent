@@ -36,10 +36,10 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
 #define map_update_with_telemetry(fn, map, args...)                              \
     do {                                                                         \
         int errno_ret, errno_slot;                                               \
-        long is4dot14; \
-        LOAD_CONSTANT("is4dot14", is4dot14); \
+        long k414mask; \
+        LOAD_CONSTANT("k414mask", k414mask); \
         errno_ret = fn(&map, args);                                              \
-        if ((is4dot14) && (errno_ret < 0)) {                                                     \
+        if (errno_ret < 0) {                                                     \
             unsigned long err_telemetry_key;                                     \
             LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                       \
             map_err_telemetry_t *entry =                                         \
@@ -50,6 +50,7 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
                     errno_slot = T_MAX_ERRNO - 1;                                \
                 }                                                                \
                 errno_slot &= (T_MAX_ERRNO - 1);                                 \
+                errno_slot &= k414mask; \
                 __sync_fetch_and_add(&entry->err_count[errno_slot], 1);          \
             }                                                                    \
         }                                                                        \
