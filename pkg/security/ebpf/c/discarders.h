@@ -397,28 +397,8 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
         return 1;
     }
 
-    if (mode != NO_FILTER) {
-        // try with pid first
-        if (is_discarded_by_pid(event_type, tgid)) {
-            return 1;
-        }
-
-        struct proc_cache_t *pc = get_proc_cache(tgid);
-        if (pc != NULL) {
-            struct is_discarded_by_inode_t params = {
-                .event_type = event_type,
-                .discarder = {
-                    .path_key = {
-                        .ino = pc->entry.executable.path_key.ino,
-                        .mount_id = pc->entry.executable.path_key.mount_id,
-                        // we don't want to copy the path_id
-                    },
-                },
-            };
-            if (is_discarded_by_inode(&params) == DISCARDED) {
-                return 1;
-            }
-        }
+    if (mode != NO_FILTER && is_discarded_by_pid(event_type, tgid)) {
+        return 1;
     }
 
     return 0;
