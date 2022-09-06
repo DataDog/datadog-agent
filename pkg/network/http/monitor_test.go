@@ -63,7 +63,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
@@ -146,7 +146,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 				EnableKeepAlives: true,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil)
+			monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -210,7 +210,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				SlowResponse: slowResponseTimeout,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil)
+			monitor, err := NewMonitor(config.New(), nil, nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
