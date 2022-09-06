@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
@@ -45,9 +46,16 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 }
 
 // GetAllSymbolsByName returns all the elf file's symbols mapped by their name.
-func GetAllSymbolsByName(elfFile *elf.File) (map[string]elf.Symbol, error) {
+func GetAllSymbolsByName(elfFile *elf.File, filePath string) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := elfFile.Symbols()
+	if regularSymbolsErr != nil {
+		log.Warnf("failed getting regular symbols of elf file %q", filePath)
+	}
+
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
+	if dynamicSymbolsErr != nil {
+		log.Warnf("failed getting dynamic symbols of elf file %q", filePath)
+	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
