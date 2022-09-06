@@ -455,7 +455,7 @@ func StartAgent() error {
 	common.AC.LoadAndRun(common.MainCtx)
 
 	// check for common misconfigurations and report them to log
-	misconfig.ToLog()
+	misconfig.ToLog(misconfig.CoreAgent)
 
 	// setup the metadata collector
 	common.MetadataScheduler = metadata.NewScheduler(demux)
