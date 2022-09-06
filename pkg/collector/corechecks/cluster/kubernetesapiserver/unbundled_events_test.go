@@ -73,10 +73,12 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					Priority: metrics.EventPriorityNormal,
 					Host:     "test-host-test-cluster",
 					Tags: []string{
+						"kube_kind:Pod",
+						"kube_name:redis",
 						"kubernetes_kind:Pod",
 						"name:redis",
-						"namespace:default",
 						"kube_namespace:default",
+						"namespace:default",
 						"pod_name:redis",
 						"source_component:kubelet",
 						"event_reason:Failed",

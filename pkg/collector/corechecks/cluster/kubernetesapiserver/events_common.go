@@ -11,7 +11,7 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"strings"
-	"sync"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -19,11 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/patrickmn/go-cache"
 )
 
 var (
-	hostProviderIDMutex sync.Mutex
-	hostProviderIDCache map[string]string
+	hostProviderIDCache *cache.Cache
 )
 
 type eventHostInfo struct {
@@ -46,17 +46,24 @@ func getDDAlertType(k8sType string) metrics.EventAlertType {
 }
 
 func getInvolvedObjectTags(involvedObject v1.ObjectReference) []string {
+	// NOTE: we now standardized on using kube_* tags, instead of
+	// non-namespaced ones, or kubernetes_*. The latter two are now
+	// considered deprecated.
 	tags := []string{
+		fmt.Sprintf("kube_kind:%s", involvedObject.Kind),
+		fmt.Sprintf("kube_name:%s", involvedObject.Name),
+
+		// DEPRECATED:
 		fmt.Sprintf("kubernetes_kind:%s", involvedObject.Kind),
 		fmt.Sprintf("name:%s", involvedObject.Name),
 	}
 
 	if involvedObject.Namespace != "" {
 		tags = append(tags,
-			// TODO remove the deprecated namespace tag, we should
-			// only rely on kube_namespace
-			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 			fmt.Sprintf("kube_namespace:%s", involvedObject.Namespace),
+
+			// DEPRECATED:
+			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 	}
 
@@ -89,11 +96,8 @@ func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
 }
 
 func getHostProviderID(nodename string) string {
-	hostProviderIDMutex.Lock()
-	defer hostProviderIDMutex.Unlock()
-
-	if hostProviderID, hit := hostProviderIDCache[nodename]; hit {
-		return hostProviderID
+	if hostProviderID, hit := hostProviderIDCache.Get(nodename); hit {
+		return hostProviderID.(string)
 	}
 
 	cl, err := apiserver.GetAPIClient()
@@ -119,7 +123,7 @@ func getHostProviderID(nodename string) string {
 	s := strings.Split(providerID, "/")
 	hostProviderID := s[len(s)-1]
 
-	hostProviderIDCache[nodename] = hostProviderID
+	hostProviderIDCache.Set(nodename, hostProviderID, cache.DefaultExpiration)
 
 	return hostProviderID
 }
@@ -143,5 +147,5 @@ func buildReadableKey(obj v1.ObjectReference) string {
 }
 
 func init() {
-	hostProviderIDCache = make(map[string]string)
+	hostProviderIDCache = cache.New(time.Hour, time.Hour)
 }
