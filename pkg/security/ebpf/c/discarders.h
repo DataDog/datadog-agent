@@ -246,7 +246,7 @@ typedef enum discard_check_state {
 } discard_check_state;
 
 discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
-    // fall back to the "normal" discarder check
+    // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
     struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
