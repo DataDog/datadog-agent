@@ -160,7 +160,7 @@ func TestGetPayload(t *testing.T) {
 
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 123)
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
-	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
+	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
 
 	p := GetPayload(ctx, "testHostname", coll, true)
 
