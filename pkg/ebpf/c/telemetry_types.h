@@ -14,7 +14,7 @@ typedef struct {
 #define read_indx 0
 #define read_user_indx 1
 #define read_kernel_indx 2
-#define MAX_TELEMETRY_INDX read_kernel_indx
+#define MAX_TELEMETRY_INDX 3
 typedef struct {
     unsigned int err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
 } helper_err_telemetry_t;

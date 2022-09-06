@@ -6,6 +6,7 @@
 package telemetry
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"syscall"
@@ -20,6 +21,16 @@ const (
 	maxErrno    = 64
 	maxErrnoStr = "other"
 )
+
+const (
+	readIndx int = iota
+	readUserIndx
+	readKernelIndx
+)
+
+var errIgnore = errors.New("ignore telemetry")
+
+var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel"}
 
 // BPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
@@ -67,6 +78,60 @@ func (b *BPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	}
 
 	return t
+}
+
+func (b *BPFTelemetry) GetHelperTelemetry() map[string]interface{} {
+	var val HelperErrTelemetry
+	t := make(map[string]interface{})
+
+	for m, k := range b.probeKeys {
+		err := b.HelperErrMap.Lookup(&k, &val)
+		if err != nil {
+			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
+		}
+		t[m], err = getHelperTelemetry(&val)
+		if err != nil {
+			delete(t, m)
+		}
+	}
+
+	return t
+}
+
+func getHelperTelemetry(v *HelperErrTelemetry) (map[string]interface{}, error) {
+	var err error
+	ignore := errIgnore
+	helper := make(map[string]interface{})
+
+	for indx, name := range helperNames {
+		helper[name], err = getErrCount(v, indx)
+		if err != nil {
+			delete(helper, name)
+		} else {
+			ignore = nil
+		}
+	}
+
+	return helper, ignore
+}
+
+func getErrCount(v *HelperErrTelemetry, indx int) (map[string]uint32, error) {
+	errCount := make(map[string]uint32)
+	err := errIgnore
+	for i := 0; i < maxErrno; i++ {
+		count := v.Count[(maxErrno*indx)+i]
+		if count != 0 {
+			if (i + 1) == maxErrno {
+				errCount[maxErrnoStr] = count
+			} else {
+				errCount[syscall.Errno(i).Error()] = count
+			}
+
+			err = nil
+		}
+	}
+
+	return errCount, err
 }
 
 func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {

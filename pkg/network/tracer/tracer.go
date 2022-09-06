@@ -606,6 +606,7 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	bpfMapStats
 	bpfHelperStats
 )
 
@@ -619,6 +620,7 @@ var allStats = []statsComp{
 	stateStats,
 	tracerStats,
 	bpfHelperStats,
+	bpfMapStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -651,8 +653,10 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
-		case bpfHelperStats:
+		case bpfMapStats:
 			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
+		case bpfHelperStats:
+			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		}
 	}
 
