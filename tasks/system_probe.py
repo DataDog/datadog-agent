@@ -205,7 +205,7 @@ def ninja_cgo_type_files(nw, windows):
             pool="cgo_pool",
             command="powershell -Command \"(cd $in_dir) -and "
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path > $out_file)"
+            + "go run $script_path > $out_file)",
         )
     else:
         go_platform = "linux"
@@ -222,14 +222,14 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/http-types.h",
-            ]
+            ],
         }
         nw.rule(
             name="godefs",
             pool="cgo_pool",
             command="cd $in_dir && "
             + "CC=clang go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path > $out_file"
+            + "go run $script_path > $out_file",
         )
 
     script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
