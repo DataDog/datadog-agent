@@ -36,17 +36,18 @@ type batchManager struct {
 	numCPUs    int
 }
 
-func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManager {
+func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 	batch := new(httpBatch)
-	state := new(C.http_batch_state_t)
 	stateByCPU := make([]usrBatchState, numCPUs)
 
 	for i := 0; i < numCPUs; i++ {
 		// Initialize eBPF maps
-		batchStateMap.Put(unsafe.Pointer(&i), unsafe.Pointer(state))
 		for j := 0; j < HTTPBatchPages; j++ {
 			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
-			batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+			err := batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -54,7 +55,7 @@ func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManag
 		batchMap:   batchMap,
 		stateByCPU: stateByCPU,
 		numCPUs:    numCPUs,
-	}
+	}, nil
 }
 
 func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]httpTX, error) {

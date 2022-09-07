@@ -922,6 +922,7 @@ core,go.uber.org/automaxprocs/maxprocs,MIT,"Copyright (c) 2017 Uber Technologies
 core,go.uber.org/multierr,MIT,"Copyright (c) 2017-2021 Uber Technologies, Inc"
 core,go.uber.org/zap,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/buffer,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go.uber.org/zap/internal,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/internal/bufferpool,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
