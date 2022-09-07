@@ -39,14 +39,14 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 			func(cfg *config.AgentConfig) {
 				cfg.StatsdHost = "this is invalid"
 			},
-			http.StatusBadRequest,
+			http.StatusInternalServerError,
 		},
 		{
 			"bad statsd port",
 			func(cfg *config.AgentConfig) {
 				cfg.StatsdPort = -1
 			},
-			http.StatusBadRequest,
+			http.StatusInternalServerError,
 		},
 	}
 	for _, tc := range testCases {
@@ -76,6 +76,7 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 }
 
 func TestDogStatsDReverseProxyEndToEnd(t *testing.T) {
+	// This test is based on pkg/dogstatsd/server_test.go.
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
@@ -100,8 +101,9 @@ func TestDogStatsDReverseProxyEndToEnd(t *testing.T) {
 	receiver := newTestReceiverFromConfig(cfg)
 	proxy := receiver.dogstatsdProxyHandler()
 	require.NotNil(t, proxy)
-
 	rec := httptest.NewRecorder()
+
+	// Test metrics
 	body := ioutil.NopCloser(bytes.NewBufferString("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -116,6 +118,18 @@ func TestDogStatsDReverseProxyEndToEnd(t *testing.T) {
 	assert.Equal(t, sample.Mtype, metrics.GaugeType)
 	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
 	demux.Reset()
+
+	// Test services
+	body = ioutil.NopCloser(bytes.NewBufferString("_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
+	proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
+	require.Equal(t, http.StatusOK, rec.Code)
+	_, serviceOut := demux.GetEventsAndServiceChecksChannels()
+	select {
+	case res := <-serviceOut:
+		assert.NotNil(t, res)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
 }
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
