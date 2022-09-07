@@ -107,6 +107,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
 			{Name: "pending_http_process"},
+			{Name: "sk_filter_trim_cap_args"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -131,8 +132,15 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kprobe__security_sock_rcv_skb",
+					EBPFSection:  "kprobe/sk_filter_trim_cap",
+					EBPFFuncName: "kprobe__sk_filter_trim_cap",
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kretprobe/sk_filter_trim_cap",
+					EBPFFuncName: "kretprobe__sk_filter_trim_cap",
 					UID:          probeUID,
 				},
 			},
@@ -224,8 +232,15 @@ func (e *ebpfProgram) Init() error {
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kprobe__security_sock_rcv_skb",
+					EBPFSection:  "kprobe/sk_filter_trim_cap",
+					EBPFFuncName: "kprobe__sk_filter_trim_cap",
+					UID:          probeUID,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kretprobe/sk_filter_trim_cap",
+					EBPFFuncName: "kretprobe__sk_filter_trim_cap",
 					UID:          probeUID,
 				},
 			},

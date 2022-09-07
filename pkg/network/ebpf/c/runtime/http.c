@@ -133,10 +133,31 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/security_sock_rcv_skb")
-int kprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
+SEC("kprobe/sk_filter_trim_cap")
+int kprobe__sk_filter_trim_cap(struct pt_regs* ctx) {
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     struct sk_buff *skb = (struct sk_buff*)PT_REGS_PARM2(ctx);
+
+    sk_filter_trim_cap_args_t args;
+    __builtin_memset(&args, 0, sizeof(args));
+    bpf_probe_read(&args.sk, sizeof(sk), &sk);
+    bpf_probe_read(&args.skb, sizeof(skb), &skb);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&sk_filter_trim_cap_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/sk_filter_trim_cap")
+int kretprobe__sk_filter_trim_cap(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    sk_filter_trim_cap_args_t *args = bpf_map_lookup_elem(&sk_filter_trim_cap_args, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+
+    struct sk_buff *skb = args->skb;
+    struct sock *sk = args->sk;
+    bpf_map_delete_elem(&sk_filter_trim_cap_args, &pid_tgid);
 
     u64 key = (u64)skb;
     pending_http_process_t *pending = bpf_map_lookup_elem(&pending_http_process, &key);
