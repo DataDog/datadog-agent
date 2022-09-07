@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Windows: Add config option to allow control how often the agent should refresh performance counters.
