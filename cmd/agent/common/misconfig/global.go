@@ -34,7 +34,6 @@ const (
 var checks = map[string]check{}
 
 // nolint: deadcode, unused
-func registerCheck(name string, c checkFn) {
-	supportedAgentsSet := map[AgentType]struct{}{CoreAgent: {}, ProcessAgent: {}}
+func registerCheck(name string, c checkFn, supportedAgentsSet map[AgentType]struct{}) {
 	checks[name] = check{name: name, run: c, supportedAgents: supportedAgentsSet}
 }
