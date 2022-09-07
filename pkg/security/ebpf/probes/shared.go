@@ -40,4 +40,25 @@ var sharedProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_mnt_want_write_file_path",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/io_ring_ctx_alloc",
+			EBPFFuncName: "kretprobe_io_ring_ctx_alloc",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/io_allocate_scq_urings",
+			EBPFFuncName: "kprobe_io_allocate_scq_urings",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/io_sq_offload_start",
+			EBPFFuncName: "kprobe_io_sq_offload_start",
+		},
+	},
 }
