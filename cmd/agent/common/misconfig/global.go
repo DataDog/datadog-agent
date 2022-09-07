@@ -18,6 +18,7 @@ func ToLog(agent AgentType) {
 	}
 }
 
+// AgentType denotes the type of agent that is currently being run
 type AgentType int
 type checkFn func() error
 type check struct {
@@ -27,7 +28,9 @@ type check struct {
 }
 
 const (
+	// CoreAgent is an enum to denote AgentType
 	CoreAgent = iota
+	// ProcessAgent is an enum to denote AgentType
 	ProcessAgent
 )
 
