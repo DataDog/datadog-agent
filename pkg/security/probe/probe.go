@@ -1513,7 +1513,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
