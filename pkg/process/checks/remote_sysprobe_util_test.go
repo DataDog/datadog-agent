@@ -96,6 +96,8 @@ func TestMergeProcWithSysprobeStats(t *testing.T) {
 		mockSysProbe := netMocks.NewSysProbeUtil(t)
 		mockSysProbe.On("GetProcStats", []int32{1}).Return(nil, fmt.Errorf("catastrophic failure"))
 
+		mergeProcWithSysprobeStats([]int32{1}, map[int32]*procutil.Process{1: proc1}, mockSysProbe)
+
 		assert.False(t, hasSysProbeStats(proc1))
 	})
 }
