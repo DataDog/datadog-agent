@@ -2,6 +2,7 @@
 #include "customaction-tests.h"
 #include "customaction.h"
 #include "customactiondata.h"
+#include "PropertyViewMock.h"
 #undef min
 #undef max
 #include <optional>

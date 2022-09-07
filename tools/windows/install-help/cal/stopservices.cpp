@@ -491,7 +491,8 @@ DWORD DoStartSvc(std::wstring &svcname)
             if (GetTickCount() - dwStartTickCount > ssStatus.dwWaitHint)
             {
                 // No progress made within the wait hint.
-                WcaLog(LOGMSG_STANDARD, "Exiting start loop; no progress made after %d ms", (int)(GetTickCount() - dwStartTickCount) );
+                WcaLog(LOGMSG_STANDARD, "Exiting start loop; no progress made after %d ms",
+                       (int)(GetTickCount() - dwStartTickCount));
                 break;
             }
         }
@@ -501,15 +502,17 @@ DWORD DoStartSvc(std::wstring &svcname)
 
     if (ssStatus.dwCurrentState == SERVICE_RUNNING)
     {
-        WcaLog(LOGMSG_STANDARD, "Service started successfully (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
+        WcaLog(LOGMSG_STANDARD, "Service started successfully (Elapsed %d)\n",
+               (int)(GetTickCount() - dwStartTickCount));
     }
-    else if(ssStatus.dwCurrentState == SERVICE_START_PENDING)
+    else if (ssStatus.dwCurrentState == SERVICE_START_PENDING)
     {
-        WcaLog(LOGMSG_STANDARD, "Service start in progress, continuing install (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
+        WcaLog(LOGMSG_STANDARD, "Service start in progress, continuing install (Elapsed %d)\n",
+               (int)(GetTickCount() - dwStartTickCount));
     }
     else
     {
-        WcaLog(LOGMSG_STANDARD, "Service not started. (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount) );
+        WcaLog(LOGMSG_STANDARD, "Service not started. (Elapsed %d)\n", (int)(GetTickCount() - dwStartTickCount));
         WcaLog(LOGMSG_STANDARD, "  Current State: %d\n", ssStatus.dwCurrentState);
         WcaLog(LOGMSG_STANDARD, "  Exit Code: %d\n", ssStatus.dwWin32ExitCode);
         WcaLog(LOGMSG_STANDARD, "  Check Point: %d\n", ssStatus.dwCheckPoint);
@@ -715,15 +718,16 @@ class serviceDef
         }
         {
             WcaLog(LOGMSG_STANDARD, "Resetting dependencies");
-            BOOL bRet = ChangeServiceConfigW(hService, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE,
-                                             NULL, NULL, NULL, this->lpDependencies, NULL, NULL, NULL);
+            BOOL bRet = ChangeServiceConfigW(hService, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE, NULL,
+                                             NULL, NULL, this->lpDependencies, NULL, NULL, NULL);
             if (!bRet)
             {
                 retval = GetLastError();
                 WcaLog(LOGMSG_STANDARD, "Failed to update service dependency config %d\n", retval);
                 goto done_verify;
             }
-            WcaLog(LOGMSG_STANDARD, "Updated dependencies for existing service, dependencies now %S", this->lpDependencies);
+            WcaLog(LOGMSG_STANDARD, "Updated dependencies for existing service, dependencies now %S",
+                   this->lpDependencies);
         }
 
     done_verify:
@@ -735,11 +739,14 @@ class serviceDef
 
         return retval;
     }
-    const wchar_t* getServiceName() const { return this->svcName;  }
+    const wchar_t *getServiceName() const
+    {
+        return this->svcName;
+    }
 };
 
-static    wchar_t * probeDepsNoNPM = L"datadogagent\0\0";
-static    wchar_t * probeDepsWithNPM = L"datadogagent\0ddnpm\0\0";
+static wchar_t *probeDepsNoNPM = L"datadogagent\0\0";
+static wchar_t *probeDepsWithNPM = L"datadogagent\0ddnpm\0\0";
 
 int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
 {
@@ -758,7 +765,8 @@ int installServices(CustomActionData &data, PSID sid, const wchar_t *password)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START,
+                   NULL, NULL)
 
     };
     // by default, don't add sysprobe
@@ -906,7 +914,8 @@ int verifyServices(CustomActionData &data)
         serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
                    process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
         serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START, NULL, NULL)
+                   sysprobe_exe.c_str(), data.npmPresent() ? probeDepsWithNPM : probeDepsNoNPM, SERVICE_DEMAND_START,
+                   NULL, NULL)
 
     };
     // by default, don't add sysprobe
@@ -939,7 +948,7 @@ int verifyServices(CustomActionData &data)
         retval = services[i].verify(hScManager);
         if (retval != 0)
         {
-            if(ERROR_SERVICE_DOES_NOT_EXIST == retval && i > 1)
+            if (ERROR_SERVICE_DOES_NOT_EXIST == retval && i > 1)
             {
                 // i > 1 b/c we can't do this for core or trace, since they run as
                 // ddagentuser and we don't have the password.  process & npm run
@@ -954,11 +963,12 @@ int verifyServices(CustomActionData &data)
                 // than ddagentuser; otherwise, we wouldn't have the password at this
                 // point and this wouldn't work.
                 retval = services[i].create(hScManager);
-                if(0 != retval)
+                if (0 != retval)
                 {
                     // if we can't create it, don't fail the upgrade,just log and
                     // continue on.  The existing services can/should still function
-                    WcaLog(LOGMSG_STANDARD, "Failed to create new service during upgrade %S %d %d 0x%x", services[i].getServiceName(), i, retval, retval);
+                    WcaLog(LOGMSG_STANDARD, "Failed to create new service during upgrade %S %d %d 0x%x",
+                           services[i].getServiceName(), i, retval, retval);
                     WcaLog(LOGMSG_STANDARD, "Allowing upgrade to proceed");
                     // since we're allowing the upgrade to continue, reset the error code to zero
                     // in case this is the last one. Don't want to fail the upgrade by mistake
@@ -970,15 +980,17 @@ int verifyServices(CustomActionData &data)
                 // since we just created this service, we need to allow the datadog
                 // agent core service to start/stop it
                 retval = EnableServiceForUser(data.Sid(), services[i].getServiceName());
-                if(0 != retval)
+                if (0 != retval)
                 {
-                    WcaLog(LOGMSG_STANDARD, "Failed to modify service permissions for %S", services[i].getServiceName());
+                    WcaLog(LOGMSG_STANDARD, "Failed to modify service permissions for %S",
+                           services[i].getServiceName());
                     // since we're allowing the upgrade to continue, reset the error code to zero
                     // in case this is the last one. Don't want to fail the upgrade by mistake
                     retval = 0;
                     continue;
                 }
-            } else
+            }
+            else
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to verify service %d %d 0x%x, rolling back", i, retval, retval);
                 break;

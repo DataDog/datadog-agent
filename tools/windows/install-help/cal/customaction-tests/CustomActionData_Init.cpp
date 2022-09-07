@@ -3,6 +3,7 @@
 #include "CustomActionDataTest.h"
 #include "customactiondata.h"
 #include "TargetMachineMock.h"
+#include "PropertyViewMock.h"
 
 TEST_F(CustomActionDataTest, With_DomainUser_Parse_Correctly)
 {
@@ -40,7 +41,8 @@ TEST_F(CustomActionDataTest, With_NTAuthority_Is_Not_DomainAccount)
     EXPECT_TRUE(customActionCtx.isUserLocalUser());
 }
 
-void expect_string_equal(CustomActionData const &customActionData, std::wstring const &prop, std::wstring const &expected)
+void expect_string_equal(CustomActionData const &customActionData, std::wstring const &prop,
+                         std::wstring const &expected)
 {
     std::wstring val;
     customActionData.value(prop, val);

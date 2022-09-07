@@ -164,6 +164,7 @@
   <ItemGroup>
     <ClCompile Include="CustomAction.cpp" />
     <ClCompile Include="customactiondata.cpp" />
+    <ClCompile Include="PropertyView.cpp" />
     <ClCompile Include="ddreg.cpp" />
     <ClCompile Include="delfiles.cpp" />
     <ClCompile Include="doUninstall.cpp" />
@@ -194,6 +195,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="customactiondata.h" />
+    <ClInclude Include="PropertyView.h" />
     <ClInclude Include="ddreg.h" />
     <ClInclude Include="Error.h" />
     <ClInclude Include="lmerr_str.h" />

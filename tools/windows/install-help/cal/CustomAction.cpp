@@ -16,10 +16,13 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
     // first, get the necessary initialization data
     // need the dd-agent-username (if provided)
     // need the dd-agent-password (if provided)
-    try {
+    try
+    {
         auto propertyView = std::make_shared<DeferredCAPropertyView>(hInstall);
         data.emplace(propertyView);
-    } catch (...) {
+    }
+    catch (...)
+    {
         WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
@@ -85,7 +88,7 @@ extern "C" UINT __stdcall DoUninstall(MSIHANDLE hInstall)
 {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoUninstall");
-    UINT er = 0;
+    UINT er = ERROR_SUCCESS;
     ExitOnFailure(hr, "Failed to initialize");
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -104,7 +107,7 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall)
 {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
-    UINT er = 0;
+    UINT er = ERROR_SUCCESS;
     ExitOnFailure(hr, "Failed to initialize");
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -160,43 +163,39 @@ extern "C" BOOL WINAPI DllMain(__in HINSTANCE hInst, __in ULONG ulReason, __in L
  */
 extern "C" UINT __stdcall ValidateDDAgentUserDlgInput(MSIHANDLE hInstall)
 {
-    UINT er = 0;
     std::optional<CustomActionData> data;
-    bool bResetPassword = false;
+    bool shouldResetPassword = false;
     std::wstring resultMessage;
 
     HRESULT hr = WcaInitialize(hInstall, "CA: " __FUNCTION__);
-    ExitOnFailure(hr, "Failed to initialize");
+    if (FAILED(hr))
+    {
+        return WcaFinalize(ERROR_INSTALL_FAILURE);
+    }
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-    try {
+    try
+    {
         auto propertyView = std::make_shared<ImmediateCAPropertyView>(hInstall);
         data.emplace(propertyView);
-    } catch (...) {
+    }
+    catch (...)
+    {
         WcaLog(LOGMSG_STANDARD, "Failed to load installer property data");
-        er = ERROR_INSTALL_FAILURE;
-        goto LExit;
+        return WcaFinalize(ERROR_INSTALL_FAILURE);
     }
 
-    if (!canInstall(data.value(), bResetPassword, &resultMessage))
+    if (!canInstall(data.value(), shouldResetPassword, &resultMessage))
     {
         MsiSetProperty(hInstall, L"DDAgentUser_Valid", L"False");
         MsiSetProperty(hInstall, L"DDAgentUser_ResultMessage", resultMessage.c_str());
-        // Must return success for the installer to continue
-        er = ERROR_SUCCESS;
-        goto LExit;
-    } else {
+        // Not an error. Must return success for the installer to continue
+    }
+    else
+    {
         MsiSetProperty(hInstall, L"DDAgentUser_Valid", L"True");
         MsiSetProperty(hInstall, L"DDAgentUser_ResultMessage", L"");
-        er = ERROR_SUCCESS;
-        goto LExit;
     }
 
-LExit:
-    if (er == ERROR_SUCCESS)
-    {
-        er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
-    }
-    return WcaFinalize(er);
+    return WcaFinalize(ERROR_SUCCESS);
 }
-

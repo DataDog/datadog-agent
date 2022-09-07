@@ -2,6 +2,7 @@
 
 #include "SID.h"
 #include "TargetMachine.h"
+#include "PropertyView.h"
 
 #include <map>
 #include <Msi.h>
@@ -31,44 +32,6 @@ class ICustomActionData
 };
 
 class LogonCli;
-
-class IPropertyView
-{
-  public:
-    bool present(const std::wstring &key) const;
-    bool value(const std::wstring &key, std::wstring &val) const;
-
-  protected:
-    std::map<std::wstring, std::wstring> values;
-    virtual ~IPropertyView() { }
-};
-
-class CAPropertyView : public IPropertyView
-{
-  public:
-    CAPropertyView(MSIHANDLE hInstall);
-  protected:
-    MSIHANDLE _hInstall;
-    virtual ~CAPropertyView() { }
-};
-
-class ImmediateCAPropertyView : public CAPropertyView
-{
-  public:
-    ImmediateCAPropertyView(MSIHANDLE hInstall);
-};
-
-class DeferredCAPropertyView : public CAPropertyView
-{
-  public:
-    DeferredCAPropertyView(MSIHANDLE hInstall);
-};
-
-class TestPropertyView : public IPropertyView
-{
-  public:
-   TestPropertyView(std::wstring &data);
-};
 
 class CustomActionData : ICustomActionData
 {
