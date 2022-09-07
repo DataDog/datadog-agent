@@ -12,9 +12,10 @@ import (
 	"strings"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -177,6 +178,15 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		iter := currentMap.Iterate()
 		var key uint64
 		var value uintptr // C.struct sock*
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
+	case string(probes.ConnCookiesMap):
+		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'C.__u64'\n")
+		iter := currentMap.Iterate()
+		var key ddebpf.ConnTuple
+		var value uint64
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}

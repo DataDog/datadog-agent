@@ -48,7 +48,7 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup, u64 cookie) {
         return;
     }
 
-    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    // TODO: Can we turn this into a macro based on CONN_CLOSED_BATCH_SIZE?
     switch (batch_ptr->len) {
     case 0:
         batch_ptr->c0 = conn;
@@ -60,10 +60,6 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup, u64 cookie) {
         return;
     case 2:
         batch_ptr->c2 = conn;
-        batch_ptr->len++;
-        return;
-    case 3:
-        batch_ptr->c3 = conn;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.

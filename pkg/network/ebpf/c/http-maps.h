@@ -30,6 +30,8 @@ BPF_HASH_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
 
 BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 1024)
 
+BPF_HASH_MAP(pending_http_process, __u64, pending_http_process_t, 1024)
+
 /* Map used to store the sub program actually used by the socket filter.
  * This is done to avoid memory limitation when attaching a filter to
  * a socket.

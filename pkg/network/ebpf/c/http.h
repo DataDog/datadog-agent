@@ -214,6 +214,8 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         return 0;
     }
 
+    log_debug("http cookie: %u\n", http->conn_cookie);
+
     http_transaction_t *to_flush = http_should_flush_previous_state(http, packet_type);
     if (packet_type == HTTP_REQUEST) {
         http_begin_request(http, method, buffer);

@@ -123,8 +123,8 @@ func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
 			Content:  path,
 			FullPath: fullPath,
 		},
-		Method:     Method(tx.request_method),
-		ConnCookie: uint64(tx.conn_cookie),
+		Method:   Method(tx.request_method),
+		KeyTuple: KeyTuple{Cookie: uint64(tx.conn_cookie)},
 	}
 }
 

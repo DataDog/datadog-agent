@@ -33,15 +33,6 @@
 # error "kernel version not included?"
 #endif
 
-static __always_inline u64 get_socket_cookie(struct sock *sk) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
-    // this will make sure cookie is populated
-    return bpf_get_socket_cookie(sk);
-#else
-    return sk->sk_cookie;
-#endif
-}
-
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, u8 state) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;
@@ -519,6 +510,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
 
@@ -558,7 +550,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup, get_socket_cookie(skp));
+        cleanup_conn(&tup, 0);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);

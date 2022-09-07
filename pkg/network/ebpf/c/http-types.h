@@ -122,4 +122,9 @@ typedef struct {
     char buf[LIB_PATH_MAX_SIZE];
 } lib_path_t;
 
+typedef struct{
+    http_transaction_t http;
+    skb_info_t skb_info;
+} pending_http_process_t;
+
 #endif

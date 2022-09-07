@@ -86,4 +86,7 @@ BPF_HASH_MAP(do_sendfile_args, __u64, struct sock *, 1024)
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
 
+// conn_cookies stores socket cookies keyed by connection tuples
+BPF_HASH_MAP(conn_cookies, conn_tuple_t, __u64, 1024)
+
 #endif

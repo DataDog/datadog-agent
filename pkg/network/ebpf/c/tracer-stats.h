@@ -4,19 +4,21 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
+#include "cookie.h"
 
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
-static __always_inline u32 get_sk_cookie(struct sock *sk) {
+static __always_inline u32 get_stat_cookie(struct sock *sk) {
     u64 t = bpf_ktime_get_ns();
-    return (u32) ((u64)sk ^ t);
+    s64 cookie = get_socket_cookie(sk);
+    return (u32) (cookie ^ t);
 }
 
 static __always_inline conn_stats_ts_t* get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
-    empty.cookie = get_sk_cookie(sk);
+    empty.cookie = get_stat_cookie(sk);
     if (bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
         increment_telemetry_count(conn_stats_max_entries_hit);
     }
@@ -125,9 +127,19 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     }
 }
 
+static __always_inline void store_socket_cookie(conn_tuple_t *t, struct sock *sk) {
+    u64 cookie = get_socket_cookie(sk);
+    log_debug("store_socket_cookie: cookie=%d\n", cookie);
+    bpf_map_update_elem(&conn_cookies, t, &cookie, BPF_ANY);
+}
+
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
                                           __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk)
 {
+    if (t->metadata & CONN_TYPE_TCP) {
+        store_socket_cookie(t, sk);
+    }
+
     u64 ts = bpf_ktime_get_ns();
 
     update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, sk);

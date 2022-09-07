@@ -74,6 +74,7 @@ func (b *incompleteBuffer) Add(tx *httpTX) {
 		SrcIPHigh: uint64(tx.tup.saddr_h),
 		SrcIPLow:  uint64(tx.tup.saddr_l),
 		SrcPort:   uint16(tx.tup.sport),
+		Cookie:    uint64(tx.conn_cookie),
 	}
 
 	parts, ok := b.data[key]

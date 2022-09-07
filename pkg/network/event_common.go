@@ -8,6 +8,7 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -323,6 +324,11 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
+	if c.Cookie > 0 {
+		binary.BigEndian.PutUint64(buf, uint64(c.Cookie))
+		return buf
+	}
+
 	return generateConnectionKey(c, buf, false)
 }
 
@@ -374,6 +380,10 @@ func BeautifyKey(key string) string {
 	}
 
 	raw := []byte(key)
+	if len(key) == 8 {
+		cookie := binary.LittleEndian.Uint64(raw)
+		return "0x" + strconv.FormatUint(cookie, 16)
+	}
 
 	// First 8 bytes are pid and ports
 	h := binary.LittleEndian.Uint64(raw[:8])
@@ -468,7 +478,9 @@ func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := GetNATLocalAddress(c)
 	raddr, rport := GetNATRemoteAddress(c)
-	return HTTPKeyTupleFromConnTuple(laddr, raddr, lport, rport)
+	k := HTTPKeyTupleFromConnTuple(laddr, raddr, lport, rport)
+	k.Cookie = c.Cookie
+	return k
 }
 
 // HTTPKeyTupleFromConnTuple builds the key for an http connection from a

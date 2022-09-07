@@ -105,6 +105,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: "pending_http_process"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -126,6 +127,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kprobe__security_sock_rcv_skb",
+					UID:          probeUID,
+				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -200,6 +208,13 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.TCPSendMsg),
 					EBPFFuncName: "kprobe__tcp_sendmsg",
+					UID:          probeUID,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 			},

@@ -41,9 +41,10 @@ const (
 type kprobeTracer struct {
 	m *manager.Manager
 
-	conns    *ebpf.Map
-	tcpStats *ebpf.Map
-	config   *config.Config
+	conns       *ebpf.Map
+	tcpStats    *ebpf.Map
+	connCookies *ebpf.Map
+	config      *config.Config
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
@@ -87,6 +88,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConnCookiesMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: constants,
 	}
@@ -165,16 +167,22 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		telemetry:     newTelemetry(),
 	}
 
-	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
+	defer func() {
+		if err != nil {
+			tr.Stop()
+		}
+	}()
+
+	if tr.conns, _, err = m.GetMap(string(probes.ConnMap)); err != nil {
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(string(probes.TcpStatsMap))
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
+	if tr.tcpStats, _, err = m.GetMap(string(probes.TcpStatsMap)); err != nil {
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.TcpStatsMap, err)
+	}
+
+	if tr.connCookies, _, err = m.GetMap(string(probes.ConnCookiesMap)); err != nil {
+		return nil, fmt.Errorf("error retrieving the bpf *s map: %w", probes.ConnCookiesMap, err)
 	}
 
 	return tr, nil
@@ -241,6 +249,8 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 		if t.getTCPStats(tcp, key, seen) {
 			updateTCPStats(conn, stats.Cookie, tcp)
 		}
+
+		_ = t.connCookies.Lookup(unsafe.Pointer(key), unsafe.Pointer(&conn.Cookie))
 		*buffer.Next() = *conn
 	}
 
