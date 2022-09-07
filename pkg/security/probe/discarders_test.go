@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {

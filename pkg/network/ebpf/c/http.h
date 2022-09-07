@@ -14,9 +14,8 @@ static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, htt
 }
 
 static __always_inline void http_notify_batch(struct pt_regs *ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
-
-    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
+    u32 zero = 0;
+    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
     if (batch_state == NULL || batch_state->idx_to_notify == batch_state->idx) {
         // batch is not ready to be flushed
         return;
@@ -28,6 +27,7 @@ static __always_inline void http_notify_batch(struct pt_regs *ctx) {
     // or try to manually add the padding to the struct definition. More
     // information in https://docs.cilium.io/en/v1.8/bpf/ under the
     // alignment/padding section
+    u32 cpu = bpf_get_smp_processor_id();
     http_batch_notification_t notification = { 0 };
     notification.cpu = cpu;
     notification.batch_idx = batch_state->idx_to_notify;
@@ -43,12 +43,13 @@ static __always_inline int http_responding(http_transaction_t *http) {
 
 static __always_inline void http_enqueue(http_transaction_t *http) {
     // Retrieve the active batch number for this CPU
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
+    u32 zero = 0;
+    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
     if (batch_state == NULL) {
         return;
     }
 
+    u32 cpu = bpf_get_smp_processor_id();
     http_batch_key_t key;
     http_prepare_key(cpu, &key, batch_state);
 
@@ -176,8 +177,8 @@ static __always_inline http_transaction_t* http_should_flush_previous_state(http
         return NULL;
     }
 
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
+    u32 zero = 0;
+    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
     if (batch_state == NULL) {
         return NULL;
     }

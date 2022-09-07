@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -174,6 +175,11 @@ func (e *ebpfProgram) Init() error {
 	}
 	e.Manager.DumpHandler = dumpMapsHandler
 
+	onlineCPUs, err := cpupossible.Get()
+	if err != nil {
+		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -183,6 +189,11 @@ func (e *ebpfProgram) Init() error {
 			httpInFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			httpBatchesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},

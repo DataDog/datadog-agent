@@ -73,9 +73,7 @@ func (c *containerdCollector) ID() string {
 
 // GetContainerStats returns stats by container ID.
 func (c *containerdCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	// TODO: Relying on `SetCurrentNamespace` is not correct as the collector is supposed to allow for concurrent calls
-	c.client.SetCurrentNamespace(containerNS)
-	metrics, err := c.getContainerdMetrics(containerID)
+	metrics, err := c.getContainerdMetrics(containerNS, containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +84,14 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 	}
 
 	// We got the main stats, best effort to fill remaining fields
-	container, err := c.client.Container(containerID)
+	container, err := c.client.Container(containerNS, containerID)
 	if err != nil {
 		log.Debugf("Could not fetch container with ID %s: %v", containerID, err)
 		return containerStats, nil
 	}
 
 	// Filling the PIDs if returned
-	processes, err := c.client.TaskPids(container)
+	processes, err := c.client.TaskPids(containerNS, container)
 	if err == nil {
 		if len(processes) > 0 {
 			if containerStats.PID == nil {
@@ -111,7 +109,7 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 	}
 
 	// Filling information from Spec
-	OCISpec, err := c.client.Spec(container)
+	OCISpec, err := c.client.Spec(containerNS, container)
 	if err == nil {
 		fillStatsFromSpec(containerStats, OCISpec)
 	} else {
@@ -129,10 +127,7 @@ func (c *containerdCollector) GetContainerOpenFilesCount(containerNS, containerI
 
 // GetContainerNetworkStats returns network stats by container ID.
 func (c *containerdCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
-	// TODO: Relying on `SetCurrentNamespace` is not correct as the collector is supposed to allow for concurrent calls
-	c.client.SetCurrentNamespace(containerNS)
-
-	metrics, err := c.getContainerdMetrics(containerID)
+	metrics, err := c.getContainerdMetrics(containerNS, containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -172,13 +167,13 @@ func (c *containerdCollector) GetSelfContainerID() (string, error) {
 // This method returns interface{} because the metrics could be an instance of
 // v1.Metrics (for Linux) or stats.Statistics (Windows) and they don't share a
 // common interface.
-func (c *containerdCollector) getContainerdMetrics(containerID string) (interface{}, error) {
-	container, err := c.client.Container(containerID)
+func (c *containerdCollector) getContainerdMetrics(containerNS string, containerID string) (interface{}, error) {
+	container, err := c.client.Container(containerNS, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("could not get container with ID %s: %s", containerID, err)
 	}
 
-	metricTask, errTask := c.client.TaskMetrics(container)
+	metricTask, errTask := c.client.TaskMetrics(containerNS, container)
 	if errTask != nil {
 		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, err)
 	}
@@ -208,15 +203,14 @@ func (c *containerdCollector) refreshPIDCache(currentTime time.Time, cacheValidi
 	}
 
 	for _, namespace := range namespaces {
-		c.client.SetCurrentNamespace(namespace)
-		containers, err := c.client.Containers()
+		containers, err := c.client.Containers(namespace)
 		if err != nil {
 			c.pidCache.Store(currentTime, pidCacheFullRefreshKey, struct{}{}, err)
 			return err
 		}
 
 		for _, container := range containers {
-			processes, err := c.client.TaskPids(container)
+			processes, err := c.client.TaskPids(namespace, container)
 			if err != nil {
 				log.Debugf("Could not retrieve the processes of the container with ID %s: %s", container.ID(), err)
 			}
