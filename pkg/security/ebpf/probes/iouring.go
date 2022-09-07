@@ -10,34 +10,33 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// sharedProbes is the list of probes that are shared across multiple events
-var sharedProbes = []*manager.Probe{
+// iouringProbes is the list of probes that are used for iouring monitoring
+var iouringProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/filename_create",
-			EBPFFuncName: "kprobe_filename_create",
+			EBPFSection:  "tracepoint/io_uring/io_uring_create",
+			EBPFFuncName: "io_uring_create"},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/io_ring_ctx_alloc",
+			EBPFFuncName: "kretprobe_io_ring_ctx_alloc",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/mnt_want_write",
-			EBPFFuncName: "kprobe_mnt_want_write",
+			EBPFSection:  "kprobe/io_allocate_scq_urings",
+			EBPFFuncName: "kprobe_io_allocate_scq_urings",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/mnt_want_write_file",
-			EBPFFuncName: "kprobe_mnt_want_write_file",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/mnt_want_write_file_path",
-			EBPFFuncName: "kprobe_mnt_want_write_file_path",
+			EBPFSection:  "kprobe/io_sq_offload_start",
+			EBPFFuncName: "kprobe_io_sq_offload_start",
 		},
 	},
 }

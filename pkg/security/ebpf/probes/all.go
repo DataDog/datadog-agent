@@ -67,6 +67,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getRenameProbes()...)
 	allProbes = append(allProbes, getRmdirProbe()...)
 	allProbes = append(allProbes, sharedProbes...)
+	allProbes = append(allProbes, iouringProbes...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)

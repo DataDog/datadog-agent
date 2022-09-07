@@ -20,6 +20,27 @@ void __attribute__((always_inline)) cache_ioctx_pid_tgid(void *ioctx) {
     bpf_map_update_elem(&io_uring_ctx_pid, &ioctx, &pid_tgid, BPF_ANY);
 }
 
+struct tracepoint_io_uring_io_uring_create_t
+{
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    int fd;
+	void *ctx;
+	u32 sq_entries;
+	u32 cq_entries;
+	u32 flags;
+};
+
+SEC("tracepoint/io_uring/io_uring_create")
+int io_uring_create(struct tracepoint_io_uring_io_uring_create_t *args) {
+    void *ioctx = args->ctx;
+    cache_ioctx_pid_tgid(ioctx);
+    return 0;
+}
+
 SEC("kretprobe/io_ring_ctx_alloc")
 int kretprobe_io_ring_ctx_alloc(struct pt_regs *ctx) {
     void *ioctx = (void *)PT_REGS_RC(ctx);
