@@ -11,7 +11,7 @@ package stream
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
