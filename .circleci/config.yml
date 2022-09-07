@@ -113,7 +113,8 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
+      - setup_remote_docker:
+          version: 17.09.0-ce
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
