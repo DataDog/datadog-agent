@@ -63,8 +63,11 @@ int kprobe_io_sq_offload_start(struct pt_regs *ctx) {
 }
 
 u64 __attribute__((always_inline)) get_pid_tgid_from_iouring(void *req) {
+    u64 ioctx_offset;
+    LOAD_CONSTANT("iokiocb_ctx_offset", ioctx_offset);
+
     void *ioctx;
-    int ret = bpf_probe_read(&ioctx, sizeof(void*), req + 80); // TODO constantify
+    int ret = bpf_probe_read(&ioctx, sizeof(void*), req + ioctx_offset);
     if (ret < 0) {
         return 0;
     }
@@ -77,7 +80,7 @@ u64 __attribute__((always_inline)) get_pid_tgid_from_iouring(void *req) {
     if (pid_tgid_ptr) {
         return *pid_tgid_ptr;
     } else {
-        return -1;
+        return 0;
     }
 }
 
