@@ -49,6 +49,7 @@ func (a Address) Len() int {
 	return int(a.BitLen()) / 8
 }
 
+// IsZero reports whether a is its zero value
 func (a Address) IsZero() bool {
 	return a.Addr == netip.Addr{}
 }
