@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"io"
 	"math"
 	"math/rand"
@@ -25,6 +24,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go"
 	"github.com/davecgh/go-spew/spew"
@@ -1537,12 +1538,11 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root())
+	wrapper, err := newDockerCmdWrapper(test.Root(), "alpine")
 	if err != nil {
 		t.Skip("docker no available")
 		return
 	}
-	wrapper.SetImage("alpine")
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
