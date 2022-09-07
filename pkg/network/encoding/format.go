@@ -246,7 +246,7 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamic
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
-    mm.Reset()
+		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
