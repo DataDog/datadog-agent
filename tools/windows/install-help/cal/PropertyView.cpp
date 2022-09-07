@@ -78,7 +78,7 @@ DeferredCAPropertyView::DeferredCAPropertyView(MSIHANDLE hi)
     std::wstring data;
     if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
     {
-        throw;
+        throw std::exception("Failed to load CustomActionData property");
     }
 
     parseKeyValueString(data, this->values);

@@ -27,13 +27,13 @@ CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView,
     if (errCode != ERROR_SUCCESS)
     {
         WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %S", FormatErrorMessage(errCode).c_str());
-        throw;
+        throw std::exception("Could not determine machine information");
     }
 
     // Process some data now
     if (!parseUsernameData() || !parseSysprobeData())
     {
-        throw;
+        throw std::exception("Error parsing machine information");
     }
 }
 
