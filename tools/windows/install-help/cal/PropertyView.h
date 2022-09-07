@@ -19,8 +19,8 @@ class IPropertyView
 class PropertyView : public IPropertyView
 {
   public:
-    bool present(const std::wstring &key) const;
-    bool value(const std::wstring &key, std::wstring &val) const;
+    bool present(const std::wstring &key) const override;
+    bool value(const std::wstring &key, std::wstring &val) const override;
 
   protected:
     std::map<std::wstring, std::wstring> values;
