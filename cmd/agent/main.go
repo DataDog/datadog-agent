@@ -12,11 +12,11 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 )
 
 func main() {
-	// Invoke the Agent
-	if err := app.AgentCmd.Execute(); err != nil {
+	if err := app.MakeCommand(subcommands.AgentSubcommands()).Execute(); err != nil {
 		os.Exit(-1)
 	}
 }

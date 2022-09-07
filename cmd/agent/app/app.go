@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-/*
-Package app implements the Agent main loop, orchestrating
-all the components and providing the command line interface. */
+// Package app implements the top-level `agent` binary, including its subcommands.
 package app
 
 import (
@@ -13,13 +11,20 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var (
+// SubcommandFactory is a callable that will return a subcommand.
+type SubcommandFactory func(globalArgs *GlobalArgs) *cobra.Command
+
+// MakeCommand makes the top-level Cobra command for this app.
+func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
+	globalArgs := GlobalArgs{
+		// LoggerName is the name of the core agent logger
+		LoggerName: "CORE",
+	}
+
 	// AgentCmd is the root command
-	AgentCmd = &cobra.Command{
+	agentCmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
 		Short: "Datadog Agent at your service.",
 		Long: `
@@ -28,21 +33,13 @@ to Datadog on your behalf so that you can do something useful with your
 monitoring and performance data.`,
 		SilenceUsage: true,
 	}
-	// confFilePath holds the path to the folder containing the configuration
-	// file, to allow overrides from the command line
-	confFilePath string
-	flagNoColor  bool
-	// sysProbeConfFilePath holds the path to the folder containing the system-probe
-	// configuration file, to allow overrides from the command line
-	sysProbeConfFilePath string
-)
 
-// loggerName is the name of the core agent logger
-const loggerName config.LoggerName = "CORE"
-const jmxLoggerName config.LoggerName = "JMXFETCH"
+	agentCmd.PersistentFlags().StringVarP(&globalArgs.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	agentCmd.PersistentFlags().BoolVarP(&globalArgs.FlagNoColor, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentFlags().StringVarP(&globalArgs.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
-func init() {
-	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
-	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+	for _, sf := range subcommandFactories {
+		agentCmd.AddCommand(sf(&globalArgs))
+	}
+	return agentCmd
 }
