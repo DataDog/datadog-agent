@@ -2,6 +2,7 @@ package net
 
 import model "github.com/DataDog/agent-payload/v5/process"
 
+// SysProbeUtil fetches info from the SysProbe running remotely
 type SysProbeUtil interface {
 	GetConnections(clientID string) (*model.Connections, error)
 	GetStats() (map[string]interface{}, error)
