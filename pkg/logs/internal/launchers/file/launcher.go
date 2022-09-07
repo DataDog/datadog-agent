@@ -127,6 +127,9 @@ func (s *Launcher) scan() {
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
 
+	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
+	// stop the tailers.
+	// Defer creation of new tailers until second pass.
 	for _, file := range files {
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
@@ -143,20 +146,8 @@ func (s *Launcher) scan() {
 			// skip this tailer as it must be stopped
 			continue
 		}
-		if !isTailed && tailersLen >= s.tailingLimit {
-			// can't create new tailer because tailingLimit is reached
-			continue
-		}
-
-		if !isTailed && tailersLen < s.tailingLimit {
-			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, config.Beginning)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
-				continue
-			}
-			tailersLen++
-			filesTailed[scanKey] = true
+		if !isTailed {
+			// Defer starting any new tailers until pass 2
 			continue
 		}
 
@@ -181,6 +172,25 @@ func (s *Launcher) scan() {
 		_, shouldTail := filesTailed[scanKey]
 		if !shouldTail {
 			s.stopTailer(scanKey, tailer)
+		}
+	}
+
+	// Recompute 'tailersLen' to take into account the tailers we stopped.
+	tailersLen = len(s.tailers)
+
+	for _, file := range files {
+		scanKey := file.GetScanKey()
+		_, isTailed := s.tailers[scanKey]
+		if !isTailed && tailersLen < s.tailingLimit {
+			// create a new tailer tailing from the beginning of the file if no offset has been recorded
+			succeeded := s.startNewTailer(file, config.Beginning)
+			if !succeeded {
+				// the setup failed, let's try to tail this file in the next scan
+				continue
+			}
+			tailersLen++
+			filesTailed[scanKey] = true
+			continue
 		}
 	}
 }
