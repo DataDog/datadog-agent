@@ -142,7 +142,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t, 0);
+    cleanup_conn(&t, get_socket_cookie(sk));
     return 0;
 }
 

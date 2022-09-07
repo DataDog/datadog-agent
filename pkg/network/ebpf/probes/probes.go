@@ -152,7 +152,6 @@ const (
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
 	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
 	ConnCookiesMap        BPFMapName = "conn_cookies"
-	PendingHttpProcessMap BPFMapName = "pending_http_process"
 )
 
 // SectionName returns the SectionName for the given BPF map

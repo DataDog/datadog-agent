@@ -240,17 +240,6 @@ func (e *ebpfProgram) Init() error {
 		ConstantEditors: e.offsets,
 	}
 
-	if !enableRuntimeCompilation(e.cfg) {
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return err
-		}
-
-		if kv >= kernel.VersionCode(4, 12, 0) {
-			options.TailCallRouter[0].ProbeIdentificationPair.EBPFFuncName = "socket__http_filter_4_12"
-		}
-	}
-
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
 	}
