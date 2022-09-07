@@ -607,7 +607,7 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
     """
     Format C code using clang-format
     """
-    ctx.run("which clang-format")
+    check_for(ctx, "clang-format")
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -638,7 +638,7 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False, kernel_release=None):
     """
 
     print("checking for clang-tidy executable...")
-    ctx.run("which clang-tidy")
+    check_for(ctx, "clang-tidy")
 
     build_flags = get_ebpf_build_flags()
     build_flags.append("-DDEBUG=1")
@@ -860,11 +860,11 @@ def build_object_files(
     if not windows:
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         print("checking for clang executable...")
-        ctx.run("which clang")
+        check_for(ctx, "clang")
 
         if strip_object_files:
             print("checking for llvm-strip...")
-            ctx.run("which llvm-strip")
+            check_for(ctx, "llvm-strip")
 
         check_for_inline(ctx)
         ctx.run(f"mkdir -p {build_dir}/runtime")
@@ -943,11 +943,16 @@ def is_root():
     return os.getuid() == 0
 
 
-def check_for_ninja(ctx):
+check_for_cache = set()
+def check_for(ctx, binary):
+    key = (ctx.cwd, binary)
+    if key in check_for_cache:
+        return
     if is_windows:
-        ctx.run("where ninja")
+        ctx.run(f"where {binary}")
     else:
-        ctx.run("which ninja")
+        ctx.run(f"which {binary}")
+    check_for_cache.add(key)
 
 
 @contextlib.contextmanager

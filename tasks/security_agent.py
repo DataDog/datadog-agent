@@ -15,7 +15,7 @@ from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
-    check_for_ninja,
+    check_for,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
@@ -255,7 +255,7 @@ def ninja_latency_tools(ctx, build_dir, static=True):
 
 @task
 def build_embed_latency_tools(ctx, static=True):
-    check_for_ninja(ctx)
+    check_for(ctx, "ninja")
     build_dir = os.path.join("pkg", "security", "tests", "latency", "bin")
     create_dir_if_needed(build_dir)
 
@@ -286,7 +286,7 @@ def create_dir_if_needed(dir):
 
 @task
 def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
-    check_for_ninja(ctx)
+    check_for(ctx, "ninja")
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
     create_dir_if_needed(build_dir)
