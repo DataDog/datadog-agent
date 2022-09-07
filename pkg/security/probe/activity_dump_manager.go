@@ -19,7 +19,6 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -27,10 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
-
-func areCGroupADsEnabled(c *config.Config) bool {
-	return c.ActivityDumpTracedCgroupsCount > 0
-}
 
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
@@ -563,8 +558,44 @@ func (adm *ActivityDumpManager) AddContextTags(ad *ActivityDump) {
 }
 
 func (adm *ActivityDumpManager) triggerLoadController() {
+	// fetch the list of dumps to be relaunched because of a runtime config change
+	dumps := adm.getNeededUpdateConfigDumps()
+
+	// handle dumps to relaunch
+	for _, ad := range dumps {
+		// stop the dump but do not release the cgroup
+		ad.Finalize(false)
+		seclog.Infof("tracing paused for [%s]", ad.GetSelectorStr())
+
+		// persist dump
+		if err := adm.storage.Persist(ad); err != nil {
+			seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+		}
+
+		// First, reset the ad params
+		adm.resetDumpParams(&ad.StartLoadConfigParams)
+		adm.resetDumpParams(&ad.LoadConfig.Params)
+
+		// restart a new dump for the same workload
+		newDump := adm.loadController.NextPartialDump(ad, false)
+
+		adm.Lock()
+		if err := adm.insertActivityDump(newDump); err != nil {
+			seclog.Errorf("couldn't resume tracing [%s]: %v", newDump.GetSelectorStr(), err)
+			adm.Unlock()
+			return
+		}
+
+		// remove container ID from the map of ignored container IDs for the snapshot
+		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
+		adm.Unlock()
+	}
+	if len(dumps) != 0 { // if we reset dumps, dont check the size of them this time
+		return
+	}
+
 	// fetch the list of overweight dump
-	dumps := adm.getOverweightDumps()
+	dumps = adm.getOverweightDumps()
 
 	// handle overweight dumps
 	for _, ad := range dumps {
@@ -578,7 +609,7 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		}
 
 		// restart a new dump for the same workload
-		newDump := adm.loadController.NextPartialDump(ad)
+		newDump := adm.loadController.NextPartialDump(ad, true)
 
 		adm.Lock()
 		if err := adm.insertActivityDump(newDump); err != nil {
@@ -591,6 +622,63 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
 		adm.Unlock()
 	}
+}
+
+func (adm *ActivityDumpManager) resetDumpParams(params *model.ActivityDumpLoadParams) {
+	params.TracedEventTypes = adm.probe.config.ActivityDumpTracedEventTypes()
+	params.Timeout = adm.probe.config.ActivityDumpCgroupDumpTimeout()
+	params.Rate = uint32(adm.probe.config.ActivityDumpRateLimiter())
+}
+
+func isTracedEventTypesEqual(set1, set2 []model.EventType) bool {
+	if len(set1) != len(set2) {
+		return false
+	}
+	for i, v := range set1 {
+		if v != set2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// runtimeConfigChanged returns true if the StartLoadConfigParams have different values than the current ones
+func (adm *ActivityDumpManager) runtimeConfigChanged(ad *ActivityDump) bool {
+	if ad.StartLoadConfigParams.Rate != uint32(adm.probe.config.ActivityDumpRateLimiter()) ||
+		ad.StartLoadConfigParams.Timeout != adm.probe.config.ActivityDumpCgroupDumpTimeout() ||
+		!isTracedEventTypesEqual(ad.StartLoadConfigParams.TracedEventTypes, adm.probe.config.ActivityDumpTracedEventTypes()) {
+		seclog.Infof("runtimeConfigChanged detected a runtime configuration change.\n")
+		seclog.Infof("\tPrevious params:\n")
+		seclog.Infof("\t  Rate: %d\n", ad.StartLoadConfigParams.Rate)
+		seclog.Infof("\t  CgroupDumpTimeout: %d\n", ad.StartLoadConfigParams.Timeout)
+		seclog.Infof("\t  TracedEventTypes: %+v\n", ad.StartLoadConfigParams.TracedEventTypes)
+		seclog.Infof("\tCurrent base params:\n")
+		seclog.Infof("\t  Rate: %d\n", uint32(adm.probe.config.ActivityDumpRateLimiter()))
+		seclog.Infof("\t  CgroupDumpTimeout: %d\n", adm.probe.config.ActivityDumpCgroupDumpTimeout())
+		seclog.Infof("\t  TracedEventTypes: %+v\n", adm.probe.config.ActivityDumpTracedEventTypes())
+		return true
+	}
+	return false
+}
+
+// getNeededUpdateConfigDumps returns the list of dumps that have a different starting params that the current ones
+func (adm *ActivityDumpManager) getNeededUpdateConfigDumps() []*ActivityDump {
+	adm.Lock()
+	defer adm.Unlock()
+
+	var dumps []*ActivityDump
+	var toDelete []int
+	for i, ad := range adm.activeDumps {
+		if adm.runtimeConfigChanged(ad) {
+			toDelete = append([]int{i}, toDelete...)
+			dumps = append(dumps, ad)
+			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true
+		}
+	}
+	for _, i := range toDelete {
+		adm.activeDumps = append(adm.activeDumps[:i], adm.activeDumps[i+1:]...)
+	}
+	return dumps
 }
 
 // getOverweightDumps returns the list of dumps that crossed the config.ActivityDumpMaxDumpSize threshold
@@ -608,7 +696,7 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 
-		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize) {
+		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true

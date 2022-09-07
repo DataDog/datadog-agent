@@ -110,21 +110,11 @@ type Config struct {
 	ActivityDumpTagsResolutionPeriod time.Duration
 	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
 	ActivityDumpLoadControlPeriod time.Duration
-	// ActivityDumpMaxDumpSize defines the maximum size of a dump
-	ActivityDumpMaxDumpSize int
 	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
 	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
-	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
-	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
-	// to this list.
-	ActivityDumpTracedEventTypes []model.EventType
-	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
-	ActivityDumpCgroupDumpTimeout time.Duration
-	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
-	ActivityDumpRateLimiter int
 	// ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
 	ActivityDumpCgroupWaitListTimeout time.Duration
 	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
@@ -147,6 +137,17 @@ type Config struct {
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
+	// # Dynamic configuration fields:
+	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
+	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
+	// to this list.
+	ActivityDumpTracedEventTypes func() []model.EventType
+	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
+	ActivityDumpCgroupDumpTimeout func() time.Duration
+	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
+	ActivityDumpRateLimiter func() int
+	// ActivityDumpMaxDumpSize defines the maximum size of a dump
+	ActivityDumpMaxDumpSize func() int
 
 	// RuntimeMonitor defines if the runtime monitor should be enabled
 	RuntimeMonitor bool
@@ -170,6 +171,11 @@ type Config struct {
 	EventStreamUseRingBuffer bool
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
+}
+
+// GetAllPossibleActivityDumpTracedEvents defines all the possible values for activity dumps traced events
+func GetAllPossibleActivityDumpTracedEvents() []string {
+	return []string{"exec", "open", "dns", "bind", "syscalls"}
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -243,12 +249,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpMaxDumpSize:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 10),
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
-		ActivityDumpRateLimiter:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_timeout")) * time.Minute,
 		ActivityDumpCgroupDifferentiateArgs:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     coreconfig.Datadog.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
@@ -256,6 +258,29 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
+		// activity dump dynamic fields
+		ActivityDumpTracedEventTypes: func() []model.EventType {
+			evtTypes := model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types"))
+			var found bool
+			for _, evtType := range evtTypes {
+				if evtType == model.ExecEventType {
+					found = true
+				}
+			}
+			if !found {
+				evtTypes = append(evtTypes, model.ExecEventType)
+			}
+			return evtTypes
+		},
+		ActivityDumpCgroupDumpTimeout: func() time.Duration {
+			return time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute
+		},
+		ActivityDumpRateLimiter: func() int {
+			return coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.rate_limiter")
+		},
+		ActivityDumpMaxDumpSize: func() int {
+			return coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 10)
+		},
 	}
 
 	if err := c.sanitize(); err != nil {
@@ -332,17 +357,6 @@ func (c *Config) sanitizeRuntimeSecurityConfigNetwork() {
 
 // sanitizeNetworkConfiguration ensures that runtime_security_config.activity_dump is properly configured
 func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
-	var execFound bool
-	for _, evtType := range c.ActivityDumpTracedEventTypes {
-		if evtType == model.ExecEventType {
-			execFound = true
-			break
-		}
-	}
-	if !execFound {
-		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
-	}
-
 	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpLocalStorageFormats, err = dump.ParseStorageFormats(formats)

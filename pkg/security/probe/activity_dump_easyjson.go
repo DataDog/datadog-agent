@@ -7,10 +7,12 @@ package probe
 
 import (
 	json "encoding/json"
+	model "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
 	sync "sync"
+	time "time"
 )
 
 // suppress unused package warning
@@ -49,6 +51,8 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.Source = string(in.String())
 		case "ddtags":
 			out.DDTags = string(in.String())
+		case "StartLoadConfigParams":
+			easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySeclModel(in, &out.StartLoadConfigParams)
 		case "agent_version":
 			out.AgentVersion = string(in.String())
 		case "agent_commit":
@@ -130,13 +134,18 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.String(string(in.DDTags))
 	}
 	{
-		const prefix string = ",\"agent_version\":"
+		const prefix string = ",\"StartLoadConfigParams\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecuritySeclModel(out, in.StartLoadConfigParams)
+	}
+	{
+		const prefix string = ",\"agent_version\":"
+		out.RawString(prefix)
 		out.String(string(in.AgentVersion))
 	}
 	{
@@ -210,4 +219,92 @@ func (v ActivityDump) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ActivityDump) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+}
+func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySeclModel(in *jlexer.Lexer, out *model.ActivityDumpLoadParams) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "TracedEventTypes":
+			if in.IsNull() {
+				in.Skip()
+				out.TracedEventTypes = nil
+			} else {
+				in.Delim('[')
+				if out.TracedEventTypes == nil {
+					if !in.IsDelim(']') {
+						out.TracedEventTypes = make([]model.EventType, 0, 16)
+					} else {
+						out.TracedEventTypes = []model.EventType{}
+					}
+				} else {
+					out.TracedEventTypes = (out.TracedEventTypes)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v1 model.EventType
+					v1 = model.EventType(in.Uint32())
+					out.TracedEventTypes = append(out.TracedEventTypes, v1)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "Timeout":
+			out.Timeout = time.Duration(in.Int64())
+		case "Rate":
+			out.Rate = uint32(in.Uint32())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecuritySeclModel(out *jwriter.Writer, in model.ActivityDumpLoadParams) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"TracedEventTypes\":"
+		out.RawString(prefix[1:])
+		if in.TracedEventTypes == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v2, v3 := range in.TracedEventTypes {
+				if v2 > 0 {
+					out.RawByte(',')
+				}
+				out.Uint32(uint32(v3))
+			}
+			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"Timeout\":"
+		out.RawString(prefix)
+		out.Int64(int64(in.Timeout))
+	}
+	{
+		const prefix string = ",\"Rate\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.Rate))
+	}
+	out.RawByte('}')
 }

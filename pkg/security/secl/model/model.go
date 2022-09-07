@@ -859,21 +859,27 @@ type CgroupTracingEvent struct {
 	ConfigCookie     uint32
 }
 
+// ActivityDumpLoadParams represents the parameters of an activity dump
+//msgp:ignore ActivityDumpLoadParams
+type ActivityDumpLoadParams struct {
+	TracedEventTypes []EventType
+	Timeout          time.Duration
+	Rate             uint32 // max number of events per sec
+}
+
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
 //msgp:ignore ActivityDumpLoadConfig
 type ActivityDumpLoadConfig struct {
-	TracedEventTypes     []EventType
-	Timeout              time.Duration
+	Params               ActivityDumpLoadParams
 	WaitListTimestampRaw uint64
 	StartTimestampRaw    uint64
 	EndTimestampRaw      uint64
-	Rate                 uint32 // max number of events per sec
 	Paused               uint32
 }
 
 // SetTimeout updates the timeout of an activity dump
 func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
-	adlc.Timeout = duration
+	adlc.Params.Timeout = duration
 	adlc.EndTimestampRaw = adlc.StartTimestampRaw + uint64(duration)
 }
 

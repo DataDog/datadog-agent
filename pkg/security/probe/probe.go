@@ -944,8 +944,8 @@ func (p *Probe) selectTCProbes() manager.ProbesSelector {
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	if p.config.ActivityDumpEnabled {
-		for _, e := range p.config.ActivityDumpTracedEventTypes {
-			if e.String() == eventType {
+		for _, e := range config.GetAllPossibleActivityDumpTracedEvents() {
+			if e == eventType {
 				return true
 			}
 		}
@@ -983,12 +983,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 	// Add syscall monitor probes
 	if p.config.ActivityDumpEnabled {
-		for _, e := range p.config.ActivityDumpTracedEventTypes {
-			if e == model.SyscallsEventType {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
-				break
-			}
-		}
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1443,13 +1438,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 
 	if p.config.ActivityDumpEnabled {
-		for _, e := range p.config.ActivityDumpTracedEventTypes {
-			if e == model.SyscallsEventType {
-				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
-				break
-			}
-		}
+		// Add syscall monitor probes
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
 	p.constantOffsets, err = p.GetOffsetConstants()
@@ -1512,7 +1502,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.ActivityDumpEnabled && areCGroupADsEnabled(config)),
+			Value: utils.BoolTouint64(config.ActivityDumpEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",

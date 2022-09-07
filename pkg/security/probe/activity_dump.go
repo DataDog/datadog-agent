@@ -121,16 +121,19 @@ type ActivityDump struct {
 	DumpMetadata
 
 	// Load config
-	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
-	LoadConfigCookie uint32                        `json:"-"`
+	StartLoadConfigParams model.ActivityDumpLoadParams
+	LoadConfig            *model.ActivityDumpLoadConfig `json:"-"`
+	LoadConfigCookie      uint32                        `json:"-"`
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
 func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
-		TracedEventTypes: evt,
-		Timeout:          timeout,
-		Rate:             uint32(rate),
+		Params: model.ActivityDumpLoadParams{
+			TracedEventTypes: evt,
+			Timeout:          timeout,
+			Rate:             uint32(rate),
+		},
 	}
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))
@@ -177,7 +180,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
-		End:               now.Add(adm.probe.config.ActivityDumpCgroupDumpTimeout),
+		End:               now.Add(adm.probe.config.ActivityDumpCgroupDumpTimeout()),
 		Arch:              probes.RuntimeArch,
 	}
 	ad.Host = adm.hostname
@@ -186,11 +189,14 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad.shouldMergePaths = adm.probe.config.ActivityDumpPathMergeEnabled
 
 	// set load configuration to initial defaults
+	ad.StartLoadConfigParams.TracedEventTypes = adm.probe.config.ActivityDumpTracedEventTypes()
+	ad.StartLoadConfigParams.Timeout = adm.probe.config.ActivityDumpCgroupDumpTimeout()
+	ad.StartLoadConfigParams.Rate = uint32(adm.probe.config.ActivityDumpRateLimiter())
 	ad.LoadConfig = NewActivityDumpLoadConfig(
-		adm.probe.config.ActivityDumpTracedEventTypes,
-		adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		adm.probe.config.ActivityDumpTracedEventTypes(),
+		adm.probe.config.ActivityDumpCgroupDumpTimeout(),
 		adm.probe.config.ActivityDumpCgroupWaitListTimeout,
-		adm.probe.config.ActivityDumpRateLimiter,
+		adm.probe.config.ActivityDumpRateLimiter(),
 		now,
 		adm.probe.resolvers.TimeResolver,
 	)
@@ -288,7 +294,7 @@ func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
 }
 
 func (ad *ActivityDump) checkInMemorySize() {
-	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize) {
+	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize()) {
 		return
 	}
 
@@ -501,7 +507,7 @@ func (ad *ActivityDump) debug(w io.Writer) {
 
 func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
 	var traced bool
-	for _, evtType := range ad.LoadConfig.TracedEventTypes {
+	for _, evtType := range ad.LoadConfig.Params.TracedEventTypes {
 		if evtType == event.GetEventType() {
 			traced = true
 		}
@@ -790,7 +796,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Comm:              ad.DumpMetadata.Comm,
 			ContainerID:       ad.DumpMetadata.ContainerID,
 			Start:             ad.DumpMetadata.Start.Format(time.RFC822),
-			Timeout:           ad.LoadConfig.Timeout.String(),
+			Timeout:           ad.LoadConfig.Params.Timeout.String(),
 			Size:              ad.DumpMetadata.Size,
 			Arch:              ad.DumpMetadata.Arch,
 		},
@@ -1127,7 +1133,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 		return nil
 	}
 
-	for _, eventType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+	for _, eventType := range ad.adm.probe.config.ActivityDumpTracedEventTypes() {
 		switch eventType {
 		case model.FileOpenEventType:
 			if err = pan.snapshotFiles(p, ad); err != nil {

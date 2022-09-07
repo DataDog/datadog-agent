@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -30,8 +29,7 @@ var (
 
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
-	rateLimiter *rate.Limiter
-	adm         *ActivityDumpManager
+	adm *ActivityDumpManager
 
 	// eBPF maps
 	activityDumpConfigDefaults *ebpf.Map
@@ -48,8 +46,6 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	}
 
 	return &ActivityDumpLoadController{
-		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
-		rateLimiter:                rate.NewLimiter(rate.Every(adm.probe.config.ActivityDumpCgroupDumpTimeout), 1),
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
 		adm:                        adm,
 	}, nil
@@ -59,10 +55,10 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	// push default load config values
 	defaults := NewActivityDumpLoadConfig(
-		lc.adm.probe.config.ActivityDumpTracedEventTypes,
-		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		lc.adm.probe.config.ActivityDumpTracedEventTypes(),
+		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout(),
 		0,
-		lc.adm.probe.config.ActivityDumpRateLimiter,
+		lc.adm.probe.config.ActivityDumpRateLimiter(),
 		time.Now(),
 		lc.adm.probe.resolvers.TimeResolver,
 	)
@@ -73,18 +69,9 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	return nil
 }
 
-// reduceConfig reduces the configuration of the load controller.
-// nolint: unused
-func (lc *ActivityDumpLoadController) reduceConfig() error {
-	if !lc.rateLimiter.Allow() {
-		return nil
-	}
-	return nil
-}
-
 // NextPartialDump returns a new dump with the same parameters as the current one, or with reduced load config parameters
 // when applicable
-func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
+func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump, reduceIfNeeded bool) *ActivityDump {
 	newDump := NewActivityDump(ad.adm)
 	newDump.DumpMetadata.ContainerID = ad.DumpMetadata.ContainerID
 	newDump.DumpMetadata.Comm = ad.DumpMetadata.Comm
@@ -103,31 +90,40 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 		}
 	}
 
+	// copy base params
+	newDump.StartLoadConfigParams = ad.StartLoadConfigParams
+
 	// compute the duration it took to reach the dump size threshold
 	timeToThreshold := ad.End.Sub(ad.Start)
 
 	// set new load parameters
-	newDump.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
-	newDump.LoadConfig.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.TracedEventTypes))
-	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
-	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
+	newTimeout := ad.LoadConfig.Params.Timeout - timeToThreshold // here, timeout can have dynamically changed
+	if newTimeout < 1 {                                          // so, ensure that we did not compute a negative new timeout
+		newTimeout = MinDumpTimeout
+	}
+	newDump.SetTimeout(newTimeout)
+	newDump.LoadConfig.Params.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.Params.TracedEventTypes))
+	copy(newDump.LoadConfig.Params.TracedEventTypes, ad.LoadConfig.Params.TracedEventTypes)
+	newDump.LoadConfig.Params.Rate = ad.LoadConfig.Params.Rate
 	newDump.LoadConfigCookie = ad.LoadConfigCookie
 
-	if timeToThreshold < MinDumpTimeout {
-		if err := lc.reduceDumpRate(ad, newDump); err != nil {
-			seclog.Errorf("%v", err)
+	if reduceIfNeeded {
+		if timeToThreshold < MinDumpTimeout {
+			if err := lc.reduceDumpRate(ad, newDump); err != nil {
+				seclog.Errorf("%v", err)
+			}
 		}
-	}
 
-	if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Timeout > MinDumpTimeout {
-		if err := lc.reduceDumpTimeout(newDump); err != nil {
-			seclog.Errorf("%v", err)
+		if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Params.Timeout > MinDumpTimeout {
+			if err := lc.reduceDumpTimeout(newDump); err != nil {
+				seclog.Errorf("%v", err)
+			}
 		}
-	}
 
-	if timeToThreshold < MinDumpTimeout/10 {
-		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
-			seclog.Errorf("%v", err)
+		if timeToThreshold < MinDumpTimeout/10 {
+			if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
+				seclog.Errorf("%v", err)
+			}
 		}
 	}
 	return newDump
@@ -135,7 +131,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 
 // reduceDumpRate reduces the dump rate configuration and applies the updated value to kernel space
 func (lc *ActivityDumpLoadController) reduceDumpRate(old, new *ActivityDump) error {
-	new.LoadConfig.Rate = old.LoadConfig.Rate * 3 / 4 // reduce by 25%
+	new.LoadConfig.Params.Rate = old.LoadConfig.Params.Rate * 3 / 4 // reduce by 25%
 
 	// send metric
 	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:rate"})
@@ -145,11 +141,11 @@ func (lc *ActivityDumpLoadController) reduceDumpRate(old, new *ActivityDump) err
 // event types for a given dump
 func (lc *ActivityDumpLoadController) reduceTracedEventTypes(old, new *ActivityDump) error {
 	var evtToRemove model.EventType
-	new.LoadConfig.TracedEventTypes = new.LoadConfig.TracedEventTypes[:0]
+	new.LoadConfig.Params.TracedEventTypes = new.LoadConfig.Params.TracedEventTypes[:0]
 
 reductionOrder:
 	for _, evt := range TracedEventTypesReductionOrder {
-		for _, tracedEvt := range old.LoadConfig.TracedEventTypes {
+		for _, tracedEvt := range old.LoadConfig.Params.TracedEventTypes {
 			if evt == tracedEvt {
 				evtToRemove = evt
 				break reductionOrder
@@ -157,11 +153,11 @@ reductionOrder:
 		}
 	}
 
-	for _, evt := range old.LoadConfig.TracedEventTypes {
+	for _, evt := range old.LoadConfig.Params.TracedEventTypes {
 		if evt == evtToRemove {
 			continue
 		}
-		new.LoadConfig.TracedEventTypes = append(new.LoadConfig.TracedEventTypes, evt)
+		new.LoadConfig.Params.TracedEventTypes = append(new.LoadConfig.Params.TracedEventTypes, evt)
 	}
 
 	// send metric
@@ -175,7 +171,7 @@ reductionOrder:
 
 // reduceDumpTimeout reduces the dump timeout configuration
 func (lc *ActivityDumpLoadController) reduceDumpTimeout(new *ActivityDump) error {
-	newTimeout := new.LoadConfig.Timeout * 3 / 4 // reduce by 25%
+	newTimeout := new.LoadConfig.Params.Timeout * 3 / 4 // reduce by 25%
 	if newTimeout < MinDumpTimeout {
 		newTimeout = MinDumpTimeout
 	}
