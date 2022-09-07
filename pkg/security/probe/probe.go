@@ -295,12 +295,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	discarderRevisionsMap, err := p.Map("discarder_revisions")
-	if err != nil {
-		return err
-	}
-
-	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver)
+	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, p.erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -1397,7 +1392,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		erpcRequest:          &ERPCRequest{},
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		flushingDiscarders:   atomic.NewBool(false),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
