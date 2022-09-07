@@ -856,21 +856,15 @@ int uninstallServices()
 #ifdef __REGISTER_ALL_SERVICES
 #define NUM_SERVICES 4
     serviceDef services[NUM_SERVICES] = {
-        serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, NULL, NULL),
-        serviceDef(traceService.c_str(), L"Datadog Trace Agent", L"Send tracing metrics to Datadog", trace_exe.c_str(),
-                   L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
-        serviceDef(processService.c_str(), L"Datadog Process Agent", L"Send process metrics to Datadog",
-                   process_exe.c_str(), L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL),
-        serviceDef(systemProbeService.c_str(), L"Datadog System Probe", L"Send network metrics to Datadog",
-                   sysprobe_exe.c_str(), L"\0\0", SERVICE_DEMAND_START, NULL, NULL)
-
+        serviceDef(agentService.c_str()),
+        serviceDef(traceService.c_str()),
+        serviceDef(processService.c_str()),
+        serviceDef(systemProbeService.c_str()),
     };
 #else
 #define NUM_SERVICES 1
     serviceDef services[NUM_SERVICES] = {
-        serviceDef(agentService.c_str(), L"Datadog Agent", L"Send metrics to Datadog", agent_exe.c_str(),
-                   L"winmgmt\0\0", SERVICE_AUTO_START, NULL, NULL),
+        serviceDef(agentService.c_str()),
     };
 #endif
     WcaLog(LOGMSG_STANDARD, "Uninstalling services");
