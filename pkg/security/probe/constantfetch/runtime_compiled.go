@@ -53,27 +53,29 @@ func (cf *RuntimeCompilationConstantFetcher) String() string {
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
-	if headerName != "" {
-		cf.headers = append(cf.headers, headerName)
+	cf.result[id] = ErrorSentinel
+	if headerName == "" {
+		return
 	}
 
+	cf.headers = append(cf.headers, headerName)
 	cf.symbolPairs = append(cf.symbolPairs, rcSymbolPair{
 		Id:        id,
 		Operation: fmt.Sprintf("sizeof(%s)", typeName),
 	})
-	cf.result[id] = ErrorSentinel
 }
 
 func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	if headerName != "" {
-		cf.headers = append(cf.headers, headerName)
+	cf.result[id] = ErrorSentinel
+	if headerName == "" {
+		return
 	}
 
+	cf.headers = append(cf.headers, headerName)
 	cf.symbolPairs = append(cf.symbolPairs, rcSymbolPair{
 		Id:        id,
 		Operation: fmt.Sprintf("offsetof(%s, %s)", typeName, fieldName),
 	})
-	cf.result[id] = ErrorSentinel
 }
 
 const runtimeCompilationTemplate = `

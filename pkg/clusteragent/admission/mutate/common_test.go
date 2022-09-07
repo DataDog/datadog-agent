@@ -120,6 +120,19 @@ func Test_injectEnv(t *testing.T) {
 			},
 			injected: true,
 		},
+		{
+			name: "init containers",
+			args: args{
+				pod: fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container")),
+				env: fakeEnv("inject-me"),
+			},
+			wantPodFunc: func() corev1.Pod {
+				pod := fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container"))
+				pod.Spec.InitContainers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.InitContainers[0].Env...)
+				return *pod
+			},
+			injected: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
