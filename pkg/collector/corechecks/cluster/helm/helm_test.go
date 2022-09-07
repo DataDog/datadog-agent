@@ -111,6 +111,7 @@ func TestRun(t *testing.T) {
 			"helm_status:deployed",
 			"helm_chart_version:2.30.5",
 			"helm_app_version:7",
+			"helm_chart:datadog-2.30.5",
 		},
 		{
 			"helm_release:my_app",
@@ -121,6 +122,7 @@ func TestRun(t *testing.T) {
 			"helm_status:deployed",
 			"helm_chart_version:1.1.0",
 			"helm_app_version:1",
+			"helm_chart:some_app-1.1.0",
 		},
 		{
 			"helm_release:release_without_chart",
@@ -137,6 +139,7 @@ func TestRun(t *testing.T) {
 			"helm_revision:1",
 			"helm_chart_version:2.0.0",
 			"helm_app_version:1",
+			"helm_chart:example_app-2.0.0",
 		},
 	}
 
