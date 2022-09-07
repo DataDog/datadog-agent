@@ -144,25 +144,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	var bpfTelemetrySupported uint64
-	if usmSupported {
-		bpfTelemetrySupported = (1 << 64) - 1
-	} else {
-		bpfTelemetrySupported = 0
-	}
-	constantEditors = append(constantEditors, manager.ConstantEditor{
-		Name:  "k414mask",
-		Value: bpfTelemetrySupported,
-	})
 	ebpfTracer, err := kprobe.New(config, constantEditors)
 	if err != nil {
 		return nil, err
 	}
 
-	bpfTelemetry := errtelemetry.NewBPFTelemetry()
+	bpfTelemetry := errtelemetry.NewBPFTelemetry(usmSupported)
 	bpfTelemetry.MapErrMap = ebpfTracer.GetMap(string(probes.MapErrTelemetryMap))
 	bpfTelemetry.HelperErrMap = ebpfTracer.GetMap(string(probes.HelperErrTelemetryMap))
-
 	if err := bpfTelemetry.RegisterMaps(ebpfTracer.GetAllMapsNames()); err != nil {
 		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
 	}
@@ -814,23 +803,6 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *er
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		// if the platform couldn't be determined, treat it as new kernel case
-		log.Error("could not detect the kernel version for manager bpf telemetry")
-		return nil
-	}
-
-	var bpfTelemetrySupported uint64
-	if currKernelVersion >= kernel.VersionCode(4, 14, 0) {
-		bpfTelemetrySupported = (1 << 64) - 1
-	} else {
-		bpfTelemetrySupported = 0
-	}
-	offsets = append(offsets, manager.ConstantEditor{
-		Name:  "k414mask",
-		Value: bpfTelemetrySupported,
-	})
 
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))

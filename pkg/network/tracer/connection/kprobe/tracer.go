@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -131,6 +132,15 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	m := newManager(perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
+	currKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, errors.New("failed to detect kernel version")
+	}
+	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+	m.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchBPFTelemetry(m, activateBPFTelemetry)
+	}
+
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
@@ -150,6 +160,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 
 	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
@@ -537,4 +548,21 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	default:
 		stats.Direction = network.OUTGOING
 	}
+}
+
+func getAllProgramSpecs(m *manager.Manager) ([]*ebpf.ProgramSpec, error) {
+	var specs []*ebpf.ProgramSpec
+	for _, p := range m.Probes {
+		s, present, err := m.GetProgramSpec(p.ProbeIdentificationPair)
+		if err != nil {
+			return nil, err
+		}
+		if !present {
+			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", p.ProbeIdentificationPair)
+		}
+
+		specs = append(specs, s...)
+	}
+
+	return specs, nil
 }

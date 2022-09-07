@@ -51,6 +51,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
     // map connection tuple during SSL_do_handshake(ctx)
     init_ssl_sock_from_do_handshake((struct sock *)PT_REGS_PARM1(ctx));
+
     return 0;
 }
 

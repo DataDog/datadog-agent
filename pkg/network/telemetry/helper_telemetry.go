@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 )
 
 const (
@@ -38,19 +39,21 @@ var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_
 // BPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type BPFTelemetry struct {
-	MapErrMap    *ebpf.Map
-	HelperErrMap *ebpf.Map
-	maps         []string
-	mapKeys      map[string]uint64
-	probes       []string
-	probeKeys    map[string]uint64
+	MapErrMap      *ebpf.Map
+	HelperErrMap   *ebpf.Map
+	maps           []string
+	mapKeys        map[string]uint64
+	probes         []string
+	probeKeys      map[string]uint64
+	shouldActivate bool
 }
 
 // NewBPFTelemetry initializes a new BPFTelemetry object
-func NewBPFTelemetry() *BPFTelemetry {
+func NewBPFTelemetry(shouldActivate bool) *BPFTelemetry {
 	b := new(BPFTelemetry)
 	b.mapKeys = make(map[string]uint64)
 	b.probeKeys = make(map[string]uint64)
+	b.shouldActivate = shouldActivate
 
 	return b
 }
@@ -58,6 +61,9 @@ func NewBPFTelemetry() *BPFTelemetry {
 // RegisterMaps registers a ebpf map entry in the map error telemetry map,
 // to have failing operation telemetry recorded.
 func (b *BPFTelemetry) RegisterMaps(maps []string) error {
+	if !b.shouldActivate {
+		return nil
+	}
 	b.maps = append(b.maps, maps...)
 	return b.initializeMapErrTelemetryMap()
 }
@@ -65,6 +71,9 @@ func (b *BPFTelemetry) RegisterMaps(maps []string) error {
 // RegisterProbes registers a ebpf map entry in the helper error telemetry map,
 // to have failing helper operation telemetry recorded.
 func (b *BPFTelemetry) RegisterProbes(probes []string) error {
+	if !b.shouldActivate {
+		return nil
+	}
 	b.probes = append(b.probes, probes...)
 	return b.initializeHelperErrTelemetryMap()
 }
@@ -235,6 +244,61 @@ func (b *BPFTelemetry) initializeHelperErrTelemetryMap() error {
 		h.Reset()
 
 		b.probeKeys[p] = key
+	}
+
+	return nil
+}
+
+const BPFTelemetryPatchCall = -1
+
+func PatchBPFTelemetry(m *manager.Manager, shouldActivate bool) error {
+	if shouldActivate {
+		return patchBPFTelemetry(m, asm.StoreXAdd(asm.R1, asm.R2, asm.Word))
+	} else {
+		return patchBPFTelemetry(m, asm.Mov.Reg(asm.R1, asm.R1))
+	}
+}
+
+func getAllProgramSpecs(m *manager.Manager) ([]*ebpf.ProgramSpec, error) {
+	var specs []*ebpf.ProgramSpec
+	for _, p := range m.Probes {
+		s, present, err := m.GetProgramSpec(p.ProbeIdentificationPair)
+		if err != nil {
+			return nil, err
+		}
+		if !present {
+			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", p.ProbeIdentificationPair)
+		}
+
+		specs = append(specs, s...)
+	}
+
+	return specs, nil
+}
+
+func patchBPFTelemetry(m *manager.Manager, newIns asm.Instruction) error {
+	specs, err := getAllProgramSpecs(m)
+	if err != nil {
+		return err
+	}
+	for _, spec := range specs {
+		if spec == nil {
+			continue
+		}
+		iter := spec.Instructions.Iterate()
+		for iter.Next() {
+			ins := iter.Ins
+
+			if !ins.IsBuiltinCall() {
+				continue
+			}
+
+			if ins.Constant != BPFTelemetryPatchCall {
+				continue
+			}
+
+			*ins = newIns
+		}
 	}
 
 	return nil

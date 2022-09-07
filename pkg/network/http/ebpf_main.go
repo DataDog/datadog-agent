@@ -146,10 +146,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD, 
 func (e *ebpfProgram) Init() error {
 	defer e.bytecode.Close()
 
+	e.Manager.DumpHandler = dumpMapsHandler
+	e.Manager.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchBPFTelemetry(m, true)
+	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
-	e.Manager.DumpHandler = dumpMapsHandler
 
 	onlineCPUs, err := cpupossible.Get()
 	if err != nil {

@@ -30,14 +30,15 @@
 BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
 
+#define PATCH_TARGET_TELEMETRY -1
+static void* (*bpf_patch)(int*,...) = (void*)PATCH_TARGET_TELEMETRY;
+
 // The telemetry functions with fail on kernel 4.4, due to
 // reasons described here: https://github.com/DataDog/datadog-agent/blob/main/pkg/network/ebpf/c/http.h#L74
 // Therefore we shortcircuit if the kernel version we are running on is not 4.14
 #define map_update_with_telemetry(fn, map, args...)                              \
     do {                                                                         \
         int errno_ret, errno_slot;                                               \
-        long k414mask; \
-        LOAD_CONSTANT("k414mask", k414mask); \
         errno_ret = fn(&map, args);                                              \
         if (errno_ret < 0) {                                                     \
             unsigned long err_telemetry_key;                                     \
@@ -50,8 +51,9 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
                     errno_slot = T_MAX_ERRNO - 1;                                \
                 }                                                                \
                 errno_slot &= (T_MAX_ERRNO - 1);                                 \
-                errno_slot &= k414mask; \
-                __sync_fetch_and_add(&entry->err_count[errno_slot], 1);          \
+                int *target = &entry->err_count[errno_slot]; \
+                int add = 1; \
+                bpf_patch(target, add); \
             }                                                                    \
         }                                                                        \
     } while (0)
@@ -60,10 +62,8 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
     do {                                                                                                  \
         int helper_indx = -1;                                                                             \
         int errno_slot;                                                                                   \
-        long is4dot14; \
-        LOAD_CONSTANT("is4dot14", is4dot14); \
         errno_ret = fn(dst, sz, src);                                                                     \
-        if ((is4dot14) && (errno_ret < 0)) {                                                                              \
+        if (errno_ret < 0) {                                                                              \
             unsigned long telemetry_program_id;                                                           \
             LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                              \
             helper_err_telemetry_t *entry =                                                               \
