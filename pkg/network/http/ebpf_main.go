@@ -164,7 +164,9 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 	for _, s := range e.subprograms {
-		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+		if s != nil {
+			undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+		}
 	}
 
 	e.Manager.DumpHandler = dumpMapsHandler
