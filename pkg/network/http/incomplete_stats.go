@@ -65,7 +65,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 		data:       make(map[KeyTuple]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
-		minAgeNano: (defaultMinAge.Nanoseconds()),
+		minAgeNano: defaultMinAge.Nanoseconds(),
 	}
 }
 
@@ -127,7 +127,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 		}
 
 		// now that we have finished matching requests and responses
-		// we check if we should keep orphan requests a little bit longer
+		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
 			if b.shouldKeep(parts.requests[i], nowUnix) {
 				keep := parts.requests[i:]
@@ -153,6 +153,7 @@ type byRequestTime []httpTX
 func (rt byRequestTime) Len() int           { return len(rt) }
 func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byRequestTime) Less(i, j int) bool { return rt[i].RequestStarted() < rt[j].RequestStarted() }
+func (rt byRequestTime) Less(i, j int) bool { return rt[i].Request_started < rt[j].Request_started }
 
 type byResponseTime []httpTX
 

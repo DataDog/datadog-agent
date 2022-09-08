@@ -32,4 +32,5 @@ type httpTX interface {
 	RequestStarted() uint64
 	SetRequestMethod(uint32)
 	RequestMethod() uint32
+
 }

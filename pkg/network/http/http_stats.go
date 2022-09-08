@@ -13,7 +13,7 @@ import (
 )
 
 // Method is the type used to represent HTTP request methods
-type Method int
+type Method uint8
 
 // RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
 // For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
