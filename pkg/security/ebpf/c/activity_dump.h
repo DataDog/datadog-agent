@@ -166,7 +166,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     config->start_timestamp = bpf_ktime_get_ns();
     config->end_timestamp = config->start_timestamp + config->timeout;
 
-    int ret = bpf_map_update_elem(&activity_dumps_config, &cookie, defaults, BPF_ANY);
+    int ret = bpf_map_update_elem(&activity_dumps_config, &cookie, config, BPF_ANY);
     if (ret < 0) {
         // should never happen, ignore
         goto fail;

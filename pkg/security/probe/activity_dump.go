@@ -293,6 +293,8 @@ func (ad *ActivityDump) checkInMemorySize() {
 
 // ComputeInMemorySize returns the size of a dump in memory
 func (ad *ActivityDump) ComputeInMemorySize() int {
+	ad.Lock()
+	defer ad.Unlock()
 	return ad.computeInMemorySize()
 }
 
@@ -436,7 +438,7 @@ func (ad *ActivityDump) Stop(releaseTracedCgroupSpot bool) {
 	// make sure we release a cgroup spot only for cgroup generated dumps
 	if releaseTracedCgroupSpot && len(ad.DumpMetadata.ContainerID) > 0 {
 		if err := ad.adm.loadController.releaseTracedCgroupSpot(); err != nil {
-			seclog.Errorf("couldn't release a traced cgroup spot: %w", err)
+			seclog.Errorf("couldn't release a traced cgroup spot: %v", err)
 		}
 	}
 

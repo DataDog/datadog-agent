@@ -37,7 +37,6 @@ type ActivityDumpLoadController struct {
 	adm         *ActivityDumpManager
 
 	// config
-	cgroupWaitListSize int
 	tracedCgroupsCount uint64
 
 	// eBPF maps
@@ -101,6 +100,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 }
 
 // reduceConfig reduces the configuration of the load controller.
+// nolint: unused
 func (lc *ActivityDumpLoadController) reduceConfig() error {
 	if !lc.rateLimiter.Allow() {
 		return nil
@@ -144,9 +144,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
 	// TODO(rate_limiter): inherit normal rate limiter values
 
-	if timeToThreshold < MinDumpTimeout {
-		// TODO(rate_limiter): reduce rate limiter by 25%
-	}
+	// TODO(rate_limiter): reduce rate limiter by 25% if timeToThreshold < MinDumpTimeout
 
 	if timeToThreshold < MinDumpTimeout/2 {
 		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
@@ -207,6 +205,7 @@ func (lc *ActivityDumpLoadController) reduceDumpTimeout(old, new *ActivityDump) 
 
 // reduceTracedCgroupsCount decrements the maximum count of cgroups that can be traced simultaneously and applies the
 // updated value to kernel space.
+// nolint: unused
 func (lc *ActivityDumpLoadController) reduceTracedCgroupsCount() error {
 	// sanity check
 	if lc.tracedCgroupsCount <= 1 {
