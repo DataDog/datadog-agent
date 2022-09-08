@@ -159,7 +159,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     outfiles.append(offset_guesser_outfile)
 
-    nw.phony("cws", inputs=outfiles)
+    nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
 def ninja_network_ebpf_program(nw, infile, outfile, flags):
@@ -208,7 +208,7 @@ def ninja_runtime_compilation_files(nw):
             rule="headerincl",
         )
         rc_outputs.extend([c_file, hash_file])
-    nw.phony("runtime-compilation", inputs=rc_outputs)
+    nw.build(rule="phony", inputs=rc_outputs, outputs=["runtime-compilation"])
 
 
 def ninja_cgo_type_files(nw, windows):
