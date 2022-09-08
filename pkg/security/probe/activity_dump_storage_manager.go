@@ -13,9 +13,9 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ActivityDumpStorage defines the interface implemented by all activity dump storages

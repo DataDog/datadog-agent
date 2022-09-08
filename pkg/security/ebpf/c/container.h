@@ -5,8 +5,6 @@ static __attribute__((always_inline)) void copy_container_id(const char src[CONT
     bpf_probe_read(dst, CONTAINER_ID_LEN, (void*)src);
 }
 
-static __attribute__((always_inline)) void copy_container_id_no_tracing(const char src[CONTAINER_ID_LEN], char dst[CONTAINER_ID_LEN]) {
-    __builtin_memmove(dst, src, CONTAINER_ID_LEN);
-}
+#define copy_container_id_no_tracing(src, dst) __builtin_memmove(dst, src, CONTAINER_ID_LEN)
 
 #endif

@@ -18,6 +18,7 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unsafe"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -34,12 +35,12 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -625,6 +626,15 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	return rules.NewAgentVersionFilter(agentVersion)
+}
+
 func checkPoliciesInner(dir string) error {
 	cfg := &secconfig.Config{
 		PoliciesDir:         dir,
@@ -648,21 +658,29 @@ func checkPoliciesInner(dir string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
-	agentVersion, err := utils.GetAgentSemverVersion()
+	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create agent version filter: %w", err)
 	}
 
 	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
 		RuleFilters: []rules.RuleFilter{
-			&rules.AgentVersionFilter{
-				Version: agentVersion,
-			},
+			agentVersionFilter,
 		},
 	}
 
@@ -697,16 +715,6 @@ func checkPoliciesInner(dir string) error {
 
 func checkPolicies(cmd *cobra.Command, args []string) error {
 	return checkPoliciesInner(checkPoliciesArgs.dir)
-}
-
-// RuleIDFilter used by the policy load to filter out rules
-type RuleIDFilter struct {
-	ID string
-}
-
-// IsAccepted implment the RuleFilter interface
-func (r *RuleIDFilter) IsAccepted(rule *rules.RuleDefinition) bool {
-	return r.ID == rule.ID
 }
 
 // EvalReport defines a report of an evaluation
@@ -790,14 +798,22 @@ func evalRule(cmd *cobra.Command, args []string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
 	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
 		RuleFilters: []rules.RuleFilter{
-			&RuleIDFilter{
+			&rules.RuleIDFilter{
 				ID: evalArgs.ruleID,
 			},
 		},

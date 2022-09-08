@@ -254,6 +254,7 @@ func (s *Service) refresh() error {
 	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
+		s.lastUpdateErr = err
 		return err
 	}
 	err = s.uptane.Update(response)
@@ -309,6 +310,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	}
 
 	if !s.clients.active(request.Client) {
+		s.clients.seen(request.Client)
 		s.Unlock()
 		response := make(chan struct{})
 		s.newActiveClients.requests <- response

@@ -20,6 +20,7 @@ import (
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
 	dogStatsDServer *dogstatsd.Server
+	tags            []string
 	Demux           aggregator.Demultiplexer
 }
 
@@ -107,8 +108,14 @@ func (c *ServerlessMetricAgent) Stop() {
 // SetExtraTags sets extra tags on the DogStatsD server
 func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 	if c.IsReady() {
+		c.tags = tagArray
 		c.dogStatsDServer.SetExtraTags(tagArray)
 	}
+}
+
+// GetExtraTags gets extra tags
+func (c *ServerlessMetricAgent) GetExtraTags() []string {
+	return c.tags
 }
 
 func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
@@ -118,7 +125,7 @@ func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarder
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), "serverless", forwarderTimeout)
+	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {

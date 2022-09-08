@@ -29,16 +29,25 @@ func (c *fhCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	vals, err := c.counter.GetAllValues()
-	if err != nil {
-		log.Warnf("Error getting handle value %v", err)
-		return err
-	}
-	val := vals["_Total"]
-	log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
-	sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
-	sender.Commit()
 
+	var vals map[string]float64
+
+	// counter ("Process", "Handle count")
+	if c.counter == nil {
+		c.counter, err = pdhutil.GetMultiInstanceCounter("Process", "Handle Count", &[]string{"_Total"}, nil)
+	}
+	if c.counter != nil {
+		vals, err = c.counter.GetAllValues()
+	}
+	if err != nil {
+		c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
+	} else {
+		val := vals["_Total"]
+		log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
+		sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
+	}
+
+	sender.Commit()
 	return nil
 }
 
@@ -48,7 +57,6 @@ func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data, 
 		return err
 	}
 
-	c.counter, err = pdhutil.GetMultiInstanceCounter("Process", "Handle Count", &[]string{"_Total"}, nil)
 	return err
 }
 

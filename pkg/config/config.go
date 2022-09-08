@@ -694,8 +694,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("cluster_agent.refresh_on_cache_miss", true)
 	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
-	config.BindEnvAndSetDefault("cluster_agent.advanced_tagging", false)
+	config.BindEnvAndSetDefault("cluster_agent.sidecars_tags", false)
+	config.BindEnvAndSetDefault("cluster_agent.isolation_segments_tags", false)
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
@@ -1003,6 +1005,7 @@ func InitConfig(config Config) {
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
+	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
@@ -1038,6 +1041,17 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
+
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.profile_dd_url", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.api_key", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.env", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENV", "DD_ENV")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.period", 5*time.Minute, "DD_SECURITY_AGENT_INTERNAL_PROFILING_PERIOD")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.cpu_duration", 1*time.Minute, "DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1127,6 +1141,10 @@ func InitConfig(config Config) {
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
+
+	// Windows Performance Counter refresh interval
+	// Controls if and how often Performance Counters need to be refreshed by the agent. This is mainly used in integrations that rely on Performance Counters.
+	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)
@@ -1313,6 +1331,8 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		// these variables are used by serverless, but not via the Config struct
 		"DD_SERVICE":            {},
 		"DD_DOTNET_TRACER_HOME": {},
+		// these variables are used by system-probe, but not via the Config struct
+		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -1361,6 +1381,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}()
 
 	if err := config.ReadInConfig(); err != nil {
+		if IsServerless() {
+			log.Debug("No config file detected, using environment variable based configuration only")
+			return &warnings, nil
+		}
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		} else {

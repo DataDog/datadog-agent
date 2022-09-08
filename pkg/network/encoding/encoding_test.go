@@ -13,10 +13,11 @@ import (
 	"syscall"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -86,7 +87,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
-					ReplSrcPort: int32(40),
+					ReplSrcPort: int32(40000),
 					ReplDstPort: int32(80),
 				},
 
@@ -132,6 +133,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	}
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
+		out.Conns[1].TagsChecksum = uint32(3241915907)
 	}
 	return out
 }
@@ -144,10 +146,14 @@ func TestSerialization(t *testing.T) {
 				{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
-					Monotonic: network.StatCounters{
-						SentBytes:   1,
-						RecvBytes:   100,
-						Retransmits: 201,
+					Monotonic: network.StatCountersByCookie{
+						{
+							StatCounters: network.StatCounters{
+								SentBytes:   1,
+								RecvBytes:   100,
+								Retransmits: 201,
+							},
+						},
 					},
 					Last: network.StatCounters{
 						SentBytes:      2,
@@ -164,7 +170,7 @@ func TestSerialization(t *testing.T) {
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
-						ReplSrcPort: 40,
+						ReplSrcPort: 40000,
 						ReplDstPort: 80,
 					},
 
@@ -213,7 +219,7 @@ func TestSerialization(t *testing.T) {
 			http.NewKey(
 				util.AddressFromString("20.1.1.1"),
 				util.AddressFromString("20.1.1.1"),
-				40,
+				40000,
 				80,
 				"/testpath",
 				true,

@@ -35,6 +35,7 @@ type mockAPI struct {
 
 const (
 	jsonDecodingError = "unexpected end of JSON input"
+	httpError         = "unexpected end of JSON input: simulated HTTP error"
 )
 
 func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error) {
@@ -86,15 +87,16 @@ func (m *mockUptane) TUFVersionState() (uptane.TUFVersions, error) {
 	return args.Get(0).(uptane.TUFVersions), args.Error(1)
 }
 
-var (
-	testRCKey = msgpgo.RemoteConfigKey{
-		AppKey:     "fake_key",
-		OrgID:      2,
-		Datacenter: "dd.com",
-	}
-)
+var testRCKey = msgpgo.RemoteConfigKey{
+	AppKey:     "fake_key",
+	OrgID:      2,
+	Datacenter: "dd.com",
+}
 
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
+	config.Datadog.Set("hostname", "test-hostname")
+	defer config.Datadog.Set("hostname", "")
+
 	dir, err := os.MkdirTemp("", "testdbdir")
 	assert.NoError(t, err)
 	config.Datadog.Set("run_path", dir)
@@ -142,6 +144,22 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	err := service.refresh()
 	assert.NotNil(t, err)
+
+	// Sending the http error too
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		HasError:                     true,
+		Error:                        httpError,
+	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
 	// We should be tracking an error now. With the default backoff config, our refresh interval
 	// should be somewhere in the range of 1 + [30,60], so [31,61]
@@ -359,7 +377,8 @@ func TestService(t *testing.T) {
 		"datadog/2/APM_SAMPLING/id/1": {},
 		"datadog/2/TESTING1/id/1":     {},
 		"datadog/2/APM_SAMPLING/id/2": {},
-		"datadog/2/APPSEC/id/1":       {}},
+		"datadog/2/APPSEC/id/1":       {},
+	},
 		nil,
 	)
 	uptaneClient.On("State").Return(uptane.State{
@@ -481,7 +500,8 @@ func TestServiceClientPredicates(t *testing.T) {
 			{
 				Service: wrongServiceName,
 			},
-		})}}},
+		})}},
+	},
 		nil,
 	)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{

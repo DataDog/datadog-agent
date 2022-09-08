@@ -163,7 +163,7 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("http path malformed: %s", tx.String())
+			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
 		}
 		h.telemetry.malformed.Inc()
 		return "", true

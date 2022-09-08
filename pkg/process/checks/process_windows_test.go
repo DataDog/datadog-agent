@@ -9,7 +9,6 @@
 package checks
 
 import (
-	"sync"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -21,27 +20,17 @@ import (
 )
 
 func TestPerfCountersConfigSetting(t *testing.T) {
-	resetOnce := func() {
-		processProbeOnce = sync.Once{}
-	}
-
 	t.Run("use toolhelp API", func(t *testing.T) {
-		resetOnce()
-		defer resetOnce()
-
 		cfg := config.Mock(t)
 		cfg.Set("process_config.windows.use_perf_counters", false)
-		probe := getProcessProbe()
+		probe := newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 		assert.IsType(t, procutil.NewWindowsToolhelpProbe(), probe)
 	})
 
 	t.Run("use PDH api", func(t *testing.T) {
-		resetOnce()
-		defer resetOnce()
-
 		cfg := config.Mock(t)
 		cfg.Set("process_config.windows.use_perf_counters", true)
-		probe := getProcessProbe()
+		probe := newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 		assert.IsType(t, procutil.NewProcessProbe(), probe)
 	})
 }

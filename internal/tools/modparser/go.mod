@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools/modparser
 
-go 1.17
+go 1.18
 
 require (
 	github.com/stretchr/testify v1.7.0

@@ -10,12 +10,12 @@ package orchestrator
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -27,8 +27,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// TestOrchestratorCheckStartupAndCleanup close simulates the check being closed and then restarted with .Start again
-func TestOrchestratorCheckStartupAndCleanup(t *testing.T) {
+// TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
+func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
+	var wg sync.WaitGroup
+
 	client := fake.NewSimpleClientset()
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 	cl := &apiserver.APIClient{Cl: client, InformerFactory: informerFactory, UnassignedPodInformerFactory: informerFactory}
@@ -39,25 +41,28 @@ func TestOrchestratorCheckStartupAndCleanup(t *testing.T) {
 	err := bundle.Initialize()
 	assert.NoError(t, err)
 
-	// We will create an informer that writes added pods to a channel.
-	nodes := make(chan *corev1.Node, 1)
+	wg.Add(2)
 
 	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
 	nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			node := obj.(*corev1.Node)
-			t.Logf("node added: %s/%s", node.Namespace, node.Name)
-			nodes <- node
+			wg.Done()
 		},
 	})
 
 	writeNode(t, client, "1")
-	select {
-	case node := <-nodes:
-		t.Logf("Got node from channel: %s/%s", node.Namespace, node.Name)
-	case <-time.After(wait.ForeverTestTimeout):
-		t.Error("Informer did not get the added node")
-	}
+
+	// getting rescheduled.
+	orchCheck.Cancel()
+	// This part is not optimal as the cancel closes a channel which gets propagated everywhere that might take some time.
+	// If things are too fast the close is not getting propagated fast enough.
+	// But even if we are too fast and don't catch that part it will not lead to a false positive
+	time.Sleep(1 * time.Millisecond)
+	err = bundle.Initialize()
+	assert.NoError(t, err)
+	writeNode(t, client, "2")
+
+	wg.Wait()
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {

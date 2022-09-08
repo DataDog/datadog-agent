@@ -20,7 +20,7 @@ import (
 	"github.com/cilium/ebpf/perf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 const eventStreamMap = "events"

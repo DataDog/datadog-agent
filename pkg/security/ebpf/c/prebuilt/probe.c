@@ -9,6 +9,7 @@
 #include <uapi/asm-generic/mman-common.h>
 #include <linux/pipe_fs_i.h>
 #include <linux/nsproxy.h>
+#include <linux/module.h>
 
 #include <net/sock.h>
 #include <net/netfilter/nf_conntrack.h>
@@ -25,6 +26,7 @@
 #include "activity_dump.h"
 #include "approvers.h"
 #include "discarders.h"
+#include "iouring.h"
 #include "dentry.h"
 #include "dentry_resolver.h"
 #include "pipe.h"
@@ -58,14 +60,18 @@
 #include "mmap.h"
 #include "mprotect.h"
 #include "raw_syscalls.h"
+
+#ifndef DO_NOT_USE_TC
 #include "flow.h"
 #include "network_parser.h"
 #include "dns.h"
 #include "tc.h"
+#include "net_device.h"
+#endif
+
 #include "module.h"
 #include "signal.h"
 #include "bind.h"
-#include "net_device.h"
 #include "procfs.h"
 #include "offset.h"
 

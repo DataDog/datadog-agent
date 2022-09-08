@@ -314,13 +314,15 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
 			}
-			if ccCache.advancedTagging {
+			if ccCache.sidecarsTags {
 				if sidecars, err := ccCache.GetSidecars(appGUID); err == nil && len(sidecars) > 0 {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
 					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
 				} else {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
 				}
+			}
+			if ccCache.segmentsTags {
 				if segment, err := ccCache.GetIsolationSegmentForOrg(orgGUID); err == nil {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))

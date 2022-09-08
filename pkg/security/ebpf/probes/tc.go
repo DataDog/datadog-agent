@@ -54,6 +54,15 @@ func GetAllTCProgramFunctions() []string {
 	for _, tcProbe := range GetTCProbes() {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
+
+	for _, flowProbe := range getFlowProbes() {
+		output = append(output, flowProbe.EBPFFuncName)
+	}
+
+	for _, netDeviceProbe := range getNetDeviceProbes() {
+		output = append(output, netDeviceProbe.EBPFFuncName)
+	}
+
 	return output
 }
 

@@ -7,19 +7,18 @@ package network
 
 import (
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
-
-	"inet.af/netaddr"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var wildcard = netaddr.IPPrefix{}
+var wildcard = netip.Prefix{}
 
 // ConnectionFilter holds a user-defined excluded IP/CIDR, and ports
 type ConnectionFilter struct {
-	IP       netaddr.IPPrefix // zero-value matches all IPs
+	IP       netip.Prefix // zero-value matches all IPs
 	AllPorts ConnTypeFilter
 
 	Ports map[uint16]ConnTypeFilter
@@ -35,18 +34,18 @@ type ConnTypeFilter struct {
 func ParseConnectionFilters(filters map[string][]string) (excludelist []*ConnectionFilter) {
 	for ip, portFilters := range filters {
 		filter := &ConnectionFilter{Ports: map[uint16]ConnTypeFilter{}}
-		var subnet netaddr.IPPrefix
+		var subnet netip.Prefix
 		var err error
 
 		// retrieve valid IPs
 		if strings.ContainsRune(ip, '*') {
 			subnet = wildcard
 		} else if strings.ContainsRune(ip, '/') {
-			subnet, err = netaddr.ParseIPPrefix(ip)
+			subnet, err = netip.ParsePrefix(ip)
 		} else if strings.ContainsRune(ip, '.') {
-			subnet, err = netaddr.ParseIPPrefix(ip + "/32") // if given ipv4, prefix length of 32
+			subnet, err = netip.ParsePrefix(ip + "/32") // if given ipv4, prefix length of 32
 		} else if strings.Contains(ip, "::") {
-			subnet, err = netaddr.ParseIPPrefix(ip + "/64") // if given ipv6, prefix length of 64
+			subnet, err = netip.ParsePrefix(ip + "/64") // if given ipv6, prefix length of 64
 		} else {
 			log.Errorf("Invalid IP/CIDR/* defined for connection filter")
 			continue
@@ -164,12 +163,12 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 	}
 
 	if len(scf) > 0 {
-		if findMatchingFilter(scf, conn.Source.IP, conn.SPort, conn.Type) {
+		if findMatchingFilter(scf, conn.Source.Addr, conn.SPort, conn.Type) {
 			return true
 		}
 	}
 	if len(dcf) > 0 {
-		if findMatchingFilter(dcf, conn.Dest.IP, conn.DPort, conn.Type) {
+		if findMatchingFilter(dcf, conn.Dest.Addr, conn.DPort, conn.Type) {
 			return true
 		}
 	}
@@ -177,7 +176,7 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 }
 
 // findMatchingFilter iterates through filters to see if this connection matches any defined filter
-func findMatchingFilter(cf []*ConnectionFilter, ip netaddr.IP, addrPort uint16, addrType ConnectionType) bool {
+func findMatchingFilter(cf []*ConnectionFilter, ip netip.Addr, addrPort uint16, addrType ConnectionType) bool {
 	for _, filter := range cf {
 		if filter.IP == wildcard || filter.IP.Contains(ip) {
 			if filter.AllPorts.TCP && filter.AllPorts.UDP { // Wildcard port range case

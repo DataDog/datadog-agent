@@ -31,6 +31,9 @@ const (
 type Config struct {
 	ebpf.Config
 
+	// NPMEnabled is whether the network performance monitoring feature is explicitly enabled or not
+	NPMEnabled bool
+
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
@@ -158,6 +161,16 @@ type Config struct {
 
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
+
+	// EnableRootNetNs disables using the network namespace of the root process (1)
+	// for things like creating netlink sockets for conntrack updates, etc.
+	EnableRootNetNs bool
+
+	// HTTPMapCleanerInterval is the interval to run the cleaner function.
+	HTTPMapCleanerInterval time.Duration
+
+	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
+	HTTPIdleConnectionTTL time.Duration
 }
 
 func join(pieces ...string) string {
@@ -172,6 +185,7 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
+		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
@@ -217,6 +231,11 @@ func New() *Config {
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+
+		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
+
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
@@ -276,5 +295,10 @@ func New() *Config {
 			c.EnableKernelHeaderDownload = true
 		}
 	}
+
+	if !c.EnableRootNetNs {
+		c.EnableConntrackAllNamespaces = false
+	}
+
 	return c
 }

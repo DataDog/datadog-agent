@@ -184,6 +184,12 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	firstSpan := t[0]
 
 	for _, span := range t {
+		if span == nil {
+			continue
+		}
+		if firstSpan == nil {
+			firstSpan = span
+		}
 		if span.TraceID != firstSpan.TraceID {
 			ts.TracesDropped.ForeignSpan.Inc()
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
 )
@@ -41,7 +42,7 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFilter) (*Policy, *multierror.Error) {
+func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	policy := &Policy{
@@ -50,24 +51,39 @@ func parsePolicyDef(name string, source string, def *PolicyDef, filters []RuleFi
 		Version: def.Version,
 	}
 
+MACROS:
 	for _, macroDef := range def.Macros {
+		for _, filter := range macroFilters {
+			IsMacroAccepted, err := filter.IsMacroAccepted(macroDef)
+			if err != nil {
+				errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("error when evaluating one of the macro filters: %w", err)})
+			}
+			if !IsMacroAccepted {
+				continue MACROS
+			}
+		}
+
 		if macroDef.ID == "" {
 			errs = multierror.Append(errs, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
 			continue
 		}
-		if !CheckRuleID(macroDef.ID) {
-			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(macroDef.ID) {
+			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 
 		policy.AddMacro(macroDef)
 	}
 
-LOOP:
+RULES:
 	for _, ruleDef := range def.Rules {
-		for _, filter := range filters {
-			if !filter.IsAccepted(ruleDef) {
-				continue LOOP
+		for _, filter := range ruleFilters {
+			IsRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
+			if err != nil {
+				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("error when evaluating one of the rule filters: %w", err)})
+			}
+			if !IsRuleAccepted {
+				continue RULES
 			}
 		}
 
@@ -75,8 +91,8 @@ LOOP:
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
 			continue
 		}
-		if !CheckRuleID(ruleDef.ID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(ruleDef.ID) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 
@@ -92,7 +108,7 @@ LOOP:
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, reader io.Reader, filters []RuleFilter) (*Policy, error) {
+func LoadPolicy(name string, source string, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	var def PolicyDef
 
 	decoder := yaml.NewDecoder(reader)
@@ -100,7 +116,7 @@ func LoadPolicy(name string, source string, reader io.Reader, filters []RuleFilt
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	policy, errs := parsePolicyDef(name, source, &def, filters)
+	policy, errs := parsePolicyDef(name, source, &def, macroFilters, ruleFilters)
 	if errs.ErrorOrNil() != nil {
 		return nil, errs.ErrorOrNil()
 	}

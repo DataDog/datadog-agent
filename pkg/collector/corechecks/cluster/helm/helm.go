@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -210,10 +211,15 @@ func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includ
 	// I've found releases without a chart reference. Not sure if it's due to
 	// failed deployments, bugs in Helm, etc.
 	if release.Chart != nil && release.Chart.Metadata != nil {
+		// The helm_chart tag matches the value of the standard label helm.sh/chart
+		// https://helm.sh/docs/chart_best_practices/labels/
+		escapedVersion := strings.ReplaceAll(release.Chart.Metadata.Version, "+", "_")
+		helmChartTag := fmt.Sprintf("helm_chart:%s-%s", release.Chart.Metadata.Name, escapedVersion)
 		tags = append(
 			tags,
 			fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
 			fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
+			helmChartTag,
 		)
 	}
 

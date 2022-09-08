@@ -1,6 +1,7 @@
 {
 	"constants": [
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -28,6 +29,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -55,6 +57,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -83,6 +86,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -110,6 +114,7 @@
 			"tty_offset": 376
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -137,6 +142,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -165,6 +171,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 16,
 			"bpf_prog_type_offset": 8,
@@ -189,6 +196,7 @@
 			"tty_offset": 384
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 8,
 			"bpf_prog_aux_offset": 16,
 			"bpf_prog_type_offset": 8,
@@ -213,6 +221,7 @@
 			"tty_offset": 384
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 16,
 			"creds_uid_offset": 4,
@@ -236,6 +245,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 16,
 			"creds_uid_offset": 4,
@@ -258,6 +268,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 16,
 			"creds_uid_offset": 4,
@@ -280,6 +291,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 24,
 			"bpf_prog_tag_offset": 12,
@@ -304,6 +316,7 @@
 			"tty_offset": 376
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 28,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_id_offset": 16,
@@ -330,6 +343,7 @@
 			"tty_offset": 376
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_type_offset": 24,
 			"bpf_prog_aux_id_offset": 16,
@@ -356,6 +370,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 208,
 			"bpf_map_type_offset": 24,
@@ -385,6 +400,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 200,
 			"bpf_map_type_offset": 24,
@@ -414,6 +430,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -443,6 +460,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 80,
 			"bpf_map_type_offset": 24,
@@ -472,6 +490,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 208,
 			"bpf_map_type_offset": 24,
@@ -501,6 +520,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -530,6 +550,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -559,6 +580,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 16,
 			"bpf_prog_type_offset": 8,
@@ -582,6 +604,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_offset": 16,
 			"bpf_prog_type_offset": 8,
@@ -605,6 +628,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -634,6 +658,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -663,6 +688,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -692,6 +718,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"creds_uid_offset": 4,
 			"dentry_sb_offset": 104,
 			"flowi4_saddr_offset": 20,
@@ -713,6 +740,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 4,
 			"bpf_prog_aux_id_offset": 24,
 			"bpf_prog_aux_offset": 0,
@@ -737,6 +765,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -766,6 +795,7 @@
 			"tty_offset": 416
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -795,6 +825,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -824,6 +855,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -853,6 +885,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 208,
 			"bpf_map_type_offset": 24,
@@ -883,6 +916,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 296,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 208,
 			"bpf_map_type_offset": 24,
@@ -913,6 +947,7 @@
 			"tty_offset": 392
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -944,6 +979,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -975,6 +1011,7 @@
 			"tty_offset": 440
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 8,
 			"bpf_prog_aux_offset": 16,
 			"bpf_prog_type_offset": 8,
@@ -999,6 +1036,7 @@
 			"tty_offset": 384
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_type_offset": 8,
 			"bpf_prog_aux_offset": 16,
 			"bpf_prog_type_offset": 8,
@@ -1023,6 +1061,7 @@
 			"tty_offset": 464
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1053,6 +1092,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -1084,6 +1124,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1114,6 +1155,7 @@
 			"tty_offset": 376
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -1145,6 +1187,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 176,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1175,6 +1218,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -1206,6 +1250,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 176,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1236,6 +1281,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -1267,6 +1313,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -1298,6 +1345,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -1329,6 +1377,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1358,6 +1407,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1387,6 +1437,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 176,
 			"bpf_map_type_offset": 24,
@@ -1417,6 +1468,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -1448,6 +1500,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -1478,6 +1531,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -1507,6 +1561,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -1536,6 +1591,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -1566,6 +1622,7 @@
 			"tty_offset": 368
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -1595,6 +1652,7 @@
 			"tty_offset": 376
 		},
 		{
+			"binprm_file_offset": 168,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 112,
 			"bpf_map_type_offset": 24,
@@ -1625,6 +1683,7 @@
 			"tty_offset": 376
 		},
 		{
+			"binprm_file_offset": 48,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 168,
 			"bpf_map_type_offset": 24,
@@ -1656,6 +1715,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 80,
 			"bpf_map_type_offset": 24,
@@ -1687,6 +1747,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 80,
 			"bpf_map_type_offset": 24,
@@ -1718,6 +1779,7 @@
 			"tty_offset": 408
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -1749,6 +1811,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -1780,6 +1843,7 @@
 			"tty_offset": 400
 		},
 		{
+			"binprm_file_offset": 64,
 			"bpf_map_id_offset": 48,
 			"bpf_map_name_offset": 88,
 			"bpf_map_type_offset": 24,
@@ -2244,6 +2308,13 @@
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.287-215.504.amzn2.aarch64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.290-217.505.amzn2.aarch64",
 			"cindex": 2
 		},
 		{
@@ -2734,6 +2805,13 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.287-215.504.amzn2.x86_64",
+			"cindex": 5
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.290-217.505.amzn2.x86_64",
 			"cindex": 5
 		},
 		{
@@ -3616,6 +3694,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.71.1.el7.x86_64",
+			"cindex": 25
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.76.1.el7.x86_64",
 			"cindex": 25
 		},
 		{
@@ -4903,6 +4988,20 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1139-aws",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-1140-aws",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-115-generic",
 			"cindex": 48
 		},
@@ -5198,6 +5297,27 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-188-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-189-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-191-generic",
+			"cindex": 50
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-192-generic",
 			"cindex": 50
 		},
 		{
@@ -7311,6 +7431,20 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1134-gcp",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1135-gcp",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1136-aws",
 			"cindex": 55
 		},
@@ -7339,8 +7473,22 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1139-aws",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1139-azure",
 			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1140-aws",
+			"cindex": 55
 		},
 		{
 			"distrib": "ubuntu",
@@ -7360,8 +7508,22 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1149-azure",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-115-generic",
 			"cindex": 54
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1150-azure",
+			"cindex": 57
 		},
 		{
 			"distrib": "ubuntu",
@@ -7655,6 +7817,20 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-188-generic",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-191-generic",
+			"cindex": 55
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-192-generic",
 			"cindex": 55
 		},
 		{
