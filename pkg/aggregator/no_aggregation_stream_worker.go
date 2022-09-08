@@ -51,13 +51,11 @@ var noAggWorkerStreamCheckFrequency = time.Second * 2
 
 // Telemetry vars
 var (
-	tlmNoAggSamplesProcessed = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
-	tlmNoAggFlush            = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
-)
+	tlmNoAggSamplesProcessed                = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
+	tlmNoAggSamplesProcessedOk              = tlmNoAggSamplesProcessed.WithValues("ok")
+	tlmNoAggSamplesProcessedUnsupportedType = tlmNoAggSamplesProcessed.WithValues("unsupported_type")
 
-const (
-	noAggProcessStateOk              = "ok"
-	noAggProcessStateUnsupportedType = "unsupported_type"
+	tlmNoAggFlush = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
 )
 
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
@@ -155,14 +153,15 @@ func (w *noAggregationStreamWorker) run() {
 					// receiving samples
 					case samples := <-w.samplesChan:
 						log.Debugf("Streaming %d metrics from the no-aggregation pipeline", len(samples))
-						var processed int
+						var countProcessed int
+						var countUnsupportedType int
 
 						for _, sample := range samples {
 							mtype, supported := metricSampleAPIType(sample)
 
 							if !supported {
 								log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
-								tlmNoAggSamplesProcessed.Add(1, noAggProcessStateUnsupportedType)
+								countUnsupportedType++
 								continue
 							}
 
@@ -183,13 +182,15 @@ func (w *noAggregationStreamWorker) run() {
 
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()
-							processed++
+							countProcessed++
 						}
 
 						lastStream = time.Now()
 
-						serializedSamples += processed
-						tlmNoAggSamplesProcessed.Add(float64(processed), noAggProcessStateOk)
+						serializedSamples += countProcessed
+
+						tlmNoAggSamplesProcessedOk.Add(float64(countProcessed))
+						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
 
 						if serializedSamples > w.maxMetricsPerPayload {
 							tlmNoAggFlush.Add(1)
