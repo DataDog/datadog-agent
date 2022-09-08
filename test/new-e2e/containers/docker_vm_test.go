@@ -58,6 +58,7 @@ func TestAgentDockerVM(t *testing.T) {
 
 	result, err := stack.Up(context.Background())
 	require.NoError(t, err)
+	defer stack.Down(context.Background())
 	instanceIP, found := result.Outputs["private-ip"]
 	require.True(t, found)
 
@@ -73,6 +74,4 @@ func TestAgentDockerVM(t *testing.T) {
 		" -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro"+
 		" -e DD_API_KEY=%s public.ecr.aws/datadog/agent:7", apiKey))
 	require.NoError(t, err)
-
-	require.NoError(t, stack.Down(context.Background()))
 }

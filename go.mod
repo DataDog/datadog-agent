@@ -165,7 +165,7 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
-	github.com/vboulineau/pulumi-definitions v0.0.0-20220725135048-3f60786b2650
+	github.com/vboulineau/pulumi-definitions v0.0.0-20220729091701-ad3109f742f4
 	github.com/vishvananda/netlink v1.2.0-beta.0.20220404152918-5e915e014938
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
 	github.com/vmihailenco/msgpack/v4 v4.3.12
@@ -371,6 +371,8 @@ require (
 	github.com/prometheus/procfs v0.8.0
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.7.2 // indirect
+	github.com/pulumi/pulumi-awsx/sdk v1.0.0-beta.9 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v3 v3.2.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
