@@ -65,15 +65,15 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 		data:       make(map[KeyTuple]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
-		minAgeNano: (defaultMinAge.Nanoseconds()),
+		minAgeNano: defaultMinAge.Nanoseconds(),
 	}
 }
 
 func (b *incompleteBuffer) Add(tx *httpTX) {
 	key := KeyTuple{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
+		SrcIPHigh: tx.Tup.Saddr_h,
+		SrcIPLow:  tx.Tup.Saddr_l,
+		SrcPort:   tx.Tup.Sport,
 	}
 
 	parts, ok := b.data[key]
@@ -113,21 +113,21 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 		for i < len(parts.requests) && j < len(parts.responses) {
 			request := parts.requests[i]
 			response := parts.responses[j]
-			if request.request_started > response.response_last_seen {
+			if request.Request_started > response.Response_last_seen {
 				j++
 				continue
 			}
 
 			// Merge response into request
-			request.response_status_code = response.response_status_code
-			request.response_last_seen = response.response_last_seen
+			request.Response_status_code = response.Response_status_code
+			request.Response_last_seen = response.Response_last_seen
 			joined = append(joined, request)
 			i++
 			j++
 		}
 
 		// now that we have finished matching requests and responses
-		// we check if we should keep orphan requests a little bit longer
+		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
 			if b.shouldKeep(parts.requests[i], nowUnix) {
 				keep := parts.requests[i:]
@@ -144,7 +144,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 }
 
 func (b *incompleteBuffer) shouldKeep(tx *httpTX, now int64) bool {
-	then := int64(tx.request_started)
+	then := int64(tx.Request_started)
 	return (now - then) < b.minAgeNano
 }
 
@@ -152,12 +152,12 @@ type byRequestTime []*httpTX
 
 func (rt byRequestTime) Len() int           { return len(rt) }
 func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
-func (rt byRequestTime) Less(i, j int) bool { return rt[i].request_started < rt[j].request_started }
+func (rt byRequestTime) Less(i, j int) bool { return rt[i].Request_started < rt[j].Request_started }
 
 type byResponseTime []*httpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byResponseTime) Less(i, j int) bool {
-	return rt[i].response_last_seen < rt[j].response_last_seen
+	return rt[i].Response_last_seen < rt[j].Response_last_seen
 }
