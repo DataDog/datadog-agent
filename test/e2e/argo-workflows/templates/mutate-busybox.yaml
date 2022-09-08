@@ -121,7 +121,7 @@ spec:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
-              admission.datadoghq.com/python-lib.custom-image: "ghcr.io/datadog/dd-trace-py/dd-python-agent-init:latest"  # TODO: Use the default repo when ready
+              admission.datadoghq.com/python-lib.version: "latest"
           spec:
             containers:
               - command:
