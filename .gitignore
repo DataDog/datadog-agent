@@ -174,3 +174,10 @@ TAGS
 
 # cscope
 cscope.out
+tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/packages/
+*.wixobj
+tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+*obj*
+*.g.wxs
+*.DotSettings.user
