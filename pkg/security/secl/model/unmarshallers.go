@@ -241,7 +241,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	// TODO: Is there a better way to determine if there's no interpreter?
 	inode, mountID := ByteOrder.Uint64(data[read:read+8]), ByteOrder.Uint32(data[read+8:read+12])
-	if e.FileEvent.Inode != inode && e.FileEvent.MountID != mountID {
+	if e.FileEvent.Inode != inode || e.FileEvent.MountID != mountID {
 		e.LinuxBinprm.FileEvent.Inode, e.LinuxBinprm.FileEvent.MountID = inode, mountID
 		e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
 	}

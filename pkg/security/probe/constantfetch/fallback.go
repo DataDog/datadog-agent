@@ -100,6 +100,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFlowi6ULIOffset(f.kernelVersion)
 	case OffsetNameLinuxBinprmStructFile:
 		value = getBinPrmFileFieldOffset(f.kernelVersion)
+	case OffsetNameIoKiocbStructCtx:
+		value = getIoKcbCtxOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -701,4 +703,8 @@ func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 
 	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
 	return 64
+}
+
+func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
+	return 80
 }

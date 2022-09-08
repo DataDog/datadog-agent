@@ -197,7 +197,7 @@ type inodeDiscarders struct {
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]inodeDiscarderEntry
 }
 
-func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
+func newInodeDiscarders(inodesMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
@@ -561,12 +561,11 @@ func processDiscarderWrapper(eventType model.EventType) onDiscarderHandler {
 		if discarder.Field == "process.file.path" {
 			seclog.Tracef("Apply process.file.path discarder for event `%s`, inode: %d, pid: %d", eventType, event.ProcessContext.FileEvent.Inode, event.ProcessContext.Pid)
 
-			// discard by PID for long running process
 			if err := probe.pidDiscarders.discardPid(probe.erpcRequest, eventType, event.ProcessContext.Pid); err != nil {
 				return false, err
 			}
 
-			return true, probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, event.ProcessContext.FileEvent.MountID, event.ProcessContext.FileEvent.Inode, true)
+			return true, nil
 		}
 
 		return false, nil
