@@ -144,15 +144,28 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	sslProgram, _ := newSSLProgram(c, sockFD)
-	goTLSProgram, _ := NewGoTLSProgram(c)
+	var ebpfSubprograms []subprogram
+	sslProgram, err := newSSLProgram(c, sockFD)
+	if err != nil {
+		log.Errorf("failed creating ssl ebpf subprogram: %w", err)
+	} else {
+		ebpfSubprograms = append(ebpfSubprograms, sslProgram)
+	}
+
+	goTLSProgram, err := newGoTLSProgram(c)
+	if err != nil {
+		log.Errorf("failed creating go tls ebpf subprogram: %w", err)
+	} else {
+		ebpfSubprograms = append(ebpfSubprograms, goTLSProgram)
+	}
+
 	program := &ebpfProgram{
 		Manager:                mgr,
 		bytecode:               bytecode,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram, goTLSProgram},
+		subprograms:            ebpfSubprograms,
 	}
 
 	return program, nil

@@ -7,20 +7,15 @@
 #include "ip.h"
 #include "port_range.h"
 
-// TODO de-duplicate with http.c
-// TODO: Replace those by injected constants based on system configuration
-// once we have port range detection merged into the codebase.
-#define EPHEMERAL_RANGE_BEG 32768
-#define EPHEMERAL_RANGE_END 60999
-
 // Implemented either in c/runtime/conn-tuple.h or from c/sockfd.h
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
+// get_conn_fd returns the poll.FD field offset in the nested conn struct.
 static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr, int32_t* dest) {
     void* tls_conn_inner_conn_ptr = tls_conn_ptr + cl->tls_conn_inner_conn_offset;
 
     interface_t inner_conn_iface;
-    if (bpf_probe_read(&inner_conn_iface, sizeof(inner_conn_iface), tls_conn_inner_conn_ptr)) {
+    if (bpf_probe_read_user(&inner_conn_iface, sizeof(inner_conn_iface), tls_conn_inner_conn_ptr)) {
         return 1;
     }
 
@@ -48,7 +43,7 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_probe_data_t* pd
     }
 
     // The code path below should be executed only once during the lifecycle of a TLS connection
-    int32_t fd;
+    int32_t fd = 0;
     if (get_conn_fd(&pd->conn_layout, conn, &fd)) {
         return NULL;
     }
@@ -62,8 +57,8 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_probe_data_t* pd
         return NULL;
     }
 
-    conn_tuple_t t = {0};
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
+    conn_tuple_t conn_tuple = {0};
+    if (!read_conn_tuple(&conn_tuple, *sock, pid_tgid, CONN_TYPE_TCP)) {
         return NULL;
     }
 
@@ -73,14 +68,14 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_probe_data_t* pd
     // so we ensure it is always 0 here so that both paths produce the same `conn_tuple_t` value.
     // `netns` is not used in the userspace program part that binds http information to `ConnectionStats`,
     // so this is isn't a problem.
-    t.netns = 0;
-    t.pid = 0;
+    conn_tuple.netns = 0;
+    conn_tuple.pid = 0;
 
-    if (!is_ephemeral_port(t.sport)) {
-        flip_tuple(&t);
+    if (!is_ephemeral_port(conn_tuple.sport)) {
+        flip_tuple(&conn_tuple);
     }
 
-    bpf_map_update_elem(&conn_tup_by_tls_conn, &conn, &t, BPF_ANY);
+    bpf_map_update_elem(&conn_tup_by_tls_conn, &conn, &conn_tuple, BPF_ANY);
     return bpf_map_lookup_elem(&conn_tup_by_tls_conn, &conn);
 }
 

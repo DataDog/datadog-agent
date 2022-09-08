@@ -28,7 +28,7 @@ typedef struct {
 	__u64 runtime_g_tls_addr_offset;
 	__u64 goroutine_id_offset;
 	__s64 runtime_g_register;
-    __u8 runtime_g_in_register;
+	__u8 runtime_g_in_register;
 } goroutine_id_metadata_t;
 
 typedef struct {
@@ -58,13 +58,13 @@ typedef struct {
 } tls_probe_data_t;
 
 typedef struct {
-	__u32 tgid;
+	__u32 pid;
 	__s64 goroutine_id;
-} read_partial_call_key_t;
+} go_tls_read_args_key_t;
 
 typedef struct {
 	__u64 conn_pointer;
 	__u64 b_data;
-} read_partial_call_data_t;
+} go_tls_read_args_data_t;
 
 #endif //__GO_TLS_TYPES_H

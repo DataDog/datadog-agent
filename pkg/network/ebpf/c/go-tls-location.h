@@ -3,6 +3,8 @@
 
 #include "bpf_helpers.h"
 
+#define REG_SIZE 8
+
 // This function was adapted from https://github.com/go-delve/delve:
 // - https://github.com/go-delve/delve/blob/cd9e6c02a6ca5f0d66c1f770ee10a0d8f4419333/pkg/proc/internal/ebpf/bpf/trace.bpf.c#L43
 // which is licensed under MIT.
@@ -60,15 +62,15 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
 			default:
 				return 1;
 		}
-    #elif defined(__aarch64__)
+	#elif defined(__aarch64__)
 		if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
 			__builtin_memcpy(dest, &ctx->regs[regnum], sizeof(ctx->regs[regnum]));
 			return 0;
 		}
 		return 1;
-    #else
+	#else
 		#error "Unsupported platform"
-    #endif
+	#endif
 }
 
 // This function was adapted from https://github.com/go-delve/delve:
@@ -112,14 +114,14 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
 			default:
 				return NULL;
 		}
-    #elif defined(__aarch64__)
+	#elif defined(__aarch64__)
 		if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
 			return &ctx->regs[regnum];
 		}
 		return NULL;
-    #else
+	#else
 		#error "Unsupported platform"
-    #endif
+	#endif
 }
 
 static __always_inline int read_stack(struct pt_regs* ctx, int64_t stack_offset, size_t size, void* dest) {
@@ -135,9 +137,9 @@ static __always_inline int read_location(struct pt_regs* ctx, location_t* loc, s
 	}
 
 	if (loc->in_register) {
-        if (size != 8) {
-            return 1;
-        }
+	    if (size != REG_SIZE) {
+	        return 1;
+	    }
 
 		return read_register(ctx, loc->_register, dest);
 	} else {

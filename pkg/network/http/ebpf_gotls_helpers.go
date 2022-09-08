@@ -6,6 +6,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -13,15 +14,15 @@ import (
 )
 
 func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsProbeData, error) {
-	readConnPointer, err := getconnPointer(result, bininspect.ReadGoTLSFunc)
+	readConnPointer, err := getConnPointer(result, bininspect.ReadGoTLSFunc)
 	if err != nil {
 		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting read conn pointer from inspection result: %w", err)
 	}
-	writeConnPointer, err := getconnPointer(result, bininspect.WriteGoTLSFunc)
+	writeConnPointer, err := getConnPointer(result, bininspect.WriteGoTLSFunc)
 	if err != nil {
 		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting write conn pointer from inspection result: %w", err)
 	}
-	closeConnPointer, err := getconnPointer(result, bininspect.CloseGoTLSFunc)
+	closeConnPointer, err := getConnPointer(result, bininspect.CloseGoTLSFunc)
 	if err != nil {
 		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting close conn pointer from inspection result: %w", err)
 	}
@@ -61,13 +62,20 @@ func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsProbeData, 
 	}, nil
 }
 
-func getconnPointer(result *bininspect.Result, funcName string) (ebpf.Location, error) {
+func getConnPointer(result *bininspect.Result, funcName string) (ebpf.Location, error) {
+	if len(result.Functions[funcName].Parameters) < 1 {
+		return ebpf.Location{}, errors.New("expected at least one parameter")
+	}
 	readConnReceiver := result.Functions[funcName].Parameters[0]
 	return wordLocation(readConnReceiver, result.Arch, "pointer", reflect.Ptr)
 }
 
 func getReadBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error) {
-	bufferParam := result.Functions[bininspect.ReadGoTLSFunc].Parameters[1]
+	params := result.Functions[bininspect.ReadGoTLSFunc].Parameters
+	if len(params) < 2 {
+		return ebpf.SliceLocation{}, errors.New("expected at least two parameter for read function")
+	}
+	bufferParam := params[1]
 	if result.GoVersion.Major == 1 && result.GoVersion.Minor == 16 && len(bufferParam.Pieces) == 0 {
 		return ebpf.SliceLocation{
 			Ptr: ebpf.Location{
@@ -91,7 +99,11 @@ func getReadBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error
 }
 
 func getWriteBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error) {
-	bufferParam := result.Functions[bininspect.WriteGoTLSFunc].Parameters[1]
+	params := result.Functions[bininspect.WriteGoTLSFunc].Parameters
+	if len(params) < 2 {
+		return ebpf.SliceLocation{}, errors.New("expected at least two parameters in write function")
+	}
+	bufferParam := params[1]
 	return sliceLocation(bufferParam, result.Arch)
 }
 
@@ -151,11 +163,10 @@ func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
 			endOfParametersOffset += param.TotalSize
 		}
 
-		currentOffset := endOfParametersOffset
 		return ebpf.Location{
 			Exists:       boolToBinary(true),
 			In_register:  boolToBinary(false),
-			Stack_offset: currentOffset,
+			Stack_offset: endOfParametersOffset,
 		}, nil
 	default:
 		return ebpf.Location{}, fmt.Errorf("unknoen abi %q", result.ABI)
@@ -283,6 +294,7 @@ func compositeLocation(
 }
 
 func sliceLocation(param bininspect.ParameterMetadata, arch bininspect.GoArch) (ebpf.SliceLocation, error) {
+	// We expect each slice golang parameter to have 3 parts - the ptr to the data, the length and the capacity.
 	locations, err := compositeLocation(param, arch, "slice", reflect.Slice, 3)
 	if err != nil {
 		return ebpf.SliceLocation{}, err

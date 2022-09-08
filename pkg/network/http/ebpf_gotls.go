@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	probeDataMap        = "probe_data"
-	readPartialCallsMap = "read_partial_calls"
+	probeDataMap     = "probe_data"
+	goTLSReadArgsMap = "go_tls_read_args"
 
 	writeFuncName      = "uprobe__crypto_tls_Conn_Write"
 	readFuncName       = "uprobe__crypto_tls_Conn_Read"
@@ -59,13 +59,14 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 }
 
 type GoTLSProgram struct {
-	manager *manager.Manager
+	manager  *manager.Manager
+	probeIDs []manager.ProbeIdentificationPair
 }
 
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &GoTLSProgram{}
 
-func NewGoTLSProgram(c *config.Config) (*GoTLSProgram, error) {
+func newGoTLSProgram(c *config.Config) (*GoTLSProgram, error) {
 	if !c.EnableHTTPSMonitoring {
 		return nil, nil
 	}
@@ -81,7 +82,7 @@ func (p *GoTLSProgram) ConfigureManager(m *manager.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
 		{Name: probeDataMap},
-		{Name: readPartialCallsMap},
+		{Name: goTLSReadArgsMap},
 	}...)
 	// Hooks will be added in runtime for each binary
 }
@@ -96,6 +97,11 @@ func (p *GoTLSProgram) Start() {
 	// and this implementation should be done for each new process found.
 
 	binPath := os.Getenv("GO_TLS_TEST")
+	p.handleNewBinary(binPath)
+
+}
+
+func (p *GoTLSProgram) handleNewBinary(binPath string) {
 	f, err := os.Open(binPath)
 	if err != nil {
 		log.Errorf("could not open file %q due to %w", binPath, err)
@@ -108,15 +114,20 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 	result, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
+	if err != nil {
+		log.Errorf("failed inspecting binary %q: %w", binPath, err)
+		return
+	}
 
 	// result and bin path are being passed as parameters as a preparation for the future when we will have a process
 	// watcher, so we will run on more than one binary in one goTLSProgram.
 	p.addInspectionResultToMap(result, binPath)
 
 	p.attachHooks(result, binPath)
-
 }
 
+// addInspectionResultToMap runs a binary inspection and adds the result to the map that's being read by the probes.
+// It assumed the given path is from /proc dir and gets the pid from the path. It will fail otherwise.
 func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPath string) {
 	probeData, err := inspectionResultToProbeData(result)
 	if err != nil {
@@ -130,7 +141,13 @@ func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPa
 	}
 
 	// Map key is the pid, so it will be identified in the probe as the relevant data
-	pidStr := strings.Split(binPath, "/")[2]
+	splitPath := strings.Split(binPath, "/")
+	if len(splitPath) != 4 {
+		// parts should be "", "proc", "<pid>", "exe"
+		log.Error("got an unexpected path format")
+		return
+	}
+	pidStr := splitPath[2]
 	pid, err := strconv.ParseInt(pidStr, 10, 32)
 	if err != nil {
 		log.Errorf("failed extracting pid number for binary %q: %w", binPath, err)
@@ -145,23 +162,34 @@ func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPa
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 	uid := getUID(binPath)
+	attachFailed := false
+
+	// Cleanup if failed
+	defer func() {
+		if attachFailed {
+			p.detachHooks()
+		}
+	}()
 
 	for i, offset := range result.Functions[bininspect.ReadGoTLSFunc].ReturnLocations {
+		probeID := manager.ProbeIdentificationPair{
+			EBPFSection:  readReturnProbe,
+			EBPFFuncName: readReturnFuncName,
+			UID:          makeReturnUID(uid, i),
+		}
 		err := p.manager.AddHook("", &manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  readReturnProbe,
-				EBPFFuncName: readReturnFuncName,
-				UID:          makeReturnUID(uid, i),
-			},
-			BinaryPath: binPath,
+			ProbeIdentificationPair: probeID,
+			BinaryPath:              binPath,
 			// Each return probe needs to have a unique uid value,
 			// so add the index to the binary UID to make an overall UID.
 			UprobeOffset: offset,
 		})
 		if err != nil {
 			log.Errorf("could not add hook to read return in offset %d due to: %w", offset, err)
+			attachFailed = true
 			return
 		}
+		p.probeIDs = append(p.probeIDs, probeID)
 	}
 
 	probes := []*manager.Probe{
@@ -198,7 +226,18 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) {
 		err := p.manager.AddHook("", probe)
 		if err != nil {
 			log.Errorf("could not add hook for %q in offset %d due to: %w", probe.EBPFFuncName, probe.UprobeOffset, err)
+			attachFailed = true
 			return
+		}
+		p.probeIDs = append(p.probeIDs, probe.ProbeIdentificationPair)
+	}
+}
+
+func (p *GoTLSProgram) detachHooks() {
+	for _, probeID := range p.probeIDs {
+		err := p.manager.DetachHook(probeID)
+		if err != nil {
+			log.Errorf("failed detaching hook %s: %w", probeID.UID, err)
 		}
 	}
 }
@@ -208,5 +247,6 @@ func (p *GoTLSProgram) Stop() {
 		return
 	}
 	// In the future, this should stop the new process listener.
-	// TODO detach hooks
+	p.detachHooks()
+
 }
