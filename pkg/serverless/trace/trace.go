@@ -19,9 +19,10 @@ import (
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
 type ServerlessTraceAgent struct {
-	ta           *agent.Agent
-	spanModifier *spanModifier
-	cancel       context.CancelFunc
+	ta              *agent.Agent
+	spanModifier    *spanModifier
+	cancel          context.CancelFunc
+	ModifyTraceFunc func(*[]*pb.Span)
 }
 
 // Load abstracts the file configuration loading
@@ -71,6 +72,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			s.ta = agent.NewAgent(context, tc)
 			s.spanModifier = &spanModifier{}
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
+			s.ta.ModifyTraceFunc = s.ModifyTraceFunc
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel
 			go func() {
