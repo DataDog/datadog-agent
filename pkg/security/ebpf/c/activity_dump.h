@@ -133,7 +133,7 @@ __attribute__((always_inline)) void unlock_cgroups_counter() {
     bpf_map_delete_elem(&traced_cgroups_lock, &key);
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u32 cookie, struct activity_dump_config *config) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u32 cookie, struct activity_dump_config *config) {
     if (!lock_cgroups_counter()) {
         return false;
     }
@@ -163,7 +163,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
         goto fail;
     }
     *config = *defaults;
-    config->start_timestamp = bpf_ktime_get_ns();
+    config->start_timestamp = now;
     config->end_timestamp = config->start_timestamp + config->timeout;
 
     int ret = bpf_map_update_elem(&activity_dumps_config, &cookie, config, BPF_ANY);
@@ -208,11 +208,11 @@ __attribute__((always_inline)) void free_traced_cgroup_spot(char cgroup[CONTAINE
     unlock_cgroups_counter();
 }
 
-__attribute__((always_inline)) u32 trace_new_cgroup(void *ctx, char cgroup[CONTAINER_ID_LEN]) {
+__attribute__((always_inline)) u32 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {
     u32 cookie = bpf_get_prandom_u32();
     struct activity_dump_config config = {};
 
-    if (!reserve_traced_cgroup_spot(cgroup, cookie, &config)) {
+    if (!reserve_traced_cgroup_spot(cgroup, now, cookie, &config)) {
         // we're already tracing too many cgroups concurrently, ignore this one for now
         return 0;
     }
@@ -302,7 +302,7 @@ __attribute__((always_inline)) void should_trace_new_process_cgroup(void *ctx, u
             }
 
             // can we start tracing this cgroup ?
-            u32 cookie = trace_new_cgroup(ctx, cgroup);
+            u32 cookie = trace_new_cgroup(ctx, now, cgroup);
             if (cookie != 0) {
                 // a lock was acquired for this cgroup, start tracing the current pid
                 bpf_map_update_elem(&traced_pids, &pid, &cookie, BPF_ANY);
@@ -351,41 +351,38 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
 }
 
 #define NO_ACTIVITY_DUMP       0
-#define IGNORE_DISCARDER_CHECK 1
+#define ACTIVITY_DUMP_RUNNING  1
 
 union container_id_comm_combo {
     char container_id[CONTAINER_ID_LEN];
     char comm[TASK_COMM_LEN];
 };
 
-__attribute__((always_inline)) void fill_activity_dump_discarder_state(void *ctx, struct is_discarded_by_inode_t *params) {
-    struct proc_cache_t *pc = get_proc_cache(params->tgid);
+__attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u64 now, u32 event_type) {
+    struct proc_cache_t *pc = get_proc_cache(pid);
     if (pc) {
-        union container_id_comm_combo buffer = {};
-
         // prepare comm and cgroup (for compatibility with old kernels)
+        union container_id_comm_combo buffer = {};
         bpf_probe_read(&buffer.comm, sizeof(buffer.comm), pc->entry.comm);
         bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), pc->container.container_id);
 
-        should_trace_new_process(ctx, params->now, params->tgid, buffer.container_id, buffer.comm);
+        should_trace_new_process(ctx, now, pid, buffer.container_id, buffer.comm);
     }
 
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(params->tgid, params->now);
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(pid, now);
     if (config == NULL) {
-        params->activity_dump_state = NO_ACTIVITY_DUMP;
-        return;
+        return NO_ACTIVITY_DUMP;
     }
 
     // is this event type traced ?
-    if ((config->event_mask & (1 << (params->event_type - 1))) != (1 << (params->event_type - 1))) {
-        params->activity_dump_state = NO_ACTIVITY_DUMP;
-        return;
+    if (mask_has_event(config->event_mask, event_type)) {
+        return NO_ACTIVITY_DUMP;
     }
 
     // TODO(rate_limiter): check if this event should be rate limited + add 1
 
-    // set IGNORE_DISCARDER_CHECK
-    params->activity_dump_state = IGNORE_DISCARDER_CHECK;
+    // set ACTIVITY_DUMP_RUNNING
+    return ACTIVITY_DUMP_RUNNING;
 }
 
 #endif

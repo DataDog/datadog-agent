@@ -560,11 +560,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    char on_stack_comm[TASK_COMM_LEN];
-    bpf_probe_read_str(on_stack_comm, sizeof(on_stack_comm), event->proc_entry.comm);
-    char on_stack_cgroup[CONTAINER_ID_LEN];
-    bpf_probe_read_str(on_stack_cgroup, sizeof(on_stack_cgroup), event->container.container_id);
-    inherit_traced_state(args, ppid, pid, on_stack_cgroup, on_stack_comm);
+    union container_id_comm_combo buffer = {};
+    bpf_probe_read(&buffer.comm, sizeof(buffer.comm), event->proc_entry.comm);
+    bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), event->container.container_id);
+    inherit_traced_state(args, ppid, pid, buffer.container_id, buffer.comm);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
