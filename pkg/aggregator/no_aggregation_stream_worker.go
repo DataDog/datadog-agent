@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +48,17 @@ type noAggregationStreamWorker struct {
 // is checking if it has some samples to flush. It triggers this flush only
 // if it not still receiving samples.
 var noAggWorkerStreamCheckFrequency = time.Second * 2
+
+// Telemetry vars
+var (
+	tlmNoAggSamplesProcessed = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
+	tlmNoAggFlush            = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
+)
+
+const (
+	noAggProcessStateOk              = "ok"
+	noAggProcessStateUnsupportedType = "unsupported_type"
+)
 
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
@@ -136,6 +148,7 @@ func (w *noAggregationStreamWorker) run() {
 						n := time.Now()
 						if serializedSamples > 0 && lastStream.Before(n.Add(-time.Second*1)) {
 							log.Debug("noAggregationStreamWorker: triggering an automatic payloads flush to the forwarder (no traffic since 1s)")
+							tlmNoAggFlush.Add(1)
 							break mainloop // end `Serialize` call and trigger a flush to the forwarder
 						}
 
@@ -149,6 +162,7 @@ func (w *noAggregationStreamWorker) run() {
 
 							if !supported {
 								log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
+								tlmNoAggSamplesProcessed.Add(1, noAggProcessStateUnsupportedType)
 								continue
 							}
 
@@ -175,7 +189,10 @@ func (w *noAggregationStreamWorker) run() {
 						lastStream = time.Now()
 
 						serializedSamples += processed
+						tlmNoAggSamplesProcessed.Add(float64(processed), noAggProcessStateOk)
+
 						if serializedSamples > w.maxMetricsPerPayload {
+							tlmNoAggFlush.Add(1)
 							break mainloop // end `Serialize` call and trigger a flush to the forwarder
 						}
 					}
