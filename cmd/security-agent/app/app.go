@@ -165,7 +165,7 @@ func start(cmd *cobra.Command, args []string) error {
 	go handleSignals(stopCh)
 
 	err := RunAgent(ctx)
-	if errors.Is(err, allComponentsDisabledErr) {
+	if errors.Is(err, errAllComponentsDisabled) {
 		return nil
 	}
 	if err != nil {
@@ -178,7 +178,7 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var allComponentsDisabledErr = errors.New("all security-agent component are disabled")
+var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
 
 // RunAgent initialized resources and starts API server
 func RunAgent(ctx context.Context) (err error) {
@@ -225,7 +225,7 @@ func RunAgent(ctx context.Context) (err error) {
 		// to startup because of an error. Only applies on Debian 7.
 		time.Sleep(5 * time.Second)
 
-		return allComponentsDisabledErr
+		return errAllComponentsDisabled
 	}
 
 	if !coreconfig.Datadog.IsSet("api_key") {
