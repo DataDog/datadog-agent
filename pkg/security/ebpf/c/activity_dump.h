@@ -362,7 +362,7 @@ union container_id_comm_combo {
     char comm[TASK_COMM_LEN];
 };
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u64 now, int toadd) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u64 now, u8 should_count) {
     if (config->current_period == 0) { // first time only
         goto rate_limiter_allow_reset;
     }
@@ -377,15 +377,17 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activi
     } else if (config->counter >= config->rate) {
         return 0;
     }
-    config->counter += toadd;
+    if (should_count) {
+        __sync_fetch_and_add(&config->counter, 1);
+    }
     return 1;
 
 rate_limiter_allow_reset:
-    if (toadd) { /* trully reset the limiter only if we count the event */
+    if (should_count) { /* trully reset the limiter only if we count the event */
         config->current_period = now;
-        config->counter = toadd;
+        __sync_fetch_and_add(&config->counter, 1);
     }
-    return 1
+    return 1;
 }
 
 __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u64 now, u32 event_type) {
