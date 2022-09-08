@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,13 +27,17 @@ import (
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 1 * time.Second
+const shutdownDelay time.Duration = 50 * time.Millisecond
 
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
 
 // Daemon is the communication server between the runtime and the serverless agent and coordinates the flushing of telemetry.
 type Daemon struct {
+
+	// Orchestrator manages the Lambda RuntimeApi/Extension Lifecycle
+	Orchestrator orchestrator.Orchestrator
+
 	httpServer *http.Server
 	mux        *http.ServeMux
 
@@ -58,26 +63,10 @@ type Daemon struct {
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
 
-	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
-	runtimeStateMutex sync.Mutex
-
-	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
-	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
-	RuntimeWg *sync.WaitGroup
-
-	// FlushWg is used to keep track of whether there is currently a flush in progress
-	FlushWg *sync.WaitGroup
-
 	ExtraTags *serverlessLog.Tags
 
 	// ExecutionContext stores the context of the current invocation
 	ExecutionContext *executioncontext.ExecutionContext
-
-	// TellDaemonRuntimeDoneOnce asserts that TellDaemonRuntimeDone will be called at most once per invocation (at the end of the function OR after a timeout).
-	// We store a pointer to a sync.Once, which should be reset to a new pointer at the beginning of each invocation.
-	// Note that overwriting the actual underlying sync.Once is not thread safe,
-	// so we must use a pointer here to create a new sync.Once without overwriting the old one when resetting.
-	TellDaemonRuntimeDoneOnce *sync.Once
 
 	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
 	metricsFlushMutex sync.Mutex
@@ -101,8 +90,6 @@ func StartDaemon(addr string) *Daemon {
 	daemon := &Daemon{
 		httpServer:        &http.Server{Addr: addr, Handler: mux},
 		mux:               mux,
-		RuntimeWg:         &sync.WaitGroup{},
-		FlushWg:           &sync.WaitGroup{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
 		flushStrategy:     &flush.AtTheEnd{},
@@ -127,33 +114,9 @@ func StartDaemon(addr string) *Daemon {
 	return daemon
 }
 
-// HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
-// that the runtime is done, and may also flush telemetry.
-func (d *Daemon) HandleRuntimeDone() {
-	if !d.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
-		d.TellDaemonRuntimeDone()
-		return
-	}
-
-	log.Debugf("The flush strategy %s has decided to flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
-
-	// if the DogStatsD daemon isn't ready, wait for it.
-	if d.MetricAgent != nil && !d.MetricAgent.IsReady() {
-		log.Debug("The metric agent wasn't ready, skipping flush.")
-		d.TellDaemonRuntimeDone()
-		return
-	}
-
-	go func() {
-		d.TriggerFlush(false)
-		d.TellDaemonRuntimeDone()
-	}()
-}
-
 // ShouldFlush indicated whether or a flush is needed
 func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
-	return d.flushStrategy.ShouldFlush(moment, t)
+	return d.flushStrategy.ShouldFlush(moment, t, d.TraceAgent.GetSpanCount())
 }
 
 // GetFlushStrategy returns the flush stategy
@@ -168,9 +131,9 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 		LogChannel:             logsChan,
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
-		HandleRuntimeDone:      d.HandleRuntimeDone,
 		Demux:                  d.MetricAgent.Demux,
 		ExecutionContext:       d.ExecutionContext,
+		Orchestrator:           d.Orchestrator,
 	})
 }
 
@@ -202,9 +165,6 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
 func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
-	d.FlushWg.Add(1)
-	defer d.FlushWg.Done()
-
 	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
 
 	wg := sync.WaitGroup{}
@@ -220,6 +180,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 	} else {
 		log.Debug("Finished flushing")
 	}
+	d.TraceAgent.ResetSpanCount()
 	cancel()
 
 	if !isLastFlushBeforeShutdown {
@@ -272,7 +233,6 @@ func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
-
 	if d.stopped {
 		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
 		return
@@ -288,7 +248,6 @@ func (d *Daemon) Stop() {
 	if err != nil {
 		log.Error("Error shutting down HTTP server")
 	}
-
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
 	d.TriggerFlush(true)
@@ -304,47 +263,6 @@ func (d *Daemon) Stop() {
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
-}
-
-// TellDaemonRuntimeStarted tells the daemon that the runtime started handling an invocation
-func (d *Daemon) TellDaemonRuntimeStarted() {
-	// Reset the RuntimeWg on every new invocation.
-	// We might receive a new invocation before we learn that the previous invocation has finished.
-	d.runtimeStateMutex.Lock()
-	defer d.runtimeStateMutex.Unlock()
-	d.RuntimeWg = &sync.WaitGroup{}
-	d.TellDaemonRuntimeDoneOnce = &sync.Once{}
-	d.RuntimeWg.Add(1)
-}
-
-// TellDaemonRuntimeDone tells the daemon that the runtime finished handling an invocation
-func (d *Daemon) TellDaemonRuntimeDone() {
-	d.runtimeStateMutex.Lock()
-	defer d.runtimeStateMutex.Unlock()
-	// It's possible that we have a lambda function from a previous invocation sending a finished
-	// log line to the agent, and it's possible that this happens before the current invocation is
-	// received, in which case TellDaemonRuntimeDoneOnce is nil. We add this check in to ensure that
-	// if this is the case, it won't crash the extension. This should be safe, since the code that modifies
-	// the Once is locked by a mutex.
-	if d.TellDaemonRuntimeDoneOnce == nil {
-		return
-	}
-	d.TellDaemonRuntimeDoneOnce.Do(func() {
-		d.RuntimeWg.Done()
-	})
-}
-
-// WaitForDaemon waits until the daemon has finished handling the current invocation
-func (d *Daemon) WaitForDaemon() {
-	// We always want to wait for any in-progress flush to complete
-	d.FlushWg.Wait()
-
-	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
-	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
-	// complete the invocation before it is done.
-	if d.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
-		d.RuntimeWg.Wait()
-	}
 }
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics

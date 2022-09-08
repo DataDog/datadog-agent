@@ -11,10 +11,12 @@ import (
 
 	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -54,7 +56,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 }
 
 // Start starts the agent
-func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
+func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, orchestrator orchestrator.Orchestrator) {
 	if enabled {
 		// during hostname resolution the first step is to make a GRPC call which is timeboxed to a 2 seconds deadline
 		// in the serverless mode, we don't start the GRPC server so this call will fail and cause a 2 seconds delay
@@ -69,7 +71,10 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
-			s.spanModifier = &spanModifier{}
+			s.ta.Receiver.PreHookFunc = orchestrator.CanAcceptTraces
+			s.spanModifier = &spanModifier{
+				count: atomic.NewInt32(0),
+			}
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel
@@ -133,4 +138,19 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 		return true
 	}
 	return false
+}
+
+// GetSpanCount increments the span count if defined
+func (s *ServerlessTraceAgent) GetSpanCount() int32 {
+	if s.spanModifier != nil {
+		return s.spanModifier.GetSpanCount()
+	}
+	return 0
+}
+
+// ResetSpanCount resets the span count if defined
+func (s *ServerlessTraceAgent) ResetSpanCount() {
+	if s.spanModifier != nil {
+		s.spanModifier.Reset()
+	}
 }

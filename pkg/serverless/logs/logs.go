@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -37,8 +38,7 @@ type LambdaLogsCollector struct {
 	LogsEnabled            bool
 	EnhancedMetricsEnabled bool
 	ExecutionContext       *executioncontext.ExecutionContext
-	// HandleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
-	HandleRuntimeDone func()
+	Orchestrator           orchestrator.Orchestrator
 }
 
 // platformObjectRecord contains additional information found in Platform log messages
@@ -266,7 +266,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(&message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
+		processMessage(&message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.Orchestrator)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -288,8 +288,7 @@ func processMessage(
 	enhancedMetricsEnabled bool,
 	metricTags []string,
 	demux aggregator.Demultiplexer,
-	handleRuntimeDone func(),
-) {
+	orchestrator orchestrator.Orchestrator) {
 	ecs := ec.GetCurrentState()
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	if !shouldProcessLog(&ecs, message) {
@@ -340,7 +339,7 @@ func processMessage(
 	if message.logType == logTypePlatformRuntimeDone {
 		if ecs.LastRequestID == message.objectRecord.requestID {
 			log.Debugf("Received a runtimeDone log message for the current invocation %s", message.objectRecord.requestID)
-			handleRuntimeDone()
+			orchestrator.RuntimeDoneReceived()
 		} else {
 			log.Debugf("Received a runtimeDone log message for the non-current invocation %s, ignoring it", message.objectRecord.requestID)
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -37,6 +38,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		ProcessTrace:        mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
@@ -149,6 +151,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 			},
 			triggerTags: make(map[string]string),
 		},
+		Orchestrator: orchestrator.NewLambdaOrchestrator(),
 	}
 	testProcessor.OnInvokeEnd(&endDetails)
 	executionChunkPriority := tracePayload.TracerPayload.Chunks[0].Priority
@@ -194,6 +197,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 			},
 			triggerTags: make(map[string]string),
 		},
+		Orchestrator: orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeEnd(&endDetails)
@@ -249,6 +253,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 			triggerTags:   make(map[string]string),
 			inferredSpans: inferredSpanSlice,
 		},
+		Orchestrator: orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeEnd(&endDetails)
@@ -304,6 +309,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 			triggerTags:   make(map[string]string),
 			inferredSpans: inferredSpanSlice,
 		},
+		Orchestrator: orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeEnd(&endDetails)
@@ -356,6 +362,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        mockProcessTrace,
 		Demux:               demux,
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 	testProcessor.OnInvokeStart(startDetails)
 
@@ -404,6 +411,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -444,6 +452,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        mockProcessTrace,
 		Demux:               demux,
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 	testProcessor.OnInvokeStart(startDetails)
 
@@ -492,6 +501,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -529,6 +539,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        mockProcessTrace,
 		Demux:               demux,
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 	testProcessor.OnInvokeStart(startDetails)
 
@@ -574,6 +585,7 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -613,6 +625,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        mockProcessTrace,
 		Demux:               demux,
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 	testProcessor.OnInvokeStart(startDetails)
 
@@ -660,6 +673,7 @@ func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -682,6 +696,7 @@ func TestTriggerTypesLifecycleEventForCloudwatchLogs(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -704,6 +719,7 @@ func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -726,6 +742,7 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -748,6 +765,7 @@ func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -770,6 +788,7 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -792,6 +811,7 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -829,6 +849,7 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 				SamplingPriority: 1,
 			},
 		},
+		Orchestrator: orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -853,6 +874,7 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
 		ProcessTrace:        func(*api.Payload) {},
+		Orchestrator:        orchestrator.NewLambdaOrchestrator(),
 	}
 
 	testProcessor.OnInvokeStart(startDetails)

@@ -152,6 +152,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
+	daemon.Orchestrator.HitInvokeEvent()
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 
@@ -190,7 +191,6 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	doneChannel := make(chan bool)
-	daemon.TellDaemonRuntimeStarted()
 	go invocationHandler(doneChannel, daemon, arn, requestID)
 	select {
 	case <-ctx.Done():
@@ -199,8 +199,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		if err != nil {
 			log.Debug("Unable to save the current state")
 		}
-		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
-		daemon.TellDaemonRuntimeDone()
+		daemon.Orchestrator.HitTimeout()
 		return
 	case <-doneChannel:
 		return
@@ -232,7 +231,12 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 	}
 
-	daemon.WaitForDaemon()
+	daemon.Orchestrator.WaitForExtensionLifecycle()
+	if daemon.Orchestrator.IsFlushPossible() {
+		if daemon.ShouldFlush(flush.Stopping, time.Now()) {
+			daemon.TriggerFlush(false)
+		}
+	}
 	doneChannel <- true
 }
 

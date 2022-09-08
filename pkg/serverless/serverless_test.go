@@ -16,16 +16,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 )
 
 func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d := daemon.StartDaemon("http://localhost:8124")
+	d.TraceAgent = &trace.ServerlessTraceAgent{}
+	d.Orchestrator = orchestrator.NewLambdaOrchestrator()
 	defer d.Stop()
-
-	d.WaitForDaemon()
-
-	d.TellDaemonRuntimeStarted()
 
 	//deadline = current time + 20 ms
 	deadlineMs := (time.Now().UnixNano())/1000000 + 20
@@ -72,7 +72,8 @@ func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 	for i := 0; i < 10; i++ { // each one of these takes about a second on my laptop
 		fmt.Printf("Running this test the %d time\n", i)
 		d := daemon.StartDaemon("http://localhost:8124")
-		d.WaitForDaemon()
+		d.TraceAgent = &trace.ServerlessTraceAgent{}
+		d.Orchestrator = orchestrator.NewLambdaOrchestrator()
 
 		//deadline = current time - 20 ms
 		deadlineMs := (time.Now().UnixNano())/1000000 - 20

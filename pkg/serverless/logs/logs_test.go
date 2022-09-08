@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {
@@ -234,7 +235,7 @@ func TestProcessMessageValid(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator.NewLambdaOrchestrator())
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, received, 7)
@@ -242,7 +243,7 @@ func TestProcessMessageValid(t *testing.T) {
 	demux.Reset()
 
 	computeEnhancedMetrics = false
-	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator.NewLambdaOrchestrator())
 
 	received, timed = demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, received, 0, "we should NOT have received metrics")
@@ -268,16 +269,9 @@ func TestProcessMessageStartValid(t *testing.T) {
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
 	computeEnhancedMetrics := true
-
-	runtimeDoneCallbackWasCalled := false
-	mockRuntimeDone := func() {
-		runtimeDoneCallbackWasCalled = true
-	}
-
-	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator.NewLambdaOrchestrator())
 	ecs := mockExecutionContext.GetCurrentState()
 	assert.Equal(t, lastRequestID, ecs.LastLogRequestID)
-	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
 }
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
@@ -302,15 +296,11 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	runtimeDoneCallbackWasCalled := false
-	mockRuntimeDone := func() {
-		runtimeDoneCallbackWasCalled = true
-	}
-
-	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	orchestrator := orchestrator.NewLambdaOrchestrator()
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator)
 	ecs := mockExecutionContext.GetCurrentState()
-	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
 	assert.WithinDuration(t, messageTime, ecs.EndTime, time.Millisecond)
+	assert.True(t, orchestrator.IsFlushPossible())
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
@@ -337,14 +327,10 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	runtimeDoneCallbackWasCalled := false
-	mockRuntimeDone := func() {
-		runtimeDoneCallbackWasCalled = true
-	}
-
-	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	orchestrator := orchestrator.NewLambdaOrchestrator()
+	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator)
 	// Runtime done callback should NOT be called if the log message was for a previous invocation
-	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
+	assert.False(t, orchestrator.IsFlushPossible())
 }
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
@@ -369,7 +355,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 
 	computeEnhancedMetrics := true
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator.NewLambdaOrchestrator())
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, received, 0, "We should NOT have received metrics")
@@ -393,7 +379,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator.NewLambdaOrchestrator())
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, received, 0, "We should NOT have received metrics")
@@ -417,7 +403,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, orchestrator.NewLambdaOrchestrator())
 
 	received, timed := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, received, 2)
@@ -758,8 +744,9 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		},
 	}
 
-	processMessage(doneMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
-	processMessage(reportMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+	orchestrator := orchestrator.NewLambdaOrchestrator()
+	processMessage(doneMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, orchestrator)
+	processMessage(reportMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, orchestrator)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
