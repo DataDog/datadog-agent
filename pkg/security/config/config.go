@@ -16,6 +16,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -108,8 +109,8 @@ type Config struct {
 	ActivityDumpTagsResolutionPeriod time.Duration
 	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
 	ActivityDumpLoadControlPeriod time.Duration
-	// ActivityDumpLoadControlMaxTotalSize defines the maximum total size after which the load controller will try to reduce the dynamic config
-	ActivityDumpLoadControlMaxTotalSize int
+	// ActivityDumpMaxDumpSize defines the maximum size of a dump
+	ActivityDumpMaxDumpSize int
 	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
 	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
@@ -239,7 +240,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpLoadControlMaxTotalSize:   coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_max_total_size"),
+		ActivityDumpMaxDumpSize:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 20),
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
@@ -254,13 +255,23 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 	}
 
+	if err := c.sanitize(); err != nil {
+		return nil, fmt.Errorf("invalid CWS configuration: %w", err)
+	}
+
+	setEnv()
+	return c, nil
+}
+
+// sanitize ensures that the configuration is properly setup
+func (c *Config) sanitize() error {
 	// if runtime is enabled then we force fim
 	if c.RuntimeEnabled {
 		c.FIMEnabled = true
 	}
 
 	if !c.IsEnabled() {
-		return c, nil
+		return nil
 	}
 
 	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
@@ -293,35 +304,16 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
-	var found bool
-	for _, evtType := range c.ActivityDumpTracedEventTypes {
-		if evtType == model.ExecEventType {
-			found = true
-		}
-	}
-	if !found {
-		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
+	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {
+		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
-	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
-		var err error
-		c.ActivityDumpLocalStorageFormats, err = dump.ParseStorageFormats(formats)
-		if err != nil {
-			return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
-		}
-	}
-	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
-		var err error
-		c.ActivityDumpRemoteStorageFormats, err = dump.ParseStorageFormats(formats)
-		if err != nil {
-			return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.remote_storage.formats: %w", err)
-		}
-	}
+	c.sanitizeRuntimeSecurityConfigNetwork()
+	return c.sanitizeRuntimeSecurityConfigActivityDump()
+}
 
-	if c.ActivityDumpCgroupWaitListSize <= 0 {
-		c.ActivityDumpCgroupWaitListSize = c.ActivityDumpTracedCgroupsCount
-	}
-
+// sanitizeNetworkConfiguration ensures that runtime_security_config.network is properly configured
+func (c *Config) sanitizeRuntimeSecurityConfigNetwork() {
 	lazyInterfaces := make(map[string]bool)
 	for _, name := range c.NetworkLazyInterfacePrefixes {
 		lazyInterfaces[name] = true
@@ -333,13 +325,51 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
 	}
+}
 
-	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {
-		return nil, fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
+// sanitizeNetworkConfiguration ensures that runtime_security_config.activity_dump is properly configured
+func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
+	var execFound bool
+	for _, evtType := range c.ActivityDumpTracedEventTypes {
+		switch evtType {
+		case model.ExecEventType:
+			execFound = true
+		case model.SyscallsEventType:
+			// enable the syscall monitor
+			c.ActivityDumpSyscallMonitor = true
+		}
+	}
+	if !execFound {
+		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
 	}
 
-	setEnv()
-	return c, nil
+	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
+		var err error
+		c.ActivityDumpLocalStorageFormats, err = dump.ParseStorageFormats(formats)
+		if err != nil {
+			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
+		}
+	}
+	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
+		var err error
+		c.ActivityDumpRemoteStorageFormats, err = dump.ParseStorageFormats(formats)
+		if err != nil {
+			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.remote_storage.formats: %w", err)
+		}
+	}
+
+	if c.ActivityDumpTracedCgroupsCount > probes.MaxTracedCgroupsCount {
+		c.ActivityDumpTracedCgroupsCount = probes.MaxTracedCgroupsCount
+	}
+
+	if c.ActivityDumpCgroupWaitListSize <= 0 {
+		c.ActivityDumpCgroupWaitListSize = c.ActivityDumpTracedCgroupsCount
+	}
+
+	if c.ActivityDumpCgroupWaitListSize > probes.MaxTracedCgroupsCount {
+		c.ActivityDumpCgroupWaitListSize = probes.MaxTracedCgroupsCount
+	}
+	return nil
 }
 
 // ActivityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config

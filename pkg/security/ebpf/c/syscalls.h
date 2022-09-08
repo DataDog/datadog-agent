@@ -310,10 +310,13 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
 
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
     u64 now = bpf_ktime_get_ns();
-    u64 timeout = lookup_or_delete_traced_pid_timeout(tgid, now);
-    if (timeout > 0) {
-        // return immediately
-        return 0;
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now);
+    if (config != NULL) {
+        // is this event type traced ?
+        if ((config->event_mask & (1 << (syscall->type - 1))) == (1 << (syscall->type - 1))) {
+            // TODO(rate_limiter): check if this event should be rate limited but do not count this event; it will be counted in the dentry resolver
+            return 0;
+        }
     }
 
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;

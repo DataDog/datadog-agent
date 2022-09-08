@@ -139,3 +139,21 @@ func (e *Process) MarshalPidCache(data []byte) (int, error) {
 
 	return written, nil
 }
+
+// MarshalBinary marshals a binary representation of itself
+func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
+	raw := make([]byte, 32)
+
+	var eventMask uint64
+	for _, evt := range adlc.TracedEventTypes {
+		eventMask |= 1 << (evt - FirstDiscarderEventType)
+	}
+	ByteOrder.PutUint64(raw[0:8], eventMask)
+	ByteOrder.PutUint64(raw[8:16], uint64(adlc.Timeout))
+	ByteOrder.PutUint64(raw[16:24], adlc.StartTimestampRaw)
+	ByteOrder.PutUint64(raw[24:32], adlc.EndTimestampRaw)
+
+	// TODO(rate_limiter): marshal rate limiter config
+
+	return raw, nil
+}

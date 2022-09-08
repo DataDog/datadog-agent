@@ -12,17 +12,17 @@ import "unsafe"
 
 // ActivityDumpNodeStats represents the node counts in an activity dump
 type ActivityDumpNodeStats struct {
-	processNodes uint64
-	fileNodes    uint64
-	dnsNodes     uint64
-	socketNodes  uint64
+	processNodes int
+	fileNodes    int
+	dnsNodes     int
+	socketNodes  int
 }
 
-func (stats *ActivityDumpNodeStats) approximateSize() uint64 {
-	var total uint64
-	total += stats.processNodes * uint64(unsafe.Sizeof(ProcessActivityNode{}))
-	total += stats.fileNodes * uint64(unsafe.Sizeof(FileActivityNode{}))
-	total += stats.dnsNodes * uint64(unsafe.Sizeof(DNSNode{}))
-	total += stats.socketNodes * uint64(unsafe.Sizeof(SocketNode{}))
+func (stats *ActivityDumpNodeStats) approximateSize() int {
+	var total int
+	total += stats.processNodes * int(unsafe.Sizeof(ProcessActivityNode{}))
+	total += stats.fileNodes * int(unsafe.Sizeof(FileActivityNode{}))
+	total += stats.dnsNodes * int(unsafe.Sizeof(DNSNode{}))
+	total += stats.socketNodes * int(unsafe.Sizeof(SocketNode{}))
 	return total
 }
