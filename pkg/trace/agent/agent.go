@@ -61,7 +61,7 @@ type Agent struct {
 	ModifySpan func(*pb.Span)
 
 	// ModifyTraceFunc will be called on all traces, if non-nil.
-	ModifyTraceFunc func(*[]*pb.Span)
+	ModifyTrace func(*[]*pb.Span)
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -228,8 +228,8 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		if a.ModifyTraceFunc != nil {
-			a.ModifyTraceFunc(&chunk.Spans)
+		if a.ModifyTrace != nil {
+			a.ModifyTrace(&chunk.Spans)
 		}
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
