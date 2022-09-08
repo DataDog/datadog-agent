@@ -91,14 +91,15 @@ func (w *noAggregationStreamWorker) stop(wait bool) {
 }
 
 // mainloop of the no aggregation stream worker:
-//   * it receives samples and counts how much it has sent to the serializer, if it has more than a given amount it stops
+//   - it receives samples and counts how much it has sent to the serializer, if it has more than a given amount it stops
 //     streaming for the serializer to start sending the payloads to the forwarder, and then starts the streaming
 //     mainloop again
-//   * it also checks every 2 seconds if it has stopped receiving samples, if so, it stops streaming to the
+//   - it also checks every 2 seconds if it has stopped receiving samples, if so, it stops streaming to the
 //     the serializer for a while in order to let the serializer sends the payloads up to the forwarder, and starts
 //     the streaming mainloop again
-//   * listens for a stop signal
-//   * listens for a flush signal
+//   - listens for a stop signal
+//   - listens for a flush signal
+//
 // This is not ideal since the serializer should automatically takes the decision when to flush payloads to
 // the serializer but that's not how it works today, see noAggregationStreamWorker comment.
 func (w *noAggregationStreamWorker) run() {
@@ -141,7 +142,16 @@ func (w *noAggregationStreamWorker) run() {
 					// receiving samples
 					case samples := <-w.samplesChan:
 						log.Debugf("Streaming %d metrics from the no-aggregation pipeline", len(samples))
+						var processed int
+
 						for _, sample := range samples {
+							mtype, supported := metricSampleAPIType(sample)
+
+							if !supported {
+								log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
+								continue
+							}
+
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
@@ -152,18 +162,19 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
-							serie.MType = sample.Mtype.ToAPIType()
+							serie.MType = mtype
 							// ignored by the intake when late but mimic dogstatsd traffic here anyway
 							serie.Interval = 10
 							w.seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()
+							processed += 1
 						}
 
 						lastStream = time.Now()
 
-						serializedSamples += len(samples)
+						serializedSamples += processed
 						if serializedSamples > w.maxMetricsPerPayload {
 							break mainloop // end `Serialize` call and trigger a flush to the forwarder
 						}
@@ -184,5 +195,22 @@ func (w *noAggregationStreamWorker) run() {
 
 	if stopBlockChan != nil {
 		close(stopBlockChan)
+	}
+}
+
+// metricSampleAPIType returns the APIMetricType of the given sample, the second
+// return value informs the caller if the input type is supported by
+// the no-aggregation pipeline: APIMetricType only supports gauges, counts and rates.
+// This method will default on gauges for every other inputs and return false as a second return value.
+func metricSampleAPIType(m metrics.MetricSample) (metrics.APIMetricType, bool) {
+	switch m.Mtype {
+	case metrics.GaugeType:
+		return metrics.APIGaugeType, true
+	case metrics.CounterType:
+		return metrics.APICountType, true
+	case metrics.RateType:
+		return metrics.APIRateType, true
+	default:
+		return metrics.APIGaugeType, false
 	}
 }
