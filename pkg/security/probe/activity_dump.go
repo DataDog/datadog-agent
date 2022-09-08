@@ -53,6 +53,8 @@ const (
 	ProtobufVersion = "v1"
 	// ActivityDumpSource defines the source of activity dumps
 	ActivityDumpSource = "runtime-security-agent"
+	// DefaultFilesRateLimiter defines the default rate limiter of files events
+	DefaultFilesRateLimiter = 100
 )
 
 // ActivityDumpStatus defines the state of an activity dump
@@ -128,9 +130,7 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, sta
 	adlc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
-
-		// TODO(rate_limiter): initialize rate limiter from config
-
+		Rate:             DefaultFilesRateLimiter,
 	}
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))

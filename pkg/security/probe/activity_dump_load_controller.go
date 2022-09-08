@@ -142,9 +142,11 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	newDump.LoadConfig.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
 	newDump.LoadConfig.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.TracedEventTypes))
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
-	// TODO(rate_limiter): inherit normal rate limiter values
+	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
 
-	// TODO(rate_limiter): reduce rate limiter by 25% if timeToThreshold < MinDumpTimeout
+	if timeToThreshold < MinDumpTimeout {
+		newDump.LoadConfig.Rate = newDump.LoadConfig.Rate / 4 * 3
+	}
 
 	if timeToThreshold < MinDumpTimeout/2 {
 		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {

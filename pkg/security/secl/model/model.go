@@ -863,9 +863,7 @@ type ActivityDumpLoadConfig struct {
 	Timeout           time.Duration
 	StartTimestampRaw uint64
 	EndTimestampRaw   uint64
-
-	// TODO(rate_limiter): add rate limiter config
-
+	Rate              uint32 // max number of events per sec
 }
 
 // SetTimeout updates the timeout of an activity dump

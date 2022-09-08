@@ -844,7 +844,7 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 32 {
+	if len(data) < 36 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -857,10 +857,9 @@ func (adlc *ActivityDumpLoadConfig) UnmarshalBinary(data []byte) (int, error) {
 	adlc.Timeout = time.Duration(ByteOrder.Uint64(data[8:16]))
 	adlc.StartTimestampRaw = ByteOrder.Uint64(data[16:24])
 	adlc.EndTimestampRaw = ByteOrder.Uint64(data[24:32])
+	adlc.Rate = ByteOrder.Uint32(data[32:36])
 
-	// TODO(rate_limiter): parse rate limiter config from kernel space
-
-	return 32, nil
+	return 36, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
