@@ -12,16 +12,19 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/moby/sys/mountinfo"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestMount(t *testing.T) {
@@ -198,10 +201,6 @@ func TestMountPropagated(t *testing.T) {
 	}()
 
 	file, _, err := test.Path("dir1-bind-mounted/test-drive/test-file")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	if err := os.WriteFile(file, []byte{}, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -215,4 +214,143 @@ func TestMountPropagated(t *testing.T) {
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
 	})
+}
+
+func TestMountSnapshot(t *testing.T) {
+	//      / testDrive
+	//        / rootA
+	//          / tmpfs-mount (tmpfs)
+	//                / test-bind-source
+	//          / test-bind-target (bind mount of test-bind-source)
+	//        / rootB
+	//      ... (same hierarchy as rootA)
+	//    / test-bind-testdrive
+
+	testDrive, err := newTestDrive(t, "xfs", []string{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	rootA := testDrive.Path("rootA")
+	rootB := testDrive.Path("rootB")
+
+	createHierarchy := func(root string) (tmpfsMount, bindMount *testMount, err error) {
+		defer func() {
+			if err != nil {
+				if bindMount != nil {
+					bindMount.unmount(0)
+				}
+				if tmpfsMount != nil {
+					tmpfsMount.unmount(0)
+				}
+			}
+		}()
+
+		tmpfsPath := path.Join(root, "tmpfs-mount")
+		if err = os.MkdirAll(tmpfsPath, 0755); err != nil {
+			return nil, nil, err
+		}
+
+		// tmpfs mount
+		tmpfsMount = newTestMount(
+			tmpfsPath,
+			withFSType("tmpfs"),
+		)
+
+		if err := tmpfsMount.mount(); err != nil {
+			return nil, nil, fmt.Errorf("could not create tmpfs mount: %s", err)
+		}
+
+		bindSourcePath := tmpfsMount.path("test-bind-source")
+		if err = os.Mkdir(bindSourcePath, 0755); err != nil {
+			return nil, nil, err
+		}
+
+		bindTargetPath := path.Join(root, "test-bind-target")
+		if err = os.Mkdir(bindTargetPath, 0755); err != nil {
+			return nil, nil, err
+		}
+
+		// bind mount
+		bindMount = newTestMount(
+			bindTargetPath,
+			withSource(bindSourcePath),
+			withFlags(syscall.MS_BIND),
+		)
+
+		if err = bindMount.mount(); err != nil {
+			return nil, nil, fmt.Errorf("could not create bind mount: %s", err)
+		}
+
+		return
+	}
+
+	tmpfsMountA, bindMountA, err := createHierarchy(rootA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tmpfsMountA.unmount(0)
+	defer bindMountA.unmount(0)
+
+	test, err := newTestModule(t, nil, nil, testOpts{testDir: testDrive.Root()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	tmpfsMountB, bindMountB, err := createHierarchy(rootB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tmpfsMountB.unmount(0)
+	defer bindMountB.unmount(0)
+
+	mountResolver := test.probe.GetResolvers().MountResolver
+	pid := uint32(os.Getpid())
+
+	mounts, err := kernel.ParseMountInfoFile(int32(pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// we need to wait for the mount events of the hierarchy B to be processed
+	time.Sleep(5 * time.Second)
+
+	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
+		mount := mountResolver.Get(uint32(mntInfo.ID), pid)
+		if mount == nil {
+			t.Errorf("could not find mount with id %d", mntInfo.ID)
+			return
+		}
+		assert.Equal(t, uint32(mntInfo.ID), mount.MountID, "snapshot and model mount ID mismatch")
+		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentMountID, "snapshot and model parent mount ID mismatch")
+		assert.Equal(t, uint32(unix.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))), mount.Device, "snapshot and model device mismatch")
+		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
+		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
+		_, mountPointPath, _, err := mountResolver.GetMountPath(mount.MountID, pid)
+		if err != nil {
+			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
+		}
+		assert.Equal(t, mntInfo.Mountpoint, mountPointPath, "snapshot and model mountpoint path mismatch")
+	}
+
+	mntResolved := 0
+	for _, mntInfo := range mounts {
+		// id := mountResolver.mount.ID
+		if strings.HasSuffix(mntInfo.Mountpoint, "rootA/tmpfs-mount") {
+			mntResolved |= 1
+			checkSnapshotAndModelMatch(mntInfo)
+		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootA/test-bind-target") {
+			mntResolved |= 2
+			checkSnapshotAndModelMatch(mntInfo)
+		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootB/tmpfs-mount") {
+			mntResolved |= 4
+			checkSnapshotAndModelMatch(mntInfo)
+		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootB/test-bind-target") {
+			mntResolved |= 8
+			checkSnapshotAndModelMatch(mntInfo)
+		}
+	}
+	assert.Equal(t, 1|2|4|8, mntResolved)
 }
