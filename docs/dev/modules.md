@@ -25,16 +25,15 @@ After you have refactored, if needed, and listed the packages that you want to e
  	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
     )
     ```
-1. Update the `DEFAULT_MODULES` dictionary on the `tasks/modules.py` file. You need to:
-    - create a new module, specifying the path, targets, dependencies and a condition to run tests (if any) and
-    - update the dependencies of other modules if they depend on this one.
+1. Update the `DEFAULT_MODULES` dictionary in the `tasks/modules.py` file. You need to create a new module, specifying the path, targets, and a condition to run tests (if any).
    For example, if `pkg/A` depends on `pkg/B` and `pkg/B` is Windows only, we would specify:
    ```python
    DEFAULT_MODULES = {
-    "pkg/A": GoModule("pkg/A", dependencies=["pkg/B"]),
+    "pkg/A": GoModule("pkg/A"),
     "pkg/B": GoModule("pkg/B", condition=lambda: sys.platform == "win32")
    }
    ```
+   The dependencies are computed automatically.
 
 ## Go nested modules tooling
 

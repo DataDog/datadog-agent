@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewReplicaSetCollectorVersions builds the group of collector versions.
+func NewReplicaSetCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewReplicaSetCollector(),
+	)
+}
+
 // ReplicaSetCollector is a collector for Kubernetes ReplicaSets.
 type ReplicaSetCollector struct {
 	informer  appsv1Informers.ReplicaSetInformer
@@ -33,9 +40,11 @@ type ReplicaSetCollector struct {
 func NewReplicaSetCollector() *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "replicasets",
-			NodeType: orchestrator.K8sReplicaSet,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "replicasets",
+			NodeType:         orchestrator.K8sReplicaSet,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}

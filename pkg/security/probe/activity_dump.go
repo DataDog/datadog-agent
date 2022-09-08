@@ -6,7 +6,6 @@
 //go:build linux
 // +build linux
 
-//go:generate go run github.com/tinylib/msgp -o=activity_dump_gen_linux.go -tests=false
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
 package probe
@@ -30,7 +29,6 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
-	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -39,11 +37,11 @@ import (
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -67,23 +65,23 @@ const (
 
 // DumpMetadata is used to provide context about the activity dump
 type DumpMetadata struct {
-	AgentVersion      string `msg:"agent_version" json:"agent_version"`
-	AgentCommit       string `msg:"agent_commit" json:"agent_commit"`
-	KernelVersion     string `msg:"kernel_version" json:"kernel_version"`
-	LinuxDistribution string `msg:"linux_distribution" json:"linux_distribution"`
-	Arch              string `msg:"arch" json:"arch"`
+	AgentVersion      string `json:"agent_version"`
+	AgentCommit       string `json:"agent_commit"`
+	KernelVersion     string `json:"kernel_version"`
+	LinuxDistribution string `json:"linux_distribution"`
+	Arch              string `json:"arch"`
 
-	Name              string        `msg:"name" json:"name"`
-	ProtobufVersion   string        `msg:"protobuf_version" json:"protobuf_version"`
-	DifferentiateArgs bool          `msg:"differentiate_args" json:"differentiate_args"`
-	Comm              string        `msg:"comm,omitempty" json:"comm,omitempty"`
-	ContainerID       string        `msg:"container_id,omitempty" json:"-"`
-	Start             time.Time     `msg:"start" json:"start"`
-	Timeout           time.Duration `msg:"-" json:"-"`
-	End               time.Time     `msg:"end" json:"end"`
-	timeoutRaw        int64         `msg:"-"`
-	Size              uint64        `msg:"activity_dump_size,omitempty" json:"activity_dump_size,omitempty"`
-	Serialization     string        `msg:"serialization,omitempty" json:"serialization,omitempty"`
+	Name              string        `json:"name"`
+	ProtobufVersion   string        `json:"protobuf_version"`
+	DifferentiateArgs bool          `json:"differentiate_args"`
+	Comm              string        `json:"comm,omitempty"`
+	ContainerID       string        `json:"-"`
+	Start             time.Time     `json:"start"`
+	Timeout           time.Duration `json:"-"`
+	End               time.Time     `json:"end"`
+	timeoutRaw        int64
+	Size              uint64 `json:"activity_dump_size,omitempty"`
+	Serialization     string `json:"serialization,omitempty"`
 }
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
@@ -91,7 +89,7 @@ type DumpMetadata struct {
 // is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
-	*sync.Mutex        `msg:"-"`
+	*sync.Mutex
 	state              ActivityDumpStatus
 	adm                *ActivityDumpManager
 	processedCount     map[model.EventType]*atomic.Uint64
@@ -103,18 +101,18 @@ type ActivityDump struct {
 	nodeStats        ActivityDumpNodeStats
 
 	// standard attributes used by the intake
-	Host    string   `msg:"host" json:"host,omitempty"`
-	Service string   `msg:"service,omitempty" json:"service,omitempty"`
-	Source  string   `msg:"source" json:"ddsource,omitempty"`
-	Tags    []string `msg:"tags,omitempty" json:"-"`
-	DDTags  string   `msg:"-" json:"ddtags,omitempty"`
+	Host    string   `json:"host,omitempty"`
+	Service string   `json:"service,omitempty"`
+	Source  string   `json:"ddsource,omitempty"`
+	Tags    []string `json:"-"`
+	DDTags  string   `json:"ddtags,omitempty"`
 
-	CookiesNode         map[uint32]*ProcessActivityNode              `msg:"-" json:"-"`
-	ProcessActivityTree []*ProcessActivityNode                       `msg:"tree,omitempty" json:"-"`
-	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `msg:"storage_requests,omitempty" json:"-"`
+	CookiesNode         map[uint32]*ProcessActivityNode              `json:"-"`
+	ProcessActivityTree []*ProcessActivityNode                       `json:"-"`
+	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `json:"-"`
 
 	// Dump metadata
-	DumpMetadata `msg:"metadata"`
+	DumpMetadata
 }
 
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
@@ -329,9 +327,11 @@ func (ad *ActivityDump) Stop() {
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
 		copy(containerIDB, ad.DumpMetadata.ContainerID)
-		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
-		if err != nil {
+		if err := ad.adm.tracedCgroupsMap.Delete(containerIDB); err != nil {
 			seclog.Debugf("couldn't delete activity dump filter containerID(%s): %v", ad.DumpMetadata.ContainerID, err)
+		}
+		if err := ad.adm.loadController.releaseTracedCgroupSpot(); err != nil {
+			seclog.Debugf("couldn't release one traced cgroup spot for containerID(%s): %v", ad.DumpMetadata.ContainerID, err)
 		}
 	}
 
@@ -422,7 +422,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}
 
 	// resolve fields
-	event.ResolveFields()
+	event.ResolveFields(true)
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
@@ -691,12 +691,8 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 	switch format {
 	case dump.JSON:
 		return ad.EncodeJSON()
-	case dump.MSGP:
-		return ad.EncodeMSGP()
 	case dump.PROTOBUF:
 		return ad.EncodeProtobuf()
-	case dump.PROTOJSON:
-		return ad.EncodeProtoJSON()
 	case dump.DOT:
 		return ad.EncodeDOT()
 	case dump.Profile:
@@ -704,33 +700,6 @@ func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error)
 	default:
 		return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", ad.GetSelectorStr(), format)
 	}
-}
-
-// EncodeJSON encodes an activity dump in the JSON format
-func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
-	msgpRaw, err := ad.EncodeMSGP()
-	if err != nil {
-		return nil, err
-	}
-
-	raw := bytes.NewBuffer(nil)
-	_, err = msgp.UnmarshalAsJSON(raw, msgpRaw.Bytes())
-	if err != nil {
-		return nil, fmt.Errorf("couldn't encode %s: %v", dump.JSON, err)
-	}
-	return raw, nil
-}
-
-// EncodeMSGP encodes an activity dump in the MSGP format
-func (ad *ActivityDump) EncodeMSGP() (*bytes.Buffer, error) {
-	ad.Lock()
-	defer ad.Unlock()
-
-	raw, err := ad.MarshalMsg(nil)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.MSGP, err)
-	}
-	return bytes.NewBuffer(raw), nil
 }
 
 // EncodeProtobuf encodes an activity dump in the Protobuf format
@@ -748,8 +717,8 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 	return bytes.NewBuffer(raw), nil
 }
 
-// EncodeProtoJSON encodes an activity dump in the ProtoJSON format
-func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
+// EncodeJSON encodes an activity dump in the ProtoJSON format
+func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -763,7 +732,7 @@ func (ad *ActivityDump) EncodeProtoJSON() (*bytes.Buffer, error) {
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOJSON, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -827,25 +796,11 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 // DecodeFromReader decodes an activity dump from a reader with the provided format
 func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFormat) error {
 	switch format {
-	case dump.MSGP:
-		return ad.DecodeMSGP(reader)
 	case dump.PROTOBUF:
 		return ad.DecodeProtobuf(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
-}
-
-// DecodeMSGP decodes an activity dump as MSGP
-func (ad *ActivityDump) DecodeMSGP(reader io.Reader) error {
-	ad.Lock()
-	defer ad.Unlock()
-
-	msgpReader := msgp.NewReader(reader)
-	if err := ad.DecodeMsg(msgpReader); err != nil {
-		return fmt.Errorf("couldn't parse activity dump file: %w", err)
-	}
-	return nil
 }
 
 // DecodeProtobuf decodes an activity dump as PROTOBUF
@@ -870,14 +825,14 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 
 // ProcessActivityNode holds the activity of a process
 type ProcessActivityNode struct {
-	Process        model.Process      `msg:"process"`
-	GenerationType NodeGenerationType `msg:"generation_type"`
+	Process        model.Process
+	GenerationType NodeGenerationType
 
-	Files    map[string]*FileActivityNode `msg:"files,omitempty"`
-	DNSNames map[string]*DNSNode          `msg:"dns,omitempty"`
-	Sockets  []*SocketNode                `msg:"sockets,omitempty"`
-	Syscalls []int                        `msg:"syscalls,omitempty"`
-	Children []*ProcessActivityNode       `msg:"children,omitempty"`
+	Files    map[string]*FileActivityNode
+	DNSNames map[string]*DNSNode
+	Sockets  []*SocketNode
+	Syscalls []int
+	Children []*ProcessActivityNode
 }
 
 // NewProcessActivityNode returns a new ProcessActivityNode instance
@@ -1299,22 +1254,22 @@ newSyscallLoop:
 
 // FileActivityNode holds a tree representation of a list of files
 type FileActivityNode struct {
-	Name           string             `msg:"name"`
-	IsPattern      bool               `msg:"is_pattern"`
-	File           *model.FileEvent   `msg:"file,omitempty"`
-	GenerationType NodeGenerationType `msg:"generation_type"`
-	FirstSeen      time.Time          `msg:"first_seen,omitempty"`
+	Name           string
+	IsPattern      bool
+	File           *model.FileEvent
+	GenerationType NodeGenerationType
+	FirstSeen      time.Time
 
-	Open *OpenNode `msg:"open,omitempty"`
+	Open *OpenNode
 
-	Children map[string]*FileActivityNode `msg:"children,omitempty"`
+	Children map[string]*FileActivityNode
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
 type OpenNode struct {
 	model.SyscallEvent
-	Flags uint32 `msg:"flags"`
-	Mode  uint32 `msg:"mode"`
+	Flags uint32
+	Mode  uint32
 }
 
 // NewFileActivityNode returns a new FileActivityNode instance
@@ -1423,7 +1378,7 @@ func (ad *ActivityDump) combineChildren(children map[string]*FileActivityNode) m
 	current := []inner{inputs[0]}
 
 	for _, a := range inputs[1:] {
-		next := make([]inner, 0)
+		next := make([]inner, 0, len(current))
 		shouldAppend := true
 		for _, b := range current {
 			if !areCompatibleFans(a.fan, b.fan) {
@@ -1516,7 +1471,7 @@ func (fan *FileActivityNode) debug(w io.Writer, prefix string) {
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	Requests []model.DNSEvent `msg:"requests"`
+	Requests []model.DNSEvent
 }
 
 // NewDNSNode returns a new DNSNode instance
@@ -1529,14 +1484,14 @@ func NewDNSNode(event *model.DNSEvent, nodeStats *ActivityDumpNodeStats) *DNSNod
 
 // BindNode is used to store a bind node
 type BindNode struct {
-	Port uint16 `msg:"port"`
-	IP   string `msg:"ip"`
+	Port uint16
+	IP   string
 }
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
-	Family string      `msg:"family"`
-	Bind   []*BindNode `msg:"bind,omitempty"`
+	Family string
+	Bind   []*BindNode
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
@@ -1569,8 +1524,6 @@ func NewSocketNode(family string, nodeStats *ActivityDumpNodeStats) *SocketNode 
 	}
 }
 
-//msgp:shim NodeGenerationType as:string using:(NodeGenerationType).String/parseString
-
 // NodeGenerationType is used to indicate if a node was generated by a runtime or snapshot event
 // IMPORTANT: IT MUST STAY IN SYNC WITH `adproto.GenerationType`
 type NodeGenerationType byte
@@ -1592,16 +1545,5 @@ func (genType NodeGenerationType) String() string {
 		return "snapshot"
 	default:
 		return "unknown"
-	}
-}
-
-func parseString(s string) NodeGenerationType {
-	switch s {
-	case "runtime":
-		return Runtime
-	case "snapshot":
-		return Snapshot
-	default:
-		return Unknown
 	}
 }

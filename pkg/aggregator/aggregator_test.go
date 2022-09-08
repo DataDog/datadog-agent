@@ -360,7 +360,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 				Host:      "",
 				Timestamp: timeNowNano() - 10000000,
 			}
-			demux.AddTimeSample(samp)
+			demux.AggregateSample(samp)
 
 			time.Sleep(1 * time.Second)
 
@@ -583,7 +583,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		for i := 0; i < sampleCount; i++ {
 			name := fmt.Sprintf("serie%d", i)
 
-			demux.AddTimeSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
+			demux.AggregateSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
 
 			if _, found := expectedSeries[name]; !found {
 				expectedSeries[name] = &metrics.Serie{
@@ -597,7 +597,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		}
 	}
 
-	// we have to wait here because AddTimeSample is async and we want to be
+	// we have to wait here because AggregateSample is async and we want to be
 	// sure all samples have been processed by the sampler
 	time.Sleep(1 * time.Second)
 

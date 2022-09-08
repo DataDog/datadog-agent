@@ -55,6 +55,31 @@ $ sudo dlv attach `pgrep -f '/opt/datadog-agent/bin/agent/agent run'`
 (dlv) goroutine <number> # switch to goroutine
 ```
 
+### Using external/split debug symbols
+If you're running a stripped binary of the agent, you can `attach` and point
+delve at the debug symbols.
+
+> As of writing this, no release has been made with [PR
+> 3073](https://github.com/go-delve/delve/pull/3073) which is needed.
+> Any version > 1.9 should have this PR, but build from `master` until then.
+
+Configure delve to search for debug symbols in the path you installed debug
+symbols to.
+
+Eg, on ubuntu/debian, `apt install datadog-agent-dbg` installs to
+`/opt/datadog-agent/.debug`, so modify your [delve config
+file](https://github.com/go-delve/delve/blob/master/Documentation/cli/README.md#configuration-and-command-history)
+to search this directory:
+
+```
+# delve config file is at $HOME/.config/dlv/config.yaml
+debug-info-directories: ["/usr/lib/debug/.build-id", "/opt/datadog-agent/.debug/" ]
+```
+
+One last note is if you use `sudo` to run `dlv attach`, `$HOME` will be set to `/root`.
+You may want to symlink `/root/.config/dlv/config.yaml` to point to your user
+delve config file.
+
 ## gdb
 
 GDB can in some rare cases be useful to troubleshoot the embedded python interpreter.
@@ -127,8 +152,7 @@ Where core dumps end up depends on the pattern set in `/proc/sys/kernel/core_pat
 For previous versions of the Agent and for crashes that happen before initialization (e.g. during Go runtime initialization or during configuration initialization), you need to set the crashing setting manually. To do this follow these steps:
 
 1. Set the user limit for core dump maximum size limit to a high-enough value. For example, you can set it to be arbitrarily big by running `ulimit -c unlimited`.
-2. 
-3. Run any of the Datadog Agents debug packages manually, setting the `GOTRACEBACK` environment variable to `crash`. This will send a `SIGABRT` signal to the Agent process and trigger the creation of a core dump.
+2. Run any of the Datadog Agents debug packages manually, setting the `GOTRACEBACK` environment variable to `crash`. This will send a `SIGABRT` signal to the Agent process and trigger the creation of a core dump.
 
 
 ### Inspecting a core dump

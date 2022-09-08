@@ -177,6 +177,11 @@ UINT doFinalizeInstall(CustomActionData &data)
         goto LExit;
     }
 
+    if (data.value(propertyDDAgentUserPassword, providedPassword))
+    {
+        passToUse = providedPassword.c_str();
+    }
+
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
     WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user
@@ -186,11 +191,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
 
-        if (data.value(propertyDDAgentUserPassword, providedPassword))
-        {
-            passToUse = providedPassword.c_str();
-        }
-        else
+        if (!data.value(propertyDDAgentUserPassword, providedPassword))
         {
             passbuf = new wchar_t[passbuflen];
             if (!generatePassword(passbuf, passbuflen))

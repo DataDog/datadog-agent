@@ -11,7 +11,7 @@ package ebpf
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -47,9 +47,9 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	if l.config.RuntimeCompilationEnabled {
 		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.statsdClient)
 		if err != nil {
-			log.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
+			seclog.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
 		} else {
-			log.Debugf("successfully compiled runtime-security probe")
+			seclog.Debugf("successfully compiled runtime-security probe")
 			runtimeCompiled = true
 		}
 	}

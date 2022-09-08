@@ -1,9 +1,14 @@
 module github.com/DataDog/datadog-agent/pkg/util/cgroups
 
-go 1.19
+go 1.18
+
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/log => ../log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
+)
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
 	github.com/containerd/cgroups v1.0.4
 	github.com/google/go-cmp v0.5.8
 	github.com/karrick/godirwalk v1.17.0
@@ -11,7 +16,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

@@ -318,6 +318,54 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, endpoints[0].Host, "override.datadoghq.com")
 		assert.Equal(t, endpoints[0].APIKey, "override_api_key")
 	})
+
+	t.Run("appkey", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.EVPProxy.ApplicationKey = "test_application_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("X-Datadog-NeedsAppKey", "true")
+		req.Header.Set(headerContainerID, "myid")
+		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		require.Len(t, proxyreqs, 1)
+		assert.Equal(t, "test_application_key", proxyreqs[0].Header.Get("DD-APPLICATION-KEY"))
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("missing-appkey", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("X-Datadog-NeedsAppKey", "true")
+		req.Header.Set(headerContainerID, "myid")
+		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
+
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 0)
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		require.Contains(t, logs, "ApplicationKey needed but not set")
+
+		// check metrics
+		expectedTags := []string{
+			"subdomain:my.subdomain",
+		}
+		require.Len(t, stats.CountCalls, 3)
+		assert.Equal(t, "datadog.trace_agent.evp_proxy.request_error", stats.CountCalls[2].Name)
+		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
+		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)
+		assert.ElementsMatch(t, expectedTags, stats.CountCalls[2].Tags)
+	})
 }
 
 func TestEVPProxyHandler(t *testing.T) {

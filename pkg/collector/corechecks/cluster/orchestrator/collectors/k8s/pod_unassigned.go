@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewUnassignedPodCollectorVersions builds the group of collector versions.
+func NewUnassignedPodCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewUnassignedPodCollector(),
+	)
+}
+
 // UnassignedPodCollector is a collector for Kubernetes Pods that are not
 // assigned to a node yet.
 type UnassignedPodCollector struct {
@@ -34,9 +41,11 @@ type UnassignedPodCollector struct {
 func NewUnassignedPodCollector() *UnassignedPodCollector {
 	return &UnassignedPodCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "pods",
-			NodeType: orchestrator.K8sPod,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "pods",
+			NodeType:         orchestrator.K8sPod,
+			Version:          "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
 	}

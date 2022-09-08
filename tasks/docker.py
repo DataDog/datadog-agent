@@ -85,10 +85,13 @@ COPY test.bin /test.bin
 
     exit_code = test_container.wait()['StatusCode']
 
-    print(test_container.logs(stdout=True, stderr=False, stream=False))
+    stdout_logs = test_container.logs(stdout=True, stderr=False, stream=False).decode(sys.stdout.encoding)
+    stderr_logs = test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding)
 
-    sys.stderr.write(test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding))
+    print(stdout_logs)
+    print(stderr_logs, file=sys.stderr)
 
+    skip_cleanup = True
     if not skip_cleanup:
         shutil.rmtree(temp_folder)
         test_container.remove(v=True, force=True)

@@ -678,6 +678,8 @@ Upgrade Notes
   ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT`` and ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``
   environment variables instead.
 
+- macOS 10.12 support has been removed. Only macOS 10.13 and later are now supported.
+
 
 .. _Release Notes_7.35.0_New Features:
 

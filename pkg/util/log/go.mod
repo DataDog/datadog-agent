@@ -1,9 +1,11 @@
 module github.com/DataDog/datadog-agent/pkg/util/log
 
-go 1.19
+go 1.18
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.22.0

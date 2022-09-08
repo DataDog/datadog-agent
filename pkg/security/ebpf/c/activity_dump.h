@@ -141,31 +141,42 @@ __attribute__((always_inline)) void unlock_cgroups_counter() {
     bpf_map_delete_elem(&traced_cgroups_lock, &key);
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
-    void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
-    if (already_in) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 timeout) {
+    if (!lock_cgroups_counter()) {
         return false;
     }
 
-    if (!lock_cgroups_counter()) {
-        return false;
+    void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
+    if (already_in) {
+        goto fail;
     }
 
     u32 key = 0;
     struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
     if (!counter) {
-        unlock_cgroups_counter();
-        return false;
+        goto fail;
     }
 
     bool res = false;
     if (counter->counter < counter->max) {
         counter->counter++;
         res = true;
+    } else {
+        goto fail;
+    }
+
+    int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
+    if (ret < 0) {
+        // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
+        goto fail;
     }
 
     unlock_cgroups_counter();
     return res;
+
+fail:
+    unlock_cgroups_counter();
+    return false;
 }
 
 __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
@@ -187,19 +198,12 @@ __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAI
 __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, char cgroup[CONTAINER_ID_LEN]) {
     u64 timeout = bpf_ktime_get_ns() + get_dump_timeout();
 
-    if (!reserve_traced_cgroup_spot(cgroup)) {
+    if (!reserve_traced_cgroup_spot(cgroup, timeout)) {
         // we're already tracing too many cgroups concurrently, ignore this one for now
         return 0;
     }
 
-
-    // try to lock an entry in traced_cgroups
-    int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
-    if (ret < 0) {
-        // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
-        return 0;
-    }
-    // lock acquired ! send cgroup tracing event
+    // send cgroup tracing event
     struct cgroup_tracing_event_t *evt = get_cgroup_tracing_event();
     if (evt == NULL) {
         // should never happen, ignore
