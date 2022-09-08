@@ -36,7 +36,7 @@ func TestMergeProcWithSysprobeStats(t *testing.T) {
 		assert.Equal(t, stats.WriteBytes, proc.Stats.IOStat.WriteBytes)
 	}
 	hasSysProbeStats := func(proc *procutil.Process) bool {
-		return proc.Stats.IOStat.IsZeroValue() && proc.Stats.OpenFdCount != 0
+		return !proc.Stats.IOStat.IsZeroValue() && proc.Stats.OpenFdCount != 0
 	}
 
 	t.Run("pids match", func(t *testing.T) {
