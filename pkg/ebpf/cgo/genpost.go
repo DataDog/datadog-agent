@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"runtime"
 )
 
 func main() {
@@ -19,8 +20,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	removeAbsolutePathRegex := regexp.MustCompile(`(// cgo -godefs [^/]+) /.+/([^/]+)$`)
-	b = removeAbsolutePathRegex.ReplaceAll(b, []byte("$1 $2"))
+	b = removeAbsolutePath(b, runtime.GOOS)
 
 	// Convert [160]int8 to [160]byte in http_transaction_t members to simplify
 	// conversion to string; see golang.org/issue/20753
@@ -38,4 +38,20 @@ func main() {
 	}
 
 	os.Stdout.Write(b)
+}
+
+// removeAbsolutePath removes the absolute file path that is automatically output by cgo -godefs
+// and replaces it with only the filename
+func removeAbsolutePath(b []byte, platform string) []byte {
+	var removeAbsolutePathRegex *regexp.Regexp
+	switch platform {
+	case "linux":
+		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo -godefs [^/]+) /.+/([^/]+)$`)
+	case "windows":
+		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo.exe -godefs [^\\]+) .:\\.+\\([^\\]+)$`)
+	default:
+		log.Fatal("unsupported platform")
+	}
+
+	return removeAbsolutePathRegex.ReplaceAll(b, []byte("$1 $2"))
 }

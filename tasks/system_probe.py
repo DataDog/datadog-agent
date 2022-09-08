@@ -203,9 +203,11 @@ def ninja_cgo_type_files(nw, windows):
         nw.rule(
             name="godefs",
             pool="cgo_pool",
-            command="powershell -Command \"(cd $in_dir) -and "
+            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8';"
+            + "(cd $in_dir);"
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path > $out_file)",
+            + "go run $script_path > $out_file);"
+            + "exit $$LastExitCode\"",
         )
     else:
         go_platform = "linux"
