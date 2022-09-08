@@ -362,48 +362,30 @@ union container_id_comm_combo {
     char comm[TASK_COMM_LEN];
 };
 
-__attribute__((always_inline)) u8 is_event_rate_limited(u64 event_type) {
-    if (event_type == EVENT_OPEN ||
-        event_type == EVENT_MKDIR ||
-        event_type == EVENT_LINK ||
-        event_type == EVENT_RENAME ||
-        event_type == EVENT_UNLINK ||
-        event_type == EVENT_RMDIR ||
-        event_type == EVENT_CHMOD ||
-        event_type == EVENT_CHOWN ||
-        event_type == EVENT_UTIME ||
-        event_type == EVENT_SETXATTR ||
-        event_type == EVENT_REMOVEXATTR) {
-        return 1;
-    }
-    return 0;
-}
-
-__attribute__((always_inline)) u8 rate_limiter_allow(struct is_discarded_by_inode_t *params, struct activity_dump_config *config) {
-    if (!is_event_rate_limited(params->event_type)) {
-        return 1;
-    }
-
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u64 now, int toadd) {
     if (config->current_period == 0) { // first time only
-        config->current_period = params->now;
-        config->counter = 1;
-        return 1;
+        goto rate_limiter_allow_reset;
     }
 
-    if (params->now < config->current_period) { // this should never happen, ignore
+    if (now < config->current_period) { // this should never happen, ignore
         return 0;
     }
 
-    u64 delta = params->now - config->current_period;
+    u64 delta = now - config->current_period;
     if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
-        config->current_period = params->now;
-        config->counter = 1;
-        return 1;
+        goto rate_limiter_allow_reset;
     } else if (config->counter >= config->rate) {
         return 0;
     }
-    config->counter++;
+    config->counter += toadd;
     return 1;
+
+rate_limiter_allow_reset:
+    if (toadd) { /* trully reset the limiter only if we count the event */
+        config->current_period = now;
+        config->counter = toadd;
+    }
+    return 1
 }
 
 __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u64 now, u32 event_type) {
@@ -427,9 +409,8 @@ __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u
         return NO_ACTIVITY_DUMP;
     }
 
-    if (!rate_limiter_allow(params, config)) {
-        params->activity_dump_state = NO_ACTIVITY_DUMP;
-        return;
+    if (!activity_dump_rate_limiter_allow(config, now, 1)) {
+        return NO_ACTIVITY_DUMP;
     }
 
     // set ACTIVITY_DUMP_RUNNING
