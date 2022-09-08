@@ -187,32 +187,6 @@ func (h *httpStatKeeper) intern(b []byte) string {
 	return v
 }
 
-// getPath returns the URL from a request fragment with GET variables excluded.
-// Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func getPath(reqFragment, buffer []byte) ([]byte, bool) {
-	// reqFragment might contain a null terminator in the middle
-	reqLen := strlen(reqFragment[:])
-
-	var i, j int
-	for i = 0; i < reqLen && reqFragment[i] != ' '; i++ {
-	}
-
-	i++
-
-	if i >= reqLen || (reqFragment[i] != '/' && reqFragment[i] != '*') {
-		return nil, false
-	}
-
-	for j = i; j < reqLen && reqFragment[j] != ' ' && reqFragment[j] != '?'; j++ {
-	}
-
-	// no bound check necessary here as we know we at least have '/' character
-	n := copy(buffer, reqFragment[i:j])
-	fullPath := j < reqLen || (j == HTTPBufferSize-1 && reqFragment[j] == ' ')
-	return buffer[:n], fullPath
-}
-
 // strlen returns the length of a null-terminated string
 func strlen(str []byte) int {
 	for i := 0; i < len(str); i++ {
