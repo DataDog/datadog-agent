@@ -26,7 +26,8 @@ struct dentry_resolver_input_t {
     int callback;
     int ret;
     int iteration;
-    u8 saved_by_ad;
+    u32 ad_state; // defines if an activity dump is running
+    u32 saved_by_ad; // defines if the dentry should have been discarded, but was saved because of an activity dump
 };
 
 union selinux_write_payload_t {
@@ -313,7 +314,7 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
     struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now);
     if (config != NULL) {
         // is this event type traced ?
-        if ((config->event_mask & (1 << (syscall->type - 1))) == (1 << (syscall->type - 1))) {
+        if (mask_has_event(config->event_mask, syscall->type)) {
             // TODO(rate_limiter): check if this event should be rate limited but do not count this event; it will be counted in the dentry resolver
             return 0;
         }
