@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package api
 
 import (
@@ -18,24 +23,26 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
 		})
 	}
-
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// TODO: Simplify this. We shouldn't need to open a new connection for every
 		// request to the statsd endpoit. We should be able to just route the reverse
 		// proxy to that endpoint.
-		url := fmt.Sprintf("%s:%d", r.conf.StatsdHost, r.conf.StatsdPort)
-		conn, err := net.Dial("udp", url)
+		var network, address string
+		if r.conf.StatsdSocket != "" {
+			network, address = "unix", r.conf.StatsdSocket
+		} else {
+			network, address = "udp", fmt.Sprintf("%s:%d", r.conf.StatsdHost, r.conf.StatsdPort)
+		}
+		conn, err := net.Dial(network, address)
 		if err != nil {
-			log.Error(err)
-			http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+			log.Errorf("Error connecting to %s endpoint at %q: %v", network, address, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer conn.Close()
-		b, err := io.ReadAll(req.Body)
-		if err != nil {
-			http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		if _, err := io.Copy(conn, req.Body); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		conn.Write(b)
 	})
 }
