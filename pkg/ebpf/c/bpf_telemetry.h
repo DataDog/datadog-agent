@@ -31,7 +31,7 @@ BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
 
 #define PATCH_TARGET_TELEMETRY -1
-static void* (*bpf_patch)(int*,...) = (void*)PATCH_TARGET_TELEMETRY;
+static void* (*bpf_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
 
 // The telemetry functions with fail on kernel 4.4, due to
 // reasons described here: https://github.com/DataDog/datadog-agent/blob/main/pkg/network/ebpf/c/http.h#L74
@@ -52,8 +52,8 @@ static void* (*bpf_patch)(int*,...) = (void*)PATCH_TARGET_TELEMETRY;
                 }                                                                \
                 errno_slot &= (T_MAX_ERRNO - 1);                                 \
                 int *target = &entry->err_count[errno_slot]; \
-                int add = 1; \
-                bpf_patch(target, add); \
+                unsigned long add = 1; \
+                bpf_patch((unsigned long)target, add); \
             }                                                                    \
         }                                                                        \
     } while (0)

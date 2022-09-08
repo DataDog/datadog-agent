@@ -251,15 +251,22 @@ func (b *BPFTelemetry) initializeHelperErrTelemetryMap() error {
 
 const BPFTelemetryPatchCall = -1
 
-func PatchBPFTelemetry(m *manager.Manager, shouldActivate bool) error {
-	if shouldActivate {
-		return patchBPFTelemetry(m, asm.StoreXAdd(asm.R1, asm.R2, asm.Word))
-	} else {
-		return patchBPFTelemetry(m, asm.Mov.Reg(asm.R1, asm.R1))
+func PatchBPFTelemetry(m *manager.Manager, shouldActivate bool, undefinedProbes []manager.ProbeIdentificationPair) error {
+	specs, err := getAllProgramSpecs(m, undefinedProbes)
+	if err != nil {
+		return err
 	}
+
+	if shouldActivate {
+		patchBPFTelemetry(m, asm.StoreXAdd(asm.R1, asm.R2, asm.Word), specs)
+	} else {
+		patchBPFTelemetry(m, asm.Mov.Reg(asm.R1, asm.R1), specs)
+	}
+
+	return nil
 }
 
-func getAllProgramSpecs(m *manager.Manager) ([]*ebpf.ProgramSpec, error) {
+func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) ([]*ebpf.ProgramSpec, error) {
 	var specs []*ebpf.ProgramSpec
 	for _, p := range m.Probes {
 		s, present, err := m.GetProgramSpec(p.ProbeIdentificationPair)
@@ -273,14 +280,22 @@ func getAllProgramSpecs(m *manager.Manager) ([]*ebpf.ProgramSpec, error) {
 		specs = append(specs, s...)
 	}
 
+	for _, id := range undefinedProbes {
+		s, present, err := m.GetProgramSpec(id)
+		if err != nil {
+			return nil, err
+		}
+		if !present {
+			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", id)
+		}
+
+		specs = append(specs, s...)
+	}
+
 	return specs, nil
 }
 
-func patchBPFTelemetry(m *manager.Manager, newIns asm.Instruction) error {
-	specs, err := getAllProgramSpecs(m)
-	if err != nil {
-		return err
-	}
+func patchBPFTelemetry(m *manager.Manager, newIns asm.Instruction, specs []*ebpf.ProgramSpec) {
 	for _, spec := range specs {
 		if spec == nil {
 			continue
@@ -300,6 +315,4 @@ func patchBPFTelemetry(m *manager.Manager, newIns asm.Instruction) error {
 			*ins = newIns
 		}
 	}
-
-	return nil
 }

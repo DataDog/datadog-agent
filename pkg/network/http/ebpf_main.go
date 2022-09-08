@@ -67,8 +67,20 @@ type ebpfProgram struct {
 type subprogram interface {
 	ConfigureManager(*manager.Manager)
 	ConfigureOptions(*manager.Options)
+	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 	Start()
 	Stop()
+}
+
+var tailcalls []manager.TailCallRoute = []manager.TailCallRoute{
+	{
+		ProgArrayName: httpProgsMap,
+		Key:           HTTP_PROG,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  httpSocketFilter,
+			EBPFFuncName: "socket__http_filter",
+		},
+	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD, errMap, helperErrMap *ebpf.Map) (*ebpfProgram, error) {
@@ -144,11 +156,20 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD, 
 }
 
 func (e *ebpfProgram) Init() error {
+	var undefinedProbes []manager.ProbeIdentificationPair
+
 	defer e.bytecode.Close()
+
+	for _, tc := range tailcalls {
+		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
+	}
+	for _, s := range e.subprograms {
+		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+	}
 
 	e.Manager.DumpHandler = dumpMapsHandler
 	e.Manager.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchBPFTelemetry(m, true)
+		return errtelemetry.PatchBPFTelemetry(m, true, undefinedProbes)
 	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
@@ -177,16 +198,7 @@ func (e *ebpfProgram) Init() error {
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
-		TailCallRouter: []manager.TailCallRoute{
-			{
-				ProgArrayName: httpProgsMap,
-				Key:           httpProg,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilter,
-					EBPFFuncName: "socket__http_filter",
-				},
-			},
-		},
+		TailCallRouter: tailcalls,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
