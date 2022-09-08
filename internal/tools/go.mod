@@ -15,6 +15,9 @@ require (
 	gotest.tools/gotestsum v1.8.2
 )
 
+// we want to force this version, since 1.0.6 is broken on go1.18
+replace github.com/sylvia7788/contextcheck => github.com/sylvia7788/contextcheck v1.0.4
+
 require (
 	4d63.com/gochecknoglobals v0.1.0 // indirect
 	github.com/Antonboom/errname v0.1.7 // indirect
