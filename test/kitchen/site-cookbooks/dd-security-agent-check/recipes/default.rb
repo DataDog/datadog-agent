@@ -114,19 +114,17 @@ if node['platform_family'] != 'windows'
       end
     end
 
+    # Please see https://github.com/paulcacheux/cws-buildimages/blob/main/Dockerfile
+    # for the definition of this base image
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM public.ecr.aws/docker/library/centos:centos7
-
-      ENV DOCKER_DD_AGENT=yes
+      FROM ghcr.io/paulcacheux/cws-centos7:latest
 
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
 
-      RUN mkdir -p /opt/datadog-agent/embedded/bin
       COPY clang-bpf /opt/datadog-agent/embedded/bin/
       COPY llc-bpf /opt/datadog-agent/embedded/bin/
 
-      RUN yum -y install xfsprogs e2fsprogs iproute perl
       CMD sleep 7200
       EOF
       action :create
