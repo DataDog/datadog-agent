@@ -922,7 +922,6 @@ def clean_object_files(
 
 
 # deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
-@task
 def generate_runtime_files(ctx):
     run_ninja(ctx, explain=True, target="runtime-compilation")
 
