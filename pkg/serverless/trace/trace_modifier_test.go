@@ -23,7 +23,7 @@ func TestFormatTraceForCloudRunWithValidRootSpan(t *testing.T) {
 		},
 	}
 
-	formatTraceForCloudRun(&spans)
+	spans = formatTraceForCloudRun(spans)
 
 	assert.Len(t, spans, 4)
 
@@ -53,7 +53,7 @@ func TestFormatTraceForCloudRunWithNoRootSpan(t *testing.T) {
 		},
 	}
 
-	formatTraceForCloudRun(&spans)
+	spans = formatTraceForCloudRun(spans)
 
 	assert.Len(t, spans, 3)
 }

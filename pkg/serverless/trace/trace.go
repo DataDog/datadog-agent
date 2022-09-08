@@ -22,7 +22,7 @@ type ServerlessTraceAgent struct {
 	ta              *agent.Agent
 	spanModifier    *spanModifier
 	cancel          context.CancelFunc
-	ModifyTraceFunc func(*[]*pb.Span)
+	ModifyTraceFunc func([]*pb.Span) []*pb.Span
 }
 
 // Load abstracts the file configuration loading

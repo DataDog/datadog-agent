@@ -8,17 +8,17 @@ import (
 )
 
 // ModifyTrace takes in a trace and modifies it in place to return a new trace
-func ModifyTrace(trace *[]*pb.Span) {
+func ModifyTrace(trace []*pb.Span) []*pb.Span {
 	// For now, let's just assume we're in Cloud Run
-	formatTraceForCloudRun(trace)
+	return formatTraceForCloudRun(trace)
 }
 
-func formatTraceForCloudRun(trace *[]*pb.Span) {
-	oldRoot := traceutil.GetRoot(*trace)
+func formatTraceForCloudRun(trace []*pb.Span) []*pb.Span {
+	oldRoot := traceutil.GetRoot(trace)
 	// GetRoot returns the last span if we don't have a "true" root value.
 	// If that's the case, we don't want to wrap the span.
 	if oldRoot.ParentID != 0 {
-		return
+		return trace
 	}
 	root := &pb.Span{
 		TraceID:  oldRoot.TraceID,
@@ -33,5 +33,9 @@ func formatTraceForCloudRun(trace *[]*pb.Span) {
 		Service:  oldRoot.Service,
 	}
 	oldRoot.ParentID = root.SpanID
-	*trace = append(*trace, root)
+
+	newSpans := make([]*pb.Span, len(trace))
+	copy(newSpans, trace)
+
+	return append(newSpans, root)
 }
