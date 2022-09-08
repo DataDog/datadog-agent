@@ -9,35 +9,37 @@
 package processors
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// orchestratorMetadataList is a payload list of orchestratorMetadata payloads
-type orchestratorMetadataList struct {
-	orchestratorMetadataYaml [][]byte
-	orchestratorMetadata     []interface{}
-	chunker                  orchestratorMetadataChunker
+// orchestratorList is a payload list of orchestrator payloads
+type orchestratorList struct {
+	orchestratorYaml     []interface{}
+	orchestratorPayloads []interface{}
+	chunker              orchestratorChunker
 }
 
-// orchestratorMetadataChunker abstracts chunking of orchestratorMetadata payloads
-type orchestratorMetadataChunker interface {
-	// Accept takes a slice of orchestratorMetadata and allocates them to the current chunk
-	Accept(orchestratorMetadata []interface{}, weight int)
+// orchestratorChunker abstracts chunking of orchestrator payloads
+type orchestratorChunker interface {
+	// Accept takes a slice of orchestrator and allocates them to the current chunk
+	Accept(orchestrator []interface{}, weight int)
 }
 
-func (l *orchestratorMetadataList) Len() int {
-	return len(l.orchestratorMetadata)
+func (l *orchestratorList) Len() int {
+	return len(l.orchestratorPayloads)
 }
 
-func (l *orchestratorMetadataList) WeightAt(idx int) int {
-	if idx >= len(l.orchestratorMetadata) {
+func (l *orchestratorList) WeightAt(idx int) int {
+	if idx >= len(l.orchestratorPayloads) {
 		return 0
 	}
-	return len(l.orchestratorMetadataYaml[idx])
+	return len(l.orchestratorYaml[idx].(*model.Manifest).Content)
 }
 
-func (l *orchestratorMetadataList) ToChunk(start, end int, weight int) {
-	l.chunker.Accept(l.orchestratorMetadata[start:end], weight)
+func (l *orchestratorList) ToChunk(start, end int, weight int) {
+	l.chunker.Accept(l.orchestratorPayloads[start:end], weight)
 }
 
 // chunkProps is used to track weight and size of chunks
@@ -79,45 +81,46 @@ func (c *chunkPropsTracker) Next() {
 }
 
 // collectorProcChunker implements allocation of chunks
-type collectorOrchestratorMetadataChunker struct {
+type collectorOrchestratorChunker struct {
 	chunkPropsTracker
-	collectorOrchestratorMetadataList [][]interface{}
+	collectorOrchestratorList [][]interface{}
 }
 
-// collectorOrchestratorMetadataChunker implements both `chunkAllocator` and `orchestratorMetadataChunker`
-var _ orchestratorMetadataChunker = &collectorOrchestratorMetadataChunker{}
-var _ util.ChunkAllocator = &collectorOrchestratorMetadataChunker{}
+// collectorOrchestratorChunker implements both `chunkAllocator` and `orchestratorChunker`
+var _ orchestratorChunker = &collectorOrchestratorChunker{}
+var _ util.ChunkAllocator = &collectorOrchestratorChunker{}
 
-func (c *collectorOrchestratorMetadataChunker) Accept(orchestratorMetadata []interface{}, weight int) {
-	if c.idx >= len(c.collectorOrchestratorMetadataList) {
+func (c *collectorOrchestratorChunker) Accept(orchestratorPayloads []interface{}, weight int) {
+	if c.idx >= len(c.collectorOrchestratorList) {
 		// If we are outside of the range of allocated chunks, allocate a new one
-		c.collectorOrchestratorMetadataList = append(c.collectorOrchestratorMetadataList, make([]interface{}, 0, 1))
+		c.collectorOrchestratorList = append(c.collectorOrchestratorList, make([]interface{}, 0, 1))
 		c.props = append(c.props, chunkProps{})
 	}
-	c.collectorOrchestratorMetadataList[c.idx] = append(c.collectorOrchestratorMetadataList[c.idx], orchestratorMetadata...)
-	c.props[c.idx].size += len(orchestratorMetadata)
+	c.collectorOrchestratorList[c.idx] = append(c.collectorOrchestratorList[c.idx], orchestratorPayloads...)
+	c.props[c.idx].size += len(orchestratorPayloads)
 	c.props[c.idx].weight += weight
 }
-func (c *collectorOrchestratorMetadataChunker) setLastChunk() {
+func (c *collectorOrchestratorChunker) setLastChunk() {
 	c.idx = 0
-	if len(c.collectorOrchestratorMetadataList) > 1 {
-		c.idx = len(c.collectorOrchestratorMetadataList) - 1
+	if len(c.collectorOrchestratorList) > 1 {
+		c.idx = len(c.collectorOrchestratorList) - 1
 	}
 }
 
-// chunkOrchestratorMetadataBySizeAndWeight chunks orchestratorMetadata payloads by max allowed size and max allowed weight of a chunk
-func chunkOrchestratorMetadataBySizeAndWeight(orchestratorMetadata []interface{}, orchestratorMetadataYaml [][]byte, maxChunkSize, maxChunkWeight int, chunker *collectorOrchestratorMetadataChunker) {
-	if len(orchestratorMetadata) == 0 {
+// chunkOrchestratorPayloadsBySizeAndWeight chunks orchestrator payloads by max allowed size and max allowed weight of a chunk
+// We use yaml size as payload weight
+func chunkOrchestratorPayloadsBySizeAndWeight(orchestratorPayloads []interface{}, orchestratorYaml []interface{}, maxChunkSize, maxChunkWeight int, chunker *collectorOrchestratorChunker) {
+	if len(orchestratorPayloads) == 0 {
 		return
 	}
 
 	// Use the last available chunk as it may have some space for payloads
 	chunker.setLastChunk()
 
-	list := &orchestratorMetadataList{
-		orchestratorMetadata:     orchestratorMetadata,
-		orchestratorMetadataYaml: orchestratorMetadataYaml,
-		chunker:                  chunker,
+	list := &orchestratorList{
+		orchestratorPayloads: orchestratorPayloads,
+		orchestratorYaml:     orchestratorYaml,
+		chunker:              chunker,
 	}
 	util.ChunkPayloadsBySizeAndWeight(list, chunker, maxChunkSize, maxChunkWeight)
 
