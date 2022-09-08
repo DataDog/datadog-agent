@@ -87,15 +87,16 @@ func (m *mockUptane) TUFVersionState() (uptane.TUFVersions, error) {
 	return args.Get(0).(uptane.TUFVersions), args.Error(1)
 }
 
-var (
-	testRCKey = msgpgo.RemoteConfigKey{
-		AppKey:     "fake_key",
-		OrgID:      2,
-		Datacenter: "dd.com",
-	}
-)
+var testRCKey = msgpgo.RemoteConfigKey{
+	AppKey:     "fake_key",
+	OrgID:      2,
+	Datacenter: "dd.com",
+}
 
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
+	config.Datadog.Set("hostname", "test-hostname")
+	defer config.Datadog.Set("hostname", "")
+
 	dir, err := os.MkdirTemp("", "testdbdir")
 	assert.NoError(t, err)
 	config.Datadog.Set("run_path", dir)
@@ -376,7 +377,8 @@ func TestService(t *testing.T) {
 		"datadog/2/APM_SAMPLING/id/1": {},
 		"datadog/2/TESTING1/id/1":     {},
 		"datadog/2/APM_SAMPLING/id/2": {},
-		"datadog/2/APPSEC/id/1":       {}},
+		"datadog/2/APPSEC/id/1":       {},
+	},
 		nil,
 	)
 	uptaneClient.On("State").Return(uptane.State{
@@ -498,7 +500,8 @@ func TestServiceClientPredicates(t *testing.T) {
 			{
 				Service: wrongServiceName,
 			},
-		})}}},
+		})}},
+	},
 		nil,
 	)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
