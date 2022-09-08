@@ -82,6 +82,22 @@ func TestRun(t *testing.T) {
 			Version:   1,
 			Namespace: "default",
 		},
+		{
+			// Release with escapable version
+			Name: "foo",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "foo",
+					Version:    "2+30+5",
+					AppVersion: "7",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
 	}
 
 	// Same order as "releases" array
@@ -140,6 +156,17 @@ func TestRun(t *testing.T) {
 			"helm_chart_version:2.0.0",
 			"helm_app_version:1",
 			"helm_chart:example_app-2.0.0",
+		},
+		{
+			"helm_release:foo",
+			"helm_chart_name:foo",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:2+30+5",
+			"helm_app_version:7",
+			"helm_chart:foo-2_30_5",
 		},
 	}
 
