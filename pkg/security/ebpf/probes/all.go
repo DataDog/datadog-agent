@@ -175,7 +175,7 @@ func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, 
 			MaxEntries: MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"activity_dump_rate_limiter_ctx": {
+		"activity_dump_rate_limiters": {
 			MaxEntries: MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
