@@ -23,9 +23,21 @@ const (
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
 	multiWrapperType  wrapperType = "multi"
-
-	defaultDockerImage = "public.ecr.aws/ubuntu/ubuntu:20.04"
 )
+
+// Because of rate limits, we allow the specification of multiple images for the same "kind".
+// Since dockerhub limits per pulls by 6 hours, and aws limits by data over a month, we first try the dockerhub
+// one and fallback on aws.
+var dockerImageLibrary = map[string][]string{
+	"ubuntu": {
+		"ubuntu:20.04",
+		"public.ecr.aws/ubuntu/ubuntu:20.04",
+	},
+	"alpine": {
+		"alpine",
+		"public.ecr.aws/docker/library/alpine:latest",
+	},
+}
 
 type cmdWrapper interface {
 	Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd))
@@ -109,11 +121,20 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func (d *dockerCmdWrapper) SetImage(image string) {
-	d.image = image
+func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
+	var err error
+	for _, entry := range dockerImageLibrary[kind] {
+		cmd := exec.Command(d.executable, "pull", entry)
+		err = cmd.Run()
+		if err == nil {
+			d.image = entry
+			break
+		}
+	}
+	return err
 }
 
-func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
+func newDockerCmdWrapper(root string, kind string) (*dockerCmdWrapper, error) {
 	executable, err := exec.LookPath("docker")
 	if err != nil {
 		return nil, err
@@ -125,11 +146,16 @@ func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 		return nil, err
 	}
 
-	return &dockerCmdWrapper{
+	wrapper := &dockerCmdWrapper{
 		executable: executable,
 		root:       root,
-		image:      defaultDockerImage,
-	}, nil
+	}
+
+	if err := wrapper.selectImageFromLibrary(kind); err != nil {
+		return nil, err
+	}
+
+	return wrapper, nil
 }
 
 type multiCmdWrapper struct {

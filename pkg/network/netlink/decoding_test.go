@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/netip"
 	"os"
 	"testing"
 
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
-	"inet.af/netaddr"
 )
 
 func TestDecodeAndReleaseEvent(t *testing.T) {
@@ -36,15 +36,15 @@ func TestDecodeAndReleaseEvent(t *testing.T) {
 	assert.Len(t, connections, 1)
 	c := connections[0]
 
-	assert.Equal(t, netaddr.MustParseIP("10.0.2.15"), c.Origin.Src.IP())
-	assert.Equal(t, netaddr.MustParseIP("2.2.2.2"), c.Origin.Dst.IP())
+	assert.Equal(t, netip.MustParseAddr("10.0.2.15"), c.Origin.Src.Addr())
+	assert.Equal(t, netip.MustParseAddr("2.2.2.2"), c.Origin.Dst.Addr())
 
 	assert.Equal(t, uint16(58472), c.Origin.Src.Port())
 	assert.Equal(t, uint16(5432), c.Origin.Dst.Port())
 	assert.Equal(t, uint8(6), c.Origin.Proto)
 
-	assert.Equal(t, netaddr.MustParseIP("1.1.1.1"), c.Reply.Src.IP())
-	assert.Equal(t, netaddr.MustParseIP("10.0.2.15"), c.Reply.Dst.IP())
+	assert.Equal(t, netip.MustParseAddr("1.1.1.1"), c.Reply.Src.Addr())
+	assert.Equal(t, netip.MustParseAddr("10.0.2.15"), c.Reply.Dst.Addr())
 
 	assert.Equal(t, uint16(5432), c.Reply.Src.Port())
 	assert.Equal(t, uint16(58472), c.Reply.Dst.Port())

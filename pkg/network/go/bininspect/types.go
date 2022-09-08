@@ -6,19 +6,11 @@
 package bininspect
 
 import (
+	"errors"
 	"reflect"
 
 	"github.com/go-delve/delve/pkg/goversion"
 )
-
-// Config contains options for controlling what is included
-// in the results of the binary inspection process,
-// such as the struct offsets to obtain
-// and the functions to examine.
-type Config struct {
-	Functions     []FunctionConfig
-	StructOffsets []StructOffsetConfig
-}
 
 // Result is the result of the binary inspection process.
 type Result struct {
@@ -26,10 +18,8 @@ type Result struct {
 	ABI                  GoABI
 	GoVersion            goversion.GoVersion
 	IncludesDebugSymbols bool
-	Functions            []FunctionMetadata
-	// If IncludesDebugSymbols is false, then this slice will be nil/empty
-	// (regardless of the struct offset configs).
-	StructOffsets []StructOffset
+	Functions            map[string]FunctionMetadata
+	StructOffsets        map[FieldIdentifier]uint64
 }
 
 // GoArch only includes supported architectures,
@@ -78,9 +68,6 @@ type FunctionConfig struct {
 // FunctionMetadata contains the results of the inspection process that
 // that can be used to attach an eBPF uprobe to a single function.
 type FunctionMetadata struct {
-	// The full name of the function that this metadata is for.
-	// ex: crypto/tls.(*Conn).Write
-	Name string
 	// The virtual address for the function's entrypoint for non-PIE's,
 	// or offset to the file load address for PIE's.
 	//
@@ -186,28 +173,16 @@ type ParameterPiece struct {
 	Register int
 }
 
-// StructOffsetConfig controls the extraction
-// of a single struct field's offset from the binary's debug information.
-type StructOffsetConfig struct {
+// FieldIdentifier represents a field in a struct and can be used as a map key.
+type FieldIdentifier struct {
 	// Fully-qualified name of the struct
-	// Ex.
-	// - `crypto/tls.Conn`
-	// - `internal/poll.FD`
-	// - `net.TCPConn`
-	// - `main.Foo`
-	// - `github.com/user/repo/cmd/test-cmd/foo.Bar`
 	StructName string
 	// Name of the field in the struct
 	FieldName string
 }
 
-// StructOffset contains the result of a single struct field's offset
-// (including the original struct/field it is an offset for).
-type StructOffset struct {
-	// Fully-qualified name of the struct
-	StructName string
-	// Name of the field in the struct
-	FieldName string
-	// Offset (in bytes) of the field from the struct's address
-	Offset uint64
-}
+// ErrNilElf is returned when getting a nil pointer to an elf file.
+var ErrNilElf = errors.New("got nil elf file")
+
+// ErrUnsupportedArch is returned when an architecture given as a parameter is not supported.
+var ErrUnsupportedArch = errors.New("got unsupported arch")
