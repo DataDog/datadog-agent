@@ -118,7 +118,7 @@ def get_nikos_linker_flags(nikos_libs_path):
         'zstd',
     ]
     # hardcode the path to each library to ensure we link against the version which was built by omnibus-nikos
-    linker_flags = map(lambda lib: nikos_libs_path + '/lib' + lib + '.a', nikos_libs)
+    linker_flags = [nikos_libs_path + '/lib' + lib + '.a' for lib in nikos_libs]
 
     return ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -static-libstdc++ -pthread -ldl -lm'
 

@@ -699,10 +699,10 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
 
     if kernel_release and minimal_kernel_release:
         match = re.compile(r'(\d+)\.(\d+)(\.(\d+))?').match(kernel_release)
-        version_tuple = list(map(int, map(lambda x: x or '0', match.group(1, 2, 4))))
+        version_tuple = [int(x) or 0 for x in match.group(1, 2, 4)]
         if version_tuple < minimal_kernel_release:
             print(
-                f"You need to have kernel headers for at least {'.'.join(map(lambda x: str(x), minimal_kernel_release))} to enable all system-probe features"
+                f"You need to have kernel headers for at least {'.'.join([str(x) for x in minimal_kernel_release])} to enable all system-probe features"
             )
 
     src_kernels_dir = "/usr/src/kernels"
