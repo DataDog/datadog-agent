@@ -202,28 +202,6 @@ fail:
     return false;
 }
 
-__attribute__((always_inline)) void free_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {
-    if (!lock_cgroups_counter()) {
-        return;
-    }
-
-    u32 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
-    if (cookie != NULL) {
-        u32 cookie_val = *cookie;
-        bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
-    }
-
-    bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
-
-    u32 key = 0;
-    struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
-    if (counter && counter->counter > 0) {
-        counter->counter -= 1;
-    }
-
-    unlock_cgroups_counter();
-}
-
 __attribute__((always_inline)) u32 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {
     u32 cookie = bpf_get_prandom_u32();
     struct activity_dump_config config = {};
@@ -288,13 +266,13 @@ __attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u6
             struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
             if (config == NULL) {
                 // delete expired cgroup entry
-                free_traced_cgroup_spot(cgroup);
+                bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
                 return 0;
             }
 
             if (now > config->end_timestamp) {
                 // delete expired cgroup entry
-                free_traced_cgroup_spot(cgroup);
+                bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
                 // delete config
                 bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
                 return 0;
