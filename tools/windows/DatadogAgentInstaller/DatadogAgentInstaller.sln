@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32014.148
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WixSetup", "WixSetup\WixSetup.csproj", "{168321DA-C4C0-4361-94C6-105346EC0FC5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "CustomActions\CustomActions.csproj", "{461CE844-4B07-47BA-B2D2-5415ABD36792}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{168321DA-C4C0-4361-94C6-105346EC0FC5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {85D3AD3F-7C15-4BCA-BC30-822989F3EE40}
+	EndGlobalSection
+EndGlobal
