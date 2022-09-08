@@ -87,7 +87,7 @@ func TestMergeProcWithSysprobeStats(t *testing.T) {
 
 		mergeProcWithSysprobeStats([]int32{1, 2}, map[int32]*procutil.Process{2: proc2}, mockSysProbe)
 
-		assert.False(t, hasSysProbeStats(proc2))
+		assertMatchesSysProbeStats(t, proc2, proc2Stats)
 	})
 
 	t.Run("error", func(t *testing.T) {
