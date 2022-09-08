@@ -815,6 +815,25 @@ func TestResolve(t *testing.T) {
 				ServiceID:     "a5901276aed1",
 			},
 		},
+		{
+			testName: "empty key",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- statictag:TEST\nzemptykey:\n")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\nzemptykey: null\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
 	}
 
 	for i, tc := range testCases {

@@ -2,6 +2,8 @@ name "python3"
 
 if ohai["platform"] != "windows"
   default_version "3.8.13"
+
+  dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"

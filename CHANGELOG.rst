@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.38.1:
+
+7.38.1 / 6.38.1
+======
+
+.. _Release Notes_7.38.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-08-02
+
+
+.. _Release Notes_7.38.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes CWS rules with 'process.file.name !=""' expression.
+
+
 .. _Release Notes_7.38.0:
 
 7.38.0 / 6.38.0
@@ -656,6 +677,8 @@ Upgrade Notes
   environment variables will be removed in Agent 7.37. Use the ``otlp_config`` section or the
   ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT`` and ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``
   environment variables instead.
+
+- macOS 10.12 support has been removed. Only macOS 10.13 and later are now supported.
 
 
 .. _Release Notes_7.35.0_New Features:

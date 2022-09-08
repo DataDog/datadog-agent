@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -57,6 +57,12 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 	}
 }
 
+func makeProcessWithCreateTime(pid int32, cmdline string, createTime int64) *procutil.Process {
+	p := makeProcess(pid, cmdline)
+	p.Stats.CreateTime = createTime
+	return p
+}
+
 func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 	t.Helper()
 
@@ -74,8 +80,9 @@ func makeProcessModel(t *testing.T, process *procutil.Process) *model.Process {
 			SystemPct: float32(cpu.SystemPct),
 			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 		},
-		IoStat:   &model.IOStat{},
-		Networks: &model.ProcessNetworks{},
+		CreateTime: process.Stats.CreateTime,
+		IoStat:     &model.IOStat{},
+		Networks:   &model.ProcessNetworks{},
 	}
 }
 
@@ -169,6 +176,23 @@ func TestRateCalculation(t *testing.T) {
 	assert.True(t, floatEquals(calculateRate(0, 1, prev), 0))
 }
 
+func TestFormatCommand(t *testing.T) {
+	process := &procutil.Process{
+		Pid:     11,
+		Ppid:    1,
+		Cmdline: []string{"git", "clone", "google.com"},
+		Cwd:     "/home/dog",
+		Exe:     "git",
+	}
+	expected := &model.Command{
+		Args: []string{"git", "clone", "google.com"},
+		Cwd:  "/home/dog",
+		Ppid: 1,
+		Exe:  "git",
+	}
+	assert.Equal(t, expected, formatCommand(process))
+}
+
 func TestFormatIO(t *testing.T) {
 	fp := &procutil.Stats{
 		IOStat: &procutil.IOCountersStat{
@@ -219,6 +243,76 @@ func TestFormatIO(t *testing.T) {
 	assert.Equal(t, float32(8), result.WriteBytesRate)
 }
 
+func TestFormatIORates(t *testing.T) {
+	ioRateStat := &procutil.IOCountersRateStat{
+		ReadRate:       10.1,
+		WriteRate:      20.2,
+		ReadBytesRate:  30.3,
+		WriteBytesRate: 40.4,
+	}
+
+	expected := &model.IOStat{
+		ReadRate:       10.1,
+		WriteRate:      20.2,
+		ReadBytesRate:  30.3,
+		WriteBytesRate: 40.4,
+	}
+
+	assert.Equal(t, expected, formatIORates(ioRateStat))
+}
+
+func TestFormatMemory(t *testing.T) {
+	for name, test := range map[string]struct {
+		stats    *procutil.Stats
+		expected *model.MemoryStat
+	}{
+		"basic": {
+			stats: &procutil.Stats{
+				MemInfo: &procutil.MemoryInfoStat{
+					RSS:  101,
+					VMS:  202,
+					Swap: 303,
+				},
+			},
+			expected: &model.MemoryStat{
+				Rss:  101,
+				Vms:  202,
+				Swap: 303,
+			},
+		},
+		"extended": {
+			stats: &procutil.Stats{
+				MemInfo: &procutil.MemoryInfoStat{
+					RSS:  101,
+					VMS:  202,
+					Swap: 303,
+				},
+				MemInfoEx: &procutil.MemoryInfoExStat{
+					Shared: 404,
+					Text:   505,
+					Lib:    606,
+					Data:   707,
+					Dirty:  808,
+				},
+			},
+			expected: &model.MemoryStat{
+				Rss:    101,
+				Vms:    202,
+				Swap:   303,
+				Shared: 404,
+				Text:   505,
+				Lib:    606,
+				Data:   707,
+				Dirty:  808,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.expected, formatMemory(test.stats))
+		})
+	}
+}
+
 func TestFormatNetworks(t *testing.T) {
 	for _, tc := range []struct {
 		connsByPID map[int32][]*model.Connection
@@ -267,6 +361,36 @@ func TestFormatNetworks(t *testing.T) {
 	} {
 		result := formatNetworks(tc.connsByPID[tc.pid], tc.interval)
 		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
+func TestFormatCPU(t *testing.T) {
+	for name, test := range map[string]struct {
+		statsNow   *procutil.Stats
+		statsPrev  *procutil.Stats
+		timeNow    cpu.TimesStat
+		timeBefore cpu.TimesStat
+		expected   *model.CPUStat
+	}{
+		"percent": {
+			statsNow: &procutil.Stats{
+				CPUPercent: &procutil.CPUPercentStat{
+					UserPct:   101.01,
+					SystemPct: 202.02,
+				},
+			},
+			expected: &model.CPUStat{
+				LastCpu:   "cpu",
+				TotalPct:  303.03,
+				UserPct:   101.01,
+				SystemPct: 202.02,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.expected,
+				formatCPU(test.statsNow, test.statsPrev, test.timeNow, test.timeBefore))
+		})
 	}
 }
 

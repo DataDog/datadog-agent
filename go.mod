@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.17
+go 1.18
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -33,25 +33,31 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 )
 
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.25
+	github.com/DataDog/agent-payload/v5 v5.0.29
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.38.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.38.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.38.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.38.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.38.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.38.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.39.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e
-	github.com/DataDog/gohai v0.0.0-20220718130825-1776f9beb9cc
-	github.com/DataDog/gopsutil v1.1.0
+	github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec
+	github.com/DataDog/gopsutil v1.2.1
 	github.com/DataDog/nikos v1.8.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.11.0
@@ -79,7 +85,7 @@ require (
 	github.com/cilium/ebpf v0.9.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
-	github.com/containerd/cgroups v1.0.3
+	github.com/containerd/cgroups v1.0.4
 	github.com/containerd/containerd v1.6.6
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.1
@@ -95,6 +101,7 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
+	github.com/go-delve/delve v1.9.0
 	github.com/go-ini/ini v1.66.6
 	github.com/go-ole/go-ole v1.2.6
 	github.com/gobwas/glob v0.2.3
@@ -122,7 +129,6 @@ require (
 	github.com/itchyny/gojq v0.12.8
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/karrick/godirwalk v1.16.1
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.7.7
@@ -132,12 +138,10 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
-	github.com/netsampler/goflow2 v1.1.0
+	github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/open-policy-agent/opa v0.43.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.56.0
-	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -148,8 +152,6 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.22.6
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
-	github.com/sirupsen/logrus v1.9.0
-	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
 	github.com/spf13/afero v1.8.2
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
@@ -167,11 +169,10 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.opentelemetry.io/collector v0.56.0
 	go.opentelemetry.io/collector/pdata v0.56.0
-	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
-	go.uber.org/zap v1.21.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	go.uber.org/zap v1.23.0
+	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
@@ -182,7 +183,6 @@ require (
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20220519153652-3a47de7e79bd
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -302,6 +302,7 @@ require (
 	github.com/jonboulle/clockwork v0.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.0.0 // indirect
+	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
 	github.com/klauspost/compress v1.15.8 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
@@ -327,7 +328,9 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
+	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
 	github.com/opencontainers/runc v1.1.3 // indirect
 	github.com/opencontainers/selinux v1.10.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
@@ -344,9 +347,11 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.3.1
+	github.com/sirupsen/logrus v1.9.0
 	github.com/skydive-project/go-debouncer v1.0.0 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
+	github.com/smira/go-xz v0.0.0-20150414201226-0c531f070014
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
@@ -381,8 +386,10 @@ require (
 	go.opentelemetry.io/otel/sdk v1.8.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v0.31.0 // indirect
 	go.opentelemetry.io/otel/trace v1.8.0 // indirect
+	go.uber.org/atomic v1.10.0
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
+	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
@@ -391,10 +398,11 @@ require (
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/protobuf v1.28.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.8 // indirect
+	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
@@ -402,11 +410,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-)
-
-require (
-	github.com/go-delve/delve v1.9.0
-	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)

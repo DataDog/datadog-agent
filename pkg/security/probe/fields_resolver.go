@@ -9,10 +9,12 @@
 package probe
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
-func (ev *Event) ResolveFields() {
+func (ev *Event) ResolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.ResolveContainerID(&ev.ContainerContext)
-	_ = ev.ResolveContainerTags(&ev.ContainerContext)
+	if !forADs {
+		_ = ev.ResolveContainerTags(&ev.ContainerContext)
+	}
 	_ = ev.ResolveNetworkDeviceIfName(&ev.NetworkContext.Device)
 	_ = ev.ResolveProcessArgs(&ev.ProcessContext.Process)
 	_ = ev.ResolveProcessArgsTruncated(&ev.ProcessContext.Process)
@@ -28,6 +30,12 @@ func (ev *Event) ResolveFields() {
 	_ = ev.ResolveFileBasename(&ev.ProcessContext.Process.FileEvent)
 	_ = ev.ResolveFilePath(&ev.ProcessContext.Process.FileEvent)
 	_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.FileEvent.FileFields)
+	_ = ev.ResolveFileFilesystem(&ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+	_ = ev.ResolveFileFieldsGroup(&ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+	_ = ev.ResolveFileFieldsInUpperLayer(&ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+	_ = ev.ResolveFileBasename(&ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+	_ = ev.ResolveFilePath(&ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+	_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "bind":
@@ -58,6 +66,12 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveFilePath(&ev.Exec.Process.FileEvent)
 		_ = ev.ResolveFileBasename(&ev.Exec.Process.FileEvent)
 		_ = ev.ResolveFileFilesystem(&ev.Exec.Process.FileEvent)
+		_ = ev.ResolveFileFieldsUser(&ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.Exec.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.Exec.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.Exec.Process.LinuxBinprm.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(ev.Exec.Process)
 		_ = ev.ResolveProcessArgv0(ev.Exec.Process)
 		_ = ev.ResolveProcessArgs(ev.Exec.Process)
@@ -73,6 +87,12 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveFilePath(&ev.Exit.Process.FileEvent)
 		_ = ev.ResolveFileBasename(&ev.Exit.Process.FileEvent)
 		_ = ev.ResolveFileFilesystem(&ev.Exit.Process.FileEvent)
+		_ = ev.ResolveFileFieldsUser(&ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.Exit.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.Exit.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.Exit.Process.LinuxBinprm.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(ev.Exit.Process)
 		_ = ev.ResolveProcessArgv0(ev.Exit.Process)
 		_ = ev.ResolveProcessArgs(ev.Exit.Process)
@@ -130,6 +150,12 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveFilePath(&ev.PTrace.Tracee.Process.FileEvent)
 		_ = ev.ResolveFileBasename(&ev.PTrace.Tracee.Process.FileEvent)
 		_ = ev.ResolveFileFilesystem(&ev.PTrace.Tracee.Process.FileEvent)
+		_ = ev.ResolveFileFieldsUser(&ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessArgv0(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessArgs(&ev.PTrace.Tracee.Process)
@@ -193,6 +219,12 @@ func (ev *Event) ResolveFields() {
 		_ = ev.ResolveFilePath(&ev.Signal.Target.Process.FileEvent)
 		_ = ev.ResolveFileBasename(&ev.Signal.Target.Process.FileEvent)
 		_ = ev.ResolveFileFilesystem(&ev.Signal.Target.Process.FileEvent)
+		_ = ev.ResolveFileFieldsUser(&ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsGroup(&ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
+		_ = ev.ResolveFilePath(&ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileBasename(&ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+		_ = ev.ResolveFileFilesystem(&ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 		_ = ev.ResolveProcessCreatedAt(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessArgv0(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessArgs(&ev.Signal.Target.Process)

@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
@@ -37,7 +37,7 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	id, _ := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -49,7 +49,7 @@ func TestIsParentDiscarder(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(t, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.path != "/var/log/datadog/system-probe.log"`)
@@ -212,7 +212,7 @@ func TestIsParentDiscarder(t *testing.T) {
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
-	id, _ := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -224,7 +224,7 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(t, rs, `unlink.file.path == "/var/lib/datadog/system-probe.cache"`)
@@ -356,7 +356,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	var listener testEventListener
 
@@ -387,7 +387,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 }
 
 func BenchmarkParentDiscarder(b *testing.B) {
-	id, _ := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -399,7 +399,7 @@ func BenchmarkParentDiscarder(b *testing.B) {
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(&seclog.PatternLogger{})
+		WithLogger(seclog.DefaultLogger)
 
 	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
 	addRuleExpr(b, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.path != "/var/log/datadog/system-probe.log"`)

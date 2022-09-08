@@ -19,10 +19,11 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	// util.GetHostname(...) will panic without this import
@@ -30,8 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-func areCGroupADsEnabled(p *Probe) bool {
-	return p.config.ActivityDumpTracedCgroupsCount > 0
+func areCGroupADsEnabled(c *config.Config) bool {
+	return c.ActivityDumpTracedCgroupsCount > 0
 }
 
 // ActivityDumpManager is used to manage ActivityDumps
@@ -64,6 +65,9 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	tagsTicker := time.NewTicker(adm.probe.config.ActivityDumpTagsResolutionPeriod)
 	defer tagsTicker.Stop()
 
+	loadControlTicker := time.NewTicker(adm.probe.config.ActivityDumpLoadControlPeriod)
+	defer loadControlTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,6 +76,8 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 			adm.cleanup()
 		case <-tagsTicker.C:
 			adm.resolveTags()
+		case <-loadControlTicker.C:
+			adm.triggerLoadController()
 		case ad := <-adm.snapshotQueue:
 			if err := ad.Snapshot(); err != nil {
 				seclog.Errorf("couldn't snapshot [%s]: %v", ad.GetSelectorStr(), err)
@@ -155,12 +161,12 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_cgroups map")
 	}
 
-	loadController, err := NewActivityDumpLoadController(p.config, p.manager)
+	loadController, err := NewActivityDumpLoadController(p.config, p.manager, p.statsdClient)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump load controller: %w", err)
 	}
-	if err := loadController.propagateLoadSettings(); err != nil {
-		return nil, fmt.Errorf("failed to propagate load settings: %w", err)
+	if err := loadController.PushCurrentConfig(); err != nil {
+		return nil, fmt.Errorf("failed to push load controller config settings to kernel space: %w", err)
 	}
 
 	storageManager, err := NewActivityDumpStorageManager(p)
@@ -239,7 +245,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 		// put this container ID on the wait list so that we don't snapshot it again before a while
 		containerIDB := make([]byte, model.ContainerIDLen)
 		copy(containerIDB, newDump.DumpMetadata.ContainerID)
-		waitListTimeout := time.Now().Add(time.Duration(adm.probe.config.ActivityDumpCgroupWaitListSize) * adm.probe.config.ActivityDumpCgroupDumpTimeout)
+		waitListTimeout := time.Now().Add(adm.loadController.getCgroupWaitTimeout())
 		waitListTimeoutRaw := adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(waitListTimeout)
 		err := adm.cgroupWaitListMap.Put(containerIDB, waitListTimeoutRaw)
 		if err != nil {
@@ -508,6 +514,30 @@ func (adm *ActivityDumpManager) AddContextTags(ad *ActivityDump) {
 
 		if !found {
 			ad.Tags = append(ad.Tags, tag)
+		}
+	}
+}
+
+func (adm *ActivityDumpManager) triggerLoadController() {
+	adm.Lock()
+	defer adm.Unlock()
+
+	// we first compute the total size used by current activity dumps
+	var totalSize, dumpSize uint64
+	for _, ad := range adm.activeDumps {
+		dumpSize = ad.computeMemorySize()
+		totalSize += dumpSize
+
+		// look for image_name and image_tag tags
+		if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{}, 1); err != nil {
+			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
+		}
+	}
+
+	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
+	if totalSize > uint64(maxTotalADSize) {
+		if err := adm.loadController.reduceConfig(); err != nil {
+			seclog.Errorf("configuration reduction failed: %v", err)
 		}
 	}
 }

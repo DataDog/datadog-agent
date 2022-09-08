@@ -6,14 +6,20 @@
 package rules
 
 import (
-	"strings"
+	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/Masterminds/semver"
 )
 
 // RuleFilter definition of a rule filter
 type RuleFilter interface {
-	IsAccepted(rule *RuleDefinition) bool
+	IsRuleAccepted(*RuleDefinition) (bool, error)
+}
+
+// MacroFilter definition of a macro filter
+type MacroFilter interface {
+	IsMacroAccepted(*MacroDefinition) (bool, error)
 }
 
 // RuleIDFilter defines a ID based filter
@@ -21,37 +27,49 @@ type RuleIDFilter struct {
 	ID string
 }
 
-// IsAccepted checks whether the rule is accepted
-func (r *RuleIDFilter) IsAccepted(rule *RuleDefinition) bool {
-	return r.ID == rule.ID
+// IsRuleAccepted checks whether the rule is accepted
+func (r *RuleIDFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
+	return r.ID == rule.ID, nil
 }
 
 // AgentVersionFilter defines a agent version filter
 type AgentVersionFilter struct {
-	Version *semver.Version
+	version *semver.Version
 }
 
-// IsAccepted checks whether the rule is accepted
-func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition) bool {
-	withoutPreAgentVersion, err := r.Version.SetPrerelease("")
+// NewAgentVersionFilter returns a new agent version based rule filter
+func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error) {
+	withoutPreAgentVersion, err := version.SetPrerelease("")
 	if err != nil {
-		return true
+		return nil, err
 	}
 
 	cleanAgentVersion, err := withoutPreAgentVersion.SetMetadata("")
 	if err != nil {
-		return true
+		return nil, err
 	}
 
-	constraint := strings.TrimSpace(rule.AgentVersionConstraint)
-	if constraint == "" {
-		return true
-	}
+	return &AgentVersionFilter{
+		version: &cleanAgentVersion,
+	}, nil
+}
 
-	semverConstraint, err := semver.NewConstraint(constraint)
+// IsRuleAccepted checks whether the rule is accepted
+func (r *AgentVersionFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
+	constraint, err := validators.ValidateAgentVersionConstraint(rule.AgentVersionConstraint)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
 	}
 
-	return semverConstraint.Check(&cleanAgentVersion)
+	return constraint.Check(r.version), nil
+}
+
+// IsMacroAccepted checks whether the macro is accepted
+func (r *AgentVersionFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
+	constraint, err := validators.ValidateAgentVersionConstraint(macro.AgentVersionConstraint)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
+	}
+
+	return constraint.Check(r.version), nil
 }

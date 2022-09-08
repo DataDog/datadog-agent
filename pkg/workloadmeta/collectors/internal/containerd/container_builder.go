@@ -21,22 +21,22 @@ import (
 )
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
-func buildWorkloadMetaContainer(container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
 	if container == nil {
 		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
 	}
 
-	info, err := containerdClient.Info(container)
+	info, err := containerdClient.Info(namespace, container)
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
 
-	spec, err := containerdClient.Spec(container)
+	spec, err := containerdClient.Spec(namespace, container)
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
 
-	envs, err := containerdClient.EnvVars(container)
+	envs, err := cutil.EnvVarsFromSpec(spec)
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
@@ -46,7 +46,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
-	status, err := containerdClient.Status(container)
+	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
 		if !errdefs.IsNotFound(err) {
 			return workloadmeta.Container{}, err
@@ -59,7 +59,7 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 	}
 
 	networkIPs := make(map[string]string)
-	ip, err := extractIP(container, containerdClient)
+	ip, err := extractIP(namespace, container, containerdClient)
 	if err != nil {
 		log.Debugf("cannot get IP of container %s", err)
 	} else if ip == "" {

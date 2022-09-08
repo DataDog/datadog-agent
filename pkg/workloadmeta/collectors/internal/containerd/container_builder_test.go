@@ -9,12 +9,14 @@
 package containerd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -40,13 +42,22 @@ func (m *mockedImage) Name() string {
 }
 
 func TestBuildWorkloadMetaContainer(t *testing.T) {
+	namespace := "default"
 	containerID := "10"
 	labels := map[string]string{
 		"some_label": "some_val",
 	}
 	imgName := "datadog/agent:7"
-	envVars := map[string]string{
-		"test_env": "test_val",
+	envVarStrs := []string{
+		"test_env=test_val",
+	}
+	envVars := map[string]string{}
+	for _, s := range envVarStrs {
+		parts := strings.SplitN(s, "=", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		envVars[parts[0]] = parts[1]
 	}
 	hostName := "test_hostname"
 	createdAt, err := time.Parse("2006-01-02", "2021-10-11")
@@ -59,28 +70,28 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 
 	client := fake.MockedContainerdClient{
-		MockEnvVars: func(ctn containerd.Container) (map[string]string, error) {
+		MockEnvVars: func(namespace string, ctn containerd.Container) (map[string]string, error) {
 			return envVars, nil
 		},
-		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{
 				Labels:    labels,
 				CreatedAt: createdAt,
 				Image:     imgName,
 			}, nil
 		},
-		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
-			return &oci.Spec{Hostname: hostName}, nil
+		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
+			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
-		MockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}
 
-	result, err := buildWorkloadMetaContainer(&container, &client)
+	result, err := buildWorkloadMetaContainer(namespace, &container, &client)
 	assert.NoError(t, err)
 
 	expected := workloadmeta.Container{

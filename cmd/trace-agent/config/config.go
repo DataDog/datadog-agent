@@ -439,6 +439,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "evp_proxy_config.api_key"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.APIKey = coreconfig.Datadog.GetString(k)
 	}
+	if k := "evp_proxy_config.app_key"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString(k)
+	} else {
+		// Default to the agent-wide app_key if set
+		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString("app_key")
+	}
 	if k := "evp_proxy_config.additional_endpoints"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
 	}

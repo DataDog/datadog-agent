@@ -32,6 +32,7 @@ const (
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
 // is sourced from config files and the environment variables.
 type OrchestratorConfig struct {
+	CollectorDiscoveryEnabled      bool
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
 	IsScrubbingEnabled             bool
@@ -41,6 +42,7 @@ type OrchestratorConfig struct {
 	MaxWeightPerMessageBytes       int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
+	IsManifestCollectionEnabled    bool
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -113,8 +115,11 @@ func (oc *OrchestratorConfig) Load() error {
 			oc.KubeClusterName = clusterName
 		}
 	}
+
+	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
 	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
+	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.enabled"))
 
 	return nil
 }

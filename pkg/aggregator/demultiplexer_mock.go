@@ -19,15 +19,22 @@ import (
 // the samples that the TimeSamplers should have received.
 type TestAgentDemultiplexer struct {
 	*AgentDemultiplexer
-	receivedSamples []metrics.MetricSample
-	lateMetrics     []metrics.MetricSample
+	aggregatedSamples []metrics.MetricSample
+	noAggSamples      []metrics.MetricSample
 	sync.Mutex
 }
 
-// AddTimeSampleBatch implements a noop timesampler, appending the samples in an internal slice.
-func (a *TestAgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
+func (a *TestAgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
-	a.receivedSamples = append(a.receivedSamples, samples...)
+	a.aggregatedSamples = append(a.aggregatedSamples, samples...)
+	a.Unlock()
+}
+
+// AggregateSample implements a noop timesampler, appending the sample in an internal slice.
+func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
+	a.Lock()
+	a.aggregatedSamples = append(a.aggregatedSamples, sample)
 	a.Unlock()
 }
 
@@ -36,56 +43,52 @@ func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*me
 	return a.aggregator.GetBufferedChannels()
 }
 
-// AddTimeSample implements a noop timesampler, appending the sample in an internal slice.
-func (a *TestAgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
-	a.Lock()
-	a.receivedSamples = append(a.receivedSamples, sample)
-	a.Unlock()
-}
-
-// AddLateMetrics implements a fake no aggregation pipeline ingestion part,
+// SendSamplesWithoutAggregation implements a fake no aggregation pipeline ingestion part,
 // there will be NO AUTOMATIC FLUSH as it could exist in the real implementation
 // Use Reset() to clean the buffer.
-func (a *TestAgentDemultiplexer) AddLateMetrics(metrics metrics.MetricSampleBatch) {
+func (a *TestAgentDemultiplexer) SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch) {
 	a.Lock()
-	a.lateMetrics = append(a.lateMetrics, metrics...)
+	a.noAggSamples = append(a.noAggSamples, metrics...)
 	a.Unlock()
 }
 
-func (a *TestAgentDemultiplexer) samples() []metrics.MetricSample {
+func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	a.Lock()
-	c := make([]metrics.MetricSample, len(a.receivedSamples)+len(a.lateMetrics))
-	for i, s := range a.receivedSamples {
-		c[i] = s
+	ontime = make([]metrics.MetricSample, len(a.aggregatedSamples))
+	timed = make([]metrics.MetricSample, len(a.noAggSamples))
+	for i, s := range a.aggregatedSamples {
+		ontime[i] = s
 	}
-	for i, s := range a.lateMetrics {
-		c[len(a.receivedSamples)+i] = s
+	for i, s := range a.noAggSamples {
+		timed[i] = s
 	}
 	a.Unlock()
-	return c
+	return ontime, timed
 }
 
 // WaitForSamples returns the samples received by the demultiplexer.
-func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) []metrics.MetricSample {
+// Note that it returns as soon as something is avaible in either the live
+// metrics buffer or the late metrics one.
+func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
 	for {
 		select {
 		case <-ticker.C:
-			s := a.samples()
+			ontime, timed = a.samples()
 
 			// this case could always take priority on the timeout case, we have to make sure
 			// we've not timeout
 			if time.Now().After(timeoutOn) {
-				return s
+				return ontime, timed
 			}
 
-			if len(s) > 0 {
-				return s
+			if len(ontime) > 0 || len(timed) > 0 {
+				return ontime, timed
 			}
 		case <-time.After(timeout):
-			return nil
+			return nil, nil
 		}
 	}
 }
@@ -119,8 +122,8 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 // Reset resets the internal samples slice.
 func (a *TestAgentDemultiplexer) Reset() {
 	a.Lock()
-	a.receivedSamples = a.receivedSamples[0:0]
-	a.lateMetrics = a.lateMetrics[0:0]
+	a.aggregatedSamples = a.aggregatedSamples[0:0]
+	a.noAggSamples = a.noAggSamples[0:0]
 	a.Unlock()
 }
 

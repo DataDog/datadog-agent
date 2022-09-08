@@ -152,7 +152,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
-			common.AC.LoadAndRun()
+			common.AC.LoadAndRun(context.Background())
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.Coll)

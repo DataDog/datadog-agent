@@ -19,7 +19,8 @@ var (
 
 // PolicyLoaderOpts options used during the loading
 type PolicyLoaderOpts struct {
-	RuleFilters []RuleFilter
+	MacroFilters []MacroFilter
+	RuleFilters  []RuleFilter
 }
 
 // PolicyLoader defines a policy loader
@@ -45,7 +46,7 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 
 	// use the provider in the order of insertion, keep the very last default policy
 	for _, provider := range p.Providers {
-		policies, err := provider.LoadPolicies(opts.RuleFilters)
+		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
 		if err.ErrorOrNil() != nil {
 			errs = multierror.Append(errs, err)
 		}

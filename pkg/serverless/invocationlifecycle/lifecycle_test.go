@@ -40,8 +40,9 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	go testProcessor.OnInvokeEnd(&endDetails)
 
-	generatedMetrics := demux.WaitForSamples(time.Millisecond * 250)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(time.Millisecond * 250)
 
+	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -378,7 +379,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -387,6 +388,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
 	}})
+	assert.Len(t, lateMetrics, 0)
 
 	// assert span error set to 1
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
@@ -465,7 +467,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -474,6 +476,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
 	}})
+	assert.Len(t, lateMetrics, 0)
 
 	// assert span error set to 1
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
@@ -546,7 +549,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -555,6 +558,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
 	}})
+	assert.Len(t, lateMetrics, 0)
 
 	// assert span error set to 1
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
@@ -631,7 +635,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	}, testProcessor.GetTags())
 
 	// assert error metrics equal
-	generatedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, lateMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.errors",
 		Value:      1.0,
@@ -640,6 +644,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
 	}})
+	assert.Len(t, lateMetrics, 0)
 
 	// assert span error set to 1
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]

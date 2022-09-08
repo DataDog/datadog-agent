@@ -236,6 +236,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
+        for mod in DEFAULT_MODULES.values():
+            # Ensure that none of these modules import the datadog-agent main module.
+            if mod.independent:
+                ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
+
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy -compat=1.17")
             res = ctx.run("go build main.go", warn=True)

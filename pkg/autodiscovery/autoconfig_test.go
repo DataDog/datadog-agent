@@ -146,16 +146,18 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	assert.Len(suite.T(), ac.providers, 0)
+	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
-	ac.AddConfigProvider(mp, false, 0) // this should be a noop
 	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
-	ac.LoadAndRun()
-	require.Len(suite.T(), ac.providers, 2)
+
+	require.Len(suite.T(), ac.configPollers, 2)
+	assert.False(suite.T(), ac.configPollers[0].canPoll)
+	assert.True(suite.T(), ac.configPollers[1].canPoll)
+
+	ac.LoadAndRun(context.Background())
+
 	assert.Equal(suite.T(), 1, mp.collectCounter)
-	assert.False(suite.T(), ac.providers[0].canPoll)
-	assert.True(suite.T(), ac.providers[1].canPoll)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
@@ -181,7 +183,11 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	c3 := integration.Config{Name: "baz"}
 	pd := configPoller{}
 
-	pd.overwriteConfigs([]integration.Config{c1, c2})
+	pd.configs = map[uint64]integration.Config{
+		c1.FastDigest(): c1,
+		c2.FastDigest(): c2,
+	}
+
 	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
 	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
 	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
@@ -319,7 +325,7 @@ func TestResolveTemplate(t *testing.T) {
 
 	// no services
 	changes := ac.processNewConfig(tpl)
-	assert.Len(t, changes.schedule, 0)
+	assert.Len(t, changes.Schedule, 0)
 
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
@@ -329,7 +335,7 @@ func TestResolveTemplate(t *testing.T) {
 
 	// there are no template vars but it's ok
 	changes = ac.processNewConfig(tpl)
-	assert.Len(t, changes.schedule, 1)
+	assert.Len(t, changes.Schedule, 1)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -365,7 +371,7 @@ func TestRemoveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	changes := ac.processNewConfig(tpl)
-	assert.Len(t, changes.schedule, 1)
+	assert.Len(t, changes.Schedule, 1)
 	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
@@ -394,7 +400,7 @@ func TestCheckOverride(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"redis"},
 	})
-	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
+	assert.Len(t, ac.processNewConfig(tpl).Schedule, 0)
 
 	// check must be overridden (empty config)
 	ac = NewAutoConfig(scheduler.NewMetaScheduler())
@@ -403,7 +409,7 @@ func TestCheckOverride(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{""},
 	})
-	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
+	assert.Len(t, ac.processNewConfig(tpl).Schedule, 0)
 
 	// check must be scheduled (different checks)
 	ac = NewAutoConfig(scheduler.NewMetaScheduler())
@@ -412,7 +418,7 @@ func TestCheckOverride(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		CheckNames:    []string{"tcp_check"},
 	})
-	assert.Len(t, ac.processNewConfig(tpl).schedule, 1)
+	assert.Len(t, ac.processNewConfig(tpl).Schedule, 1)
 }
 
 func TestDecryptConfig(t *testing.T) {
@@ -444,7 +450,7 @@ func TestDecryptConfig(t *testing.T) {
 	}
 	changes := ac.processNewConfig(tpl)
 
-	require.Len(t, changes.schedule, 1)
+	require.Len(t, changes.Schedule, 1)
 
 	resolved := integration.Config{
 		Name:          "cpu",
@@ -455,7 +461,7 @@ func TestDecryptConfig(t *testing.T) {
 		LogsConfig:    integration.Data{},
 		ServiceID:     "abcd",
 	}
-	assert.Equal(t, resolved, changes.schedule[0])
+	assert.Equal(t, resolved, changes.Schedule[0])
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
 }

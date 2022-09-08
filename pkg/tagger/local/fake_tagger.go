@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -108,7 +108,7 @@ func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List fake implementation
-func (f *FakeTagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func (f *FakeTagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return f.store.List()
 }
 

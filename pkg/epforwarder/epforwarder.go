@@ -98,9 +98,20 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		hostnameEndpointPrefix:        "ndmflow-intake.",
 		intakeTrackType:               "ndmflow",
 		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    20e6, // max 20Mb uncompressed size per payload
-		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+
+		// Each NetFlow flow is about 500 bytes
+		// 10k BatchMaxSize is about 5Mo of content size
+		defaultBatchMaxSize: 10000,
+
+		// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
+		// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
+		// due to input channel being full.
+		// TODO: A possible better solution is to make SendEventPlatformEvent blocking when input chan is full and avoid
+		//   dropping events. This can't be done right now due to SendEventPlatformEvent being called by
+		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
+		//   by aggregator.
+		defaultInputChanSize: 10000,
 	},
 }
 
@@ -215,7 +226,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	if endpoints.InputChanSize <= 0 {
+	if endpoints.InputChanSize <= pkgconfig.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 	reliable := []client.Destination{}

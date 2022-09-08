@@ -694,8 +694,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
+	config.BindEnvAndSetDefault("cluster_agent.refresh_on_cache_miss", true)
 	config.BindEnvAndSetDefault("cluster_agent.serve_nozzle_data", false)
-	config.BindEnvAndSetDefault("cluster_agent.advanced_tagging", false)
+	config.BindEnvAndSetDefault("cluster_agent.sidecars_tags", false)
+	config.BindEnvAndSetDefault("cluster_agent.isolation_segments_tags", false)
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
@@ -1003,10 +1005,12 @@ func InitConfig(config Config) {
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
+	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1037,6 +1041,17 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
+
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.profile_dd_url", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.api_key", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.env", "", "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENV", "DD_ENV")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.period", 5*time.Minute, "DD_SECURITY_AGENT_INTERNAL_PROFILING_PERIOD")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.cpu_duration", 1*time.Minute, "DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION")
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1080,6 +1095,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", false)
 	config.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
@@ -1088,17 +1104,19 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 2)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_max_total_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 3)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "bind"})
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 20)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 0)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"json"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
@@ -1309,6 +1327,8 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		// these variables are used by serverless, but not via the Config struct
 		"DD_SERVICE":            {},
 		"DD_DOTNET_TRACER_HOME": {},
+		// these variables are used by system-probe, but not via the Config struct
+		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -1357,6 +1377,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}()
 
 	if err := config.ReadInConfig(); err != nil {
+		if IsServerless() {
+			log.Debug("No config file detected, using environment variable based configuration only")
+			return &warnings, nil
+		}
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		} else {

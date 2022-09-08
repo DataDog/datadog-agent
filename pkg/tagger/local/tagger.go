@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
@@ -114,7 +114,7 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List the content of the tagger
-func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return t.tagStore.List()
 }
 

@@ -8,8 +8,11 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  directory wrk_dir do
-    recursive true
+  remote_directory "#{wrk_dir}/ebpf_bytecode" do
+    source 'ebpf_bytecode'
+    sensitive true
+    files_owner 'root'
+    owner 'root'
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
@@ -68,6 +71,11 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  # Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
+  # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
+  package 'python3'
+  package 'perl'
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
@@ -108,7 +116,7 @@ if node['platform_family'] != 'windows'
 
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM centos:7
+      FROM public.ecr.aws/docker/library/centos:centos7
 
       ENV DOCKER_DD_AGENT=yes
 
@@ -118,7 +126,7 @@ if node['platform_family'] != 'windows'
       COPY clang-bpf /opt/datadog-agent/embedded/bin/
       COPY llc-bpf /opt/datadog-agent/embedded/bin/
 
-      RUN yum -y install xfsprogs e2fsprogs iproute
+      RUN yum -y install xfsprogs e2fsprogs iproute perl
       CMD sleep 7200
       EOF
       action :create
@@ -180,5 +188,18 @@ if node['platform_family'] != 'windows'
       action :create_if_missing
       content "integrity"
     end
+  end
+
+  # system-probe common
+
+  system_probe_tests_folder = '/tmp/system-probe-tests'
+
+  directory system_probe_tests_folder do
+    recursive true
+  end
+
+  file "#{system_probe_tests_folder}/color_idx" do
+    content node[:color_idx].to_s
+    mode 644
   end
 end

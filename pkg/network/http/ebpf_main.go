@@ -16,6 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -118,9 +119,29 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 		},
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsg), EBPFFuncName: "kprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgReturn), EBPFFuncName: "kretprobe__tcp_sendmsg", UID: probeUID}, KProbeMaxActive: maxActive},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID}},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.TCPSendMsg),
+					EBPFFuncName: "kprobe__tcp_sendmsg",
+					UID:          probeUID,
+				},
+				KProbeMaxActive: maxActive,
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kretprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
+					UID:          probeUID,
+				},
+				KProbeMaxActive: maxActive,
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  httpSocketFilterStub,
+					EBPFFuncName: "socket__http_filter_entry",
+					UID:          probeUID,
+				},
+			},
 		},
 	}
 
@@ -145,6 +166,11 @@ func (e *ebpfProgram) Init() error {
 	}
 	e.Manager.DumpHandler = dumpMapsHandler
 
+	onlineCPUs, err := cpupossible.Get()
+	if err != nil {
+		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -154,6 +180,11 @@ func (e *ebpfProgram) Init() error {
 			httpInFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			httpBatchesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
@@ -184,8 +215,8 @@ func (e *ebpfProgram) Init() error {
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsgReturn),
-					EBPFFuncName: "kretprobe__tcp_sendmsg",
+					EBPFSection:  "kretprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 			},
@@ -197,7 +228,7 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err := e.InitWithOptions(e.bytecode, options)
+	err = e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -238,8 +269,8 @@ func (e *ebpfProgram) setupMapCleaner() {
 		return
 	}
 
-	ttl := maxRequestLinger.Nanoseconds()
-	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
+	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
 		httpTX, ok := val.(*httpTX)
 		if !ok {
 			return false

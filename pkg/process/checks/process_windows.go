@@ -18,9 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func init() {
-	defaultWindowsProbe = procutil.NewWindowsToolhelpProbe()
-}
+var (
+	// overridden in tests
+	numCPU = runtime.NumCPU
+)
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {
 	return &model.ProcessUser{
@@ -28,8 +29,8 @@ func formatUser(fp *procutil.Process) *model.ProcessUser {
 	}
 }
 
-func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
-	numCPU := float64(runtime.NumCPU())
+func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, _, _ cpu.TimesStat) *model.CPUStat {
+	numCPU := float64(numCPU())
 	deltaSys := float64(t2.Timestamp - t1.Timestamp)
 	// under windows, utime & stime are number of 100-ns increments.  The elapsed time
 	// is in nanoseconds.

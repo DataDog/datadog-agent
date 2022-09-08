@@ -187,8 +187,8 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
 		if p.elevatedPermissions {
-			stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -259,8 +259,8 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			},
 		}
 		if p.elevatedPermissions {
-			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			proc.Stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -285,7 +285,7 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 			continue
 		}
 
-		fds := p.getFDCountImproved(pathForPID)
+		fds := p.getFDCount(pathForPID)
 		io := p.parseIO(pathForPID)
 
 		// don't return entries with all zero values if returnZeroPermStats is disabled
@@ -690,30 +690,9 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-// getFDCount gets num_fds from /proc/(pid)/fd
-func (p *probe) getFDCount(pidPath string) int32 {
-	path := filepath.Join(pidPath, "fd")
-
-	if err := p.ensurePathReadable(path); err != nil {
-		return -1
-	}
-
-	d, err := os.Open(path)
-	if err != nil {
-		return -1
-	}
-	defer d.Close()
-
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return -1
-	}
-	return int32(len(names))
-}
-
-// getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
+// getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
-func (p *probe) getFDCountImproved(pidPath string) int32 {
+func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {
