@@ -134,6 +134,14 @@ class NinjaWriter(object):
 
         return outputs
 
+    def phony(
+        self,
+        name,
+        inputs=None,
+    ):
+        all_inputs = [escape_path(x) for x in as_list(inputs)]
+        self._line(f"build {name}: phony {' '.join(all_inputs)}")
+
     def include(self, path):
         self._line(f"include {path}")
 
