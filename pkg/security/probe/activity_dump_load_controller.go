@@ -9,21 +9,18 @@
 package probe
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/avast/retry-go"
 	"github.com/cilium/ebpf"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,56 +31,23 @@ var (
 	MinDumpTimeout = 10 * time.Minute
 )
 
-// ActivityDumpLCConfig represents the dynamic configuration managed by the load controller
-type ActivityDumpLCConfig struct {
-	// dynamic
-	tracedEventTypes   []model.EventType
-	tracedCgroupsCount uint64
-	dumpTimeout        time.Duration
-
-	// static
-	cgroupWaitListSize int
-}
-
-// NewActivityDumpLCConfig returns a new dynamic config from user config
-func NewActivityDumpLCConfig(cfg *config.Config) *ActivityDumpLCConfig {
-	tracedCgroupsCount := uint64(cfg.ActivityDumpTracedCgroupsCount)
-	if tracedCgroupsCount > probes.MaxTracedCgroupsCount {
-		tracedCgroupsCount = probes.MaxTracedCgroupsCount
-	}
-
-	return &ActivityDumpLCConfig{
-		tracedEventTypes:   cfg.ActivityDumpTracedEventTypes,
-		tracedCgroupsCount: tracedCgroupsCount,
-		dumpTimeout:        cfg.ActivityDumpCgroupDumpTimeout,
-
-		cgroupWaitListSize: cfg.ActivityDumpCgroupWaitListSize,
-	}
-}
-
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
-	rateLimiter  *rate.Limiter
-	config       *ActivityDumpLCConfig
-	statsdClient statsd.ClientInterface
+	rateLimiter *rate.Limiter
+	adm         *ActivityDumpManager
 
-	tracedEventTypesMap     *ebpf.Map
-	tracedCgroupsCounterMap *ebpf.Map
-	tracedCgroupsLockMap    *ebpf.Map
-	dumpTimeoutMap          *ebpf.Map
+	// config
+	tracedCgroupsCount uint64
+
+	// eBPF maps
+	tracedCgroupsCounterMap    *ebpf.Map
+	tracedCgroupsLockMap       *ebpf.Map
+	activityDumpConfigDefaults *ebpf.Map
 }
 
 // NewActivityDumpLoadController returns a new activity dump load controller
-func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager, client statsd.ClientInterface) (*ActivityDumpLoadController, error) {
-	tracedEventTypesMap, found, err := man.GetMap("traced_event_types")
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_event_types map")
-	}
-
-	tracedCgroupsCounterMap, found, err := man.GetMap("traced_cgroups_counter")
+func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadController, error) {
+	tracedCgroupsCounterMap, found, err := adm.probe.manager.GetMap("traced_cgroups_counter")
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +55,7 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager, cli
 		return nil, fmt.Errorf("couldn't find traced_cgroups_counter map")
 	}
 
-	tracedCgroupsLockMap, found, err := man.GetMap("traced_cgroups_lock")
+	tracedCgroupsLockMap, found, err := adm.probe.manager.GetMap("traced_cgroups_lock")
 	if err != nil {
 		return nil, err
 	}
@@ -99,77 +63,155 @@ func NewActivityDumpLoadController(cfg *config.Config, man *manager.Manager, cli
 		return nil, fmt.Errorf("couldn't find traced_cgroups_lock map")
 	}
 
-	dumpTimeoutMap, found, err := man.GetMap("ad_dump_timeout")
+	activityDumpConfigDefaultsMap, found, err := adm.probe.manager.GetMap("activity_dump_config_defaults")
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		return nil, fmt.Errorf("couldn't find ad_dump_timeout map")
+		return nil, fmt.Errorf("couldn't find activity_dump_config_defaults map")
 	}
-
-	lcConfig := NewActivityDumpLCConfig(cfg)
 
 	return &ActivityDumpLoadController{
 		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
-		rateLimiter: rate.NewLimiter(rate.Every(lcConfig.dumpTimeout), 1),
-		config:      lcConfig,
-
-		tracedEventTypesMap:     tracedEventTypesMap,
-		tracedCgroupsCounterMap: tracedCgroupsCounterMap,
-		tracedCgroupsLockMap:    tracedCgroupsLockMap,
-		dumpTimeoutMap:          dumpTimeoutMap,
-		statsdClient:            client,
+		rateLimiter:                rate.NewLimiter(rate.Every(adm.probe.config.ActivityDumpCgroupDumpTimeout), 1),
+		tracedCgroupsCounterMap:    tracedCgroupsCounterMap,
+		tracedCgroupsLockMap:       tracedCgroupsLockMap,
+		tracedCgroupsCount:         uint64(adm.probe.config.ActivityDumpTracedCgroupsCount),
+		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
+		adm:                        adm,
 	}, nil
 }
 
 // PushCurrentConfig pushes the current load controller config to kernel space
 func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
-	if err := lc.pushTracedCgroupsCount(); err != nil {
-		return err
+	// push default load config values
+	defaults := NewActivityDumpLoadConfig(
+		lc.adm.probe.config.ActivityDumpTracedEventTypes,
+		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		time.Now(),
+		lc.adm.probe.resolvers.TimeResolver,
+	)
+	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
+		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
 
-	if err := lc.pushDumpTimeout(); err != nil {
-		return err
-	}
-
-	if err := lc.pushTracedEventTypes(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (lc *ActivityDumpLoadController) getCgroupWaitTimeout() time.Duration {
-	return lc.config.dumpTimeout * time.Duration(lc.config.cgroupWaitListSize)
+	// push traced cgroups count
+	return lc.pushTracedCgroupsCount()
 }
 
 // reduceConfig reduces the configuration of the load controller.
+// nolint: unused
 func (lc *ActivityDumpLoadController) reduceConfig() error {
 	if !lc.rateLimiter.Allow() {
 		return nil
 	}
 
 	// try to reduce the number of concurrent dumps first
-	if lc.config.tracedCgroupsCount > 1 {
+	if lc.tracedCgroupsCount > 1 {
 		return lc.reduceTracedCgroupsCount()
 	}
+	return nil
+}
 
-	// next up, try to reduce the dumps timeout
-	if lc.config.dumpTimeout > MinDumpTimeout {
-		return lc.reduceDumpTimeout()
+// NextPartialDump returns a new dump with the same parameters as the current one, or with reduced load config parameters
+// when applicable
+func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
+	newDump := NewActivityDump(ad.adm)
+	newDump.DumpMetadata.ContainerID = ad.DumpMetadata.ContainerID
+	newDump.DumpMetadata.Comm = ad.DumpMetadata.Comm
+	newDump.DumpMetadata.DifferentiateArgs = ad.DumpMetadata.DifferentiateArgs
+	newDump.Tags = ad.Tags
+	newDump.IsPartialDump = true
+
+	// copy storage requests
+	for _, reqList := range ad.StorageRequests {
+		for _, req := range reqList {
+			newDump.AddStorageRequest(dump.NewStorageRequest(
+				req.Type,
+				req.Format,
+				req.Compression,
+				req.OutputDirectory,
+			))
+		}
 	}
 
-	// finally, remove an event type
-	return lc.reduceTracedEventTypes()
+	// compute the duration it took to reach the dump size threshold
+	timeToThreshold := ad.End.Sub(ad.Start)
+
+	// set new load parameters
+	newDump.LoadConfig.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
+	newDump.LoadConfig.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.TracedEventTypes))
+	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
+	// TODO(rate_limiter): inherit normal rate limiter values
+
+	// TODO(rate_limiter): reduce rate limiter by 25% if timeToThreshold < MinDumpTimeout
+
+	if timeToThreshold < MinDumpTimeout/2 {
+		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
+			seclog.Errorf("%v", err)
+		}
+	}
+
+	if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Timeout > MinDumpTimeout {
+		if err := lc.reduceDumpTimeout(ad, newDump); err != nil {
+			seclog.Errorf("%v", err)
+		}
+	}
+	return newDump
+}
+
+// reduceTracedEventTypes removes an event type from the list of traced events types and updates the list of enabled
+// event types for a given dump
+func (lc *ActivityDumpLoadController) reduceTracedEventTypes(old, new *ActivityDump) error {
+	var evtToRemove model.EventType
+
+reductionOrder:
+	for _, evt := range TracedEventTypesReductionOrder {
+		for _, tracedEvt := range old.LoadConfig.TracedEventTypes {
+			if evt == tracedEvt {
+				evtToRemove = evt
+				break reductionOrder
+			}
+		}
+	}
+
+	for _, evt := range old.LoadConfig.TracedEventTypes {
+		if evt == evtToRemove {
+			continue
+		}
+		new.LoadConfig.TracedEventTypes = append(new.LoadConfig.TracedEventTypes, evt)
+	}
+
+	// send metric
+	if evtToRemove != model.UnknownEventType {
+		if err := lc.sendLoadControllerTriggeredMetric([]string{"reduction:traced_event_types", "event_type:" + evtToRemove.String()}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reduceDumpTimeout reduces the dump timeout configuration and applies the updated value to kernel space
+func (lc *ActivityDumpLoadController) reduceDumpTimeout(old, new *ActivityDump) error {
+	newTimeout := old.LoadConfig.Timeout * 3 / 4 // reduce by 25%
+	if newTimeout < MinDumpTimeout {
+		newTimeout = MinDumpTimeout
+	}
+	new.LoadConfig.SetTimeout(newTimeout)
+
+	// send metric
+	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:dump_timeout"})
 }
 
 // reduceTracedCgroupsCount decrements the maximum count of cgroups that can be traced simultaneously and applies the
 // updated value to kernel space.
+// nolint: unused
 func (lc *ActivityDumpLoadController) reduceTracedCgroupsCount() error {
 	// sanity check
-	if lc.config.tracedCgroupsCount <= 1 {
+	if lc.tracedCgroupsCount <= 1 {
 		return nil
 	}
-	lc.config.tracedCgroupsCount--
+	lc.tracedCgroupsCount--
 
 	// push new value to kernel space
 	if err := lc.pushTracedCgroupsCount(); err != nil {
@@ -184,7 +226,7 @@ func (lc *ActivityDumpLoadController) reduceTracedCgroupsCount() error {
 func (lc *ActivityDumpLoadController) pushTracedCgroupsCount() error {
 	return retry.Do(lc.editCgroupsCounter(func(counter *tracedCgroupsCounter) error {
 		log.Debugf("AD: got counter = %v, when propagating config", counter)
-		counter.Max = lc.config.tracedCgroupsCount
+		counter.Max = lc.tracedCgroupsCount
 		return nil
 	}))
 }
@@ -228,71 +270,8 @@ func (lc *ActivityDumpLoadController) editCgroupsCounter(editor cgroupsCounterEd
 	}
 }
 
-// reduceDumpTimeout reduces the dump timeout configuration and applies the updated value to kernel space
-func (lc *ActivityDumpLoadController) reduceDumpTimeout() error {
-	newTimeout := lc.config.dumpTimeout * 3 / 4 // reduce by 25%
-	if newTimeout < MinDumpTimeout {
-		newTimeout = MinDumpTimeout
-	}
-	lc.config.dumpTimeout = newTimeout
-	lc.rateLimiter.SetLimit(rate.Every(lc.config.dumpTimeout))
-
-	// push new value to kernel space
-	if err := lc.pushDumpTimeout(); err != nil {
-		return nil
-	}
-
-	// send metric
-	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:dump_timeout"})
-}
-
-// pushDumpTimeout pushes the current dump timeout to kernel space
-func (lc *ActivityDumpLoadController) pushDumpTimeout() error {
-	if err := lc.dumpTimeoutMap.Put(ebpfutils.ZeroUint32MapItem, uint64(lc.config.dumpTimeout.Nanoseconds())); err != nil {
-		return fmt.Errorf("failed to update dump timeout: %w", err)
-	}
-	return nil
-}
-
-// reduceTracedEventTypes removes an event type from the list of traced events types and updates the list of enabled
-// event types in kernel space
-func (lc *ActivityDumpLoadController) reduceTracedEventTypes() error {
-	var reducedEventType model.EventType
-
-reductionOrder:
-	for _, et := range TracedEventTypesReductionOrder {
-		for i, tracedEt := range lc.config.tracedEventTypes {
-			if et == tracedEt {
-				reducedEventType = et
-				lc.config.tracedEventTypes = append(lc.config.tracedEventTypes[:i], lc.config.tracedEventTypes[i+1:]...)
-				break reductionOrder
-			}
-		}
-	}
-
-	// delete event type in kernel space filter
-	if err := lc.tracedEventTypesMap.Delete(reducedEventType); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-		return fmt.Errorf("failed to delete old traced event type %s: %w", reducedEventType, err)
-	}
-
-	// send metric
-	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:traced_event_types", "event_type:" + reducedEventType.String()})
-}
-
-// pushTracedEventTypes pushes the list of traced event types to kernel space
-func (lc *ActivityDumpLoadController) pushTracedEventTypes() error {
-	// init traced event types
-	isTraced := uint64(1)
-	for _, evtType := range lc.config.tracedEventTypes {
-		if err := lc.tracedEventTypesMap.Put(evtType, isTraced); err != nil {
-			return fmt.Errorf("failed to insert traced event type: %w", err)
-		}
-	}
-	return nil
-}
-
 func (lc *ActivityDumpLoadController) sendLoadControllerTriggeredMetric(tags []string) error {
-	if err := lc.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, tags, 1.0); err != nil {
+	if err := lc.adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, tags, 1.0); err != nil {
 		return fmt.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
 	}
 	return nil

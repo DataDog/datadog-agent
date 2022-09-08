@@ -854,7 +854,26 @@ type SpliceEvent struct {
 //msgp:ignore CgroupTracingEvent
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
-	TimeoutRaw       uint64
+	Config           ActivityDumpLoadConfig
+	ConfigCookie     uint32
+}
+
+// ActivityDumpLoadConfig represents the load configuration of an activity dump
+//msgp:ignore ActivityDumpLoadConfig
+type ActivityDumpLoadConfig struct {
+	TracedEventTypes  []EventType
+	Timeout           time.Duration
+	StartTimestampRaw uint64
+	EndTimestampRaw   uint64
+
+	// TODO(rate_limiter): add rate limiter config
+
+}
+
+// SetTimeout updates the timeout of an activity dump
+func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
+	adlc.Timeout = duration
+	adlc.EndTimestampRaw = adlc.StartTimestampRaw + uint64(duration)
 }
 
 // NetworkDeviceContext represents the network device context of a network event

@@ -829,17 +829,38 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	read, err := UnmarshalBinary(data, &e.ContainerContext, &e.Config)
 	if err != nil {
 		return 0, err
 	}
 
-	if len(data)-read < 8 {
+	if len(data)-read < 4 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimeoutRaw = ByteOrder.Uint64(data[read : read+8])
-	return read + 8, nil
+	e.ConfigCookie = ByteOrder.Uint32(data[read : read+4])
+	return read + 4, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (adlc *ActivityDumpLoadConfig) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 32 {
+		return 0, ErrNotEnoughData
+	}
+
+	eventMask := ByteOrder.Uint64(data[0:8])
+	for i := uint64(0); i < 64; i++ {
+		if eventMask&(1<<i) == (1 << i) {
+			adlc.TracedEventTypes = append(adlc.TracedEventTypes, EventType(i)+FirstDiscarderEventType)
+		}
+	}
+	adlc.Timeout = time.Duration(ByteOrder.Uint64(data[8:16]))
+	adlc.StartTimestampRaw = ByteOrder.Uint64(data[16:24])
+	adlc.EndTimestampRaw = ByteOrder.Uint64(data[24:32])
+
+	// TODO(rate_limiter): parse rate limiter config from kernel space
+
+	return 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

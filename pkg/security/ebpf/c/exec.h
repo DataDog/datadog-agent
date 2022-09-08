@@ -757,11 +757,10 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct l
             fill_args_envs(event, syscall);
 
             // [activity_dump] check if this process should be traced
-            char on_stack_comm[TASK_COMM_LEN];
-            bpf_probe_read_str(on_stack_comm, sizeof(on_stack_comm), event->proc_entry.comm);
-            char on_stack_cgroup[CONTAINER_ID_LEN];
-            bpf_probe_read_str(on_stack_cgroup, sizeof(on_stack_cgroup), event->container.container_id);
-            should_trace_new_process(ctx, now, tgid, on_stack_cgroup, on_stack_comm);
+            union container_id_comm_combo buffer = {};
+            bpf_probe_read(&buffer.comm, sizeof(buffer.comm), event->proc_entry.comm);
+            bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), event->container.container_id);
+            should_trace_new_process(ctx, now, tgid, buffer.container_id, buffer.comm);
 
             // add interpreter path info
             event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
