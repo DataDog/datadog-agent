@@ -512,32 +512,38 @@ type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
-// MountEvent represents a mount event
-type MountEvent struct {
-	SyscallEvent
+// Mount represents a mountpoint
+type Mount struct {
 	MountID       uint32
 	GroupID       uint32
 	Device        uint32
 	ParentMountID uint32
 	ParentInode   uint64
-	FSType        string
-	MountPointStr string
 	RootMountID   uint32
 	RootInode     uint64
+	FSType        string
+	MountPointStr string
 	RootStr       string
 	Path          string
+}
+
+// MountEvent represents a mount event
+//msgp:ignore MountEvent
+type MountEvent struct {
+	SyscallEvent
+	Mount
 
 	FSTypeRaw [16]byte
 }
 
 // GetFSType returns the filesystem type of the mountpoint
-func (m *MountEvent) GetFSType() string {
+func (m *Mount) GetFSType() string {
 	return m.FSType
 }
 
 // IsOverlayFS returns whether it is an overlay fs
-func (m *MountEvent) IsOverlayFS() bool {
-	return m.GetFSType() == OverlayFS
+func (m *Mount) IsOverlayFS() bool {
+	return m.GetFSType() == "overlay"
 }
 
 // OpenEvent represents an open event

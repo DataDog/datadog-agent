@@ -514,8 +514,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		// Insert new mount point in cache. Insert a copy to not corrupt the entry with the next event
-		me := event.Mount
-		if err = p.resolvers.MountResolver.Insert(&me, event.PIDContext.Pid, event.ContainerContext.ID); err != nil {
+		me := event.Mount.Mount
+		if err = p.resolvers.MountResolver.Insert(me, event.PIDContext.Pid, event.ContainerContext.ID); err != nil {
 			seclog.Errorf("failed to insert mount event: %v", err)
 			return
 		}
