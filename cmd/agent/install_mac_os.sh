@@ -88,13 +88,18 @@ else
 fi
 
 dmg_version=
-if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -le 12 ]; }; then
+if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 12 ]; }; then
+    echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
+    exit 1
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
+    echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
     dmg_version="${agent_major_version}.34.0-1"
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
+    echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
     dmg_version="${agent_major_version}.38.2-1"
 else
     if [ "${agent_major_version}" -eq 6 ]; then
-        printf "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
+        echo -e "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
         exit 1
     else
         dmg_version="7-latest"
