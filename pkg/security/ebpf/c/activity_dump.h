@@ -6,11 +6,19 @@ struct activity_dump_config {
     u64 timeout;
     u64 start_timestamp;
     u64 end_timestamp;
+    u32 events_rate;
+};
 
-    // rate limiter ctx
-    u32 rate;
-    u32 counter; // not marshalled
-    u64 current_period; // not marshalled
+struct activity_dump_rate_limiter_ctx {
+    u64 current_period;
+    u32 counter;
+};
+
+struct bpf_map_def SEC("maps/activity_dump_rate_limiter_ctx") activity_dump_rate_limiter_ctx = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(void*),
+    .value_size = sizeof(struct activity_dump_rate_limiter_ctx),
+    .max_entries = 1, // will be overridden at runtime
 };
 
 struct bpf_map_def SEC("maps/activity_dumps_config") activity_dumps_config = {
@@ -363,29 +371,33 @@ union container_id_comm_combo {
 };
 
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u64 now, u8 should_count) {
-    if (config->current_period == 0) { // first time only
-        goto rate_limiter_allow_reset;
+    struct activity_dump_rate_limiter_ctx* rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiter_ctx, (void*)config);
+    if (rate_ctx_p == NULL) {
+        struct activity_dump_rate_limiter_ctx rate_ctx = {
+            .current_period = now,
+            .counter = 1,
+        };
+        if (bpf_map_update_elem(&activity_dump_rate_limiter_ctx, (void*)config, &rate_ctx, BPF_ANY) < 0) {
+            return 0;
+        }
+        return 1;
     }
 
-    if (now < config->current_period) { // this should never happen, ignore
+    if (now < rate_ctx_p->current_period) { // this should never happen, ignore
         return 0;
     }
 
-    u64 delta = now - config->current_period;
+    u64 delta = now - rate_ctx_p->current_period;
     if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
-        goto rate_limiter_allow_reset;
-    } else if (config->counter >= config->rate) {
-        return 0;
+        rate_ctx_p->current_period = now;
+        rate_ctx_p->counter = should_count;
+        return 1;
     }
-    if (should_count) {
-        __sync_fetch_and_add(&config->counter, 1);
-    }
-    return 1;
 
-rate_limiter_allow_reset:
-    if (should_count) { /* trully reset the limiter only if we count the event */
-        config->current_period = now;
-        __sync_fetch_and_add(&config->counter, 1);
+    if (rate_ctx_p->counter >= config->events_rate) {
+        return 0;
+    } else if (should_count) {
+        __sync_fetch_and_add(&rate_ctx_p->counter, 1);
     }
     return 1;
 }
