@@ -56,7 +56,6 @@ linters:
   disable-all: true
   enable:
     - deadcode    # Finds unused code
-    - structcheck # Finds unused struct fields
     - unconvert   # Remove unnecessary type conversions
     - unused      # Checks Go code for unused constants, variables, functions and types
     - ineffassign # Detects when assignments to existing variables are not used
