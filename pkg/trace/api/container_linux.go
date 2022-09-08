@@ -71,7 +71,7 @@ func NewIDProvider(procRoot string) IDProvider {
 	}
 	cgroupController := ""
 	if reader.CgroupVersion() == 1 {
-		cgroupController = "memory"
+		cgroupController = "memory" // The 'memory' controller is used by the cgroupv1 utils in the agent to parse the procfs.
 	}
 	c := NewCache(1 * time.Minute)
 	return &cgroupIDProvider{
