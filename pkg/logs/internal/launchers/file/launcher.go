@@ -61,10 +61,20 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
+	var prov *fileprovider.FileProvider
+	if wildcardMode == "prioritizeNewest" {
+		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardMtime, fileprovider.GlobalSelection)
+	} else if wildcardMode == "simpleAlpha" {
+		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection)
+	} else {
+		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'simpleAlpha' strategy.\n", wildcardMode)
+		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection)
+	}
+
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection),
+		fileProvider:           prov,
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
@@ -127,6 +137,8 @@ func (s *Launcher) scan() {
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
 
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), tailersLen)
+
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
 	// stop the tailers.
 	// Defer creation of new tailers until second pass.
@@ -146,22 +158,25 @@ func (s *Launcher) scan() {
 			// skip this tailer as it must be stopped
 			continue
 		}
-		if !isTailed {
-			// Defer starting any new tailers until pass 2
-			continue
-		}
 
-		didRotate, err := tailer.DidRotate()
-		if err != nil {
-			continue
-		}
-		if didRotate {
-			// restart tailer because of file-rotation on file
-			succeeded := s.restartTailerAfterFileRotation(tailer, file)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
+		// If the file is currently being tailed, check for rotation and handle it appropriately.
+		if isTailed {
+			didRotate, err := tailer.DidRotate()
+			if err != nil {
 				continue
 			}
+			if didRotate {
+				// restart tailer because of file-rotation on file
+				succeeded := s.restartTailerAfterFileRotation(tailer, file)
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
+			}
+		} else {
+			// Defer any files that are not tailed for the 2nd pass
+
+			continue
 		}
 
 		filesTailed[scanKey] = true
@@ -177,6 +192,7 @@ func (s *Launcher) scan() {
 
 	// Recompute 'tailersLen' to take into account the tailers we stopped.
 	tailersLen = len(s.tailers)
+	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
 	for _, file := range files {
 		scanKey := file.GetScanKey()
@@ -193,6 +209,7 @@ func (s *Launcher) scan() {
 			continue
 		}
 	}
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.

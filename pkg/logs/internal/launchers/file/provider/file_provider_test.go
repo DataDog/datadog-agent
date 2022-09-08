@@ -54,6 +54,18 @@ func (fs *tempFs) createFileWithTime(name string, time time.Time) {
 	}
 }
 
+func (fs *tempFs) createFile(name string) {
+	_, err := os.Create(fs.path(name))
+	assert.Nil(fs.t, err)
+}
+
+func (fs *tempFs) mkDir(name string) {
+	err := os.Mkdir(fs.path(name), os.ModePerm)
+	if err != nil {
+		fs.t.Errorf("Failed to create directory at %q", fs.path(name))
+	}
+}
+
 type ProviderTestSuite struct {
 	suite.Suite
 	testDir    string
@@ -307,18 +319,6 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 
 func TestProviderTestSuite(t *testing.T) {
 	suite.Run(t, new(ProviderTestSuite))
-}
-
-func (fs *tempFs) createFile(name string) {
-	_, err := os.Create(fs.path(name))
-	assert.Nil(fs.t, err)
-}
-
-func (fs *tempFs) mkDir(name string) {
-	err := os.Mkdir(fs.path(name), os.ModePerm)
-	if err != nil {
-		fs.t.Errorf("Failed to create directory at %q", fs.path(name))
-	}
 }
 
 func TestCollectFiles(t *testing.T) {

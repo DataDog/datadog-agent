@@ -67,7 +67,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: suite.configID, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
-	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second)
+	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 	suite.s.pipelineProvider = suite.pipelineProvider
 	suite.s.registry = auditor.NewRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
@@ -222,7 +222,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		path = fmt.Sprintf("%s/*.log", testDir)
 		openFilesLimit := 2
 		sleepDuration := 20 * time.Millisecond
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditor.NewRegistry()
 		outputChan := launcher.pipelineProvider.NextPipelineChan()
@@ -260,7 +260,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	// create launcher
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditor.NewRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
@@ -307,7 +307,7 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	// create launcher
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditor.NewRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
@@ -373,7 +373,7 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	path = fmt.Sprintf("%s/*.log", testDir)
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditor.NewRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
@@ -453,7 +453,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	os.Create(path)
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditor.NewRegistry()
 
@@ -475,7 +475,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	assert.Equal(t, tailer.Source(), source2)
 }
 
-func TestLauncherScanRecentFiles(t *testing.T) {
+func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 	var err error
 
 	testDir := t.TempDir()
@@ -532,21 +532,78 @@ func TestLauncherScanRecentFiles(t *testing.T) {
 	assert.Contains(t, launcher.tailers, path("1.log"))
 	assert.Contains(t, launcher.tailers, path("2.log"))
 
-	// When ... the newest file gets rm'd, the next newest should be chosen
+	// When ... the newest file gets rm'd
 	rmFile("2.log")
 	launcher.scan()
 
+	// Then the next 2 most recently modified should be tailed
 	assert.Equal(t, 2, len(launcher.tailers))
 	assert.Contains(t, launcher.tailers, path("1.log"))
 	assert.Contains(t, launcher.tailers, path("3.log"))
+}
 
-	// When ... a newer file appears and an existing file is rm'd
-	createFile("2.log", baseTime.Add(time.Second*8))
-	rmFile("1.log")
+func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+	var err error
+
+	testDir := t.TempDir()
+	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
+	openFilesLimit := 2
+
+	path := func(name string) string {
+		return fmt.Sprintf("%s/%s", testDir, name)
+	}
+
+	createFile := func(name string, time time.Time) {
+		_, err = os.Create(path(name))
+		assert.Nil(t, err)
+		err = os.Chtimes(path(name), time, time)
+		assert.Nil(t, err)
+	}
+
+	createLauncher := func() *Launcher {
+		sleepDuration := 20 * time.Millisecond
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "prioritizeNewest")
+		launcher.pipelineProvider = mock.NewMockProvider()
+		launcher.registry = auditor.NewRegistry()
+		logDirectory := fmt.Sprintf("%s/*.log", testDir)
+		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
+		launcher.activeSources = append(launcher.activeSources, source)
+		status.Clear()
+		status.InitStatus(util.CreateSources([]*sources.LogSource{source}))
+
+		return launcher
+	}
+
+	// Given 4 files with descending mtimes
+	createFile("1.log", baseTime.Add(time.Second*4))
+	createFile("2.log", baseTime.Add(time.Second*3))
+	createFile("3.log", baseTime.Add(time.Second*2))
+	createFile("4.log", baseTime.Add(time.Second*1))
+	launcher := createLauncher()
+	defer status.Clear()
+
 	launcher.scan()
 	assert.Equal(t, 2, len(launcher.tailers))
+	assert.Contains(t, launcher.tailers, path("1.log"))
 	assert.Contains(t, launcher.tailers, path("2.log"))
-	assert.Contains(t, launcher.tailers, path("3.log"))
+
+	// When ... a newer file appears
+	createFile("7.log", baseTime.Add(time.Second*8))
+	launcher.scan()
+
+	// Then it should be tailed
+	assert.Equal(t, 2, len(launcher.tailers))
+	assert.Contains(t, launcher.tailers, path("7.log"))
+	assert.Contains(t, launcher.tailers, path("1.log"))
+
+	// When ... an even newer file appears
+	createFile("a.log", baseTime.Add(time.Second*10))
+	launcher.scan()
+
+	// Then it should be tailed
+	assert.Equal(t, 2, len(launcher.tailers))
+	assert.Contains(t, launcher.tailers, path("7.log"))
+	assert.Contains(t, launcher.tailers, path("a.log"))
 }
 
 func TestLauncherFileRotation(t *testing.T) {
@@ -565,7 +622,7 @@ func TestLauncherFileRotation(t *testing.T) {
 
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditor.NewRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
@@ -623,7 +680,7 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second)
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "simpleAlpha")
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditor.NewRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)

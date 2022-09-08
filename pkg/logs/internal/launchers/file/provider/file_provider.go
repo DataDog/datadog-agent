@@ -126,7 +126,6 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		}
 	}
 
-	// Process sources, saving wildcard sources for later if they're found
 	for i := 0; i < len(inputSources); i++ {
 		source := inputSources[i]
 		isWildcardSource := config.ContainsWildcard(source.Config.Path)

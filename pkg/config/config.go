@@ -893,6 +893,13 @@ func InitConfig(config Config) {
 	// Time in seconds
 	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
+	// Controls how wildcard file log source are prioritized when there are more files
+	// that match wildcard log configurations than the `logs_config.open_files_limit`
+	// Choices are 'prioritizeNewest', 'simpleAlpha'
+	// WARNING: 'prioritizeNewest' is less performant than 'simpleAlpha' and will trigger
+	// more disk I/O at the wildcard log paths
+	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "simpleAlpha")
+
 	// temporary feature flag until this becomes the only option
 	config.BindEnvAndSetDefault("logs_config.cca_in_ad", false)
 
