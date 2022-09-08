@@ -1,4 +1,4 @@
-﻿using Microsoft.Deployment.WindowsInstaller;
+using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using NineDigit.WixSharpExtensions.Resources;
 using System;
@@ -14,26 +14,26 @@ namespace WixSetup
     internal class Program
     {
         // Company
-        const string CompanyFullName = "Datadog, inc.";
+        private const string CompanyFullName = "Datadog, inc.";
 
         // Product
-        const string ProductFullName = "Datadog Agent";
-        const string ProductDescription = "Datadog helps you monitor your infrastructure and application";
-        const string ProductComments = "My application comment";
-        const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
-        const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
-        const string ProductContact = @"https://www.datadoghq.com/about/contact/";
-        readonly static Guid ProductUpgradeCode = new Guid("0c50421b-aefb-4f15-a809-7af256d608a5"); // same value for all versions; must not be changed
-        readonly static string ProductLicenceRTFFilePath = System.IO.Path.Combine("assets", "LICENSE.rtf");
-        readonly static string ProductIconFilePath = System.IO.Path.Combine("assets", "project.ico");
-        readonly static string InstallerBackgroundImagePath = System.IO.Path.Combine("assets", "dialog_background.bmp");
-        readonly static string InstallerBannerImagePath = System.IO.Path.Combine("assets", "banner_background.bmp");
+        private const string ProductFullName = "Datadog Agent";
+        private const string ProductDescription = "Datadog helps you monitor your infrastructure and application";
+        private const string ProductComments = "My application comment";
+        private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
+        private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
+        private const string ProductContact = @"https://www.datadoghq.com/about/contact/";
+        private static readonly Guid ProductUpgradeCode = new Guid("0c50421b-aefb-4f15-a809-7af256d608a5"); // same value for all versions; must not be changed
+        private static readonly string ProductLicenceRtfFilePath = System.IO.Path.Combine("assets", "LICENSE.rtf");
+        private static readonly string ProductIconFilePath = System.IO.Path.Combine("assets", "project.ico");
+        private static readonly string InstallerBackgroundImagePath = System.IO.Path.Combine("assets", "dialog_background.bmp");
+        private static readonly string InstallerBannerImagePath = System.IO.Path.Combine("assets", "banner_background.bmp");
 
-        const string installerSource = @"C:\opt\datadog-agent";
-        const string binSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
-        const string etcSource = @"C:\omnibus-ruby\src\datadog-agent\etc\datadog-agent";
-        /*
-        static PermissionEx DefaultPermissions()
+        private const string InstallerSource = @"C:\opt\datadog-agent";
+        private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
+        private const string EtcSource = @"C:\omnibus-ruby\src\datadog-agent\etc\datadog-agent";
+
+        private static PermissionEx DefaultPermissions()
         {
             return new PermissionEx
             {
@@ -46,7 +46,7 @@ namespace WixSetup
             };
         }
 
-        static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
+        private static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
         {
             return new ServiceInstaller
             {
@@ -55,6 +55,7 @@ namespace WixSetup
                 Description = description,
                 StartOn = SvcEvent.Install,
                 Start = SvcStartType.auto,
+                DelayedAutoStart = false,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -64,14 +65,12 @@ namespace WixSetup
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
                 PermissionEx = DefaultPermissions(),
-                Interactive = false,
-                Type = SvcType.ownProcess,
-                Account = @"[DDAGENTUSER_DOMAIN]\[DDAGENTUSER_NAME]",
+                Account = "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]",
                 Password = "[DDAGENTUSER_PASSWORD]"
             };
         }
 
-        static ServiceInstaller GenerateDependentServiceInstaller(string name, string displayName, string description, string account)
+        private static ServiceInstaller GenerateDependentServiceInstaller(string name, string displayName, string description, string account, string password = null)
         {
             return new ServiceInstaller
             {
@@ -91,30 +90,45 @@ namespace WixSetup
                 PermissionEx = DefaultPermissions(),
                 Interactive = false,
                 Type = SvcType.ownProcess,
-                //Account = account,
+                Account = account,
+                Password = password,
                 DependsOn = new[]
                 {
                     new ServiceDependency("datadogagent")
                 }
             };
         }
-        */
 
-
-        static void ConfigureProject(Project project, bool includePython2)
+        private static void ConfigureProject(Project project, bool includePython2)
         {
-            project.AddAction(new ElevatedManagedAction(
-                CustomActions.CreateUser,
-                typeof(CustomActions).Assembly.Location,
+            // Create user before starting services
+            project.AddAction(new ManagedAction(
+                CustomActions.UserCustomActions.ProcessDdAgentUserCredentials,
+                typeof(CustomActions.UserCustomActions).Assembly.Location,
                 Return.check,
-                When.After,
+                When.Before,
                 Step.InstallInitialize,
-                WixSharp.Condition.NOT_Installed
+                WixSharp.Condition.NOT_Installed & WixSharp.Condition.NOT_BeingRemoved
             )
             {
-                RefAssemblies = typeof(CustomActions).GetReferencesAssembliesPaths().ToArray(),
+                RefAssemblies = typeof(CustomActions.UserCustomActions).GetReferencesAssembliesPaths().ToArray(),
                 UsesProperties = "DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]"
             });
+
+#if false
+            project.AddAction(new ElevatedManagedAction(
+                CustomActions.ServicesCustomActions.CreateServices,
+                typeof(CustomActions.UserCustomActions).Assembly.Location,
+                Return.check,
+                When.Before,
+                Step.StartServices,
+                WixSharp.Condition.NOT_Installed & WixSharp.Condition.NOT_BeingRemoved
+            )
+            {
+                RefAssemblies = typeof(CustomActions.UserCustomActions).GetReferencesAssembliesPaths().ToArray(),
+                UsesProperties = "DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]"
+            });
+#endif
             project.AddProperties(
                 new Property("DDAGENTUSER_NAME", "ddagentuser"),
                 new Property("DDAGENTUSER_PASSWORD")
@@ -122,74 +136,66 @@ namespace WixSetup
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 }
             );
-            //project.Add(new User("[DDAGENTUSER_NAME]")
-            //{
-            //    Domain = "[DDAGENTUSER_DOMAIN]",
-            //    Password = "[DDAGENTUSER_PASSWORD]",
-            //    PasswordNeverExpires = true,
-            //    CreateUser = true,
-            //    LogonAsService = true,
-            //    ComponentCondition = new Condition(@"!DDAGENTUSER_DOMAIN = .\")
-            //});
-            //project.Add(new User("[DDAGENTUSER_NAME]")
-            //{
-            //    Password = "[DDAGENTUSER_PASSWORD]",
-            //    PasswordNeverExpires = true,
-            //    CreateUser = true,
-            //    LogonAsService = true,
-            //    UpdateIfExists = true
-            //});
+            project.Add(new User("[DDAGENTUSER_NAME]")
+            {
+                Domain = "[DDAGENTUSER_DOMAIN]",
+                Password = "[DDAGENTUSER_PASSWORD]",
+                PasswordNeverExpires = true,
+                LogonAsService = true,
+                RemoveOnUninstall = true,
+                ComponentCondition = new WixSharp.Condition(" (NOT (DDAGENTUSER_FOUND=\"true\")) ")
+            });
 
             var npm = new Feature("NPM", description: "Network Performance Monitoring", isEnabled: false, allowChange: true, configurableDir: "APPLICATIONROOTDIRECTORY");
             var app = new Feature("MainApplication", description: "Datadog Agent", isEnabled: true, allowChange: false, configurableDir: "APPLICATIONROOTDIRECTORY");
             app.Children.Add(npm);
 
-            //var agentService        = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
-            //var processAgentService = GenerateDependentServiceInstaller("datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", @".\LOCAL_SYSTEM");
-            //var traceAgentService   = GenerateDependentServiceInstaller("datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "@\"[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]\"");
-            //var systemProbeService  = GenerateDependentServiceInstaller("datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", @".\LOCAL_SYSTEM");
+            var agentService        = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
+            var processAgentService = GenerateDependentServiceInstaller("datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", "LocalSystem");
+            var traceAgentService   = GenerateDependentServiceInstaller("datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", "[DDAGENTUSER_PASSWORD]");
+            var systemProbeService  = GenerateDependentServiceInstaller("datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
             var targetBinFolder = new Dir("bin",
-                                    new File($@"{binSource}\agent\agent.exe"),
-                                    new File($@"{binSource}\agent\libdatadog-agent-three.dll"),
+                                    new File($@"{BinSource}\agent\agent.exe", agentService),
+                                    new File($@"{BinSource}\agent\libdatadog-agent-three.dll"),
                                     new Dir("agent",
                                         new Dir("dist",
-                                            new Files($@"{installerSource}\bin\agent\dist\*")
+                                            new Files($@"{InstallerSource}\bin\agent\dist\*")
                                         ),
-                                        new Merge(npm, $@"{binSource}\agent\DDNPM.msm")
+                                        new Merge(npm, $@"{BinSource}\agent\DDNPM.msm")
                                         {
                                             Feature = npm
                                         },
-                                        new File($@"{binSource}\agent\ddtray.exe"),
-                                        new File($@"{binSource}\agent\process-agent.exe"),
-                                        new File($@"{binSource}\agent\security-agent.exe"),
-                                        new File($@"{binSource}\agent\system-probe.exe"),
-                                        new File($@"{binSource}\agent\trace-agent.exe")
+                                        new File($@"{BinSource}\agent\ddtray.exe"),
+                                        new File($@"{BinSource}\agent\process-agent.exe", processAgentService),
+                                        new File($@"{BinSource}\agent\security-agent.exe"),
+                                        new File($@"{BinSource}\agent\system-probe.exe", systemProbeService),
+                                        new File($@"{BinSource}\agent\trace-agent.exe", traceAgentService)
                                         )
                                     );
 
             if (includePython2)
             {
-                targetBinFolder.AddFile(new File($@"{binSource}\agent\libdatadog-agent-two.dll"));
+                targetBinFolder.AddFile(new File($@"{BinSource}\agent\libdatadog-agent-two.dll"));
             }
 
             project.AddDirs(
                 new Dir(new Id("APPLICATIONROOTDIRECTORY"), @"%ProgramFiles%\Datadog",
                     new Dir(new Id("PROJECTLOCATION"), "Datadog Agent", targetBinFolder),
                     new Dir("LICENSES",
-                        new Files($@"{installerSource}\LICENSES\*")
+                        new Files($@"{InstallerSource}\LICENSES\*")
                     ),
-                    new DirFiles($@"{installerSource}\*.json"),
-                    new DirFiles($@"{installerSource}\*.txt")
+                    new DirFiles($@"{InstallerSource}\*.json"),
+                    new DirFiles($@"{InstallerSource}\*.txt")
                 ),
                 new Dir(new Id("APPLICATIONDATADIRECTORY"), @"%CommonAppData%\Datadog",
                     new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All),
                     new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All),
                     new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.All),
-                    new DirFiles($@"{etcSource}\*.yaml.example"),
+                    new DirFiles($@"{EtcSource}\*.yaml.example"),
                     new Dir("checks.d"),
                     new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                        new Files($@"{etcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                        new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                     )
                 ),
                 new Dir(@"%ProgramMenu%\Datadog",
@@ -211,7 +217,8 @@ namespace WixSetup
                 }
             );
 
-            project.Media.Clear(); // clear default media as we will add it via MediaTemplate
+            // clear default media as we will add it via MediaTemplate
+            project.Media.Clear();
             project.WixSourceGenerated += document =>
             {
                 document.Select("Wix/Product")
@@ -225,7 +232,8 @@ namespace WixSetup
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.SetProjectInfo(
-                    upgradeCode: ProductUpgradeCode, // unique for this project; same value for all versions; must not be changed between versions.
+                    // unique for this project; same value for all versions; must not be changed between versions.
+                    upgradeCode: ProductUpgradeCode,
                     name: ProductFullName,
                     description: ProductDescription,
                     version: new Version(7, 99, 0, 0) // TODO: Grab this from environment/command line
@@ -244,13 +252,15 @@ namespace WixSetup
                 .SetMinimalUI(
                     backgroundImage: new System.IO.FileInfo(InstallerBackgroundImagePath),
                     bannerImage: new System.IO.FileInfo(InstallerBannerImagePath),
-                    licenceRtfFile: new System.IO.FileInfo(ProductLicenceRTFFilePath) // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
+                    // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
+                    licenceRtfFile: new System.IO.FileInfo(ProductLicenceRtfFilePath)
                 )
-                .EnableResilientPackage()   // enable the ability to repair the installation even when the original MSI is no longer available.
+                // enable the ability to repair the installation even when the original MSI is no longer available.
+                //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008R2
                 ;
         }
 
-        static void Main()
+        private static void Main()
         {
             Compiler.LightOptions += "-sval ";
             Compiler.LightOptions += "-reusecab ";
