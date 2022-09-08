@@ -148,32 +148,35 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
 
     void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
     if (already_in) {
-        unlock_cgroups_counter();
-        return false;
+        goto fail;
     }
 
     u32 key = 0;
     struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
     if (!counter) {
-        unlock_cgroups_counter();
-        return false;
+        goto fail;
     }
 
     bool res = false;
     if (counter->counter < counter->max) {
         counter->counter++;
         res = true;
+    } else {
+        goto fail;
     }
 
     int ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &timeout, BPF_NOEXIST);
     if (ret < 0) {
         // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
-        unlock_cgroups_counter();
-        return false;
+        goto fail;
     }
 
     unlock_cgroups_counter();
     return res;
+
+fail:
+    unlock_cgroups_counter();
+    return false;
 }
 
 __attribute__((always_inline)) void freeup_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN]) {

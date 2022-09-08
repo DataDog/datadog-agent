@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewClusterCollectorVersions builds the group of collector versions.
+func NewClusterCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewClusterCollector(),
+	)
+}
+
 // ClusterCollector is a collector for Kubernetes clusters.
 type ClusterCollector struct {
 	informer  corev1Informers.NodeInformer
@@ -33,9 +40,10 @@ type ClusterCollector struct {
 func NewClusterCollector() *ClusterCollector {
 	return &ClusterCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "clusters",
-			NodeType: orchestrator.K8sCluster,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "clusters",
+			NodeType:         orchestrator.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}

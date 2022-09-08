@@ -153,7 +153,9 @@ func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Con
 			return err
 		}
 	}
-	e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"})
+	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFSection: string(probes.ConntrackFillInfo), EBPFFuncName: "kprobe_ctnetlink_fill_info"}); err != nil {
+		log.Debugf("detachHook %s/kprobe_ctnetlink_fill_info : %w", string(probes.ConntrackFillInfo), err)
+	}
 	return nil
 }
 

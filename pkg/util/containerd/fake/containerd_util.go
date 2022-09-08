@@ -25,28 +25,26 @@ type MockedContainerdClient struct {
 	MockClose                 func() error
 	MockCheckConnectivity     func() *retry.Error
 	MockEvents                func() containerd.EventService
-	MockContainers            func() ([]containerd.Container, error)
-	MockContainer             func(id string) (containerd.Container, error)
-	MockContainerWithCtx      func(ctx context.Context, id string) (containerd.Container, error)
-	MockEnvVars               func(ctn containerd.Container) (map[string]string, error)
+	MockContainers            func(namespace string) ([]containerd.Container, error)
+	MockContainer             func(namespace string, id string) (containerd.Container, error)
+	MockContainerWithCtx      func(ctx context.Context, namespace string, id string) (containerd.Container, error)
+	MockEnvVars               func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockMetadata              func() (containerd.Version, error)
-	MockListImages            func() ([]containerd.Image, error)
-	MockImage                 func(ctn containerd.Container) (containerd.Image, error)
-	MockImageSize             func(ctn containerd.Container) (int64, error)
-	MockTaskMetrics           func(ctn containerd.Container) (*types.Metric, error)
-	MockTaskPids              func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
-	MockInfo                  func(ctn containerd.Container) (containers.Container, error)
-	MockLabels                func(ctn containerd.Container) (map[string]string, error)
-	MockLabelsWithContext     func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
-	MockCurrentNamespace      func() string
-	MockSetCurrentNamespace   func(namespace string)
+	MockListImages            func(namespace string) ([]containerd.Image, error)
+	MockImage                 func(namespace string, ctn containerd.Container) (containerd.Image, error)
+	MockImageSize             func(namespace string, ctn containerd.Container) (int64, error)
+	MockTaskMetrics           func(namespace string, ctn containerd.Container) (*types.Metric, error)
+	MockTaskPids              func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	MockInfo                  func(namespace string, ctn containerd.Container) (containers.Container, error)
+	MockLabels                func(namespace string, ctn containerd.Container) (map[string]string, error)
+	MockLabelsWithContext     func(ctx context.Context, namespace string, ctn containerd.Container) (map[string]string, error)
 	MockNamespaces            func(ctx context.Context) ([]string, error)
-	MockSpec                  func(ctn containerd.Container) (*oci.Spec, error)
-	MockSpecWithContext       func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
-	MockStatus                func(ctn containerd.Container) (containerd.ProcessStatus, error)
-	MockCallWithClientContext func(f func(context.Context) error) error
-	MockAnnotations           func(ctn containerd.Container) (map[string]string, error)
-	MockIsSandbox             func(ctn containerd.Container) (bool, error)
+	MockSpec                  func(namespace string, ctn containerd.Container) (*oci.Spec, error)
+	MockSpecWithContext       func(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error)
+	MockStatus                func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error)
+	MockCallWithClientContext func(namespace string, f func(context.Context) error) error
+	MockAnnotations           func(namespace string, ctn containerd.Container) (map[string]string, error)
+	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
 }
 
 // Close is a mock method
@@ -60,58 +58,48 @@ func (client *MockedContainerdClient) CheckConnectivity() *retry.Error {
 }
 
 // ListImages is a mock method
-func (client *MockedContainerdClient) ListImages() ([]containerd.Image, error) {
-	return client.MockListImages()
+func (client *MockedContainerdClient) ListImages(namespace string) ([]containerd.Image, error) {
+	return client.MockListImages(namespace)
 }
 
 // Image is a mock method
-func (client *MockedContainerdClient) Image(ctn containerd.Container) (containerd.Image, error) {
-	return client.MockImage(ctn)
+func (client *MockedContainerdClient) Image(namespace string, ctn containerd.Container) (containerd.Image, error) {
+	return client.MockImage(namespace, ctn)
 }
 
 // ImageSize is a mock method
-func (client *MockedContainerdClient) ImageSize(ctn containerd.Container) (int64, error) {
-	return client.MockImageSize(ctn)
+func (client *MockedContainerdClient) ImageSize(namespace string, ctn containerd.Container) (int64, error) {
+	return client.MockImageSize(namespace, ctn)
 }
 
 // Labels is a mock method
-func (client *MockedContainerdClient) Labels(ctn containerd.Container) (map[string]string, error) {
-	return client.MockLabels(ctn)
+func (client *MockedContainerdClient) Labels(namespace string, ctn containerd.Container) (map[string]string, error) {
+	return client.MockLabels(namespace, ctn)
 }
 
 // LabelsWithContext is a mock method
-func (client *MockedContainerdClient) LabelsWithContext(ctx context.Context, ctn containerd.Container) (map[string]string, error) {
-	return client.MockLabelsWithContext(ctx, ctn)
+func (client *MockedContainerdClient) LabelsWithContext(ctx context.Context, namespace string, ctn containerd.Container) (map[string]string, error) {
+	return client.MockLabelsWithContext(ctx, namespace, ctn)
 }
 
 // Info is a mock method
-func (client *MockedContainerdClient) Info(ctn containerd.Container) (containers.Container, error) {
-	return client.MockInfo(ctn)
+func (client *MockedContainerdClient) Info(namespace string, ctn containerd.Container) (containers.Container, error) {
+	return client.MockInfo(namespace, ctn)
 }
 
 // TaskMetrics is a mock method
-func (client *MockedContainerdClient) TaskMetrics(ctn containerd.Container) (*types.Metric, error) {
-	return client.MockTaskMetrics(ctn)
+func (client *MockedContainerdClient) TaskMetrics(namespace string, ctn containerd.Container) (*types.Metric, error) {
+	return client.MockTaskMetrics(namespace, ctn)
 }
 
 // TaskPids is a mock method
-func (client *MockedContainerdClient) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
-	return client.MockTaskPids(ctn)
+func (client *MockedContainerdClient) TaskPids(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+	return client.MockTaskPids(namespace, ctn)
 }
 
 // Metadata is a mock method
 func (client *MockedContainerdClient) Metadata() (containerd.Version, error) {
 	return client.MockMetadata()
-}
-
-// CurrentNamespace is a mock method
-func (client *MockedContainerdClient) CurrentNamespace() string {
-	return client.MockCurrentNamespace()
-}
-
-// SetCurrentNamespace is a mock method
-func (client *MockedContainerdClient) SetCurrentNamespace(namespace string) {
-	client.MockSetCurrentNamespace(namespace)
 }
 
 // Namespaces is a mock method
@@ -120,18 +108,18 @@ func (client *MockedContainerdClient) Namespaces(ctx context.Context) ([]string,
 }
 
 // Containers is a mock method
-func (client *MockedContainerdClient) Containers() ([]containerd.Container, error) {
-	return client.MockContainers()
+func (client *MockedContainerdClient) Containers(namespace string) ([]containerd.Container, error) {
+	return client.MockContainers(namespace)
 }
 
 // Container is a mock method
-func (client *MockedContainerdClient) Container(id string) (containerd.Container, error) {
-	return client.MockContainer(id)
+func (client *MockedContainerdClient) Container(namespace string, id string) (containerd.Container, error) {
+	return client.MockContainer(namespace, id)
 }
 
 // ContainerWithContext is a mock method
-func (client *MockedContainerdClient) ContainerWithContext(ctx context.Context, id string) (containerd.Container, error) {
-	return client.MockContainerWithCtx(ctx, id)
+func (client *MockedContainerdClient) ContainerWithContext(ctx context.Context, namespace string, id string) (containerd.Container, error) {
+	return client.MockContainerWithCtx(ctx, namespace, id)
 }
 
 // GetEvents is a mock method
@@ -140,36 +128,36 @@ func (client *MockedContainerdClient) GetEvents() containerd.EventService {
 }
 
 // Spec is a mock method
-func (client *MockedContainerdClient) Spec(ctn containerd.Container) (*oci.Spec, error) {
-	return client.MockSpec(ctn)
+func (client *MockedContainerdClient) Spec(namespace string, ctn containerd.Container) (*oci.Spec, error) {
+	return client.MockSpec(namespace, ctn)
 }
 
 // SpecWithContext is a mock method
-func (client *MockedContainerdClient) SpecWithContext(ctx context.Context, ctn containerd.Container) (*oci.Spec, error) {
-	return client.MockSpecWithContext(ctx, ctn)
+func (client *MockedContainerdClient) SpecWithContext(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error) {
+	return client.MockSpecWithContext(ctx, namespace, ctn)
 }
 
 // EnvVars is a mock method
-func (client *MockedContainerdClient) EnvVars(ctn containerd.Container) (map[string]string, error) {
-	return client.MockEnvVars(ctn)
+func (client *MockedContainerdClient) EnvVars(namespace string, ctn containerd.Container) (map[string]string, error) {
+	return client.MockEnvVars(namespace, ctn)
 }
 
 // Status is a mock method
-func (client *MockedContainerdClient) Status(ctn containerd.Container) (containerd.ProcessStatus, error) {
-	return client.MockStatus(ctn)
+func (client *MockedContainerdClient) Status(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
+	return client.MockStatus(namespace, ctn)
 }
 
 // CallWithClientContext is a mock method
-func (client *MockedContainerdClient) CallWithClientContext(f func(context.Context) error) error {
-	return client.MockCallWithClientContext(f)
+func (client *MockedContainerdClient) CallWithClientContext(namespace string, f func(context.Context) error) error {
+	return client.MockCallWithClientContext(namespace, f)
 }
 
 // Annotations is a mock method
-func (client *MockedContainerdClient) Annotations(ctn containerd.Container) (map[string]string, error) {
-	return client.MockAnnotations(ctn)
+func (client *MockedContainerdClient) Annotations(namespace string, ctn containerd.Container) (map[string]string, error) {
+	return client.MockAnnotations(namespace, ctn)
 }
 
 // IsSandbox is a mock method
-func (client *MockedContainerdClient) IsSandbox(ctn containerd.Container) (bool, error) {
-	return client.MockIsSandbox(ctn)
+func (client *MockedContainerdClient) IsSandbox(namespace string, ctn containerd.Container) (bool, error) {
+	return client.MockIsSandbox(namespace, ctn)
 }

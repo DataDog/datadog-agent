@@ -28,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
-	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -40,14 +38,10 @@ import (
 var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
-	providers.Deregister()
-
 	config.Datadog = originalConfig
 }
 
 func newConfig() {
-	providers.Register(providerMocks.FakeContainerImpl{})
-
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	config.InitConfig(config.Datadog)
 	// force timeout to 0s, otherwise each test waits 60s
@@ -121,8 +115,6 @@ func TestBlacklist(t *testing.T) {
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
 // This environment variable cannot be tested with the other environment variables because it is overridden.
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
-	providers.Register(providerMocks.FakeContainerImpl{})
-
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
 
@@ -490,9 +482,6 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestInvalidHostname(t *testing.T) {
-	providers.Register(providerMocks.FakeContainerImpl{})
-	defer providers.Deregister()
-
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
 

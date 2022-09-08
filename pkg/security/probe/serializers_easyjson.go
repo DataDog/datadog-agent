@@ -760,6 +760,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 				}
 				(*out.Executable).UnmarshalEasyJSON(in)
 			}
+		case "interpreter":
+			if in.IsNull() {
+				in.Skip()
+				out.Interpreter = nil
+			} else {
+				if out.Interpreter == nil {
+					out.Interpreter = new(FileSerializer)
+				}
+				(*out.Interpreter).UnmarshalEasyJSON(in)
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -930,6 +940,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		const prefix string = ",\"executable\":"
 		out.RawString(prefix)
 		(*in.Executable).MarshalEasyJSON(out)
+	}
+	if in.Interpreter != nil {
+		const prefix string = ",\"interpreter\":"
+		out.RawString(prefix)
+		(*in.Interpreter).MarshalEasyJSON(out)
 	}
 	if in.Container != nil {
 		const prefix string = ",\"container\":"
@@ -1371,6 +1386,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 				}
 				(*out.Executable).UnmarshalEasyJSON(in)
 			}
+		case "interpreter":
+			if in.IsNull() {
+				in.Skip()
+				out.Interpreter = nil
+			} else {
+				if out.Interpreter == nil {
+					out.Interpreter = new(FileSerializer)
+				}
+				(*out.Interpreter).UnmarshalEasyJSON(in)
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -1574,6 +1599,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		const prefix string = ",\"executable\":"
 		out.RawString(prefix)
 		(*in.Executable).MarshalEasyJSON(out)
+	}
+	if in.Interpreter != nil {
+		const prefix string = ",\"interpreter\":"
+		out.RawString(prefix)
+		(*in.Interpreter).MarshalEasyJSON(out)
 	}
 	if in.Container != nil {
 		const prefix string = ",\"container\":"

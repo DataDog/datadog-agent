@@ -96,7 +96,7 @@ spec:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
-              admission.datadoghq.com/js-lib.custom-image: "ghcr.io/datadog/dd-trace-js/dd-lib-js-init:e1043d06c7b25f5494a80d3c95e43029ac5cefff"  # TODO: Use the default repo when ready
+              admission.datadoghq.com/js-lib.version: "latest"
           spec:
             containers:
               - command:
@@ -121,7 +121,7 @@ spec:
               "app": "busybox"
               "admission.datadoghq.com/enabled": "true"
             annotations:
-              admission.datadoghq.com/python-lib.custom-image: "ghcr.io/datadog/dd-trace-py/dd-python-agent-init:latest"  # TODO: Use the default repo when ready
+              admission.datadoghq.com/python-lib.version: "latest"
           spec:
             containers:
               - command:

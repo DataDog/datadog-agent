@@ -261,11 +261,14 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 			}
 
 			program := p.Program()
-			m.DetachHook(manager.ProbeIdentificationPair{
+			err := m.DetachHook(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
 				EBPFFuncName: funcName,
 				UID:          uid,
 			})
+			if err != nil {
+				log.Debugf("detachhook %s/%s/%d : %w", sec, funcName, uid, err)
+			}
 			if program != nil {
 				program.Close()
 			}

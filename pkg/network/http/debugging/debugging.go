@@ -102,6 +102,6 @@ func getSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
 		return 0.0
 	}
 
-	val, _ := sketch.GetValueAtQuantile(0.5)
+	val, _ := sketch.GetValueAtQuantile(percentile)
 	return val
 }
