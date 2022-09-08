@@ -944,6 +944,8 @@ def is_root():
 
 
 check_for_cache = set()
+
+
 def check_for(ctx, binary):
     key = (ctx.cwd, binary)
     if key in check_for_cache:
