@@ -183,7 +183,7 @@ func (w *noAggregationStreamWorker) run() {
 
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()
-							processed += 1
+							processed++
 						}
 
 						lastStream = time.Now()

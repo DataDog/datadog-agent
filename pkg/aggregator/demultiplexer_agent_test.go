@@ -29,14 +29,14 @@ func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 		metrics.MetricSample{
 			Name:      "second",
 			Value:     20,
-			Mtype:     metrics.CountType,
+			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
 			Tags:      []string{"tag:3", "tag:4"},
 		},
 		metrics.MetricSample{
 			Name:      "third",
 			Value:     60,
-			Mtype:     metrics.CountType,
+			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
 			Tags:      []string{"tag:5"},
 		},
@@ -120,7 +120,7 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 
 	for _, test := range tests {
 		ms := metrics.MetricSample{Mtype: test.metricType}
-		rv, supported := MetricSampleAPIType(ms)
+		rv, supported := metricSampleAPIType(ms)
 
 		if test.supported {
 			require.True(supported, fmt.Sprintf("Metric type %s should be supported", test.metricType.String()))
