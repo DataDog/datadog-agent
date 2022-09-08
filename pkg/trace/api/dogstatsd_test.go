@@ -85,10 +85,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 	cfg := config.New()
 	cfg.StatsdHost = "127.0.0.1"
 	cfg.StatsdPort = port
-	testDogStatsDReverseProxyEndToEnd(t, cfg)
-}
 
-func testDogStatsDReverseProxyEndToEnd(t *testing.T, cfg *config.AgentConfig) {
 	receiver := newTestReceiverFromConfig(cfg)
 	proxy := receiver.dogstatsdProxyHandler()
 	require.NotNil(t, proxy)

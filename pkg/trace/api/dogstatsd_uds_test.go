@@ -9,19 +9,44 @@
 package api
 
 import (
-	"path/filepath"
+	"bytes"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDogStatsDReverseProxyEndToEndUDS(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
-	dir := t.TempDir()
-	socket := filepath.Join(dir, "dsd.socket")
+
+	sock := "/tmp/com.datadoghq.datadog-agent.trace-agent.dogstatsd.test.sock"
+
 	cfg := config.New()
-	cfg.StatsdSocket = socket
-	testDogStatsDReverseProxyEndToEnd(t, cfg)
+	cfg.StatsdSocket = sock
+	receiver := newTestReceiverFromConfig(cfg)
+	proxy := receiver.dogstatsdProxyHandler()
+	require.NotNil(t, proxy)
+	rec := httptest.NewRecorder()
+
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	server := httptest.NewUnstartedServer(proxy)
+	server.Listener = l
+	server.Start()
+	defer server.Close()
+
+	// Test metrics
+	body := ioutil.NopCloser(bytes.NewBufferString("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
+	require.Equal(t, http.StatusOK, rec.Code)
 }

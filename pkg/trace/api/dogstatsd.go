@@ -24,9 +24,6 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// TODO: Simplify this. We shouldn't need to open a new connection for every
-		// request to the statsd endpoit. We should be able to just route the reverse
-		// proxy to that endpoint.
 		var network, address string
 		if r.conf.StatsdSocket != "" {
 			network, address = "unix", r.conf.StatsdSocket
@@ -45,4 +42,5 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			return
 		}
 	})
+
 }
