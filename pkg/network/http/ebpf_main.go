@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"reflect"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -75,7 +76,7 @@ type subprogram interface {
 var tailcalls []manager.TailCallRoute = []manager.TailCallRoute{
 	{
 		ProgArrayName: httpProgsMap,
-		Key:           HTTP_PROG,
+		Key:           httpProg,
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			EBPFSection:  httpSocketFilter,
 			EBPFFuncName: "socket__http_filter",
@@ -164,7 +165,7 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 	for _, s := range e.subprograms {
-		if s != nil {
+		if reflect.ValueOf(s).IsNil() {
 			undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 		}
 	}
