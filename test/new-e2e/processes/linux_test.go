@@ -74,9 +74,6 @@ func (s *LinuxTestSuite) TearDownTest() {
 	}
 }
 
-// TODO: create config helper
-// TODO: create tests that customize the config yaml
-// TODO: Consider creating process-metric for process-distribution to validate metrics tests
 func (s *LinuxTestSuite) TestProcessAgentOnLinux() {
 	hostName := createHostName(s.T().Name())
 	hostTag := fmt.Sprintf("host:%s", hostName)

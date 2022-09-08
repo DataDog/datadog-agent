@@ -128,9 +128,6 @@ func (s *DockerTestSuite) TestProcessAgentOnDocker() {
 
 }
 
-// TODO: create config helper
-// TODO: create tests that customize the config yaml
-
 func (s *DockerTestSuite) waitForProcessAgent() {
 	var stdout string
 	require.Eventuallyf(s.T(), func() bool {
