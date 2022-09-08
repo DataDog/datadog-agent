@@ -67,6 +67,7 @@ tests_ebpf_x64:
   script:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
+    - invoke -e golangci-lint --build system-probe ./pkg
     - invoke -e security-agent.kitchen-prepare
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
@@ -90,6 +91,7 @@ tests_ebpf_arm64:
   script:
     - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
+    - invoke -e golangci-lint --build system-probe ./pkg
     - invoke -e security-agent.kitchen-prepare
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
