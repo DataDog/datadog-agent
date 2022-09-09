@@ -140,6 +140,8 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicyMetadata(
 }
 
 // metadataPayloadsReceiver is a receiver that stores payloads as BytesPayloads
+// This type is designed to be used only in BuildWithOnErrItemTooBigPolicyMetadata as
+// it supports only IterableStreamWithPointJSONMarshaler.
 type metadataPayloadsReceiver struct {
 	payloads   transaction.BytesPayloads
 	pointCount int
