@@ -679,7 +679,7 @@
       At runtime this limitation doesn\'t seem to apply.
     -->
 
-    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' HideTarget='yes'
+    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
         Value='
             UILevel=[UILevel]
             PROJECTLOCATION=[PROJECTLOCATION]
@@ -712,7 +712,7 @@
             EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]
             OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]
             ' />
-    <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
+    <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' HideTarget='yes' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
 
