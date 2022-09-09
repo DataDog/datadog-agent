@@ -310,25 +310,36 @@ __attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u6
     return 0;
 }
 
-__attribute__((always_inline)) u32 should_trace_new_process(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN], char comm[TASK_COMM_LEN]) {
-    u32 cookie_comm = should_trace_new_process_comm(ctx, now, pid, comm);
-    u32 cookie_cgroup = should_trace_new_process_cgroup(ctx, now, pid, cgroup);
+#define ASSIGN_RETURN_IF_VAL_NULL(var, func) \
+    if (var) func; \
+    else var = func
 
+union container_id_comm_combo {
+    char container_id[CONTAINER_ID_LEN];
+    char comm[TASK_COMM_LEN];
+};
+
+__attribute__((always_inline)) u32 should_trace_new_process(void *ctx, u64 now, u32 pid, char* cgroup_p, char* comm_p) {
+    // prepare comm and cgroup (for compatibility with old kernels)
+    union container_id_comm_combo buffer = {};
+
+    bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), cgroup_p);
+    u32 cookie = should_trace_new_process_cgroup(ctx, now, pid, buffer.container_id);
+
+    bpf_probe_read(&buffer.comm, sizeof(buffer.comm), comm_p);
     // prioritize the cookie from the cgroup to the cookie from the comm
-    if (cookie_cgroup > 0) {
-        return cookie_cgroup;
-    }
-    return cookie_comm;
+    ASSIGN_RETURN_IF_VAL_NULL(cookie, should_trace_new_process_comm(ctx, now, pid, buffer.comm));
+    return cookie;
 }
 
-__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, char cgroup[CONTAINER_ID_LEN], char comm[TASK_COMM_LEN]) {
+__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, char* cgroup_p, char* comm_p) {
     u64 now = bpf_ktime_get_ns();
 
     // check if the parent is traced, update the child timeout if need be
     u32 *ppid_cookie = bpf_map_lookup_elem(&traced_pids, &ppid);
     if (ppid_cookie == NULL) {
         // check if the current pid should be traced
-        should_trace_new_process(ctx, now, pid, cgroup, comm);
+        should_trace_new_process(ctx, now, pid, cgroup_p, comm_p);
         return;
     }
 
@@ -355,20 +366,12 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
     bpf_map_delete_elem(&traced_pids, &pid);
 }
 
-#define NO_ACTIVITY_DUMP       0
-#define ACTIVITY_DUMP_RUNNING  1
-
-union container_id_comm_combo {
-    char container_id[CONTAINER_ID_LEN];
-    char comm[TASK_COMM_LEN];
-};
-
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u32 cookie, u64 now, u8 should_count) {
     struct activity_dump_rate_limiter_ctx* rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
     if (rate_ctx_p == NULL) {
         struct activity_dump_rate_limiter_ctx rate_ctx = {
             .current_period = now,
-            .counter = 1,
+            .counter = should_count,
         };
         bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &rate_ctx, BPF_ANY);
         return 1;
@@ -393,18 +396,16 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activi
     return 1;
 }
 
+#define NO_ACTIVITY_DUMP       0
+#define ACTIVITY_DUMP_RUNNING  1
+
 __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u64 now, u32 event_type) {
     u32 cookie = 0;
     struct activity_dump_config *config = NULL;
 
     struct proc_cache_t *pc = get_proc_cache(pid);
     if (pc) {
-        // prepare comm and cgroup (for compatibility with old kernels)
-        union container_id_comm_combo buffer = {};
-        bpf_probe_read(&buffer.comm, sizeof(buffer.comm), pc->entry.comm);
-        bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), pc->container.container_id);
-
-        cookie = should_trace_new_process(ctx, now, pid, buffer.container_id, buffer.comm);
+        cookie = should_trace_new_process(ctx, now, pid, pc->container.container_id, pc->entry.comm);
     }
 
     if (cookie != 0) {
@@ -418,7 +419,7 @@ __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u
     }
 
     // is this event type traced ?
-    if (mask_has_event(config->event_mask, event_type)) {
+    if (!mask_has_event(config->event_mask, event_type)) {
         return NO_ACTIVITY_DUMP;
     }
 

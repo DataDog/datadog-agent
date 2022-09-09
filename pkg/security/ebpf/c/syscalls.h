@@ -309,10 +309,10 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         return 0;
     }
 
-    u64 now = bpf_ktime_get_ns();
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
     u32 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
     if (cookie != NULL) {
+        u64 now = bpf_ktime_get_ns();
         struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
         if (config != NULL) {
             // is this event type traced ?

@@ -226,7 +226,7 @@ func TestActivityDumps(t *testing.T) {
 
 		time.Sleep(1 * time.Second) // a quick sleep to let starts and snapshot events to be added to the dump
 
-		for i := 0; i < 200; i++ {
+		for i := 0; i < 20; i++ {
 			temp, err := os.CreateTemp("/tmp", "ad-test-create")
 			fmt.Printf("Create %s\n", temp.Name())
 			if err != nil {
@@ -248,6 +248,7 @@ func TestActivityDumps(t *testing.T) {
 				t.Fatal("Node not found in activity dump")
 			}
 
+			count := 0
 			for _, node := range nodes {
 				tmp := node.Files["tmp"]
 				if tmp == nil {
@@ -257,9 +258,10 @@ func TestActivityDumps(t *testing.T) {
 					fmt.Printf("Found root: %s\n", file.Name)
 				}
 				fmt.Printf("Found %d files\n", len(tmp.Children))
-				if len(tmp.Children) > 10 {
-					return false
-				}
+				count = len(tmp.Children)
+			}
+			if count != 10 {
+				return false
 			}
 			return true
 		})

@@ -656,7 +656,7 @@ static __attribute__((always_inline)) u64 get_enabled_events(void) {
 }
 
 static __attribute__((always_inline)) int mask_has_event(u64 mask, enum event_type event) {
-    return mask & (1 << (event-EVENT_FIRST_DISCARDER));
+    return mask & (1 << (event - EVENT_FIRST_DISCARDER));
 }
 
 static __attribute__((always_inline)) int is_event_enabled(enum event_type event) {

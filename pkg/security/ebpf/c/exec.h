@@ -560,10 +560,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    union container_id_comm_combo buffer = {};
-    bpf_probe_read(&buffer.comm, sizeof(buffer.comm), event->proc_entry.comm);
-    bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), event->container.container_id);
-    inherit_traced_state(args, ppid, pid, buffer.container_id, buffer.comm);
+    inherit_traced_state(args, ppid, pid, event->container.container_id, event->proc_entry.comm);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -756,10 +753,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct l
             fill_args_envs(event, syscall);
 
             // [activity_dump] check if this process should be traced
-            union container_id_comm_combo buffer = {};
-            bpf_probe_read(&buffer.comm, sizeof(buffer.comm), event->proc_entry.comm);
-            bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), event->container.container_id);
-            should_trace_new_process(ctx, now, tgid, buffer.container_id, buffer.comm);
+            should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
 
             // add interpreter path info
             event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
