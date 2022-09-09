@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,12 +44,7 @@ type noAggregationStreamWorker struct {
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
-	// disableVerboseLogs is a feature flag to disable the logs capable
-	// of flooding the logger output (e.g. parsing messages error).
-	// This is also existing in the DogStatsD server.
-	// NOTE(remy): this should probably be dropped and use a throttler logger, see
-	// package (pkg/trace/log/throttled.go) for a possible throttler implementation.
-	disableVerboseLogs bool
+	logThrottling util.SimpleThrottler
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -80,7 +76,12 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serialize
 		stopChan:    make(chan trigger),
 		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog.GetInt("dogstatsd_queue_size")),
 
-		disableVerboseLogs: config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
+		// warning for the unsupported metric types should appear maximum 1000 times
+		// every 2 minutes.
+		logThrottling: util.SimpleThrottler{
+			ExecLimit:     1000,
+			PauseDuration: 2 * time.Minute,
+		},
 	}
 }
 
@@ -169,7 +170,13 @@ func (w *noAggregationStreamWorker) run() {
 							mtype, supported := metricSampleAPIType(sample)
 
 							if !supported {
-								w.errLog("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
+								throttled, limit := w.logThrottling.ShouldThrottle()
+								if !throttled || limit {
+									log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
+								}
+								if limit {
+									log.Warnf("Pausing the unsupported metric message for %v", w.logThrottling.PauseDuration)
+								}
 								countUnsupportedType++
 								continue
 							}
@@ -222,14 +229,6 @@ func (w *noAggregationStreamWorker) run() {
 
 	if stopBlockChan != nil {
 		close(stopBlockChan)
-	}
-}
-
-func (w *noAggregationStreamWorker) errLog(format string, params ...interface{}) {
-	if w.disableVerboseLogs {
-		log.Debugf(format, params...)
-	} else {
-		log.Errorf(format, params...)
 	}
 }
 
