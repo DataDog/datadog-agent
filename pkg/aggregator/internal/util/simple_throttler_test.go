@@ -19,30 +19,27 @@ func TestSimpleThrottler(t *testing.T) {
 	clk := clock.NewMock()
 	timeNow = clk.Now
 
-	st := SimpleThrottler{
-		ExecLimit:     3,
-		PauseDuration: time.Minute * 1,
-	}
+	st := NewSimpleThrottler(3, time.Minute, "message")
 
 	// iterate multiple times on the same throttler to validate it is resetting properly
 	for i := 0; i < 5; i++ {
-		throttled, limit := st.ShouldThrottle()
+		throttled, limit := st.shouldThrottle()
 		require.False(throttled, "should not be throttled")
 		require.False(limit, "should not be throttled")
-		throttled, limit = st.ShouldThrottle()
+		throttled, limit = st.shouldThrottle()
 		require.False(throttled, "should not be throttled")
 		require.False(limit, "should not be throttled")
-		throttled, limit = st.ShouldThrottle()
+		throttled, limit = st.shouldThrottle()
 		require.True(throttled, "should be throttled")
 		require.True(limit, "should have just been throttled")
-		throttled, limit = st.ShouldThrottle()
+		throttled, limit = st.shouldThrottle()
 		require.True(throttled, "should be throttled")
 		require.False(limit, "throttle should have happened in the past")
-		throttled, limit = st.ShouldThrottle()
+		throttled, limit = st.shouldThrottle()
 		require.True(throttled, "should be throttled")
 		require.False(limit, "throttle should have happened in the past")
 		clk.Add(time.Second * 30)
-		throttled, limit = st.ShouldThrottle()
+		throttled, limit = st.shouldThrottle()
 		require.True(throttled, "should be throttled")
 		require.False(limit, "throttle should have happened in the past")
 		clk.Add(time.Minute)

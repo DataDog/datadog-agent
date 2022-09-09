@@ -78,10 +78,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serialize
 
 		// warning for the unsupported metric types should appear maximum 1000 times
 		// every 2 minutes.
-		logThrottling: util.SimpleThrottler{
-			ExecLimit:     1000,
-			PauseDuration: 2 * time.Minute,
-		},
+		logThrottling: util.NewSimpleThrottler(1000, 2*time.Minute, "Pausing the unsupported metric type warning message for 2m"),
 	}
 }
 
@@ -170,12 +167,8 @@ func (w *noAggregationStreamWorker) run() {
 							mtype, supported := metricSampleAPIType(sample)
 
 							if !supported {
-								throttled, limit := w.logThrottling.ShouldThrottle()
-								if !throttled || limit {
+								if !w.logThrottling.ShouldThrottle() {
 									log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
-								}
-								if limit {
-									log.Warnf("Pausing the unsupported metric message for %v", w.logThrottling.PauseDuration)
 								}
 								countUnsupportedType++
 								continue
