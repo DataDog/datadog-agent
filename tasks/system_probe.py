@@ -892,11 +892,9 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
 ):
-    check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
     if not windows:
-        setup_runtime_clang(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         print("checking for clang executable...")
         ctx.run("which clang")
@@ -908,9 +906,16 @@ def build_object_files(
         check_for_inline(ctx)
         ctx.run(f"mkdir -p {build_dir}/runtime")
 
-    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
-    ctx.run(f"ninja -d explain -f {nf_path}")
+    run_ninja(
+        ctx,
+        explain=True,
+        windows=windows,
+        major_version=major_version,
+        arch=arch,
+        kernel_release=kernel_release,
+        debug=debug,
+        strip_object_files=strip_object_files,
+    )
 
     if not windows:
         sudo = "" if is_root() else "sudo"
