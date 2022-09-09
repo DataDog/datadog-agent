@@ -35,12 +35,12 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	probe                     *Probe
-	tracedPIDsMap             *ebpf.Map
-	tracedCommsMap            *ebpf.Map
-	tracedCgroupsMap          *ebpf.Map
-	cgroupWaitListMap         *ebpf.Map
-	activityDumpLoadConfigMap *ebpf.Map
+	probe                  *Probe
+	tracedPIDsMap          *ebpf.Map
+	tracedCommsMap         *ebpf.Map
+	tracedCgroupsMap       *ebpf.Map
+	cgroupWaitListMap      *ebpf.Map
+	activityDumpsConfigMap *ebpf.Map
 
 	activeDumps    []*ActivityDump
 	snapshotQueue  chan *ActivityDump
@@ -170,7 +170,7 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_cgroups map")
 	}
 
-	activityDumpLoadConfigMap, found, err := p.manager.GetMap("activity_dumps_config")
+	activityDumpsConfigMap, found, err := p.manager.GetMap("activity_dumps_config")
 	if err != nil {
 		return nil, err
 	}
@@ -184,14 +184,14 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 	}
 
 	adm := &ActivityDumpManager{
-		probe:                     p,
-		tracedPIDsMap:             tracedPIDs,
-		tracedCommsMap:            tracedComms,
-		tracedCgroupsMap:          tracedCgroupsMap,
-		cgroupWaitListMap:         cgroupWaitList,
-		activityDumpLoadConfigMap: activityDumpLoadConfigMap,
-		snapshotQueue:             make(chan *ActivityDump, 100),
-		storage:                   storageManager,
+		probe:                  p,
+		tracedPIDsMap:          tracedPIDs,
+		tracedCommsMap:         tracedComms,
+		tracedCgroupsMap:       tracedCgroupsMap,
+		cgroupWaitListMap:      cgroupWaitList,
+		activityDumpsConfigMap: activityDumpsConfigMap,
+		snapshotQueue:          make(chan *ActivityDump, 100),
+		storage:                storageManager,
 	}
 
 	loadController, err := NewActivityDumpLoadController(adm)
@@ -480,9 +480,9 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 	iterator := adm.tracedCgroupsMap.Iterate()
 
 	for iterator.Next(&containerIDB, &event.ConfigCookie) {
-		if err = adm.activityDumpLoadConfigMap.Lookup(event.ConfigCookie, &event.Config); err != nil {
+		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
-			_ = adm.activityDumpLoadConfigMap.Delete(event.ConfigCookie)
+			_ = adm.tracedCgroupsMap.Delete(containerIDB)
 			continue
 		}
 
