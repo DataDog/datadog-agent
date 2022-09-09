@@ -14,8 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-// dogstatsdProxyHandler returns a new HTTP handler which will proxy requests to the DogStatsD
-// endpoint in the Core Agent over UDP.
+// dogstatsdProxyHandler returns a new HTTP handler which will proxy requests to
+// the DogStatsD endpoint in the Core Agent over UDP or UDS (defaulting to UDS
+// if StatsdSocket is set in the *AgentConfig).
 func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 	if !r.conf.StatsdEnabled {
 		log.Info("DogstatsD disabled in the Agent configuration")
@@ -42,5 +43,4 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			return
 		}
 	})
-
 }

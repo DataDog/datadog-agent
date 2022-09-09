@@ -46,6 +46,13 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 			},
 			http.StatusInternalServerError,
 		},
+		{
+			"bad statsd socket",
+			func(cfg *config.AgentConfig) {
+				cfg.StatsdSocket = "this is invalid"
+			},
+			http.StatusInternalServerError,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -74,7 +81,6 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 }
 
 func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
-	// This test is based on pkg/dogstatsd/server_test.go.
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
@@ -99,6 +105,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
 func getAvailableUDPPort() (int, error) {
+	// This is based on pkg/dogstatsd/server_test.go.
 	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return -1, fmt.Errorf("can't find an available udp port: %s", err)

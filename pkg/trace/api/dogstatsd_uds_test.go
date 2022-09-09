@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
-//
+
 //go:build !windows
 // +build !windows
 
@@ -28,7 +28,9 @@ func TestDogStatsDReverseProxyEndToEndUDS(t *testing.T) {
 	sock := "/tmp/com.datadoghq.datadog-agent.trace-agent.dogstatsd.test.sock"
 
 	cfg := config.New()
-	cfg.StatsdSocket = sock
+	cfg.StatsdSocket = sock            // this should take precendence
+	cfg.StatsdHost = "this is invalid" // this should get ignored
+	cfg.StatsdPort = 8080              // this should get ignored
 	receiver := newTestReceiverFromConfig(cfg)
 	proxy := receiver.dogstatsdProxyHandler()
 	require.NotNil(t, proxy)
