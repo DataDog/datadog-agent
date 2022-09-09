@@ -18,9 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
-	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -249,12 +246,16 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			if err != nil {
 				t.Fatal(err)
 			}
-			ad := &adproto.ActivityDump{}
-			err = proto.Unmarshal(content, ad)
-			if err != nil {
-				t.Error(err)
+
+			// adm = test.
+			ad := probe.NewEmptyActivityDump()
+			ad.DecodeProtobuf(strings.NewReader(string(content)))
+
+			found := msgpValidator(ad)
+			if !found {
+				t.Error("Invalid activity dump")
 			}
-			perExtOK[ext] = true
+			perExtOK[ext] = found
 
 		default:
 			t.Fatal("Unexpected output file")
