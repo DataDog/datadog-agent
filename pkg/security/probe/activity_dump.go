@@ -358,7 +358,7 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
 	// insert load config now (it might already exist, do not update in that case)
-	if err := ad.adm.activityDumpLoadConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 		return fmt.Errorf("couldn't push activity dump load config: %w", err)
 	}
 
@@ -418,7 +418,7 @@ func (ad *ActivityDump) disable() error {
 	}
 
 	// remove activity dump
-	if err := ad.adm.activityDumpLoadConfigMap.Delete(ad.LoadConfigCookie); err != nil {
+	if err := ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie); err != nil {
 		return fmt.Errorf("couldn't delete activity dump load config: %w", err)
 	}
 	return nil
