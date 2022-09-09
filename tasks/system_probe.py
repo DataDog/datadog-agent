@@ -855,11 +855,9 @@ def setup_runtime_clang(ctx):
         if version_str == CLANG_VERSION:
             return
 
+    sudo = "sudo" if not is_root() else ""
     if not os.path.exists("/opt/datadog-agent/embedded/bin"):
-        if not is_root():
-            ctx.run("sudo mkdir -p /opt/datadog-agent/embedded/bin")
-        else:
-            ctx.run("mkdir -p /opt/datadog-agent/embedded/bin")
+        ctx.run(f"{sudo}mkdir -p /opt/datadog-agent/embedded/bin")
 
     arch = arch_mapping.get(platform.machine())
     if arch == "x64":
@@ -867,20 +865,12 @@ def setup_runtime_clang(ctx):
 
     # download correct version from dd-agent-omnibus S3 bucket
     clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
-    if not is_root():
-        ctx.run(f"sudo wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
-        ctx.run("sudo chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+    ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
+    ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
 
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
-        ctx.run(f"sudo wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
-        ctx.run("sudo chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
-    else:
-        ctx.run(f"wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
-        ctx.run("chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
-
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
-        ctx.run(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
-        ctx.run("chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+    llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+    ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
+    ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 def build_object_files(
