@@ -58,7 +58,7 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
 		localRates:    newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		remoteRates:   newRemoteRates(conf.RemoteSamplingClient, conf.MaxRemoteTPS, conf.AgentVersion),
+		remoteRates:   nil,
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(conf.MaxCatalogEntries),
 		exit:          make(chan struct{}),
@@ -68,9 +68,6 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
-	if s.remoteRates != nil {
-		s.remoteRates.Start()
-	}
 	go func() {
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
@@ -100,9 +97,6 @@ func (s *PrioritySampler) updateRates() {
 
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
-	if s.remoteRates != nil {
-		s.remoteRates.Stop()
-	}
 	close(s.exit)
 }
 
@@ -139,6 +133,10 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 		s.countSampled(now, root, signature, rate)
 	}
 	return sampled
+}
+
+func (s *PrioritySampler) EnableRemoteRates(maxTPS float64, agentVersion string) {
+	s.remoteRates = newRemoteRates(maxTPS, agentVersion)
 }
 
 // countSignature counts all chunks received with local chunk root signature.

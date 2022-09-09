@@ -35,19 +35,20 @@ const (
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver              *api.HTTPReceiver
-	OTLPReceiver          *api.OTLPReceiver
-	Concentrator          *stats.Concentrator
-	ClientStatsAggregator *stats.ClientStatsAggregator
-	Blacklister           *filters.Blacklister
-	Replacer              *filters.Replacer
-	PrioritySampler       *sampler.PrioritySampler
-	ErrorsSampler         *sampler.ErrorsSampler
-	RareSampler           *sampler.RareSampler
-	NoPrioritySampler     *sampler.NoPrioritySampler
-	EventProcessor        *event.Processor
-	TraceWriter           *writer.TraceWriter
-	StatsWriter           *writer.StatsWriter
+	Receiver               *api.HTTPReceiver
+	OTLPReceiver           *api.OTLPReceiver
+	Concentrator           *stats.Concentrator
+	ClientStatsAggregator  *stats.ClientStatsAggregator
+	Blacklister            *filters.Blacklister
+	Replacer               *filters.Replacer
+	PrioritySampler        *sampler.PrioritySampler
+	ErrorsSampler          *sampler.ErrorsSampler
+	RareSampler            *sampler.RareSampler
+	NoPrioritySampler      *sampler.NoPrioritySampler
+	EventProcessor         *event.Processor
+	TraceWriter            *writer.TraceWriter
+	StatsWriter            *writer.StatsWriter
+	ApmRemoteConfigHandler *sampler.ApmRemoteConfigHandler
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -101,6 +102,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.ApmRemoteConfigHandler = sampler.NewApmRemoteConfigHandler(conf, agnt.PrioritySampler)
+
 	return agnt
 }
 
@@ -115,6 +118,7 @@ func (a *Agent) Run() {
 		a.NoPrioritySampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
+		a.ApmRemoteConfigHandler,
 	} {
 		starter.Start()
 	}

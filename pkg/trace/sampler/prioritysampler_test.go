@@ -143,7 +143,6 @@ func TestPrioritySamplerWithRemote(t *testing.T) {
 		TargetTPS:       1.0,
 	}
 	s := NewPrioritySampler(conf, NewDynamicConfig())
-	s.remoteRates = newRemoteRates(nil, 10, "6.0.0")
 	s.Start()
 	s.updateRates()
 	s.reportStats()
@@ -204,7 +203,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		s := getTestPrioritySampler()
 		s.remoteRates = newTestRemoteRates()
 		generatedConfigVersion := uint64(120)
-		s.remoteRates.onUpdate(configGenerator(generatedConfigVersion, testCasesRates))
+		s.remoteRates.update(configGenerator(generatedConfigVersion, testCasesRates))
 
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
 		s.localRates.targetTPS = atomic.NewFloat64(tc.targetTPS)

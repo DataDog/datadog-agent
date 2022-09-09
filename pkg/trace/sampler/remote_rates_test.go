@@ -20,15 +20,6 @@ import (
 
 const maxRemoteTPS = 12377
 
-func TestRemoteConfInit(t *testing.T) {
-	assert := assert.New(t)
-	// disabled by default
-	assert.Nil(newRemoteRates(nil, 0, "6.0.0"))
-	// subscription to subscriber fails
-	assert.Nil(newRemoteRates(nil, 0, "6.0.0"))
-	// todo:raphael mock grpc server
-}
-
 func newTestRemoteRates() *RemoteRates {
 	return &RemoteRates{
 		maxSigTPS:          maxRemoteTPS,
@@ -249,7 +240,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 	for _, step := range testSteps {
 		t.Log(step.name)
 		if step.ratesToApply.TargetTPS != nil {
-			r.onUpdate(configGenerator(step.version, step.ratesToApply))
+			r.update(configGenerator(step.version, step.ratesToApply))
 		}
 		for _, s := range step.countServices {
 			r.countWeightedSig(time.Now(), s.Hash(), 1)

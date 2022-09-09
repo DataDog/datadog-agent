@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -39,8 +38,6 @@ type RemoteRates struct {
 	mu                 sync.RWMutex   // protects concurrent access to samplers and tpsTargets
 	tpsVersion         *atomic.Uint64 // version of the loaded tpsTargets
 	duplicateTargetTPS *atomic.Uint64 // count of duplicate received targetTPS
-
-	client config.RemoteClient
 }
 
 type remoteSampler struct {
@@ -48,12 +45,8 @@ type remoteSampler struct {
 	target apmsampling.TargetTPS
 }
 
-func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion string) *RemoteRates {
-	if client == nil {
-		return nil
-	}
+func newRemoteRates(maxTPS float64, agentVersion string) *RemoteRates {
 	return &RemoteRates{
-		client:             client,
 		maxSigTPS:          maxTPS,
 		samplers:           make(map[Signature]*remoteSampler),
 		tpsVersion:         atomic.NewUint64(0),
@@ -61,7 +54,7 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 	}
 }
 
-func (r *RemoteRates) onUpdate(update map[string]state.APMSamplingConfig) {
+func (r *RemoteRates) update(update map[string]state.APMSamplingConfig) {
 	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
 	// In the meantime we will just use a version of one of the config files.
 	var version uint64
@@ -130,17 +123,6 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]apmsampling.TargetTPS) 
 		delete(r.samplers, sig)
 	}
 	r.mu.Unlock()
-}
-
-// Start runs and adjust rates per signature following remote TPS targets
-func (r *RemoteRates) Start() {
-	r.client.Start()
-	r.client.RegisterAPMUpdate(r.onUpdate)
-}
-
-// Stop stops RemoteRates main loop
-func (r *RemoteRates) Stop() {
-	r.client.Close()
 }
 
 func (r *RemoteRates) getSampler(sig Signature) (*remoteSampler, bool) {
