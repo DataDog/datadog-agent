@@ -95,22 +95,22 @@ static void* (*bpf_telemetry_update_patch)(unsigned long,...) = (void*)PATCH_TAR
 #define bpf_map_update_with_telemetry(map, key, val, flags) \
     map_update_with_telemetry(bpf_map_update_elem, map, key, val, flags)
 
-#define PROBE_READ(dst, sz, src, errno_ret) \
+#define bpf_probe_read_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read, errno_ret, dst, sz, src)
 
-#define PROBE_READ_STR(dst, sz, src, errno_ret) \
+#define bpf_probe_read_str_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_str, errno_ret, dst, sz, src)
 
 #define bpf_probe_read_user_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_user, errno_ret, dst, sz, src)
 
-#define PROBE_READ_USER_STR(dst, sz, src, errno_ret) \
+#define bpf_probe_read_user_str_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_user_str, errno_ret, dst, sz, src)
 
-#define PROBE_READ_KERNEL(dst, sz, src, errno_ret) \
+#define bpf_probe_read_kernel_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_kernel, errno_ret, dst, sz, src)
 
-#define PROBE_READ_KERNEL_STR(dst, sz, src, errno_ret) \
+#define bpf_probe_read_kernel_str_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_kernel_str, errno_ret, dst, sz, src)
 
 #endif // BPF_TELEMETRY_H
