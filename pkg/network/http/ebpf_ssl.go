@@ -340,17 +340,13 @@ func (o *sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 		})
 	}
 
-	// We want to add the missing probe
-	// from (do_sys_open, do_sys_openat2) to our list
-	probeSysOpen := doSysOpenAt2
-	if o.sysOpenAt2Supported() {
-		probeSysOpen = doSysOpen
-	}
-	for _, kprobe := range kprobeKretprobePrefix {
-		probes = append(probes, manager.ProbeIdentificationPair{
-			EBPFSection:  kprobe + "/" + probeSysOpen.section,
-			EBPFFuncName: kprobe + "__" + probeSysOpen.function,
-		})
+	for _, hook := range []ebpfSectionFunction{doSysOpen, doSysOpenAt2} {
+		for _, kprobe := range kprobeKretprobePrefix {
+			probes = append(probes, manager.ProbeIdentificationPair{
+				EBPFSection:  kprobe + "/" + hook.section,
+				EBPFFuncName: kprobe + "__" + hook.function,
+			})
+		}
 	}
 
 	return probes
