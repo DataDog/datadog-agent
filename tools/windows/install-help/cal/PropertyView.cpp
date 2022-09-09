@@ -26,7 +26,7 @@ void parseKeyValueString(const std::wstring kvstring, std::map<std::wstring, std
 
 bool StaticPropertyView::present(const std::wstring &key) const
 {
-    return this->values.count(key) != 0 ? true : false;
+    return this->values.count(key) != 0;
 }
 
 bool StaticPropertyView::value(const std::wstring &key, std::wstring &val) const
