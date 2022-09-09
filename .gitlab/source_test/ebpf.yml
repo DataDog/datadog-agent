@@ -83,9 +83,6 @@ tests_ebpf_arm64:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
     - !reference [.retrieve_sysprobe_deps]
   script:
