@@ -728,7 +728,7 @@ def kitchen_prepare(ctx):
 
     ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    src_path = os.environ.get("SRC_PATH", ".")
+    src_path = os.environ.get("CI_PROJECT_DIR", ".")
     bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
