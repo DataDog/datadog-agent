@@ -88,6 +88,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.probe.config.ActivityDumpTracedEventTypes,
 		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		lc.adm.probe.config.ActivityDumpRateLimiter,
 		time.Now(),
 		lc.adm.probe.resolvers.TimeResolver,
 	)
@@ -142,12 +143,10 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	newDump.LoadConfig.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
 	newDump.LoadConfig.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.TracedEventTypes))
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
-	// TODO(rate_limiter): inherit normal rate limiter values
+	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
 
-	// TODO(rate_limiter): reduce rate limiter by 25% if timeToThreshold < MinDumpTimeout
-
-	if timeToThreshold < MinDumpTimeout/2 {
-		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
+	if timeToThreshold < MinDumpTimeout {
+		if err := lc.reduceDumpRate(ad, newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
@@ -157,7 +156,21 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 			seclog.Errorf("%v", err)
 		}
 	}
+
+	if timeToThreshold < MinDumpTimeout/10 {
+		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
+			seclog.Errorf("%v", err)
+		}
+	}
 	return newDump
+}
+
+// reduceDumpRate reduces the dump rate configuration and applies the updated value to kernel space
+func (lc *ActivityDumpLoadController) reduceDumpRate(old, new *ActivityDump) error {
+	new.LoadConfig.Rate = old.LoadConfig.Rate * 3 / 4 // reduce by 25%
+
+	// send metric
+	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:rate"})
 }
 
 // reduceTracedEventTypes removes an event type from the list of traced events types and updates the list of enabled
@@ -191,7 +204,7 @@ reductionOrder:
 	return nil
 }
 
-// reduceDumpTimeout reduces the dump timeout configuration and applies the updated value to kernel space
+// reduceDumpTimeout reduces the dump timeout configuration
 func (lc *ActivityDumpLoadController) reduceDumpTimeout(old, new *ActivityDump) error {
 	newTimeout := old.LoadConfig.Timeout * 3 / 4 // reduce by 25%
 	if newTimeout < MinDumpTimeout {

@@ -309,14 +309,17 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         return 0;
     }
 
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
     u64 now = bpf_ktime_get_ns();
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now);
-    if (config != NULL) {
-        // is this event type traced ?
-        if (mask_has_event(config->event_mask, syscall->type)) {
-            // TODO(rate_limiter): check if this event should be rate limited but do not count this event; it will be counted in the dentry resolver
-            return 0;
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u32 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
+    if (cookie != NULL) {
+        struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
+        if (config != NULL) {
+            // is this event type traced ?
+            if (mask_has_event(config->event_mask, syscall->type)
+                && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+                return 0;
+            }
         }
     }
 

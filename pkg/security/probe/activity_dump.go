@@ -124,13 +124,11 @@ type ActivityDump struct {
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
-func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
+func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, rate int, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
-
-		// TODO(rate_limiter): initialize rate limiter from config
-
+		Rate:             uint32(rate),
 	}
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))
@@ -186,6 +184,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		adm.probe.config.ActivityDumpTracedEventTypes,
 		adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		adm.probe.config.ActivityDumpRateLimiter,
 		ad.Start,
 		adm.probe.resolvers.TimeResolver,
 	)
@@ -236,6 +235,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		[]model.EventType{},
 		timeout,
+		0,
 		startTime,
 		nil,
 	)
@@ -358,7 +358,7 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
 	// insert load config now (it might already exist, do not update in that case)
-	if err := ad.adm.activityDumpLoadConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 		return fmt.Errorf("couldn't push activity dump load config: %w", err)
 	}
 
@@ -418,7 +418,7 @@ func (ad *ActivityDump) disable() error {
 	}
 
 	// remove activity dump
-	if err := ad.adm.activityDumpLoadConfigMap.Delete(ad.LoadConfigCookie); err != nil {
+	if err := ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie); err != nil {
 		return fmt.Errorf("couldn't delete activity dump load config: %w", err)
 	}
 	return nil
