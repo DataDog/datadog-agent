@@ -82,7 +82,9 @@ static void* (*bpf_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
                 }                                                                                         \
                 errno_slot &= (T_MAX_ERRNO - 1);                                                          \
                 if (helper_indx >= 0) {                                                                   \
-                    __sync_fetch_and_add(&entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot], 1); \
+                    int *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
+                    unsigned long add = 1; \
+                    bpf_patch((unsigned long)target, add); \
                 }                                                                                         \
             }                                                                                             \
         }                                                                                                 \
