@@ -10,17 +10,11 @@ package http
 
 import (
 	"errors"
-	"unsafe"
-
 	"fmt"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 )
-
-/*
-#include "../ebpf/c/http-types.h"
-*/
-import "C"
 
 var errLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
@@ -43,7 +37,7 @@ func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 	for i := 0; i < numCPUs; i++ {
 		// Initialize eBPF maps
 		for j := 0; j < HTTPBatchPages; j++ {
-			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
+			key := &httpBatchKey{Cpu: uint32(i), Num: uint32(j)}
 			err := batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
 			if err != nil {
 				return nil, err
@@ -60,7 +54,7 @@ func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 
 func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]httpTX, error) {
 	var (
-		state    = &m.stateByCPU[notification.cpu]
+		state    = &m.stateByCPU[notification.Cpu]
 		batch    = new(httpBatch)
 		batchKey = new(httpBatchKey)
 	)
@@ -68,10 +62,10 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 	batchKey.Prepare(notification)
 	err := m.batchMap.Lookup(unsafe.Pointer(batchKey), unsafe.Pointer(batch))
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
+		return nil, fmt.Errorf("error retrieving http batch for cpu=%d", notification.Cpu)
 	}
 
-	if int(batch.idx) < state.idx {
+	if int(batch.Idx) < state.idx {
 		// This means this batch was processed via GetPendingTransactions
 		return nil, nil
 	}
@@ -82,7 +76,7 @@ func (m *batchManager) GetTransactionsFrom(notification httpNotification) ([]htt
 	}
 
 	offset := state.pos
-	state.idx = int(notification.batch_idx) + 1
+	state.idx = int(notification.Idx) + 1
 	state.pos = 0
 
 	return batch.Transactions()[offset:], nil
@@ -95,7 +89,7 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 			var (
 				usrState = &m.stateByCPU[i]
 				pageNum  = usrState.idx % HTTPBatchPages
-				batchKey = &httpBatchKey{cpu: C.uint(i), page_num: C.uint(pageNum)}
+				batchKey = &httpBatchKey{Cpu: uint32(i), Num: uint32(pageNum)}
 				batch    = new(httpBatch)
 			)
 
@@ -104,8 +98,8 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 				break
 			}
 
-			krnStateIDX := int(batch.idx)
-			krnStatePos := int(batch.pos)
+			krnStateIDX := int(batch.Idx)
+			krnStatePos := int(batch.Pos)
 			if krnStateIDX != usrState.idx || krnStatePos <= usrState.pos {
 				break
 			}
