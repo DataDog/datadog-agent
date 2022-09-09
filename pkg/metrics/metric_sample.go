@@ -62,23 +62,6 @@ func (m MetricType) String() string {
 	}
 }
 
-// ToAPIType returns the equivalent of MetricType in APIMetricType type.
-// APIMetricType only supports gauges, counts and rates and will default on gauges
-// for every other inputs.
-// This is used by the no-aggregation pipeline to infer an API type from a MetricType.
-func (m MetricType) ToAPIType() APIMetricType {
-	switch m {
-	case GaugeType:
-		return APIGaugeType
-	case CounterType:
-		return APICountType
-	case RateType:
-		return APIRateType
-	default:
-		return APIGaugeType
-	}
-}
-
 // MetricSampleContext allows to access a sample context data
 type MetricSampleContext interface {
 	GetName() string
