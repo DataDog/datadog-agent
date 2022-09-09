@@ -83,6 +83,8 @@ tests_ebpf_arm64:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
+    - ls
+    - pwd
     - cd $SRC_PATH
     - !reference [.retrieve_sysprobe_deps]
   script:
