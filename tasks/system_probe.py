@@ -859,6 +859,7 @@ def build_object_files(
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
     if not windows:
+        setup_runtime_clang(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         print("checking for clang executable...")
         ctx.run("which clang")
@@ -1109,61 +1110,6 @@ def setup_runtime_clang(ctx):
         ctx.run(f"wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
         ctx.run("chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
-
-def build_object_files(ctx, parallel_build, kernel_release=None, debug=False, strip_object_files=False):
-    setup_runtime_clang(ctx)
-
-    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
-    print("checking for clang executable...")
-    ctx.run("which clang")
-
-    if strip_object_files:
-        print("checking for llvm-strip...")
-        ctx.run("which llvm-strip")
-
-    promises_check = []
-    for f in get_ebpf_targets():
-        promises_check.append(ebpf_check_source_file(ctx, parallel_build, f))
-
-    if parallel_build:
-        for promise in promises_check:
-            promise.join()
-
-    build_dir = os.path.join(".", "pkg", "ebpf", "bytecode", "build")
-    build_runtime_dir = os.path.join(build_dir, "runtime")
-
-    ctx.run(f"mkdir -p {build_dir}")
-    ctx.run(f"mkdir -p {build_runtime_dir}")
-
-    build_network_ebpf_files(
-        ctx,
-        build_dir=build_dir,
-        parallel_build=parallel_build,
-        kernel_release=kernel_release,
-        strip_object_files=strip_object_files,
-    )
-    build_http_ebpf_files(
-        ctx, build_dir=build_dir, kernel_release=kernel_release, strip_object_files=strip_object_files
-    )
-    build_security_ebpf_files(
-        ctx, build_dir=build_dir, parallel_build=parallel_build, kernel_release=kernel_release, debug=debug
-    )
-
-    generate_runtime_files(ctx)
-
-    # We need to copy the bpf files out of the mounted build directory in order to be able to
-    # change their ownership to root
-    src_files = os.path.join(build_dir, "*")
-    bpf_dir = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
-
-    if not is_root():
-        ctx.sudo(f"mkdir -p {bpf_dir}")
-        ctx.sudo(f"cp -R {src_files} {bpf_dir}")
-        ctx.sudo(f"chown root:root -R {bpf_dir}")
-    else:
-        ctx.run(f"mkdir -p {bpf_dir}")
-        ctx.run(f"cp -R {src_files} {bpf_dir}")
-        ctx.run(f"chown root:root -R {bpf_dir}")
 
 
 def build_cws_object_files(
