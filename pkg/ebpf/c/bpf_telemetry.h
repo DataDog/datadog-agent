@@ -31,7 +31,7 @@ BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
 
 #define PATCH_TARGET_TELEMETRY -1
-static void* (*bpf_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
+static void* (*bpf_telemetry_update_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
 
 // The telemetry functions with fail on kernel 4.4, due to
 // reasons described here: https://github.com/DataDog/datadog-agent/blob/main/pkg/network/ebpf/c/http.h#L74
@@ -53,7 +53,8 @@ static void* (*bpf_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
                 errno_slot &= (T_MAX_ERRNO - 1);                                 \
                 int *target = &entry->err_count[errno_slot]; \
                 unsigned long add = 1; \
-                bpf_patch((unsigned long)target, add); \
+                /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); */ \
+                bpf_telemetry_update_patch((unsigned long)target, add); \
             }                                                                    \
         }                                                                        \
     } while (0)
@@ -84,13 +85,14 @@ static void* (*bpf_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
                 if (helper_indx >= 0) {                                                                   \
                     int *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
                     unsigned long add = 1; \
-                    bpf_patch((unsigned long)target, add); \
+                    /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); */ \
+                    bpf_telemetry_update_patch((unsigned long)target, add); \
                 }                                                                                         \
             }                                                                                             \
         }                                                                                                 \
     } while (0)
 
-#define MAP_UPDATE(map, key, val, flags) \
+#define bpf_map_update_with_telemetry(map, key, val, flags) \
     map_update_with_telemetry(bpf_map_update_elem, map, key, val, flags)
 
 #define PROBE_READ(dst, sz, src, errno_ret) \
@@ -99,7 +101,7 @@ static void* (*bpf_patch)(unsigned long,...) = (void*)PATCH_TARGET_TELEMETRY;
 #define PROBE_READ_STR(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_str, errno_ret, dst, sz, src)
 
-#define PROBE_READ_USER(dst, sz, src, errno_ret) \
+#define bpf_probe_read_user_with_telemetry(dst, sz, src, errno_ret) \
     helper_with_telemetry(bpf_probe_read_user, errno_ret, dst, sz, src)
 
 #define PROBE_READ_USER_STR(dst, sz, src, errno_ret) \

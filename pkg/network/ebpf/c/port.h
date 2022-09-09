@@ -6,7 +6,7 @@
         __u32 *port_count = bpf_map_lookup_elem(&pb_map, pb);       \
         if (!port_count) {                                          \
             __u32 tmpport = 0;                                      \
-            MAP_UPDATE(pb_map, pb, &tmpport, BPF_NOEXIST); \
+            bpf_map_update_with_telemetry(pb_map, pb, &tmpport, BPF_NOEXIST); \
             port_count = bpf_map_lookup_elem(&pb_map, pb);          \
         }                                                           \
         if (port_count) {                                           \

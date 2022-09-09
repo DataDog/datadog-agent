@@ -17,10 +17,10 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     conn_stats_ts_t empty = {};
     __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
-    //if (MAP_UPDATE(conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
+    //if (bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
     //    increment_telemetry_count(conn_stats_max_entries_hit);
     //}
-    MAP_UPDATE(conn_stats, t, &empty, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
 
@@ -101,7 +101,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 
     // initialize-if-no-exist the connetion state, and load it
     tcp_stats_t empty = {};
-    MAP_UPDATE(tcp_stats, t, &empty, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST);
 
     tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     t->pid = pid;

@@ -131,7 +131,7 @@ int uretprobe__BIO_new_socket(struct pt_regs *ctx) {
         goto cleanup;
     }
     u32 fd = *socket_fd; // copy map value into stack (required by older Kernels)
-    MAP_UPDATE(fd_by_ssl_bio, &bio, &fd, BPF_ANY);
+    bpf_map_update_with_telemetry(fd_by_ssl_bio, &bio, &fd, BPF_ANY);
 cleanup:
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
     return 0;
@@ -245,7 +245,7 @@ SEC("uprobe/gnutls_handshake")
 int uprobe__gnutls_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-    MAP_UPDATE(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -314,7 +314,7 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
-    MAP_UPDATE(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -427,7 +427,7 @@ static __always_inline int do_sys_open_helper_enter(struct pt_regs *ctx) {
     int errno;
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = { 0 };
-    PROBE_READ_USER(path.buf, sizeof(path.buf), path_argument, errno);
+    bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), path_argument, errno);
     if (errno >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
@@ -449,7 +449,7 @@ static __always_inline int do_sys_open_helper_enter(struct pt_regs *ctx) {
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     path.pid = pid_tgid >> 32;
-    MAP_UPDATE(open_at_args, &pid_tgid, &path, BPF_ANY);
+    bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     return 0;
 }
 
