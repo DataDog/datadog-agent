@@ -50,6 +50,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
+	opts.EnableNoAggregationPipeline = false
 	demux := initAgentDemultiplexer(opts, "")
 
 	batch := testDemuxSamples(t)
@@ -92,10 +93,10 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	}
 }
 
-func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
+func TestDemuxNoAggOptionIsEnabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
 	demux := InitAndStartAgentDemultiplexer(opts, "")
-	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
+	require.True(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be enabled by default")
 	demux.Stop(false)
 }
 
