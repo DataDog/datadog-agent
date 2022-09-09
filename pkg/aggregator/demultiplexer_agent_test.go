@@ -9,6 +9,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,14 +29,14 @@ func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 		metrics.MetricSample{
 			Name:      "second",
 			Value:     20,
-			Mtype:     metrics.CountType,
+			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
 			Tags:      []string{"tag:3", "tag:4"},
 		},
 		metrics.MetricSample{
 			Name:      "third",
 			Value:     60,
-			Mtype:     metrics.CountType,
+			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
 			Tags:      []string{"tag:5"},
 		},
@@ -96,4 +97,36 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	demux := InitAndStartAgentDemultiplexer(opts, "")
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
 	demux.Stop(false)
+}
+
+func TestMetricSampleTypeConversion(t *testing.T) {
+	require := require.New(t)
+
+	tests := []struct {
+		metricType    metrics.MetricType
+		apiMetricType metrics.APIMetricType
+		supported     bool
+	}{
+		{metrics.GaugeType, metrics.APIGaugeType, true},
+		{metrics.CounterType, metrics.APICountType, true},
+		{metrics.RateType, metrics.APIRateType, true},
+		{metrics.MonotonicCountType, metrics.APIGaugeType, false},
+		{metrics.CountType, metrics.APIGaugeType, false},
+		{metrics.HistogramType, metrics.APIGaugeType, false},
+		{metrics.HistorateType, metrics.APIGaugeType, false},
+		{metrics.SetType, metrics.APIGaugeType, false},
+		{metrics.DistributionType, metrics.APIGaugeType, false},
+	}
+
+	for _, test := range tests {
+		ms := metrics.MetricSample{Mtype: test.metricType}
+		rv, supported := metricSampleAPIType(ms)
+
+		if test.supported {
+			require.True(supported, fmt.Sprintf("Metric type %s should be supported", test.metricType.String()))
+		} else {
+			require.False(supported, fmt.Sprintf("Metric type %s should be not supported", test.metricType.String()))
+		}
+		require.Equal(test.apiMetricType, rv, fmt.Sprintf("Wrong conversion for %s", test.metricType.String()))
+	}
 }

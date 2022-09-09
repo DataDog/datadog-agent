@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -38,7 +37,6 @@ const (
 	// to inspect plain HTTP traffic
 	httpSocketFilterStub = "socket/http_filter_entry"
 	httpSocketFilter     = "socket/http_filter"
-	HTTP_PROG            = 0
 	httpProgsMap         = "http_progs"
 
 	// maxActive configures the maximum number of instances of the
@@ -51,8 +49,6 @@ const (
 	batchNotificationsChanSize = 100
 
 	probeUID = "http"
-
-	maxRequestLinger = 30 * time.Second
 )
 
 type ebpfProgram struct {
@@ -74,10 +70,10 @@ type subprogram interface {
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
-	var bytecode bytecode.AssetReader
+	var bc bytecode.AssetReader
 	var err error
 	if enableRuntimeCompilation(c) {
-		bytecode, err = getRuntimeCompiledHTTP(c)
+		bc, err = getRuntimeCompiledHTTP(c)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
 				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
@@ -86,8 +82,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		}
 	}
 
-	if bytecode == nil {
-		bytecode, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+	if bc == nil {
+		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
 		if err != nil {
 			return nil, fmt.Errorf("could not read bpf module: %s", err)
 		}
@@ -148,7 +144,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                mgr,
-		bytecode:               bytecode,
+		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
@@ -191,7 +187,7 @@ func (e *ebpfProgram) Init() error {
 		TailCallRouter: []manager.TailCallRoute{
 			{
 				ProgArrayName: httpProgsMap,
-				Key:           HTTP_PROG,
+				Key:           httpProg,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
@@ -276,11 +272,11 @@ func (e *ebpfProgram) setupMapCleaner() {
 			return false
 		}
 
-		if updated := int64(httpTX.response_last_seen); updated > 0 {
+		if updated := int64(httpTX.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTX.request_started)
+		started := int64(httpTX.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 

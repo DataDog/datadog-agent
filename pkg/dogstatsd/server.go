@@ -157,7 +157,7 @@ type Server struct {
 	// disableVerboseLogs is a feature flag to disable the logs capable
 	// of flooding the logger output (e.g. parsing messages error).
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
-	// package (pkg/trace/logutils) for a possible throttler implemetation.
+	// package (pkg/trace/log/throttled.go) for a possible throttler implementation.
 	disableVerboseLogs bool
 
 	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
