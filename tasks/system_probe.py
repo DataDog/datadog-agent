@@ -836,7 +836,7 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
 ):
-    check_for_ninja(ctx)
+    check_for(ctx, "ninja")
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
     explain_opt = "-d explain" if explain else ""
