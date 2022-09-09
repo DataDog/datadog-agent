@@ -1,4 +1,8 @@
 ---
+.entrypoint_workaround:
+  - source /root/.bashrc
+  - eval "$(gimme)"
+
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/bin
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
@@ -60,6 +64,7 @@ tests_ebpf_x64:
   variables:
     ARCH: amd64
   before_script:
+    - !reference [.entrypoint_workaround]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
@@ -80,6 +85,7 @@ tests_ebpf_arm64:
   variables:
     ARCH: arm64
   before_script:
+    - !reference [.entrypoint_workaround]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
