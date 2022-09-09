@@ -116,6 +116,9 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     debugdef = "-DDEBUG=1" if debug else ""
     security_flags = f"-I{security_agent_c_dir} {debugdef}"
 
+    outfiles = []
+
+    # basic
     infile = os.path.join(security_agent_prebuilt_dir, "probe.c")
     outfile = os.path.join(build_dir, "runtime-security.o")
     ninja_ebpf_program(
@@ -127,25 +130,36 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
             "kheaders": kheaders,
         },
     )
+    outfiles.append(outfile)
+
+    # syscall wrapper
     root, ext = os.path.splitext(outfile)
+    syscall_wrapper_outfile = f"{root}-syscall-wrapper{ext}"
     ninja_ebpf_program(
         nw,
         infile=infile,
-        outfile=f"{root}-syscall-wrapper{ext}",
+        outfile=syscall_wrapper_outfile,
         variables={
             "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
             "kheaders": kheaders,
         },
     )
+    outfiles.append(syscall_wrapper_outfile)
+
+    # offset guesser
+    offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
     ninja_ebpf_program(
         nw,
         infile=os.path.join(security_agent_prebuilt_dir, "offset-guesser.c"),
-        outfile=os.path.join(build_dir, "runtime-security-offset-guesser.o"),
+        outfile=offset_guesser_outfile,
         variables={
             "flags": security_flags,
             "kheaders": kheaders,
         },
     )
+    outfiles.append(offset_guesser_outfile)
+
+    nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
 def ninja_network_ebpf_program(nw, infile, outfile, flags):
@@ -183,6 +197,7 @@ def ninja_runtime_compilation_files(nw):
     nw.rule(name="headerincl", command="go generate -mod=mod -tags linux_bpf $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
+    rc_outputs = []
     for in_path, out_filename in runtime_compiler_files.items():
         c_file = os.path.join(rc_dir, f"{out_filename}.c")
         hash_file = os.path.join(hash_dir, f"{out_filename}.go")
@@ -192,6 +207,8 @@ def ninja_runtime_compilation_files(nw):
             implicit_outputs=[hash_file],
             rule="headerincl",
         )
+        rc_outputs.extend([c_file, hash_file])
+    nw.build(rule="phony", inputs=rc_outputs, outputs=["runtime-compilation"])
 
 
 def ninja_cgo_type_files(nw, windows):
@@ -807,6 +824,28 @@ def ebpf_check_source_file(ctx, parallel_build, src_file):
     return ctx.run(CHECK_SOURCE_CMD.format(src_file=src_file), echo=False, asynchronous=parallel_build)
 
 
+def run_ninja(
+    ctx,
+    task="",
+    target="",
+    explain=False,
+    windows=is_windows,
+    major_version='7',
+    arch=CURRENT_ARCH,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
+):
+    check_for_ninja(ctx)
+    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
+    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
+    explain_opt = "-d explain" if explain else ""
+    if task:
+        ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
+    else:
+        ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
+
+
 def build_object_files(
     ctx,
     windows=is_windows,
@@ -816,7 +855,6 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
 ):
-    check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
     if not windows:
@@ -831,15 +869,36 @@ def build_object_files(
         check_for_inline(ctx)
         ctx.run(f"mkdir -p {build_dir}/runtime")
 
-    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
-    ctx.run(f"ninja -d explain -f {nf_path}")
+    run_ninja(
+        ctx,
+        explain=True,
+        windows=windows,
+        major_version=major_version,
+        arch=arch,
+        kernel_release=kernel_release,
+        debug=debug,
+        strip_object_files=strip_object_files,
+    )
 
     if not windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
+
+
+def build_cws_object_files(
+    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
+):
+    run_ninja(
+        ctx,
+        target="cws",
+        major_version=major_version,
+        arch=arch,
+        debug=debug,
+        strip_object_files=strip_object_files,
+        kernel_release=kernel_release,
+    )
 
 
 @task
@@ -850,22 +909,21 @@ def object_files(ctx, kernel_release=None):
 def clean_object_files(
     ctx, windows, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
 ):
-    check_for_ninja(ctx)
-    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
-
-    ctx.run(f"ninja -f {nf_path} -t clean")
+    run_ninja(
+        ctx,
+        task="clean",
+        windows=windows,
+        major_version=major_version,
+        arch=arch,
+        debug=debug,
+        strip_object_files=strip_object_files,
+        kernel_release=kernel_release,
+    )
 
 
 # deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
 def generate_runtime_files(ctx):
-    check_for_ninja(ctx)
-    nf_path = os.path.join(ctx.cwd, 'runtime-only.ninja')
-    with open(nf_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file, width=120)
-        ninja_runtime_compilation_files(nw)
-
-    ctx.run(f"ninja -f {nf_path}")
+    run_ninja(ctx, explain=True, target="runtime-compilation")
 
 
 @task
