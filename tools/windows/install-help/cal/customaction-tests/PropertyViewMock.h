@@ -4,7 +4,7 @@
 
 #include <PropertyView.h>
 
-class TestPropertyView : public PropertyView
+class TestPropertyView : public StaticPropertyView
 {
   public:
     TestPropertyView::TestPropertyView(std::wstring &data)

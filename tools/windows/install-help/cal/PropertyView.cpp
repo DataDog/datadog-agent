@@ -24,12 +24,12 @@ void parseKeyValueString(const std::wstring kvstring, std::map<std::wstring, std
     }
 }
 
-bool PropertyView::present(const std::wstring &key) const
+bool StaticPropertyView::present(const std::wstring &key) const
 {
     return this->values.count(key) != 0 ? true : false;
 }
 
-bool PropertyView::value(const std::wstring &key, std::wstring &val) const
+bool StaticPropertyView::value(const std::wstring &key, std::wstring &val) const
 {
     const auto kvp = values.find(key);
     if (kvp == values.end())
@@ -45,24 +45,29 @@ CAPropertyView::CAPropertyView(MSIHANDLE hi)
 {
 }
 
+bool ImmediateCAPropertyView::present(const std::wstring &key) const
+{
+    std::wstring val;
+    return this->value(key, val);
+}
+
+bool ImmediateCAPropertyView::value(const std::wstring &key, std::wstring &val) const
+{
+    std::wstring propertyValue;
+    if (loadPropertyString(this->_hInstall, key.c_str(), propertyValue))
+    {
+        if (!propertyValue.empty())
+        {
+            val = propertyValue;
+            return true;
+        }
+    }
+    return false;
+}
+
 ImmediateCAPropertyView::ImmediateCAPropertyView(MSIHANDLE hi)
     : CAPropertyView(hi)
 {
-    std::wstring propertyNames[] = {
-        propertyDDAgentUserName, propertyDDAgentUserPassword, L"SYSPROBE_PRESENT", L"NPM", L"NPMFEATURE",
-    };
-
-    for (auto propertyName : propertyNames)
-    {
-        std::wstring propertyValue;
-        if (loadPropertyString(this->_hInstall, propertyName.c_str(), propertyValue))
-        {
-            if (!propertyValue.empty())
-            {
-                this->values[propertyName] = propertyValue;
-            }
-        }
-    }
 }
 
 DeferredCAPropertyView::DeferredCAPropertyView(MSIHANDLE hi)

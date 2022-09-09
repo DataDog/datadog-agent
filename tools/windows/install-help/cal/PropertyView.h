@@ -16,7 +16,11 @@ class IPropertyView
     virtual ~IPropertyView() { }
 };
 
-class PropertyView : public IPropertyView
+/*
+ * Used by classes that must load values once at init time
+ * and store them into the @values attribute for later access.
+ */
+class StaticPropertyView : public IPropertyView
 {
   public:
     bool present(const std::wstring &key) const override;
@@ -24,10 +28,10 @@ class PropertyView : public IPropertyView
 
   protected:
     std::map<std::wstring, std::wstring> values;
-    virtual ~PropertyView() { }
+    virtual ~StaticPropertyView() { }
 };
 
-class CAPropertyView : public PropertyView
+class CAPropertyView
 {
   public:
     CAPropertyView(MSIHANDLE hInstall);
@@ -36,13 +40,15 @@ class CAPropertyView : public PropertyView
     virtual ~CAPropertyView() { }
 };
 
-class ImmediateCAPropertyView : public CAPropertyView
+class ImmediateCAPropertyView : public CAPropertyView, public IPropertyView
 {
   public:
     ImmediateCAPropertyView(MSIHANDLE hInstall);
+    bool present(const std::wstring &key) const override;
+    bool value(const std::wstring &key, std::wstring &val) const override;
 };
 
-class DeferredCAPropertyView : public CAPropertyView
+class DeferredCAPropertyView : public CAPropertyView, public StaticPropertyView
 {
   public:
     DeferredCAPropertyView(MSIHANDLE hInstall);
