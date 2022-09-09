@@ -109,8 +109,8 @@ func ChildrenMap(t pb.Trace) map[uint64][]*pb.Span {
 //
 // A span is considered top-level if:
 // - it's a root span
-// - its parent is unknown (other part of the code, distributed trace)
-// - its parent belongs to another service (in that case it's a "local root"
+// - OR its parent is unknown (other part of the code, distributed trace)
+// - OR its parent belongs to another service (in that case it's a "local root"
 //   being the highest ancestor of other spans belonging to this service and
 //   attached to it).
 func ComputeTopLevel(t pb.Trace) {
