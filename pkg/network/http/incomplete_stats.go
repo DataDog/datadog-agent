@@ -150,10 +150,11 @@ func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
 
 type byRequestTime []httpTX
 
-func (rt byRequestTime) Len() int           { return len(rt) }
-func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
-func (rt byRequestTime) Less(i, j int) bool { return rt[i].RequestStarted() < rt[j].RequestStarted() }
-func (rt byRequestTime) Less(i, j int) bool { return rt[i].Request_started < rt[j].Request_started }
+func (rt byRequestTime) Len() int      { return len(rt) }
+func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
+func (rt byRequestTime) Less(i, j int) bool {
+	return rt[i].RequestStarted() < rt[j].RequestStarted()
+}
 
 type byResponseTime []httpTX
 

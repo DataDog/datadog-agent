@@ -15,7 +15,7 @@ type httpConnTuple struct {
 	Metadata uint32
 }
 type httpBatchState struct {
-	Scratch_tx    httpTX
+	Scratch_tx    ebpfHttpTx
 	Idx           uint64
 	Pos           uint8
 	Idx_to_notify uint64
@@ -30,7 +30,7 @@ type sslReadArgs struct {
 	Buf *byte
 }
 
-type httpTX struct {
+type ebpfHttpTx struct {
 	Tup                  httpConnTuple
 	Request_started      uint64
 	Request_method       uint8
@@ -48,7 +48,7 @@ type httpNotification struct {
 type httpBatch struct {
 	Idx uint64
 	Pos uint8
-	Txs [15]httpTX
+	Txs [15]ebpfHttpTx
 }
 type httpBatchKey struct {
 	Cpu uint32

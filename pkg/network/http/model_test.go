@@ -50,7 +50,7 @@ func TestFullPath(t *testing.T) {
 	prefix := "GET /"
 	rep := strings.Repeat("a", HTTPBufferSize-len(prefix)-1)
 	str := prefix + rep + " "
-	tx := httpTX{
+	tx := ebpfHttpTx{
 		Request_fragment: requestFragment(
 			[]byte(str),
 		),
@@ -102,13 +102,4 @@ func BenchmarkPath(b *testing.B) {
 		_, _ = tx.Path(buf)
 	}
 	runtime.KeepAlive(buf)
-}
-
-func requestFragment(fragment []byte) [HTTPBufferSize]byte {
-	if len(fragment) >= HTTPBufferSize {
-		return *(*[HTTPBufferSize]byte)(fragment)
-	}
-	var b [HTTPBufferSize]byte
-	copy(b[:], fragment)
-	return b
 }

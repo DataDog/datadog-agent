@@ -59,7 +59,6 @@ func TestOrphanEntries(t *testing.T) {
 		request := &ebpfHttpTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
->>>>>>> main
 		}
 		buffer.Add(request)
 		_ = buffer.Flush(now)
