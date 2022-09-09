@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"expvar"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -54,12 +55,23 @@ var noAggWorkerStreamCheckFrequency = time.Second * 2
 
 // Telemetry vars
 var (
+	noaggExpvars                               = expvar.NewMap("no_aggregation")
+	expvarNoAggSamplesProcessedOk              = expvar.Int{}
+	expvarNoAggSamplesProcessedUnsupportedType = expvar.Int{}
+	expvarNoAggFlush                           = expvar.Int{}
+
 	tlmNoAggSamplesProcessed                = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
 	tlmNoAggSamplesProcessedOk              = tlmNoAggSamplesProcessed.WithValues("ok")
 	tlmNoAggSamplesProcessedUnsupportedType = tlmNoAggSamplesProcessed.WithValues("unsupported_type")
 
 	tlmNoAggFlush = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
 )
+
+func init() {
+	noaggExpvars.Set("ProcessedOk", &expvarNoAggSamplesProcessedOk)
+	noaggExpvars.Set("ProcessedUnsupportedType", &expvarNoAggSamplesProcessedUnsupportedType)
+	noaggExpvars.Set("Flush", &expvarNoAggFlush)
+}
 
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
@@ -76,9 +88,9 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serialize
 		stopChan:    make(chan trigger),
 		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog.GetInt("dogstatsd_queue_size")),
 
-		// warning for the unsupported metric types should appear maximum 1000 times
-		// every 2 minutes.
-		logThrottling: util.NewSimpleThrottler(1000, 2*time.Minute, "Pausing the unsupported metric type warning message for 2m"),
+		// warning for the unsupported metric types should appear maximum 200 times
+		// every 5 minutes.
+		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
 	}
 }
 
@@ -154,14 +166,15 @@ func (w *noAggregationStreamWorker) run() {
 						if serializedSamples > 0 && lastStream.Before(n.Add(-time.Second*1)) {
 							log.Debug("noAggregationStreamWorker: triggering an automatic payloads flush to the forwarder (no traffic since 1s)")
 							tlmNoAggFlush.Add(1)
+							expvarNoAggFlush.Add(1)
 							break mainloop // end `Serialize` call and trigger a flush to the forwarder
 						}
 
 					// receiving samples
 					case samples := <-w.samplesChan:
 						log.Debugf("Streaming %d metrics from the no-aggregation pipeline", len(samples))
-						var countProcessed int
-						var countUnsupportedType int
+						countProcessed := 0
+						countUnsupportedType := 0
 
 						for _, sample := range samples {
 							mtype, supported := metricSampleAPIType(sample)
@@ -199,7 +212,9 @@ func (w *noAggregationStreamWorker) run() {
 						serializedSamples += countProcessed
 
 						tlmNoAggSamplesProcessedOk.Add(float64(countProcessed))
+						expvarNoAggSamplesProcessedOk.Add(int64(countProcessed))
 						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
+						expvarNoAggSamplesProcessedUnsupportedType.Add(int64(countUnsupportedType))
 
 						if serializedSamples > w.maxMetricsPerPayload {
 							tlmNoAggFlush.Add(1)
