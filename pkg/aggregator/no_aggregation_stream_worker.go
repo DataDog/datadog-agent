@@ -132,8 +132,6 @@ func (w *noAggregationStreamWorker) stop(wait bool) {
 // This is not ideal since the serializer should automatically takes the decision when to flush payloads to
 // the serializer but that's not how it works today, see noAggregationStreamWorker comment.
 func (w *noAggregationStreamWorker) run() {
-	log.Debugf("Starting streaming routine for the no-aggregation pipeline")
-
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
 	logPayloads := config.Datadog.GetBool("log_payloads")
