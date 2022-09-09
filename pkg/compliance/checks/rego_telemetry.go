@@ -80,9 +80,9 @@ func (h *regoHistogram) Value() interface{} {
 	return h.regoHistogram.Value()
 }
 
-func (c *regoHistogram) Update(n int64) {
-	c.regoHistogram.Update(n)
-	c.ddHistogram.Observe(float64(n))
+func (h *regoHistogram) Update(n int64) {
+	h.regoHistogram.Update(n)
+	h.ddHistogram.Observe(float64(n))
 }
 
 type regoTimer struct {

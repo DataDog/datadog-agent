@@ -27,7 +27,7 @@ type regoMetricsCounter struct {
 
 func (c *regoMetricsCounter) Incr() {
 	c.regoCounter.Incr()
-	c.client.Incr(c.name, nil, 1)
+	_ = c.client.Incr(c.name, nil, 1)
 }
 
 func (c *regoMetricsCounter) Value() interface{} {
@@ -36,7 +36,7 @@ func (c *regoMetricsCounter) Value() interface{} {
 
 func (c *regoMetricsCounter) Add(n uint64) {
 	c.regoCounter.Add(n)
-	c.client.Count(c.name, cast.ToInt64(c.Value())+int64(n), nil, 1)
+	_ = c.client.Count(c.name, cast.ToInt64(c.Value())+int64(n), nil, 1)
 }
 
 type regoMetricsHistogram struct {
@@ -48,9 +48,9 @@ func (h *regoMetricsHistogram) Value() interface{} {
 	return h.regoHistogram.Value()
 }
 
-func (c *regoMetricsHistogram) Update(n int64) {
-	c.regoHistogram.Update(n)
-	c.client.Histogram(c.name, float64(n), nil, 1)
+func (h *regoMetricsHistogram) Update(n int64) {
+	h.regoHistogram.Update(n)
+	_ = h.client.Histogram(h.name, float64(n), nil, 1)
 }
 
 type regoMetricsTimer struct {
@@ -72,7 +72,7 @@ func (t *regoMetricsTimer) Start() {
 
 func (t *regoMetricsTimer) Stop() int64 {
 	delta := t.regoTimer.Stop()
-	t.client.Histogram(t.name, float64(delta), nil, 1)
+	_ = t.client.Histogram(t.name, float64(delta), nil, 1)
 	return delta
 }
 
