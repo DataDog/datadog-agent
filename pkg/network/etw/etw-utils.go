@@ -11,14 +11,15 @@ package etw
 import (
 	"bytes"
 	"fmt"
+	"net/netip"
 	"reflect"
 	"strconv"
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"golang.org/x/sys/windows"
-	"inet.af/netaddr"
+
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 /*
@@ -291,12 +292,12 @@ func skipAsciiString(data []byte, offset int) (nextOffset int, valFound bool, fo
 }
 
 func ip4format(ip [16]uint8) string {
-	ipObj := netaddr.IPFrom4(*(*[4]byte)(ip[:4]))
+	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
 	return ipObj.String()
 }
 
 func ip6format(ip [16]uint8) string {
-	ipObj := netaddr.IPFrom16(ip)
+	ipObj := netip.AddrFrom16(ip)
 	return ipObj.String()
 }
 
