@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace CustomActions.Native
+namespace Datadog.CustomActions.Native
 {
     public static class NativeMethods
     {

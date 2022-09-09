@@ -1,14 +1,9 @@
 using System;
-using System.DirectoryServices;
 using System.Security.Cryptography;
-using System.Security.Principal;
-using System.Text;
-using System.Windows.Forms;
-using CustomActions.Extensions;
-using CustomActions.Native;
+using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 
-namespace CustomActions
+namespace Datadog.CustomActions
 {
     public class UserCustomActions
     {

@@ -1,6 +1,6 @@
 using Microsoft.Deployment.WindowsInstaller;
 
-namespace CustomActions.Extensions
+namespace Datadog.CustomActions.WixSharp
 {
     public static class SessionExtensions
     {

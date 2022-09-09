@@ -7,7 +7,7 @@
     <ProjectGuid>{461CE844-4B07-47BA-B2D2-5415ABD36792}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CustomActions</RootNamespace>
+    <RootNamespace>Datadog.CustomActions</RootNamespace>
     <AssemblyName>CustomActions</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -37,26 +37,38 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ConfigUserActions.cs" />
-    <Compile Include="Extensions\SessionExtensions.cs" />
+    <Compile Include="dialogs\ApiKeyDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="WixSharp\WixCLRDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="WixSharp\SessionExtensions.cs" />
+    <Compile Include="WixSharp\Win32.cs" />
     <Compile Include="UserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Extensions\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="dialogs\ApiKeyDialog.resx">
+      <DependentUpon>ApiKeyDialog.cs</DependentUpon>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Deployment.WindowsInstaller, Version=3.0.0.0, Culture=neutral, PublicKeyToken=ce35f76fcda82bad, processorArchitecture=MSIL" />
     <Reference Include="System" />
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.ServiceProcess" />
     <Reference Include="System.Windows.Forms" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="YamlDotNet">
-      <Version>12.0.0</Version>
-    </PackageReference>
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
