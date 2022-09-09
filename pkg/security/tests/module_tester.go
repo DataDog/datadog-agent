@@ -90,6 +90,7 @@ runtime_security_config:
     syscall_monitor:
       enabled: true
     enabled: true
+    rate_limiter: {{ .ActivityDumpRateLimiter }}
 {{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
@@ -171,6 +172,7 @@ type testOpts struct {
 	disableFilters              bool
 	disableApprovers            bool
 	enableActivityDump          bool
+	activityDumpRateLimiter     int
 	disableDiscarders           bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
@@ -192,6 +194,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 	return to.testDir == opts.testDir &&
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
+		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -601,6 +604,10 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		opts.eventsCountThreshold = 100000000
 	}
 
+	if opts.activityDumpRateLimiter == 0 {
+		opts.activityDumpRateLimiter = 100
+	}
+
 	erpcDentryResolutionEnabled := true
 	if opts.disableERPCDentryResolution {
 		erpcDentryResolutionEnabled = false
@@ -616,6 +623,7 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"TestPoliciesDir":             dir,
 		"DisableApprovers":            opts.disableApprovers,
 		"EnableActivityDump":          opts.enableActivityDump,
+		"ActivityDumpRateLimiter":     opts.activityDumpRateLimiter,
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
