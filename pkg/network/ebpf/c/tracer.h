@@ -72,6 +72,11 @@ typedef struct {
 } conn_tuple_t;
 
 typedef struct {
+    conn_tuple_t ct;
+    conn_direction_t dir;
+} failed_conn_stats_t;
+
+typedef struct {
     __u32 retransmits;
     __u32 rtt;
     __u32 rtt_var;

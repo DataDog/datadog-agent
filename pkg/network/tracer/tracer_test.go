@@ -547,16 +547,11 @@ func TestTCPConnsReported(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestTCPFailedConnsReported(t *testing.T) {
+func testTCPFailedConnsTimeout(t *testing.T) {
+	tr := setupTCPTracer(t)
+
 	destIP := util.AddressFromString("127.0.0.1")
 	const DestPort = 8500
-
-	config := testConfig()
-	config.CollectTCPConns = true
-
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	defer tr.Stop()
 
 	cmd := fmt.Sprintf("iptables -A OUTPUT -p tcp -d %v --dport %v -j DROP", destIP, DestPort)
 	nettestutil.RunCommand(cmd)
@@ -575,8 +570,11 @@ func TestTCPFailedConnsReported(t *testing.T) {
 	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: DestPort, Addr: destIP.As4()})
 	require.ErrorIs(t, err, syscall.ETIMEDOUT) // Check it timedout
 
-	_, srcPort := getAddrInfo(t, sock)
+	_, srcPort := getAddrInfo4(t, sock)
 	ns, _ := util.GetCurrentIno()
+
+	// Wait for the connection to be reported
+	time.Sleep(1 * time.Second)
 
 	// Test
 	initTracerState(t, tr)
@@ -590,9 +588,37 @@ func TestTCPFailedConnsReported(t *testing.T) {
 		DPort:        DestPort,
 		Pid:          uint32(os.Getpid()),
 		NetNS:        ns,
+		Direction:    network.OUTGOING,
 		FailureCount: 1,
 	})
 }
+func testTCPFailedConnsClosedDest(t *testing.T) {
+	const sourceIP = "2.2.2.3"
+	const destIP = "2.2.2.4"
+	const destPort = 8000
+	var destAddr = destIP + ":" + fmt.Sprint(destPort)
+
+	tr := setupTCPTracer(t)
+
+	nsName := netlinktestutil.SetupVethPair(t)
+	_, err := netns.GetFromName(nsName)
+	require.NoError(t, err)
+	_, err = net.DialTimeout("tcp", destAddr, 2*time.Second)
+	require.Error(t, err)
+
+	// Wait for the connection to be reported
+	time.Sleep(1 * time.Second)
+
+	initTracerState(t, tr)
+	connections := getConnections(t, tr)
+	// ns, _ := util.GetCurrentIno()
+
+	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
+}
+
+func TestTCPFailedConnsReporting(t *testing.T) {
+	t.Run("Client - Timeout", testTCPFailedConnsTimeout)
+	t.Run("Client - Closed dest port", testTCPFailedConnsClosedDest)
 
 func TestUDPSendAndReceive(t *testing.T) {
 	t.Run("v4", func(t *testing.T) {
@@ -1931,10 +1957,23 @@ func skipIfWindows(t *testing.T) {
 	}
 }
 
-func getAddrInfo(t *testing.T, sock int) (util.Address, uint16) {
+func getAddrInfo4(t *testing.T, sock int) (util.Address, uint16) {
 	sn, err := syscall.Getsockname(sock)
 	require.NoError(t, err)
 
 	local, _ := sn.(*syscall.SockaddrInet4)
 	return util.V4AddressFromBytes(local.Addr[:]), uint16(local.Port)
+}
+
+func setupTCPTracer(t *testing.T) *Tracer {
+	t.Helper()
+
+	config := testConfig()
+	config.CollectTCPConns = true
+
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	return tr
 }

@@ -146,7 +146,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
 SEC("kprobe/tcp_done")
 int kprobe__tcp_done(struct pt_regs *ctx) {
     struct sock *sk;
-    conn_tuple_t t = {};
+    failed_conn_stats_t stats = {};
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
     u64 *pid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
@@ -156,15 +156,15 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     u64 pid = *pid_p;
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
 
-    // Should actually delete something only if the connection never got established
-    if (!read_conn_tuple(&t, sk, pid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&stats.ct, sk, pid, CONN_TYPE_TCP)) {
         return 0;
     }
+    stats.dir = CONN_DIRECTION_OUTGOING;
 
     __u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &failed_conn_events, cpu, &t, sizeof(t));
+    bpf_perf_event_output(ctx, &failed_conn_events, cpu, &stats, sizeof(stats));
 
-    log_debug("kprobe/tcp_done failed conn: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+    log_debug("kprobe/tcp_done failed conn: netns: %u, sport: %u, dport: %u\n", stats.ct.netns, stats.ct.sport, stats.ct.dport);
     return 0;
 }
 

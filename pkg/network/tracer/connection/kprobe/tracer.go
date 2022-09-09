@@ -549,6 +549,7 @@ func getFailedConnStats(t *netebpf.ConnTuple, s *failedConnStats) *network.Faile
 
 		// We only report failed connections for TCP
 		Type:         network.TCP,
+		Direction:    network.ConnectionDirection(s.direction),
 		FailureCount: s.failureCount,
 	}
 

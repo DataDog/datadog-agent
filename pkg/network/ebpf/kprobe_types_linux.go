@@ -31,6 +31,11 @@ type ConnStats struct {
 	Sent_packets uint64
 	Recv_packets uint64
 }
+type FailedConnStats struct {
+	Ct        ConnTuple
+	Dir       uint32
+	Pad_cgo_0 [4]byte
+}
 type Conn struct {
 	Tup        ConnTuple
 	Conn_stats ConnStats
