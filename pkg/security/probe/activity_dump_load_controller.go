@@ -88,6 +88,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.probe.config.ActivityDumpTracedEventTypes,
 		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		lc.adm.probe.config.ActivityDumpRateLimiter,
 		time.Now(),
 		lc.adm.probe.resolvers.TimeResolver,
 	)

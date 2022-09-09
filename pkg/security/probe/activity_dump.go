@@ -53,8 +53,6 @@ const (
 	ProtobufVersion = "v1"
 	// ActivityDumpSource defines the source of activity dumps
 	ActivityDumpSource = "runtime-security-agent"
-	// DefaultFilesRateLimiter defines the default rate limiter of files events
-	DefaultFilesRateLimiter = 100
 )
 
 // ActivityDumpStatus defines the state of an activity dump
@@ -126,11 +124,11 @@ type ActivityDump struct {
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
-func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
+func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, rate int, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
-		Rate:             DefaultFilesRateLimiter,
+		Rate:             uint32(rate),
 	}
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))
@@ -186,6 +184,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		adm.probe.config.ActivityDumpTracedEventTypes,
 		adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		adm.probe.config.ActivityDumpRateLimiter,
 		ad.Start,
 		adm.probe.resolvers.TimeResolver,
 	)
@@ -236,6 +235,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		[]model.EventType{},
 		timeout,
+		0,
 		startTime,
 		nil,
 	)
