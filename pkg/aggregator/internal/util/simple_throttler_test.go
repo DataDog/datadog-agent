@@ -45,4 +45,14 @@ func TestSimpleThrottler(t *testing.T) {
 		clk.Add(time.Minute)
 		// it should now be reset
 	}
+
+	for i := 0; i < 5; i++ {
+		require.False(st.ShouldThrottle())
+		require.False(st.ShouldThrottle())
+		require.False(st.ShouldThrottle())
+		require.True(st.ShouldThrottle())
+		require.True(st.ShouldThrottle())
+		clk.Add(2 * time.Minute)
+		// it should now be reset
+	}
 }
