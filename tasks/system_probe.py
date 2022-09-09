@@ -896,6 +896,7 @@ def build_object_files(
 
     if not windows:
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
+        setup_runtime_clang(ctx)
         print("checking for clang executable...")
         ctx.run("which clang")
 
