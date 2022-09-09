@@ -242,7 +242,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpMaxDumpSize:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 20),
+		ActivityDumpMaxDumpSize:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 10),
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),

@@ -122,7 +122,6 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	newDump.DumpMetadata.Comm = ad.DumpMetadata.Comm
 	newDump.DumpMetadata.DifferentiateArgs = ad.DumpMetadata.DifferentiateArgs
 	newDump.Tags = ad.Tags
-	newDump.IsPartialDump = true
 
 	// copy storage requests
 	for _, reqList := range ad.StorageRequests {
@@ -140,7 +139,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	timeToThreshold := ad.End.Sub(ad.Start)
 
 	// set new load parameters
-	newDump.LoadConfig.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
+	newDump.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
 	newDump.LoadConfig.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.TracedEventTypes))
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
 	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
@@ -152,7 +151,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	}
 
 	if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Timeout > MinDumpTimeout {
-		if err := lc.reduceDumpTimeout(ad, newDump); err != nil {
+		if err := lc.reduceDumpTimeout(newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
@@ -205,12 +204,12 @@ reductionOrder:
 }
 
 // reduceDumpTimeout reduces the dump timeout configuration
-func (lc *ActivityDumpLoadController) reduceDumpTimeout(old, new *ActivityDump) error {
-	newTimeout := old.LoadConfig.Timeout * 3 / 4 // reduce by 25%
+func (lc *ActivityDumpLoadController) reduceDumpTimeout(new *ActivityDump) error {
+	newTimeout := new.LoadConfig.Timeout * 3 / 4 // reduce by 25%
 	if newTimeout < MinDumpTimeout {
 		newTimeout = MinDumpTimeout
 	}
-	new.LoadConfig.SetTimeout(newTimeout)
+	new.SetTimeout(newTimeout)
 
 	// send metric
 	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:dump_timeout"})

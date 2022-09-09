@@ -258,7 +258,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 		}
 	}
 
-	// enable the new to start collecting events from kernel space
+	// enable the new dump to start collecting events from kernel space
 	if err := newDump.enable(); err != nil {
 		return fmt.Errorf("couldn't insert new dump: %w", err)
 	}
@@ -272,8 +272,10 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	default:
 	}
 
-	// append activity dump to the list of active dumps
+	// set the AD state now so that we can start inserting new events
 	newDump.SetState(Running)
+
+	// append activity dump to the list of active dumps
 	adm.activeDumps = append(adm.activeDumps, newDump)
 	return nil
 }
@@ -329,7 +331,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.DumpMetadata.Comm = params.GetComm()
 		ad.DumpMetadata.DifferentiateArgs = params.GetDifferentiateArgs()
-		ad.LoadConfig.SetTimeout(time.Duration(params.Timeout) * time.Minute)
+		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
 	})
 
 	// add local storage requests
@@ -373,7 +375,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	toDelete := -1
 	for i, d := range adm.activeDumps {
 		if d.commMatches(params.GetComm()) {
-			d.Stop(false)
+			d.Stop(true)
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i
 
@@ -396,6 +398,11 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 	adm.Lock()
 	defer adm.Unlock()
+
+	// is this event sampled for activity dumps ?
+	if !event.IsActivityDumpSample {
+		return
+	}
 
 	for _, d := range adm.activeDumps {
 		d.Insert(event)
@@ -487,6 +494,9 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 		}
 
 		if _, err = event.ContainerContext.UnmarshalBinary(containerIDB[:]); err != nil {
+			seclog.Errorf("couldn't unmarshal container ID from traced_cgroups key: %v", err)
+			// remove invalid entry
+			_ = adm.tracedCgroupsMap.Delete(containerIDB)
 			continue
 		}
 
@@ -531,13 +541,6 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 	// handle overweight dumps
 	for _, ad := range dumps {
-		dumpSize := ad.ComputeInMemorySize()
-
-		// send dump size in memory metric
-		if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{}, 1); err != nil {
-			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
-		}
-
 		// stop the dump but do not release the cgroup
 		ad.Stop(false)
 		seclog.Infof("tracing paused for [%s]", ad.GetSelectorStr())
@@ -555,6 +558,11 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 			return
 		}
 		seclog.Infof("tracing resumed for [%s]", newDump.GetSelectorStr())
+
+		// remove old load config
+		if err := ad.removeLoadConfig(); err != nil {
+			seclog.Errorf("couldn't clean up old dump [%s]: %v", ad.GetSelectorStr(), err)
+		}
 	}
 }
 
@@ -566,7 +574,14 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 	var dumps []*ActivityDump
 	var toDelete []int
 	for i, ad := range adm.activeDumps {
-		if ad.ComputeInMemorySize() > adm.probe.config.ActivityDumpMaxDumpSize {
+		dumpSize := ad.ComputeInMemorySize()
+
+		// send dump size in memory metric
+		if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{fmt.Sprintf("dump_index:%d", i)}, 1); err != nil {
+			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
+		}
+
+		if dumpSize > int64(adm.probe.config.ActivityDumpMaxDumpSize) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 		}

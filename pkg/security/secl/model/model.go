@@ -151,6 +151,7 @@ type Event struct {
 	Type                 uint32    `field:"-"`
 	Async                bool      `field:"async" event:"*"` // True if the syscall was asynchronous
 	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
+	IsActivityDumpSample bool      `field:"-"`               // True if the event was sampled for the activity dumps
 	TimestampRaw         uint64    `field:"-" json:"-"`
 	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
@@ -866,6 +867,7 @@ type ActivityDumpLoadConfig struct {
 	StartTimestampRaw uint64
 	EndTimestampRaw   uint64
 	Rate              uint32 // max number of events per sec
+	Paused            uint32
 }
 
 // SetTimeout updates the timeout of an activity dump

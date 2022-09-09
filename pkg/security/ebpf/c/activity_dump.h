@@ -7,7 +7,7 @@ struct activity_dump_config {
     u64 start_timestamp;
     u64 end_timestamp;
     u32 events_rate;
-    u32 padding;
+    u32 paused;
 };
 
 struct activity_dump_rate_limiter_ctx {
@@ -94,6 +94,10 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
     u32 cookie_val = *cookie; // for older kernels
     struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
     if (config == NULL) {
+        return 0;
+    }
+
+    if (config->paused) {
         return 0;
     }
 
@@ -241,6 +245,12 @@ __attribute__((always_inline)) u32 should_trace_new_process_comm(void *ctx, u64 
         return 0;
     }
 
+    // is this cgroup paused ?
+    if (config->paused) {
+        // ignore for now, the userspace load controller will re-enable this dump soon
+        return 0;
+    }
+
     if (now > config->end_timestamp) {
         // remove expired dump
         bpf_map_delete_elem(&traced_comms, &comm[0]);
@@ -267,6 +277,12 @@ __attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u6
             if (config == NULL) {
                 // delete expired cgroup entry
                 bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
+                return 0;
+            }
+
+            // is this cgroup paused ?
+            if (config->paused) {
+                // ignore for now, the userspace load controller will re-enable this dump soon
                 return 0;
             }
 
@@ -310,10 +326,6 @@ __attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u6
     return 0;
 }
 
-#define ASSIGN_RETURN_IF_VAL_NULL(var, func) \
-    if (var) func; \
-    else var = func
-
 union container_id_comm_combo {
     char container_id[CONTAINER_ID_LEN];
     char comm[TASK_COMM_LEN];
@@ -328,7 +340,9 @@ __attribute__((always_inline)) u32 should_trace_new_process(void *ctx, u64 now, 
 
     bpf_probe_read(&buffer.comm, sizeof(buffer.comm), comm_p);
     // prioritize the cookie from the cgroup to the cookie from the comm
-    ASSIGN_RETURN_IF_VAL_NULL(cookie, should_trace_new_process_comm(ctx, now, pid, buffer.comm));
+    if (!cookie) {
+        cookie = should_trace_new_process_comm(ctx, now, pid, buffer.comm);
+    }
     return cookie;
 }
 
@@ -350,9 +364,15 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
         bpf_map_delete_elem(&traced_pids, &ppid);
         return;
     }
+
+    if (config->paused) {
+        // ignore for now, the userspace load controller will re-enable this dump soon
+        return;
+    }
+
     if (now > config->end_timestamp) {
         // delete expired entries
-        bpf_map_delete_elem(&traced_pids, &pid);
+        bpf_map_delete_elem(&traced_pids, &ppid);
         bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
         return;
     }
@@ -415,6 +435,11 @@ __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u
         config = lookup_or_delete_traced_pid(pid, now, NULL);
     }
     if (config == NULL) {
+        return NO_ACTIVITY_DUMP;
+    }
+
+    if (config->paused) {
+        // ignore for now, the userspace load controller will re-enable this dump soon
         return NO_ACTIVITY_DUMP;
     }
 

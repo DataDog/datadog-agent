@@ -239,7 +239,8 @@ struct kevent_t {
     u32 type;
     u8 async;
     u8 saved_by_ad;
-    u8 padding[2];
+    u8 is_activity_dump_sample;
+    u8 padding;
 };
 
 struct syscall_t {
@@ -656,7 +657,7 @@ static __attribute__((always_inline)) u64 get_enabled_events(void) {
 }
 
 static __attribute__((always_inline)) int mask_has_event(u64 mask, enum event_type event) {
-    return mask & (1 << (event - EVENT_FIRST_DISCARDER));
+    return (mask & (1 << (event - EVENT_FIRST_DISCARDER))) == (1 << (event - EVENT_FIRST_DISCARDER));
 }
 
 static __attribute__((always_inline)) int is_event_enabled(enum event_type event) {

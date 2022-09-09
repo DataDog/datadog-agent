@@ -82,6 +82,14 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
     }
 
+    // should we sample this event for activity dumps ?
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);
+    if (config) {
+        if (mask_has_event(config->event_mask, EVENT_DNS)) {
+            evt->event.is_activity_dump_sample = 1;
+        }
+    }
+
     return evt;
 }
 

@@ -64,6 +64,9 @@ const (
 	// Disabled means that the ActivityDump is ready to be in running state, but we're missing the kernel space filters
 	// to start retrieving events from kernel space
 	Disabled
+	// Paused means that the ActivityDump is ready to be in running state, but the kernel space filters have been configured
+	// to prevent from being sent over the perf map
+	Paused
 	// Running means that the ActivityDump is active
 	Running
 )
@@ -118,7 +121,6 @@ type ActivityDump struct {
 	DumpMetadata
 
 	// Load config
-	IsPartialDump    bool                          `json:"-"`
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
 	LoadConfigCookie uint32                        `json:"-"`
 }
@@ -165,6 +167,7 @@ type WithDumpOption func(ad *ActivityDump)
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := NewEmptyActivityDump()
+	now := time.Now()
 	ad.DumpMetadata = DumpMetadata{
 		AgentVersion:      version.AgentVersion,
 		AgentCommit:       version.Commit,
@@ -172,7 +175,8 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		LinuxDistribution: adm.probe.kernelVersion.OsRelease["PRETTY_NAME"],
 		Name:              fmt.Sprintf("activity-dump-%s", eval.RandString(10)),
 		ProtobufVersion:   ProtobufVersion,
-		Start:             time.Now(),
+		Start:             now,
+		End:               now.Add(adm.probe.config.ActivityDumpCgroupDumpTimeout),
 		Arch:              probes.RuntimeArch,
 	}
 	ad.Host = adm.hostname
@@ -185,7 +189,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		adm.probe.config.ActivityDumpTracedEventTypes,
 		adm.probe.config.ActivityDumpCgroupDumpTimeout,
 		adm.probe.config.ActivityDumpRateLimiter,
-		ad.Start,
+		now,
 		adm.probe.resolvers.TimeResolver,
 	)
 	ad.LoadConfigCookie = eval.NewCookie()
@@ -281,25 +285,26 @@ func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
 }
 
 func (ad *ActivityDump) checkInMemorySize() {
-	if ad.computeInMemorySize() < ad.adm.probe.config.ActivityDumpMaxDumpSize {
+	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize) {
 		return
 	}
 
-	// disable the dump so that we no longer retrieve events from kernel space, the serialization will be handled later
-	if err := ad.disable(); err != nil {
-		seclog.Errorf("couldn't disable dump: %v", err)
+	// pause the dump so that we no longer retrieve events from kernel space, the serialization will be handled later by
+	// the load controller
+	if err := ad.pause(); err != nil {
+		seclog.Errorf("couldn't pause dump: %v", err)
 	}
 }
 
 // ComputeInMemorySize returns the size of a dump in memory
-func (ad *ActivityDump) ComputeInMemorySize() int {
+func (ad *ActivityDump) ComputeInMemorySize() int64 {
 	ad.Lock()
 	defer ad.Unlock()
 	return ad.computeInMemorySize()
 }
 
 // computeInMemorySize thread unsafe version of ComputeInMemorySize
-func (ad *ActivityDump) computeInMemorySize() int {
+func (ad *ActivityDump) computeInMemorySize() int64 {
 	return ad.nodeStats.approximateSize()
 }
 
@@ -310,6 +315,14 @@ func (ad *ActivityDump) SetLoadConfig(cookie uint32, config model.ActivityDumpLo
 
 	// Update metadata
 	ad.DumpMetadata.Start = ad.adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
+	ad.DumpMetadata.End = ad.adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+}
+
+// SetTimeout updates the activity dump timeout
+func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
+	ad.LoadConfig.SetTimeout(timeout)
+
+	// Update metadata
 	ad.DumpMetadata.End = ad.adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
@@ -354,7 +367,7 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 	return true
 }
 
-// enable (thread unsafe) assuming the current dump is properly initialized, Enable pushes kernel space filters so that events can start
+// enable (thread unsafe) assuming the current dump is properly initialized, "enable" pushes kernel space filters so that events can start
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
 	// insert load config now (it might already exist, do not update in that case)
@@ -390,12 +403,43 @@ func (ad *ActivityDump) enable() error {
 	return nil
 }
 
-// disable (thread unsafe) assuming the current dump is running, Disable removes kernel space filters so that events are no longer sent
-// from kernel space
-func (ad *ActivityDump) disable() error {
-	if ad.state <= Disabled {
+// pause (thread unsafe) assuming the current dump is running, "pause" sets the kernel space filters of the dump so that
+// events are ignored in kernel space, and not sent to user space.
+func (ad *ActivityDump) pause() error {
+	if ad.state > Paused {
 		// nothing to do
 		return nil
+	}
+	ad.state = Paused
+
+	ad.LoadConfig.Paused = 1
+	if err := ad.adm.activityDumpsConfigMap.Put(ad.LoadConfigCookie, ad.LoadConfig); err != nil {
+		return fmt.Errorf("failed to pause activity dump [%s]: %w", ad.getSelectorStr(), err)
+	}
+
+	return nil
+}
+
+// removeLoadConfig (thread unsafe) removes the load config of a dump
+func (ad *ActivityDump) removeLoadConfig() error {
+	if err := ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		return fmt.Errorf("couldn't delete activity dump load config for dump [%s]: %w", ad.getSelectorStr(), err)
+	}
+	return nil
+}
+
+// disable (thread unsafe) assuming the current dump is running, "disable" removes kernel space filters so that events are no longer sent
+// from kernel space
+func (ad *ActivityDump) disable() error {
+	if ad.state > Disabled {
+		// nothing to do
+		return nil
+	}
+	ad.state = Disabled
+
+	// remove activity dump config
+	if err := ad.removeLoadConfig(); err != nil {
+		return err
 	}
 
 	// remove comm from kernel space
@@ -403,7 +447,7 @@ func (ad *ActivityDump) disable() error {
 		commB := make([]byte, 16)
 		copy(commB, ad.DumpMetadata.Comm)
 		err := ad.adm.tracedCommsMap.Delete(commB)
-		if err != nil {
+		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			return fmt.Errorf("couldn't delete activity dump filter comm(%s): %v", ad.DumpMetadata.Comm, err)
 		}
 	}
@@ -412,14 +456,10 @@ func (ad *ActivityDump) disable() error {
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
 		copy(containerIDB, ad.DumpMetadata.ContainerID)
-		if err := ad.adm.tracedCgroupsMap.Delete(containerIDB); err != nil {
+		err := ad.adm.tracedCgroupsMap.Delete(containerIDB)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			return fmt.Errorf("couldn't delete activity dump filter containerID(%s): %v", ad.DumpMetadata.ContainerID, err)
 		}
-	}
-
-	// remove activity dump
-	if err := ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie); err != nil {
-		return fmt.Errorf("couldn't delete activity dump load config: %w", err)
 	}
 	return nil
 }
@@ -433,7 +473,6 @@ func (ad *ActivityDump) Stop(releaseTracedCgroupSpot bool) {
 	if err := ad.disable(); err != nil {
 		seclog.Errorf("couldn't disable activity dump: %v", err)
 	}
-	ad.state = Stopped
 
 	// make sure we release a cgroup spot only for cgroup generated dumps
 	if releaseTracedCgroupSpot && len(ad.DumpMetadata.ContainerID) > 0 {
@@ -455,6 +494,7 @@ func (ad *ActivityDump) Stop(releaseTracedCgroupSpot bool) {
 
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs()
+	ad.state = Stopped
 }
 
 func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
@@ -477,14 +517,8 @@ func (ad *ActivityDump) debug(w io.Writer) {
 }
 
 func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
-	// syscall monitor related event
-	if event.GetEventType() == model.SyscallsEventType && ad.adm.probe.config.ActivityDumpSyscallMonitor {
-		return true
-	}
-
-	// other events
 	var traced bool
-	for _, evtType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+	for _, evtType := range ad.LoadConfig.TracedEventTypes {
 		if evtType == event.GetEventType() {
 			traced = true
 		}
@@ -499,12 +533,12 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	defer ad.Unlock()
 
 	if ad.state != Running {
-		// this activity dump is not running anymore, ignore event
+		// this activity dump is not running, ignore event
 		return false
 	}
 
-	// ignore fork events for now
-	if event.GetEventType() == model.ForkEventType {
+	// check if this event type is traced
+	if !ad.isEventTypeTraced(event) {
 		return false
 	}
 
@@ -523,11 +557,6 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	node := ad.findOrCreateProcessActivityNode(event.ResolveProcessCacheEntry(), Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
-		return false
-	}
-
-	// check if this event type is traced
-	if !ad.isEventTypeTraced(event) {
 		return false
 	}
 

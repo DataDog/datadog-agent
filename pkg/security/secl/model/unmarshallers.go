@@ -82,7 +82,8 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint32(data[16:20])
 	e.Async = data[20] != 0
 	e.SavedByActivityDumps = data[21] != 0
-	// 22-24: padding
+	e.IsActivityDumpSample = data[22] != 0
+	// padding 1 byte
 
 	return 24, nil
 }
@@ -865,7 +866,7 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.StartTimestampRaw = ByteOrder.Uint64(data[16:24])
 	adlc.EndTimestampRaw = ByteOrder.Uint64(data[24:32])
 	adlc.Rate = ByteOrder.Uint32(data[32:36])
-	// padding 4 bytes
+	adlc.Paused = ByteOrder.Uint32(data[36:40])
 	return 40, nil
 }
 

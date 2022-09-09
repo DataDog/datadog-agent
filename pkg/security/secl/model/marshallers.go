@@ -153,7 +153,7 @@ func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
 	ByteOrder.PutUint64(raw[16:24], adlc.StartTimestampRaw)
 	ByteOrder.PutUint64(raw[24:32], adlc.EndTimestampRaw)
 	ByteOrder.PutUint32(raw[32:36], adlc.Rate)
-	// padding 4 bytes
+	ByteOrder.PutUint32(raw[36:40], adlc.Paused)
 
 	return raw, nil
 }
