@@ -40,6 +40,7 @@ type httpTX struct {
 	Owned_by_src_port    uint16
 	Tcp_seq              uint32
 	Tags                 uint64
+	Conn_cookie          uint64
 }
 type httpNotification struct {
 	Cpu uint32
