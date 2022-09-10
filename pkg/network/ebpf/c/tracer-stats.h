@@ -129,7 +129,6 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 
 static __always_inline void store_socket_cookie(conn_tuple_t *t, struct sock *sk) {
     u64 cookie = get_socket_cookie(sk);
-    log_debug("store_socket_cookie: cookie=%d\n", cookie);
     bpf_map_update_elem(&conn_cookies, t, &cookie, BPF_ANY);
 }
 

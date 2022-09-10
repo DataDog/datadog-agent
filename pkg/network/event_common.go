@@ -368,6 +368,10 @@ func (c ConnectionStats) clone() ConnectionStats {
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
+func isCookieBasedByteKey(key []byte) bool {
+	return len(key) == 8
+}
+
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
 // it should be in sync with ByteKey
 // Note: This is only used in /debug/* endpoints
@@ -380,7 +384,7 @@ func BeautifyKey(key string) string {
 	}
 
 	raw := []byte(key)
-	if len(key) == 8 {
+	if isCookieBasedByteKey(raw) {
 		cookie := binary.LittleEndian.Uint64(raw)
 		return "0x" + strconv.FormatUint(cookie, 16)
 	}

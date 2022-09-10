@@ -182,7 +182,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 
 	if tr.connCookies, _, err = m.GetMap(string(probes.ConnCookiesMap)); err != nil {
-		return nil, fmt.Errorf("error retrieving the bpf *s map: %w", probes.ConnCookiesMap, err)
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.ConnCookiesMap, err)
 	}
 
 	return tr, nil

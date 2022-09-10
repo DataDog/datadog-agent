@@ -95,10 +95,11 @@ int socket__http_filter_entry(struct __sk_buff *skb) {
 
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff *skb) {
-    pending_http_process_t pending;
-    __builtin_memset(&pending, 0, sizeof(pending));
+    skb_info_t skb_info;
+    http_transaction_t http;
+    __builtin_memset(&http, 0, sizeof(http));
 
-    if (!read_conn_tuple_skb(skb, &pending.skb_info, &pending.http.tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
         return 0;
     }
 
@@ -106,23 +107,29 @@ int socket__http_filter(struct __sk_buff *skb) {
     // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
     // Otherwise, don't bother to inspect packet contents
     // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
-    if (!(pending.http.tup.metadata & CONN_TYPE_TCP)) {
+    if (!(http.tup.metadata & CONN_TYPE_TCP)) {
         return 0;
     }
-    if ((pending.http.tup.sport == HTTPS_PORT || pending.http.tup.dport == HTTPS_PORT) && !(pending.skb_info.tcp_flags & TCPHDR_FIN)) {
+    if ((http.tup.sport == HTTPS_PORT || http.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
         return 0;
     }
+
+    u64 skb_key = (u64)skb;
+    struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&skb_socks, &skb_key);
+    if (skpp) {
+        http.conn_cookie = get_socket_cookie(*skpp);
+    }
+    bpf_map_delete_elem(&skb_socks, &skb_key);
+
+    log_debug("http cookie: %llx\n", http.conn_cookie);
 
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    pending.http.owned_by_src_port = pending.http.tup.sport;
-    normalize_tuple(&pending.http.tup);
+    http.owned_by_src_port = http.tup.sport;
+    normalize_tuple(&http.tup);
 
-    read_into_buffer_skb((char *)pending.http.request_fragment, skb, &pending.skb_info);
-
-    u64 key = (u64) skb;
-    log_debug("pending key: %u\n", key);
-    bpf_map_update_elem(&pending_http_process, &key, &pending, BPF_ANY);
+    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
+    http_process(&http, &skb_info, NO_TAGS);
     return 0;
 }
 
@@ -133,48 +140,30 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/sk_filter_trim_cap")
-int kprobe__sk_filter_trim_cap(struct pt_regs* ctx) {
-    struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
-    struct sk_buff *skb = (struct sk_buff*)PT_REGS_PARM2(ctx);
+SEC("kprobe/security_sock_rcv_skb")
+int kprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
+    struct sock *sk = (struct sock*) PT_REGS_PARM1(ctx);
+    struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM2(ctx);
 
-    sk_filter_trim_cap_args_t args;
-    __builtin_memset(&args, 0, sizeof(args));
-    bpf_probe_read(&args.sk, sizeof(sk), &sk);
-    bpf_probe_read(&args.skb, sizeof(skb), &skb);
+    u64 skb_key = (u64) skb;
+    bpf_map_update_elem(&skb_socks, &skb_key, &sk, BPF_ANY);
+    log_debug("inserted skb %llx sk %llx\n", skb_key, sk);
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&sk_filter_trim_cap_args, &pid_tgid, &args, BPF_ANY);
-    return 0;
-}
-
-SEC("kretprobe/sk_filter_trim_cap")
-int kretprobe__sk_filter_trim_cap(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk_filter_trim_cap_args_t *args = bpf_map_lookup_elem(&sk_filter_trim_cap_args, &pid_tgid);
-    if (!args) {
-        return 0;
-    }
-
-    struct sk_buff *skb = args->skb;
-    struct sock *sk = args->sk;
-    bpf_map_delete_elem(&sk_filter_trim_cap_args, &pid_tgid);
-
-    u64 key = (u64)skb;
-    pending_http_process_t *pending = bpf_map_lookup_elem(&pending_http_process, &key);
-    if (!pending) {
-        log_debug("could not find pending http process\n");
-        return 0;
-    }
-
-    log_debug("skb key found: %u\n", key);
-    pending->http.conn_cookie = get_socket_cookie(sk);
-    http_process(&pending->http, &pending->skb_info, NO_TAGS);
-    bpf_map_delete_elem(&pending_http_process, &key);
+    bpf_map_update_elem(&security_sock_rcv_skb_params, &pid_tgid, &skb_key, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/security_sock_rcv_skb")
 int kretprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64* skb_key = (u64*) bpf_map_lookup_elem(&security_sock_rcv_skb_params, &pid_tgid);
+    int err = (int) PT_REGS_RC(ctx);
+    if (err && skb_key) {
+        bpf_map_delete_elem(&skb_socks, skb_key);
+    }
+    bpf_map_delete_elem(&security_sock_rcv_skb_params, &pid_tgid);
+
     // send batch completion notification to userspace
     // because perf events can't be sent from socket filter programs
     http_notify_batch(ctx);

@@ -37,6 +37,10 @@ BPF_HASH_MAP(pending_http_process, __u64, pending_http_process_t, 1024)
 
 BPF_HASH_MAP(sk_filter_trim_cap_args, __u64, sk_filter_trim_cap_args_t, 1024)
 
+BPF_LRU_MAP(skb_socks, __u64, struct sock*, 1024)
+
+BPF_HASH_MAP(security_sock_rcv_skb_params, __u64, __u64, 1024)
+
 /* Map used to store the sub program actually used by the socket filter.
  * This is done to avoid memory limitation when attaching a filter to
  * a socket.
