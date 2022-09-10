@@ -124,14 +124,4 @@ typedef struct {
     char buf[LIB_PATH_MAX_SIZE];
 } lib_path_t;
 
-typedef struct{
-    http_transaction_t http;
-    skb_info_t skb_info;
-} pending_http_process_t;
-
-typedef struct {
-    struct sock *sk;
-    struct sk_buff *skb;
-} sk_filter_trim_cap_args_t;
-
 #endif
