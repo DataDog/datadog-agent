@@ -126,6 +126,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kretprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
+					UID:          probeUID,
+				},
+				KProbeMaxActive: maxActive,
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilterStub,
 					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
@@ -147,14 +155,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "kprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
-			},
-			&manager.Probe{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
-					UID:          probeUID,
-				},
-				KProbeMaxActive: maxActive,
 			},
 		)
 	}
@@ -227,6 +227,13 @@ func (e *ebpfProgram) Init() error {
 					UID:          probeUID,
 				},
 			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "kretprobe/security_sock_rcv_skb",
+					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
+					UID:          probeUID,
+				},
+			},
 		},
 		ConstantEditors: e.offsets,
 	}
@@ -237,13 +244,6 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  "kprobe/security_sock_rcv_skb",
 					EBPFFuncName: "kprobe__security_sock_rcv_skb",
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 			},
