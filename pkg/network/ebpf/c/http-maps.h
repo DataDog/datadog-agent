@@ -33,10 +33,6 @@ BPF_HASH_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
 
 BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 1024)
 
-BPF_HASH_MAP(pending_http_process, __u64, pending_http_process_t, 1024)
-
-BPF_HASH_MAP(sk_filter_trim_cap_args, __u64, sk_filter_trim_cap_args_t, 1024)
-
 BPF_LRU_MAP(skb_socks, __u64, struct sock*, 1024)
 
 BPF_HASH_MAP(security_sock_rcv_skb_params, __u64, __u64, 1024)
@@ -45,7 +41,6 @@ BPF_HASH_MAP(security_sock_rcv_skb_params, __u64, __u64, 1024)
  * This is done to avoid memory limitation when attaching a filter to
  * a socket.
  * See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters */
-#define HTTP_PROG 0
 BPF_PROG_ARRAY(http_progs, 1)
 
 /* This map used for notifying userspace of a shared library being loaded */

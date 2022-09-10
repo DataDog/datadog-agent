@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -84,7 +85,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 			status = metrics.ServiceCheckCritical
 		}
 
-		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
+		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ev.ContainerID), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 			tags = []string{}

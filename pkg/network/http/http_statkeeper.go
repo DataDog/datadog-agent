@@ -86,7 +86,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 		return
 	}
 
-	if Method(tx.request_method) == MethodUnknown {
+	if Method(tx.Request_method) == MethodUnknown {
 		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -114,17 +114,25 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusClass(), latency, tx.Tags())
+	stats.AddRequest(tx.StatusClass(), latency, tx.Tags)
 }
 
 func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
 	return Key{
+		KeyTuple: KeyTuple{
+			SrcIPHigh: tx.Tup.Saddr_h,
+			SrcIPLow:  tx.Tup.Saddr_l,
+			SrcPort:   tx.Tup.Sport,
+			DstIPHigh: tx.Tup.Daddr_h,
+			DstIPLow:  tx.Tup.Daddr_l,
+			DstPort:   tx.Tup.Dport,
+			Cookie:    uint64(tx.conn_cookie),
+		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
-		Method:   Method(tx.request_method),
-		KeyTuple: KeyTuple{Cookie: uint64(tx.conn_cookie)},
+		Method: Method(tx.request_method),
 	}
 }
 

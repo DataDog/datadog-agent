@@ -197,7 +197,7 @@ type inodeDiscarders struct {
 	recentlyAddedEntries [maxRecentlyAddedCacheSize]inodeDiscarderEntry
 }
 
-func newInodeDiscarders(inodesMap, revisionsMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
+func newInodeDiscarders(inodesMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,

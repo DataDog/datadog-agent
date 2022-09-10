@@ -10,6 +10,8 @@
 // The greater this number is the less likely are colisions/data-races between the flushes
 #define HTTP_BATCH_PAGES 15
 
+#define HTTP_PROG 0
+
 // HTTP/1.1 XXX
 // _________^
 #define HTTP_STATUS_OFFSET 9
