@@ -71,10 +71,10 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 
 func (b *incompleteBuffer) Add(tx *httpTX) {
 	key := KeyTuple{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
-		Cookie:    uint64(tx.conn_cookie),
+		SrcIPHigh: uint64(tx.Tup.Saddr_h),
+		SrcIPLow:  uint64(tx.Tup.Saddr_l),
+		SrcPort:   uint16(tx.Tup.Sport),
+		Cookie:    uint64(tx.Conn_cookie),
 	}
 
 	parts, ok := b.data[key]
