@@ -1,5 +1,6 @@
 ---
 include:
+  - https://gitlab-templates.ddbuild.io/dynamic-build/dynamic-build-RELEASE.yml
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
@@ -84,6 +85,7 @@ stages:
   - notify
 
 variables:
+  GIT_BASE_BRANCH: main
   #Do not change this - must be the repository name for Kubernetes runners to work
   KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
   # The SRC_PATH is in the GOPATH of the builders which
@@ -754,3 +756,6 @@ variables:
   - <<: *if_kitchen
     when: manual
     allow_failure: true
+
+dynamic-build-run:
+  stage: source_test
