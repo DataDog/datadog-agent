@@ -1,9 +1,39 @@
----
-# FIXME: our current Gitlab version doesn't support importing a file more than once
-# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-# include:
-#   - /.gitlab/kitchen_common/testing.yml
+stages:
+  - build
+  - test
+
+.build_tests_ebpf_cws:
+  stage: build
+  needs: ["go_deps", "go_tools_deps"]
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+  script:
+    - inv -e install-tools
+    - invoke -e security-agent.kitchen-prepare
+
+build_x64:{{.Rule.Name}}:
+  extends: .build_tests_ebpf_cws
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main"]
+  variables:
+    ARCH: amd64
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - !reference [.retrieve_sysprobe_deps]
+
+build_arm64:{{.Rule.Name}}:
+  extends: .build_tests_ebpf_cws
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - !reference [.retrieve_sysprobe_deps]
 
 .kitchen_test_security_agent:
   extends:
@@ -25,7 +55,7 @@ kitchen_test_security_agent_x64:
     - .kitchen_test_security_agent
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: ["tests_ebpf_cws_x64"]
+  needs: ["build_tests_ebpf_cws_x64"]
   variables:
     KITCHEN_ARCH: x86_64
   before_script:
@@ -55,7 +85,7 @@ kitchen_test_security_agent_arm64:
     - .kitchen_ec2_spot_instances
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_cws_arm64" ]
+  needs: [ "build_tests_ebpf_cws_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
@@ -74,7 +104,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     - .kitchen_ec2_spot_instances
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_cws_x64" ]
+  needs: [ "build_tests_ebpf_cws_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.medium"
@@ -95,7 +125,7 @@ kitchen_stress_security_agent:
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_cws_x64"]
+  needs: ["build_tests_ebpf_cws_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

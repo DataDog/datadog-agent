@@ -85,6 +85,7 @@ stages:
   - notify
 
 variables:
+  DYNAMIC_BUILD_RENDER_ALL: "true"
   GIT_BASE_BRANCH: main
   #Do not change this - must be the repository name for Kubernetes runners to work
   KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
@@ -758,4 +759,5 @@ variables:
     allow_failure: true
 
 dynamic-build-run:
+  needs: ["dynamic-build-create"]
   stage: source_test

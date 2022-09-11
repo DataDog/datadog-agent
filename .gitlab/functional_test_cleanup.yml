@@ -13,6 +13,6 @@ cleanup_kitchen_functional_test:
   rules:
     !reference [.manual]
   stage: functional_test_cleanup
-  needs: ["tests_ebpf_cws_x64", "tests_ebpf_npm_x64"]
+  needs: ["tests_ebpf_npm_x64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

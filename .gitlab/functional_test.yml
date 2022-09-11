@@ -3,6 +3,5 @@
 # Contains jobs which run kitchen tests on the security-agent and on system-probe
 
 include:
-  - /.gitlab/functional_test/security_agent.yml
   - /.gitlab/functional_test/system_probe.yml
   - /.gitlab/functional_test/serverless.yml
