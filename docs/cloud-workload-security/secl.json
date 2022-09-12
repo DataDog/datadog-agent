@@ -3064,6 +3064,45 @@
       ]
     },
     {
+      "name": "mount",
+      "definition": "A filesystem was mounted",
+      "type": "File",
+      "from_agent_version": "7.40",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "mount.fs_type",
+          "type": "string",
+          "definition": "Type of the mounted file system",
+          "constants": ""
+        },
+        {
+          "name": "mount.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the new mount",
+          "constants": ""
+        },
+        {
+          "name": "mount.mountpoint.path",
+          "type": "string",
+          "definition": "Path of the mount point",
+          "constants": ""
+        },
+        {
+          "name": "mount.parent_mount_id",
+          "type": "int",
+          "definition": "The ID of the parent mount",
+          "constants": ""
+        },
+        {
+          "name": "mount.retval",
+          "type": "int",
+          "definition": "Return value of the syscall",
+          "constants": "Error Constants"
+        }
+      ]
+    },
+    {
       "name": "mprotect",
       "definition": "A mprotect command was executed",
       "type": "Kernel",

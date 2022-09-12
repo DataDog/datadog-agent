@@ -209,6 +209,11 @@ func validateBindSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateEventSchema(t, event, "file:///schemas/bind.schema.json")
 }
 
+func validateMountSchema(t *testing.T, event *sprobe.Event) bool {
+	t.Helper()
+	return validateEventSchema(t, event, "file:///schemas/mount.schema.json")
+}
+
 //nolint:deadcode,unused
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()

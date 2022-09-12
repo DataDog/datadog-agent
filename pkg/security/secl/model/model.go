@@ -175,6 +175,7 @@ type Event struct {
 	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.40] [File] A filesystem was mounted
 
 	// process events
 	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
@@ -199,7 +200,6 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Mount            MountEvent            `field:"-" json:"-"`
 	Umount           UmountEvent           `field:"-" json:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
@@ -514,17 +514,18 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint
 type Mount struct {
-	MountID       uint32
-	GroupID       uint32
-	Device        uint32
-	ParentMountID uint32
-	ParentInode   uint64
-	RootMountID   uint32
-	RootInode     uint64
-	FSType        string
-	MountPointStr string
-	RootStr       string
-	Path          string
+	MountID            uint32 `field:"mount_id"` // Mount ID of the new mount
+	GroupID            uint32 `field:"-"`
+	Device             uint32 `field:"-"`
+	ParentMountID      uint32 `field:"parent_mount_id"` // The ID of the parent mount
+	ParentInode        uint64 `field:"-"`
+	RootMountID        uint32 `field:"-"`
+	RootInode          uint64 `field:"-"`
+	FSType             string `field:"fs_type"` // Type of the mounted file system
+	MountPointStr      string `field:"-"`
+	RootStr            string `field:"-"`
+	MountPointFullPath string `field:"mountpoint.path"` // Path of the mount point
+	Path               string `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -532,8 +533,9 @@ type Mount struct {
 type MountEvent struct {
 	SyscallEvent
 	Mount
-
-	FSTypeRaw [16]byte
+	FSTypeRaw                     [16]byte `field:"-"`
+	MountPointPathResolutionError error    `field:"-"`
+	RootPathResolutionError       error    `field:"-"`
 }
 
 // GetFSType returns the filesystem type of the mountpoint

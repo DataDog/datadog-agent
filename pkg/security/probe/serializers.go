@@ -492,6 +492,18 @@ type ExitEventSerializer struct {
 	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process or number of the signal that caused the process to terminate"`
 }
 
+// MountEventSerializer serializes a mount event to JSON
+// easyjson:json
+type MountEventSerializer struct {
+	MountPoint    *FileSerializer `json:"mountpoint,omitempty"` // Mount point file information
+	Root          *FileSerializer `json:"root,omitempty"`       // Root file information
+	MountID       uint32          `json:"mount_id"`             // Mount ID of the new mount
+	GroupID       uint32          `json:"group_id"`             // ID of the peer group
+	ParentMountID uint32          `json:"parent_mount_id"`      // Mount ID of the parent mount
+	Device        uint32          `json:"device"`               // Device associated with the file
+	FSType        string          `json:"fs_type,omitempty"`    // Filesystem type
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -509,6 +521,7 @@ type EventSerializer struct {
 	*NetworkContextSerializer   `json:"network,omitempty"`
 	*BindEventSerializer        `json:"bind,omitempty"`
 	*ExitEventSerializer        `json:"exit,omitempty"`
+	*MountEventSerializer       `json:"mount,omitempty"`
 	*UserContextSerializer      `json:"usr,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
@@ -906,6 +919,38 @@ func newExitEventSerializer(e *Event) *ExitEventSerializer {
 	}
 }
 
+func newMountEventSerializer(e *Event) *MountEventSerializer {
+	src, srcErr := e.ResolveMountRoot(&e.Mount)
+	dst, dstErr := e.ResolveMountPointFullPath(&e.Mount)
+
+	mountSerializer := &MountEventSerializer{
+		MountPoint: &FileSerializer{
+			Path:    dst,
+			MountID: &e.Mount.ParentMountID,
+			Inode:   &e.Mount.ParentInode,
+		},
+		Root: &FileSerializer{
+			Path:    src,
+			MountID: &e.Mount.RootMountID,
+			Inode:   &e.Mount.RootInode,
+		},
+		MountID:       e.Mount.MountID,
+		GroupID:       e.Mount.GroupID,
+		ParentMountID: e.Mount.ParentMountID,
+		Device:        e.Mount.Device,
+		FSType:        e.Mount.GetFSType(),
+	}
+
+	if srcErr != nil {
+		mountSerializer.Root.PathResolutionError = srcErr.Error()
+	}
+	if dstErr != nil {
+		mountSerializer.MountPoint.PathResolutionError = dstErr.Error()
+	}
+
+	return mountSerializer
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case retval < 0:
@@ -1047,31 +1092,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Utimes.Retval)
 	case model.FileMountEventType:
-		src, srcErr := event.ResolveMountRoot(&event.Mount)
-		dst, dstErr := event.ResolveMountPoint(&event.Mount)
-
-		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: FileSerializer{
-				Path:    src,
-				MountID: &event.Mount.RootMountID,
-				Inode:   &event.Mount.RootInode,
-			},
-			Destination: &FileSerializer{
-				Path:    dst,
-				MountID: &event.Mount.ParentMountID,
-				Inode:   &event.Mount.ParentInode,
-			},
-			NewMountID: event.Mount.MountID,
-			GroupID:    event.Mount.GroupID,
-			Device:     event.Mount.Device,
-			FSType:     event.Mount.GetFSType(),
-		}
-		if srcErr != nil {
-			s.FileEventSerializer.FileSerializer.PathResolutionError = srcErr.Error()
-		}
-		if dstErr != nil {
-			s.FileEventSerializer.Destination.PathResolutionError = dstErr.Error()
-		}
+		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mount.Retval)
 	case model.FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{

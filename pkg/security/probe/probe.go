@@ -512,6 +512,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Debugf("failed to set mount root: %v", err)
 			return
 		}
+		// Resolve mount point full path
+		if err := event.SetMountPointFullPath(&event.Mount); err != nil {
+			seclog.Debugf("failed to set mount point full path: %v", err)
+			return
+		}
 
 		// Insert new mount point in cache. Insert a copy to not corrupt the entry with the next event
 		me := event.Mount.Mount

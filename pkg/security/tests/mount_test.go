@@ -337,7 +337,6 @@ func TestMountSnapshot(t *testing.T) {
 
 	mntResolved := 0
 	for _, mntInfo := range mounts {
-		// id := mountResolver.mount.ID
 		if strings.HasSuffix(mntInfo.Mountpoint, "rootA/tmpfs-mount") {
 			mntResolved |= 1
 			checkSnapshotAndModelMatch(mntInfo)
@@ -353,4 +352,57 @@ func TestMountSnapshot(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1|2|4|8, mntResolved)
+}
+
+func TestMountEvent(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testDrive, err := newTestDrive(t, "xfs", []string{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	tmpfsMountPoint := testDrive.Path("tmpfs_mnt")
+	if err = os.Mkdir(tmpfsMountPoint, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_mount_tmpfs",
+			Expression: fmt.Sprintf(`mount.mountpoint.path == "%s" && mount.fs_type == "tmpfs" && process.file.path == "%s"`, tmpfsMountPoint, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("mount-tmpfs", func(t *testing.T) {
+		tmpfsMount := newTestMount(
+			tmpfsMountPoint,
+			withFSType("tmpfs"),
+		)
+
+		test.WaitSignal(t, func() error {
+			if err := tmpfsMount.mount(); err != nil {
+				return err
+			}
+			return tmpfsMount.unmount(syscall.MNT_FORCE)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_mount_tmpfs")
+			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPoint)
+			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
+			assertFieldEqual(t, event, "process.file.path", executable)
+			if !validateMountSchema(t, event) {
+				t.Error(event.String())
+			}
+		})
+	})
 }

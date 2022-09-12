@@ -525,6 +525,40 @@
       ],
       "description": "ModuleEventSerializer serializes a module event to JSON"
     },
+    "MountEvent": {
+      "properties": {
+        "mountpoint": {
+          "$ref": "#/$defs/File"
+        },
+        "root": {
+          "$ref": "#/$defs/File"
+        },
+        "mount_id": {
+          "type": "integer"
+        },
+        "group_id": {
+          "type": "integer"
+        },
+        "parent_mount_id": {
+          "type": "integer"
+        },
+        "device": {
+          "type": "integer"
+        },
+        "fs_type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mount_id",
+        "group_id",
+        "parent_mount_id",
+        "device"
+      ],
+      "description": "MountEventSerializer serializes a mount event to JSON"
+    },
     "NetworkContext": {
       "properties": {
         "device": {
@@ -1091,6 +1125,9 @@
     },
     "exit": {
       "$ref": "#/$defs/ExitEvent"
+    },
+    "mount": {
+      "$ref": "#/$defs/MountEvent"
     },
     "usr": {
       "$ref": "#/$defs/UserContext"

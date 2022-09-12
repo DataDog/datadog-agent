@@ -88,7 +88,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 				},
@@ -150,7 +149,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 					{
@@ -168,7 +166,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/sys",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 					{
@@ -186,7 +183,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/sys/fs/cgroup",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 				},
@@ -258,7 +254,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 					{
@@ -276,7 +271,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 					{
@@ -294,7 +288,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "/",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 					{
@@ -312,7 +305,6 @@ func TestMountResolver(t *testing.T) {
 								MountPointStr: "proc",
 								RootStr:       "",
 							},
-							FSTypeRaw: [16]byte{},
 						},
 					},
 				},
