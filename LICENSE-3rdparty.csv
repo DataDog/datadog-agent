@@ -578,6 +578,13 @@ core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,Copyright
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser/ast,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser/gqlerror,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser/lexer,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser/parser,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser/validator,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/internal/gqlparser/validator/rules,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
@@ -606,6 +613,7 @@ core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,Copyright 2
 core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/keys,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/loader/filter,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/metrics,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/rego,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/resolver,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -712,6 +720,7 @@ core,github.com/syndtr/goleveldb/leveldb/opt,BSD-2-Clause,Copyright 2012 Suryand
 core,github.com/syndtr/goleveldb/leveldb/storage,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
+core,github.com/tchap/go-patricia/v2/patricia,MIT,Copyright (c) 2014 The AUTHORS | Ondřej Kupka <ondra.cap@gmail.com> | This is the complete list of go-patricia copyright holders:
 core,github.com/tedsuo/rata,MIT,Copyright (c) 2014 Ted Young
 core,github.com/theupdateframework/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/theupdateframework/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -735,13 +744,6 @@ core,github.com/ulikunitz/xz/internal/hash,BSD-3-Clause,Copyright (c) 2014-2021 
 core,github.com/ulikunitz/xz/internal/xlog,BSD-3-Clause,Copyright (c) 2014-2021  Ulrich Kunitz
 core,github.com/ulikunitz/xz/lzma,BSD-3-Clause,Copyright (c) 2014-2021  Ulrich Kunitz
 core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
-core,github.com/vektah/gqlparser/v2,MIT,Copyright (c) 2018 Adam Scarr
-core,github.com/vektah/gqlparser/v2/ast,MIT,Copyright (c) 2018 Adam Scarr
-core,github.com/vektah/gqlparser/v2/gqlerror,MIT,Copyright (c) 2018 Adam Scarr
-core,github.com/vektah/gqlparser/v2/lexer,MIT,Copyright (c) 2018 Adam Scarr
-core,github.com/vektah/gqlparser/v2/parser,MIT,Copyright (c) 2018 Adam Scarr
-core,github.com/vektah/gqlparser/v2/validator,MIT,Copyright (c) 2018 Adam Scarr
-core,github.com/vektah/gqlparser/v2/validator/rules,MIT,Copyright (c) 2018 Adam Scarr
 core,github.com/vishvananda/netlink,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
 core,github.com/vishvananda/netlink/nl,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
 core,github.com/vishvananda/netns,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"

@@ -86,7 +86,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.4
-	github.com/containerd/containerd v1.6.6
+	github.com/containerd/containerd v1.6.8
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.1
 	github.com/coreos/go-semver v0.3.0
@@ -102,7 +102,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/go-delve/delve v1.9.0
-	github.com/go-ini/ini v1.66.6
+	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
@@ -140,7 +140,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/netsampler/goflow2 v1.1.1-0.20220825033856-d6caeaacddbb
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-policy-agent/opa v0.43.0
+	github.com/open-policy-agent/opa v0.44.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.59.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v3.9.0+incompatible
@@ -236,7 +236,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/Sirupsen/logrus v1.0.6 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
-	github.com/agnivade/levenshtein v1.0.1 // indirect
+	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
@@ -356,6 +356,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
+	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tedsuo/rata v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
@@ -363,7 +364,6 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.6 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
@@ -380,6 +380,7 @@ require (
 	go.opentelemetry.io/collector/semconv v0.59.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.34.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.34.0 // indirect
+	go.opentelemetry.io/contrib/propagators/b3 v1.9.0 // indirect
 	go.opentelemetry.io/otel v1.9.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.31.0 // indirect
 	go.opentelemetry.io/otel/metric v0.31.0 // indirect
@@ -409,8 +410,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-require go.opentelemetry.io/contrib/propagators/b3 v1.9.0 // indirect
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
