@@ -2,6 +2,7 @@ using NineDigit.WixSharpExtensions;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using Datadog.CustomActions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -113,7 +114,19 @@ namespace WixSetup
 
         private static void Main()
         {
-            Version version = new Version(7, 99, 0, 2);
+            bool includePython2 = false;
+            var pyRuntimes = new[] {"3"};
+            var pyRuntimesEnv = Environment.GetEnvironmentVariable("PY_RUNTIMES");
+            if (pyRuntimesEnv != null)
+            {
+                pyRuntimes = pyRuntimesEnv.Split();
+                if (pyRuntimes.Any(runtime => runtime == "2"))
+                {
+                    includePython2 = true;
+                }
+            }
+
+            var version = new Version(7, 99, 0, 2);
             var envVersion = Environment.GetEnvironmentVariable("PACKAGE_VERSION");
             if (envVersion != null)
             {
@@ -148,8 +161,6 @@ namespace WixSetup
             Compiler.LightOptions += "-sval ";
             Compiler.LightOptions += "-reusecab ";
             Compiler.LightOptions += "-cc \"cabcache\"";
-
-            bool includePython2 = false;
 
             var npm = new Feature("NPM", description: "Network Performance Monitoring", isEnabled: false, allowChange: true, configurableDir: "APPLICATIONROOTDIRECTORY");
             var app = new Feature("MainApplication", description: "Datadog Agent", isEnabled: true, allowChange: false, configurableDir: "APPLICATIONROOTDIRECTORY");
