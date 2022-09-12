@@ -9,6 +9,14 @@ namespace WixSetup
     public class CustomAction<T> : ManagedAction where T : new ()
     {
         public CustomAction(
+            Id id,
+            CustomActionMethod method)
+            : base(id, method, typeof(T).Assembly.Location)
+        {
+            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+        }
+
+        public CustomAction(
             CustomActionMethod method)
             : base(method, typeof(T).Assembly.Location)
         {
