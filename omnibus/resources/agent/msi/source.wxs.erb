@@ -474,7 +474,6 @@
 
       <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->
-      <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
       <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
 
       <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
