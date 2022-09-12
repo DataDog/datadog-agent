@@ -204,7 +204,7 @@ func TestParseWheelPackageNameValidCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := parseWheelPackageName(filepath.Join("testdata", "integrations", test.wheelFileName))
+		name, err := parseWheelPackageName(filepath.Join("..", "..", "..", "testdata", "integrations", test.wheelFileName))
 		assert.Equal(t, test.expectedName, name)
 		assert.Equal(t, nil, err)
 	}
@@ -220,7 +220,7 @@ func TestParseWheelPackageNameErrorCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Logf("Running test %s", name)
-		name, err := parseWheelPackageName(filepath.Join("testdata", "integrations", test.wheelFileName))
+		name, err := parseWheelPackageName(filepath.Join("..", "..", "..", "testdata", "integrations", test.wheelFileName))
 		assert.Equal(t, "", name)
 		assert.Contains(t, err.Error(), test.expectedErr)
 	}
