@@ -73,7 +73,7 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 		loadEvents: perfHandler,
 		registry: &soRegistry{
 			hostMount: os.Getenv("HOST_ROOT"),
-			byName:    make(map[string]*soRegistration),
+			byPath:    make(map[string]*soRegistration),
 			byInode:   make(map[uint64]*soRegistration),
 		},
 	}
@@ -147,14 +147,14 @@ func (w *soWatcher) Start() {
 
 func (w *soWatcher) sync() {
 	libraries := so.FindProc(w.procRoot, w.all)
-	toUnregister := make(map[string]struct{}, len(w.registry.byName))
-	for libPath := range w.registry.byName {
+	toUnregister := make(map[string]struct{}, len(w.registry.byPath))
+	for libPath := range w.registry.byPath {
 		toUnregister[libPath] = struct{}{}
 	}
 
 	for _, lib := range libraries {
 		path := w.registry.canonicalizePath(lib.HostPath)
-		if _, ok := w.registry.byName[path]; ok {
+		if _, ok := w.registry.byPath[path]; ok {
 			// shared library still mapped into memory
 			// don't unregister it
 			delete(toUnregister, path)
@@ -185,13 +185,13 @@ type soRegistration struct {
 type soRegistry struct {
 	hostMount string
 
-	byName  map[string]*soRegistration // TODO: change to byPath
+	byPath  map[string]*soRegistration
 	byInode map[uint64]*soRegistration
 }
 
 func (r *soRegistry) register(libPath string, rule soRule) {
 	libPath = r.canonicalizePath(libPath)
-	if _, ok := r.byName[libPath]; ok {
+	if _, ok := r.byPath[libPath]; ok {
 		return
 	}
 
@@ -202,7 +202,7 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 
 	if registration, ok := r.byInode[inode]; ok {
 		registration.refcount++
-		r.byName[libPath] = registration
+		r.byPath[libPath] = registration
 		log.Debugf("registering library=%s", libPath)
 		return
 	}
@@ -217,32 +217,34 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 		// save sentinel value so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
 		registration := newRegistration(inode, nil)
-		r.byName[libPath] = registration
+		r.byPath[libPath] = registration
 		r.byInode[inode] = registration
 		return
 	}
 
 	log.Debugf("registering library=%s", libPath)
 	registration := newRegistration(inode, rule.unregisterCB)
-	r.byName[libPath] = registration
+	r.byPath[libPath] = registration
 	r.byInode[inode] = registration
 }
 
 func (r *soRegistry) unregister(libPath string) {
-	registration, ok := r.byName[libPath]
+	registration, ok := r.byPath[libPath]
 	if !ok {
 		return
 	}
 
 	log.Debugf("unregistering library=%s", libPath)
-	delete(r.byName, libPath)
+	delete(r.byPath, libPath)
 	registration.refcount--
 	if registration.refcount > 0 {
 		return
 	}
 
 	delete(r.byInode, registration.inode)
-	registration.unregisterCB(libPath)
+	if registration.unregisterCB != nil {
+		registration.unregisterCB(libPath)
+	}
 }
 
 func (r *soRegistry) canonicalizePath(path string) string {
