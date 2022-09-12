@@ -48,3 +48,7 @@ inv -e deps || exit /b 103
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 104
+
+cd tools\windows\DatadogAgentInstaller  || exit /b 105
+nuget restore  || exit /b 106
+msbuild /p:Configuration="Release" /p:Platform="Any CPU"  || exit /b 107
