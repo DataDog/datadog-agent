@@ -49,7 +49,7 @@ int wmain(int argc, wchar_t **argv)
         auto propertyView = std::make_shared<TextPropertyView>(defaultData);
         data.emplace(propertyView);
     }
-    catch (...)
+    catch (std::exception &)
     {
         wprintf(L"Failed to load property data");
         return EXIT_FAILURE;
