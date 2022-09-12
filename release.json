@@ -5,7 +5,7 @@
         "7": "7.38.2"
     },
     "nightly": {
-        "INTEGRATIONS_CORE_VERSION": "7.39.x",
+        "INTEGRATIONS_CORE_VERSION": "7.39.0-dbm-progressive-exploration-0.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.39.x",
         "OMNIBUS_RUBY_VERSION": "7.39.x",
         "JMXFETCH_VERSION": "0.46.0",
@@ -17,7 +17,7 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.39.x",
+        "INTEGRATIONS_CORE_VERSION": "7.39.0-dbm-progressive-exploration-0.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.39.x",
         "OMNIBUS_RUBY_VERSION": "7.39.x",
         "JMXFETCH_VERSION": "0.46.0",
@@ -29,7 +29,7 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "release-a6": {
-        "INTEGRATIONS_CORE_VERSION": "7.39.0",
+        "INTEGRATIONS_CORE_VERSION": "7.39.0-dbm-progressive-exploration-0.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.39.0",
         "OMNIBUS_RUBY_VERSION": "7.39.0",
         "JMXFETCH_VERSION": "0.46.0",
@@ -41,7 +41,7 @@
         "WINDOWS_DDNPM_SHASUM": "11e142f0879e2514f1ed03ffca351db2ac2e94e30e8f421ecbe0a8f598ad51de"
     },
     "release-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.39.0",
+        "INTEGRATIONS_CORE_VERSION": "7.39.0-dbm-progressive-exploration-0.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.39.0",
         "OMNIBUS_RUBY_VERSION": "7.39.0",
         "JMXFETCH_VERSION": "0.46.0",
