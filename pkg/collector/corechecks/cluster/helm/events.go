@@ -22,17 +22,18 @@ const (
 )
 
 type eventsManager struct {
-	events      []coreMetrics.Event
-	eventsMutex sync.Mutex
+	events             []coreMetrics.Event
+	eventsMutex        sync.Mutex
+	configParamsAsTags map[string]string
 }
 
 func (em *eventsManager) addEventForNewRelease(rel *release, storage helmStorage) {
-	event := eventForRelease(rel, storage, textForAddEvent(rel), false)
+	event := em.eventForRelease(rel, storage, textForAddEvent(rel), false)
 	em.storeEvent(event)
 }
 
 func (em *eventsManager) addEventForDeletedRelease(rel *release, storage helmStorage) {
-	event := eventForRelease(rel, storage, textForDeleteEvent(rel), true)
+	event := em.eventForRelease(rel, storage, textForDeleteEvent(rel), true)
 	em.storeEvent(event)
 }
 
@@ -42,7 +43,7 @@ func (em *eventsManager) addEventForUpdatedRelease(old *release, updated *releas
 		return
 	}
 
-	event := eventForRelease(updated, storage, textForChangedStatus(old.Info.Status, updated), false)
+	event := em.eventForRelease(updated, storage, textForChangedStatus(old.Info.Status, updated), false)
 	em.storeEvent(event)
 }
 
@@ -63,7 +64,7 @@ func (em *eventsManager) storeEvent(event coreMetrics.Event) {
 	em.events = append(em.events, event)
 }
 
-func eventForRelease(rel *release, storage helmStorage, text string, isDelete bool) coreMetrics.Event {
+func (em *eventsManager) eventForRelease(rel *release, storage helmStorage, text string, isDelete bool) coreMetrics.Event {
 	return coreMetrics.Event{
 		Title:          eventTitle,
 		Text:           text,
@@ -74,7 +75,7 @@ func eventForRelease(rel *release, storage helmStorage, text string, isDelete bo
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
 
 		// The revision tag is not included in delete events, because we generate a single event for all the revisions.
-		Tags: tagsForMetricsAndEvents(rel, storage, !isDelete),
+		Tags: tagsForMetricsAndEvents(rel, storage, !isDelete, em.configParamsAsTags),
 	}
 }
 

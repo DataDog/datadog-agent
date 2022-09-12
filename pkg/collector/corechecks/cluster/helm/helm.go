@@ -70,15 +70,17 @@ type HelmCheck struct {
 }
 
 type checkConfig struct {
-	CollectEvents                  bool `yaml:"collect_events"`
-	ExtraSyncTimeoutSeconds        int  `yaml:"extra_sync_timeout_seconds"`
-	InformersResyncIntervalMinutes int  `yaml:"informers_resync_interval_minutes"`
+	CollectEvents                  bool              `yaml:"collect_events"`
+	ConfigParamsAsTags             map[string]string `yaml:"config_params_as_tags"`
+	ExtraSyncTimeoutSeconds        int               `yaml:"extra_sync_timeout_seconds"`
+	InformersResyncIntervalMinutes int               `yaml:"informers_resync_interval_minutes"`
 }
 
 // Parse parses the config and sets default values
 func (cc *checkConfig) Parse(data []byte) error {
 	// default values
 	cc.CollectEvents = false
+	cc.ConfigParamsAsTags = make(map[string]string)
 
 	return yaml.Unmarshal(data, cc)
 }
@@ -105,6 +107,8 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 	if err = hc.instance.Parse(config); err != nil {
 		return err
 	}
+
+	hc.eventsManager.configParamsAsTags = hc.instance.ConfigParamsAsTags
 
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
@@ -150,7 +154,7 @@ func (hc *HelmCheck) Run() error {
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
-			sender.Gauge("helm.release", 1, "", tagsForMetricsAndEvents(rel, storageDriver, true))
+			sender.Gauge("helm.release", 1, "", tagsForMetricsAndEvents(rel, storageDriver, true, hc.instance.ConfigParamsAsTags))
 		}
 	}
 
@@ -201,7 +205,7 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 	)
 }
 
-func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
+func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool, configParamsAsTags map[string]string) []string {
 	tags := tagsForServiceCheck(release, storageDriver)
 
 	if includeRevision {
@@ -225,6 +229,15 @@ func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includ
 
 	if release.Info != nil {
 		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
+	}
+
+	for configParam, tagName := range configParamsAsTags {
+		value, err := release.getConfigValue(configParam)
+		if err != nil {
+			log.Tracef("Value for %s specified in config_params_as_tags not found", configParam)
+			continue
+		}
+		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))
 	}
 
 	return tags

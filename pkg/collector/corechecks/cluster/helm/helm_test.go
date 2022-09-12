@@ -98,6 +98,28 @@ func TestRun(t *testing.T) {
 			Version:   1,
 			Namespace: "default",
 		},
+		{
+			// Release with config param set
+			Name: "with_config_param",
+			Info: &info{
+				Status: "deployed",
+			},
+			Config: map[string]interface{}{
+				"option": "2",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "with_config_param",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+				Values: map[string]interface{}{
+					"option": 1,
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
 	}
 
 	// Same order as "releases" array
@@ -168,6 +190,18 @@ func TestRun(t *testing.T) {
 			"helm_app_version:7",
 			"helm_chart:foo-2_30_5",
 		},
+		{
+			"helm_release:with_config_param",
+			"helm_chart_name:with_config_param",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:1.0.0",
+			"helm_app_version:1",
+			"helm_chart:with_config_param-1.0.0",
+			"option_value:2", // Because "ConfigParamsAsTags" is set with "option" => "option_value" in the test check
+		},
 	}
 
 	tests := []struct {
@@ -229,6 +263,10 @@ func TestRun(t *testing.T) {
 			check := factory().(*HelmCheck)
 			check.runLeaderElection = false
 
+			check.instance.ConfigParamsAsTags = map[string]string{
+				"option": "option_value",
+			}
+
 			check.informerFactory = informers.NewSharedInformerFactory(
 				fake.NewSimpleClientset(kubeObjects...),
 				time.Minute,
@@ -286,7 +324,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 		assert.NoError(t, err)
 		return mockedSender.AssertEvent(
 			t,
-			eventForRelease(&rel, k8sSecrets, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", false),
+			check.eventsManager.eventForRelease(&rel, k8sSecrets, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", false),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -303,7 +341,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 		assert.NoError(t, err)
 		return mockedSender.AssertEvent(
 			t,
-			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", false),
+			check.eventsManager.eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", false),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -319,7 +357,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 		assert.NoError(t, err)
 		return mockedSender.AssertEvent(
 			t,
-			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", true),
+			check.eventsManager.eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", true),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
