@@ -142,13 +142,39 @@ namespace WixSetup
                 targetBinFolder.AddFile(new File($@"{BinSource}\agent\libdatadog-agent-two.dll"));
             }
 
-            //var showApiKeyDialog =
-            //    new ShowClrDialogAction(nameof(ApiKeyDialog.Factory), typeof(UserCustomActions).Assembly.Location);
-
-            var findApiKey = new CustomAction<ConfigUserActions>(
-                    ConfigUserActions.FindAPIKey
+            var readConfig = new CustomAction<ConfigUserActions>(
+                    ConfigUserActions.ReadConfig
                 )
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            var writeConfig = new CustomAction<ConfigUserActions>(
+                    ConfigUserActions.WriteConfig
+                )
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
+                               "NPMFEATURE=[NPMFEATURESTATE], " +
+                               "ADDLOCAL=[ADDLOCAL], " +
+                               "APIKEY=[APIKEY], " +
+                               "TAGS=[TAGS], " +
+                               "HOSTNAME=[HOSTNAME], " +
+                               "PROXY_HOST=[PROXY_HOST], " +
+                               "PROXY_PORT=[PROXY_PORT], " +
+                               "PROXY_USER=[PROXY_USER], " +
+                               "PROXY_PASSWORD=[PROXY_PASSWORD], " +
+                               "LOGS_ENABLED=[LOGS_ENABLED], " +
+                               "APM_ENABLED=[APM_ENABLED], " +
+                               "PROCESS_ENABLED=[PROCESS_ENABLED], " +
+                               "PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED], " +
+                               "CMD_PORT=[CMD_PORT], " +
+                               "SITE=[SITE], " +
+                               "DD_URL=[DD_URL], " +
+                               "LOGS_DD_URL=[LOGS_DD_URL], " +
+                               "PROCESS_DD_URL=[PROCESS_DD_URL], " +
+                               "TRACE_DD_URL=[TRACE_DD_URL], " +
+                               "PYVER=[PYVER], " +
+                               "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
+                               "NPM=[NPM], " +
+                               "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
+                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
 
             var project = new Project("Datadog Agent",
                 new User(new Id("ddagentuser"), "[DDAGENTUSER_NAME]")
@@ -159,8 +185,8 @@ namespace WixSetup
                     RemoveOnUninstall = true,
                     //ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
                 },
-                findApiKey,
-
+                readConfig,
+                writeConfig,
                 new CustomAction<UserCustomActions>(
                     UserCustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
@@ -171,7 +197,6 @@ namespace WixSetup
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
                 .HideTarget(true),
 
-                //showApiKeyDialog,
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
@@ -278,7 +303,7 @@ namespace WixSetup
 
             project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg, Condition.Installed) { Order = 1 });
             project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.LicenseAgreementDlg, Condition.NOT_Installed) { Order = 2 });
-            project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Next, new ExecuteCustomAction(findApiKey.Id) { Order = 1 });
+            project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Next, new ExecuteCustomAction(readConfig.Id) { Order = 1 });
             project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.ApiKeyDialog) { Order = 2 });
 
             project.CustomUI.On(Dialogs.ApiKeyDialog, Buttons.Next, new ShowDialog(Dialogs.SiteSelectionDialog));

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WixSetup", "WixSetup\WixSetup.csproj", "{168321DA-C4C0-4361-94C6-105346EC0FC5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WixSetup", "WixSetup\WixSetup.csproj", "{168321DA-C4C0-4361-94C6-105346EC0FC5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "CustomActions\CustomActions.csproj", "{461CE844-4B07-47BA-B2D2-5415ABD36792}"
 EndProject
