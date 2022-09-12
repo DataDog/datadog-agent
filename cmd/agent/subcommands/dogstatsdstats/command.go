@@ -27,7 +27,6 @@ var (
 	dsdStatsFilePath string
 	jsonStatus       bool
 	prettyPrintJSON  bool
-	statusFilePath   string
 )
 
 // Command returns the main cobra config command.
