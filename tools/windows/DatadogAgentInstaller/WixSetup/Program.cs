@@ -28,9 +28,10 @@ namespace WixSetup
         private static readonly string InstallerBackgroundImagePath = System.IO.Path.Combine("assets", "dialog_background.bmp");
         private static readonly string InstallerBannerImagePath = System.IO.Path.Combine("assets", "banner_background.bmp");
 
+        // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
         private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
-        private const string EtcSource = @"C:\omnibus-ruby\src\datadog-agent\etc\datadog-agent";
+        private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private static PermissionEx DefaultPermissions()
         {
