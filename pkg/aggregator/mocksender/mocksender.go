@@ -18,14 +18,20 @@ import (
 // functional mocked Sender for testing
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
+	aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultAgentDemultiplexerOptions(nil), "")
+	SetSender(mockSender, id)
+	return mockSender
+}
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+// NewMockSender initiates the aggregator and returns a
+// functional mocked Sender for testing
+func NewMockSenderWithDemuxOpts(opts aggregator.AgentDemultiplexerOptions, id check.ID) *MockSender {
+	mockSender := new(MockSender)
+	// we have a set of options to force anyway
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "")
-
 	SetSender(mockSender, id)
-
 	return mockSender
 }
 
@@ -34,7 +40,7 @@ func SetSender(sender *MockSender, id check.ID) {
 	aggregator.SetSender(sender, id) //nolint:errcheck
 }
 
-//MockSender allows mocking of the checks sender for unit testing
+// MockSender allows mocking of the checks sender for unit testing
 type MockSender struct {
 	mock.Mock
 }

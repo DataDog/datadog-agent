@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -278,7 +280,8 @@ func TestSendMetric(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			mockSender := mocksender.NewMockSender("foo")
+			mockSender := createMockSender("foo")
+
 			metricSender := MetricSender{sender: mockSender}
 			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -339,7 +342,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			mockSender := mocksender.NewMockSender("foo")
+			mockSender := createMockSender("foo")
 			mockSender.SetupAcceptAll()
 
 			metricSender := MetricSender{sender: mockSender}
@@ -422,7 +425,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			mockSender := mocksender.NewMockSender("foo")
+			mockSender := createMockSender("foo")
 			metricSender := MetricSender{sender: mockSender}
 
 			checkconfig.ValidateEnrichMetricTags(tt.metricsTags)
@@ -438,4 +441,12 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createMockSender(id string) *mocksender.MockSender {
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	// we have to disable the no aggregation pipeline since modifying the logger
+	// the way we do it here seems to trigger race conditions in the logger
+	opts.EnableNoAggregationPipeline = false
+	return mocksender.NewMockSenderWithDemuxOpts(opts, check.ID(id))
 }
