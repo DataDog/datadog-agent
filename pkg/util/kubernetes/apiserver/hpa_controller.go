@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	autoscalersinformer "k8s.io/client-go/informers/autoscaling/v2beta1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	autoscalerslister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -52,7 +52,7 @@ type metricsBatch struct {
 // so that the cache does not contain data for deleted hpas
 // This controller is used by the Datadog Cluster Agent and supports Kubernetes 1.10+.
 type AutoscalersController struct {
-	autoscalersLister       autoscalerslister.HorizontalPodAutoscalerLister
+	autoscalersLister       cache.GenericLister
 	autoscalersListerSynced cache.InformerSynced
 	wpaEnabled              bool
 	wpaLister               cache.GenericLister
@@ -82,24 +82,39 @@ func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
 
 	log.Infof("Starting HPA Controller ... ")
 	defer log.Infof("Stopping HPA Controller")
+
 	if !cache.WaitForCacheSync(stopCh, h.autoscalersListerSynced) {
 		return
 	}
-	go wait.Until(h.worker, time.Second, stopCh)
-	<-stopCh
+
+	wait.Until(h.worker, time.Second, stopCh)
 }
 
-// EnableHPA adds the handlers to the AutoscalersController to support HPAs
-func (h *AutoscalersController) EnableHPA(autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) {
-	autoscalingInformer.Informer().AddEventHandler(
+// enableHPA adds the handlers to the AutoscalersController to support HPAs
+func (h *AutoscalersController) enableHPA(client kubernetes.Interface, informerFactory informers.SharedInformerFactory) {
+	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(client)
+	if err != nil {
+		log.Errorf("unable to discover HPA GroupVersionResource: %s", err)
+		return
+	}
+
+	genericInformerFactory, err := informerFactory.ForResource(hpaGVR)
+	if err != nil {
+		log.Errorf("error creating generic informer: %s", err)
+		return
+	}
+
+	informer := genericInformerFactory.Informer()
+	informer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addAutoscaler,
 			UpdateFunc: h.updateAutoscaler,
 			DeleteFunc: h.deleteAutoscaler,
 		},
 	)
-	h.autoscalersLister = autoscalingInformer.Lister()
-	h.autoscalersListerSynced = autoscalingInformer.Informer().HasSynced
+
+	h.autoscalersLister = genericInformerFactory.Lister()
+	h.autoscalersListerSynced = informer.HasSynced
 }
 
 func (h *AutoscalersController) worker() {
@@ -136,7 +151,7 @@ func (h *AutoscalersController) syncHPA(key interface{}) error {
 		return err
 	}
 
-	hpaCached, err := h.autoscalersLister.HorizontalPodAutoscalers(ns).Get(name)
+	hpaCached, err := h.autoscalersLister.ByNamespace(ns).Get(name)
 	switch {
 	case errors.IsNotFound(err):
 		// The object was deleted before we processed the add/update handle. Local store does not have the Ref data anymore. The GC will clean up the Global Store.
@@ -165,13 +180,13 @@ func (h *AutoscalersController) syncHPA(key interface{}) error {
 }
 
 func (h *AutoscalersController) addAutoscaler(obj interface{}) {
-	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+	newAutoscaler, ok := obj.(metav1.Object)
 	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
+		log.Errorf("Expected a metav1.Object type, got: %v", obj)
 		return
 	}
-	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
-	h.EventRecorder.Event(newAutoscaler, corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
+	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.GetNamespace(), newAutoscaler.GetName())
+	h.EventRecorder.Event(obj.(runtime.Object), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueue(newAutoscaler)
 }
 
@@ -180,26 +195,28 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 // FIXME if the metric name or scope is changed in the Ref manifest we should propagate the change
 // to the Global store here
 func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
-	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+	newAutoscaler, ok := obj.(metav1.Object)
 	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
+		log.Errorf("Expected a metav1.Object type, got: %v", obj)
 		return
 	}
-	oldAutoscaler, ok := old.(*autoscalingv2.HorizontalPodAutoscaler)
+
+	oldAutoscaler, ok := old.(metav1.Object)
 	if !ok {
-		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", old)
+		log.Errorf("Expected a metav1.Object type, got: %v", old)
 		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
 	}
 
 	if !autoscalers.AutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
-		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
+		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.GetNamespace(), newAutoscaler.GetName())
 		return
 	}
+
 	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
 	toDelete := autoscalers.InspectHPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
-	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
+	log.Tracef("Processing update event for autoscaler %s/%s with configuration: %s", newAutoscaler.GetNamespace(), newAutoscaler.GetName(), newAutoscaler.GetAnnotations())
 	h.enqueue(newAutoscaler)
 }
 
@@ -207,44 +224,33 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 // Only here can we retrieve the content of the Ref to properly process and delete it.
 // FIXME we could have an update in the HPAqueue while processing the deletion, we should make
 // sure we process them in order instead. For now, the gc logic allows us to recover.
-func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
+func (h *AutoscalersController) deleteAutoscaler(o interface{}) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
 	toDelete := &custommetrics.MetricsBundle{}
-	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
-	if ok {
-		toDelete.External = autoscalers.InspectHPA(deletedHPA)
-		h.deleteFromLocalStore(toDelete.External)
-		log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
-		if !h.isLeaderFunc() {
-			return
-		}
-		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedHPA.Namespace, deletedHPA.Name)
-		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-			h.enqueue(deletedHPA)
-			return
-		}
+
+	var deletedAutoscaler metav1.Object
+
+	switch obj := o.(type) {
+	case metav1.Object:
+		deletedAutoscaler = obj
+	case cache.DeletedFinalStateUnknown:
+		deletedAutoscaler = obj.Obj.(metav1.Object)
+	default:
+		log.Errorf("expected autoscaler or tombstone, got %#v", obj)
 		return
 	}
 
-	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-	if !ok {
-		log.Errorf("Could not get object from tombstone %#v", obj)
-		return
-	}
+	toDelete.External = autoscalers.InspectHPA(deletedAutoscaler)
 
-	deletedHPA, ok = tombstone.Obj.(*autoscalingv2.HorizontalPodAutoscaler)
-	if !ok {
-		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
-		return
-	}
-
-	log.Debugf("Deleting Metrics from Ref %s/%s", deletedHPA.Namespace, deletedHPA.Name)
-	toDelete.External = autoscalers.InspectHPA(deletedHPA)
-	log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
 	h.deleteFromLocalStore(toDelete.External)
-	if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
-		h.enqueue(deletedHPA)
-		return
+	log.Debugf("Deleting %s/%s from the local cache", deletedAutoscaler.GetNamespace(), deletedAutoscaler.GetName())
+
+	if h.isLeaderFunc() {
+		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedAutoscaler.GetNamespace(), deletedAutoscaler.GetName())
+		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
+			h.enqueue(deletedAutoscaler)
+		}
 	}
 }
