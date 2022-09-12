@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Xml.Linq;
 using Datadog.CustomActions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -115,7 +116,7 @@ namespace WixSetup
         private static void Main()
         {
             bool includePython2 = false;
-            var pyRuntimes = new[] {"3"};
+            var pyRuntimes = new[] { "3" };
             var pyRuntimesEnv = Environment.GetEnvironmentVariable("PY_RUNTIMES");
             if (pyRuntimesEnv != null)
             {
@@ -127,10 +128,14 @@ namespace WixSetup
             }
 
             var version = new Version(7, 99, 0, 2);
-            var envVersion = Environment.GetEnvironmentVariable("PACKAGE_VERSION");
-            if (envVersion != null)
+            var packageVersion = Environment.GetEnvironmentVariable("PACKAGE_VERSION");
+            if (packageVersion != null)
             {
-                version = Version.Parse(envVersion);
+                version = Version.Parse(packageVersion);
+            }
+            else
+            {
+                packageVersion = $"{version.Major}.{version.Minor}.{version.Build}";
             }
 
             var pfxFilePath = Environment.GetEnvironmentVariable("SIGN_PFX");
@@ -195,39 +200,9 @@ namespace WixSetup
                 targetBinFolder.AddFile(new File(LibDatadogAgentTwo));
             }
 
-            var readConfig = new CustomAction<ConfigUserActions>(
-                    ConfigUserActions.ReadConfig
-                )
-                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-            var writeConfig = new CustomAction<ConfigUserActions>(
-                    ConfigUserActions.WriteConfig
-                )
-                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
-                               "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
-                               "NPMFEATURE=[NPMFEATURESTATE], " +
-                               "ADDLOCAL=[ADDLOCAL], " +
-                               "APIKEY=[APIKEY], " +
-                               "TAGS=[TAGS], " +
-                               "HOSTNAME=[HOSTNAME], " +
-                               "PROXY_HOST=[PROXY_HOST], " +
-                               "PROXY_PORT=[PROXY_PORT], " +
-                               "PROXY_USER=[PROXY_USER], " +
-                               "PROXY_PASSWORD=[PROXY_PASSWORD], " +
-                               "LOGS_ENABLED=[LOGS_ENABLED], " +
-                               "APM_ENABLED=[APM_ENABLED], " +
-                               "PROCESS_ENABLED=[PROCESS_ENABLED], " +
-                               "PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED], " +
-                               "CMD_PORT=[CMD_PORT], " +
-                               "SITE=[SITE], " +
-                               "DD_URL=[DD_URL], " +
-                               "LOGS_DD_URL=[LOGS_DD_URL], " +
-                               "PROCESS_DD_URL=[PROCESS_DD_URL], " +
-                               "TRACE_DD_URL=[TRACE_DD_URL], " +
-                               "PYVER=[PYVER], " +
-                               "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
-                               "NPM=[NPM], " +
-                               "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
-                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+            // We need to explicitly set the ID since that we are going to reference before the Build* call.
+            // See <see cref="WixSharp.WixEntity.Id" /> for more information.
+            var readConfigId = new Id("ReadConfigCustomAction");
 
             var project = new Project("Datadog Agent",
                 new User(new Id("ddagentuser"), "[DDAGENTUSER_NAME]")
@@ -238,8 +213,40 @@ namespace WixSetup
                     RemoveOnUninstall = true,
                     //ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
                 },
-                readConfig,
-                writeConfig,
+                new CustomAction<ConfigUserActions>(
+                        readConfigId,
+                        ConfigUserActions.ReadConfig
+                    )
+                    .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]"),
+                new CustomAction<ConfigUserActions>(
+                        ConfigUserActions.WriteConfig
+                    )
+                    .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                                   "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
+                                   "NPMFEATURE=[NPMFEATURESTATE], " +
+                                   "ADDLOCAL=[ADDLOCAL], " +
+                                   "APIKEY=[APIKEY], " +
+                                   "TAGS=[TAGS], " +
+                                   "HOSTNAME=[HOSTNAME], " +
+                                   "PROXY_HOST=[PROXY_HOST], " +
+                                   "PROXY_PORT=[PROXY_PORT], " +
+                                   "PROXY_USER=[PROXY_USER], " +
+                                   "PROXY_PASSWORD=[PROXY_PASSWORD], " +
+                                   "LOGS_ENABLED=[LOGS_ENABLED], " +
+                                   "APM_ENABLED=[APM_ENABLED], " +
+                                   "PROCESS_ENABLED=[PROCESS_ENABLED], " +
+                                   "PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED], " +
+                                   "CMD_PORT=[CMD_PORT], " +
+                                   "SITE=[SITE], " +
+                                   "DD_URL=[DD_URL], " +
+                                   "LOGS_DD_URL=[LOGS_DD_URL], " +
+                                   "PROCESS_DD_URL=[PROCESS_DD_URL], " +
+                                   "TRACE_DD_URL=[TRACE_DD_URL], " +
+                                   "PYVER=[PYVER], " +
+                                   "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
+                                   "NPM=[NPM], " +
+                                   "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
+                                   "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]"),
                 new CustomAction<UserCustomActions>(
                     UserCustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
@@ -331,7 +338,7 @@ namespace WixSetup
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.LocalizationFile = "localization-en-us.wxl";
-            project.OutFileName = $"datadog-agent-{version.Major}.{version.Minor}.{version.Build}-{version.Revision}-x86_64";
+            project.OutFileName = $"datadog-agent-{packageVersion}-{version.Revision}-x86_64";
             project.DigitalSignature = digitalSignature;
 
             // clear default media as we will add it via MediaTemplate
@@ -381,7 +388,7 @@ namespace WixSetup
 
             project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg, Condition.Installed) { Order = 1 });
             project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.LicenseAgreementDlg, Condition.NOT_Installed) { Order = 2 });
-            project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Next, new ExecuteCustomAction(readConfig.Id) { Order = 1 });
+            project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Next, new ExecuteCustomAction(readConfigId) { Order = 1 });
             project.CustomUI.On(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.ApiKeyDialog) { Order = 2 });
 
             project.CustomUI.On(Dialogs.ApiKeyDialog, Buttons.Next, new ShowDialog(Dialogs.SiteSelectionDialog));
