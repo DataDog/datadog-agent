@@ -26,7 +26,7 @@ UINT WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
     return ERROR_INVALID_FUNCTION;
 }
 
-class TextPropertyView : public PropertyView
+class TextPropertyView : public StaticPropertyView
 {
   public:
     TextPropertyView::TextPropertyView(std::wstring &data)
