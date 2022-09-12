@@ -37,12 +37,11 @@ namespace Datadog.CustomActions.Native
         /// <returns>
         ///     <see langword="true"/> if the <paramref name="userName"/> contains a domain and a user-name; otherwise, <see langword="false"/>.
         /// </returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1021:AvoidOutParameters")]
         public static bool ParseUserName(string userName, out string user, out string domain)
         {
             if (string.IsNullOrEmpty(userName))
             {
-                throw new ArgumentNullException("userName");
+                throw new ArgumentNullException(nameof(userName));
             }
 
             StringBuilder userBuilder = new StringBuilder();

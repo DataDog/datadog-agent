@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -37,14 +37,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ConfigUserActions.cs" />
-    <Compile Include="dialogs\ApiKeyDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="WixSharp\WixCLRDialog.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="WixSharp\SessionExtensions.cs" />
-    <Compile Include="WixSharp\Win32.cs" />
     <Compile Include="UserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -55,11 +47,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Extensions\" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="dialogs\ApiKeyDialog.resx">
-      <DependentUpon>ApiKeyDialog.cs</DependentUpon>
-    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Deployment.WindowsInstaller, Version=3.0.0.0, Culture=neutral, PublicKeyToken=ce35f76fcda82bad, processorArchitecture=MSIL" />
