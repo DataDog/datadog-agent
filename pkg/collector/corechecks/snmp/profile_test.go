@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -56,7 +57,7 @@ profiles:
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

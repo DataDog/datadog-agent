@@ -18,18 +18,12 @@ import (
 // functional mocked Sender for testing
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
-	aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultAgentDemultiplexerOptions(nil), "")
-	SetSender(mockSender, id)
-	return mockSender
-}
-
-// NewMockSender initiates the aggregator and returns a
-// functional mocked Sender for testing
-func NewMockSenderWithDemuxOpts(opts aggregator.AgentDemultiplexerOptions, id check.ID) *MockSender {
-	mockSender := new(MockSender)
-	// we have a set of options to force anyway
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
+	// FIXME(remy): disabling it because: not needed for checks + creating races with shared config
+	// and logger because if its added concurrency.
+	opts.EnableNoAggregationPipeline = false
 	aggregator.InitAndStartAgentDemultiplexer(opts, "")
 	SetSender(mockSender, id)
 	return mockSender

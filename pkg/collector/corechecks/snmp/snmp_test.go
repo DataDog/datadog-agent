@@ -95,7 +95,7 @@ tags:
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -317,7 +317,7 @@ metrics:
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -397,7 +397,7 @@ profiles:
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -700,7 +700,7 @@ community_string: public
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1014,7 +1014,7 @@ metrics:
 	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 
 	mocksender.SetSender(sender, chk.ID())
 
@@ -1068,7 +1068,7 @@ tags:
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1312,7 +1312,7 @@ tags:
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1424,7 +1424,7 @@ metric_tags:
 	devices := chk.discovery.GetDiscoveredDeviceConfigs()
 	assert.Equal(t, 4, len(devices))
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1711,7 +1711,7 @@ metric_tags:
 	devices := chk.discovery.GetDiscoveredDeviceConfigs()
 	assert.Equal(t, 4, len(devices))
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1772,7 +1772,7 @@ use_device_id_as_hostname: true
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1956,7 +1956,7 @@ metrics:
 	devices := chk.discovery.GetDiscoveredDeviceConfigs()
 	assert.Equal(t, 4, len(devices))
 
-	sender := createMockSender(string(chk.ID())) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2082,12 +2082,4 @@ metrics:
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
-}
-
-func createMockSender(id string) *mocksender.MockSender {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	// we have to disable the no aggregation pipeline since modifying the logger
-	// the way we do it here seems to trigger race conditions in the logger
-	opts.EnableNoAggregationPipeline = false
-	return mocksender.NewMockSenderWithDemuxOpts(opts, check.ID(id))
 }

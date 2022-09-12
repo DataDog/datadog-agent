@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -46,7 +47,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := createMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -164,7 +165,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := createMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -238,7 +239,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 			},
 		},
 	}
-	sender := createMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -332,7 +333,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := createMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,

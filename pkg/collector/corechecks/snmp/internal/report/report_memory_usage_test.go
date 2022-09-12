@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
@@ -384,7 +385,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := createMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{

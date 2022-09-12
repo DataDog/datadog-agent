@@ -14,9 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -52,7 +50,7 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
 	assert.Nil(t, err)
 
-	sender := createMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -318,7 +316,7 @@ community_string: public
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession)
 	assert.Nil(t, err)
 
-	sender := createMockSender("123") // required to initiate aggregator
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// without hostname
@@ -387,12 +385,4 @@ community_string: public
 	hostname, err = deviceCk.GetDeviceHostname()
 	assert.NotNil(t, err)
 	assert.Equal(t, "", hostname)
-}
-
-func createMockSender(id string) *mocksender.MockSender {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	// we have to disable the no aggregation pipeline since modifying the logger
-	// the way we do it here seems to trigger race conditions in the logger
-	opts.EnableNoAggregationPipeline = false
-	return mocksender.NewMockSenderWithDemuxOpts(opts, check.ID(id))
 }
