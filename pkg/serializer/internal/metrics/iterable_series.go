@@ -191,6 +191,10 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 				return nil
 			})
 
+			if err != nil {
+				return err
+			}
+
 			if serie.Device != "" {
 				err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
 					err = ps.String(resourceType, "device")
