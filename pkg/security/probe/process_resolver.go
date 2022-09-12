@@ -1127,7 +1127,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	if entry != nil {
 		p.setAncestor(entry)
 
-		return nil, false
+		return entry, false
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
