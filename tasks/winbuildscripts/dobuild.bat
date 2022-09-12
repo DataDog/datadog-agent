@@ -24,7 +24,7 @@ SET PATH=%PATH%;%GOPATH%/bin
 @echo TARGET_ARCH %TARGET_ARCH%
 
 REM Section to pre-install libyajl2 gem with fix for gcc10 compatibility
-Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
+REM Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
 
 
 if "%TARGET_ARCH%" == "x64" (
@@ -38,17 +38,20 @@ if "%TARGET_ARCH%" == "x86" (
     Powershell -C "ridk enable; cd omnibus; bundle install"
 )
 
-if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 100
-cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 101
+REM if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 100
+REM cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 101
 
 
-pip3 install -r requirements.txt || exit /b 102
+REM pip3 install -r requirements.txt || exit /b 102
 
-inv -e deps || exit /b 103
+REM inv -e deps || exit /b 103
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 104
+REM inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 104
 
+REM Can use 64 bit tools here since our actual target binary is "Any CPU"
+call %VSTUDIO_ROOT%\VC\Auxiliary\Build\vcvars64.bat
 cd tools\windows\DatadogAgentInstaller  || exit /b 105
 nuget restore  || exit /b 106
-msbuild /p:Configuration="Release" /p:Platform="Any CPU"  || exit /b 107
+msbuild /p:Configuration="Release" /p:Platform="Any CPU" || exit /b 107
+copy WixSetup\datadog-agent*.msi ..\..\..\omnibus\pkg || exit /b 108
