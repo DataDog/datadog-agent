@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 	// the BBSCache depends on the CCCache, so initialize the CCache first.  In
 	// production code, any discrepancies would work out after a few polls;
 	// this is just needed for tests.
-	cc, _ = ConfigureGlobalCCCache(ctx, "url", "", "", false, time.Second, 1, true, true, true, true, &testCCClient{})
+	cc, _ = ConfigureGlobalCCCache(ctx, "url", "", "", false, time.Second, 1, false, true, true, true, &testCCClient{})
 	<-cc.UpdatedOnce()
 	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, []*regexp.Regexp{}, []*regexp.Regexp{}, &testBBSClient{})
 	<-bc.UpdatedOnce()

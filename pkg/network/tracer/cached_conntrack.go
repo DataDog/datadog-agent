@@ -12,12 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 
 	"github.com/golang/groupcache/lru"
 	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -64,11 +64,11 @@ func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
 	return cache.exists(c, c.NetNS, int(c.Pid))
 }
 
-func ipFromAddr(a util.Address) netaddr.IP {
+func ipFromAddr(a util.Address) netip.Addr {
 	if a.Len() == net.IPv6len {
-		return netaddr.IPFrom16(*(*[16]byte)(a.Bytes()))
+		return netip.AddrFrom16(*(*[16]byte)(a.Bytes()))
 	}
-	return netaddr.IPFrom4(*(*[4]byte)(a.Bytes()))
+	return netip.AddrFrom4(*(*[4]byte)(a.Bytes()))
 }
 
 func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
@@ -88,8 +88,8 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 
 	conn := netlink.Con{
 		Origin: netlink.ConTuple{
-			Src:   netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
-			Dst:   netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+			Src:   netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
+			Dst:   netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
 			Proto: protoNumber,
 		},
 	}

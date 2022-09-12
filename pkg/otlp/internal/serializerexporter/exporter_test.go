@@ -52,6 +52,9 @@ func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 }
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	const (
 		histogramMetricName = "test.histogram"
 		numberMetricName    = "test.gauge"

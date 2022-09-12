@@ -9,7 +9,10 @@
 package system
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -66,6 +69,25 @@ func ParseProcessRoutes(procPath string, pid int) ([]NetworkRoute, error) {
 		routes = append(routes, d)
 	}
 	return routes, nil
+}
+
+// GetDefaultGateway parses /proc/net/route and extract
+// the first route with Destination == "00000000"
+func GetDefaultGateway(procPath string) (net.IP, error) {
+	routes, err := ParseProcessRoutes(procPath, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, route := range routes {
+		if route.Subnet == 0 {
+			ip := make(net.IP, 4)
+			binary.LittleEndian.PutUint32(ip, uint32(route.Gateway))
+			return ip, nil
+		}
+	}
+
+	return nil, errors.New("no default route found")
 }
 
 // ParseProcessIPs parses /proc/<pid>/net/fib_trie and returns the /32 IP
@@ -157,81 +179,3 @@ func ParseProcessIPs(procPath string, pid int, filterFunc func(string) bool) ([]
 
 	return uniqueIPs, nil
 }
-
-// // defaultGateway returns the default Docker gateway.
-// func defaultGateway(procPath string) (net.IP, error) {
-// 	fields, err := defaultGatewayFields(procPath)
-// 	if err != nil || len(fields) < 3 {
-// 		return nil, err
-// 	}
-
-// 	ipInt, err := strconv.ParseUint(fields[2], 16, 32)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("unable to parse ip %s from route file: %s", fields[2], err)
-// 	}
-// 	ip := make(net.IP, 4)
-// 	binary.LittleEndian.PutUint32(ip, uint32(ipInt))
-// 	return ip, nil
-// }
-
-// // defaultHostIPs returns the IP addresses bound to the default network interface.
-// // The default network interface is the one connected to the network gateway, and it is determined
-// // by parsing the routing table file in the proc file system.
-// func defaultHostIPs(procPath string) ([]string, error) {
-// 	fields, err := defaultGatewayFields(procPath)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if len(fields) == 0 {
-// 		return nil, fmt.Errorf("missing interface information from routing file")
-// 	}
-// 	iface, err := net.InterfaceByName(fields[0])
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	addrs, err := iface.Addrs()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	ips := make([]string, len(addrs))
-// 	for i, addr := range addrs {
-// 		// Translate CIDR blocks into IPs, if necessary
-// 		ips[i] = strings.Split(addr.String(), "/")[0]
-// 	}
-
-// 	return ips, nil
-// }
-
-// // defaultGatewayFields extracts the fields associated to the interface connected
-// // to the network gateway from the linux routing table. As an example, for the given file in /proc/net/routes:
-// //
-// // Iface   Destination  Gateway   Flags  RefCnt  Use  Metric  Mask      MTU  Window  IRTT
-// // enp0s3  00000000     0202000A  0003   0       0    0       00000000  0    0       0
-// // enp0s3  0002000A     00000000  0001   0       0    0       00FFFFFF  0    0       0
-// //
-// // The returned value would be ["enp0s3","00000000","0202000A","0003","0","0","0","00000000","0","0","0"]
-// func defaultGatewayFields(procPath string) ([]string, error) {
-// 	netRouteFile := filepath.Join(procPath, "net", "route")
-// 	f, err := os.Open(netRouteFile)
-// 	if err != nil {
-// 		if os.IsNotExist(err) || os.IsPermission(err) {
-// 			log.Errorf("Unable to open %s: %s", netRouteFile, err)
-// 			return nil, nil
-// 		}
-// 		// Unknown error types will bubble up for handling.
-// 		return nil, err
-// 	}
-// 	defer f.Close()
-
-// 	scanner := bufio.NewScanner(f)
-// 	for scanner.Scan() {
-// 		fields := strings.Fields(scanner.Text())
-// 		if len(fields) >= 1 && fields[1] == "00000000" {
-// 			return fields, nil
-// 		}
-// 	}
-
-// 	return nil, fmt.Errorf("couldn't retrieve default gateway information")
-// }
