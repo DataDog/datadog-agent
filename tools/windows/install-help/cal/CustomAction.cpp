@@ -21,7 +21,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
         auto propertyView = std::make_shared<DeferredCAPropertyView>(hInstall);
         data.emplace(propertyView);
     }
-    catch (...)
+    catch (std::exception &ex)
     {
         WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
         er = ERROR_INSTALL_FAILURE;
@@ -179,7 +179,7 @@ extern "C" UINT __stdcall ValidateDDAgentUserDlgInput(MSIHANDLE hInstall)
         auto propertyView = std::make_shared<ImmediateCAPropertyView>(hInstall);
         data.emplace(propertyView);
     }
-    catch (...)
+    catch (std::exception &ex)
     {
         WcaLog(LOGMSG_STANDARD, "Failed to load installer property data");
         return WcaFinalize(ERROR_INSTALL_FAILURE);
