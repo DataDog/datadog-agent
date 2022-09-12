@@ -29,6 +29,7 @@ include:
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
   # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
@@ -79,6 +80,7 @@ stages:
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - internal_kubernetes_deploy
   - notify
 
 variables:
@@ -139,14 +141,13 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v9472974-a8f8b46
+  DATADOG_AGENT_BUILDIMAGES: v9622621-2b420ab
   DATADOG_AGENT_BUILDERS: v9531714-74df2d8
-  DATADOG_AGENT_WINBUILDIMAGES: v9610458-dcce3c7
-  DATADOG_AGENT_ARMBUILDIMAGES: v9472974-a8f8b46
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v9472974-a8f8b46
-  DATADOG_AGENT_NIKOS_BUILDIMAGES:  v9472974-a8f8b46
+  DATADOG_AGENT_WINBUILDIMAGES: v9622621-2b420ab
+  DATADOG_AGENT_ARMBUILDIMAGES: v9622621-2b420ab
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v9622621-2b420ab
+  DATADOG_AGENT_NIKOS_BUILDIMAGES:  v9622621-2b420ab
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DOCKER_X64_BUILDER: v2718644-9ce6565-18.09.6-py3
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7

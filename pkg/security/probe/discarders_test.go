@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
@@ -37,7 +37,7 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -212,7 +212,7 @@ func TestIsParentDiscarder(t *testing.T) {
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -387,7 +387,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 }
 
 func BenchmarkParentDiscarder(b *testing.B) {
-	id := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 

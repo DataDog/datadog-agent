@@ -71,6 +71,11 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  # Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
+  # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
+  package 'python3'
+  package 'perl'
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
@@ -121,7 +126,7 @@ if node['platform_family'] != 'windows'
       COPY clang-bpf /opt/datadog-agent/embedded/bin/
       COPY llc-bpf /opt/datadog-agent/embedded/bin/
 
-      RUN yum -y install xfsprogs e2fsprogs iproute
+      RUN yum -y install xfsprogs e2fsprogs iproute perl
       CMD sleep 7200
       EOF
       action :create

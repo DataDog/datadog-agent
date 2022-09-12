@@ -13,13 +13,9 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+
 	"github.com/cilium/ebpf"
 )
-
-/*
-#include "../ebpf/c/http-types.h"
-*/
-import "C"
 
 var errLostBatch = errors.New("http batch lost (not consumed fast enough)")
 
@@ -35,17 +31,18 @@ type batchManager struct {
 	numCPUs    int
 }
 
-func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManager {
+func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 	batch := new(httpBatch)
-	state := new(C.http_batch_state_t)
 	stateByCPU := make([]usrBatchState, numCPUs)
 
 	for i := 0; i < numCPUs; i++ {
 		// Initialize eBPF maps
-		batchStateMap.Put(unsafe.Pointer(&i), unsafe.Pointer(state))
 		for j := 0; j < HTTPBatchPages; j++ {
-			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
-			batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+			key := &httpBatchKey{Cpu: uint32(i), Num: uint32(j)}
+			err := batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -53,23 +50,28 @@ func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManag
 		batchMap:   batchMap,
 		stateByCPU: stateByCPU,
 		numCPUs:    numCPUs,
-	}
+	}, nil
 }
 
 func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]httpTX, error) {
 	state := &m.stateByCPU[event.CPU]
 	batch := batchFromEventData(event.Data)
 
-	if int(batch.idx) < state.idx {
+	if int(batch.Idx) < state.idx {
 		// This means this batch was processed via GetPendingTransactions
 		return nil, nil
 	}
 
 	offset := state.pos
-	state.idx = int(batch.idx) + 1
+	state.idx = int(batch.Idx) + 1
 	state.pos = 0
 
-	return batch.Transactions()[offset:], nil
+	txns := make([]httpTX, len(batch.Transactions()[offset:]))
+	tocopy := batch.Transactions()[offset:]
+	for idx := range tocopy {
+		txns[idx] = &tocopy[idx]
+	}
+	return txns, nil
 }
 
 func (m *batchManager) GetPendingTransactions() []httpTX {
@@ -79,7 +81,7 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 			var (
 				usrState = &m.stateByCPU[i]
 				pageNum  = usrState.idx % HTTPBatchPages
-				batchKey = &httpBatchKey{cpu: C.uint(i), page_num: C.uint(pageNum)}
+				batchKey = &httpBatchKey{Cpu: uint32(i), Num: uint32(pageNum)}
 				batch    = new(httpBatch)
 			)
 
@@ -88,15 +90,18 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 				break
 			}
 
-			krnStateIDX := int(batch.idx)
-			krnStatePos := int(batch.pos)
+			krnStateIDX := int(batch.Idx)
+			krnStatePos := int(batch.Pos)
 			if krnStateIDX != usrState.idx || krnStatePos <= usrState.pos {
 				break
 			}
 
 			all := batch.Transactions()
 			pending := all[usrState.pos:krnStatePos]
-			transactions = append(transactions, pending...)
+			for _, tx := range pending {
+				var newtx = tx
+				transactions = append(transactions, &newtx)
+			}
 
 			if krnStatePos == HTTPBatchSize {
 				// We detected a full batch before the http_notification_t was processed.

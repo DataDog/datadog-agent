@@ -49,7 +49,7 @@ func TestNetDevice(t *testing.T) {
 	}
 	defer test.Close()
 
-	currentNetns, err := utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(uint32(utils.Getpid())))
+	currentNetns, err := utils.NetNSPathFromPid(uint32(utils.Getpid())).GetProcessNetworkNamespace()
 	if err != nil {
 		t.Errorf("couldn't retrieve current network namespace ID: %v", err)
 	}

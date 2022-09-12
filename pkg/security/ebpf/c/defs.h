@@ -238,7 +238,8 @@ struct kevent_t {
     u64 timestamp;
     u32 type;
     u8 async;
-    u8 padding[3];
+    u8 saved_by_ad;
+    u8 padding[2];
 };
 
 struct syscall_t {

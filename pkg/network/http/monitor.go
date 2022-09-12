@@ -10,7 +10,6 @@ package http
 
 import (
 	"fmt"
-
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -79,11 +78,6 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, err
 	}
 
-	batchStateMap, _, err := mgr.GetMap(httpBatchStateMap)
-	if err != nil {
-		return nil, err
-	}
-
 	batchEventsMap, _, _ := mgr.GetMap(httpBatchEvents)
 	numCPUs := int(batchEventsMap.MaxEntries())
 
@@ -99,10 +93,15 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		}
 	}
 
+	batchManager, err := newBatchManager(batchMap, numCPUs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
+	}
+
 	return &Monitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
-		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
 		telemetrySnapshot:      nil,

@@ -113,9 +113,6 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 			continue
 		}
 		mr.insert(*e)
-
-		// init discarder revisions
-		mr.probe.inodeDiscarders.initRevision(e)
 	}
 
 	return nil
@@ -220,8 +217,6 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 
 	mr.insert(e)
 
-	// init discarder revisions
-	mr.probe.inodeDiscarders.initRevision(&e)
 	return nil
 }
 
