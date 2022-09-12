@@ -190,6 +190,130 @@ func (a *Agent) loop() {
 	}
 }
 
+// sanitizeSpan performs some additional processing of span, which is an element
+// of chunk. sanitizeSpan might also modify chunk.Origin.
+func (a *Agent) sanitizeSpan(span *pb.Span, chunk *pb.TraceChunk, clientComputedTopLevel bool) {
+	for k, v := range a.conf.GlobalTags {
+		if k == tagOrigin {
+			chunk.Origin = v
+		} else {
+			traceutil.SetMeta(span, k, v)
+		}
+	}
+	if a.ModifySpan != nil {
+		a.ModifySpan(span)
+	}
+	a.obfuscateSpan(span)
+	Truncate(span)
+	if clientComputedTopLevel {
+		traceutil.UpdateTracerTopLevel(span)
+	}
+}
+
+// setRootSpanTags sets up any necessary tags on the root span.
+func (a *Agent) setRootSpanTags(root *pb.Span) {
+	clientSampleRate := sampler.GetGlobalRate(root)
+	sampler.SetClientRate(root, clientSampleRate)
+
+	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+		rate := ratelimiter.RealRate()
+		sampler.SetPreSampleRate(root, rate)
+	}
+}
+
+// processChunks handles one of the trace chunks that Process loops through.
+// processChunks returns a TraceChunk that is to replace the input chunk. The
+// returned TraceChunk might be the same as the input, or different, or nil. If
+// the returned TraceChunk is nil, the caller should remove that chunk from the
+// payload that it's processing.
+func (a *Agent) processChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Time, ts *info.TagStats, statsInput *stats.Input, ss *writer.SampledChunks) *pb.TraceChunk {
+	if len(chunk.Spans) == 0 {
+		log.Debugf("Skipping received empty trace")
+		return nil
+	}
+
+	tracen := int64(len(chunk.Spans))
+	ts.SpansReceived.Add(tracen)
+	err := normalizeTrace(p.Source, chunk.Spans)
+	if err != nil {
+		log.Debugf("Dropping invalid trace: %s", err)
+		ts.SpansDropped.Add(tracen)
+		return nil
+	}
+
+	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
+	root := traceutil.GetRoot(chunk.Spans)
+	normalizeChunk(chunk, root)
+	if !a.Blacklister.Allows(root) {
+		log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
+		ts.TracesFiltered.Inc()
+		ts.SpansFiltered.Add(tracen)
+		return nil
+	}
+
+	if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
+		log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
+		ts.TracesFiltered.Inc()
+		ts.SpansFiltered.Add(tracen)
+		return nil
+	}
+
+	for _, span := range chunk.Spans {
+		a.sanitizeSpan(span, chunk, p.ClientComputedTopLevel)
+	}
+	a.Replacer.Replace(chunk.Spans)
+
+	a.setRootSpanTags(root)
+
+	if !p.ClientComputedTopLevel {
+		// Figure out the top-level spans now as it involves modifying the Metrics map
+		// which is not thread-safe while samplers and Concentrator might modify it too.
+		traceutil.ComputeTopLevel(chunk.Spans)
+	}
+
+	if p.TracerPayload.Hostname == "" {
+		// Older tracers set tracer hostname in the root span.
+		p.TracerPayload.Hostname = root.Meta[tagHostname]
+	}
+	if p.TracerPayload.Env == "" {
+		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
+	}
+	if p.TracerPayload.AppVersion == "" {
+		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+	}
+
+	pt := traceutil.ProcessedTrace{
+		TraceChunk:             chunk,
+		Root:                   root,
+		AppVersion:             p.TracerPayload.AppVersion,
+		TracerEnv:              p.TracerPayload.Env,
+		TracerHostname:         p.TracerPayload.Hostname,
+		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
+	}
+	if !p.ClientComputedStats {
+		statsInput.Traces = append(statsInput.Traces, pt)
+	}
+
+	numEvents, keep, filteredChunk := a.sample(now, ts, pt)
+	if !keep && numEvents == 0 {
+		// the trace was dropped and no analyzed span were kept
+		return nil
+	}
+
+	if !chunk.DroppedTrace {
+		ss.SpanCount += int64(len(chunk.Spans))
+	}
+	ss.EventCount += numEvents
+	ss.Size += chunk.Msgsize()
+
+	// If we're keeping the chunk, keep it. If we're not keeping the chunk, then
+	// replace it with the filtered version produced by sample(...).
+	if keep {
+		return chunk
+	}
+	return filteredChunk
+}
+
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
@@ -208,119 +332,13 @@ func (a *Agent) Process(p *api.Payload) {
 	a.discardSpans(p)
 
 	for i := 0; i < len(p.Chunks()); {
-		chunk := p.Chunk(i)
-		if len(chunk.Spans) == 0 {
-			log.Debugf("Skipping received empty trace")
+		chunkBefore := p.Chunk(i)
+		chunkAfter := a.processChunk(chunkBefore, p, now, ts, &statsInput, ss)
+		if chunkAfter == nil {
 			p.RemoveChunk(i)
 			continue
 		}
-
-		tracen := int64(len(chunk.Spans))
-		ts.SpansReceived.Add(tracen)
-		err := normalizeTrace(p.Source, chunk.Spans)
-		if err != nil {
-			log.Debugf("Dropping invalid trace: %s", err)
-			ts.SpansDropped.Add(tracen)
-			p.RemoveChunk(i)
-			continue
-		}
-
-		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-		root := traceutil.GetRoot(chunk.Spans)
-		normalizeChunk(chunk, root)
-		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			ts.TracesFiltered.Inc()
-			ts.SpansFiltered.Add(tracen)
-			p.RemoveChunk(i)
-			continue
-		}
-
-		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
-			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			ts.TracesFiltered.Inc()
-			ts.SpansFiltered.Add(tracen)
-			p.RemoveChunk(i)
-			continue
-		}
-
-		// Extra sanitization steps of the trace.
-		for _, span := range chunk.Spans {
-			for k, v := range a.conf.GlobalTags {
-				if k == tagOrigin {
-					chunk.Origin = v
-				} else {
-					traceutil.SetMeta(span, k, v)
-				}
-			}
-			if a.ModifySpan != nil {
-				a.ModifySpan(span)
-			}
-			a.obfuscateSpan(span)
-			Truncate(span)
-			if p.ClientComputedTopLevel {
-				traceutil.UpdateTracerTopLevel(span)
-			}
-		}
-		a.Replacer.Replace(chunk.Spans)
-
-		{
-			// this section sets up any necessary tags on the root:
-			clientSampleRate := sampler.GetGlobalRate(root)
-			sampler.SetClientRate(root, clientSampleRate)
-
-			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-				rate := ratelimiter.RealRate()
-				sampler.SetPreSampleRate(root, rate)
-			}
-		}
-		if !p.ClientComputedTopLevel {
-			// Figure out the top-level spans now as it involves modifying the Metrics map
-			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(chunk.Spans)
-		}
-
-		if p.TracerPayload.Hostname == "" {
-			// Older tracers set tracer hostname in the root span.
-			p.TracerPayload.Hostname = root.Meta[tagHostname]
-		}
-		if p.TracerPayload.Env == "" {
-			p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
-		}
-		if p.TracerPayload.AppVersion == "" {
-			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
-		}
-
-		pt := traceutil.ProcessedTrace{
-			TraceChunk:             chunk,
-			Root:                   root,
-			AppVersion:             p.TracerPayload.AppVersion,
-			TracerEnv:              p.TracerPayload.Env,
-			TracerHostname:         p.TracerPayload.Hostname,
-			ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
-		}
-		if !p.ClientComputedStats {
-			statsInput.Traces = append(statsInput.Traces, pt)
-		}
-
-		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
-		if !keep {
-			if numEvents == 0 {
-				// the trace was dropped and no analyzed span were kept
-				p.RemoveChunk(i)
-				continue
-			}
-			// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
-			// is added to the TracerPayload to be sent to TraceWriter.
-			// The complete chunk is still sent to the stats concentrator.
-			p.ReplaceChunk(i, filteredChunk)
-		}
-
-		if !chunk.DroppedTrace {
-			ss.SpanCount += int64(len(chunk.Spans))
-		}
-		ss.EventCount += numEvents
-		ss.Size += chunk.Msgsize()
+		p.ReplaceChunk(i, chunkAfter)
 		i++
 
 		if ss.Size > writer.MaxPayloadSize {
@@ -332,6 +350,7 @@ func (a *Agent) Process(p *api.Payload) {
 			ss = new(writer.SampledChunks)
 		}
 	}
+
 	ss.TracerPayload = p.TracerPayload
 	ss.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if ss.Size > 0 {
