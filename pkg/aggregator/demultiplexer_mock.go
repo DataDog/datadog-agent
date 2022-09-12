@@ -127,17 +127,22 @@ func (a *TestAgentDemultiplexer) Reset() {
 	a.Unlock()
 }
 
+// InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
+func InitTestAgentDemultiplexerWithOpts(opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
+	demux := InitAndStartAgentDemultiplexer(opts, "hostname")
+	testAgent := TestAgentDemultiplexer{
+		AgentDemultiplexer: demux,
+	}
+	return &testAgent
+}
+
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
 func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	demux := InitAndStartAgentDemultiplexer(opts, "hostname")
-	testAgent := TestAgentDemultiplexer{
-		AgentDemultiplexer: demux,
-	}
-	return &testAgent
+	return InitTestAgentDemultiplexerWithOpts(opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.
