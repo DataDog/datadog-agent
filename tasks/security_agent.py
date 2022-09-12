@@ -14,7 +14,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    build_object_files,
+    build_cws_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -322,7 +322,7 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
 ):
-    build_object_files(
+    build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
@@ -697,7 +697,7 @@ def go_generate_check(ctx):
         sys.stderr.flush()
         dirty_files = get_git_dirty_files()
         if dirty_files:
-            failing_tasks.append(FailingTask(task.name, dirty_files))
+            failing_tasks.append(FailingTask(task.__name__, dirty_files))
 
     if failing_tasks:
         for ft in failing_tasks:

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"io"
 	"math"
 	"math/rand"
@@ -25,6 +24,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go"
 	"github.com/davecgh/go-spew/spew"
@@ -1537,12 +1538,11 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root())
+	wrapper, err := newDockerCmdWrapper(test.Root(), "alpine")
 	if err != nil {
 		t.Skip("docker no available")
 		return
 	}
-	wrapper.SetImage("alpine")
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
@@ -1612,7 +1612,7 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 			name: "regular exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_regular_exec",
-				Expression: fmt.Sprintf(`exec.file.name == ~"*python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`), // RHEL python is platform-python3.6
+				Expression: `exec.file.name == ~"*python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`, // RHEL python is platform-python3.6
 			},
 			scriptName: "regularExec.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
@@ -1627,10 +1627,10 @@ EOF
 echo "Back to bash"`, python, python),
 		},
 		{
-			name: "regular exec with interpreter rule",
+			name: "regular exec without interpreter rule",
 			rule: &rules.RuleDefinition{
-				ID:         "test_regular_exec_with_interpreter_rule",
-				Expression: fmt.Sprintf(`exec.file.name == "perl" && exec.interpreter.file.name == "perl"`),
+				ID:         "test_regular_exec_without_interpreter_rule",
+				Expression: `exec.file.name == "perl" && exec.interpreter.file.name == ""`,
 			},
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
@@ -1645,14 +1645,14 @@ __HERE__
 
 echo "Back to bash"`, perl, perl, perl),
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "perl")
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "")
 			},
 		},
 		{
 			name: "interpreted exec",
 			rule: &rules.RuleDefinition{
 				ID:         "test_interpreted_event",
-				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"*python*" && exec.file.name == "pyscript.py"`),
+				Expression: `exec.interpreter.file.name == ~"*python*" && exec.file.name == "pyscript.py"`,
 			},
 			scriptName:      "interpretedExec.sh",
 			innerScriptName: "pyscript.py",
@@ -1730,18 +1730,17 @@ chmod 755 pyscript.py
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
-			scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755)
+			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
+				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
+			}
 			defer os.Remove(scriptLocation)
 			defer os.Remove(test.innerScriptName) // script created by script is in working directory
 
-			if scriptWriteErr != nil {
-				t.Logf("could not write %s: %s", scriptLocation, scriptWriteErr)
-			}
 			testModule.WaitSignal(t, func() error {
 				cmd := exec.Command(scriptLocation)
 				output, scriptRunErr := cmd.CombinedOutput()
 				if scriptRunErr != nil {
-					t.Logf("could not run %s: %s", scriptLocation, scriptRunErr)
+					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)
 				}
 				t.Logf(string(output))
 

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestReportClusterQuotas(t *testing.T) {
@@ -26,6 +27,10 @@ func TestReportClusterQuotas(t *testing.T) {
 	list := osq.ClusterResourceQuotaList{}
 	json.Unmarshal(raw, &list)
 	require.Len(t, list.Items, 1)
+
+	prevClusterName := config.Datadog.GetString("cluster_name")
+	config.Datadog.Set("cluster_name", "test-cluster-name")
+	defer config.Datadog.Set("cluster_name", prevClusterName)
 
 	var instanceCfg = []byte("")
 	var initCfg = []byte("")

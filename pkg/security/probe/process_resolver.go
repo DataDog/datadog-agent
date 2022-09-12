@@ -478,6 +478,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	if !entry.HasInterpreter() {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	}
+
 	// add netns
 	entry.NetNS, _ = utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
 
@@ -701,11 +707,14 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
 
-	// TODO: Is there a better way to determine if there's no interpreter?
-	if (entry.LinuxBinprm.FileEvent.Inode != 0 && entry.LinuxBinprm.FileEvent.MountID != 0) && (entry.LinuxBinprm.FileEvent.Inode != entry.FileEvent.Inode) {
+	if entry.HasInterpreter() {
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
+	} else {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	p.SetProcessArgs(entry)

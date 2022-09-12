@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -28,7 +28,7 @@ func (tf *factory) defaultSourceAndService(source *sources.LogSource, logWhat co
 	getServiceNameFromTags := func(containerID, containerName string) string {
 		return util.ServiceNameFromTags(
 			containerName,
-			dockerutilPkg.ContainerIDToTaggerEntityName(containerID))
+			containers.BuildTaggerEntityName(containerID))
 	}
 
 	return defaultSourceAndServiceInner(source, logWhat,

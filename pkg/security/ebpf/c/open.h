@@ -15,15 +15,6 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/io_uring_req_pid") io_uring_req_pid = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(void*),
-    .value_size = sizeof(u64),
-    .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct open_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -35,7 +26,7 @@ struct open_event_t {
     u32 mode;
 };
 
-int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
+int __attribute__((always_inline)) trace__sys_openat2(u8 async, int flags, umode_t mode, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
     if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
@@ -51,9 +42,17 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
         }
     };
 
+    if (pid_tgid > 0) {
+        syscall.open.pid_tgid = pid_tgid;
+    }
+
     cache_syscall(&syscall);
 
     return 0;
+}
+
+int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
+    return trace__sys_openat2(async, flags, mode, 0);
 }
 
 SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
@@ -204,14 +203,6 @@ struct io_open {
     struct openat2_open_how how;
 };
 
-SEC("kprobe/__io_openat_prep")
-int kprobe___io_openat_prep(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
-    return 0;
-}
-
 #ifndef VALID_OPEN_FLAGS
 #define VALID_OPEN_FLAGS \
         (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | \
@@ -220,23 +211,38 @@ int kprobe___io_openat_prep(struct pt_regs *ctx) {
          O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
 
-SEC("kprobe/io_openat2")
-int kprobe_io_openat2(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace_io_openat(struct pt_regs *ctx) {
+    void *raw_req = (void *)PT_REGS_PARM1(ctx);
+
     struct io_open req;
-    if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
+    if (bpf_probe_read(&req, sizeof(req), raw_req)) {
         return 0;
     }
+
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
-        return trace__sys_openat(ASYNC_SYSCALL, flags, mode);
+        return trace__sys_openat2(ASYNC_SYSCALL, flags, mode, pid_tgid);
+    } else {
+        syscall->open.pid_tgid = get_pid_tgid_from_iouring(raw_req);
     }
     return 0;
 }
 
-int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int retval, int dr_type, u64 pid_tgid) {
+SEC("kprobe/io_openat")
+int kprobe_io_openat(struct pt_regs *ctx) {
+    return trace_io_openat(ctx);
+}
+
+SEC("kprobe/io_openat2")
+int kprobe_io_openat2(struct pt_regs *ctx) {
+    return trace_io_openat(ctx);
+}
+
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
@@ -251,8 +257,6 @@ int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int ret
     if (syscall->discarded) {
         return 0;
     }
-
-    syscall->open.pid_tgid = pid_tgid;
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
@@ -269,10 +273,6 @@ int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int ret
     return 0;
 }
 
-
-int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
-    return sys_open_ret_with_pid_tgid(ctx, retval, dr_type, 0);
-}
 
 int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
@@ -341,15 +341,7 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
-
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
-    u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
-    u64 pid_tgid = 0;
-    if (pid_tgid_ptr != NULL) {
-        pid_tgid = *pid_tgid_ptr;
-    }
-
-    return sys_open_ret_with_pid_tgid(ctx, retval, DR_KPROBE, pid_tgid);
+    return sys_open_ret(ctx, retval, DR_KPROBE);
 }
 
 SEC("kprobe/filp_close")
@@ -385,6 +377,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     struct open_event_t event = {
         .syscall.retval = retval,
         .event.async = syscall->async,
+        .event.saved_by_ad = syscall->resolver.saved_by_ad,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

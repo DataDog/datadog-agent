@@ -219,10 +219,8 @@ func runAgent(ctx context.Context) (err error) {
 		return
 	}
 
-	if config.Datadog.GetBool("inventories_enabled") {
-		if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
-			return
-		}
+	if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
+		return
 	}
 
 	// container tagging initialisation if origin detection is on

@@ -145,11 +145,12 @@ type ContainerContext struct {
 //msgp:ignore Event
 // genaccessors
 type Event struct {
-	ID           string    `field:"-" json:"-"`
-	Type         uint32    `field:"-"`
-	Async        bool      `field:"async" event:"*"` // True if the syscall was asynchronous
-	TimestampRaw uint64    `field:"-" json:"-"`
-	Timestamp    time.Time `field:"-"` // Timestamp of the event
+	ID                   string    `field:"-" json:"-"`
+	Type                 uint32    `field:"-"`
+	Async                bool      `field:"async" event:"*"` // True if the syscall was asynchronous
+	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
+	TimestampRaw         uint64    `field:"-" json:"-"`
+	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -318,11 +319,16 @@ type Credentials struct {
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *Process) GetPathResolutionError() string {
-	if e.FileEvent.PathResolutionError != nil {
-		return e.FileEvent.PathResolutionError.Error()
+func (p *Process) GetPathResolutionError() string {
+	if p.FileEvent.PathResolutionError != nil {
+		return p.FileEvent.PathResolutionError.Error()
 	}
 	return ""
+}
+
+// HasInterpreter returns whether the process uses an interpreter
+func (p *Process) HasInterpreter() bool {
+	return p.LinuxBinprm.FileEvent.Inode != 0 && p.LinuxBinprm.FileEvent.MountID != 0
 }
 
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries

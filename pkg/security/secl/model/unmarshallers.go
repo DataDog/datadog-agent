@@ -80,12 +80,9 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 
 	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
 	e.Type = ByteOrder.Uint32(data[16:20])
-	if data[20] != 0 {
-		e.Async = true
-	} else {
-		e.Async = false
-	}
-	// 21-24: padding
+	e.Async = data[20] != 0
+	e.SavedByActivityDumps = data[21] != 0
+	// 22-24: padding
 
 	return 24, nil
 }
@@ -242,9 +239,12 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.LinuxBinprm.FileEvent.Inode = ByteOrder.Uint64(data[read : read+8])
-	e.LinuxBinprm.FileEvent.MountID = ByteOrder.Uint32(data[read+8 : read+12])
-	e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+	// TODO: Is there a better way to determine if there's no interpreter?
+	inode, mountID := ByteOrder.Uint64(data[read:read+8]), ByteOrder.Uint32(data[read+8:read+12])
+	if e.FileEvent.Inode != inode || e.FileEvent.MountID != mountID {
+		e.LinuxBinprm.FileEvent.Inode, e.LinuxBinprm.FileEvent.MountID = inode, mountID
+		e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+	}
 
 	read += 16
 
