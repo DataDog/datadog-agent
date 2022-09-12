@@ -103,6 +103,27 @@ namespace WixSetup
 
         private static void Main()
         {
+            Version version = new Version(7, 99, 0, 2);
+            var envVersion = Environment.GetEnvironmentVariable("PACKAGE_VERSION");
+            if (envVersion != null)
+            {
+                version = Version.Parse(envVersion);
+            }
+
+            var pfxFilePath = Environment.GetEnvironmentVariable("SIGN_PFX");
+            var pfxFilePassword = Environment.GetEnvironmentVariable("SIGN_PFX_PW");
+
+            DigitalSignature digitalSignature = null;
+
+            if (pfxFilePath != null && pfxFilePassword != null)
+            {
+                digitalSignature = new DigitalSignature
+                {
+                    PfxFilePath = pfxFilePath,
+                    Password = pfxFilePassword
+                };
+            }
+
             Compiler.LightOptions += "-sval ";
             Compiler.LightOptions += "-reusecab ";
             Compiler.LightOptions += "-cc \"cabcache\"";
@@ -216,7 +237,9 @@ namespace WixSetup
                 upgradeCode: ProductUpgradeCode,
                 name: ProductFullName,
                 description: ProductDescription,
-                version: new Version(7, 99, 0, 0) // TODO: Grab this from environment/command line
+                // SetProjectInfo throws an Exception is Revision is != 0
+                // we use Revision = 2 for the next gen installer while it's still a prototype
+                version: new Version(version.Major, version.Minor, version.Build, 0)
             )
             .SetControlPanelInfo(
                 name: ProductFullName,
@@ -276,7 +299,8 @@ namespace WixSetup
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.LocalizationFile = "localization-en-us.wxl";
-            project.OutFileName = "datadog-agent-7.40.0-1-x86_64";
+            project.OutFileName = $"datadog-agent-{version.Major}.{version.Minor}.{version.Build}-{version.Revision}-x86_64";
+            project.DigitalSignature = digitalSignature;
 
             // clear default media as we will add it via MediaTemplate
             project.Media.Clear();
