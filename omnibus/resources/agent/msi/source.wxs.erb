@@ -715,12 +715,7 @@
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' HideTarget='yes' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
-
-    <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall'
-        Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];' />
-
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
-
     <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
 
 
