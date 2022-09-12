@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The Windows installer can now read the user configuration and pre-fill the UI.
+
+other:
+  - |
+    The Windows installer is now built using Wixsharp
