@@ -189,10 +189,12 @@ namespace WixSetup
                                             new Dir("dist",
                                                 new Files($@"{InstallerSource}\bin\agent\dist\*")
                                             ),
-                                            new Merge(npm, $@"{BinSource}\agent\DDNPM.msm")
-                                            {
-                                                Feature = npm
-                                            },
+                                            new Dir("driver",
+                                                new Merge(npm, $@"{BinSource}\agent\DDNPM.msm")
+                                                {
+                                                    Feature = npm
+                                                }
+                                                ),
                                             new File(Tray),
                                             new File(ProcessAgent, processAgentService),
                                             new File(SecurityAgent),
