@@ -10,11 +10,11 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/agent-payload/v5/process"
-	netMocks "github.com/DataDog/datadog-agent/pkg/process/net/mocks"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/agent-payload/v5/process"
+	
+	netMocks "github.com/DataDog/datadog-agent/pkg/process/net/mocks"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"	
 )
 
 func makeProcStatsWithPerm(pid int32) *process.ProcStatsWithPerm {
