@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -548,10 +549,10 @@ func TestTCPConnsReported(t *testing.T) {
 }
 
 func testTCPFailedConnsTimeout(t *testing.T) {
-	tr := setupTCPTracer(t)
-
 	destIP := util.AddressFromString("127.0.0.1")
 	const DestPort = 8500
+
+	tr := setupTCPTracer(t)
 
 	cmd := fmt.Sprintf("iptables -A OUTPUT -p tcp -d %v --dport %v -j DROP", destIP, DestPort)
 	nettestutil.RunCommand(cmd)
@@ -593,32 +594,46 @@ func testTCPFailedConnsTimeout(t *testing.T) {
 	})
 }
 func testTCPFailedConnsClosedDest(t *testing.T) {
-	const sourceIP = "2.2.2.3"
-	const destIP = "2.2.2.4"
 	const destPort = 8000
-	var destAddr = destIP + ":" + fmt.Sprint(destPort)
+	var srcAddr = util.AddressFromString("2.2.2.3")
+	var destAddr = util.AddressFromString("2.2.2.4")
 
 	tr := setupTCPTracer(t)
+	netlinktestutil.SetupVethPair(t)
 
-	nsName := netlinktestutil.SetupVethPair(t)
-	_, err := netns.GetFromName(nsName)
-	require.NoError(t, err)
-	_, err = net.DialTimeout("tcp", destAddr, 2*time.Second)
-	require.Error(t, err)
+	sock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+	require.NoError(t, err, "could not create socket")
+
+	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: destPort, Addr: destAddr.As4()})
+	require.ErrorIs(t, err, syscall.ECONNREFUSED)
+
+	_, srcPort := getAddrInfo4(t, sock)
+	ns, _ := util.GetCurrentIno()
 
 	// Wait for the connection to be reported
 	time.Sleep(1 * time.Second)
 
+	// Test
 	initTracerState(t, tr)
 	connections := getConnections(t, tr)
-	// ns, _ := util.GetCurrentIno()
 
 	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
+	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
+		Source:       srcAddr,
+		Dest:         destAddr,
+		SPort:        srcPort,
+		DPort:        destPort,
+		Pid:          uint32(os.Getpid()),
+		NetNS:        ns,
+		Direction:    network.OUTGOING,
+		FailureCount: 1,
+	})
 }
 
 func TestTCPFailedConnsReporting(t *testing.T) {
 	t.Run("Client - Timeout", testTCPFailedConnsTimeout)
 	t.Run("Client - Closed dest port", testTCPFailedConnsClosedDest)
+}
 
 func TestUDPSendAndReceive(t *testing.T) {
 	t.Run("v4", func(t *testing.T) {

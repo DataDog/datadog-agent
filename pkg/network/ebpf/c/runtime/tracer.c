@@ -138,11 +138,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    // Should actually delete something only if the connection never got established
-    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        handle_failed_conn(&t);
-    }
-
     clear_sockfd_maps(sk);
 
     cleanup_conn(&t);
@@ -152,6 +147,31 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close(struct pt_regs* ctx) {
     flush_conn_close_if_full(ctx);
+    return 0;
+}
+
+SEC("kprobe/tcp_done")
+int kprobe__tcp_done(struct pt_regs *ctx) {
+    struct sock *sk;
+    failed_conn_stats_t stats = {};
+    sk = (struct sock *)PT_REGS_PARM1(ctx);
+
+    u64 *pid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
+    if (!pid_p) {
+        return 0;
+    }
+    u64 pid = *pid_p;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+
+    if (!read_conn_tuple(&stats.ct, sk, pid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    stats.dir = CONN_DIRECTION_OUTGOING;
+
+    __u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &failed_conn_events, cpu, &stats, sizeof(stats));
+
+    log_debug("kprobe/tcp_done failed conn: netns: %u, sport: %u, dport: %u\n", stats.ct.netns, stats.ct.sport, stats.ct.dport);
     return 0;
 }
 

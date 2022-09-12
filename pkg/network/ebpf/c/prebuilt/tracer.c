@@ -143,6 +143,12 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close(struct pt_regs *ctx) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
+
 SEC("kprobe/tcp_done")
 int kprobe__tcp_done(struct pt_regs *ctx) {
     struct sock *sk;
@@ -165,12 +171,6 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     bpf_perf_event_output(ctx, &failed_conn_events, cpu, &stats, sizeof(stats));
 
     log_debug("kprobe/tcp_done failed conn: netns: %u, sport: %u, dport: %u\n", stats.ct.netns, stats.ct.sport, stats.ct.dport);
-    return 0;
-}
-
-SEC("kretprobe/tcp_close")
-int kretprobe__tcp_close(struct pt_regs* ctx) {
-    flush_conn_close_if_full(ctx);
     return 0;
 }
 
