@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
-	"github.com/DataDog/datadog-api-client-go/v2/api/common"
-	"github.com/DataDog/datadog-api-client-go/v2/api/v2/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,8 +31,8 @@ type DockerTestSuite struct {
 	suite.Suite
 
 	ec2           *EC2TestEnv
-	ddAPIClient   *common.APIClient
-	procAPIClient *datadog.ProcessesApi
+	ddAPIClient   *datadog.APIClient
+	procAPIClient *datadogV2.ProcessesApi
 }
 
 // In order for 'go test' to run this suite, we need to create
@@ -49,9 +49,9 @@ func (s *DockerTestSuite) SetupSuite() {
 
 	waitForDocker(s.T(), s.ec2.sshClient)
 
-	configuration := common.NewConfiguration()
-	s.ddAPIClient = common.NewAPIClient(configuration)
-	s.procAPIClient = datadog.NewProcessesApi(s.ddAPIClient)
+	configuration := datadog.NewConfiguration()
+	s.ddAPIClient = datadog.NewAPIClient(configuration)
+	s.procAPIClient = datadogV2.NewProcessesApi(s.ddAPIClient)
 }
 
 func (s *DockerTestSuite) TearDownSuite() {
@@ -94,9 +94,9 @@ func (s *DockerTestSuite) TestProcessAgentOnDocker() {
 	assert.NoError(s.T(), err)
 
 	// Check processes are
-	ctx := common.NewDefaultContext(context.Background())
+	ctx := datadog.NewDefaultContext(context.Background())
 	assert.Eventually(s.T(), func() bool {
-		resp, _, err := s.procAPIClient.ListProcesses(ctx, *datadog.NewListProcessesOptionalParameters().
+		resp, _, err := s.procAPIClient.ListProcesses(ctx, *datadogV2.NewListProcessesOptionalParameters().
 			WithSearch("java").
 			WithTags(fmt.Sprintf("%s,container_name:spring-hello", hostTag)).
 			WithPageLimit(2),
@@ -112,7 +112,7 @@ func (s *DockerTestSuite) TestProcessAgentOnDocker() {
 	}, 2*time.Minute, 1*time.Second)
 
 	assert.Eventually(s.T(), func() bool {
-		resp, _, err := s.procAPIClient.ListProcesses(ctx, *datadog.NewListProcessesOptionalParameters().
+		resp, _, err := s.procAPIClient.ListProcesses(ctx, *datadogV2.NewListProcessesOptionalParameters().
 			WithTags(fmt.Sprintf("%s,container_name:sleepy", hostTag)).
 			WithPageLimit(2),
 		)
