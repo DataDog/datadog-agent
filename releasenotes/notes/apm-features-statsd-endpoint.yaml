@@ -12,3 +12,4 @@ features:
     over UDS or UDP. If a socket is provided with dogstatsd_socket, the proxy will
     default to proxying over UDS. Otherwise, UDP will be used. See
     https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
+  
