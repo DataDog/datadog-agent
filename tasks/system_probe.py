@@ -319,6 +319,7 @@ def build(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    strip_binary=False,
 ):
     """
     Build the system-probe
@@ -343,6 +344,7 @@ def build(
         go_mod=go_mod,
         race=race,
         incremental_build=incremental_build,
+        strip_binary=strip_binary,
     )
 
 
@@ -370,6 +372,7 @@ def build_sysprobe_binary(
     arch=CURRENT_ARCH,
     nikos_embedded_path=None,
     bundle_ebpf=False,
+    strip_binary=False,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -383,6 +386,9 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if nikos_embedded_path:
         build_tags.append(DNF_TAG)
+
+    if strip_binary:
+        ldflags += ' -s -w'
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
