@@ -14,7 +14,7 @@ namespace Datadog.CustomActions
         }
 
         [CustomAction]
-        public static ActionResult FindAPIKey(Session session)
+        public static ActionResult ReadConfig(Session session)
         {
             var configFolder = session["APPLICATIONDATADIRECTORY"];
 
@@ -29,14 +29,30 @@ namespace Datadog.CustomActions
                         .Build();
 
                     var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
-                    session["APIKEY"] = datadogConfig.ApiKey;
-                    session["SITE"] = datadogConfig.Site;
+                    if (string.IsNullOrEmpty(session["APIKEY"]))
+                    {
+                        session["APIKEY"] = datadogConfig.ApiKey;
+                    }
+
+                    if (string.IsNullOrEmpty(session["SITE"]))
+                    {
+                        session["SITE"] = datadogConfig.Site;
+                    }
                 }
             }
             catch
             {
                 // ignored
             }
+
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult WriteConfig(Session session)
+        {
+
 
 
             return ActionResult.Success;
