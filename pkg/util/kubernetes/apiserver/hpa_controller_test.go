@@ -33,8 +33,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
-func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]custommetrics.ExternalMetricValue) (custommetrics.Store, kubernetes.Interface) {
+const (
+	autoscalingGroup = "autoscaling"
+	hpaResource      = "horizontalpodautoscalers"
+)
+
+func newClient() kubernetes.Interface {
 	client := fake.NewSimpleClientset()
+	client.Resources = []*metav1.APIResourceList{
+		{
+			GroupVersion: fmt.Sprintf("%s/%s", autoscalingGroup, "v2beta1"),
+			APIResources: []metav1.APIResource{
+				{
+					Name:    hpaResource,
+					Group:   autoscalingGroup,
+					Version: "v2beta1",
+				},
+			},
+		},
+	}
+	return client
+}
+
+func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]custommetrics.ExternalMetricValue) (custommetrics.Store, kubernetes.Interface) {
+	client := newClient()
 	store, err := custommetrics.NewConfigMapStore(client, ns, name)
 	require.NoError(t, err)
 	err = store.SetExternalMetricValues(metrics)
@@ -77,7 +99,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 		isLeaderFunc,
 		dcl,
 	)
-	autoscalerController.EnableHPA(informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	autoscalerController.enableHPA(client, informerFactory)
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
@@ -322,6 +344,7 @@ func TestAutoscalerController(t *testing.T) {
 
 	_, err := c.HorizontalPodAutoscalers("default").Create(context.TODO(), mockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
+
 	timeout := time.NewTimer(5 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	select {
@@ -330,8 +353,9 @@ func TestAutoscalerController(t *testing.T) {
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
+
 	// Check local cache store is 1:1 with expectations
-	storedHPA, err := hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
+	storedHPA, err := hctrl.autoscalersLister.ByNamespace(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
 	select {
@@ -394,7 +418,7 @@ func TestAutoscalerController(t *testing.T) {
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
-	storedHPA, err = hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
+	storedHPA, err = hctrl.autoscalersLister.ByNamespace(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
 	// Checking the local cache holds the correct Data.
@@ -475,7 +499,7 @@ func TestAutoscalerController(t *testing.T) {
 }
 
 func TestAutoscalerSync(t *testing.T) {
-	client := fake.NewSimpleClientset()
+	client := newClient()
 	d := &fakeDatadogClient{}
 	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, d)
 	obj := newFakeHorizontalPodAutoscaler(
@@ -522,6 +546,10 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Name:      "foo",
 					Namespace: "default",
 					UID:       "1111",
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "HorizontalPodAutoscaler",
+					APIVersion: "v2beta1",
 				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
@@ -573,13 +601,10 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			hctrl.store = store
 
 			if testCase.hpa != nil {
-				err := inf.
-					Autoscaling().
-					V2beta1().
-					HorizontalPodAutoscalers().
-					Informer().
-					GetStore().
-					Add(testCase.hpa)
+				genericInformer, err := inf.ForResource(autoscalingv2.SchemeGroupVersion.WithResource(hpaResource))
+				require.NoError(t, err)
+
+				err = genericInformer.Informer().GetStore().Add(testCase.hpa)
 				require.NoError(t, err)
 			}
 			hctrl.gc() // force gc to run
