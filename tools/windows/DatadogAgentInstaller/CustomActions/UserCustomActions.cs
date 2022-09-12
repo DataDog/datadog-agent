@@ -62,34 +62,6 @@ namespace Datadog.CustomActions
                 }
 
                 session["DDAGENTUSER_PASSWORD"] = ddAgentUserPassword;
-
-#if false
-            try
-            {
-                NTAccount f = new NTAccount(domain, userName);
-                SecurityIdentifier s = (SecurityIdentifier)f.Translate(typeof(SecurityIdentifier));
-                String sidString = s.ToString();
-            }
-            catch (IdentityNotMappedException)
-            {
-                // User not found
-            }
-
-            DirectoryEntry ad = new DirectoryEntry("WinNT://" + Environment.MachineName + ",computer");
-            var user = ad.Children.Find(userName);
-            if (user == null)
-            {
-                DirectoryEntry newUser = ad.Children.Add(userName, "user");
-                newUser.Invoke("SetPassword", ddAgentUserPassword);
-                newUser.Invoke("Put", "Description", "Test User from .NET");
-                newUser.CommitChanges();
-            }
-
-            DirectoryEntry grp;
-
-            grp = ad.Children.Find("Guests", "group");
-            if (grp != null) { grp.Invoke("Add", new object[] { user.Path.ToString() }); }
-#endif
             }
             catch (Exception e)
             {
