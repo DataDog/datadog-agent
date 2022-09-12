@@ -49,6 +49,7 @@ type soRule struct {
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
 	procRoot   string
+	hostMount  string
 	all        *regexp.Regexp
 	rules      []soRule
 	loadEvents *ddebpf.PerfHandler
@@ -68,13 +69,13 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
 		procRoot:   procRoot,
+		hostMount:  os.Getenv("HOST_ROOT"),
 		all:        all,
 		rules:      rules,
 		loadEvents: perfHandler,
 		registry: &soRegistry{
-			hostMount: os.Getenv("HOST_ROOT"),
-			byPath:    make(map[string]*soRegistration),
-			byInode:   make(map[uint64]*soRegistration),
+			byPath:  make(map[string]*soRegistration),
+			byInode: make(map[uint64]*soRegistration),
 		},
 	}
 }
@@ -131,6 +132,8 @@ func (w *soWatcher) Start() {
 					if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
 						libPath = hostPath
 					}
+
+					libPath = w.canonicalizePath(libPath)
 					w.registry.register(libPath, r)
 					break
 				}
@@ -153,7 +156,7 @@ func (w *soWatcher) sync() {
 	}
 
 	for _, lib := range libraries {
-		path := w.registry.canonicalizePath(lib.HostPath)
+		path := w.canonicalizePath(lib.HostPath)
 		if _, ok := w.registry.byPath[path]; ok {
 			// shared library still mapped into memory
 			// don't unregister it
@@ -176,6 +179,14 @@ func (w *soWatcher) sync() {
 	}
 }
 
+func (w *soWatcher) canonicalizePath(path string) string {
+	if w.hostMount != "" {
+		path = filepath.Join(w.hostMount, path)
+	}
+
+	return followSymlink(path)
+}
+
 type soRegistration struct {
 	inode        uint64
 	refcount     int
@@ -183,14 +194,11 @@ type soRegistration struct {
 }
 
 type soRegistry struct {
-	hostMount string
-
 	byPath  map[string]*soRegistration
 	byInode map[uint64]*soRegistration
 }
 
 func (r *soRegistry) register(libPath string, rule soRule) {
-	libPath = r.canonicalizePath(libPath)
 	if _, ok := r.byPath[libPath]; ok {
 		return
 	}
@@ -245,14 +253,6 @@ func (r *soRegistry) unregister(libPath string) {
 	if registration.unregisterCB != nil {
 		registration.unregisterCB(libPath)
 	}
-}
-
-func (r *soRegistry) canonicalizePath(path string) string {
-	if r.hostMount != "" {
-		path = filepath.Join(r.hostMount, path)
-	}
-
-	return followSymlink(path)
 }
 
 func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
