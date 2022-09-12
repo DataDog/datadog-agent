@@ -49,9 +49,5 @@ inv -e deps || exit /b 103
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 104
 
-REM Can use 64 bit tools here since our actual target binary is "Any CPU"
-call %VSTUDIO_ROOT%\VC\Auxiliary\Build\vcvars64.bat
-cd tools\windows\DatadogAgentInstaller  || exit /b 105
-nuget restore  || exit /b 106
-msbuild /p:Configuration="Release" /p:Platform="Any CPU" || exit /b 107
-copy WixSetup\datadog-agent*.msi ..\..\..\omnibus\pkg || exit /b 108
+@echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%"
+inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" || exit /b 105
