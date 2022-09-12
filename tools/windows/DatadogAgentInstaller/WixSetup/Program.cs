@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Xml.Linq;
+using System.Text.RegularExpressions;
 using Datadog.CustomActions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -131,7 +131,13 @@ namespace WixSetup
             var packageVersion = Environment.GetEnvironmentVariable("PACKAGE_VERSION");
             if (packageVersion != null)
             {
-                version = Version.Parse(packageVersion);
+                var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)");
+                var versionMatch = versionRegex.Match(packageVersion);
+                version = new Version(
+                    versionMatch.Groups["major"].Value.ToInt(),
+                    versionMatch.Groups["minor"].Value.ToInt(),
+                    versionMatch.Groups["build"].Value.ToInt()
+                    );
             }
             else
             {
