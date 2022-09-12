@@ -1,5 +1,6 @@
 using NineDigit.WixSharpExtensions;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using Datadog.CustomActions;
 using WixSharp;
@@ -32,6 +33,15 @@ namespace WixSetup
         private const string InstallerSource = @"C:\opt\datadog-agent";
         private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
+
+        public static readonly string Agent = $@"{BinSource}\agent\agent.exe";
+        public static readonly string Tray = $@"{BinSource}\agent\ddtray.exe";
+        public static readonly string ProcessAgent = $@"{BinSource}\agent\process-agent.exe";
+        public static readonly string SecurityAgent = $@"{BinSource}\agent\security-agent.exe";
+        public static readonly string SystemProbe = $@"{BinSource}\agent\system-probe.exe";
+        public static readonly string TraceAgent = $@"{BinSource}\agent\trace-agent.exe";
+        public static readonly string LibDatadogAgentThree = $@"{BinSource}\agent\libdatadog-agent-three.dll";
+        public static readonly string LibDatadogAgentTwo = $@"{BinSource}\agent\libdatadog-agent-two.dll";
 
         private static PermissionEx DefaultPermissions()
         {
@@ -120,7 +130,18 @@ namespace WixSetup
                 digitalSignature = new DigitalSignature
                 {
                     PfxFilePath = pfxFilePath,
-                    Password = pfxFilePassword
+                    Password = pfxFilePassword,
+                    HashAlgorithm = HashAlgorithmType.sha256,
+                    // Only use timestamp servers from Microsoft-approved authenticode providers
+                    // See https://docs.microsoft.com/en-us/windows/win32/seccrypto/time-stamping-authenticode-signatures
+                    TimeUrls = new List<Uri>
+                    {
+                        new Uri("http://timestamp.digicert.com"),
+                        new Uri("http://timestamp.globalsign.com/scripts/timstamp.dll"),
+                        new Uri("http://timestamp.comodoca.com/authenticode"),
+                        new Uri("http://www.startssl.com/timestamp"),
+                        new Uri("http://timestamp.sectigo.com"),
+                    }
                 };
             }
 
@@ -139,28 +160,44 @@ namespace WixSetup
             var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", "[DDAGENTUSER_PASSWORD]");
             var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
-            var targetBinFolder = new Dir("bin",
-                                    new File($@"{BinSource}\agent\agent.exe", agentService),
-                                    new File($@"{BinSource}\agent\libdatadog-agent-three.dll"),
-                                    new Dir("agent",
-                                        new Dir("dist",
-                                            new Files($@"{InstallerSource}\bin\agent\dist\*")
-                                        ),
-                                        new Merge(npm, $@"{BinSource}\agent\DDNPM.msm")
-                                        {
-                                            Feature = npm
-                                        },
-                                        new File($@"{BinSource}\agent\ddtray.exe"),
-                                        new File($@"{BinSource}\agent\process-agent.exe", processAgentService),
-                                        new File($@"{BinSource}\agent\security-agent.exe"),
-                                        new File($@"{BinSource}\agent\system-probe.exe", systemProbeService),
-                                        new File($@"{BinSource}\agent\trace-agent.exe", traceAgentService)
-                                        )
-                                    );
+            var filesToSign = new List<string>
+            {
+                Agent,
+                Tray,
+                ProcessAgent,
+                SecurityAgent,
+                SystemProbe,
+                TraceAgent,
+                LibDatadogAgentThree
+            };
 
             if (includePython2)
             {
-                targetBinFolder.AddFile(new File($@"{BinSource}\agent\libdatadog-agent-two.dll"));
+                filesToSign.Add(LibDatadogAgentTwo);
+            }
+
+            var targetBinFolder = new Dir("bin",
+                                        new File(Agent, agentService),
+                                        new File(LibDatadogAgentThree),
+                                        new Dir("agent",
+                                            new Dir("dist",
+                                                new Files($@"{InstallerSource}\bin\agent\dist\*")
+                                            ),
+                                            new Merge(npm, $@"{BinSource}\agent\DDNPM.msm")
+                                            {
+                                                Feature = npm
+                                            },
+                                            new File(Tray),
+                                            new File(ProcessAgent, processAgentService),
+                                            new File(SecurityAgent),
+                                            new File(SystemProbe, systemProbeService),
+                                            new File(TraceAgent, traceAgentService)
+                                            )
+                                        );
+
+            if (includePython2)
+            {
+                targetBinFolder.AddFile(new File(LibDatadogAgentTwo));
             }
 
             var readConfig = new CustomAction<ConfigUserActions>(
@@ -306,6 +343,14 @@ namespace WixSetup
             project.Media.Clear();
             project.WixSourceGenerated += document =>
             {
+                if (digitalSignature != null)
+                {
+                    foreach (var file in filesToSign)
+                    {
+                        digitalSignature.Apply(file);
+                    }
+                }
+
                 document.Select("Wix/Product")
                         .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=mszip; EmbedCab=yes; MaximumUncompressedMediaSize=2");
 
