@@ -113,7 +113,8 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
+      - setup_remote_docker:
+          version: 17.09.0-ce
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
@@ -239,7 +240,7 @@ jobs:
           command: inv -e agent.build --flavor iot
       - run:
           name: test iot agent
-          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
+          command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   documentation_generation:
     <<: *job_template

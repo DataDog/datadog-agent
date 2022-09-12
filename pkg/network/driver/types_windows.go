@@ -151,6 +151,11 @@ type HttpTransactionType struct {
 	Pad                [6]uint8
 	RequestFragment    *uint8
 }
+type HttpConfigurationSettings struct {
+	MaxTransactions       uint64
+	NotificationThreshold uint64
+	MaxRequestFragment    uint16
+}
 type ConnTupleType struct {
 	CliAddr [16]uint8
 	SrvAddr [16]uint8
@@ -165,4 +170,5 @@ const (
 	HttpBatchSize           = 0xf
 	HttpBufferSize          = 0x19
 	HttpTransactionTypeSize = 0x50
+	HttpSettingsTypeSize    = 0x12
 )

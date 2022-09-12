@@ -25,11 +25,7 @@ static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_
         return 0;
     }
 
-#pragma unroll
-    for (int i = 0; i < TTY_NAME_LEN; i++)
-    {
-        dst[i] = src[i];
-    }
+    bpf_probe_read(dst, TTY_NAME_LEN, (void*)src);
     return TTY_NAME_LEN;
 }
 

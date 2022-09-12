@@ -70,11 +70,11 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 			Family: ck.transport.String(),
 			Origin: DebugConntrackTuple{
 				Src: DebugConntrackAddress{
-					IP:   ck.src.IP().String(),
+					IP:   ck.src.Addr().String(),
 					Port: ck.src.Port(),
 				},
 				Dst: DebugConntrackAddress{
-					IP:   ck.dst.IP().String(),
+					IP:   ck.dst.Addr().String(),
 					Port: ck.dst.Port(),
 				},
 			},
@@ -148,21 +148,21 @@ func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugC
 						Proto:  src.transport.String(),
 						Origin: DebugConntrackTuple{
 							Src: DebugConntrackAddress{
-								IP:   src.src.IP().String(),
+								IP:   src.src.Addr().String(),
 								Port: src.src.Port(),
 							},
 							Dst: DebugConntrackAddress{
-								IP:   src.dst.IP().String(),
+								IP:   src.dst.Addr().String(),
 								Port: src.dst.Port(),
 							},
 						},
 						Reply: DebugConntrackTuple{
 							Src: DebugConntrackAddress{
-								IP:   dst.src.IP().String(),
+								IP:   dst.src.Addr().String(),
 								Port: dst.src.Port(),
 							},
 							Dst: DebugConntrackAddress{
-								IP:   dst.dst.IP().String(),
+								IP:   dst.dst.Addr().String(),
 								Port: dst.dst.Port(),
 							},
 						},

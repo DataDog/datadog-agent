@@ -25,9 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-
-	// util.GetHostname(...) will panic without this import
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 

@@ -270,7 +270,7 @@ or review the latest changes. For new integrations, please open a pull request
 in the [integrations-extras][extras] repo.
 
 
-[troubleshooting]: https://datadog.zendesk.com/hc/en-us/sections/200766955-Troubleshooting
+[troubleshooting]: https://help.datadoghq.com/
 [kb]: https://datadog.zendesk.com/hc/en-us
 [support]: http://docs.datadoghq.com/help/
 [flare]: https://github.com/DataDog/dd-agent/wiki/Send-logs-to-support
