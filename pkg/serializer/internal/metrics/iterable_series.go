@@ -190,7 +190,6 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 
 				return nil
 			})
-
 			if err != nil {
 				return err
 			}
@@ -209,7 +208,6 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 
 					return nil
 				})
-
 				if err != nil {
 					return err
 				}
