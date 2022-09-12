@@ -171,22 +171,6 @@ namespace WixSetup
             var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", "[DDAGENTUSER_PASSWORD]");
             var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
-            var filesToSign = new List<string>
-            {
-                Agent,
-                Tray,
-                ProcessAgent,
-                SecurityAgent,
-                SystemProbe,
-                TraceAgent,
-                LibDatadogAgentThree
-            };
-
-            if (includePython2)
-            {
-                filesToSign.Add(LibDatadogAgentTwo);
-            }
-
             var targetBinFolder = new Dir("bin",
                                         new File(Agent, agentService),
                                         new File(LibDatadogAgentThree),
@@ -356,6 +340,20 @@ namespace WixSetup
             {
                 if (digitalSignature != null)
                 {
+                    var filesToSign = new List<string>
+                    {
+                        Agent,
+                        Tray,
+                        ProcessAgent,
+                        SecurityAgent,
+                        SystemProbe,
+                        TraceAgent,
+                        LibDatadogAgentThree
+                    };
+                    if (includePython2)
+                    {
+                        filesToSign.Add(LibDatadogAgentTwo);
+                    }
                     foreach (var file in filesToSign)
                     {
                         digitalSignature.Apply(file);
