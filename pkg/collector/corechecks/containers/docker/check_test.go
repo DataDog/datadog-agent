@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -125,7 +125,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Labels: map[string]string{
 				"io.kubernetes.pod.namespace": "kubens",
 			},
-			State:      containers.ContainerRunningState,
+			State:      string(workloadmeta.ContainerStatusRunning),
 			SizeRw:     100,
 			SizeRootFs: 200,
 		},
@@ -134,21 +134,21 @@ func TestDockerCustomPart(t *testing.T) {
 			Names:   []string{"agent2"},
 			Image:   "datadog/agent:7.32.0-rc.1",
 			ImageID: "sha256:c7e83cf0566432c24ed909f52ea16c29281f6f30d0a27855e15ff79376efaed0", // Image missing in mapping
-			State:   containers.ContainerRunningState,
+			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90",
 			Names:   []string{"agent3"},
 			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
 			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
-			State:   containers.ContainerRunningState,
+			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b91",
 			Names:   []string{"agent-excluded"},
 			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
 			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
-			State:   containers.ContainerRunningState,
+			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
@@ -158,7 +158,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Labels: map[string]string{
 				"io.kubernetes.pod.namespace": "kubens",
 			},
-			State:  containers.ContainerDeadState,
+			State:  "dead",
 			SizeRw: 100,
 		},
 	}
@@ -196,7 +196,8 @@ func TestDockerCustomPart(t *testing.T) {
 			CollectVolumeCount: true,
 			CollectEvent:       true,
 		},
-		dockerHostname: "testhostname",
+		eventTransformer: newBundledTransformer("testhostname", []string{}),
+		dockerHostname:   "testhostname",
 		containerFilter: &containers.Filter{
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
@@ -256,21 +257,21 @@ func TestContainersRunning(t *testing.T) {
 			Names:   []string{"agent"},
 			Image:   "datadog/agent",
 			ImageID: imageID,
-			State:   containers.ContainerRunningState,
+			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074",
 			Names:   []string{"agent"},
 			Image:   "datadog/agent",
 			ImageID: imageID,
-			State:   containers.ContainerRunningState,
+			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90",
 			Names:   []string{"agent"},
 			Image:   "datadog/agent",
 			ImageID: imageID,
-			State:   containers.ContainerRunningState,
+			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 	}
 

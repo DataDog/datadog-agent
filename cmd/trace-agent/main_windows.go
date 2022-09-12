@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"

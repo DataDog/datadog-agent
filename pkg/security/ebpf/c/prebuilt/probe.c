@@ -26,6 +26,7 @@
 #include "activity_dump.h"
 #include "approvers.h"
 #include "discarders.h"
+#include "iouring.h"
 #include "dentry.h"
 #include "dentry_resolver.h"
 #include "pipe.h"

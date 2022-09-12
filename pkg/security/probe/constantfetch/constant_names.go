@@ -55,4 +55,7 @@ const (
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
+
+	// iouring constants
+	OffsetNameIoKiocbStructCtx = "iokiocb_ctx_offset"
 )
