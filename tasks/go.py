@@ -203,7 +203,7 @@ def generate_protobuf(ctx):
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
-        ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
+        ctx.run(f"mockgen -source={pbgo_dir}/api_grpc.pb.go -destination={mockgen_out}/api_grpc_mockgen.pb.go")
 
     # generate messagepack marshallers
     ctx.run("msgp -file pkg/proto/msgpgo/key.go -o=pkg/proto/msgpgo/key_gen.go")
