@@ -34,12 +34,13 @@ namespace WixSetup
         }
 
         public CustomAction(
+            Id id,
             CustomActionMethod action,
             Return returnType,
             When when,
             Step step,
             Condition condition)
-            : base(action, typeof(T).Assembly.Location, returnType, when, step, condition)
+            : base(id, action, typeof(T).Assembly.Location, returnType, when, step, condition)
         {
             RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
         }
