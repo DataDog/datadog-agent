@@ -10,8 +10,8 @@ import (
 	"sync"
 )
 
-// EphemeralPort port number is represented by `0` internally
-const EphemeralPort int32 = 0
+// EphemeralPort port number is represented by `-1` internally
+const EphemeralPort int32 = -1
 
 // IsEphemeralStatus enum type
 type IsEphemeralStatus int32

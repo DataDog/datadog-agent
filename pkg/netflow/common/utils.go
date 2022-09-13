@@ -7,7 +7,6 @@ package common
 
 import (
 	"net"
-	"strconv"
 )
 
 // MinUint64 returns the min of the two passed number
@@ -40,12 +39,4 @@ func IPBytesToString(ip []byte) string {
 		return ""
 	}
 	return net.IP(ip).String()
-}
-
-// PortToString convert port to string
-func PortToString(port int32) string {
-	if port < 0 {
-		return "*"
-	}
-	return strconv.Itoa(int(port))
 }
