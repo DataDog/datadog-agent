@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -248,12 +249,20 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 // applyOrdering sorts the 'files' slice in-place by the currently configured 'sortMode'
 func (p *FileProvider) applyOrdering(files []*tailer.File) {
 	if p.wildcardOrder == WildcardMtime {
+		statResults := make(map[*tailer.File]time.Time, len(files))
+		for _, file := range files {
+			statRes, err := os.Stat(file.Path)
+			if err != nil {
+				// File has moved, de-prioritize this file to avoid selecting it
+				// If it is selected anyway, Launcher#startNewTailer will fail and log a warning
+				statResults[file] = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
+			} else {
+				statResults[file] = statRes.ModTime()
+			}
+		}
 		// sort paths descending by mtime
 		sort.SliceStable(files, func(i, j int) bool {
-			statI, _ := os.Stat(files[i].Path)
-			statJ, _ := os.Stat(files[j].Path)
-
-			return statI.ModTime().After(statJ.ModTime())
+			return statResults[files[i]].After(statResults[files[j]])
 		})
 	} else if p.wildcardOrder == WildcardReverseLexicographical {
 		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order

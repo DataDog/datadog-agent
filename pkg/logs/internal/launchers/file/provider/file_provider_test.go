@@ -557,6 +557,40 @@ func BenchmarkApplyOrdering(b *testing.B) {
 	})
 }
 
+func BenchmarkApplyOrderingManyFiles(b *testing.B) {
+	baseTime := time.Date(2010, time.August, 25, 0, 0, 0, 0, time.UTC)
+	numFiles := 1_000
+
+	setup := func() []*tailer.File {
+		fs := newTempFs(b)
+		files := make([]*tailer.File, 0, numFiles)
+		for i := 0; i < numFiles; i++ {
+			name := fmt.Sprintf("%d.log", i)
+			fs.createFileWithTime(name, baseTime.Add(time.Second*time.Duration(1)))
+			files = append(files, &tailer.File{Path: fs.path(name)})
+		}
+		return files
+	}
+	b.Run("Mtime", func(b *testing.B) {
+		fileProvider := NewFileProvider(numFiles, WildcardMtime, GreedySelection)
+
+		files := setup()
+
+		for n := 0; n < b.N; n++ {
+			fileProvider.applyOrdering(files)
+		}
+	})
+
+	b.Run("ReverseLexicographical", func(b *testing.B) {
+		fileProvider := NewFileProvider(numFiles, WildcardReverseLexicographical, GreedySelection)
+		files := setup()
+
+		for n := 0; n < b.N; n++ {
+			fileProvider.applyOrdering(files)
+		}
+	})
+}
+
 func TestApplyOrdering(t *testing.T) {
 	t.Run("Mtime", func(t *testing.T) {
 		fs := newTempFs(t)
