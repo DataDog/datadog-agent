@@ -29,13 +29,13 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		IPProtocol: enrichment.MapIPProtocol(aggFlow.IPProtocol),
 		Source: payload.Endpoint{
 			IP:   common.IPBytesToString(aggFlow.SrcAddr),
-			Port: aggFlow.SrcPort,
+			Port: common.PortToString(aggFlow.SrcPort),
 			Mac:  enrichment.FormatMacAddress(aggFlow.SrcMac),
 			Mask: enrichment.FormatMask(aggFlow.SrcAddr, aggFlow.SrcMask),
 		},
 		Destination: payload.Endpoint{
 			IP:   common.IPBytesToString(aggFlow.DstAddr),
-			Port: aggFlow.DstPort,
+			Port: common.PortToString(aggFlow.DstPort),
 			Mac:  enrichment.FormatMacAddress(aggFlow.DstMac),
 			Mask: enrichment.FormatMask(aggFlow.DstAddr, aggFlow.DstMask),
 		},

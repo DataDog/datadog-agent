@@ -44,8 +44,8 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 		TCPFlags:       synFlag,
 	}
 	flowA2 := &common.Flow{
@@ -58,8 +58,8 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 		TCPFlags:       ackFlag,
 	}
 	flowB1 := &common.Flow{
@@ -73,8 +73,8 @@ func Test_flowAccumulator_add(t *testing.T) {
 		// different destination addr
 		DstAddr:    []byte{10, 10, 10, 30},
 		IPProtocol: uint32(6),
-		SrcPort:    uint32(2000),
-		DstPort:    uint32(80),
+		SrcPort:    2000,
+		DstPort:    80,
 	}
 
 	// When
@@ -116,8 +116,8 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(1000),
-		DstPort:        uint32(80),
+		SrcPort:        1000,
+		DstPort:        80,
 		TCPFlags:       synFlag,
 	}
 	flowA2 := &common.Flow{
@@ -130,8 +130,8 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(1000),
-		DstPort:        uint32(80),
+		SrcPort:        1000,
+		DstPort:        80,
 		TCPFlags:       ackFlag,
 	}
 	flowB1 := common.Flow{
@@ -144,8 +144,8 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 30},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(80),
-		DstPort:        uint32(2001),
+		SrcPort:        80,
+		DstPort:        2001,
 	}
 
 	// When
@@ -171,7 +171,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	acc.add(&flowB6)
 
 	flowBwithPortRollup := flowB1
-	flowBwithPortRollup.DstPort = 0
+	flowBwithPortRollup.DstPort = -1
 
 	sourcePortCount := acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80)
 
@@ -190,12 +190,12 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
 
 	assert.Equal(t, uint64(10), acc.flows[flowB1.AggregationHash()].flow.Packets)
-	assert.Equal(t, uint32(2001), acc.flows[flowB1.AggregationHash()].flow.DstPort)
+	assert.Equal(t, int32(2001), acc.flows[flowB1.AggregationHash()].flow.DstPort)
 	assert.Equal(t, uint64(10), acc.flows[flowB2.AggregationHash()].flow.Packets)
-	assert.Equal(t, uint32(2002), acc.flows[flowB2.AggregationHash()].flow.DstPort)
+	assert.Equal(t, int32(2002), acc.flows[flowB2.AggregationHash()].flow.DstPort)
 	// flowB3, B4, B5, B6 are aggregated into one flow with DstPort = 0
 	assert.Equal(t, uint64(40), acc.flows[flowBwithPortRollup.AggregationHash()].flow.Packets)
-	assert.Equal(t, uint32(0), acc.flows[flowBwithPortRollup.AggregationHash()].flow.DstPort)
+	assert.Equal(t, int32(-1), acc.flows[flowBwithPortRollup.AggregationHash()].flow.DstPort)
 }
 
 func Test_flowAccumulator_flush(t *testing.T) {
@@ -215,8 +215,8 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 	}
 
 	// When

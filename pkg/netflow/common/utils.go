@@ -5,7 +5,10 @@
 
 package common
 
-import "net"
+import (
+	"net"
+	"strconv"
+)
 
 // MinUint64 returns the min of the two passed number
 func MinUint64(a uint64, b uint64) uint64 {
@@ -31,19 +34,18 @@ func MaxUint16(a uint16, b uint16) uint16 {
 	return b
 }
 
-// Uint32ToBytes converts uint32 to []byte
-func Uint32ToBytes(val uint32) []byte {
-	b := make([]byte, 4)
-	for i := 0; i < 4; i++ {
-		b[i] = byte(val >> (8 * i))
-	}
-	return b
-}
-
 // IPBytesToString convert IP in []byte to string
 func IPBytesToString(ip []byte) string {
 	if len(ip) == 0 {
 		return ""
 	}
 	return net.IP(ip).String()
+}
+
+// PortToString convert port to string
+func PortToString(port int32) string {
+	if port < 0 {
+		return "*"
+	}
+	return strconv.Itoa(int(port))
 }

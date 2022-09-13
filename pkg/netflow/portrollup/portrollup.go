@@ -11,7 +11,7 @@ import (
 )
 
 // EphemeralPort port number is represented by `0` internally
-const EphemeralPort uint32 = 0
+const EphemeralPort int32 = 0
 
 // IsEphemeralStatus enum type
 type IsEphemeralStatus int32
