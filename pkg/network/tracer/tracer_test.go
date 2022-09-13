@@ -750,14 +750,15 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	initTracerState(t, tr)
 
 	// Make sure we're not picking up 127.0.0.1:80
-	for _, c := range getConnections(t, tr).Conns {
+	cxs := getConnections(t, tr)
+	for _, c := range cxs.Conns {
 		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
 		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 	}
 
 	// ensure one of the connections is UDP to 127.0.0.1:80
 	assert.Condition(t, func() bool {
-		for _, c := range getConnections(t, tr).Conns {
+		for _, c := range cxs.Conns {
 			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
 				return true
 			}

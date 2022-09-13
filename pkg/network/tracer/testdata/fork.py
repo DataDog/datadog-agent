@@ -18,6 +18,7 @@ else:
     # parent
     s.recv(256)
     os.wait()
+    s.send(b'bar')
     signal.pause()
 
 s.close()
