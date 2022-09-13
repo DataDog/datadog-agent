@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -9,7 +10,7 @@ using File = WixSharp.File;
 
 namespace WixSetup.Datadog
 {
-    public class AgentInstaller
+    public class AgentInstaller : IWixProjectEvents
     {
         // Company
         private const string CompanyFullName = "Datadog, inc.";
@@ -45,8 +46,8 @@ namespace WixSetup.Datadog
         public AgentInstaller()
         {
             _agentBinaries = new AgentBinaries(BinSource);
-            _agentSignature = new AgentSignature(_agentPython, _agentBinaries);
-            _agentInstallerUi = new AgentInstallerUI(_agentCustomActions);
+            _agentSignature = new AgentSignature(this, _agentPython, _agentBinaries);
+            _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
         }
 
         public Project ConfigureProject()
@@ -156,16 +157,19 @@ namespace WixSetup.Datadog
             project.OutFileName = $"datadog-agent-{_agentVersion.PackageVersion}-{_agentVersion.Version.Revision}-x86_64";
             project.DigitalSignature = _agentSignature.Signature;
 
-            project.WixSourceGenerated += _agentSignature.OnWixSourceGenerated;
-            project.WixSourceGenerated += _agentInstallerUi.OnWixSourceGenerated;
-
             // clear default media as we will add it via MediaTemplate
             project.Media.Clear();
             project.WixSourceGenerated += document =>
             {
+                if (WixSourceGenerated != null)
+                {
+                    WixSourceGenerated(document);
+                }
                 document.Select("Wix/Product")
                     .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=mszip; EmbedCab=yes; MaximumUncompressedMediaSize=2");
             };
+            project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
+            project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
 
             project.UI = WUI.WixUI_Common;
             project.CustomUI = _agentInstallerUi.CustomUI;
@@ -178,16 +182,14 @@ namespace WixSetup.Datadog
         private Dir CreateProgramFilesFolder()
         {
             var targetBinFolder = CreateBinFolder();
-            var binFolder = new Dir(new Id("ProgramFilesFolder"), @"%ProgramFiles%",
-                new Dir(new Id("APPLICATIONROOTDIRECTORY"), "Datadog",
-                    new Dir(new Id("PROJECTLOCATION"), "Datadog Agent", targetBinFolder),
-                    new Dir("LICENSES",
-                        new Files($@"{InstallerSource}\LICENSES\*")
-                    ),
-                    new DirFiles($@"{InstallerSource}\*.json"),
-                    new DirFiles($@"{InstallerSource}\*.txt"),
-                    new Dir("embedded3", new Files($@"{InstallerSource}\embedded3\*"))
-                )
+            var binFolder = new Dir(new Id("APPLICATIONROOTDIRECTORY"), @"%ProgramFiles%\Datadog",
+                new Dir(new Id("PROJECTLOCATION"), "Datadog Agent", targetBinFolder),
+                new Dir("LICENSES",
+                    new Files($@"{InstallerSource}\LICENSES\*")
+                ),
+                new DirFiles($@"{InstallerSource}\*.json"),
+                new DirFiles($@"{InstallerSource}\*.txt"),
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
             );
             return binFolder;
         }
@@ -321,5 +323,9 @@ namespace WixSetup.Datadog
             };
             return targetBinFolder;
         }
+
+        public event XDocumentGeneratedDlgt WixSourceGenerated;
+        public event XDocumentSavedDlgt WixSourceSaved;
+        public event XDocumentFormatedDlgt WixSourceFormated;
     }
 }

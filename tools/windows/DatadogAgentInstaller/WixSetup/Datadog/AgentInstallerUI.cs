@@ -6,13 +6,15 @@ using WixSharp.Controls;
 namespace WixSetup.Datadog
 {
     // ReSharper disable once InconsistentNaming
-    public class AgentInstallerUI : IWixSourceGeneratedListener
+    public class AgentInstallerUI
     {
         // ReSharper disable once InconsistentNaming
         public CustomUI CustomUI { get; }
 
-        public AgentInstallerUI(AgentCustomActions agentCustomActions)
+        public AgentInstallerUI(IWixProjectEvents wixProjectEvents, AgentCustomActions agentCustomActions)
         {
+            wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
+
             CustomUI = new CustomUI();
 
             CustomUI.On(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.LicenseAgreementDlg, Condition.NOT_Installed));

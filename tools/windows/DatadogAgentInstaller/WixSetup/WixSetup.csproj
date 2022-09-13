@@ -15,6 +15,7 @@
     <None Include="wix\$(ProjectName).g.wxs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Cave.Compression" Version="2.1.0" />
     <PackageReference Include="NineDigit.WixSharpExtensions" Version="1.0.14" />
     <PackageReference Include="WixSharp" Version="1.20.2" />
   </ItemGroup>
