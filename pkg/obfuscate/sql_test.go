@@ -767,6 +767,10 @@ func TestSQLQuantizer(t *testing.T) {
 			"SELECT * FROM host WHERE id IN ( ? )",
 		},
 		{
+			`MOVE -2018 IN "query-cursor_1"`,
+			`MOVE ? IN query-cursor_1`,
+		},
+		{
 			"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
 			"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?"},
 		{
