@@ -29,7 +29,7 @@ type AgentMetadata struct {
 	Version string `json:"version"`
 }
 
-func reopen(path string) (*bbolt.DB, error) {
+func recreate(path string) (*bbolt.DB, error) {
 	log.Infof("Clear remote configuration database")
 	if err := os.Remove(path); err != nil {
 		return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
@@ -60,39 +60,35 @@ func addMetadata(db *bbolt.DB) error {
 func openCacheDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
 	if err != nil {
-		return reopen(path)
+		return recreate(path)
 	}
 
-	err = db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(metaBucket))
-		if bucket == nil {
-			return fmt.Errorf("Missing meta bucket")
-		}
-		metaFile := bucket.Get([]byte(metaFile))
-		if metaFile == nil {
-			return fmt.Errorf("Missing meta file in meta bucket")
-		}
-
-		metadata := new(AgentMetadata)
-		err := json.Unmarshal(metaFile, metadata)
-		if err != nil {
-			return err
-		}
-
-		if metadata.Version != version.AgentVersion {
-			return fmt.Errorf("Database needs to be cleared")
-		}
-		return nil
-	})
+	tx, err := db.Begin(false)
 	if err != nil {
-		log.Errorf("Invalid database vesion: %w", err)
+		return recreate(path)
 	}
-	if db.Close() != nil {
-		return nil, fmt.Errorf("Failed to close remote config")
+	defer tx.Rollback()
+	bucket := tx.Bucket([]byte(metaBucket))
+	if bucket == nil {
+		log.Infof("Missing meta bucket")
+		return recreate(path)
+	}
+	metadataBytes := bucket.Get([]byte(metaFile))
+	if metadataBytes == nil {
+		log.Infof("Missing meta file in meta bucket")
+		return recreate(path)
 	}
 
+	metadata := new(AgentMetadata)
+	err = json.Unmarshal(metadataBytes, metadata)
 	if err != nil {
-		return reopen(path)
+		log.Infof("Invalid metadata")
+		return recreate(path)
+	}
+
+	if metadata.Version != version.AgentVersion {
+		log.Infof("Different agent version detected")
+		return recreate(path)
 	}
 
 	return db, nil
