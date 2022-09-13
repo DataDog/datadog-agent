@@ -8,7 +8,6 @@
 ---
 features:
   - |
-    Added the "config_params_as_tags" configuration option in the Helm check.
-    It allows users to collect configuration parameters from a Helm release and
-    use them as tags to attach to the metrics and events emitted by the Helm
-    check.
+    Added the "helm_values_as_tags" configuration option in the Helm check.  It
+    allows users to collect helm values from a Helm release and use them as
+    tags to attach to the metrics and events emitted by the Helm check.

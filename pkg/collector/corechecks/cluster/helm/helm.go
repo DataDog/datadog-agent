@@ -71,7 +71,7 @@ type HelmCheck struct {
 
 type checkConfig struct {
 	CollectEvents                  bool              `yaml:"collect_events"`
-	ConfigParamsAsTags             map[string]string `yaml:"config_params_as_tags"`
+	HelmValuesAsTags               map[string]string `yaml:"helm_values_as_tags"`
 	ExtraSyncTimeoutSeconds        int               `yaml:"extra_sync_timeout_seconds"`
 	InformersResyncIntervalMinutes int               `yaml:"informers_resync_interval_minutes"`
 }
@@ -80,7 +80,7 @@ type checkConfig struct {
 func (cc *checkConfig) Parse(data []byte) error {
 	// default values
 	cc.CollectEvents = false
-	cc.ConfigParamsAsTags = make(map[string]string)
+	cc.HelmValuesAsTags = make(map[string]string)
 
 	return yaml.Unmarshal(data, cc)
 }
@@ -237,10 +237,10 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
 	}
 
-	for configParam, tagName := range hc.instance.ConfigParamsAsTags {
-		value, err := release.getConfigValue(configParam)
+	for helmValue, tagName := range hc.instance.HelmValuesAsTags {
+		value, err := release.getConfigValue(helmValue)
 		if err != nil {
-			log.Tracef("Value for %s specified in config_params_as_tags not found", configParam)
+			log.Tracef("Value for %s specified in helm_values_as_tags not found", helmValue)
 			continue
 		}
 		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))

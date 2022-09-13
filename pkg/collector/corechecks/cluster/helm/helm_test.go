@@ -99,8 +99,8 @@ func TestRun(t *testing.T) {
 			Namespace: "default",
 		},
 		{
-			// Release with config param set
-			Name: "with_config_param",
+			// Release with helm values set
+			Name: "with_helm_values",
 			Info: &info{
 				Status: "deployed",
 			},
@@ -109,7 +109,7 @@ func TestRun(t *testing.T) {
 			},
 			Chart: &chart{
 				Metadata: &metadata{
-					Name:       "with_config_param",
+					Name:       "with_helm_values",
 					Version:    "1.0.0",
 					AppVersion: "1",
 				},
@@ -191,16 +191,16 @@ func TestRun(t *testing.T) {
 			"helm_chart:foo-2_30_5",
 		},
 		{
-			"helm_release:with_config_param",
-			"helm_chart_name:with_config_param",
+			"helm_release:with_helm_values",
+			"helm_chart_name:with_helm_values",
 			"kube_namespace:default",
 			"helm_namespace:default",
 			"helm_revision:1",
 			"helm_status:deployed",
 			"helm_chart_version:1.0.0",
 			"helm_app_version:1",
-			"helm_chart:with_config_param-1.0.0",
-			"option_value:2", // Because "ConfigParamsAsTags" is set with "option" => "option_value" in the test check
+			"helm_chart:with_helm_values-1.0.0",
+			"option_value:2", // Because "HelmValuesAsTags" is set with "option" => "option_value" in the test check
 		},
 	}
 
@@ -263,7 +263,7 @@ func TestRun(t *testing.T) {
 			check := factory().(*HelmCheck)
 			check.runLeaderElection = false
 
-			check.instance.ConfigParamsAsTags = map[string]string{
+			check.instance.HelmValuesAsTags = map[string]string{
 				"option": "option_value",
 			}
 
