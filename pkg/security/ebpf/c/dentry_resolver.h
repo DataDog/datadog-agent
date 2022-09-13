@@ -129,7 +129,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     // check if we should ignore the normal discarder check because of an activity dump
     fill_activity_dump_discarder_state(ctx, params);
 
-    if (key.ino == 0 || key.mount_id == 0) {
+    if (key.ino == 0) {
         return DENTRY_INVALID;
     }
 

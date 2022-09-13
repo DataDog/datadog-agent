@@ -624,7 +624,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 // SetProcessPath resolves process file path
 func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, error) {
 
-	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+	if fileEvent.Inode == 0 {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
 
