@@ -296,10 +296,6 @@ func (a *Agent) processChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Time
 
 	numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 
-	// If sampling decided to drop this chunk, then there are three possibilities:
-	// 1. Span sampling can be applied, in which case we return the in-place modified chunk.
-	// 2. No events were extracted, in which case we return nil.
-	// 3. Events were extracted, in which case we return the extracted events (filteredChunk).
 	if !keep && sampler.ApplySpanSampling(chunk) {
 		// The span sampler decided to keep some of the spans anyway. It modified chunk in-place.
 		keep = true
