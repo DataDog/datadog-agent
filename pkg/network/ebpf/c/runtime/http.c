@@ -427,8 +427,7 @@ static __always_inline int do_sys_open_helper_enter(struct pt_regs *ctx) {
     int errno;
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = { 0 };
-    bpf_probe_read_user_with_telemetry_ret_err(path.buf, sizeof(path.buf), path_argument, errno);
-    if (errno >= 0) {
+    if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), path_argument) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {

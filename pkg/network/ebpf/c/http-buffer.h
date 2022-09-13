@@ -10,12 +10,10 @@
 //
 // This function is used for the uprobe-based HTTPS monitoring (eg. OpenSSL, GnuTLS etc)
 static __always_inline void read_into_buffer(char *buffer, char *data, size_t data_size) {
-    int errno;
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
 
     // we read HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
-   bpf_probe_read_user_with_telemetry_ret_err(buffer, HTTP_BUFFER_SIZE - 1, data, errno);
-    if (errno < 0) {
+    if (bpf_probe_read_user_with_telemetry(buffer, HTTP_BUFFER_SIZE - 1, data) < 0) {
 // note: arm64 bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
 #if defined(__aarch64__)
 #pragma unroll
