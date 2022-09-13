@@ -48,7 +48,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 			}
 
 			// The flare command should not log anything, all errors should be reported directly to the console without the log format
-			err = config.SetupLogger(globalArgs.LoggerName, "off", "", "", false, true, false)
+			err = config.SetupLogger(config.CoreLoggerName, "off", "", "", false, true, false)
 			if err != nil {
 				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 				return err

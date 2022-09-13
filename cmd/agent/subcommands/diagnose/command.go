@@ -69,7 +69,7 @@ func configAndLogSetup(globalArgs *app.GlobalArgs) error {
 	}
 
 	// log level is always off since this might be use by other agent to get the hostname
-	err = config.SetupLogger(globalArgs.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
+	err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
 
 	if err != nil {
 		return fmt.Errorf("error while setting up logging, exiting: %v", err)

@@ -19,10 +19,7 @@ type SubcommandFactory func(globalArgs *GlobalArgs) *cobra.Command
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
-	globalArgs := GlobalArgs{
-		// LoggerName is the name of the core agent logger
-		LoggerName: "CORE",
-	}
+	globalArgs := GlobalArgs{}
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{

@@ -37,8 +37,6 @@ var (
 	discoveryMinInstances  uint
 )
 
-const jmxLoggerName config.LoggerName = "JMXFETCH"
-
 // Command returns the main cobra config command.
 func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	jmxCmd := &cobra.Command{
@@ -152,13 +150,13 @@ func runJmxCommandConsole(globalArgs *app.GlobalArgs, command string) error {
 		jmxLogLevel = "debug"
 	}
 
-	logLevel, _, err := standalone.SetupCLI(globalArgs.LoggerName, globalArgs.ConfFilePath, "", logFile, jmxLogLevel, "debug")
+	logLevel, _, err := standalone.SetupCLI(config.CoreLoggerName, globalArgs.ConfFilePath, "", logFile, jmxLogLevel, "debug")
 	if err != nil {
 		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err
 	}
 
-	err = config.SetupJMXLogger(jmxLoggerName, logFile, "", false, true, false)
+	err = config.SetupJMXLogger(logFile, "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}

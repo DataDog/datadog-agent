@@ -5,16 +5,11 @@
 
 package app
 
-import "github.com/DataDog/datadog-agent/pkg/config"
-
 // GlobalArgs contains the values of agent-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalArgs struct {
-	// LoggerName is the name of the logger
-	LoggerName config.LoggerName
-
 	// ConfFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
 	ConfFilePath string

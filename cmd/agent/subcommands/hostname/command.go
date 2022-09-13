@@ -30,7 +30,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 			}
 
 			// log level is always off since this might be use by other agent to get the hostname
-			err = config.SetupLogger(globalArgs.LoggerName, "off", "", "", false, true, false)
+			err = config.SetupLogger(config.CoreLoggerName, "off", "", "", false, true, false)
 			if err != nil {
 				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 				return err

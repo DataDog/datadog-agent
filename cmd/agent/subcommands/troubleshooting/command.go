@@ -67,7 +67,7 @@ func printPayload(globalArgs *app.GlobalArgs, payloadName string) error {
 		return nil
 	}
 
-	err = config.SetupLogger(globalArgs.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err
