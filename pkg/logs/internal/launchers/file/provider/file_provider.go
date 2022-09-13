@@ -43,8 +43,8 @@ type wildcardOrdering int
 const (
 	// wildcardReverseLexicographical is the default option and does a pseudo reverse alpha sort
 	wildcardReverseLexicographical wildcardOrdering = iota
-	// wildcardMtime sorts based on the most recently modified time for each matching wildcard file
-	wildcardMtime
+	// wildcardModTime sorts based on the most recently modified time for each matching wildcard file
+	wildcardModTime
 )
 
 // selectionStrategy controls how the `filesLimit` slots we have are filled given a list of sources
@@ -72,7 +72,7 @@ func NewFileProvider(filesLimit int, wildcardSelection WildcardSelectionStrategy
 	wildcardOrder := wildcardReverseLexicographical
 	selectionMode := greedySelection
 	if wildcardSelection == WildcardUseFileModTime {
-		wildcardOrder = wildcardMtime
+		wildcardOrder = wildcardModTime
 		selectionMode = globalSelection
 	}
 
@@ -100,7 +100,7 @@ func newWildcardFileCounter() wildcardFileCounter {
 	}
 }
 
-func (w *wildcardFileCounter) addTracked(src *sources.LogSource) {
+func (w *wildcardFileCounter) incrementTracked(src *sources.LogSource) {
 	matchCnt, _ := w.counts[src]
 	matchCnt.tracked++
 	w.counts[src] = matchCnt
@@ -112,73 +112,68 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
+func (p *FileProvider) addFilesToTailList(inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter) []*tailer.File {
+	// Add each file one by one up to the limit
+	for j := 0; j < len(inputFiles) && len(filesToTail) < p.filesLimit; j++ {
+		file := inputFiles[j]
+		filesToTail = append(filesToTail, file)
+		src := file.Source.UnderlyingSource()
+		if config.ContainsWildcard(src.Config.Path) {
+			w.incrementTracked(src)
+		}
+	}
+
+	if len(filesToTail) >= p.filesLimit {
+		status.AddGlobalWarning(
+			openFilesLimitWarningType,
+			fmt.Sprintf(
+				"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+				p.filesLimit,
+			),
+		)
+	} else {
+		status.RemoveGlobalWarning(openFilesLimitWarningType)
+	}
+	return filesToTail
+}
+
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
-// Files are collected according to the fileProvider's sortMode and chooseStrategy
+// Files are collected according to the fileProvider's wildcardOrder and selectionMode
 func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
-
 	wildcardFileCounter := newWildcardFileCounter()
-	wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
 
-	consumeFiles := func(files []*tailer.File) {
-		// Add each file one by one
-		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
-			file := files[j]
-			filesToTail = append(filesToTail, file)
-			src := file.Source.UnderlyingSource()
-			if config.ContainsWildcard(src.Config.Path) {
-				wildcardFileCounter.addTracked(src)
-			}
-		}
+	if p.selectionMode == globalSelection {
+		wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
 
-		if len(filesToTail) >= p.filesLimit {
-			status.AddGlobalWarning(
-				openFilesLimitWarningType,
-				fmt.Sprintf(
-					"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
-					p.filesLimit,
-				),
-			)
-		} else {
-			status.RemoveGlobalWarning(openFilesLimitWarningType)
-		}
-	}
-
-	for i := 0; i < len(inputSources); i++ {
-		source := inputSources[i]
-		isWildcardSource := config.ContainsWildcard(source.Config.Path)
-		if isWildcardSource {
-			// if global, save all wildcards for later
-			if p.selectionMode == globalSelection {
+		// First pass - collect all wildcard sources and add files for non-wildcard sources
+		for i := 0; i < len(inputSources); i++ {
+			source := inputSources[i]
+			isWildcardSource := config.ContainsWildcard(source.Config.Path)
+			if isWildcardSource {
 				wildcardSources = append(wildcardSources, source)
 				continue
-			} // else if greedy, collect now source-by-source
-		}
-		files, err := p.CollectFiles(source)
-		if err != nil {
-			if isWildcardSource {
-				wildcardFileCounter.setTotal(source, len(files))
+			} else {
+				files, err := p.CollectFiles(source)
+				if err != nil {
+					if isWildcardSource {
+						wildcardFileCounter.setTotal(source, len(files))
+					}
+
+					source.Status.Error(err)
+					if shouldLogErrors {
+						log.Warnf("Could not collect files: %v", err)
+					}
+					continue
+				}
+				filesToTail = p.addFilesToTailList(files, filesToTail, &wildcardFileCounter)
 			}
-
-			source.Status.Error(err)
-			if shouldLogErrors {
-				log.Warnf("Could not collect files: %v", err)
-			}
-			continue
 		}
 
-		if isWildcardSource {
-			wildcardFileCounter.setTotal(source, len(files))
-		}
-
-		consumeFiles(files)
-	}
-
-	// Then process wildcard sources
-	if p.selectionMode == globalSelection {
+		// Second pass, resolve all wildcards and add them to one big list
 		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
 		for _, source := range wildcardSources {
 			files, err := p.filesMatchingSource(source)
@@ -190,7 +185,27 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		}
 
 		p.applyOrdering(wildcardFiles)
-		consumeFiles(wildcardFiles)
+		filesToTail = p.addFilesToTailList(wildcardFiles, filesToTail, &wildcardFileCounter)
+	} else if p.selectionMode == greedySelection {
+		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
+		for _, source := range inputSources {
+			isWildcardSource := config.ContainsWildcard(source.Config.Path)
+			files, err := p.CollectFiles(source)
+			if isWildcardSource {
+				wildcardFileCounter.setTotal(source, len(files))
+			}
+			if err != nil {
+				source.Status.Error(err)
+				if shouldLogErrors {
+					log.Warnf("Could not collect files: %v", err)
+				}
+				continue
+			}
+
+			filesToTail = p.addFilesToTailList(files, filesToTail, &wildcardFileCounter)
+		}
+	} else {
+		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)
 	}
 
 	// Record what ratio of files each wildcard source tracked
@@ -200,7 +215,6 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 
 	if len(filesToTail) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
-		return filesToTail
 	}
 
 	return filesToTail
@@ -268,7 +282,7 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 
 // applyOrdering sorts the 'files' slice in-place by the currently configured 'sortMode'
 func (p *FileProvider) applyOrdering(files []*tailer.File) {
-	if p.wildcardOrder == wildcardMtime {
+	if p.wildcardOrder == wildcardModTime {
 		statResults := make(map[*tailer.File]time.Time, len(files))
 		for _, file := range files {
 			statRes, err := os.Stat(file.Path)
