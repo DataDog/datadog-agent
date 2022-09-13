@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
 )
 
 // MockTimeNow mocks time.Now
@@ -171,7 +172,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	acc.add(&flowB6)
 
 	flowBwithPortRollup := flowB1
-	flowBwithPortRollup.DstPort = -1
+	flowBwithPortRollup.DstPort = portrollup.EphemeralPort
 
 	sourcePortCount := acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80)
 
