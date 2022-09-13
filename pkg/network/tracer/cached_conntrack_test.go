@@ -110,8 +110,8 @@ func TestCachedConntrackExists(t *testing.T) {
 	}
 
 	m.EXPECT().Exists(gomock.Not(gomock.Nil())).Times(1).DoAndReturn(func(c *netlink.Con) (bool, error) {
-		require.Equal(t, saddr.String(), c.Origin.Src.IP().String())
-		require.Equal(t, daddr.String(), c.Origin.Dst.IP().String())
+		require.Equal(t, saddr.String(), c.Origin.Src.Addr().String())
+		require.Equal(t, daddr.String(), c.Origin.Dst.Addr().String())
 		require.Equal(t, sport, c.Origin.Src.Port())
 		require.Equal(t, dport, c.Origin.Dst.Port())
 		require.Equal(t, uint8(unix.IPPROTO_TCP), c.Origin.Proto)
@@ -129,8 +129,8 @@ func TestCachedConntrackExists(t *testing.T) {
 
 		if i == 1 {
 			require.True(t, c.Reply.IsZero())
-			require.Equal(t, saddr.String(), c.Origin.Src.IP().String())
-			require.Equal(t, daddr.String(), c.Origin.Dst.IP().String())
+			require.Equal(t, saddr.String(), c.Origin.Src.Addr().String())
+			require.Equal(t, daddr.String(), c.Origin.Dst.Addr().String())
 			require.Equal(t, sport, c.Origin.Src.Port())
 			require.Equal(t, dport, c.Origin.Dst.Port())
 			require.Equal(t, uint8(unix.IPPROTO_TCP), c.Origin.Proto)
@@ -139,8 +139,8 @@ func TestCachedConntrackExists(t *testing.T) {
 
 		if i == 2 {
 			require.True(t, c.Origin.IsZero())
-			require.Equal(t, saddr.String(), c.Reply.Src.IP().String())
-			require.Equal(t, daddr.String(), c.Reply.Dst.IP().String())
+			require.Equal(t, saddr.String(), c.Reply.Src.Addr().String())
+			require.Equal(t, daddr.String(), c.Reply.Dst.Addr().String())
 			require.Equal(t, sport, c.Reply.Src.Port())
 			require.Equal(t, dport, c.Reply.Dst.Port())
 			require.Equal(t, uint8(unix.IPPROTO_TCP), c.Reply.Proto)

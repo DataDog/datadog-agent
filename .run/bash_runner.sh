@@ -26,7 +26,10 @@ else
   # Exporting all relevant environment variables from current session os it will be available for the script in the SSH session
   # Then change directory to the agent root directory to preserve the behaviour of a local run
 
+  # Getting the default environment variables key names in the remote machine
+  remote_env=$(ssh -tt "vagrant@$REMOTE_MACHINE_IP" env | cut -d "=" -f1)
+  # Here we inject all environment variables that do not exist in the remote machine.
   # shellcheck disable=SC2002
   cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" \
-   "export AGENT_SKIP_VENV=${DD_AGENT_ROOT_DIR} BUILD_COMMAND='${BUILD_COMMAND}' BINARY_TO_RUN='${BINARY_TO_RUN}' AGENT_VENV_DIR='${AGENT_VENV_DIR}' DLV_PORT_TO_BIND='${DLV_PORT_TO_BIND}' BINARY_ARGUMENTS='${BINARY_ARGUMENTS}';cd ${DD_AGENT_ROOT_DIR};bash --login"
+   "export $(env | grep -v $remote_env);cd ${DD_AGENT_ROOT_DIR};bash --login"
 fi

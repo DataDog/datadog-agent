@@ -45,6 +45,8 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 	// do not support regular expression on path, currently unable to support discarder for regex value
 	if fieldValue.Type == eval.RegexpValueType {
 		return fmt.Errorf("regexp not supported on path `%s`", field)
+	} else if fieldValue.Type == eval.VariableValueType {
+		return nil
 	}
 
 	if value, ok := fieldValue.Value.(string); ok {

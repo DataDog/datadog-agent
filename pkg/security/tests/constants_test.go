@@ -23,6 +23,10 @@ var BTFHubPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
 }
 
+var RCMissingConstants = []string{
+	constantfetch.OffsetNameIoKiocbStructCtx,
+}
+
 func TestOctogonConstants(t *testing.T) {
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
@@ -52,7 +56,7 @@ func TestOctogonConstants(t *testing.T) {
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, nil)
+		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCMissingConstants)
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
@@ -128,6 +132,11 @@ func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.Const
 		}
 
 		if championValue != constantfetch.ErrorSentinel && challengerValue == constantfetch.ErrorSentinel {
+			delete(championConstants, possiblyMissingConstant)
+			delete(challengerConstants, possiblyMissingConstant)
+		}
+
+		if championValue == constantfetch.ErrorSentinel && challengerValue != constantfetch.ErrorSentinel {
 			delete(championConstants, possiblyMissingConstant)
 			delete(challengerConstants, possiblyMissingConstant)
 		}

@@ -126,7 +126,7 @@ func (f *TypeFinder) FindStructFieldOffset(structName string, fieldName string) 
 	}
 
 	if !foundField {
-		return 0, fmt.Errorf("could not find offset of %q field in %q", fieldName, structName)
+		return 0, fmt.Errorf("field \"%s.%s\" not found", fieldName, structName)
 	}
 
 	return fieldOffset, nil

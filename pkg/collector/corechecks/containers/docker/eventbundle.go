@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -54,7 +55,7 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 		b.maxTimestamp = event.Timestamp
 	}
 
-	if event.Action == "oom" || event.Action == "kill" {
+	if isAlertTypeError(event.Action) {
 		b.alertType = metrics.EventAlertTypeError
 	}
 
@@ -92,7 +93,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 	output.Text = strings.Join(textLines, "\n")
 
 	for cid := range seenContainers {
-		tags, err := tagger.Tag(docker.ContainerIDToTaggerEntityName(cid), collectors.HighCardinality)
+		tags, err := tagger.Tag(containers.BuildTaggerEntityName(cid), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {
@@ -101,4 +102,12 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 	}
 
 	return output, nil
+}
+
+func formatStringIntMap(input map[string]int) string {
+	var parts []string
+	for k, v := range input {
+		parts = append(parts, fmt.Sprintf("%d %s", v, k))
+	}
+	return strings.Join(parts, " ")
 }

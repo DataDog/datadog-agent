@@ -12,9 +12,8 @@ services:
       retries: 30
 
   apiserver:
-    image: "datadog/docker-library:hyperkube_1_8_3"
-    command: "/hyperkube
-        apiserver
+    image: "k8s.gcr.io/hyperkube:v1.18.6"
+    command: "kube-apiserver
         --apiserver-count=1
         --insecure-bind-address=0.0.0.0
         --insecure-port=8080

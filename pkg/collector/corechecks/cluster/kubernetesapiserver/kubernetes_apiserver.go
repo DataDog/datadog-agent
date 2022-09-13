@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 
@@ -41,9 +40,6 @@ const (
 	maxEventCardinality           = 300
 	defaultResyncPeriodInSecond   = 300
 	defaultTimeoutEventCollection = 2000
-
-	defaultCacheExpire = 2 * time.Minute
-	defaultCachePurge  = 10 * time.Minute
 )
 
 var (
@@ -66,31 +62,45 @@ var (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	CollectEvent             bool     `yaml:"collect_events"`
-	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
-	FilteredEventTypes       []string `yaml:"filtered_event_types"`
-	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
-	MaxEventCollection       int      `yaml:"max_events_per_run"`
-	LeaderSkip               bool     `yaml:"skip_leader_election"`
-	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
-	UseComponentStatus       bool     `yaml:"use_component_status"`
+	CollectOShiftQuotas bool `yaml:"collect_openshift_clusterquotas"`
+	LeaderSkip          bool `yaml:"skip_leader_election"`
+	UseComponentStatus  bool `yaml:"use_component_status"`
+
+	// Event collection configuration
+	CollectEvent             bool `yaml:"collect_events"`
+	MaxEventCollection       int  `yaml:"max_events_per_run"`
+	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
+	UnbundleEvents           bool `yaml:"unbundle_events"`
+
+	// FilteredEventTypes is a slice of kubernetes field selectors that
+	// works as a deny list of events to filter out. Only effective when
+	// UnbundleEvents = false
+	FilteredEventTypes []string `yaml:"filtered_event_types"`
+
+	// CollectedEventTypes is a map of Kind => Reason of events to collect.
+	// Only effective when UnbundleEvents = true
+	CollectedEventTypes map[string][]string `yaml:"collected_event_types"`
 }
 
-// EventC holds the information pertaining to which event we collected last and when we last re-synced.
-type EventC struct {
-	LastResVer string
-	LastTime   time.Time
+type eventTransformer interface {
+	Transform([]*v1.Event) ([]metrics.Event, []error)
+}
+
+type eventCollection struct {
+	LastResVer  string
+	LastTime    time.Time
+	Filter      string
+	Transformer eventTransformer
 }
 
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
 	instance        *KubeASConfig
-	eventCollection EventC
-	ignoredEvents   string
+	eventCollection eventCollection
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
-	providerIDCache *cache.Cache
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -106,9 +116,8 @@ func (c *KubeASConfig) parse(data []byte) error {
 // NewKubeASCheck returns a new KubeASCheck
 func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 	return &KubeASCheck{
-		CheckBase:       base,
-		instance:        instance,
-		providerIDCache: cache.New(defaultCacheExpire, defaultCachePurge),
+		CheckBase: base,
+		instance:  instance,
 	}
 }
 
@@ -137,22 +146,18 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 	if k.instance.MaxEventCollection == 0 {
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
-	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
+
+	hostnameDetected, _ := hostname.Get(context.TODO())
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
+
+	if k.instance.UnbundleEvents {
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.instance.CollectedEventTypes)
+	} else {
+		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
+		k.eventCollection.Transformer = newBundledTransformer(clusterName)
+	}
 
 	return nil
-}
-
-func convertFilter(conf []string) string {
-	var formatedFilters []string
-	for _, filter := range conf {
-		f := strings.Split(filter, "=")
-		if len(f) == 1 {
-			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
-			continue
-		}
-		formatedFilters = append(formatedFilters, filter)
-	}
-	return strings.Join(formatedFilters, ",")
 }
 
 // Run executes the check.
@@ -226,32 +231,28 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	// Running the event collection.
-	if !k.instance.CollectEvent {
-		return nil
+	if k.instance.CollectEvent {
+		events, err := k.eventCollectionCheck()
+		if err != nil {
+			return err
+		}
+
+		for _, event := range events {
+			sender.Event(event)
+		}
 	}
 
-	// Get the events from the API server
-	events, err := k.eventCollectionCheck()
-	if err != nil {
-		return err
-	}
-
-	// Process the events to have a Datadog format.
-	err = k.processEvents(sender, events)
-	if err != nil {
-		k.Warnf("Could not submit new event %s", err.Error()) //nolint:errcheck
-	}
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) {
+func (k *KubeASCheck) eventCollectionCheck() ([]metrics.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// This is to avoid getting in a situation where we list all the events for multiple runs in a row.
+	// This is to avoid getting in a situation where we list all the events
+	// for multiple runs in a row.
 	if resVer == "" && k.eventCollection.LastResVer != "" {
 		log.Errorf("Resource Version stored in the ConfigMap is incorrect. Will resume collecting from %s", k.eventCollection.LastResVer)
 		resVer = k.eventCollection.LastResVer
@@ -260,18 +261,37 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 	timeout := int64(k.instance.EventCollectionTimeoutMs / 1000)
 	limit := int64(k.instance.MaxEventCollection)
 	resync := int64(k.instance.ResyncPeriodEvents)
-	newEvents, k.eventCollection.LastResVer, k.eventCollection.LastTime, err = k.ac.RunEventCollection(resVer, lastTime, timeout, limit, resync, k.ignoredEvents)
+
+	var kubeEvents []*v1.Event
+	kubeEvents, resVer, lastTime, err = k.ac.RunEventCollection(
+		resVer,
+		lastTime,
+		timeout,
+		limit,
+		resync,
+		k.eventCollection.Filter,
+	)
 
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error()) //nolint:errcheck
 		return nil, err
 	}
 
-	configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, k.eventCollection.LastResVer, k.eventCollection.LastTime)
-	if configMapErr != nil {
-		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error()) //nolint:errcheck
+	k.eventCollection.LastResVer = resVer
+	k.eventCollection.LastTime = lastTime
+
+	err = k.ac.UpdateTokenInConfigmap(eventTokenKey, resVer, lastTime)
+	if err != nil {
+		k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", err.Error()) //nolint:errcheck
 	}
-	return newEvents, nil
+
+	events, errs := k.eventCollection.Transformer.Transform(kubeEvents)
+
+	for _, err := range errs {
+		k.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
+	}
+
+	return events, nil
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
@@ -314,62 +334,6 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-// processEvents:
-// - iterates over the Kubernetes Events
-// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
-// - formats the bundle and submit the Datadog event
-func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
-	bundlesByObject := make(map[bundleID]*kubernetesEventBundle)
-
-	for _, event := range events {
-		if event.InvolvedObject.Kind == "" ||
-			event.InvolvedObject.Name == "" ||
-			event.Reason == "" ||
-			event.Message == "" {
-			continue
-		}
-
-		id := buildBundleID(event)
-
-		bundle, found := bundlesByObject[id]
-		if !found {
-			bundle = newKubernetesEventBundler(event)
-			bundlesByObject[id] = bundle
-		}
-
-		err := bundle.addEvent(event)
-		if err != nil {
-			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
-			continue
-		}
-
-		kubeEvents.Inc(
-			event.InvolvedObject.Kind,
-			event.Source.Component,
-			event.Type,
-			event.Reason,
-		)
-	}
-
-	ctx := context.TODO()
-	hostnameDetected, _ := hostname.Get(ctx)
-	clusterName := clustername.GetRFC1123CompliantClusterName(ctx, hostnameDetected)
-
-	for id, bundle := range bundlesByObject {
-		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
-		if err != nil {
-			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error()) //nolint:errcheck
-			continue
-		}
-
-		sender.Event(datadogEv)
-
-		emittedEvents.Inc(id.kind, id.evType)
-	}
-
-	return nil
-}
-
 func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
 	componentsStatus, err := k.ac.ComponentStatuses()
 	if err != nil {
@@ -404,20 +368,17 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggreg
 	return nil
 }
 
-type bundleID struct {
-	kind   string
-	uid    string
-	evType string
-}
-
-// buildBundleID generates a unique ID to separate k8s events
-// based on their InvolvedObject UIDs and event Types
-func buildBundleID(e *v1.Event) bundleID {
-	return bundleID{
-		kind:   e.InvolvedObject.Kind,
-		uid:    string(e.InvolvedObject.UID),
-		evType: e.Type,
+func convertFilters(conf []string) string {
+	var formatedFilters []string
+	for _, filter := range conf {
+		f := strings.Split(filter, "=")
+		if len(f) == 1 {
+			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
+			continue
+		}
+		formatedFilters = append(formatedFilters, filter)
 	}
+	return strings.Join(formatedFilters, ",")
 }
 
 func init() {

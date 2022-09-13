@@ -14,7 +14,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    build_object_files,
+    build_cws_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -322,7 +322,7 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
 ):
-    build_object_files(
+    build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
