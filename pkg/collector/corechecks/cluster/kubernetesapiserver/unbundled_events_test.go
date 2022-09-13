@@ -94,8 +94,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collectedTypes := map[string][]string{
-				"pod": {"Failed"},
+			collectedTypes := []collectedEventType{
+				{Kind: "Pod", Reasons: []string{"Failed"}},
 			}
 			transformer := newUnbundledTransformer("test-cluster", collectedTypes)
 
@@ -103,6 +103,85 @@ func TestUnbundledEventsTransform(t *testing.T) {
 
 			assert.Empty(t, errors)
 			assert.Equal(t, tt.expected, events)
+		})
+	}
+}
+
+func TestUnbundledEventsShouldCollect(t *testing.T) {
+	tests := []struct {
+		name     string
+		event    *v1.Event
+		expected bool
+	}{
+		{
+			name: "matches kind and reason",
+			event: &v1.Event{
+				InvolvedObject: v1.ObjectReference{Kind: "Pod"},
+				Reason:         "Failed",
+				Source:         v1.EventSource{Component: "kubelet"},
+			},
+			expected: true,
+		},
+		{
+			name: "matches source and reason",
+			event: &v1.Event{
+				InvolvedObject: v1.ObjectReference{Kind: "NotPod"},
+				Reason:         "SomeReason",
+				Source:         v1.EventSource{Component: "some-component"},
+			},
+			expected: true,
+		},
+		{
+			name: "matches source",
+			event: &v1.Event{
+				InvolvedObject: v1.ObjectReference{Kind: "NotPod"},
+				Reason:         "AnyReason",
+				Source:         v1.EventSource{Component: "a-component"},
+			},
+			expected: true,
+		},
+		{
+			name: "matches kind",
+			event: &v1.Event{
+				InvolvedObject: v1.ObjectReference{Kind: "AnyKind"},
+				Reason:         "AnyReason",
+				Source:         v1.EventSource{Component: "other-component"},
+			},
+			expected: true,
+		},
+		{
+			name: "matches none",
+			event: &v1.Event{
+				InvolvedObject: v1.ObjectReference{Kind: "Pod"},
+				Reason:         "AnyReason",
+				Source:         v1.EventSource{Component: "other-component"},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collectedTypes := []collectedEventType{
+				{
+					Kind:    "Pod",
+					Reasons: []string{"Failed"},
+				},
+				{
+					Source:  "some-component",
+					Reasons: []string{"SomeReason"},
+				},
+				{
+					Kind: "AnyKind",
+				},
+				{
+					Source: "a-component",
+				},
+			}
+
+			transformer := newUnbundledTransformer("test-cluster", collectedTypes)
+			got := transformer.(*unbundledTransformer).shouldCollect(tt.event)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
