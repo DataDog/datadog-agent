@@ -68,7 +68,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 	} else if wildcardMode == "simpleAlpha" {
 		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection)
 	} else {
-		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'simpleAlpha' strategy.\n", wildcardMode)
+		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'simpleAlpha' strategy.", wildcardMode)
 		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection)
 	}
 
