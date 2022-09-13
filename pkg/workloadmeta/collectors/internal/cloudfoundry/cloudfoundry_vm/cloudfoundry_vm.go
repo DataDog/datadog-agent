@@ -3,19 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package cloudfoundry
+package cloudfoundry_vm
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
-	"code.cloudfoundry.org/garden"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -24,9 +20,8 @@ import (
 )
 
 const (
-	collectorID             = "cloudfoundry"
-	componentName           = "workloadmeta-cloudfoundry"
-	sharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
+	collectorID   = "cloudfoundry-vm"
+	componentName = "workloadmeta-cloudfoundry-vm"
 )
 
 type collector struct {
@@ -55,18 +50,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 	c.store = store
 
-	// Detect if we're on a PCF container
-	if config.Datadog.GetBool("cloud_foundry_buildpack") {
-		log.Infof("PCF container detected")
-		containerHostname, err := os.Hostname()
-		if err != nil {
-			return nil
-		}
-		c.nodeName = containerHostname
-		return nil
-	}
-
-	// Detect if we're on a compute VM by trying to connect to the local garden API
+	// Detect if we're on a VM by trying to connect to the local garden API
 	var err error
 	c.gardenUtil, err = cloudfoundry.GetGardenUtil()
 	if err != nil {
@@ -83,49 +67,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 }
 
 func (c *collector) Pull(ctx context.Context) error {
-	// Detect if we're on a PCF container
-	if config.Datadog.GetBool("cloud_foundry_buildpack") {
-		// In PCF, the container_id is the hostname
-		id, err := os.Hostname()
-		if err != nil {
-			return nil
-		}
-		events := make([]workloadmeta.CollectorEvent, 0, 1)
-		entityID := workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   id,
-		}
-		containerEntity := &workloadmeta.Container{
-			EntityID: entityID,
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: id,
-			},
-			Runtime: workloadmeta.ContainerRuntimeGarden,
-		}
-
-		containerEntity.CollectorTags = []string{
-			fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, id),
-		}
-
-		// read shared node tags file if it exists
-		sharedNodeTagsBytes, err := os.ReadFile(sharedNodeAgentTagsFile)
-		if err != nil {
-			log.Errorf("Error reading shared node agent tags file under '%s': %s", sharedNodeAgentTagsFile, err)
-		} else {
-			sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
-			containerEntity.CollectorTags = append(containerEntity.CollectorTags, sharedNodeTags...)
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceClusterOrchestrator,
-			Entity: containerEntity,
-		})
-
-		c.store.Notify(events)
-		return nil
-	}
-
 	containers, err := c.gardenUtil.ListContainers()
 	if err != nil {
 		return err
@@ -148,41 +89,6 @@ func (c *collector) Pull(ctx context.Context) error {
 		if err != nil {
 			log.Debugf("Unable to fetch CF tags from cluster agent, CF tags will be missing, err: %v", err)
 		}
-	}
-
-	// inject container tags into the containers
-	for _, container := range containers {
-		containerID := container.Handle()
-
-		// extract container tags
-		tags := allContainersTags[containerID]
-
-		// add host tags
-		hostTags := host.GetHostTags(context.TODO(), true)
-		tags = append(tags, hostTags.System...)
-		tags = append(tags, hostTags.GoogleCloudPlatform...)
-
-		log.Infof("Injecting tags into container %s", containerID)
-
-		// write tags to a file inside the container
-		p, err := container.Run(garden.ProcessSpec{
-			Path: "/usr/bin/tee",
-			Args: []string{sharedNodeAgentTagsFile},
-			User: "vcap",
-		}, garden.ProcessIO{
-			Stdin: strings.NewReader(strings.Join(tags, ",")),
-		})
-		if err != nil {
-			log.Errorf("Error running a process inside container %s: %s", containerID, err)
-			continue
-		}
-		go func() {
-			exitCode, err := p.Wait()
-			if err != nil {
-				log.Errorf("Error while running process %s: %s", p.ID(), err)
-			}
-			log.Debugf("Process %s exit code: %d", p.ID(), exitCode)
-		}()
 	}
 
 	currentTime := time.Now()

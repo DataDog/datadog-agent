@@ -10,7 +10,8 @@ package collectors
 
 import (
 	// this package only loads the collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/cloudfoundry"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/cloudfoundry/cloudfoundry_container"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/cloudfoundry/cloudfoundry_vm"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/ecs"
