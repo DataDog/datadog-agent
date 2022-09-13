@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 
@@ -30,6 +31,9 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
 		}
+
+		util.SetAuthToken()
+
 		return nil
 	}
 
