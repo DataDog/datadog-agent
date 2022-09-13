@@ -159,7 +159,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
 	}
 
-	conntracker, err := newConntracker(config)
+	conntracker, err := newConntracker(config, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.BPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -221,7 +221,7 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	var c netlink.Conntracker
 	var err error
 	if cfg.EnableRuntimeCompiler {
-		c, err = NewEBPFConntracker(cfg)
+		c, err = NewEBPFConntracker(cfg, bpfTelemetry)
 		if err == nil {
 			return c, nil
 		}

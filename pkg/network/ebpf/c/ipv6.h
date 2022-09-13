@@ -20,8 +20,8 @@ __maybe_unused static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __
 }
 
 static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
-    bpf_probe_read_kernel(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
-    bpf_probe_read_kernel(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
+    bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
+    bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
 }
 
 #endif

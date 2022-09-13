@@ -31,7 +31,9 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,7 +73,7 @@ type ebpfConntracker struct {
 }
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.BPFTelemetry) (netlink.Conntracker, error) {
 	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
 	// eBPF conntrack require nf_conntrack symbols
 	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
@@ -84,9 +86,15 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 	}
 
-	m, err := getManager(buf, cfg.ConntrackMaxStateSize)
+	m, err := getManager(buf, cfg.ConntrackMaxStateSize, bpfTelemetry.MapErrMap, bpfTelemetry.HelperErrMap)
 	if err != nil {
 		return nil, err
+	}
+	if err := bpfTelemetry.RegisterMaps(getAllMapsNames(m)); err != nil {
+		return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
+	}
+	if err := bpfTelemetry.RegisterProbes(getAllProbesNames(m)); err != nil {
+		return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
 	}
 
 	err = m.Start()
@@ -133,6 +141,24 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	}
 	log.Infof("initialized ebpf conntrack")
 	return e, nil
+}
+
+func getAllMapsNames(mgr *manager.Manager) []string {
+	var names []string
+	for _, m := range mgr.Maps {
+		names = append(names, m.Name)
+	}
+
+	return names
+}
+
+func getAllProbesNames(mgr *manager.Manager) []string {
+	var names []string
+	for _, p := range mgr.Probes {
+		names = append(names, p.EBPFFuncName)
+	}
+
+	return names
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
@@ -364,7 +390,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
+func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -389,6 +415,16 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		},
 	}
 
+	currKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, errors.New("failed to detect kernel version")
+	}
+	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+	mgr.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+	}
+
+	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(mgr)
 	opts := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -403,9 +439,20 @@ func getManager(buf io.ReaderAt, maxStateSize int) (*manager.Manager, error) {
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(maxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
+		ConstantEditors: telemetryMapKeys,
+	}
+	if (mapErrTelemetryMap != nil) || (helperErrTelemetryMap != nil) {
+		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
 
-	err := mgr.InitWithOptions(buf, opts)
+	if mapErrTelemetryMap != nil {
+		opts.MapEditors[string(probes.MapErrTelemetryMap)] = mapErrTelemetryMap
+	}
+	if helperErrTelemetryMap != nil {
+		opts.MapEditors[string(probes.HelperErrTelemetryMap)] = helperErrTelemetryMap
+	}
+
+	err = mgr.InitWithOptions(buf, opts)
 	if err != nil {
 		return nil, err
 	}

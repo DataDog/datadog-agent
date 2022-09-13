@@ -1,7 +1,7 @@
 #include "kconfig.h"
 #include <linux/version.h>
 
-#include "bpf_helpers.h"
+#include "bpf_telemetry.h"
 #include "bpf_endian.h"
 #include "conntrack.h"
 #include "conntrack-maps.h"
@@ -32,8 +32,8 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
         return 0;
     }
 
-    bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
-    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
     return 0;
@@ -64,8 +64,8 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
         return 0;
     }
 
-    bpf_map_update_elem(&conntrack, &orig, &reply, BPF_ANY);
-    bpf_map_update_elem(&conntrack, &reply, &orig, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
+    bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
     increment_telemetry_registers_count();
 
     return 0;

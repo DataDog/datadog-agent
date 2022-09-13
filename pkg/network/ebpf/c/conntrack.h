@@ -24,7 +24,7 @@ typedef struct {
 
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
-    bpf_probe_read_kernel(&status, sizeof(status), (void *)&ct->status);
+    bpf_probe_read_kernel_with_telemetry(&status, sizeof(status), (void *)&ct->status);
     return status;
 }
 
@@ -109,7 +109,7 @@ static __always_inline void increment_telemetry_registers_count() {
 static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, conntrack_tuple_t* orig, conntrack_tuple_t* reply) {
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
     __builtin_memset(tuplehash, 0, sizeof(tuplehash));
-    bpf_probe_read_kernel(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_probe_read_kernel_with_telemetry(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
 
     struct nf_conntrack_tuple orig_tup = tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple reply_tup = tuplehash[IP_CT_DIR_REPLY].tuple;
