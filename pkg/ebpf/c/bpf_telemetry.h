@@ -52,7 +52,8 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 unsigned long add = 1;                                              \
                 /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
                  * This patch point is placed here because the above instruction
-                 * fails on the 4.4 verifier. */ \
+                 * fails on the 4.4 verifier. On 4.4 this instruction is replaced
+                 * with a nop: r1 = r1*/ \
                 bpf_telemetry_update_patch((unsigned long)target, add);             \
             }                                                                       \
         }                                                                           \

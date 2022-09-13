@@ -424,7 +424,6 @@ static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument)
 }
 
 static __always_inline int do_sys_open_helper_enter(struct pt_regs *ctx) {
-    int errno;
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = { 0 };
     if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), path_argument) >= 0) {
