@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/cloudfoundry"
 	"net/http"
 	"os"
 	"os/signal"
@@ -332,6 +333,14 @@ func StartAgent() error {
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
+	// start cloudfoundry container tagger
+	// requires the workloadmeta store to be loaded
+	if config.IsFeaturePresent(config.CloudFoundry) && !config.Datadog.GetBool("cloud_foundry_buildpack") {
+		if err = cloudfoundry.StartContainerTagger(common.MainCtx); err != nil {
+			log.Errorf("failed to start Cloud Foundry container tagger: %v", err)
+		}
+	}
 
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
