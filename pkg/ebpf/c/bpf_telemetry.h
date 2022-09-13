@@ -59,7 +59,7 @@ static void* (*bpf_telemetry_update_patch)(unsigned long,...) = (void*)PATCH_TAR
         }                                                                        \
     } while (0)
 
-#define helper_with_telemetry(fn, errno_ret, dst, sz, src)                                                \
+#define helper_with_telemetry_ret_err(fn, errno_ret, dst, sz, src)                                                \
     do {                                                                                                  \
         int helper_indx = -1;                                                                             \
         int errno_slot;                                                                                   \
@@ -92,25 +92,62 @@ static void* (*bpf_telemetry_update_patch)(unsigned long,...) = (void*)PATCH_TAR
         }                                                                                                 \
     } while (0)
 
+#define helper_with_telemetry(fn, dst, sz, src)                                                \
+    do {                                                                                                  \
+        int helper_indx = -1;                                                                             \
+        int errno_slot;                                                                                   \
+        int errno_ret = fn(dst, sz, src);                                                                 \
+        if (errno_ret < 0) {                                                                             \
+            unsigned long telemetry_program_id;                                                           \
+            LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                              \
+            helper_err_telemetry_t *entry =                                                               \
+                bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);                    \
+            if (entry) {                                                                                  \
+                if (IS_PROBE_READ(fn)) {                                                                  \
+                    helper_indx = read_indx;                                                              \
+                } else if (IS_PROBE_READ_USER(fn)) {                                                      \
+                    helper_indx = read_user_indx;                                                         \
+                } else if (IS_PROBE_READ_KERNEL(fn)) {                                                    \
+                    helper_indx = read_kernel_indx;                                                       \
+                }                                                                                         \
+                errno_slot = errno_ret * -1;                                                              \
+                if (errno_slot >= T_MAX_ERRNO) {                                                          \
+                    errno_slot = T_MAX_ERRNO - 1;                                                         \
+                }                                                                                         \
+                errno_slot &= (T_MAX_ERRNO - 1);                                                          \
+                if (helper_indx >= 0) {                                                                   \
+                    int *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
+                    unsigned long add = 1; \
+                    /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); */ \
+                    bpf_telemetry_update_patch((unsigned long)target, add); \
+                }                                                                                         \
+            }                                                                                             \
+        }                                                                                                 \
+    } while (0)
+
+
 #define bpf_map_update_with_telemetry(map, key, val, flags) \
     map_update_with_telemetry(bpf_map_update_elem, map, key, val, flags)
 
-#define bpf_probe_read_with_telemetry(dst, sz, src, errno_ret) \
-    helper_with_telemetry(bpf_probe_read, errno_ret, dst, sz, src)
+#define bpf_probe_read_with_telemetry(dst, sz, src) \
+    helper_with_telemetry(bpf_probe_read, dst, sz, src)
 
-#define bpf_probe_read_str_with_telemetry(dst, sz, src, errno_ret) \
-    helper_with_telemetry(bpf_probe_read_str, errno_ret, dst, sz, src)
+#define bpf_probe_read_str_with_telemetry(dst, sz, src) \
+    helper_with_telemetry(bpf_probe_read_str, dst, sz, src)
 
-#define bpf_probe_read_user_with_telemetry(dst, sz, src, errno_ret) \
-    helper_with_telemetry(bpf_probe_read_user, errno_ret, dst, sz, src)
+#define bpf_probe_read_user_with_telemetry(dst, sz, src) \
+    helper_with_telemetry(bpf_probe_read_user, dst, sz, src)
 
-#define bpf_probe_read_user_str_with_telemetry(dst, sz, src, errno_ret) \
-    helper_with_telemetry(bpf_probe_read_user_str, errno_ret, dst, sz, src)
+#define bpf_probe_read_user_str_with_telemetry(dst, sz, src) \
+    helper_with_telemetry(bpf_probe_read_user_str, dst, sz, src)
 
-#define bpf_probe_read_kernel_with_telemetry(dst, sz, src, errno_ret) \
-    helper_with_telemetry(bpf_probe_read_kernel, errno_ret, dst, sz, src)
+#define bpf_probe_read_kernel_with_telemetry(dst, sz, src) \
+    helper_with_telemetry(bpf_probe_read_kernel, dst, sz, src)
 
-#define bpf_probe_read_kernel_str_with_telemetry(dst, sz, src, errno_ret) \
-    helper_with_telemetry(bpf_probe_read_kernel_str, errno_ret, dst, sz, src)
+#define bpf_probe_read_kernel_str_with_telemetry(dst, sz, src) \
+    helper_with_telemetry(bpf_probe_read_kernel_str, dst, sz, src)
+
+#define bpf_probe_read_user_with_telemetry_ret_err(dst, sz, src, errno_ret) \
+    helper_with_telemetry_ret_err(bpf_probe_read_user, errno_ret, dst, sz, src)
 
 #endif // BPF_TELEMETRY_H

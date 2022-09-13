@@ -14,10 +14,11 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
 
     // we read HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
-    // TODO: figure out if we can convince the verifier to use data_size here rather than a constant length
-    if (unlikely(bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE - 1, data) == -EFAULT)) {
-// note: bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
-#pragma unroll(HTTP_BUFFER_SIZE - 1)
+   bpf_probe_read_user_with_telemetry_ret_err(buffer, HTTP_BUFFER_SIZE - 1, data, errno);
+    if (errno < 0) {
+// note: arm64 bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
+#if defined(__aarch64__)
+#pragma unroll
         for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
             bpf_probe_read_user(&buffer[i], 1, &data[i]);
             if (buffer[i] == 0) {
