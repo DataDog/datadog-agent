@@ -37,12 +37,13 @@ type httpStatKeeper struct {
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
+
 	return &httpStatKeeper{
 		stats:             make(map[Key]*RequestStats),
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
-		buffer:            make([]byte, HTTPBufferSize),
+		buffer:            make([]byte, getPathBufferSize(c)),
 		interned:          make(map[string]string),
 		telemetry:         telemetry,
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -84,7 +85,6 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		h.telemetry.malformed.Inc()
 		return
 	}
-
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return
@@ -174,7 +174,6 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 		h.telemetry.malformed.Inc()
 		return "", true
 	}
-
 	return h.intern(path), false
 }
 
@@ -185,6 +184,32 @@ func (h *httpStatKeeper) intern(b []byte) string {
 		h.interned[v] = v
 	}
 	return v
+}
+
+// getPath returns the URL from a request fragment with GET variables excluded.
+// Example:
+// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
+func getPath(reqFragment, buffer []byte) ([]byte, bool) {
+	// reqFragment might contain a null terminator in the middle
+	reqLen := strlen(reqFragment[:])
+
+	var i, j int
+	for i = 0; i < reqLen && reqFragment[i] != ' '; i++ {
+	}
+
+	i++
+
+	if i >= reqLen || (reqFragment[i] != '/' && reqFragment[i] != '*') {
+		return nil, false
+	}
+
+	for j = i; j < reqLen && reqFragment[j] != ' ' && reqFragment[j] != '?'; j++ {
+	}
+
+	// no bound check necessary here as we know we at least have '/' character
+	n := copy(buffer, reqFragment[i:j])
+	fullPath := j < reqLen || (j == getMaxPathBufferSize(reqFragment)-1 && reqFragment[j] == ' ')
+	return buffer[:n], fullPath
 }
 
 // strlen returns the length of a null-terminated string

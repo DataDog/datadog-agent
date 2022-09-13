@@ -21,9 +21,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const HTTPBufferSize = driver.HttpBufferSize
-const HTTPBatchSize = driver.HttpBatchSize
-
 type etwHttpTX struct {
 	//	httpTX
 	*etw.Http
@@ -161,7 +158,6 @@ func (tx *FullHttpTransaction) Incomplete() bool {
 
 func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	b := tx.RequestFragment
-
 	// b might contain a null terminator in the middle
 	bLen := strlen(b[:])
 
@@ -180,7 +176,7 @@ func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 
 	// no bound check necessary here as we know we at least have '/' character
 	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	fullPath := j < bLen || (j == int(tx.Txn.MaxRequestFragment)-1 && b[j] == ' ')
 	return buffer[:n], fullPath
 
 }
@@ -273,7 +269,10 @@ func (tx *etwHttpTX) StaticTags() uint64 {
 
 // Dynamic Tags are  part of windows http transactions
 func (tx *etwHttpTX) DynamicTags() []string {
-	return []string{fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool)}
+	return []string{
+		fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
+		fmt.Sprintf("http.iis.site:%v", tx.SiteID),
+	}
 }
 
 func (tx *etwHttpTX) String() string {
@@ -312,7 +311,7 @@ func (tx *etwHttpTX) Path(buffer []byte) ([]byte, bool) {
 
 	// no bound check necessary here as we know we at least have '/' character
 	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	fullPath := j < bLen || (j == int(tx.Txn.MaxRequestFragment)-1 && b[j] == ' ')
 	return buffer[:n], fullPath
 
 }
