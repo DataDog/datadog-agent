@@ -226,6 +226,9 @@ var (
 	maxRequestFragmentBytes uint64 = 25
 	completedHttpTxDropped  uint   = 0 // when should we reset this telemetry and how to expose it
 
+	captureHTTP				bool
+	captureHTTPS			bool
+
 	summaryCount              uint64
 	eventCount                uint64
 	servedFromCache           uint64
@@ -320,6 +323,15 @@ func completeReqRespTracking(eventInfo *C.DD_ETW_EVENT_INFO, httpConnLink *HttpC
 
 	completedRequestCount++
 
+	if(!captureHTTPS){
+		if(len(httpConnLink.url) > 5){
+			if("https" == httpConnLink.url[:5]) {
+				// probably want to log this only at large intervals.  But for now
+				log.Debugf("Dropping HTTPS connection")
+				return
+			}
+		}
+	}
 	// Http is completed, move it to completed list ...
 	completedHttpTxMux.Lock()
 	defer completedHttpTxMux.Unlock()
@@ -1053,6 +1065,29 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *C.DD_ETW_EVENT_INFO) {
 	completeReqRespTracking(eventInfo, httpConnLink)
 }
 
+
+// -----------------------------------------------------------
+// HttpService ETW Event #34 (EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent)
+//
+func httpCallbackOnHttpSslConnEvent(eventInfo *C.DD_ETW_EVENT_INFO) {
+	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
+		reportHttpCallbackEvents(eventInfo, true)
+	}
+	/*
+	typedef struct _EVENT_PARAM_HttpService_HTTPTraceTaskConnCleanup {
+    	0: uint64_t connectionObj;
+	} EVENT_PARAM_HttpService_HTTPTraceTaskConnCleanup;
+    */
+	if(!captureHTTPS) {
+
+		// Get req/resp conn link
+		httpConnLink, found := http2openConn[eventInfo.event.activityId]
+		if (found) {
+			cleanupActivityIdViaConnActivityId(httpConnLink.connActivityId, eventInfo.event.activityId)
+		}
+		// does this also need to be removed from connOpened map?
+	}
+}
 func reportHttpCallbackEvents(eventInfo *C.DD_ETW_EVENT_INFO, willBeProcessed bool) {
 	var processingStatus string
 	if willBeProcessed {
@@ -1161,6 +1196,10 @@ func etwHttpServiceCallback(eventInfo *C.DD_ETW_EVENT_INFO) {
 	case C.EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache:
 		httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo)
 
+	// #34
+	case C.EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent:
+		httpCallbackOnHttpSslConnEvent(eventInfo)
+
 	// #10-14
 	case C.EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete:
 		fallthrough
@@ -1242,6 +1281,11 @@ func SetMaxRequestBytes(maxRequestBytes uint64) {
 	maxRequestFragmentBytes = maxRequestBytes
 }
 
+
+func SetEnabledProtocols(http, https bool) {
+	captureHTTP = http
+	captureHTTPS = https
+}
 func startEtwHttpServiceSubscription() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true

@@ -75,9 +75,6 @@ type Config struct {
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
-	// EnableHTTPHTTPSMonitoringViaETW specifies whether the tracer (on Windows) should monitor HTTP and or HTTPS traffic
-	EnableHTTPHTTPSMonitoringViaETW bool
-
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
 	// value is currently Windows only
 	MaxTrackedHTTPConnections int64
@@ -230,10 +227,9 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		EnableHTTPMonitoring:            cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		EnableHTTPSMonitoring:           cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableHTTPHTTPSMonitoringViaETW: cfg.GetBool(join(netNS, "enable_http_https_monitoring_via_etw")),
-		MaxHTTPStatsBuffered:            cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
