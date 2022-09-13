@@ -54,7 +54,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
-            """FROM docker/compose:debian-1.28.3
+            """FROM docker/compose:debian-1.29.2
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 CMD /test.bin
@@ -74,6 +74,7 @@ COPY test.bin /test.bin
         test_image.id,
         detach=True,
         pid_mode="host",  # For origin detection
+        cgroupns="host",  # To allow proper network mode detection in integration tests
         environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
@@ -85,10 +86,13 @@ COPY test.bin /test.bin
 
     exit_code = test_container.wait()['StatusCode']
 
-    print(test_container.logs(stdout=True, stderr=False, stream=False))
+    stdout_logs = test_container.logs(stdout=True, stderr=False, stream=False).decode(sys.stdout.encoding)
+    stderr_logs = test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding)
 
-    sys.stderr.write(test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding))
+    print(stdout_logs)
+    print(stderr_logs, file=sys.stderr)
 
+    skip_cleanup = True
     if not skip_cleanup:
         shutil.rmtree(temp_folder)
         test_container.remove(v=True, force=True)

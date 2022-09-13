@@ -25,7 +25,7 @@ const (
 
 var (
 	// Buffer holding datadog driver filterapi (ddnpmapi) signature to ensure consistency with driver.
-	ddAPIVersionBuf = makeDDAPIVersionBuffer(Signature)
+	DdAPIVersionBuf = makeDDAPIVersionBuffer(Signature)
 )
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
@@ -131,7 +131,7 @@ func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, er
 		returnmap     = make(map[string]map[string]int64)
 	)
 
-	err := dh.DeviceIoControl(GetStatsIOCTL, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := dh.DeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}

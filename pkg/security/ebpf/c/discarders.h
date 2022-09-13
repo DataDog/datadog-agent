@@ -204,21 +204,21 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 
     struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
     if (inode_params) {
-        // the revision change, all the discarders are invalidated,
-        // we need to add only the current event type add to use the current revision
-        if (inode_params->revision != revision) {
-            inode_params->params.event_mask = 0;
-            inode_params->revision = revision;
-        }
-        add_event_to_mask(&inode_params->params.event_mask, event_type);
-
-        if ((discarder_timestamp = get_discarder_timestamp_from_map(&inode_params->params, event_type)) != NULL) {
-            *discarder_timestamp = timestamp;
-        }
-
         u64 tm = bpf_ktime_get_ns();
         if (inode_params->params.is_retained && inode_params->params.expire_at < tm) {
             inode_params->params.is_retained = 0;
+
+            // the revision change, all the discarders are invalidated,
+            // we need to add only the current event type and to use the current revision
+            if (inode_params->revision != revision) {
+                inode_params->params.event_mask = 0;
+                inode_params->revision = revision;
+            }
+            add_event_to_mask(&inode_params->params.event_mask, event_type);
+
+            if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
+                *discarder_timestamp = timestamp;
+            }
         }
     } else {
         struct inode_discarder_params_t new_inode_params = {

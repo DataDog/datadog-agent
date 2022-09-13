@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -153,10 +153,6 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
 			common.AC.LoadAndRun(context.Background())
-
-			if config.Datadog.GetBool("inventories_enabled") {
-				metadata.SetupInventoriesExpvar(common.Coll)
-			}
 
 			// Create the CheckScheduler, but do not attach it to
 			// AutoDiscovery.  NOTE: we do not start common.Coll, either.
@@ -406,10 +402,22 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 					}
 				} else {
 					printer.PrintMetrics(&checkFileOutput, formatTable)
+
+					p := func(data string) {
+						fmt.Println(data)
+						checkFileOutput.WriteString(data + "\n")
+					}
+
 					checkStatus, _ := status.GetCheckStatus(c, s)
-					statusString := string(checkStatus)
-					fmt.Println(statusString)
-					checkFileOutput.WriteString(statusString + "\n")
+					p(string(checkStatus))
+
+					metadata := inventories.GetCheckMetadata(c)
+					if metadata != nil {
+						p("  Metadata\n  ========")
+						for k, v := range *metadata {
+							p(fmt.Sprintf("    %s: %v", k, v))
+						}
+					}
 				}
 			}
 

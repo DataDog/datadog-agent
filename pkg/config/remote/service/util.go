@@ -90,6 +90,9 @@ type targetsCustom struct {
 }
 
 func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {
+	if len(rawTargetsCustom) == 0 {
+		return targetsCustom{}, nil
+	}
 	var custom targetsCustom
 	err := json.Unmarshal(rawTargetsCustom, &custom)
 	if err != nil {
