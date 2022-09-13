@@ -395,7 +395,6 @@ core,github.com/golang/protobuf/protoc-gen-go/plugin,BSD-3-Clause,Copyright (c) 
 core,github.com/golang/protobuf/ptypes,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/any,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/duration,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/ptypes/empty,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
@@ -1085,6 +1084,7 @@ core,google.golang.org/grpc/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors
 core,google.golang.org/grpc/stats,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/status,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/tap,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/protobuf/cmd/protoc-gen-go,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/compiler/protogen,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/encoding/protojson,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
