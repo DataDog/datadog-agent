@@ -86,15 +86,24 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.BPFTeleme
 		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 	}
 
-	m, err := getManager(buf, cfg.ConntrackMaxStateSize, bpfTelemetry.MapErrMap, bpfTelemetry.HelperErrMap)
+	var mapErr *ebpf.Map
+	var helperErr *ebpf.Map
+	if bpfTelemetry != nil {
+		mapErr = bpfTelemetry.MapErrMap
+		helperErr = bpfTelemetry.HelperErrMap
+	}
+
+	m, err := getManager(buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
 	if err != nil {
 		return nil, err
 	}
-	if err := bpfTelemetry.RegisterMaps(getAllMapsNames(m)); err != nil {
-		return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
-	}
-	if err := bpfTelemetry.RegisterProbes(getAllProbesNames(m)); err != nil {
-		return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
+	if bpfTelemetry != nil {
+		if err := bpfTelemetry.RegisterMaps(getAllMapsNames(m)); err != nil {
+			return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
+		}
+		if err := bpfTelemetry.RegisterProbes(getAllProbesNames(m)); err != nil {
+			return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
+		}
 	}
 
 	err = m.Start()
