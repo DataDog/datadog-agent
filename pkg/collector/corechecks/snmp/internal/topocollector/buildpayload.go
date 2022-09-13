@@ -18,6 +18,20 @@ func buildPayload(remoteConns []common.LldpRemote, hostname string, address stri
 		if remoteCon.RemoteManagement != nil {
 			remManAddr = remoteCon.RemoteManagement.ManAddr
 		}
+		localPortID := ""
+		idType := 0
+		description := ""
+		if remoteCon.LocalPort != nil {
+			localPortID = remoteCon.LocalPort.PortID
+			idType = remoteCon.LocalPort.PortIDSubType
+			if remoteCon.LocalPort.PortDesc != "" {
+				description = remoteCon.PortDesc
+			}
+		}
+		// description := ""
+		// if remoteCon.LocalPort.PortDesc != "" {
+		// 	description = remoteCon.PortDesc
+		// }
 		p.Connections = append(p.Connections, topopayload.Connection{
 			Remote: topopayload.Endpoint{
 				Device: topopayload.Device{
@@ -39,9 +53,9 @@ func buildPayload(remoteConns []common.LldpRemote, hostname string, address stri
 			Local: topopayload.Endpoint{
 				// TODO: is it ok to have device field, but never filled for local endpoint?
 				Interface: topopayload.Interface{
-					IDType:      common.PortIDSubTypeMap[remoteCon.LocalPort.PortIDSubType],
-					ID:          remoteCon.LocalPort.PortID,
-					Description: remoteCon.LocalPort.PortDesc,
+					IDType:      common.PortIDSubTypeMap[idType],
+					ID:          localPortID,
+					Description: description,
 				},
 			},
 		})
