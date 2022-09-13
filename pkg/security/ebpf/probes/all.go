@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -138,11 +139,6 @@ func AllMaps() []*manager.Map {
 	}
 }
 
-const (
-	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
-	MaxTracedCgroupsCount = 128
-)
-
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {
@@ -168,15 +164,15 @@ func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, 
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
-			MaxEntries: MaxTracedCgroupsCount,
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"activity_dumps_config": {
-			MaxEntries: MaxTracedCgroupsCount,
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"activity_dump_rate_limiters": {
-			MaxEntries: MaxTracedCgroupsCount,
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"cgroup_wait_list": {

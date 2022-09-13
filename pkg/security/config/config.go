@@ -16,7 +16,6 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -355,16 +354,16 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 		}
 	}
 
-	if c.ActivityDumpTracedCgroupsCount > probes.MaxTracedCgroupsCount {
-		c.ActivityDumpTracedCgroupsCount = probes.MaxTracedCgroupsCount
+	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
+		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
 
 	if c.ActivityDumpCgroupWaitListSize <= 0 {
 		c.ActivityDumpCgroupWaitListSize = c.ActivityDumpTracedCgroupsCount
 	}
 
-	if c.ActivityDumpCgroupWaitListSize > probes.MaxTracedCgroupsCount {
-		c.ActivityDumpCgroupWaitListSize = probes.MaxTracedCgroupsCount
+	if c.ActivityDumpCgroupWaitListSize > model.MaxTracedCgroupsCount {
+		c.ActivityDumpCgroupWaitListSize = model.MaxTracedCgroupsCount
 	}
 	return nil
 }

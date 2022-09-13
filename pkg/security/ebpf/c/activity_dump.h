@@ -88,24 +88,29 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
         cookie = bpf_map_lookup_elem(&traced_pids, &pid);
     }
     if (cookie == NULL) {
-        return 0;
+        return NULL;
     }
 
     u32 cookie_val = *cookie; // for older kernels
     struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
     if (config == NULL) {
-        return 0;
+        return NULL;
     }
 
+    // Warning: this check has to be made before any other check on an existing config. The rational is that a dump is
+    // paused by the user space load controller which will be working on resuming the dump, with updated config
+    // parameters. Stopping a paused dump in kernel space (= removing its entry from traced_cgroups) can lead to a race
+    // on the traced cgroups counter: the kernel might want to "restart dumping this cgroup" even if the user space load
+    // controller isn't done with it.
     if (config->paused) {
-        return 0;
+        return NULL;
     }
 
     if (now > config->end_timestamp) {
         // delete expired entries
         bpf_map_delete_elem(&traced_pids, &pid);
         bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
-        return 0;
+        return NULL;
     }
     return config;
 }
@@ -245,7 +250,11 @@ __attribute__((always_inline)) u32 should_trace_new_process_comm(void *ctx, u64 
         return 0;
     }
 
-    // is this cgroup paused ?
+    // Warning: this check has to be made before any other check on an existing config. The rational is that a dump is
+    // paused by the user space load controller which will be working on resuming the dump, with updated config
+    // parameters. Stopping a paused dump in kernel space (= removing its entry from traced_cgroups) can lead to a race
+    // on the traced cgroups counter: the kernel might want to "restart dumping this cgroup" even if the user space load
+    // controller isn't done with it.
     if (config->paused) {
         // ignore for now, the userspace load controller will re-enable this dump soon
         return 0;
@@ -280,7 +289,11 @@ __attribute__((always_inline)) u32 should_trace_new_process_cgroup(void *ctx, u6
                 return 0;
             }
 
-            // is this cgroup paused ?
+            // Warning: this check has to be made before any other check on an existing config. The rational is that a dump is
+            // paused by the user space load controller which will be working on resuming the dump, with updated config
+            // parameters. Stopping a paused dump in kernel space (= removing its entry from traced_cgroups) can lead to a race
+            // on the traced cgroups counter: the kernel might want to "restart dumping this cgroup" even if the user space load
+            // controller isn't done with it.
             if (config->paused) {
                 // ignore for now, the userspace load controller will re-enable this dump soon
                 return 0;
@@ -338,9 +351,9 @@ __attribute__((always_inline)) u32 should_trace_new_process(void *ctx, u64 now, 
     bpf_probe_read(&buffer.container_id, sizeof(buffer.container_id), cgroup_p);
     u32 cookie = should_trace_new_process_cgroup(ctx, now, pid, buffer.container_id);
 
-    bpf_probe_read(&buffer.comm, sizeof(buffer.comm), comm_p);
     // prioritize the cookie from the cgroup to the cookie from the comm
     if (!cookie) {
+        bpf_probe_read(&buffer.comm, sizeof(buffer.comm), comm_p);
         cookie = should_trace_new_process_comm(ctx, now, pid, buffer.comm);
     }
     return cookie;
@@ -365,6 +378,11 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
         return;
     }
 
+    // Warning: this check has to be made before any other check on an existing config. The rational is that a dump is
+    // paused by the user space load controller which will be working on resuming the dump, with updated config
+    // parameters. Stopping a paused dump in kernel space (= removing its entry from traced_cgroups) can lead to a race
+    // on the traced cgroups counter: the kernel might want to "restart dumping this cgroup" even if the user space load
+    // controller isn't done with it.
     if (config->paused) {
         // ignore for now, the userspace load controller will re-enable this dump soon
         return;
@@ -438,6 +456,11 @@ __attribute__((always_inline)) u32 get_activity_dump_state(void *ctx, u32 pid, u
         return NO_ACTIVITY_DUMP;
     }
 
+    // Warning: this check has to be made before any other check on an existing config. The rational is that a dump is
+    // paused by the user space load controller which will be working on resuming the dump, with updated config
+    // parameters. Stopping a paused dump in kernel space (= removing its entry from traced_cgroups) can lead to a race
+    // on the traced cgroups counter: the kernel might want to "restart dumping this cgroup" even if the user space load
+    // controller isn't done with it.
     if (config->paused) {
         // ignore for now, the userspace load controller will re-enable this dump soon
         return NO_ACTIVITY_DUMP;

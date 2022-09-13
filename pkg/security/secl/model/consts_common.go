@@ -41,6 +41,9 @@ const (
 
 	// MaxSymlinks maximum symlinks captured
 	MaxSymlinks = 2
+
+	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
+	MaxTracedCgroupsCount = 128
 )
 
 var (
