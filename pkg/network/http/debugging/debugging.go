@@ -16,12 +16,14 @@ import (
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client   Address
-	Server   Address
-	DNS      string
-	Path     string
-	Method   string
-	ByStatus map[int]Stats
+	Client      Address
+	Server      Address
+	DNS         string
+	Path        string
+	Method      string
+	ByStatus    map[int]Stats
+	StaticTags  uint64
+	DynamicTags []string
 }
 
 // Address represents represents a IP:Port
@@ -53,10 +55,10 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 				IP:   serverAddr.String(),
 				Port: k.DstPort,
 			},
-			DNS:      getDNS(dns, serverAddr),
-			Path:     k.Path.Content,
-			Method:   k.Method.String(),
-			ByStatus: make(map[int]Stats),
+			DNS:         getDNS(dns, serverAddr),
+			Path:        k.Path.Content,
+			Method:      k.Method.String(),
+			ByStatus:    make(map[int]Stats),
 		}
 
 		for status := 100; status <= 500; status += 100 {
@@ -64,6 +66,8 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 				continue
 			}
 			stat := v.Stats(status)
+			debug.StaticTags = stat.StaticTags
+			debug.DynamicTags = stat.DynamicTags
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,
