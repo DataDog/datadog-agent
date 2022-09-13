@@ -20,7 +20,6 @@ from .system_probe import (
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
-from .test import environ
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -621,9 +620,9 @@ def generate_btfhub_constants(ctx, archive_path):
 @task
 def generate_cws_proto(ctx):
     # API
-    ctx.run(f"protoc -I. --go_out=. pkg/security/api/api.proto")
+    ctx.run("protoc -I. --go_out=. pkg/security/api/api.proto")
     # API grpc logic
-    ctx.run(f"protoc -I. --go-grpc_out=. pkg/security/api/api.proto")
+    ctx.run("protoc -I. --go-grpc_out=. pkg/security/api/api.proto")
 
     # Activity Dumps
     pool_structs = [
