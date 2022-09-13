@@ -221,8 +221,8 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	}
 }
 
-// processChunks handles one of the trace chunks that Process loops through.
-// processChunks returns a TraceChunk that is to replace the input chunk. The
+// processChunk handles one of the trace chunks that Process loops through.
+// processChunk returns a TraceChunk that is to replace the input chunk. The
 // returned TraceChunk might be the same as the input, or different, or nil. If
 // the returned TraceChunk is nil, the caller should remove that chunk from the
 // payload that it's processing.
@@ -295,19 +295,27 @@ func (a *Agent) processChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Time
 	}
 
 	numEvents, keep, filteredChunk := a.sample(now, ts, pt)
-	if !keep && numEvents == 0 {
-		// the trace was dropped and no analyzed span were kept
+
+	// If sampling decided to drop this chunk, then there are three possibilities:
+	// 1. Span sampling can be applied, in which case we return the in-place modified chunk.
+	// 2. No events were extracted, in which case we return nil.
+	// 3. Events were extracted, in which case we return the extracted events (filteredChunk).
+	if !keep && sampler.ApplySpanSampling(chunk) {
+		// The span sampler decided to keep some of the spans anyway. It modified chunk in-place.
+		keep = true
+	} else if !keep && numEvents == 0 {
+		// The trace was dropped and no analyzed spans were kept.
 		return nil
 	}
 
 	if !chunk.DroppedTrace {
 		ss.SpanCount += int64(len(chunk.Spans))
 	}
-	ss.EventCount += numEvents
 	ss.Size += chunk.Msgsize()
+	ss.EventCount += numEvents
 
 	// If we're keeping the chunk, keep it. If we're not keeping the chunk, then
-	// replace it with the filtered version produced by sample(...).
+	// replace it with the filtered version produced by a.sample(...) above.
 	if keep {
 		return chunk
 	}
