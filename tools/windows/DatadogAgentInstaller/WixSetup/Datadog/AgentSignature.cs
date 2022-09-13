@@ -1,15 +1,21 @@
 using System;
 using System.Collections.Generic;
+using System.Xml.Linq;
 using WixSharp;
 
 namespace WixSetup.Datadog
 {
-    public class AgentSignature
+    public class AgentSignature : IWixSourceGeneratedListener
     {
+        private readonly AgentPython _agentPython;
+        private readonly AgentBinaries _agentBinaries;
+
         public DigitalSignature Signature { get; }
 
-        public AgentSignature()
+        public AgentSignature(AgentPython agentPython, AgentBinaries agentBinaries)
         {
+            _agentPython = agentPython;
+            _agentBinaries = agentBinaries;
             var pfxFilePath = Environment.GetEnvironmentVariable("SIGN_PFX");
             var pfxFilePassword = Environment.GetEnvironmentVariable("SIGN_PFX_PW");
 
@@ -31,6 +37,32 @@ namespace WixSetup.Datadog
                         new Uri("http://timestamp.sectigo.com"),
                     }
                 };
+            }
+        }
+
+        public void OnWixSourceGenerated(XDocument document)
+        {
+            if (Signature != null)
+            {
+                var filesToSign = new List<string>
+                {
+                    _agentBinaries.Agent,
+                    _agentBinaries.Tray,
+                    _agentBinaries.ProcessAgent,
+                    _agentBinaries.SecurityAgent,
+                    _agentBinaries.SystemProbe,
+                    _agentBinaries.TraceAgent,
+                    _agentBinaries.LibDatadogAgentThree
+                };
+                if (_agentPython.IncludePython2)
+                {
+                    filesToSign.Add(_agentBinaries.LibDatadogAgentTwo);
+                }
+
+                foreach (var file in filesToSign)
+                {
+                    Signature.Apply(file);
+                }
             }
         }
     }
