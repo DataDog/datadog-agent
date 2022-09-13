@@ -8,10 +8,11 @@
 
 #include <uapi/linux/ptrace.h>
 
-static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, http_batch_state_t *batch_state) {
-    __builtin_memset(key, 0, sizeof(http_batch_key_t));
-    key->cpu = cpu;
-    key->page_num = batch_state->idx % HTTP_BATCH_PAGES;
+static __always_inline http_batch_key_t http_get_batch_key(u64 batch_idx) {
+    http_batch_key_t key = { 0 };
+    key.cpu = bpf_get_smp_processor_id();
+    key.page_num = batch_idx % HTTP_BATCH_PAGES;
+    return key;
 }
 
 static __always_inline void http_flush_batch(struct pt_regs *ctx) {
@@ -22,17 +23,14 @@ static __always_inline void http_flush_batch(struct pt_regs *ctx) {
         return;
     }
 
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_key_t key = {0};
-    key.cpu = cpu;
-    key.page_num = batch_state->idx_to_flush % HTTP_BATCH_PAGES;
+    http_batch_key_t key = http_get_batch_key(batch_state->idx_to_flush);
     http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
     if (batch == NULL) {
         return;
     }
 
-    bpf_perf_event_output(ctx, &http_batch_events, cpu, batch, sizeof(http_batch_t));
-    log_debug("http batch flushed: cpu: %d idx: %d\n", cpu, batch->idx);
+    bpf_perf_event_output(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
+    log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
     batch_state->idx_to_flush++;
 }
 
@@ -48,11 +46,8 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         return;
     }
 
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_key_t key;
-    http_prepare_key(cpu, &key, batch_state);
-
     // Retrieve the batch object
+    http_batch_key_t key = http_get_batch_key(batch_state->idx);
     http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
     if (batch == NULL) {
         return;
@@ -63,7 +58,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     }
 
     __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
-    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch_state->idx, batch_state->pos);
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch_state->pos);
     batch_state->pos++;
 
     // Copy batch state information for user-space
