@@ -9,6 +9,6 @@
 other:
   - |
     The ``logs_config.cca_in_ad`` feature flag now defaults to true.  This
-    selects updated codepaths in autodiscovery and the logs-agent.  No behavior
+    selects updated codepaths in Autodiscovery and the Logs Agent.  No behavior
     change is expected.  Please report any behavior that is "fixed" by setting
     this flag to false.
