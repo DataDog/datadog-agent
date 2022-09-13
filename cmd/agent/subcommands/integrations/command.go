@@ -297,10 +297,6 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(globalArgs *app.GlobalArgs, args []string, stdout io.Writer, stderr io.Writer) error {
-	if globalArgs.FlagNoColor {
-		color.NoColor = true
-	}
-
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return err

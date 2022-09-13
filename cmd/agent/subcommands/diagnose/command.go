@@ -68,10 +68,6 @@ func configAndLogSetup(globalArgs *app.GlobalArgs) error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	if globalArgs.FlagNoColor {
-		color.NoColor = true
-	}
-
 	// log level is always off since this might be use by other agent to get the hostname
 	err = config.SetupLogger(globalArgs.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
 

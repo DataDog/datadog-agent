@@ -8,8 +8,6 @@ package config
 import (
 	"fmt"
 
-	"github.com/fatih/color"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,10 +20,6 @@ import (
 func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	// utility function to set up logging and config, shared between subcommands
 	setupConfigAndLogs := func() error {
-		if globalArgs.FlagNoColor {
-			color.NoColor = true
-		}
-
 		err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)

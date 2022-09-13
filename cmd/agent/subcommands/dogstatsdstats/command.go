@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -36,10 +35,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Print basic statistics on the metrics processed by dogstatsd",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
 
 			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 			if err != nil {

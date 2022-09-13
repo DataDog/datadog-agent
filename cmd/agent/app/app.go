@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -35,8 +36,10 @@ monitoring and performance data.`,
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalArgs.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	agentCmd.PersistentFlags().BoolVarP(&globalArgs.FlagNoColor, "no-color", "n", false, "disable color output")
 	agentCmd.PersistentFlags().StringVarP(&globalArgs.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+
+	// NoColor is written directly to the github.com/fatih/color global
+	agentCmd.PersistentFlags().BoolVarP(&color.NoColor, "no-color", "n", false, "disable color output")
 
 	for _, sf := range subcommandFactories {
 		agentCmd.AddCommand(sf(&globalArgs))

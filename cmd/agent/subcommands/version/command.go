@@ -24,9 +24,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Print the version info",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
 			av, _ := version.Agent()
 			meta := ""
 			if av.Meta != "" {

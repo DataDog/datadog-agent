@@ -19,9 +19,6 @@ type GlobalArgs struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
-	// FlagNoColor indicates that console output should not be colorized.
-	FlagNoColor bool
-
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string

@@ -32,10 +32,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			if flavor.GetFlavor() == flavor.ClusterAgent {
 				config.Datadog.SetConfigName("datadog-cluster")
 			}

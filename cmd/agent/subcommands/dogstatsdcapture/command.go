@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"google.golang.org/grpc"
@@ -44,10 +43,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Start a dogstatsd UDS traffic capture",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
 
 			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 			if err != nil {

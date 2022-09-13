@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -64,11 +63,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Print the current status",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			// Prevent autoconfig to run when running status as it logs before logger is setup
 			// Cannot rely on config.Override as env detection is run before overrides are set
 			os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
@@ -100,9 +94,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
 			}
 
 			if len(args) != 1 {

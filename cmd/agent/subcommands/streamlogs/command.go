@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -32,10 +31,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Stream the logs being processed by a running agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)

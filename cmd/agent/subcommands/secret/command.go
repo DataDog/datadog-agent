@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
@@ -27,10 +26,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Print information about decrypted secrets in configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 			if err != nil {
 				fmt.Printf("unable to set up global agent configuration: %v\n", err)

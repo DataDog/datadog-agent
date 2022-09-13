@@ -29,10 +29,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short:   "Print all configurations loaded & resolved of a running agent",
 		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			err := common.SetupConfig(globalArgs.ConfFilePath)
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)

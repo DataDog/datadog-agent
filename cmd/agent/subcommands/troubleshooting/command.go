@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
@@ -62,10 +61,6 @@ This command offers a list of helpers to troubleshoot the Datadog Agent.`,
 }
 
 func printPayload(globalArgs *app.GlobalArgs, payloadName string) error {
-	if globalArgs.FlagNoColor {
-		color.NoColor = true
-	}
-
 	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 	if err != nil {
 		fmt.Printf("unable to set up global agent configuration: %v\n", err)

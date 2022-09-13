@@ -119,10 +119,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 				return err
 			}
 
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			previousIntegrationTracing := false
 			if generateIntegrationTraces {
 				if config.Datadog.IsSet("integration_tracing") {

@@ -25,10 +25,6 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		Short: "Print the tagger content of a running agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if globalArgs.FlagNoColor {
-				color.NoColor = true
-			}
-
 			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
