@@ -10,7 +10,6 @@ package http
 
 import (
 	"fmt"
-
 	"sync"
 
 	"github.com/cilium/ebpf"

@@ -40,11 +40,6 @@ type ContainerEvent struct {
 	Attributes    map[string]string
 }
 
-// ContainerEntityName returns the event's container as a tagger entity name
-func (ev *ContainerEvent) ContainerEntityName() string {
-	return ContainerIDToTaggerEntityName(ev.ContainerID)
-}
-
 // Errors client might receive
 var (
 	ErrAlreadySubscribed = errors.New("already subscribed")

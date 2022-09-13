@@ -878,6 +878,18 @@ api_key:
     #
     # oid_batch_size: 5
 
+{{- if (eq .OS "windows")}}
+  ## @param windows_counter_refresh_interval - number - optional - default: 60
+  ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
+  ## Refreshes are necessary for the discovery of new counters/countersets and instances for integrations that
+  ## rely on performance counters. Checks include active_directory, aspdotnet, dotnetclr, exchange_server, hyperv,
+  ## iis and windows_performance_counters. 
+  ## Refresh can be disabled by setting the interval to 0.
+  #
+  # windows_counter_refresh_interval: 60
+{{ end }}
+
+
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -1773,6 +1785,21 @@ api_key:
 ## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
 #
 # dogstatsd_entity_id_precedence: false
+
+
+## @param dogstatsd_no_aggregation_pipeline - boolean - optional - default: true
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE - boolean - optional - default: true
+## Enable the no-aggregation pipeline in DogStatsD: a pipeline receiving metrics
+## with timestamp and forwarding them to the intake without extra processing except
+## for tagging.
+#
+# dogstatsd_no_aggregation_pipeline: true
+
+## @param dogstatsd_no_aggregation_pipeline_batch_size - integer - optional - default: 256
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_BATCH_SIZE - integer - optional - default: 256
+## How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
+#
+# dogstatsd_no_aggregation_pipeline_batch_size: 256
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""

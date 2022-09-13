@@ -478,6 +478,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	if !entry.HasInterpreter() {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	}
+
 	// add netns
 	entry.NetNS, _ = utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
 
@@ -705,6 +711,10 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
+	} else {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	p.SetProcessArgs(entry)
