@@ -4,6 +4,7 @@ import (
 	"code.cloudfoundry.org/garden"
 	"context"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
@@ -14,6 +15,8 @@ const (
 	SharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
 	componentName           = "cloudfoundry-container-tagger"
 )
+
+// TODO: add lock and gorooutines with timeout to emulate TTL for cache tags hashes
 
 func StartContainerTagger(ctx context.Context) error {
 	var err error
@@ -26,6 +29,8 @@ func StartContainerTagger(ctx context.Context) error {
 	store := workloadmeta.GetGlobalStore()
 	ch := store.Subscribe(componentName, workloadmeta.NormalPriority, filter)
 	defer store.Unsubscribe(ch)
+
+	seen := make(map[string]bool)
 
 	log.Infof("Cloud Foundry container tagger started successfully!")
 	for {
@@ -49,7 +54,18 @@ func StartContainerTagger(ctx context.Context) error {
 					tags = append(tags, hostTags.System...)
 					tags = append(tags, hostTags.GoogleCloudPlatform...)
 
-					log.Infof("Injecting tags into container %s", containerID)
+					// check if the tags were already injected, skip
+					hash := utils.ComputeTagsHash(tags)
+					if seen[hash] {
+						continue
+					}
+
+					log.Infof("Container %s with tags hash: %s", containerID, hash)
+
+					// mark as seen
+					seen[hash] = true
+
+					log.Infof("Injecting container tags into container %s", containerID)
 
 					container, err := gardenUtil.GetContainer(containerID)
 					if err != nil {
