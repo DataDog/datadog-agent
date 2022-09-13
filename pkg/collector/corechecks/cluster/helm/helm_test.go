@@ -322,9 +322,10 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
+		expectedTags := check.allTags(&rel, k8sSecrets, true)
 		return mockedSender.AssertEvent(
 			t,
-			check.eventsManager.eventForRelease(&rel, k8sSecrets, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", false),
+			eventForRelease(&rel, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", expectedTags),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -339,9 +340,10 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
+		expectedTags := check.allTags(&rel, k8sSecrets, true)
 		return mockedSender.AssertEvent(
 			t,
-			check.eventsManager.eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", false),
+			eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", expectedTags),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -355,9 +357,10 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
+		expectedTags := check.allTags(&rel, k8sSecrets, false)
 		return mockedSender.AssertEvent(
 			t,
-			check.eventsManager.eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", true),
+			eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", expectedTags),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -522,7 +525,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			check.runLeaderElection = false
 
 			for _, rel := range releases {
-				check.store.add(rel, test.storage)
+				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
 			}
 
 			mockedSender := mocksender.NewMockSender(checkName)
