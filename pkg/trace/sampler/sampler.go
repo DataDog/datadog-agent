@@ -212,31 +212,20 @@ func setMetric(s *pb.Span, key string, val float64) {
 // Do not call ApplySpanSampling on a chunk that the other samplers have
 // decided to keep. Doing so might wrongfully remove spans from a kept trace.
 func ApplySpanSampling(chunk *pb.TraceChunk) (applied bool) {
-	// Find the first span in chunk.Spans that has the span sampling tag set, if any.
-	first := -1
-	for i, span := range chunk.Spans {
+	var sampledSpans []*pb.Span
+	for _, span := range chunk.Spans {
 		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
-			first = i
-			break
+			// Keep only those spans that have a span sampling tag.
+			sampledSpans = append(sampledSpans, span)
 		}
 	}
-	if first == -1 {
+	if sampledSpans == nil {
 		// No span sampling tags → no span sampling.
 		return false
 	}
 
-	// Keep only those spans that have a span sampling tag.
-	sampledSpans := []*pb.Span{chunk.Spans[first]}
-	for _, span := range chunk.Spans[first+1:] {
-		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
-			sampledSpans = append(sampledSpans, span)
-		}
-	}
-
-	// Keep what we selected above.
 	chunk.Spans = sampledSpans
 	chunk.Priority = int32(PriorityUserKeep)
 	chunk.DroppedTrace = false
-
 	return true
 }
