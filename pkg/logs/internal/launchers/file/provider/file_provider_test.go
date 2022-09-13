@@ -594,6 +594,32 @@ func TestApplyOrdering(t *testing.T) {
 		assert.Equal(t, fs.path("t.log"), files[2].Path)
 		assert.Equal(t, fs.path("z.log"), files[3].Path)
 	})
+	t.Run("Invalid Files with Mtime", func(t *testing.T) {
+		fs := newTempFs(t)
+		baseTime := time.Date(2010, time.August, 25, 0, 0, 0, 0, time.UTC)
+
+		// Given 3 files with descending mtimes
+		fs.createFileWithTime("a.log", baseTime.Add(time.Second*4))
+		fs.createFileWithTime("b.log", baseTime.Add(time.Second*3))
+		fs.createFileWithTime("c.log", baseTime.Add(time.Second*1))
+
+		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
+		files := []*tailer.File{
+			{Path: fs.path("z.log")},
+			{Path: fs.path("a.log")},
+			{Path: fs.path("c.log")},
+			{Path: fs.path("b.log")},
+		}
+		// When we apply ordering
+		fileProvider.applyOrdering(files)
+		// Then we should see all files in descending mtime order
+		assert.Len(t, files, 4)
+		assert.Equal(t, fs.path("a.log"), files[0].Path)
+		assert.Equal(t, fs.path("b.log"), files[1].Path)
+		assert.Equal(t, fs.path("c.log"), files[2].Path)
+		// Even though `z.log` does not exist, it was properly sorted into last place
+		assert.Equal(t, fs.path("z.log"), files[3].Path)
+	})
 
 	t.Run("Reverse Lexicographical", func(t *testing.T) {
 		fileProvider := NewFileProvider(0, WildcardUseFileName)
