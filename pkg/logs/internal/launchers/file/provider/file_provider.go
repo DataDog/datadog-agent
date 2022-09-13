@@ -24,25 +24,25 @@ import (
 const openFilesLimitWarningType = "open_files_limit_warning"
 
 // wildcardOrdering controls what ordering is applied to wildcard files
-type wildcardOrdering string
+type wildcardOrdering int
 
 const (
 	// WildcardReverseLexicographical is the default option and does a pseudo reverse alpha sort
-	WildcardReverseLexicographical = "SortReverseLexicographical"
+	WildcardReverseLexicographical wildcardOrdering = iota
 	// WildcardMtime sorts based on the most recently modified time for each matching wildcard file
-	WildcardMtime = "SortMtime"
+	WildcardMtime
 )
 
 // selectionStrategy controls how the `filesLimit` slots we have are filled given a list of sources
-type selectionStrategy string
+type selectionStrategy int
 
 const (
 	// GreedySelection will consider each source one-by-one, filling as many
 	// slots as is possible from that source before proceeding to the next one
-	GreedySelection = "ChooseGreedily"
+	GreedySelection selectionStrategy = iota
 	// GlobalSelection will consider files from all sources together and will choose the
 	// top `filesLimit` files based on the `sortMode` ordering
-	GlobalSelection = "ChooseGlobally"
+	GlobalSelection
 )
 
 // FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
