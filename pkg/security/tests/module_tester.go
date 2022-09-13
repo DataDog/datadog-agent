@@ -38,6 +38,7 @@ import (
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
+	"runtime/pprof"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -157,6 +158,7 @@ var (
 	logPatterns      stringSlice
 	logTags          stringSlice
 	logStatusMetrics bool
+	withProfile      bool
 )
 
 const (
@@ -213,6 +215,7 @@ type testModule struct {
 	ruleHandler           testRuleHandler
 	eventDiscarderHandler testEventDiscarderHandler
 	statsdClient          *StatsdClient
+	proFile               *os.File
 }
 
 var testMod *testModule
@@ -652,6 +655,25 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+	var proFile *os.File
+	if withProfile {
+		var err error
+		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = os.Chmod(proFile.Name(), 0666); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Logf("Generating CPU profile in %s", proFile.Name())
+
+		if err := pprof.StartCPUProfile(proFile); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	if err := initLogger(); err != nil {
 		return nil, err
 	}
@@ -730,6 +752,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
 		cmdWrapper:   cmdWrapper,
 		statsdClient: statsdClient,
+		proFile:      proFile,
 	}
 
 	var loadErr *multierror.Error
@@ -1237,6 +1260,11 @@ func (tm *testModule) Close() {
 		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
 	}
 
+	if withProfile {
+		pprof.StopCPUProfile()
+		tm.proFile.Close()
+	}
+
 	if useReload {
 		if _, err := newTestModule(tm.t, nil, nil, tm.opts); err != nil {
 			tm.t.Errorf("couldn't reload module with an empty policy: %v", err)
@@ -1426,6 +1454,8 @@ func init() {
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
+	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
+
 	rand.Seed(time.Now().UnixNano())
 
 	testSuitePid = uint32(utils.Getpid())
