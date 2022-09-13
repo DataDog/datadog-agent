@@ -533,9 +533,8 @@ func validateProcessContext(tb testing.TB, event *sprobe.Event) {
 //nolint:deadcode,unused
 func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
 	return func(event *sprobe.Event, rule *rules.Rule) {
-		validate(event, rule)
-
 		validateProcessContext(tb, event)
+		validate(event, rule)
 	}
 }
 

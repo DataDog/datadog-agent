@@ -58,22 +58,15 @@ func hashFlags(flags []string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-type RuntimeCompilationTelemetry struct {
+// CompilationTelemetry is telemetry collected per-program when attempting compilation
+type CompilationTelemetry struct {
 	compilationEnabled  bool
 	compilationResult   CompilationResult
 	compilationDuration time.Duration
 	headerFetchResult   kernel.HeaderFetchResult
 }
 
-func NewRuntimeCompilationTelemetry() RuntimeCompilationTelemetry {
-	return RuntimeCompilationTelemetry{
-		compilationEnabled: false,
-		compilationResult:  notAttempted,
-		headerFetchResult:  kernel.NotAttempted,
-	}
-}
-
-func (tm *RuntimeCompilationTelemetry) GetTelemetry() map[string]int64 {
+func (tm *CompilationTelemetry) getTelemetry() map[string]int64 {
 	stats := make(map[string]int64)
 	if tm.compilationEnabled {
 		stats["runtime_compilation_enabled"] = 1
@@ -86,7 +79,8 @@ func (tm *RuntimeCompilationTelemetry) GetTelemetry() map[string]int64 {
 	return stats
 }
 
-func (tm *RuntimeCompilationTelemetry) SendMetrics(client statsd.ClientInterface) error {
+// SendMetrics sends the collected metrics using the statsd client provided
+func (tm *CompilationTelemetry) SendMetrics(client statsd.ClientInterface) error {
 	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
 	var enabled float64 = 0
@@ -111,26 +105,31 @@ func (tm *RuntimeCompilationTelemetry) SendMetrics(client statsd.ClientInterface
 	return client.Gauge(metrics.MetricRuntimeCompiledConstantsHeaderFetchResult, float64(tm.headerFetchResult), tags, 1)
 }
 
-type RuntimeCompilationFileProvider interface {
-	GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error)
-	GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *RuntimeCompilationTelemetry) (string, error)
+// CompilationFileProvider is the interface for a compilation to provide the input and output
+type CompilationFileProvider interface {
+	GetInputReader(config *ebpf.Config, tm *CompilationTelemetry) (io.Reader, error)
+	GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *CompilationTelemetry) (string, error)
 }
 
-type RuntimeCompiler struct {
-	telemetry RuntimeCompilationTelemetry
+// Compiler represents a compiler for use at runtime
+type Compiler struct {
+	telemetry CompilationTelemetry
 }
 
-func NewRuntimeCompiler() *RuntimeCompiler {
-	return &RuntimeCompiler{
-		telemetry: NewRuntimeCompilationTelemetry(),
+// NewCompiler creates a Compiler
+func NewCompiler() *Compiler {
+	return &Compiler{
+		telemetry: CompilationTelemetry{},
 	}
 }
 
-func (rc *RuntimeCompiler) GetRCTelemetry() RuntimeCompilationTelemetry {
+// GetRCTelemetry returns the collected telemetry about the compilation
+func (rc *Compiler) GetRCTelemetry() CompilationTelemetry {
 	return rc.telemetry
 }
 
-func (rc *RuntimeCompiler) CompileObjectFile(config *ebpf.Config, cflags []string, inputFileName string, provider RuntimeCompilationFileProvider) (CompiledOutput, error) {
+// CompileObjectFile compiles an eBPF program
+func (rc *Compiler) CompileObjectFile(config *ebpf.Config, cflags []string, inputFileName string, provider CompilationFileProvider) (CompiledOutput, error) {
 	start := time.Now()
 	defer func() {
 		rc.telemetry.compilationDuration = time.Since(start)
