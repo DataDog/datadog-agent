@@ -385,7 +385,7 @@ func (tc *TrafficCaptureWriter) WriteHeader() error {
 // WriteState writes the tagger state to the capture file.
 func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 
-	pbState := pb.TaggerState{
+	pbState := &pb.TaggerState{
 		State:  make(map[string]*pb.Entity),
 		PidMap: tc.taggerState,
 	}
@@ -419,7 +419,7 @@ func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 
 	log.Debugf("Going to write STATE: %v", pbState)
 
-	s, err := proto.Marshal(&pbState)
+	s, err := proto.Marshal(pbState)
 	if err != nil {
 		return 0, err
 	}
