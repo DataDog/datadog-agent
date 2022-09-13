@@ -501,7 +501,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		sleepDuration := 20 * time.Millisecond
 		launcher := &Launcher{
 			tailingLimit:           openFilesLimit,
-			fileProvider:           fileprovider.NewFileProvider(openFilesLimit, fileprovider.WildcardMtime, fileprovider.GlobalSelection),
+			fileProvider:           fileprovider.NewFileProvider(openFilesLimit, fileprovider.WildcardUseFileModTime),
 			tailers:                make(map[string]*tailer.Tailer),
 			tailerSleepDuration:    sleepDuration,
 			stop:                   make(chan struct{}),

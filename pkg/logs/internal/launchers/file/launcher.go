@@ -62,19 +62,21 @@ type Launcher struct {
 
 // NewLauncher returns a new launcher.
 func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
-	var prov *fileprovider.FileProvider
-	if wildcardMode == "prioritizeNewest" {
-		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardMtime, fileprovider.GlobalSelection)
-	} else if wildcardMode == "simpleAlpha" {
-		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection)
-	} else {
+
+	var wildcardStrategy fileprovider.WildcardSelectionStrategy
+	switch wildcardMode {
+	case "prioritizeNewest":
+		wildcardStrategy = fileprovider.WildcardUseFileModTime
+	case "simpleAlpha":
+		wildcardStrategy = fileprovider.WildcardUseFileName
+	default:
 		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'simpleAlpha' strategy.", wildcardMode)
-		prov = fileprovider.NewFileProvider(tailingLimit, fileprovider.WildcardReverseLexicographical, fileprovider.GreedySelection)
+		wildcardStrategy = fileprovider.WildcardUseFileName
 	}
 
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           prov,
+		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),

@@ -120,7 +120,7 @@ func (suite *ProviderTestSuite) TearDownTest() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider := NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
@@ -133,7 +133,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(logSources)
@@ -158,7 +158,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	// with wildcard
 
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	files, err := fileProvider.CollectFiles(logSources[0])
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
@@ -169,7 +169,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	// without wildcard
 
 	path = fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider = NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider = NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources = suite.newLogSources(path)
 	files, err = fileProvider.CollectFiles(logSources[0])
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
@@ -180,7 +180,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWithRightPermissions() {
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
-	fileProvider := NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
@@ -195,7 +195,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard() {
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
-	fileProvider := NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(logSources)
@@ -219,7 +219,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	filesLimit := 6
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := NewFileProvider(filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(5, len(files))
@@ -235,7 +235,7 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 
 func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := NewFileProvider(suite.filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(logSources)
@@ -251,7 +251,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 
 func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	filesLimit := 2
-	fileProvider := NewFileProvider(filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
@@ -302,7 +302,7 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 	filesLimit := 6
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	excludePaths := []string{fmt.Sprintf("%s/2/*.log", suite.testDir)}
-	fileProvider := NewFileProvider(filesLimit, WildcardReverseLexicographical, GreedySelection)
+	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
@@ -323,7 +323,7 @@ func TestProviderTestSuite(t *testing.T) {
 
 func TestCollectFiles(t *testing.T) {
 	t.Run("Invalid Pattern", func(t *testing.T) {
-		fileProvider := NewFileProvider(2, WildcardReverseLexicographical, GreedySelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: "//\\///*"})
 		files, err := fileProvider.CollectFiles(source)
 		assert.Len(t, files, 0)
@@ -336,7 +336,7 @@ func TestCollectFiles(t *testing.T) {
 		fs.createFile("c")
 		fs.createFile("d")
 
-		fileProvider := NewFileProvider(2, WildcardReverseLexicographical, GreedySelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
 		files, err := fileProvider.CollectFiles(source)
 		assert.Nil(t, err)
@@ -357,7 +357,7 @@ func TestCollectFiles(t *testing.T) {
 		fs.createFileWithTime("t.log", baseTime.Add(time.Second*2))
 		fs.createFileWithTime("z.log", baseTime.Add(time.Second*1))
 
-		fileProvider := NewFileProvider(2, WildcardMtime, GreedySelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
 		files, err := fileProvider.CollectFiles(source)
 		assert.Nil(t, err)
@@ -383,7 +383,7 @@ func TestFilesToTail(t *testing.T) {
 			fs.createFile("b/b")
 			fs.createFile("b/z")
 
-			fileProvider := NewFileProvider(2, WildcardReverseLexicographical, GreedySelection)
+			fileProvider := NewFileProvider(2, WildcardUseFileName)
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
@@ -410,7 +410,7 @@ func TestFilesToTail(t *testing.T) {
 			fs.createFile("b/b")
 			fs.createFile("b/z")
 
-			fileProvider := NewFileProvider(2, WildcardReverseLexicographical, GreedySelection)
+			fileProvider := NewFileProvider(2, WildcardUseFileName)
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcardA", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/a*")}),
 				sources.NewLogSource("wildcardB", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/b*")}),
@@ -423,30 +423,6 @@ func TestFilesToTail(t *testing.T) {
 			assert.Equal(t, fs.path("a/accc"), files[1].Path)
 		})
 	})
-	t.Run("Reverse Lexicographical - Global", func(t *testing.T) {
-		fs := newTempFs(t)
-
-		fs.mkDir("a")
-		fs.createFile("a/a")
-		fs.createFile("a/b")
-		fs.createFile("a/z")
-		fs.mkDir("b")
-		fs.createFile("b/a")
-		fs.createFile("b/b")
-		fs.createFile("b/z")
-
-		fileProvider := NewFileProvider(2, WildcardReverseLexicographical, GlobalSelection)
-		sources := []*sources.LogSource{
-			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
-			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
-		}
-		files := fileProvider.FilesToTail(sources)
-		assert.Len(t, files, 2)
-		assert.Equal(t, fs.path("b/z"), files[0].Path)
-		// 2nd expected element is a/z because the lexicographical 'sort' is not a true alpha ordering. It sorts by filename _only_
-		// So this technically relies on the wildcard glob ordering
-		assert.Equal(t, fs.path("a/z"), files[1].Path)
-	})
 	t.Run("Mtime - Greedy", func(t *testing.T) {
 		t.Run("Single Source", func(t *testing.T) {
 			fs := newTempFs(t)
@@ -458,7 +434,7 @@ func TestFilesToTail(t *testing.T) {
 			fs.createFileWithTime("t.log", baseTime.Add(time.Second*2))
 			fs.createFileWithTime("z.log", baseTime.Add(time.Second*1))
 
-			fileProvider := NewFileProvider(2, WildcardMtime, GreedySelection)
+			fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")}),
 			}
@@ -477,7 +453,7 @@ func TestFilesToTail(t *testing.T) {
 			fs.createFileWithTime("bbb.log", baseTime.Add(time.Second*2))
 			fs.createFileWithTime("baa.log", baseTime.Add(time.Second*1))
 
-			fileProvider := NewFileProvider(2, WildcardMtime, GreedySelection)
+			fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcard a", &config.LogsConfig{Type: config.FileType, Path: fs.path("a*")}),
 				sources.NewLogSource("wildcard b", &config.LogsConfig{Type: config.FileType, Path: fs.path("b*")}),
@@ -501,7 +477,7 @@ func TestFilesToTail(t *testing.T) {
 		fs.createFileWithTime("b/b", baseTime.Add(time.Second*7))
 		fs.createFileWithTime("b/c", baseTime.Add(time.Second*8))
 
-		fileProvider := NewFileProvider(2, WildcardMtime, GlobalSelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		sources := []*sources.LogSource{
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
@@ -523,7 +499,7 @@ func BenchmarkApplyOrdering(b *testing.B) {
 		fs.createFileWithTime("c.log", baseTime.Add(time.Second*5))
 		fs.createFileWithTime("d.log", baseTime.Add(time.Second*5))
 
-		fileProvider := NewFileProvider(2, WildcardMtime, GreedySelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		files := []*tailer.File{
 			{Path: fs.path("a.log")},
 			{Path: fs.path("b.log")},
@@ -544,7 +520,7 @@ func BenchmarkApplyOrdering(b *testing.B) {
 		fs.createFileWithTime("c.log", baseTime.Add(time.Second*5))
 		fs.createFileWithTime("d.log", baseTime.Add(time.Second*5))
 
-		fileProvider := NewFileProvider(2, WildcardReverseLexicographical, GreedySelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		files := []*tailer.File{
 			{Path: fs.path("a.log")},
 			{Path: fs.path("b.log")},
@@ -572,7 +548,7 @@ func BenchmarkApplyOrderingManyFiles(b *testing.B) {
 		return files
 	}
 	b.Run("Mtime", func(b *testing.B) {
-		fileProvider := NewFileProvider(numFiles, WildcardMtime, GreedySelection)
+		fileProvider := NewFileProvider(numFiles, WildcardUseFileModTime)
 
 		files := setup()
 
@@ -582,7 +558,7 @@ func BenchmarkApplyOrderingManyFiles(b *testing.B) {
 	})
 
 	b.Run("ReverseLexicographical", func(b *testing.B) {
-		fileProvider := NewFileProvider(numFiles, WildcardReverseLexicographical, GreedySelection)
+		fileProvider := NewFileProvider(numFiles, WildcardUseFileName)
 		files := setup()
 
 		for n := 0; n < b.N; n++ {
@@ -602,7 +578,7 @@ func TestApplyOrdering(t *testing.T) {
 		fs.createFileWithTime("q.log", baseTime.Add(time.Second*3))
 		fs.createFileWithTime("z.log", baseTime.Add(time.Second*1))
 
-		fileProvider := NewFileProvider(2, WildcardMtime, GreedySelection)
+		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		files := []*tailer.File{
 			{Path: fs.path("t.log")},
 			{Path: fs.path("a.log")},
@@ -620,7 +596,7 @@ func TestApplyOrdering(t *testing.T) {
 	})
 
 	t.Run("Reverse Lexicographical", func(t *testing.T) {
-		fileProvider := NewFileProvider(0, WildcardReverseLexicographical, GreedySelection)
+		fileProvider := NewFileProvider(0, WildcardUseFileName)
 		// For lexicographical ordering, we don't actually need the files
 		// to exist on the FS, so that part is skipped for these tests
 		t.Run("Flat Directory", func(t *testing.T) {

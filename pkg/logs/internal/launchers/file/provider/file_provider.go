@@ -24,26 +24,39 @@ import (
 // files are tailed
 const openFilesLimitWarningType = "open_files_limit_warning"
 
-// wildcardOrdering controls what ordering is applied to wildcard files
+// WildcardSelectionStrategy is used to specify if wildcard matches should be prioritized
+// based on their filename or the modification time of each file
+type WildcardSelectionStrategy int
+
+const (
+	// WildcardUseFileModTime means that the top 'filesLimit' most recently modified files
+	// will be chosen from all wildcard matches
+	WildcardUseFileModTime = iota
+	// WildcardUseFileName means that wildcard matches will be chosen in a roughly reverse
+	// lexicographical order
+	WildcardUseFileName
+)
+
+// wildcardOrdering controls what ordering is applied to wildcard matches
 type wildcardOrdering int
 
 const (
-	// WildcardReverseLexicographical is the default option and does a pseudo reverse alpha sort
-	WildcardReverseLexicographical wildcardOrdering = iota
-	// WildcardMtime sorts based on the most recently modified time for each matching wildcard file
-	WildcardMtime
+	// wildcardReverseLexicographical is the default option and does a pseudo reverse alpha sort
+	wildcardReverseLexicographical wildcardOrdering = iota
+	// wildcardMtime sorts based on the most recently modified time for each matching wildcard file
+	wildcardMtime
 )
 
 // selectionStrategy controls how the `filesLimit` slots we have are filled given a list of sources
 type selectionStrategy int
 
 const (
-	// GreedySelection will consider each source one-by-one, filling as many
+	// greedySelection will consider each source one-by-one, filling as many
 	// slots as is possible from that source before proceeding to the next one
-	GreedySelection selectionStrategy = iota
-	// GlobalSelection will consider files from all sources together and will choose the
+	greedySelection selectionStrategy = iota
+	// globalSelection will consider files from all sources together and will choose the
 	// top `filesLimit` files based on the `sortMode` ordering
-	GlobalSelection
+	globalSelection
 )
 
 // FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
@@ -55,7 +68,14 @@ type FileProvider struct {
 }
 
 // NewFileProvider returns a new Provider
-func NewFileProvider(filesLimit int, wildcardOrder wildcardOrdering, selectionMode selectionStrategy) *FileProvider {
+func NewFileProvider(filesLimit int, wildcardSelection WildcardSelectionStrategy) *FileProvider {
+	wildcardOrder := wildcardReverseLexicographical
+	selectionMode := greedySelection
+	if wildcardSelection == WildcardUseFileModTime {
+		wildcardOrder = wildcardMtime
+		selectionMode = globalSelection
+	}
+
 	return &FileProvider{
 		filesLimit:      filesLimit,
 		wildcardOrder:   wildcardOrder,
@@ -132,7 +152,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 		isWildcardSource := config.ContainsWildcard(source.Config.Path)
 		if isWildcardSource {
 			// if global, save all wildcards for later
-			if p.selectionMode == GlobalSelection {
+			if p.selectionMode == globalSelection {
 				wildcardSources = append(wildcardSources, source)
 				continue
 			} // else if greedy, collect now source-by-source
@@ -158,7 +178,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 	}
 
 	// Then process wildcard sources
-	if p.selectionMode == GlobalSelection {
+	if p.selectionMode == globalSelection {
 		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
 		for _, source := range wildcardSources {
 			files, err := p.filesMatchingSource(source)
@@ -248,7 +268,7 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 
 // applyOrdering sorts the 'files' slice in-place by the currently configured 'sortMode'
 func (p *FileProvider) applyOrdering(files []*tailer.File) {
-	if p.wildcardOrder == WildcardMtime {
+	if p.wildcardOrder == wildcardMtime {
 		statResults := make(map[*tailer.File]time.Time, len(files))
 		for _, file := range files {
 			statRes, err := os.Stat(file.Path)
@@ -264,7 +284,7 @@ func (p *FileProvider) applyOrdering(files []*tailer.File) {
 		sort.SliceStable(files, func(i, j int) bool {
 			return statResults[files[i]].After(statResults[files[j]])
 		})
-	} else if p.wildcardOrder == WildcardReverseLexicographical {
+	} else if p.wildcardOrder == wildcardReverseLexicographical {
 		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
 		// This is true in the current go implementation, but it is unsafe to assume
 		// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=330;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
