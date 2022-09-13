@@ -18,19 +18,83 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+const metaBucket = "meta"
+const metaFile = "meta.json"
+
+type AgentMetadata struct {
+	Version string `json:"version"`
+}
+
+func reopen(path string) (*bbolt.DB, error) {
+	log.Infof("Clear configuration database")
+	if err := os.Remove(path); err != nil {
+		return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
+	}
+	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
+	if err != nil {
+		return nil, err
+	}
+	return db, addMetadata(db)
+}
+
+func addMetadata(db *bbolt.DB) error {
+	return db.Update(func(tx *bbolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(metaBucket))
+		if err != nil {
+			return err
+		}
+		metaData, err := json.Marshal(AgentMetadata{
+			Version: version.AgentVersion,
+		})
+		if err != nil {
+			return err
+		}
+		return bucket.Put([]byte(metaFile), metaData)
+	})
+}
 
 func openCacheDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
 	if err != nil {
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
-		}
-		if db, err = bbolt.Open(path, 0600, &bbolt.Options{}); err != nil {
-			return nil, err
-		}
+		return reopen(path)
 	}
+
+	err = db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(metaBucket))
+		if bucket == nil {
+			return fmt.Errorf("Missing meta bucket")
+		}
+		metaFile := bucket.Get([]byte(metaFile))
+		if metaFile == nil {
+			return fmt.Errorf("Missing meta file in meta bucket")
+		}
+
+		metadata := new(AgentMetadata)
+		err := json.Unmarshal(metaFile, metadata)
+		if err != nil {
+			return err
+		}
+
+		if metadata.Version == version.AgentVersion {
+			return fmt.Errorf("Database needs to be cleared")
+		}
+		return nil
+	})
+	if err != nil {
+		log.Errorf("Invalid database vesion: %w", err)
+	}
+	if db.Close() != nil {
+		return nil, fmt.Errorf("Failed to close remote config")
+	}
+
+	if err != nil {
+		return reopen(path)
+	}
+
 	return db, nil
 }
 
