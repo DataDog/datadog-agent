@@ -267,7 +267,7 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 				UID:          uid,
 			})
 			if err != nil {
-				log.Debugf("detachhook %s/%s/%d : %w", sec, funcName, uid, err)
+				log.Debugf("detachhook %s/%s/%s : %s", sec, funcName, uid, err)
 			}
 			if program != nil {
 				program.Close()

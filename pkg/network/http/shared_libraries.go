@@ -176,7 +176,7 @@ func (w *soWatcher) sync(libraries []so.Library) {
 
 		log.Debugf("unregistering library=%s", path)
 		if err := unregisterCB(path); err != nil {
-			log.Debugf("unregisterCB %s : %w", path, err)
+			log.Debugf("unregisterCB %s : %s", path, err)
 		}
 	}
 }
@@ -186,7 +186,7 @@ func (w *soWatcher) register(libPath string, r soRule) {
 	if err != nil {
 		log.Debugf("error registering library=%s: %s", libPath, err)
 		if err := r.unregisterCB(libPath); err != nil {
-			log.Debugf("unregisterCB %s : %w", libPath, err)
+			log.Debugf("unregisterCB %s : %s", libPath, err)
 		}
 		w.registered[libPath] = nil
 		return

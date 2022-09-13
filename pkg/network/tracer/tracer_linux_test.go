@@ -781,6 +781,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	testutil.RunCommands(t, cmds, false)
 
 	ifs, err := net.Interfaces()
+	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
@@ -1612,6 +1613,7 @@ func TestShortWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	sndBufSize, err := unix.GetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+	require.NoError(t, err)
 	require.GreaterOrEqual(t, sndBufSize, 5000)
 
 	var sa unix.SockaddrInet4
@@ -1619,6 +1621,7 @@ func TestShortWrite(t *testing.T) {
 	require.NoError(t, err)
 	copy(sa.Addr[:], net.ParseIP(host).To4())
 	port, err := strconv.ParseInt(portStr, 10, 32)
+	require.NoError(t, err)
 	sa.Port = int(port)
 
 	err = unix.Connect(s, &sa)
