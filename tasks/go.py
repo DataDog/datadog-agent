@@ -190,7 +190,9 @@ def generate_protobuf(ctx):
         for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
             files.append(path.as_posix())
 
-        ctx.run(f"protoc -I{proto_root} --go_out=plugins=grpc:{repo_root} {' '.join(files)}")
+        ctx.run(f"protoc -I{proto_root} --go_out={repo_root} {' '.join(files)}")
+        # grpc logic
+        ctx.run(f"protoc -I{proto_root} --go-grpc_out={repo_root} {' '.join(files)}")
         # grpc-gateway logic
         ctx.run(f"protoc -I{proto_root} --grpc-gateway_out=logtostderr=true:{repo_root} {' '.join(files)}")
         # mockgen
