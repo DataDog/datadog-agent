@@ -27,7 +27,10 @@ import (
 var expectedFormats = []string{"json", "protobuf"}
 
 func TestActivityDumps(t *testing.T) {
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{enableActivityDump: true, activityDumpRateLimiter: 10})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+		enableActivityDump:      true,
+		activityDumpRateLimiter: 10,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,16 +222,19 @@ func TestActivityDumps(t *testing.T) {
 	test.Run(t, "activity-dump-comm-rate-limiter", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
+		if kind == dockerWrapperType { // do not check ratelimiter on docker for now
+			return
+		}
+
 		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		time.Sleep(1 * time.Second) // a quick sleep to let starts and snapshot events to be added to the dump
+		time.Sleep(2 * time.Second) // a quick sleep to let starts and snapshot events to be added to the dump
 
 		for i := 0; i < 20; i++ {
 			temp, err := os.CreateTemp("/tmp", "ad-test-create")
-			fmt.Printf("Create %s\n", temp.Name())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -247,22 +253,19 @@ func TestActivityDumps(t *testing.T) {
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
+			if len(nodes) != 1 {
+				t.Fatal("Captured more than one testsuite node")
+			}
 
-			count := 0
-			for _, node := range nodes {
-				tmp := node.Files["tmp"]
-				if tmp == nil {
-					continue
-				}
-				for _, file := range tmp.Children {
-					fmt.Printf("Found root: %s\n", file.Name)
-				}
-				fmt.Printf("Found %d files\n", len(tmp.Children))
-				count = len(tmp.Children)
+			node := nodes[0]
+			tmp := node.Files["tmp"]
+			if tmp == nil {
+				t.Fatal("Didn't find tmp node")
 			}
-			if count != 10 {
-				return false
+			if len(tmp.Children) != 10 {
+				t.Fatalf("Didn't find the good number of files in tmp node (%d/10)", len(tmp.Children))
 			}
+
 			return true
 		})
 	})
@@ -312,7 +315,7 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 
 	for ext, found := range perExtOK {
 		if !found {
-			t.Fatalf("Missing `%s`, got: %v", ext, outputFiles)
+			t.Fatalf("Missing or wrong `%s`, out of: %v", ext, outputFiles)
 		}
 	}
 }

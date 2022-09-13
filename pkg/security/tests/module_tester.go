@@ -89,10 +89,11 @@ runtime_security_config:
     enabled: true
 {{if .EnableActivityDump}}
   activity_dump:
-    syscall_monitor:
-      enabled: true
     enabled: true
     rate_limiter: {{ .ActivityDumpRateLimiter }}
+    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
+    - {{.}}
+    {{end}}
 {{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
@@ -171,17 +172,18 @@ const (
 )
 
 type testOpts struct {
-	testDir                     string
-	disableFilters              bool
-	disableApprovers            bool
-	enableActivityDump          bool
-	activityDumpRateLimiter     int
-	disableDiscarders           bool
-	eventsCountThreshold        int
-	reuseProbeHandler           bool
-	disableERPCDentryResolution bool
-	disableMapDentryResolution  bool
-	envsWithValue               []string
+	testDir                      string
+	disableFilters               bool
+	disableApprovers             bool
+	enableActivityDump           bool
+	activityDumpRateLimiter      int
+	activityDumpTracedEventTypes []string
+	disableDiscarders            bool
+	eventsCountThreshold         int
+	reuseProbeHandler            bool
+	disableERPCDentryResolution  bool
+	disableMapDentryResolution   bool
+	envsWithValue                []string
 }
 
 func (s *stringSlice) String() string {
@@ -198,6 +200,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
+		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -611,6 +614,10 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		opts.activityDumpRateLimiter = 100
 	}
 
+	if len(opts.activityDumpTracedEventTypes) == 0 {
+		opts.activityDumpTracedEventTypes = []string{"exec", "open", "bind", "dns", "syscalls"}
+	}
+
 	erpcDentryResolutionEnabled := true
 	if opts.disableERPCDentryResolution {
 		erpcDentryResolutionEnabled = false
@@ -623,16 +630,17 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":             dir,
-		"DisableApprovers":            opts.disableApprovers,
-		"EnableActivityDump":          opts.enableActivityDump,
-		"ActivityDumpRateLimiter":     opts.activityDumpRateLimiter,
-		"EventsCountThreshold":        opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
-		"LogPatterns":                 logPatterns,
-		"LogTags":                     logTags,
-		"EnvsWithValue":               opts.envsWithValue,
+		"TestPoliciesDir":              dir,
+		"DisableApprovers":             opts.disableApprovers,
+		"EnableActivityDump":           opts.enableActivityDump,
+		"ActivityDumpRateLimiter":      opts.activityDumpRateLimiter,
+		"ActivityDumpTracedEventTypes": opts.activityDumpTracedEventTypes,
+		"EventsCountThreshold":         opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled":  erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":   mapDentryResolutionEnabled,
+		"LogPatterns":                  logPatterns,
+		"LogTags":                      logTags,
+		"EnvsWithValue":                opts.envsWithValue,
 	}); err != nil {
 		return nil, err
 	}

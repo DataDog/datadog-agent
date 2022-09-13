@@ -144,8 +144,6 @@ type Config struct {
 	ActivityDumpRemoteStorageFormats []dump.StorageFormat
 	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
 	ActivityDumpRemoteStorageCompression bool
-	// ActivityDumpSyscallMonitor defines if activity dumps should collect syscalls or not
-	ActivityDumpSyscallMonitor bool
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
@@ -254,7 +252,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
-		ActivityDumpSyscallMonitor:            coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.syscall_monitor.enabled"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 	}
 
@@ -334,12 +331,9 @@ func (c *Config) sanitizeRuntimeSecurityConfigNetwork() {
 func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 	var execFound bool
 	for _, evtType := range c.ActivityDumpTracedEventTypes {
-		switch evtType {
-		case model.ExecEventType:
+		if evtType == model.ExecEventType {
 			execFound = true
-		case model.SyscallsEventType:
-			// enable the syscall monitor
-			c.ActivityDumpSyscallMonitor = true
+			break
 		}
 	}
 	if !execFound {
