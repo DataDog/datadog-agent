@@ -6,19 +6,17 @@
 package cloudfoundry_container
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"strings"
+
+	cf "github.com/DataDog/datadog-agent/pkg/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"os"
-	"strings"
-)
-
-import (
-	"context"
-	cf "github.com/DataDog/datadog-agent/pkg/cloudfoundry"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 const (
