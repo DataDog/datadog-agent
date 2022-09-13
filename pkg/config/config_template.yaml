@@ -1791,7 +1791,7 @@ api_key:
 ## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE - boolean - optional - default: true
 ## Enable the no-aggregation pipeline in DogStatsD: a pipeline receiving metrics
 ## with timestamp and forwarding them to the intake without extra processing except
-## from tagging.
+## for tagging.
 #
 # dogstatsd_no_aggregation_pipeline: true
 
