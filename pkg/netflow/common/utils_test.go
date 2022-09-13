@@ -21,6 +21,11 @@ func TestMinUint64(t *testing.T) {
 	assert.Equal(t, uint64(5), MinUint64(uint64(5), uint64(10)))
 }
 
+func TestMaxUint16(t *testing.T) {
+	assert.Equal(t, uint16(10), MaxUint16(uint16(10), uint16(5)))
+	assert.Equal(t, uint16(10), MaxUint16(uint16(5), uint16(10)))
+}
+
 func TestUint32ToBytes(t *testing.T) {
 	const MinUint = uint32(0)
 	const MaxUint = ^uint32(0)
