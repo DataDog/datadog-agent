@@ -18,7 +18,7 @@ struct mount_event_t {
     unsigned long parent_inode;
     unsigned long root_inode;
     u32 root_mount_id;
-    u32 padding;
+    u32 bind_src_mount_id;
     char fstype[FSTYPE_LEN];
 };
 
@@ -29,6 +29,43 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 
     cache_syscall(&syscall);
     return 0;
+}
+
+int __attribute__((always_inline)) fill_bind_mount_src(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->mount.bind_src_mnt || syscall->mount.src_mnt) {
+        return 0;
+    }
+
+    syscall->mount.bind_src_mnt = (struct mount *)PT_REGS_PARM1(ctx);
+    struct dentry *root = (struct dentry *)PT_REGS_PARM2(ctx);
+
+    syscall->mount.bind_src_key.mount_id = get_mount_mount_id(syscall->mount.bind_src_mnt);
+    syscall->mount.bind_src_key.ino = get_dentry_ino(root);
+
+    syscall->resolver.key = syscall->mount.bind_src_key;
+    syscall->resolver.dentry = root;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+SEC("kprobe/clone_mnt")
+int kprobe_clone_mnt(struct pt_regs *ctx) {
+    return fill_bind_mount_src(ctx);
+}
+
+SEC("kprobe/copy_tree")
+int kprobe_copy_tree(struct pt_regs *ctx) {
+    return fill_bind_mount_src(ctx);
 }
 
 SEC("kprobe/attach_recursive_mnt")
@@ -150,6 +187,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
         .parent_inode = syscall->mount.path_key.ino,
         .root_inode = syscall->mount.root_key.ino,
         .root_mount_id = syscall->mount.root_key.mount_id,
+        .bind_src_mount_id = syscall->mount.bind_src_key.mount_id,
     };
     bpf_probe_read_str(&event.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);
 

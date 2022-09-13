@@ -757,6 +757,7 @@ A filesystem was mounted
 | `mount.mountpoint.path` | string | Path of the mount point |  |
 | `mount.parent_mount_id` | int | The ID of the parent mount |  |
 | `mount.retval` | int | Return value of the syscall | Error Constants |
+| `mount.source.path` | string | Source path of a bind mount |  |
 
 ### Event `mprotect`
 

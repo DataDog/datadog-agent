@@ -108,9 +108,11 @@ struct syscall_cache_t {
         struct {
             struct mount *src_mnt;
             struct mount *dest_mnt;
+            struct mount *bind_src_mnt;
             struct mountpoint *dest_mountpoint;
             struct path_key_t root_key;
             struct path_key_t path_key;
+            struct path_key_t bind_src_key;
             const char *fstype;
         } mount;
 

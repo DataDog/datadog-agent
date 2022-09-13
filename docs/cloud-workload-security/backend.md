@@ -546,7 +546,7 @@ CWS logs have the following JSON schema:
                 "mountpoint": {
                     "$ref": "#/$defs/File"
                 },
-                "root": {
+                "source": {
                     "$ref": "#/$defs/File"
                 },
                 "mount_id": {
@@ -556,6 +556,9 @@ CWS logs have the following JSON schema:
                     "type": "integer"
                 },
                 "parent_mount_id": {
+                    "type": "integer"
+                },
+                "bind_src_mount_id": {
                     "type": "integer"
                 },
                 "device": {
@@ -571,6 +574,7 @@ CWS logs have the following JSON schema:
                 "mount_id",
                 "group_id",
                 "parent_mount_id",
+                "bind_src_mount_id",
                 "device"
             ],
             "description": "MountEventSerializer serializes a mount event to JSON"
@@ -2008,7 +2012,7 @@ CWS logs have the following JSON schema:
         "mountpoint": {
             "$ref": "#/$defs/File"
         },
-        "root": {
+        "source": {
             "$ref": "#/$defs/File"
         },
         "mount_id": {
@@ -2018,6 +2022,9 @@ CWS logs have the following JSON schema:
             "type": "integer"
         },
         "parent_mount_id": {
+            "type": "integer"
+        },
+        "bind_src_mount_id": {
             "type": "integer"
         },
         "device": {
@@ -2033,6 +2040,7 @@ CWS logs have the following JSON schema:
         "mount_id",
         "group_id",
         "parent_mount_id",
+        "bind_src_mount_id",
         "device"
     ],
     "description": "MountEventSerializer serializes a mount event to JSON"

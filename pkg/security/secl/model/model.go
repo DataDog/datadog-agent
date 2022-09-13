@@ -521,6 +521,7 @@ type Mount struct {
 	ParentInode        uint64 `field:"-"`
 	RootMountID        uint32 `field:"-"`
 	RootInode          uint64 `field:"-"`
+	BindSrcMountID     uint32 `field:"-"`
 	FSType             string `field:"fs_type"` // Type of the mounted file system
 	MountPointStr      string `field:"-"`
 	RootStr            string `field:"-"`
@@ -533,9 +534,10 @@ type Mount struct {
 type MountEvent struct {
 	SyscallEvent
 	Mount
-	FSTypeRaw                     [16]byte `field:"-"`
-	MountPointPathResolutionError error    `field:"-"`
-	RootPathResolutionError       error    `field:"-"`
+	MountPointFullPath            string `field:"mountpoint.path"` // Path of the mount point
+	MountSourceFullPath           string `field:"source.path"`     // Source path of a bind mount
+	MountPointPathResolutionError error  `field:"-"`
+	RootPathResolutionError       error  `field:"-"`
 }
 
 // GetFSType returns the filesystem type of the mountpoint

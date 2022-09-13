@@ -203,9 +203,8 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 }
 
 func (ev *Event) SetMountPointFullPath(e *model.MountEvent) error {
-	var err error
-	e.MountPointFullPath, err = ev.resolvers.MountResolver.GetMountPointFullPath(e.MountID)
-	return err
+	e.MountPointFullPath, e.MountPointPathResolutionError = ev.resolvers.MountResolver.GetMountFullPath(e.MountID)
+	return e.MountPointPathResolutionError
 }
 
 func (ev *Event) ResolveMountPointFullPath(e *model.MountEvent) (string, error) {
@@ -215,6 +214,30 @@ func (ev *Event) ResolveMountPointFullPath(e *model.MountEvent) (string, error) 
 		}
 	}
 	return e.MountPointFullPath, nil
+}
+
+func (ev *Event) SetMountSourceFullPath(e *model.MountEvent) error {
+	if e.BindSrcMountID != 0 {
+		bindSrcMountPointPath, err := ev.resolvers.MountResolver.GetMountFullPath(e.BindSrcMountID)
+		if err != nil {
+			return err
+		}
+		rootStr, err := ev.ResolveMountRoot(e)
+		if err != nil {
+			return err
+		}
+		e.MountSourceFullPath = path.Join(bindSrcMountPointPath, rootStr)
+	}
+	return nil
+}
+
+func (ev *Event) ResolveMountSourceFullPath(e *model.MountEvent) (string, error) {
+	if len(e.MountSourceFullPath) == 0 {
+		if err := ev.SetMountSourceFullPath(e); err != nil {
+			return "", err
+		}
+	}
+	return e.MountSourceFullPath, nil
 }
 
 // ResolveContainerID resolves the container ID of the event

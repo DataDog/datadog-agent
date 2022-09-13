@@ -29,6 +29,10 @@ func (td *testDrive) Root() string {
 	return td.mount.target
 }
 
+func (td *testDrive) FSType() string {
+	return td.mount.fstype
+}
+
 func (td *testDrive) Path(filename ...string) string {
 	return td.mount.path(filename...)
 }

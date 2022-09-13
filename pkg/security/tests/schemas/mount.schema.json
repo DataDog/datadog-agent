@@ -40,6 +40,13 @@
                         },
                         "fs_type": {
                             "type": "string"
+                        },
+                        "source": {
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }

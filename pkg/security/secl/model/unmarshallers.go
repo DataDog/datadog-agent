@@ -391,8 +391,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.ParentInode = ByteOrder.Uint64(data[16:24])
 	e.RootInode = ByteOrder.Uint64(data[24:32])
 	e.RootMountID = ByteOrder.Uint32(data[32:36])
-
-	// Notes: bytes 36 to 40 are used to pad the structure
+	e.BindSrcMountID = ByteOrder.Uint32(data[36:40])
 
 	e.FSType, err = UnmarshalString(data[40:56], 16)
 	if err != nil {

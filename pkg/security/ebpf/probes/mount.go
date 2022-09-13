@@ -33,6 +33,20 @@ var mountProbes = []*manager.Probe{
 			EBPFFuncName: "kprobe_security_sb_umount",
 		},
 	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/clone_mnt",
+			EBPFFuncName: "kprobe_clone_mnt",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/copy_tree",
+			EBPFFuncName: "kprobe_copy_tree",
+		},
+	},
 }
 
 func getMountProbes() []*manager.Probe {

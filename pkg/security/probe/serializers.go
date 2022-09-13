@@ -495,13 +495,14 @@ type ExitEventSerializer struct {
 // MountEventSerializer serializes a mount event to JSON
 // easyjson:json
 type MountEventSerializer struct {
-	MountPoint    *FileSerializer `json:"mountpoint,omitempty"` // Mount point file information
-	Root          *FileSerializer `json:"root,omitempty"`       // Root file information
-	MountID       uint32          `json:"mount_id"`             // Mount ID of the new mount
-	GroupID       uint32          `json:"group_id"`             // ID of the peer group
-	ParentMountID uint32          `json:"parent_mount_id"`      // Mount ID of the parent mount
-	Device        uint32          `json:"device"`               // Device associated with the file
-	FSType        string          `json:"fs_type,omitempty"`    // Filesystem type
+	MountPoint     *FileSerializer `json:"mountpoint,omitempty"` // Mount point file information
+	Root           *FileSerializer `json:"source,omitempty"`     // Root file information
+	MountID        uint32          `json:"mount_id"`             // Mount ID of the new mount
+	GroupID        uint32          `json:"group_id"`             // ID of the peer group
+	ParentMountID  uint32          `json:"parent_mount_id"`      // Mount ID of the parent mount
+	BindSrcMountID uint32          `json:"bind_src_mount_id"`    // Mount ID of the source of a bind mount
+	Device         uint32          `json:"device"`               // Device associated with the file
+	FSType         string          `json:"fs_type,omitempty"`    // Filesystem type
 }
 
 // EventSerializer serializes an event to JSON
@@ -934,11 +935,12 @@ func newMountEventSerializer(e *Event) *MountEventSerializer {
 			MountID: &e.Mount.RootMountID,
 			Inode:   &e.Mount.RootInode,
 		},
-		MountID:       e.Mount.MountID,
-		GroupID:       e.Mount.GroupID,
-		ParentMountID: e.Mount.ParentMountID,
-		Device:        e.Mount.Device,
-		FSType:        e.Mount.GetFSType(),
+		MountID:        e.Mount.MountID,
+		GroupID:        e.Mount.GroupID,
+		ParentMountID:  e.Mount.ParentMountID,
+		BindSrcMountID: e.Mount.BindSrcMountID,
+		Device:         e.Mount.Device,
+		FSType:         e.Mount.GetFSType(),
 	}
 
 	if srcErr != nil {

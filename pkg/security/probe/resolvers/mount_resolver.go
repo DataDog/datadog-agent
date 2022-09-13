@@ -463,7 +463,7 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 	return nil, ErrMountNotFound
 }
 
-func (mr *MountResolver) GetMountPointFullPath(mountID uint32) (string, error) {
+func (mr *MountResolver) GetMountFullPath(mountID uint32) (string, error) {
 	if mountID == 0 {
 		return "", ErrMountUndefined
 	}

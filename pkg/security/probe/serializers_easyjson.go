@@ -1969,7 +1969,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jl
 				}
 				(*out.MountPoint).UnmarshalEasyJSON(in)
 			}
-		case "root":
+		case "source":
 			if in.IsNull() {
 				in.Skip()
 				out.Root = nil
@@ -1985,6 +1985,8 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jl
 			out.GroupID = uint32(in.Uint32())
 		case "parent_mount_id":
 			out.ParentMountID = uint32(in.Uint32())
+		case "bind_src_mount_id":
+			out.BindSrcMountID = uint32(in.Uint32())
 		case "device":
 			out.Device = uint32(in.Uint32())
 		case "fs_type":
@@ -2010,7 +2012,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *j
 		(*in.MountPoint).MarshalEasyJSON(out)
 	}
 	if in.Root != nil {
-		const prefix string = ",\"root\":"
+		const prefix string = ",\"source\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -2038,6 +2040,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *j
 		const prefix string = ",\"parent_mount_id\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.ParentMountID))
+	}
+	{
+		const prefix string = ",\"bind_src_mount_id\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.BindSrcMountID))
 	}
 	{
 		const prefix string = ",\"device\":"
