@@ -30,7 +30,7 @@ type AgentMetadata struct {
 }
 
 func reopen(path string) (*bbolt.DB, error) {
-	log.Infof("Clear configuration database")
+	log.Infof("Clear remote configuration database")
 	if err := os.Remove(path); err != nil {
 		return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
 	}
