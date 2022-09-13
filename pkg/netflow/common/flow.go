@@ -43,6 +43,7 @@ type Flow struct {
 	TCPFlags uint32 `json:"tcp_flags"`
 
 	// Ports for UDP and TCP
+	// Port number can be zero/positive or `-1` (ephemeral port)
 	SrcPort int32 // FLOW KEY
 	DstPort int32 // FLOW KEY
 
