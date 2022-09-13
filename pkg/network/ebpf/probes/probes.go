@@ -58,10 +58,16 @@ const (
 	TCPCloseReturn ProbeName = "kretprobe/tcp_close"
 
 	// We use the following two probes for UDP sends
-	IPMakeSkb        ProbeName = "kprobe/ip_make_skb"
-	IPMakeSkbReturn  ProbeName = "kretprobe/ip_make_skb"
-	IP6MakeSkb       ProbeName = "kprobe/ip6_make_skb"
+
+	// IPMakeSkb traces ip_make_skb
+	IPMakeSkb ProbeName = "kprobe/ip_make_skb"
+	// IPMakeSkbReturn traces return of ip_make_skb
+	IPMakeSkbReturn ProbeName = "kretprobe/ip_make_skb"
+	// IP6MakeSkb traces ip6_make_skb
+	IP6MakeSkb ProbeName = "kprobe/ip6_make_skb"
+	// IP6MakeSkbReturn traces return of ip6_make_skb
 	IP6MakeSkbReturn ProbeName = "kretprobe/ip6_make_skb"
+	// IP6MakeSkbPre470 traces ip6_make_skb on kernel versions < 4.7
 	IP6MakeSkbPre470 ProbeName = "kprobe/ip6_make_skb/pre_4_7_0"
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
@@ -82,8 +88,8 @@ const (
 	SKBConsumeUDP ProbeName = "kprobe/skb_consume_udp"
 	// SKBFreeDatagramLocked traces skb_free_datagram_locked()
 	SKBFreeDatagramLocked ProbeName = "kprobe/skb_free_datagram_locked"
-	// SKB__FreeDatagramLocked traces __skb_free_datagram_locked()
-	SKB__FreeDatagramLocked ProbeName = "kprobe/__skb_free_datagram_locked"
+	// UnderscoredSKBFreeDatagramLocked traces __skb_free_datagram_locked()
+	UnderscoredSKBFreeDatagramLocked ProbeName = "kprobe/__skb_free_datagram_locked"
 
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeName = "kprobe/udp_destroy_sock"
@@ -91,7 +97,8 @@ const (
 	UDPDestroySockReturn ProbeName = "kretprobe/udp_destroy_sock"
 
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
-	TCPRetransmit       ProbeName = "kprobe/tcp_retransmit_skb"
+	TCPRetransmit ProbeName = "kprobe/tcp_retransmit_skb"
+	// TCPRetransmitPre470 traces the return value for the tcp_retransmit_skb() system call on kernel version < 4.7
 	TCPRetransmitPre470 ProbeName = "kprobe/tcp_retransmit_skb/pre_4_7_0"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
@@ -102,13 +109,13 @@ const (
 	// Inet6Bind is the kprobe of the bind() syscall for IPv6
 	Inet6Bind ProbeName = "kprobe/inet6_bind"
 
-	// InetBind is the kretprobe of the bind() syscall for IPv4
+	// InetBindRet is the kretprobe of the bind() syscall for IPv4
 	InetBindRet ProbeName = "kretprobe/inet_bind"
-	// Inet6Bind is the kretprobe of the bind() syscall for IPv6
+	// Inet6BindRet is the kretprobe of the bind() syscall for IPv6
 	Inet6BindRet ProbeName = "kretprobe/inet6_bind"
 
-	// SocketDnsFilter is the socket probe for dns
-	SocketDnsFilter ProbeName = "socket/dns_filter"
+	// SocketDNSFilter is the socket probe for dns
+	SocketDNSFilter ProbeName = "socket/dns_filter"
 
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
@@ -132,14 +139,15 @@ const (
 // BPFMapName stores the name of the BPF maps storing statistics and other info
 type BPFMapName string
 
+// constants for the map names
 const (
 	ConnMap               BPFMapName = "conn_stats"
-	TcpStatsMap           BPFMapName = "tcp_stats"
-	TcpConnectSockPidMap  BPFMapName = "tcp_ongoing_connect_pid"
+	TCPStatsMap           BPFMapName = "tcp_stats"
+	TCPConnectSockPidMap  BPFMapName = "tcp_ongoing_connect_pid"
 	ConnCloseEventMap     BPFMapName = "conn_close_event"
 	TracerStatusMap       BPFMapName = "tracer_status"
 	PortBindingsMap       BPFMapName = "port_bindings"
-	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
+	UDPPortBindingsMap    BPFMapName = "udp_port_bindings"
 	TelemetryMap          BPFMapName = "telemetry"
 	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
 	ConntrackMap          BPFMapName = "conntrack"
@@ -148,9 +156,8 @@ const (
 	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
 	SockByPidFDMap        BPFMapName = "sock_by_pid_fd"
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
-	TagsMap               BPFMapName = "conn_tags"
-	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
-	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
+	TCPSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
+	IPMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
 )
 
 // SectionName returns the SectionName for the given BPF map

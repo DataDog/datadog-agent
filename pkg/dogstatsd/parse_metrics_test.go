@@ -329,6 +329,10 @@ func TestParseMetricError(t *testing.T) {
 }
 
 func TestParseGaugeWithTimestamp(t *testing.T) {
+	// disable the no agg pipeline
+
+	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
+
 	// no timestamp should be read when the no agg pipeline is off
 
 	sample, err := parseMetricSample([]byte("metric:1234|g|#onetag|T1657100430"))
@@ -344,10 +348,9 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	assert.Zero(t, sample.ts)
 
-	// enable the no aggregation pipeline
+	// re-enable the no aggregation pipeline
 
 	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
-	defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
 
 	// with tags and timestamp
 

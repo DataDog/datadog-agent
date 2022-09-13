@@ -219,7 +219,7 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 	if err != nil {
 		log.Debugf("error registering library=%s: %s", libPath, err)
 		if err := rule.unregisterCB(libPath); err != nil {
-			log.Debugf("unregisterCB %s : %w", libPath, err)
+			log.Debugf("unregisterCB %s : %s", libPath, err)
 		}
 
 		// save sentinel value so we don't attempt to re-register shared
@@ -251,7 +251,10 @@ func (r *soRegistry) unregister(libPath string) {
 
 	delete(r.byInode, registration.inode)
 	if registration.unregisterCB != nil {
-		registration.unregisterCB(libPath)
+		err := registration.unregisterCB(libPath)
+		if err != nil {
+			log.Debugf("unregisterCB %s : %s", libPath, err)
+		}
 	}
 }
 

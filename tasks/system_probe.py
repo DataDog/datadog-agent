@@ -319,6 +319,7 @@ def build(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    strip_binary=False,
 ):
     """
     Build the system-probe
@@ -343,6 +344,7 @@ def build(
         go_mod=go_mod,
         race=race,
         incremental_build=incremental_build,
+        strip_binary=strip_binary,
     )
 
 
@@ -370,6 +372,7 @@ def build_sysprobe_binary(
     arch=CURRENT_ARCH,
     nikos_embedded_path=None,
     bundle_ebpf=False,
+    strip_binary=False,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -383,6 +386,9 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if nikos_embedded_path:
         build_tags.append(DNF_TAG)
+
+    if strip_binary:
+        ldflags += ' -s -w'
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
@@ -719,10 +725,10 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
 
     if kernel_release and minimal_kernel_release:
         match = re.compile(r'(\d+)\.(\d+)(\.(\d+))?').match(kernel_release)
-        version_tuple = list(map(int, map(lambda x: x or '0', match.group(1, 2, 4))))
+        version_tuple = [int(x) or 0 for x in match.group(1, 2, 4)]
         if version_tuple < minimal_kernel_release:
             print(
-                f"You need to have kernel headers for at least {'.'.join(map(lambda x: str(x), minimal_kernel_release))} to enable all system-probe features"
+                f"You need to have kernel headers for at least {'.'.join([str(x) for x in minimal_kernel_release])} to enable all system-probe features"
             )
 
     src_kernels_dir = "/usr/src/kernels"

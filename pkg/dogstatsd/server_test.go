@@ -92,12 +92,15 @@ func TestUDPReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true)
-	defer func() {
-		config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
-	}()
+	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true) // another test may have turned it off
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts.FlushInterval = 10 * time.Millisecond
+	opts.DontStartForwarders = true
+	opts.UseNoopEventPlatformForwarder = true
+	opts.EnableNoAggregationPipeline = true
+
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(opts)
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
 	require.NoError(t, err, "cannot start DSD")
