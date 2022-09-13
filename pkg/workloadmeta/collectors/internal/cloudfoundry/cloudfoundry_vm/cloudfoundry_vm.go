@@ -50,7 +50,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 	c.store = store
 
-	// Detect if we're on a VM by trying to connect to the local garden API
+	// Detect if we're on a compute VM by trying to connect to the local garden API
 	var err error
 	c.gardenUtil, err = cloudfoundry.GetGardenUtil()
 	if err != nil {
