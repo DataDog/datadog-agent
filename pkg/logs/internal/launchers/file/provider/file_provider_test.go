@@ -44,12 +44,12 @@ func (fs *tempFs) path(name string) string {
 func (fs *tempFs) createFileWithTime(name string, time time.Time) {
 	_, err := os.Create(fs.path(name))
 	if err != nil {
-		fs.t.Errorf("Creating a file at path %q failed", fs.path(name))
+		fs.t.Errorf("Creating a file at path %q failed with err %v", fs.path(name), err)
 		return
 	}
 	err = os.Chtimes(fs.path(name), time, time)
 	if err != nil {
-		fs.t.Errorf("Changing times of file at path %q failed", fs.path(name))
+		fs.t.Errorf("Changing times of file at path %q failed with err %v", fs.path(name), err)
 		return
 	}
 }
@@ -527,40 +527,6 @@ func BenchmarkApplyOrdering(b *testing.B) {
 			{Path: fs.path("c.log")},
 			{Path: fs.path("d.log")},
 		}
-		for n := 0; n < b.N; n++ {
-			fileProvider.applyOrdering(files)
-		}
-	})
-}
-
-func BenchmarkApplyOrderingManyFiles(b *testing.B) {
-	baseTime := time.Date(2010, time.August, 25, 0, 0, 0, 0, time.UTC)
-	numFiles := 1_000
-
-	setup := func() []*tailer.File {
-		fs := newTempFs(b)
-		files := make([]*tailer.File, 0, numFiles)
-		for i := 0; i < numFiles; i++ {
-			name := fmt.Sprintf("%d.log", i)
-			fs.createFileWithTime(name, baseTime.Add(time.Second*time.Duration(1)))
-			files = append(files, &tailer.File{Path: fs.path(name)})
-		}
-		return files
-	}
-	b.Run("Mtime", func(b *testing.B) {
-		fileProvider := NewFileProvider(numFiles, WildcardUseFileModTime)
-
-		files := setup()
-
-		for n := 0; n < b.N; n++ {
-			fileProvider.applyOrdering(files)
-		}
-	})
-
-	b.Run("ReverseLexicographical", func(b *testing.B) {
-		fileProvider := NewFileProvider(numFiles, WildcardUseFileName)
-		files := setup()
-
 		for n := 0; n < b.N; n++ {
 			fileProvider.applyOrdering(files)
 		}
