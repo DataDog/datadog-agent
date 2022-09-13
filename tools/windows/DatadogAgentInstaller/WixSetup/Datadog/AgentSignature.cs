@@ -5,15 +5,16 @@ using WixSharp;
 
 namespace WixSetup.Datadog
 {
-    public class AgentSignature : IWixSourceGeneratedListener
+    public class AgentSignature
     {
         private readonly AgentPython _agentPython;
         private readonly AgentBinaries _agentBinaries;
 
         public DigitalSignature Signature { get; }
 
-        public AgentSignature(AgentPython agentPython, AgentBinaries agentBinaries)
+        public AgentSignature(IWixProjectEvents wixProjectEvents, AgentPython agentPython, AgentBinaries agentBinaries)
         {
+            wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             _agentPython = agentPython;
             _agentBinaries = agentBinaries;
             var pfxFilePath = Environment.GetEnvironmentVariable("SIGN_PFX");
