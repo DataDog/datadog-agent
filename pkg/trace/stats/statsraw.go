@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
