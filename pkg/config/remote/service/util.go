@@ -79,7 +79,7 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 			return err
 		}
 
-		if metadata.Version == version.AgentVersion {
+		if metadata.Version != version.AgentVersion {
 			return fmt.Errorf("Database needs to be cleared")
 		}
 		return nil
