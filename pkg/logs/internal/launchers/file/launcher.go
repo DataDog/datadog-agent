@@ -65,12 +65,12 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
-	case "prioritizeNewest":
+	case "by_modification_time":
 		wildcardStrategy = fileprovider.WildcardUseFileModTime
-	case "simpleAlpha":
+	case "by_name":
 		wildcardStrategy = fileprovider.WildcardUseFileName
 	default:
-		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'simpleAlpha' strategy.", wildcardMode)
+		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'by_name' strategy.", wildcardMode)
 		wildcardStrategy = fileprovider.WildcardUseFileName
 	}
 

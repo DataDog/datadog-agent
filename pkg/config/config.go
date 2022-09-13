@@ -895,10 +895,22 @@ func InitConfig(config Config) {
 
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
-	// Choices are 'prioritizeNewest', 'simpleAlpha'
-	// WARNING: 'prioritizeNewest' is less performant than 'simpleAlpha' and will trigger
+	//
+	// Choices are 'by_name' and 'by_modification_time'.
+	//
+	// 'by_name' means that each log source is considered and the matching files are ordered
+	// in reverse name order. While there are less than `logs_config.open_files_limit` files
+	// being tailed, this process repeats, iterating through each log source.
+	//
+	// 'by_modification_time' takes all log sources and first adds any log sources that
+	// point to a specific file. Next, it resolves all wildcard sources into the list of
+	// files that matches. This resulting list is ordered by which files have been most
+	// recently modified and the top `logs_config.open_files_limit` most recently modified
+	// files are chosen for tailing.
+	//
+	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
-	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "simpleAlpha")
+	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
 	// temporary feature flag until this becomes the only option
 	config.BindEnvAndSetDefault("logs_config.cca_in_ad", false)
