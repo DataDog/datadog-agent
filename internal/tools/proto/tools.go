@@ -19,6 +19,7 @@ package proto
 import (
 	_ "github.com/golang/mock/mockgen"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
+	_ "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"
 	_ "github.com/tinylib/msgp"
 	_ "google.golang.org/grpc"
 	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"

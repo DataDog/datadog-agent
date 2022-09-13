@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/golang/mock v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
+	github.com/planetscale/vtprotobuf v0.3.0
 	github.com/tinylib/msgp v1.1.6
 	google.golang.org/grpc v1.33.1
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0

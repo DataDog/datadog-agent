@@ -90,6 +90,7 @@ TOOL_LIST_PROTO = [
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'google.golang.org/protobuf/cmd/protoc-gen-go',
     'google.golang.org/grpc/cmd/protoc-gen-go-grpc',
+    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/golang/mock/mockgen',
     'github.com/tinylib/msgp',
 ]
