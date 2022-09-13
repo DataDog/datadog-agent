@@ -59,6 +59,14 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
         }                                                                           \
     } while (0)
 
+#define MK_FN_INDX(fn) FN_INDX_##fn
+
+#define FN_INDX_bpf_probe_read read_indx
+#define FN_INDX_bpf_probe_read_kernel read_kernel_indx
+#define FN_INDX_bpf_probe_read_user read_user_indx
+#define FN_INDX_bpf_probe_read_kernel_str read_kernel_indx
+#define FN_INDX_bpf_probe_read_user_str read_user_indx
+
 #define helper_with_telemetry(fn, dst, sz, src)                                                \
     ({                                                                                         \
         int helper_indx = -1;                                                                  \
@@ -70,13 +78,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
             helper_err_telemetry_t *entry =                                                    \
                 bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);         \
             if (entry) {                                                                       \
-                if (IS_PROBE_READ(fn)) {                                                       \
-                    helper_indx = read_indx;                                                   \
-                } else if (IS_PROBE_READ_USER(fn)) {                                           \
-                    helper_indx = read_user_indx;                                              \
-                } else if (IS_PROBE_READ_KERNEL(fn)) {                                         \
-                    helper_indx = read_kernel_indx;                                            \
-                }                                                                              \
+                helper_indx = MK_FN_INDX(fn);                                                  \
                 errno_slot = errno_ret * -1;                                                   \
                 if (errno_slot >= T_MAX_ERRNO) {                                               \
                     errno_slot = T_MAX_ERRNO - 1;                                              \
