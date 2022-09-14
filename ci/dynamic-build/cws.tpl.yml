@@ -84,9 +84,9 @@ stages:
 .build_tests_ebpf_cws:
   stage: build
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
+    - pipeline: $DYNAMIC_PARENT_PIPELINE_ID
       job: go_deps
-    - pipeline: $PARENT_PIPELINE_ID
+    - pipeline: $DYNAMIC_PARENT_PIPELINE_ID
       job: go_tools_deps
   artifacts:
     when: always
