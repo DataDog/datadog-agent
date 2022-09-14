@@ -102,7 +102,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
-	agnt.ApmRemoteConfigHandler = sampler.NewApmRemoteConfigHandler(conf, agnt.PrioritySampler)
+	agnt.ApmRemoteConfigHandler = sampler.NewApmRemoteConfigHandler(conf, agnt.PrioritySampler, agnt.ErrorsSampler)
 
 	return agnt
 }

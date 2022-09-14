@@ -35,8 +35,13 @@ const (
 	RareSamplerConfigDisabled RareSamplerConfig = "DISABLED"
 )
 
-// APMSampling is the list of target tps
+type ErrorSamplerConfig struct {
+	TargetTPS float64 `msgpack:"targetTPS"`
+}
+
+// APMSampling contains values for remotely configuring sampling
 type APMSampling struct {
-	TargetTPS         []TargetTPS       `msgpack:"0"`
-	RareSamplerConfig RareSamplerConfig `msgpack:"rareSamplingConfig"`
+	TargetTPS           []TargetTPS         `msgpack:"0"`
+	RareSamplerConfig   RareSamplerConfig   `msgpack:"rareSamplingConfig"`
+	ErrorsSamplerConfig *ErrorSamplerConfig `msgpack:"errorsSamplingConfig"`
 }

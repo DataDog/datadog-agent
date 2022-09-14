@@ -16,9 +16,10 @@ type ApmRemoteConfigHandler struct {
 	remoteClient    config.RemoteClient
 	conf            *config.AgentConfig
 	prioritySampler *PrioritySampler
+	errorsSampler   *ErrorsSampler
 }
 
-func NewApmRemoteConfigHandler(conf *config.AgentConfig, prioritySampler *PrioritySampler) *ApmRemoteConfigHandler {
+func NewApmRemoteConfigHandler(conf *config.AgentConfig, prioritySampler *PrioritySampler, errorSampler *ErrorsSampler) *ApmRemoteConfigHandler {
 	if conf.RemoteSamplingClient == nil {
 		return nil
 	}
@@ -29,6 +30,7 @@ func NewApmRemoteConfigHandler(conf *config.AgentConfig, prioritySampler *Priori
 		remoteClient:    conf.RemoteSamplingClient,
 		conf:            conf,
 		prioritySampler: prioritySampler,
+		errorsSampler:   errorSampler,
 	}
 }
 
@@ -44,15 +46,28 @@ func (a *ApmRemoteConfigHandler) Start() {
 func (a *ApmRemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
 	a.prioritySampler.remoteRates.update(update)
 	a.updateRareSamplerConfig(update)
+	a.updateErrorsSamplerConfig(update)
 }
 
 func (a *ApmRemoteConfigHandler) updateRareSamplerConfig(update map[string]state.APMSamplingConfig) {
 	for _, conf := range update {
+		// We expect the `update` map to contain only one entry for now
 		switch conf.Config.RareSamplerConfig {
 		case apmsampling.RareSamplerConfigEnabled:
 			a.conf.RareSamplerDisabled = false
 		case apmsampling.RareSamplerConfigDisabled:
 			a.conf.RareSamplerDisabled = true
 		}
+	}
+}
+
+func (a *ApmRemoteConfigHandler) updateErrorsSamplerConfig(update map[string]state.APMSamplingConfig) {
+	for _, conf := range update {
+		// We expect the `update` map to contain only one entry for now
+		if conf.Config.ErrorsSamplerConfig == nil {
+			continue
+		}
+
+		a.errorsSampler.updateTargetTPS(conf.Config.ErrorsSamplerConfig.TargetTPS)
 	}
 }

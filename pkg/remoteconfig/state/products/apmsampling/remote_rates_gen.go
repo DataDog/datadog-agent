@@ -43,6 +43,57 @@ func (z *APMSampling) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "rareSamplingConfig":
+			{
+				var zb0003 string
+				zb0003, err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "RareSamplerConfig")
+					return
+				}
+				z.RareSamplerConfig = RareSamplerConfig(zb0003)
+			}
+		case "errorsSamplingConfig":
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					err = msgp.WrapError(err, "ErrorsSamplerConfig")
+					return
+				}
+				z.ErrorsSamplerConfig = nil
+			} else {
+				if z.ErrorsSamplerConfig == nil {
+					z.ErrorsSamplerConfig = new(ErrorSamplerConfig)
+				}
+				var zb0004 uint32
+				zb0004, err = dc.ReadMapHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "ErrorsSamplerConfig")
+					return
+				}
+				for zb0004 > 0 {
+					zb0004--
+					field, err = dc.ReadMapKeyPtr()
+					if err != nil {
+						err = msgp.WrapError(err, "ErrorsSamplerConfig")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "targetTPS":
+						z.ErrorsSamplerConfig.TargetTPS, err = dc.ReadFloat64()
+						if err != nil {
+							err = msgp.WrapError(err, "ErrorsSamplerConfig", "TargetTPS")
+							return
+						}
+					default:
+						err = dc.Skip()
+						if err != nil {
+							err = msgp.WrapError(err, "ErrorsSamplerConfig")
+							return
+						}
+					}
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -56,9 +107,9 @@ func (z *APMSampling) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *APMSampling) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 1
+	// map header, size 3
 	// write "0"
-	err = en.Append(0x81, 0xa1, 0x30)
+	err = en.Append(0x83, 0xa1, 0x30)
 	if err != nil {
 		return
 	}
@@ -74,15 +125,48 @@ func (z *APMSampling) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "rareSamplingConfig"
+	err = en.Append(0xb2, 0x72, 0x61, 0x72, 0x65, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(string(z.RareSamplerConfig))
+	if err != nil {
+		err = msgp.WrapError(err, "RareSamplerConfig")
+		return
+	}
+	// write "errorsSamplingConfig"
+	err = en.Append(0xb4, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x73, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67)
+	if err != nil {
+		return
+	}
+	if z.ErrorsSamplerConfig == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		// map header, size 1
+		// write "targetTPS"
+		err = en.Append(0x81, 0xa9, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x54, 0x50, 0x53)
+		if err != nil {
+			return
+		}
+		err = en.WriteFloat64(z.ErrorsSamplerConfig.TargetTPS)
+		if err != nil {
+			err = msgp.WrapError(err, "ErrorsSamplerConfig", "TargetTPS")
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *APMSampling) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 1
+	// map header, size 3
 	// string "0"
-	o = append(o, 0x81, 0xa1, 0x30)
+	o = append(o, 0x83, 0xa1, 0x30)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.TargetTPS)))
 	for za0001 := range z.TargetTPS {
 		o, err = z.TargetTPS[za0001].MarshalMsg(o)
@@ -90,6 +174,19 @@ func (z *APMSampling) MarshalMsg(b []byte) (o []byte, err error) {
 			err = msgp.WrapError(err, "TargetTPS", za0001)
 			return
 		}
+	}
+	// string "rareSamplingConfig"
+	o = append(o, 0xb2, 0x72, 0x61, 0x72, 0x65, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67)
+	o = msgp.AppendString(o, string(z.RareSamplerConfig))
+	// string "errorsSamplingConfig"
+	o = append(o, 0xb4, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x73, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67)
+	if z.ErrorsSamplerConfig == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// map header, size 1
+		// string "targetTPS"
+		o = append(o, 0x81, 0xa9, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x54, 0x50, 0x53)
+		o = msgp.AppendFloat64(o, z.ErrorsSamplerConfig.TargetTPS)
 	}
 	return
 }
@@ -131,6 +228,56 @@ func (z *APMSampling) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "rareSamplingConfig":
+			{
+				var zb0003 string
+				zb0003, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "RareSamplerConfig")
+					return
+				}
+				z.RareSamplerConfig = RareSamplerConfig(zb0003)
+			}
+		case "errorsSamplingConfig":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.ErrorsSamplerConfig = nil
+			} else {
+				if z.ErrorsSamplerConfig == nil {
+					z.ErrorsSamplerConfig = new(ErrorSamplerConfig)
+				}
+				var zb0004 uint32
+				zb0004, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ErrorsSamplerConfig")
+					return
+				}
+				for zb0004 > 0 {
+					zb0004--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "ErrorsSamplerConfig")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "targetTPS":
+						z.ErrorsSamplerConfig.TargetTPS, bts, err = msgp.ReadFloat64Bytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ErrorsSamplerConfig", "TargetTPS")
+							return
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ErrorsSamplerConfig")
+							return
+						}
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -149,6 +296,167 @@ func (z *APMSampling) Msgsize() (s int) {
 	for za0001 := range z.TargetTPS {
 		s += z.TargetTPS[za0001].Msgsize()
 	}
+	s += 19 + msgp.StringPrefixSize + len(string(z.RareSamplerConfig)) + 21
+	if z.ErrorsSamplerConfig == nil {
+		s += msgp.NilSize
+	} else {
+		s += 1 + 10 + msgp.Float64Size
+	}
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+func (z *ErrorSamplerConfig) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "targetTPS":
+			z.TargetTPS, err = dc.ReadFloat64()
+			if err != nil {
+				err = msgp.WrapError(err, "TargetTPS")
+				return
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z ErrorSamplerConfig) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 1
+	// write "targetTPS"
+	err = en.Append(0x81, 0xa9, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x54, 0x50, 0x53)
+	if err != nil {
+		return
+	}
+	err = en.WriteFloat64(z.TargetTPS)
+	if err != nil {
+		err = msgp.WrapError(err, "TargetTPS")
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z ErrorSamplerConfig) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 1
+	// string "targetTPS"
+	o = append(o, 0x81, 0xa9, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x54, 0x50, 0x53)
+	o = msgp.AppendFloat64(o, z.TargetTPS)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ErrorSamplerConfig) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "targetTPS":
+			z.TargetTPS, bts, err = msgp.ReadFloat64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TargetTPS")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z ErrorSamplerConfig) Msgsize() (s int) {
+	s = 1 + 10 + msgp.Float64Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+func (z *RareSamplerConfig) DecodeMsg(dc *msgp.Reader) (err error) {
+	{
+		var zb0001 string
+		zb0001, err = dc.ReadString()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = RareSamplerConfig(zb0001)
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z RareSamplerConfig) EncodeMsg(en *msgp.Writer) (err error) {
+	err = en.WriteString(string(z))
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z RareSamplerConfig) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendString(o, string(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *RareSamplerConfig) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 string
+		zb0001, bts, err = msgp.ReadStringBytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = RareSamplerConfig(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z RareSamplerConfig) Msgsize() (s int) {
+	s = msgp.StringPrefixSize + len(string(z))
 	return
 }
 
