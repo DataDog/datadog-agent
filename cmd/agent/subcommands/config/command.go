@@ -33,7 +33,11 @@ func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 			return err
 		}
 
-		util.SetAuthToken()
+		err = util.SetAuthToken()
+		if err != nil {
+			fmt.Printf("Cannot setup auth token, exiting: %v\n", err)
+			return err
+		}
 
 		return nil
 	}
