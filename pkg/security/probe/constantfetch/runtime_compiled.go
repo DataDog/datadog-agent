@@ -28,10 +28,11 @@ import (
 )
 
 type rcSymbolPair struct {
-	Id        string
+	ID        string
 	Operation string
 }
 
+// RuntimeCompilationConstantFetcher is a constant fetcher utilizing runtime compilation
 type RuntimeCompilationConstantFetcher struct {
 	config       *ebpf.Config
 	statsdClient statsd.ClientInterface
@@ -40,6 +41,7 @@ type RuntimeCompilationConstantFetcher struct {
 	result       map[string]uint64
 }
 
+// NewRuntimeCompilationConstantFetcher creates a RuntimeCompilationConstantFetcher
 func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient statsd.ClientInterface) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
 		config:       config,
@@ -52,6 +54,7 @@ func (cf *RuntimeCompilationConstantFetcher) String() string {
 	return "runtime-compilation"
 }
 
+// AppendSizeofRequest appends a sizeof request
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
 	cf.result[id] = ErrorSentinel
 	if headerName == "" {
@@ -60,11 +63,12 @@ func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, h
 
 	cf.headers = append(cf.headers, headerName)
 	cf.symbolPairs = append(cf.symbolPairs, rcSymbolPair{
-		Id:        id,
+		ID:        id,
 		Operation: fmt.Sprintf("sizeof(%s)", typeName),
 	})
 }
 
+// AppendOffsetofRequest appends an offset request
 func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	cf.result[id] = ErrorSentinel
 	if headerName == "" {
@@ -73,7 +77,7 @@ func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName,
 
 	cf.headers = append(cf.headers, headerName)
 	cf.symbolPairs = append(cf.symbolPairs, rcSymbolPair{
-		Id:        id,
+		ID:        id,
 		Operation: fmt.Sprintf("offsetof(%s, %s)", typeName, fieldName),
 	})
 }
@@ -88,7 +92,7 @@ const runtimeCompilationTemplate = `
 {{ end }}
 
 {{ range .symbols }}
-size_t {{.Id}} = {{.Operation}};
+size_t {{.ID}} = {{.Operation}};
 {{ end }}
 `
 
@@ -114,7 +118,7 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	provider := &constantFetcherRCProvider{
 		cCode: cCode,
 	}
-	runtimeCompiler := runtime.NewRuntimeCompiler()
+	runtimeCompiler := runtime.NewCompiler()
 	reader, err := runtimeCompiler.CompileObjectFile(config, nil, "constant_fetcher.c", provider)
 
 	if cf.statsdClient != nil {
@@ -127,6 +131,7 @@ func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf
 	return reader, err
 }
 
+// FinishAndGetResults returns the results
 func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	cCode, err := cf.getCCode()
 	if err != nil {
@@ -154,7 +159,9 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 
 		section := f.Sections[sym.Section]
 		buf := make([]byte, sym.Size)
-		section.ReadAt(buf, int64(sym.Value))
+		if _, err := section.ReadAt(buf, int64(sym.Value)); err != nil {
+			return nil, fmt.Errorf("unable to read section at %d: %s", int64(sym.Value), err)
+		}
 
 		var value uint64
 		switch sym.Size {
@@ -177,12 +184,14 @@ type constantFetcherRCProvider struct {
 	cCode string
 }
 
-func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.RuntimeCompilationTelemetry) (io.Reader, error) {
+// GetInputReader implements CompilationFileProvider.GetInputReader
+func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.CompilationTelemetry) (io.Reader, error) {
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
-	cCodeHash, err := runtime.Sha256hex([]byte(a.cCode))
+// GetOutputFilePath implements CompilationFileProvider.GetOutputFilePath
+func (p *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.CompilationTelemetry) (string, error) {
+	cCodeHash, err := runtime.Sha256hex([]byte(p.cCode))
 	if err != nil {
 		return "", err
 	}
