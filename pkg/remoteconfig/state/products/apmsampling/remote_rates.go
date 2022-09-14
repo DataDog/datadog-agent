@@ -27,7 +27,16 @@ type TargetTPS struct {
 	Mechanism SamplingMechanism `msgpack:"4"`
 }
 
+type RareSamplerConfig string
+
+const (
+	RareSamplerConfigUnset    RareSamplerConfig = "" // default
+	RareSamplerConfigEnabled  RareSamplerConfig = "ENABLED"
+	RareSamplerConfigDisabled RareSamplerConfig = "DISABLED"
+)
+
 // APMSampling is the list of target tps
 type APMSampling struct {
-	TargetTPS []TargetTPS `msgpack:"0"`
+	TargetTPS         []TargetTPS       `msgpack:"0"`
+	RareSamplerConfig RareSamplerConfig `msgpack:"rareSamplingConfig"`
 }
