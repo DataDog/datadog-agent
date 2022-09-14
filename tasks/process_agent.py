@@ -160,6 +160,7 @@ def gen_mocks(ctx):
 
     interfaces = {
         "./pkg/process/procutil": ["Probe"],
+        "./pkg/process/checks": ["Check", "CheckWithRealTime"],
         "./pkg/process/net": ["SysProbeUtil"],
     }
 
