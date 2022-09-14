@@ -159,10 +159,6 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 			} else {
 				files, err := p.CollectFiles(source)
 				if err != nil {
-					if isWildcardSource {
-						wildcardFileCounter.setTotal(source, len(files))
-					}
-
 					source.Status.Error(err)
 					if shouldLogErrors {
 						log.Warnf("Could not collect files: %v", err)
