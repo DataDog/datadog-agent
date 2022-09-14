@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
+	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
 )
 
 func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
@@ -29,13 +30,13 @@ func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
 		IPProtocol: enrichment.MapIPProtocol(aggFlow.IPProtocol),
 		Source: payload.Endpoint{
 			IP:   common.IPBytesToString(aggFlow.SrcAddr),
-			Port: common.PortToString(aggFlow.SrcPort),
+			Port: portrollup.PortToString(aggFlow.SrcPort),
 			Mac:  enrichment.FormatMacAddress(aggFlow.SrcMac),
 			Mask: enrichment.FormatMask(aggFlow.SrcAddr, aggFlow.SrcMask),
 		},
 		Destination: payload.Endpoint{
 			IP:   common.IPBytesToString(aggFlow.DstAddr),
-			Port: common.PortToString(aggFlow.DstPort),
+			Port: portrollup.PortToString(aggFlow.DstPort),
 			Mac:  enrichment.FormatMacAddress(aggFlow.DstMac),
 			Mask: enrichment.FormatMask(aggFlow.DstAddr, aggFlow.DstMask),
 		},
