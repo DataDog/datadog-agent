@@ -63,26 +63,29 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 		return recreate(path)
 	}
 
-	tx, err := db.Begin(false)
-	if err != nil {
-		return recreate(path)
-	}
-	defer tx.Rollback()
-	bucket := tx.Bucket([]byte(metaBucket))
-	if bucket == nil {
-		log.Infof("Missing meta bucket")
-		return recreate(path)
-	}
-	metadataBytes := bucket.Get([]byte(metaFile))
-	if metadataBytes == nil {
-		log.Infof("Missing meta file in meta bucket")
-		return recreate(path)
-	}
-
 	metadata := new(AgentMetadata)
-	err = json.Unmarshal(metadataBytes, metadata)
+	err = db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(metaBucket))
+		if bucket == nil {
+			log.Infof("Missing meta bucket")
+			db, err = recreate(path)
+			return err
+		}
+		metadataBytes := bucket.Get([]byte(metaFile))
+		if metadataBytes == nil {
+			log.Infof("Missing meta file in meta bucket")
+			db, err = recreate(path)
+			return err
+		}
+		err = json.Unmarshal(metadataBytes, metadata)
+		if err != nil {
+			log.Infof("Invalid metadata")
+			db, err = recreate(path)
+			return err
+		}
+		return nil
+	})
 	if err != nil {
-		log.Infof("Invalid metadata")
 		return recreate(path)
 	}
 
