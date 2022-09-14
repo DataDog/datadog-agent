@@ -58,7 +58,7 @@ type libPath struct {
 
 const (
 	HTTPBatchSize  = 0xf
-	HTTPBatchPages = 0x5
+	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
 
 	httpProg = 0x0

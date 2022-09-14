@@ -7,8 +7,10 @@
 #define HTTP_BUFFER_SIZE (8 * 20)
 // This controls the number of HTTP transactions read from userspace at a time
 #define HTTP_BATCH_SIZE 15
-// The greater this number is the less likely are colisions/data-races between the flushes
-#define HTTP_BATCH_PAGES 5
+// HTTP_BATCH_PAGES controls how many `http_batch_t` instances exist for each CPU core
+// It's desirable to set this >= 1 to allow batch insertion and flushing to happen idependently
+// without risk of overriding data.
+#define HTTP_BATCH_PAGES 3
 
 #define HTTP_PROG 0
 
