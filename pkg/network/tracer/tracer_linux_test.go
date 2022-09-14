@@ -1091,6 +1091,9 @@ func TestSelfConnect(t *testing.T) {
 		return len(conns) == 2
 	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
 
+	err = cmd.Process.Signal(syscall.SIGCONT)
+	require.NoError(t, err)
+
 	// forked child should have exited, and only the parent should remain
 	require.Eventually(t, func() bool {
 		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
