@@ -306,8 +306,8 @@ func (a *Agent) transformChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Ti
 	if !chunk.DroppedTrace {
 		ss.SpanCount += int64(len(chunk.Spans))
 	}
-	ss.Size += chunk.Msgsize()
 	ss.EventCount += numEvents
+	ss.Size += chunk.Msgsize()
 
 	// Only keep the chunk if the entire thing should be sampled, otherwise replace it with the filtered chunk provided by the sampler.
 	if keep {
