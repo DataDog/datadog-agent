@@ -48,7 +48,7 @@ func addPort(ports map[uint16]map[uint16]bool, port uint16, ephemeralPort uint16
 		ports[port] = make(map[uint16]bool)
 	}
 
-	if len(ports[port]) < portRollupThreshold && !ports[port][ephemeralPort] {
+	if !ports[port][ephemeralPort] {
 		ports[port][ephemeralPort] = true
 	}
 }
