@@ -25,10 +25,8 @@ const (
 )
 
 type collector struct {
-	store workloadmeta.Store
-
-	gardenUtil cloudfoundry.GardenUtilInterface
-	nodeName   string
+	store    workloadmeta.Store
+	nodeName string
 }
 
 func init() {
@@ -41,14 +39,15 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
-	if !config.Datadog.GetBool("cloud_foundry_buildpack") {
-		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry Container")
-	}
 
-	log.Debugf("Agent is running on a PCF Container")
+	// Detect if we're on a PCF container
+	if !config.Datadog.GetBool("cloud_foundry_buildpack") {
+		return errors.NewDisabled(componentName, "Agent is not running on a CloudFoundry container")
+	}
 
 	c.store = store
 
+	// In PCF the container_id is the hostname
 	containerHostname, err := os.Hostname()
 	if err != nil {
 		return err

@@ -1,22 +1,21 @@
 package cloudfoundry
 
 import (
-	"code.cloudfoundry.org/garden"
 	"context"
+	"strings"
+
+	"code.cloudfoundry.org/garden"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
-import "github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 const (
 	SharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
 	componentName           = "cloudfoundry-container-tagger"
 )
-
-// TODO: add lock and gorooutines with timeout to emulate TTL for cache tags hashes
 
 func StartContainerTagger(ctx context.Context) error {
 	var err error
@@ -31,8 +30,9 @@ func StartContainerTagger(ctx context.Context) error {
 	defer store.Unsubscribe(ch)
 
 	seen := make(map[string]bool)
+	tagsHashByContainerID := make(map[string]string)
 
-	log.Infof("Cloud Foundry container tagger started successfully!")
+	log.Infof("CloudFoundry container tagger successfully started")
 	for {
 		select {
 		case bundle := <-ch:
@@ -40,8 +40,8 @@ func StartContainerTagger(ctx context.Context) error {
 			close(bundle.Ch)
 
 			for _, evt := range bundle.Events {
+				containerID := evt.Entity.GetID().ID
 				if evt.Type == workloadmeta.EventTypeSet {
-					containerID := evt.Entity.GetID().ID
 					storeContainer, err := store.GetContainer(containerID)
 					if err != nil {
 						log.Warnf("Error retrieving container %s from the workloadmeta store: %v", containerID, err)
@@ -54,24 +54,28 @@ func StartContainerTagger(ctx context.Context) error {
 					tags = append(tags, hostTags.System...)
 					tags = append(tags, hostTags.GoogleCloudPlatform...)
 
-					// check if the tags were already injected, skip
 					hash := utils.ComputeTagsHash(tags)
-					if seen[hash] {
+
+					tagsHashByContainerID[containerID] = hash
+
+					// check if the tags were already injected
+					exist := seen[hash]
+
+					// skip to the next event
+					if exist {
 						continue
 					}
-
-					log.Infof("Container %s with tags hash: %s", containerID, hash)
 
 					// mark as seen
 					seen[hash] = true
 
-					log.Infof("Injecting container tags into container %s", containerID)
-
 					container, err := gardenUtil.GetContainer(containerID)
 					if err != nil {
-						log.Warnf("Error retrieving container %s from the garden api: %v", containerID, err)
+						log.Warnf("Error retrieving container %s from the garden API: %v", containerID, err)
 						continue
 					}
+
+					log.Debugf("Writing tags into container %s", containerID)
 
 					// write tags into a file inside the container
 					p, err := container.Run(garden.ProcessSpec{
@@ -90,13 +94,15 @@ func StartContainerTagger(ctx context.Context) error {
 						if err != nil {
 							log.Warnf("Error while running process %s inside container %s: %v", p.ID(), containerID, err)
 						}
-						log.Debugf("Process %s exit code: %d", p.ID(), exitCode)
+						log.Debugf("Process %s under container %s exited with code: %d", containerID, p.ID(), exitCode)
 					}()
+				} else if evt.Type == workloadmeta.EventTypeUnset {
+					hash := tagsHashByContainerID[containerID]
+					delete(seen, hash)
 				}
 			}
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
-	return nil
 }
