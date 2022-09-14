@@ -309,6 +309,12 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         return 0;
     }
 
+    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
+
+    if (syscall->policy.mode == DENY) {
+        pass_to_userspace = check_approvers(syscall);
+    }
+
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
     u32 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
     if (cookie != NULL) {
@@ -318,15 +324,12 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
             // is this event type traced ?
             if (mask_has_event(config->event_mask, syscall->type)
                 && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+                if (!pass_to_userspace) {
+                    syscall->resolver.saved_by_ad = true;
+                }
                 return 0;
             }
         }
-    }
-
-    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
-
-    if (syscall->policy.mode == DENY) {
-        pass_to_userspace = check_approvers(syscall);
     }
 
     return !pass_to_userspace;
