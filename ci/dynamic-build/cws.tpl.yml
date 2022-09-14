@@ -2,6 +2,9 @@ stages:
   - build
   - test
 
+include:
+  - /.gitlab/kitchen_common/testing.yml
+
 .build_tests_ebpf_cws:
   stage: build
   needs: ["go_deps", "go_tools_deps"]
