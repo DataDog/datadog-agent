@@ -151,7 +151,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	var bpfTelemetry *errtelemetry.EBPFTelemetry
 	if usmSupported {
-		log.Debug("enabling telemetry")
 		bpfTelemetry = errtelemetry.NewEBPFTelemetry()
 		bpfTelemetry.MapErrMap = ebpfTracer.GetMap(string(probes.MapErrTelemetryMap))
 		bpfTelemetry.HelperErrMap = ebpfTracer.GetMap(string(probes.HelperErrTelemetryMap))
