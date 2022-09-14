@@ -115,7 +115,9 @@ if node['platform_family'] != 'windows'
     end
 
     # Please see https://github.com/paulcacheux/cws-buildimages/blob/main/Dockerfile
-    # for the definition of this base image
+    # for the definition of this base image.
+    # If this successfully helps in reducing the amount of rate limits, this should be moved
+    # to DataDog/datadog-agent-buildimages.
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
       FROM ghcr.io/paulcacheux/cws-centos7:latest
