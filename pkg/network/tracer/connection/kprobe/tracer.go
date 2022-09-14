@@ -138,7 +138,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types

@@ -72,7 +72,7 @@ type subprogram interface {
 	Stop()
 }
 
-var tailcalls []manager.TailCallRoute = []manager.TailCallRoute{
+var tailCalls []manager.TailCallRoute = []manager.TailCallRoute{
 	{
 		ProgArrayName: httpProgsMap,
 		Key:           httpProg,
@@ -160,7 +160,7 @@ func (e *ebpfProgram) Init() error {
 
 	defer e.bytecode.Close()
 
-	for _, tc := range tailcalls {
+	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 	for _, s := range e.subprograms {
@@ -169,7 +169,7 @@ func (e *ebpfProgram) Init() error {
 
 	e.Manager.DumpHandler = dumpMapsHandler
 	e.Manager.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchBPFTelemetry(m, true, undefinedProbes)
+		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
@@ -198,7 +198,7 @@ func (e *ebpfProgram) Init() error {
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
-		TailCallRouter: tailcalls,
+		TailCallRouter: tailCalls,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{

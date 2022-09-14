@@ -73,7 +73,7 @@ type ebpfConntracker struct {
 }
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.BPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
 	// eBPF conntrack require nf_conntrack symbols
 	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
@@ -430,7 +430,7 @@ func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErr
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	mgr.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
 	}
 
 	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(mgr)

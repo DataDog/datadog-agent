@@ -54,7 +54,7 @@ type Tracer struct {
 	reverseDNS   dns.ReverseDNS
 	httpMonitor  *http.Monitor
 	ebpfTracer   connection.Tracer
-	bpfTelemetry *errtelemetry.BPFTelemetry
+	bpfTelemetry *errtelemetry.EBPFTelemetry
 
 	// Telemetry
 	skippedConns *atomic.Int64 `stats:""`
@@ -149,9 +149,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	bpfTelemetry := errtelemetry.NewBPFTelemetry(usmSupported)
-	bpfTelemetry.MapErrMap = ebpfTracer.GetMap(string(probes.MapErrTelemetryMap))
-	bpfTelemetry.HelperErrMap = ebpfTracer.GetMap(string(probes.HelperErrTelemetryMap))
+	var bpfTelemetry *errtelemetry.EBPFTelemetry
+	if usmSupported {
+		log.Debug("enabling telemetry")
+		bpfTelemetry = errtelemetry.NewEBPFTelemetry()
+		bpfTelemetry.MapErrMap = ebpfTracer.GetMap(string(probes.MapErrTelemetryMap))
+		bpfTelemetry.HelperErrMap = ebpfTracer.GetMap(string(probes.HelperErrTelemetryMap))
+	}
+
 	if err := bpfTelemetry.RegisterMaps(ebpfTracer.GetAllMapsNames()); err != nil {
 		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
 	}
@@ -213,7 +218,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.BPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -799,7 +804,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *errtelemetry.BPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *errtelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
