@@ -19,7 +19,5 @@ else:
     s.recv(256)
     os.wait()
     signal.pause()
-    s.send(b'bar')
-    signal.pause()
 
 s.close()
