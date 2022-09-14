@@ -126,6 +126,9 @@ build_tests_ebpf_cws_arm64:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
     CHEF_VERSION: 14.15.6
+  before_script:
+    - cd $CI_PROJECT_DIR/test/kitchen
+    - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
 
@@ -137,9 +140,6 @@ kitchen_test_security_agent_x64:
   needs: ["build_tests_ebpf_cws_x64"]
   variables:
     KITCHEN_ARCH: x86_64
-  before_script:
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
@@ -164,13 +164,10 @@ kitchen_test_security_agent_arm64:
     - .kitchen_ec2_spot_instances
   rules:
     !reference [.manual]
-  needs: [ "build_tests_ebpf_cws_arm64" ]
+  needs: ["build_tests_ebpf_cws_arm64"]
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
-  before_script:
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
@@ -188,7 +185,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.medium"
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
@@ -209,7 +206,7 @@ kitchen_stress_security_agent:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
