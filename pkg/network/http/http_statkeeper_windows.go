@@ -15,7 +15,3 @@ import (
 func getPathBufferSize(c *config.Config) int {
 	return int(c.HTTPMaxRequestFragment)
 }
-
-func getMaxPathBufferSize(b []byte) int {
-	return len(b)
-}
