@@ -2,8 +2,66 @@ stages:
   - build
   - test
 
-include:
-  - /.gitlab/kitchen_common/testing.yml
+# std lib
+
+.manual:
+  - when: manual
+    allow_failure: true
+
+.kitchen_common:
+  stage: kitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+  retry: 1
+
+.kitchen_azure:
+  variables:
+    KITCHEN_PROVIDER: azure
+
+.kitchen_azure_x64:
+  variables:
+    KITCHEN_ARCH: x86_64
+  extends:
+    - .kitchen_azure
+
+.kitchen_ec2:
+  variables:
+    KITCHEN_PROVIDER: ec2
+    KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
+
+.kitchen_ec2_spot_instances:
+  extends: .kitchen_ec2
+  variables:
+    KITCHEN_EC2_SPOT_PRICE: on-demand
+
+.kitchen_ec2_arm64:
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    CHEF_VERSION: 14.15.6
+  extends:
+    - .kitchen_ec2_spot_instances
+
+.kitchen_datadog_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-agent"
+
+.kitchen_azure_location_north_central_us:
+  variables:
+    AZURE_LOCATION: "North Central US"
+
+.kitchen_ec2_location_us_east_1:
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-c18341ed
+    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
+
+# end stdlib
 
 .build_tests_ebpf_cws:
   stage: build
