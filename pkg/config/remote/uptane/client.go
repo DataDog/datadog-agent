@@ -18,6 +18,7 @@ import (
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Client is an uptane client
@@ -69,17 +70,28 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	return c, nil
 }
 
+func (c *Client) rollback(err error) {
+	c.transactionalStore.rollback()
+	if err != nil {
+		c.configRemoteStore = newRemoteStoreConfig(c.targetStore)
+		c.directorRemoteStore = newRemoteStoreDirector(c.targetStore)
+		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
+		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+	}
+}
+
 // Update updates the uptane client
 func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
+	var err error
 
 	// in case the commit is successful it is a no-op.
 	// the defer is present to be sure a transaction is never left behind.
-	defer c.transactionalStore.rollback()
+	defer func() { c.rollback(err) }()
 
-	err := c.updateRepos(response)
+	err = c.updateRepos(response)
 	if err != nil {
 		return err
 	}
@@ -91,8 +103,10 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	if err != nil {
 		return err
 	}
+	log.Infof("committing")
 
-	return c.transactionalStore.commit()
+	err = c.transactionalStore.commit()
+	return err
 }
 
 // TargetsCustom returns the current targets custom of this uptane client
