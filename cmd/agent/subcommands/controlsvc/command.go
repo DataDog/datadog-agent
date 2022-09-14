@@ -6,6 +6,7 @@
 //go:build windows
 // +build windows
 
+// Package controlsvc implement an agent sub-command.
 package controlsvc
 
 import (
@@ -27,33 +28,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// StartCommand returns a cobra command for 'agent start-service'
-func StartCommand(globalArgs *app.GlobalArgs) *cobra.Command {
-	return &cobra.Command{
-		Use:   "start-service",
-		Short: "starts the agent within the service control manager",
-		Long:  ``,
-		RunE:  StartService,
-	}
-}
-
-// StopCommand returns a cobra command for 'agent stopservice'
-func StopCommand(globalArgs *app.GlobalArgs) *cobra.Command {
-	return &cobra.Command{
-		Use:   "stopservice",
-		Short: "stops the agent within the service control manager",
-		Long:  ``,
-		RunE:  stopService,
-	}
-}
-
-// RestartCommand returns a cobra command for 'agent restart-service'
-func RestartCommand(globalArgs *app.GlobalArgs) *cobra.Command {
-	return &cobra.Command{
-		Use:   "restart-service",
-		Short: "restarts the agent within the service control manager",
-		Long:  ``,
-		RunE:  restartService,
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+	return []*cobra.Command{
+		{
+			Use:   "start-service",
+			Short: "starts the agent within the service control manager",
+			Long:  ``,
+			RunE:  StartService,
+		},
+		{
+			Use:   "stopservice",
+			Short: "stops the agent within the service control manager",
+			Long:  ``,
+			RunE:  stopService,
+		},
+		{
+			Use:   "restart-service",
+			Short: "restarts the agent within the service control manager",
+			Long:  ``,
+			RunE:  restartService,
+		},
 	}
 }
 

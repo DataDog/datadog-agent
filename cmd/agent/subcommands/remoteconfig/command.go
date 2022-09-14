@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package remoteconfig implement an agent sub-command.
 package remoteconfig
 
 import (
@@ -25,8 +26,8 @@ import (
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	remoteConfigCmd := &cobra.Command{
 		Use:   "remote-config",
 		Short: "Remote configuration state command",
@@ -44,7 +45,8 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		},
 		Hidden: true,
 	}
-	return remoteConfigCmd
+
+	return []*cobra.Command{remoteConfigCmd}
 }
 
 func state(cmd *cobra.Command, args []string, dialOpts ...grpc.DialOption) error {

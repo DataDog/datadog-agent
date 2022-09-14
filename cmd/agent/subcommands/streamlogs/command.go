@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package streamlogs implement an agent sub-command.
 package streamlogs
 
 import (
@@ -24,8 +25,8 @@ var (
 	filters diagnostic.Filters
 )
 
-// Command returns a cobra command to report on the agent's health
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	troubleshootLogsCmd := &cobra.Command{
 		Use:   "stream-logs",
 		Short: "Stream the logs being processed by a running agent",
@@ -50,7 +51,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	troubleshootLogsCmd.Flags().StringVar(&filters.Source, "source", "", "Filter by source")
 	troubleshootLogsCmd.Flags().StringVar(&filters.Service, "service", "", "Filter by service")
 
-	return troubleshootLogsCmd
+	return []*cobra.Command{troubleshootLogsCmd}
 }
 
 func connectAndStream() error {

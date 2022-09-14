@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package status implement an agent sub-command.
 package status
 
 import (
@@ -56,8 +57,8 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-// Command returns a cobra command to report on the agent's health
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:   "status [component [name]]",
 		Short: "Print the current status",
@@ -107,7 +108,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	componentCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
 	statusCmd.AddCommand(componentCmd)
 
-	return statusCmd
+	return []*cobra.Command{statusCmd}
 }
 
 func requestStatus() error {

@@ -18,10 +18,8 @@ import (
 // windowsSubcommands returns SubcommandFactories for subcommands dependent on the `windows` build tag.
 func windowsSubcommands() []app.SubcommandFactory {
 	return []app.SubcommandFactory{
-		cmdcontrolsvc.StartCommand,
-		cmdcontrolsvc.Stop,
-		cmdcontrolsvc.RestartCommand,
-		cmdinstallsvc.Command,
-		cmdremovesvc.Command,
+		cmdcontrolsvc.Commands,
+		cmdinstallsvc.Commands,
+		cmdremovesvc.Commands,
 	}
 }

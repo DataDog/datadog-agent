@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package run implement an agent sub-command.
 package run
 
 import (
@@ -96,8 +97,8 @@ var (
 	demux *aggregator.AgentDemultiplexer
 )
 
-// Command returns a cobra command to report on the agent's health
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the Agent",
@@ -108,7 +109,16 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	}
 	runCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 
-	return runCmd
+	startCmd := &cobra.Command{
+		Use:        "start",
+		Deprecated: "Use \"run\" instead to start the Agent",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return Run(globalArgs, cmd, args)
+		},
+	}
+	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+
+	return []*cobra.Command{startCmd, runCmd}
 }
 
 // Run starts the main loop.

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package snmp implement an agent sub-command.
 package snmp
 
 import (
@@ -73,8 +74,8 @@ var (
 	timeout int
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID] [OPTIONS]",
 		Short: "Perform a snmpwalk",
@@ -282,7 +283,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	}
 	snmpCmd.AddCommand(snmpWalkCmd)
 
-	return snmpCmd
+	return []*cobra.Command{snmpCmd}
 }
 
 func printValue(pdu gosnmp.SnmpPDU) error {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
+// Package dogstatsdstats implement an agent sub-command.
 package dogstatsdstats
 
 import (
@@ -28,8 +29,8 @@ var (
 	prettyPrintJSON  bool
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	dogstatsdStatsCmd := &cobra.Command{
 		Use:   "dogstatsd-stats",
 		Short: "Print basic statistics on the metrics processed by dogstatsd",
@@ -55,7 +56,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	dogstatsdStatsCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	dogstatsdStatsCmd.Flags().StringVarP(&dsdStatsFilePath, "file", "o", "", "Output the dogstatsd-stats command to a file")
 
-	return dogstatsdStatsCmd
+	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
 func requestDogstatsdStats() error {

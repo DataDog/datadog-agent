@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package cmdimport implement an agent sub-command.
 package cmdimport
 
 import (
@@ -15,8 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	force := false
 
 	importCmd := &cobra.Command{
@@ -42,5 +43,5 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	// local flags
 	importCmd.Flags().BoolVarP(&force, "force", "f", force, "overwrite existing files")
 
-	return importCmd
+	return []*cobra.Command{importCmd}
 }

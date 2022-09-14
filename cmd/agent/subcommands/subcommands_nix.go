@@ -16,6 +16,6 @@ import (
 // windowsSubcommands returns SubcommandFactories for subcommands dependent on the `windows` build tag.
 func windowsSubcommands() []app.SubcommandFactory {
 	return []app.SubcommandFactory{
-		cmdstop.Command,
+		cmdstop.Commands,
 	}
 }

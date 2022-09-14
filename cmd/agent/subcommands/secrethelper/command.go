@@ -6,6 +6,7 @@
 //go:build secrets
 // +build secrets
 
+// Package secrethelper implement an agent sub-command.
 package secrethelper
 
 import (
@@ -15,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/secrets"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	// TODO: move to cmd/common/secrethelper?
-	return secrets.SecretHelperCmd
+	return []*cobra.Command{secrets.SecretHelperCmd}
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package diagnose implement an agent sub-command.
 package diagnose
 
 import (
@@ -20,8 +21,8 @@ import (
 
 var noTrace bool
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	diagnoseMetadataAvailabilityCommand := &cobra.Command{
 		Use:   "metadata-availability",
 		Short: "Check availability of cloud provider and container metadata endpoints",
@@ -58,7 +59,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	diagnoseCommand.AddCommand(diagnoseMetadataAvailabilityCommand)
 	diagnoseCommand.AddCommand(diagnoseDatadogConnectivityCommand)
 
-	return diagnoseCommand
+	return []*cobra.Command{diagnoseCommand}
 }
 
 func configAndLogSetup(globalArgs *app.GlobalArgs) error {

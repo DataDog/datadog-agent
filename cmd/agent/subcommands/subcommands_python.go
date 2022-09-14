@@ -16,6 +16,6 @@ import (
 // pythonSubcommands returns SubcommandFactories for subcommands dependent on the `python` build tag.
 func pythonSubcommands() []app.SubcommandFactory {
 	return []app.SubcommandFactory{
-		cmdintegrations.Command,
+		cmdintegrations.Commands,
 	}
 }

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+// Package workloadlist implement an agent sub-command.
+package workloadlist
 
 import (
 	"encoding/json"
@@ -21,8 +22,8 @@ import (
 
 var verboseList bool
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	workloadListCommand := &cobra.Command{
 		Use:   "workload-list",
 		Short: "Print the workload content of a running agent",
@@ -72,7 +73,8 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		},
 	}
 	workloadListCommand.Flags().BoolVarP(&verboseList, "verbose", "v", false, "print out a full dump of the workload store")
-	return workloadListCommand
+
+	return []*cobra.Command{workloadListCommand}
 }
 
 func workloadURL(verbose bool, address string, port int) string {

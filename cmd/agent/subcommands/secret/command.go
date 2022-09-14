@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package secret implement an agent sub-command.
 package secret
 
 import (
@@ -19,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	secretInfoCommand := &cobra.Command{
 		Use:   "secret",
 		Short: "Print information about decrypted secrets in configuration.",
@@ -50,7 +51,8 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 			return nil
 		},
 	}
-	return secretInfoCommand
+
+	return []*cobra.Command{secretInfoCommand}
 }
 
 func showSecretInfo() error {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-2020 Datadog, Inc.
 
+// Package dogstatsdcapture implement an agent sub-command.
 package dogstatsdcapture
 
 import (
@@ -36,8 +37,8 @@ const (
 	defaultCaptureDuration = time.Duration(1) * time.Minute
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	dogstatsdCaptureCmd := &cobra.Command{
 		Use:   "dogstatsd-capture",
 		Short: "Start a dogstatsd UDS traffic capture",
@@ -66,7 +67,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	// shut up grpc client!
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
 
-	return dogstatsdCaptureCmd
+	return []*cobra.Command{dogstatsdCaptureCmd}
 }
 
 func dogstatsdCapture() error {

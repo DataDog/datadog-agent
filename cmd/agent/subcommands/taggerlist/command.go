@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package taggerlist implement an agent sub-command.
 package taggerlist
 
 import (
@@ -18,8 +19,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	taggerListCommand := &cobra.Command{
 		Use:   "tagger-list",
 		Short: "Print the tagger content of a running agent",
@@ -49,7 +50,8 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 			return tagger_api.GetTaggerList(color.Output, url)
 		},
 	}
-	return taggerListCommand
+
+	return []*cobra.Command{taggerListCommand}
 }
 
 func getTaggerURL() (string, error) {

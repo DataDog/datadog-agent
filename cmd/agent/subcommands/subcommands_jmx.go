@@ -16,6 +16,6 @@ import (
 // jmxSubcommands returns SubcommandFactories for subcommands dependent on the `jmx` build tag.
 func jmxSubcommands() []app.SubcommandFactory {
 	return []app.SubcommandFactory{
-		cmdjmx.Command,
+		cmdjmx.Commands,
 	}
 }

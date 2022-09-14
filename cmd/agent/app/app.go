@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// SubcommandFactory is a callable that will return a subcommand.
-type SubcommandFactory func(globalArgs *GlobalArgs) *cobra.Command
+// SubcommandFactory is a callable that will return a slice of subcommands.
+type SubcommandFactory func(globalArgs *GlobalArgs) []*cobra.Command
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
@@ -39,7 +39,11 @@ monitoring and performance data.`,
 	agentCmd.PersistentFlags().BoolVarP(&color.NoColor, "no-color", "n", false, "disable color output")
 
 	for _, sf := range subcommandFactories {
-		agentCmd.AddCommand(sf(&globalArgs))
+		subcommands := sf(&globalArgs)
+		for _, cmd := range subcommands {
+			agentCmd.AddCommand(cmd)
+		}
 	}
+
 	return agentCmd
 }

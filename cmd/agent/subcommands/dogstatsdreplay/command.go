@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-2020 Datadog, Inc.
 
+// Package dogstatsdreplay implement an agent sub-command.
 package dogstatsdreplay
 
 import (
@@ -39,8 +40,8 @@ const (
 	defaultIterations = 1
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	dogstatsdReplayCmd := &cobra.Command{
 		Use:   "dogstatsd-replay",
 		Short: "Replay dogstatsd traffic",
@@ -66,7 +67,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
 	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterations to replay.")
 
-	return dogstatsdReplayCmd
+	return []*cobra.Command{dogstatsdReplayCmd}
 }
 
 func dogstatsdReplay() error {

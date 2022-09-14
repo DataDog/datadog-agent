@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package commands
+// Package check implement an agent sub-command.
+package check
 
 import (
 	"bytes"
@@ -101,8 +102,8 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.SetArgs([]string{"checkName"})
 }
 
-// Command returns a cobra command to run checks
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
 		Short: "Run the specified check",
@@ -452,7 +453,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		},
 	}
 	setupCmd(cmd)
-	return cmd
+	return []*cobra.Command{cmd}
 }
 
 func runCheck(c check.Check, demux aggregator.Demultiplexer) *check.Stats {

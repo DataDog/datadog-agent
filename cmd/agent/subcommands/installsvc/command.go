@@ -6,6 +6,7 @@
 //go:build windows
 // +build windows
 
+// Package installsvc implement an agent sub-command.
 package installsvc
 
 import (
@@ -21,14 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Command returns a cobra command for 'agent installservice'
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
-	return &cobra.Command{
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "installservice",
 		Short: "Installs the agent within the service control manager",
 		Long:  ``,
 		RunE:  installService,
 	}
+
+	return []*cobra.Command{cmd}
 }
 
 func installService(cmd *cobra.Command, args []string) error {

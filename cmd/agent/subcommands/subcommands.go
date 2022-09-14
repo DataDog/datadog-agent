@@ -23,7 +23,6 @@ import (
 	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	cmdsecret "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secret"
 	cmdsnmp "github.com/DataDog/datadog-agent/cmd/agent/subcommands/snmp"
-	cmdstart "github.com/DataDog/datadog-agent/cmd/agent/subcommands/start"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/agent/subcommands/status"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
@@ -37,29 +36,28 @@ import (
 func AgentSubcommands() []app.SubcommandFactory {
 	factories := []app.SubcommandFactory{
 		// universal subcommands, present for all build flag combinations
-		cmdcheck.Command,
-		cmdconfigcheck.Command,
-		cmdconfig.Command,
-		cmddiagnose.Command,
-		cmddogstatsdcapture.Command,
-		cmddogstatsdreplay.Command,
-		cmddogstatsdstats.Command,
-		cmdflare.Command,
-		cmdhealth.Command,
-		cmdhostname.Command,
-		cmdimport.Command,
-		cmdlaunchgui.Command,
-		cmdremoteconfig.Command,
-		cmdrun.Command,
-		cmdsecret.Command,
-		cmdsnmp.Command,
-		cmdstart.Command,
-		cmdstatus.Command,
-		cmdstreamlogs.Command,
-		cmdtaggerlist.Command,
-		cmdtroubleshooting.Command,
-		cmdversion.Command,
-		cmdworkloadlist.Command,
+		cmdcheck.Commands,
+		cmdconfigcheck.Commands,
+		cmdconfig.Commands,
+		cmddiagnose.Commands,
+		cmddogstatsdcapture.Commands,
+		cmddogstatsdreplay.Commands,
+		cmddogstatsdstats.Commands,
+		cmdflare.Commands,
+		cmdhealth.Commands,
+		cmdhostname.Commands,
+		cmdimport.Commands,
+		cmdlaunchgui.Commands,
+		cmdremoteconfig.Commands,
+		cmdrun.Commands,
+		cmdsecret.Commands,
+		cmdsnmp.Commands,
+		cmdstatus.Commands,
+		cmdstreamlogs.Commands,
+		cmdtaggerlist.Commands,
+		cmdtroubleshooting.Commands,
+		cmdversion.Commands,
+		cmdworkloadlist.Commands,
 	}
 	factories = append(factories, secretsSubcommands()...)
 	factories = append(factories, pythonSubcommands()...)

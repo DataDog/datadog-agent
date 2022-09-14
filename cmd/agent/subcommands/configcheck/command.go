@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package configcheck implement an agent sub-command.
 package configcheck
 
 import (
@@ -19,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	var withDebug bool
 
 	configCheckCommand := &cobra.Command{
@@ -56,5 +57,5 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		},
 	}
 	configCheckCommand.Flags().BoolVarP(&withDebug, "verbose", "v", false, "print additional debug info")
-	return configCheckCommand
+	return []*cobra.Command{configCheckCommand}
 }

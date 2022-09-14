@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package troubleshooting implement an agent sub-command.
 package troubleshooting
 
 import (
@@ -21,8 +22,8 @@ const (
 	metadataEndpoint = "/agent/metadata/"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	payloadV5Cmd := &cobra.Command{
 		Use:   "metadata_v5",
 		Short: "Print the metadata payload for the agent.",
@@ -57,7 +58,7 @@ This command offers a list of helpers to troubleshoot the Datadog Agent.`,
 	troubleshootingCmd.AddCommand(payloadV5Cmd)
 	troubleshootingCmd.AddCommand(payloadInventoriesCmd)
 
-	return troubleshootingCmd
+	return []*cobra.Command{troubleshootingCmd}
 }
 
 func printPayload(globalArgs *app.GlobalArgs, payloadName string) error {

@@ -6,6 +6,7 @@
 //go:build python
 // +build python
 
+// Package integrations implement an agent sub-command.
 package integrations
 
 import (
@@ -68,8 +69,8 @@ var (
 	constraintsPath     string
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	integrationCmd := &cobra.Command{
 		Use:   "integration [command]",
 		Short: "Datadog integration manager",
@@ -134,7 +135,7 @@ You must specify a version of the package to install using the syntax: <package>
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 	integrationCmd.AddCommand(showCmd)
 
-	return integrationCmd
+	return []*cobra.Command{integrationCmd}
 }
 
 func loadPythonInfo(globalArgs *app.GlobalArgs) error {

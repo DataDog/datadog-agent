@@ -6,6 +6,7 @@
 //go:build windows
 // +build windows
 
+// Package removesvc implement an agent sub-command.
 package removesvc
 
 import (
@@ -19,15 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Command returns a cobra command for 'agent remove-service'
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
-
-	return &cobra.Command{
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "remove-service",
 		Short: "Removes the agent from the service control manager",
 		Long:  ``,
 		RunE:  removeService,
 	}
+	return []*cobra.Command{cmd}
 }
 
 func removeService(cmd *cobra.Command, args []string) error {

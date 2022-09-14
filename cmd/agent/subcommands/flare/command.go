@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flare implement an agent sub-command.
 package flare
 
 import (
@@ -34,8 +35,8 @@ var (
 	profileBlockingRate  int
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	flareCmd := &cobra.Command{
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
@@ -82,7 +83,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	flareCmd.Flags().IntVarP(&profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.SetArgs([]string{"caseID"})
 
-	return flareCmd
+	return []*cobra.Command{flareCmd}
 }
 
 type profileCollector func(prefix, debugURL string, cpusec int, target *flare.ProfileData) error

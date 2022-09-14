@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package launchgui implement an agent sub-command.
 package launchgui
 
 import (
@@ -18,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	launchCmd := &cobra.Command{
 		Use:   "launch-gui",
 		Short: "starts the Datadog Agent GUI",
@@ -30,7 +31,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	return launchCmd
+	return []*cobra.Command{launchCmd}
 }
 
 func launchGui(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {

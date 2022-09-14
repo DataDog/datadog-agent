@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config implement an agent sub-command.
 package config
 
 import (
@@ -17,8 +18,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	// utility function to set up logging and config, shared between subcommands
 	setupConfigAndLogs := func() error {
 		err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
@@ -92,7 +93,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	}
 	cmd.AddCommand(getCmd)
 
-	return cmd
+	return []*cobra.Command{cmd}
 }
 
 func showRuntimeConfiguration(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {

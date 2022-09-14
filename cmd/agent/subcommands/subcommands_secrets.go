@@ -16,6 +16,6 @@ import (
 // secretsSubcommands returns SubcommandFactories for subcommands dependent on the `secrets` build tag.
 func secretsSubcommands() []app.SubcommandFactory {
 	return []app.SubcommandFactory{
-		cmdsecrethelper.Command,
+		cmdsecrethelper.Commands,
 	}
 }

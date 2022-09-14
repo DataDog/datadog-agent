@@ -6,6 +6,7 @@
 //go:build !windows
 // +build !windows
 
+// Package stop implement an agent sub-command.
 package stop
 
 import (
@@ -20,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Command returns a cobra command to report on the agent's health
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	stopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "Stops a running Agent",
@@ -31,7 +32,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 		},
 	}
 
-	return stopCmd
+	return []*cobra.Command{stopCmd}
 }
 
 func stop(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {

@@ -6,6 +6,7 @@
 //go:build jmx
 // +build jmx
 
+// Package jmx implement an agent sub-command.
 package jmx
 
 import (
@@ -37,8 +38,8 @@ var (
 	discoveryMinInstances  uint
 )
 
-// Command returns the main cobra config command.
-func Command(globalArgs *app.GlobalArgs) *cobra.Command {
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	jmxCmd := &cobra.Command{
 		Use:   "jmx",
 		Short: "Run troubleshooting commands on JMXFetch integrations",
@@ -136,7 +137,7 @@ func Command(globalArgs *app.GlobalArgs) *cobra.Command {
 	jmxCmd.AddCommand(jmxListCmd)
 
 	// attach the command to the root
-	return jmxCmd
+	return []*cobra.Command{jmxCmd}
 }
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
