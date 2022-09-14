@@ -549,20 +549,3 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		stats.Direction = network.OUTGOING
 	}
 }
-
-func getAllProgramSpecs(m *manager.Manager) ([]*ebpf.ProgramSpec, error) {
-	var specs []*ebpf.ProgramSpec
-	for _, p := range m.Probes {
-		s, present, err := m.GetProgramSpec(p.ProbeIdentificationPair)
-		if err != nil {
-			return nil, err
-		}
-		if !present {
-			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", p.ProbeIdentificationPair)
-		}
-
-		specs = append(specs, s...)
-	}
-
-	return specs, nil
-}
