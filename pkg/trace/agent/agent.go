@@ -190,8 +190,8 @@ func (a *Agent) loop() {
 	}
 }
 
-// sanitizeSpan performs some additional processing of span, which is an element
-// of chunk. sanitizeSpan might also modify chunk.Origin.
+// sanitizeSpan applies some additional sanitization, including obfuscation,
+// truncation, and adding metadata based on the configured tags.
 func (a *Agent) sanitizeSpan(span *pb.Span, chunk *pb.TraceChunk, clientComputedTopLevel bool) {
 	for k, v := range a.conf.GlobalTags {
 		if k == tagOrigin {
@@ -221,12 +221,11 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	}
 }
 
-// processChunk handles one of the trace chunks that Process loops through.
-// processChunk returns a TraceChunk that is to replace the input chunk. The
-// returned TraceChunk might be the same as the input, or different, or nil. If
-// the returned TraceChunk is nil, the caller should remove that chunk from the
-// payload that it's processing.
-func (a *Agent) processChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Time, ts *info.TagStats, statsInput *stats.Input, ss *writer.SampledChunks) *pb.TraceChunk {
+// transformChunk handles a single trace chunk, applying the necessary transformations and sanitization,
+// before making a sampling decision. It returns the transformed chunk.
+// If this function returns nil, then the chunk should not be sampled, and should be removed from
+// the payload being processed.
+func (a *Agent) transformChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Time, ts *info.TagStats, statsInput *stats.Input, ss *writer.SampledChunks) *pb.TraceChunk {
 	if len(chunk.Spans) == 0 {
 		log.Debugf("Skipping received empty trace")
 		return nil
@@ -310,8 +309,7 @@ func (a *Agent) processChunk(chunk *pb.TraceChunk, p *api.Payload, now time.Time
 	ss.Size += chunk.Msgsize()
 	ss.EventCount += numEvents
 
-	// If we're keeping the chunk, keep it. If we're not keeping the chunk, then
-	// replace it with the filtered version produced by a.sample(...) above.
+	// Only keep the chunk if the entire thing should be sampled, otherwise replace it with the filtered chunk provided by the sampler.
 	if keep {
 		return chunk
 	}
@@ -337,7 +335,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 	for i := 0; i < len(p.Chunks()); {
 		chunkBefore := p.Chunk(i)
-		chunkAfter := a.processChunk(chunkBefore, p, now, ts, &statsInput, ss)
+		chunkAfter := a.transformChunk(chunkBefore, p, now, ts, &statsInput, ss)
 		if chunkAfter == nil {
 			p.RemoveChunk(i)
 			continue
