@@ -55,7 +55,7 @@ const (
 	// slots as is possible from that source before proceeding to the next one
 	greedySelection selectionStrategy = iota
 	// globalSelection will consider files from all sources together and will choose the
-	// top `filesLimit` files based on the `sortMode` ordering
+	// top `filesLimit` files based on the `wildcardOrder` ordering
 	globalSelection
 )
 
@@ -221,7 +221,7 @@ func (p *FileProvider) FilesToTail(inputSources []*sources.LogSource) []*tailer.
 }
 
 // CollectFiles takes a 'LogSource' and produces a list of tailers matching this source
-// with ordering defined by 'sortMode'
+// with ordering defined by 'wildcardOrder'
 func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
 	_, err := os.Stat(path)
@@ -280,7 +280,7 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 	return files, nil
 }
 
-// applyOrdering sorts the 'files' slice in-place by the currently configured 'sortMode'
+// applyOrdering sorts the 'files' slice in-place by the currently configured 'wildcardOrder'
 func (p *FileProvider) applyOrdering(files []*tailer.File) {
 	if p.wildcardOrder == wildcardModTime {
 		statResults := make(map[*tailer.File]time.Time, len(files))
