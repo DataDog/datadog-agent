@@ -50,7 +50,7 @@ func StartContainerTagger(ctx context.Context) error {
 
 					// extract tags
 					tags := storeContainer.CollectorTags
-					hostTags := host.GetHostTags(context.TODO(), true)
+					hostTags := host.GetHostTags(ctx, true)
 					tags = append(tags, hostTags.System...)
 					tags = append(tags, hostTags.GoogleCloudPlatform...)
 
