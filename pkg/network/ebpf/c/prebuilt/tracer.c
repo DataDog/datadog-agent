@@ -25,6 +25,10 @@
 
 #include "sock.h"
 
+static __always_inline void store_socket_cookie(conn_tuple_t *t, struct sock *sk) {
+    // no-op on prebuilt
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;
@@ -142,7 +146,7 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t, get_socket_cookie(sk));
+    cleanup_conn(&t, 0);
     return 0;
 }
 

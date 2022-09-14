@@ -7,6 +7,7 @@
 #include "cookie.h"
 
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
+static void store_socket_cookie(conn_tuple_t *t, struct sock *sk);
 
 static __always_inline u32 get_stat_cookie(struct sock *sk) {
     u64 t = bpf_ktime_get_ns();
@@ -125,11 +126,6 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     if (stats.state_transitions > 0) {
         val->state_transitions |= stats.state_transitions;
     }
-}
-
-static __always_inline void store_socket_cookie(conn_tuple_t *t, struct sock *sk) {
-    u64 cookie = get_socket_cookie(sk);
-    bpf_map_update_elem(&conn_cookies, t, &cookie, BPF_ANY);
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
