@@ -203,6 +203,9 @@ var (
 	// MetricPolicy is the name of the metric used to report policy versions
 	// Tags: -
 	MetricPolicy = newRuntimeMetric(".policy")
+	// MetricRuleStatus is the name of the metric used to report the rule status
+	// Tags: -
+	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
 	// Others
 

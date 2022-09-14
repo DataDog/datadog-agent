@@ -608,6 +608,14 @@ func TestRuleAgentConstraint(t *testing.T) {
 				assert.Contains(t, rs.rules, exp.ruleID)
 			} else {
 				assert.NotContains(t, rs.rules, exp.ruleID)
+
+				var present bool
+				for _, skipped := range rs.policies[0].RuleSkipped {
+					if skipped.ID == exp.ruleID {
+						present = true
+					}
+				}
+				assert.True(t, present)
 			}
 		})
 	}
