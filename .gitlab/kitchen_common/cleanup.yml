@@ -24,5 +24,5 @@
   dependencies: []
   before_script:
   script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/clean.sh

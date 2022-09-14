@@ -167,7 +167,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
       # if kitchen test failed and shouldn't be rerun, exit with 1
       exit 1
     else
-      cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"
+      cp -R "${CI_PROJECT_DIR}/test/kitchen/.kitchen/logs" "${CI_PROJECT_DIR}/test/kitchen/.kitchen/logs-${attempt}"
       # Only keep test suites that have a non-null error code
       # Build the result as a regexp: "test_suite1|test_suite2|test_suite3", as kitchen only
       # supports one instance name or a regexp as argument.

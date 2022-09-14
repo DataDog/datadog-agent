@@ -16,7 +16,7 @@
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
 
 .kitchen_os_centos_6_7_non_fips:
@@ -24,7 +24,7 @@
     KITCHEN_PLATFORM: "centos"
     KITCHEN_OSVERS: "centos-610,centos-77"
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
 
 .kitchen_os_centos_8_fips:
@@ -36,7 +36,7 @@
     DEFAULT_KITCHEN_OSVERS: "rhel-81"
   before_script:
     - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
 
 # Kitchen: scenarios (os * agent * (cloud + arch))

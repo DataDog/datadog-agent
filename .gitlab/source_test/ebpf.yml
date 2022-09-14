@@ -34,8 +34,8 @@
     when: always
     paths:
       - $CI_PROJECT_DIR/.tmp/binary-ebpf
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+      - $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-security-agent-check/files
+      - $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -49,7 +49,7 @@
   artifacts:
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+      - $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
@@ -69,8 +69,8 @@ tests_ebpf_x64:
     - invoke -e golangci-lint --build system-probe ./pkg
     - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
+    - cp /tmp/clang-bpf $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
@@ -93,8 +93,8 @@ tests_ebpf_arm64:
     - invoke -e golangci-lint --build system-probe ./pkg
     - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
+    - cp /tmp/clang-bpf $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $CI_PROJECT_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe

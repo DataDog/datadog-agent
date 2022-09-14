@@ -29,7 +29,7 @@ kitchen_test_security_agent_x64:
   variables:
     KITCHEN_ARCH: x86_64
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
@@ -60,7 +60,7 @@ kitchen_test_security_agent_arm64:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
@@ -79,7 +79,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.medium"
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
   parallel:
     matrix:
@@ -100,7 +100,7 @@ kitchen_stress_security_agent:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
-    - cd $DD_AGENT_TESTING_DIR
+    - cd $CI_PROJECT_DIR/test/kitchen
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION

@@ -28,7 +28,7 @@ DNF_TAG = "dnf"
 
 CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
 
-KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
+KITCHEN_DIR = os.path.normpath(os.path.join(os.getenv('CI_PROJECT_DIR') or os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
