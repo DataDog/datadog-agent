@@ -1090,16 +1090,6 @@ func TestSelfConnect(t *testing.T) {
 		t.Logf("connections: %v", conns)
 		return len(conns) == 2
 	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
-
-	// forked child should have exited, and only the parent should remain
-	require.Eventually(t, func() bool {
-		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
-			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
-		})
-
-		t.Logf("connections: %v", conns)
-		return len(conns) == 1
-	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
 }
 
 func TestUDPPeekCount(t *testing.T) {
