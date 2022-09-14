@@ -159,9 +159,9 @@ def gen_mocks(ctx):
     """
 
     interfaces = {
-        "./pkg/process/procutil": ["Probe"],
         "./pkg/process/checks": ["Check", "CheckWithRealTime"],
         "./pkg/process/net": ["SysProbeUtil"],
+        "./pkg/process/procutil": ["Probe"],
     }
 
     for path, names in interfaces.items():

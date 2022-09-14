@@ -354,7 +354,7 @@ func TestIgnoreResponseBody(t *testing.T) {
 
 func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig()
-	check := &mocks.CheckWithRealTime{}
+	check := mocks.NewCheckWithRealTime(t)
 
 	c, err := NewCollector(cfg, []checks.Check{})
 	assert.NoError(t, err)
@@ -397,7 +397,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	}
 
 	rtOption := checks.RunOptions{
-		RunStandard: true,
+		RunRealTime: true,
 	}
 
 	check.On("RunWithOptions", mock.Anything, mock.Anything, rtOption).Once().Return(rtResult, nil)
@@ -418,7 +418,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 
 func TestCollectorRunCheck(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig()
-	check := &mocks.Check{}
+	check := mocks.NewCheck(t)
 
 	c, err := NewCollector(cfg, []checks.Check{})
 	assert.NoError(t, err)
