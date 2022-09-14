@@ -98,15 +98,12 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	// Handle port rollup
 	f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-	portCount, isEphemeralSource := f.portRollup.GetPortCount(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-	if int(portCount) >= f.portRollupThreshold {
-		// we rollup either source port and destination.
-		// we assume that there is no case where both source and destination ports are ephemeral.
-		if isEphemeralSource { // rollup ephemeral source port
-			flowToAdd.SrcPort = 0
-		} else { // rollup ephemeral dest port
-			flowToAdd.DstPort = 0
-		}
+	ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	switch ephemeralStatus {
+	case portrollup.IsEphemeralSourcePort:
+		flowToAdd.SrcPort = portrollup.EphemeralPort
+	case portrollup.IsEphemeralDestPort:
+		flowToAdd.DstPort = portrollup.EphemeralPort
 	}
 
 	f.flowsMutex.Lock()

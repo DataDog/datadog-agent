@@ -10,6 +10,21 @@ import (
 	"sync"
 )
 
+// EphemeralPort port number is represented by `0` internally
+const EphemeralPort uint32 = 0
+
+// IsEphemeralStatus enum type
+type IsEphemeralStatus int32
+
+const (
+	// NoEphemeralPort both source port and destination are not ephemeral
+	NoEphemeralPort = IsEphemeralStatus(0)
+	// IsEphemeralSourcePort represent whether source port is ephemeral
+	IsEphemeralSourcePort = IsEphemeralStatus(1)
+	// IsEphemeralDestPort represent whether destination port is ephemeral
+	IsEphemeralDestPort = IsEphemeralStatus(2)
+)
+
 // EndpointPairPortRollupStore contains port rollup states
 type EndpointPairPortRollupStore struct {
 	portRollupThreshold int
@@ -66,6 +81,25 @@ func (prs *EndpointPairPortRollupStore) GetPortCount(sourceAddr []byte, destAddr
 	portCount := common.MaxUint16(sourceToDestPortCount, destToSourcePortCount)
 	isEphemeralSource := destToSourcePortCount > sourceToDestPortCount
 	return portCount, isEphemeralSource
+}
+
+// IsEphemeral checks if source port and destination port are ephemeral
+func (prs *EndpointPairPortRollupStore) IsEphemeral(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) IsEphemeralStatus {
+	sourceToDestPortCount := prs.GetSourceToDestPortCount(sourceAddr, destAddr, sourcePort)
+	destToSourcePortCount := prs.GetDestToSourcePortCount(sourceAddr, destAddr, destPort)
+	portCount := common.MaxUint16(sourceToDestPortCount, destToSourcePortCount)
+
+	if int(portCount) < prs.portRollupThreshold {
+		return NoEphemeralPort
+	}
+
+	isEphemeralSource := destToSourcePortCount > sourceToDestPortCount
+	// we rollup either source port and destination.
+	// we assume that there is no case where both source and destination ports are ephemeral.
+	if isEphemeralSource { // rollup ephemeral source port
+		return IsEphemeralSourcePort
+	}
+	return IsEphemeralDestPort
 }
 
 // GetSourceToDestPortCount returns the number of different destination port for a specific source port

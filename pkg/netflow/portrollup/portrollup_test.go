@@ -78,3 +78,29 @@ func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
 	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 443))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
 }
+
+func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralSourcePort(t *testing.T) {
+	// Arrange
+	IP1 := []byte{10, 10, 10, 10}
+	IP2 := []byte{10, 10, 10, 11}
+	store := NewEndpointPairPortRollupStore(3)
+
+	store.Add(IP1, IP2, 80, 2001)
+	store.Add(IP1, IP2, 80, 2002)
+	assert.Equal(t, NoEphemeralPort, store.IsEphemeral(IP1, IP2, 80, 2010))
+	store.Add(IP1, IP2, 80, 2003)
+	assert.Equal(t, IsEphemeralDestPort, store.IsEphemeral(IP1, IP2, 80, 2010))
+}
+
+func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralDestPort(t *testing.T) {
+	// Arrange
+	IP1 := []byte{10, 10, 10, 10}
+	IP2 := []byte{10, 10, 10, 11}
+	store := NewEndpointPairPortRollupStore(3)
+
+	store.Add(IP1, IP2, 3001, 53)
+	store.Add(IP1, IP2, 3002, 53)
+	assert.Equal(t, NoEphemeralPort, store.IsEphemeral(IP1, IP2, 3001, 53))
+	store.Add(IP1, IP2, 3003, 53)
+	assert.Equal(t, IsEphemeralSourcePort, store.IsEphemeral(IP1, IP2, 3004, 53))
+}
