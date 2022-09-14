@@ -24,11 +24,12 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name    string
-	Source  string
-	Version string
-	Rules   []*RuleDefinition
-	Macros  []*MacroDefinition
+	Name        string
+	Source      string
+	Version     string
+	Rules       []*RuleDefinition
+	Macros      []*MacroDefinition
+	RuleSkipped []*RuleDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -42,7 +43,30 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, *multierror.Error) {
+// AddRule add a rule to the policy
+func (p *Policy) SkipRule(def *RuleDefinition) {
+	def.Policy = p
+	p.RuleSkipped = append(p.RuleSkipped, def)
+}
+
+// remove rules that have a valid version from the skipped list
+func cleanupRuleSkipped(policy *Policy) {
+	var skipped []*RuleDefinition
+
+LOOP:
+	for _, s := range policy.RuleSkipped {
+		for _, r := range policy.Rules {
+			if s.ID == r.ID {
+				continue LOOP
+			}
+		}
+		skipped = append(skipped, s)
+	}
+
+	policy.RuleSkipped = skipped
+}
+
+func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	var errs *multierror.Error
 
 	policy := &Policy{
@@ -54,11 +78,11 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 MACROS:
 	for _, macroDef := range def.Macros {
 		for _, filter := range macroFilters {
-			IsMacroAccepted, err := filter.IsMacroAccepted(macroDef)
+			isMacroAccepted, err := filter.IsMacroAccepted(macroDef)
 			if err != nil {
 				errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("error when evaluating one of the macro filters: %w", err)})
 			}
-			if !IsMacroAccepted {
+			if !isMacroAccepted {
 				continue MACROS
 			}
 		}
@@ -78,17 +102,18 @@ MACROS:
 RULES:
 	for _, ruleDef := range def.Rules {
 		for _, filter := range ruleFilters {
-			IsRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
+			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
 				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("error when evaluating one of the rule filters: %w", err)})
 			}
-			if !IsRuleAccepted {
+			if !isRuleAccepted {
+				policy.SkipRule(ruleDef)
 				continue RULES
 			}
 		}
 
 		if ruleDef.ID == "" {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no ID defined for rule with expression")})
 			continue
 		}
 		if !validators.CheckRuleID(ruleDef.ID) {
@@ -104,7 +129,9 @@ RULES:
 		policy.AddRule(ruleDef)
 	}
 
-	return policy, errs
+	cleanupRuleSkipped(policy)
+
+	return policy, errs.ErrorOrNil()
 }
 
 // LoadPolicy load a policy
@@ -116,10 +143,5 @@ func LoadPolicy(name string, source string, reader io.Reader, macroFilters []Mac
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	policy, errs := parsePolicyDef(name, source, &def, macroFilters, ruleFilters)
-	if errs.ErrorOrNil() != nil {
-		return nil, errs.ErrorOrNil()
-	}
-
-	return policy, nil
+	return parsePolicyDef(name, source, &def, macroFilters, ruleFilters)
 }

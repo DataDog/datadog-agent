@@ -42,7 +42,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, nil, &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 

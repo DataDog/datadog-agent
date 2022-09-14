@@ -323,7 +323,7 @@ func TestRuleSetApprovers4(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: eval.ScalarValueType | eval.PatternValueType,
+			Types: eval.ScalarValueType | eval.GlobValueType,
 		},
 	}
 
@@ -494,7 +494,7 @@ func TestRuleSetApprovers11(t *testing.T) {
 	caps := FieldCapabilities{
 		{
 			Field:        "open.filename",
-			Types:        eval.ScalarValueType | eval.PatternValueType,
+			Types:        eval.ScalarValueType | eval.GlobValueType,
 			FilterWeight: 3,
 		},
 	}
@@ -542,6 +542,29 @@ func TestRuleSetApprovers13(t *testing.T) {
 	approvers, _ := rs.GetEventApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver for filename")
+	}
+}
+
+func TestRuleSetApprovers14(t *testing.T) {
+	exprs := []string{
+		`open.filename == "/etc/passwd"`,
+		`open.filename =~ "/etc/*/httpd"`,
+	}
+
+	rs := newRuleSet()
+	addRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.filename",
+			Types:        eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.filename"]) != 2 {
+		t.Fatalf("shouldn't get an approver for filename: %v", approvers)
 	}
 }
 

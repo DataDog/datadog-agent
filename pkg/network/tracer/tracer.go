@@ -45,6 +45,7 @@ import (
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
 
+// Tracer implements the functionality of the network tracer
 type Tracer struct {
 	config      *config.Config
 	state       network.State
@@ -88,6 +89,7 @@ type Tracer struct {
 	sysctlUDPConnStreamTimeout *sysctl.Int
 }
 
+// NewTracer creates a Tracer
 func NewTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
@@ -327,6 +329,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	t.state.StoreClosedConnections(connections)
 }
 
+// Stop stops the tracer
 func (t *Tracer) Stop() {
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
@@ -334,6 +337,7 @@ func (t *Tracer) Stop() {
 	t.conntracker.Close()
 }
 
+// GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
@@ -368,6 +372,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}, nil
 }
 
+// RegisterClient registers a clientID with the tracer
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
 	return nil
@@ -723,26 +728,6 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	}
 
 	cs.Via = t.gwLookup.Lookup(cs)
-}
-
-func (t *Tracer) retryConntrack(connections []network.ConnectionStats) {
-	// If we're sampling events there is no point in retrying a Conntrack lookup.
-	if t.conntracker.IsSampling() {
-		return
-	}
-
-	// Check conntrack once again for short-lived connections that are missing IPTranslations
-	// The motivation here is to catch a race condition where the netlink event is processed
-	// after the connection is closed
-	for i, c := range connections {
-		if c.IPTranslation == nil && (c.Type == network.UDP || c.IsShortLived()) {
-			translation := t.conntracker.GetTranslationForConn(c)
-			if translation != nil {
-				connections[i].IPTranslation = translation
-				t.conntracker.DeleteTranslation(c)
-			}
-		}
-	}
 }
 
 // DebugCachedConntrack dumps the cached NAT conntrack data

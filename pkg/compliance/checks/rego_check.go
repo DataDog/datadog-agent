@@ -17,6 +17,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/metrics"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"gopkg.in/yaml.v3"
@@ -34,6 +35,7 @@ const regoEvalTimeout = 20 * time.Second
 type regoCheck struct {
 	evalLock sync.Mutex
 
+	metrics           metrics.Metrics
 	ruleID            string
 	ruleScope         compliance.RuleScope
 	inputs            []compliance.RegoInput
@@ -119,7 +121,7 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 	return options, query, nil
 }
 
-func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
+func (r *regoCheck) compileRule(rule *compliance.RegoRule, regoOptions []func(r *rego.Rego), meta *compliance.SuiteMeta) error {
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -127,19 +129,11 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	if err != nil {
 		return err
 	}
+	moduleArgs = append(moduleArgs, regoOptions...)
 	moduleArgs = append(moduleArgs, ruleModules...)
 	moduleArgs = append(moduleArgs, rego.Query(query))
 
 	log.Debugf("rego query: %v", query)
-
-	// rego builtins
-	moduleArgs = append(moduleArgs, regoBuiltins...)
-
-	moduleArgs = append(
-		moduleArgs,
-		rego.EnablePrintStatements(true),
-		rego.PrintHook(&regoPrintHook{}),
-	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 	defer cancel()
@@ -152,7 +146,6 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	}
 
 	r.preparedEvalQuery = preparedEvalQuery
-	r.ruleScope = ruleScope
 
 	return nil
 }
@@ -398,7 +391,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 	defer cancel()
 
-	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
+	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input), rego.EvalMetrics(r.metrics))
 	if err != nil {
 		return buildRegoErrorReports(err)
 	}
