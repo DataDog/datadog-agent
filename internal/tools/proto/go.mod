@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools/proto
 
-go 1.17
+go 1.18
 
 require (
 	github.com/golang/mock v1.5.0
