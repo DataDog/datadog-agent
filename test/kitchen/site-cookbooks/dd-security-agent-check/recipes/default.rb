@@ -120,7 +120,7 @@ if node['platform_family'] != 'windows'
     # to DataDog/datadog-agent-buildimages.
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM ghcr.io/paulcacheux/cws-centos7:latest
+      FROM ghcr.io/paulcacheux/cws-centos7@sha256:4fc1aac178b5c1690ce71c37f22b8a23cedfb969c7056702c21be50e848e554f
 
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
 
