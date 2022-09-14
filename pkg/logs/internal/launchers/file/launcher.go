@@ -137,9 +137,8 @@ func (s *Launcher) cleanup() {
 func (s *Launcher) scan() {
 	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
-	tailersLen := len(s.tailers)
 
-	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), tailersLen)
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), len(s.tailers))
 
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
 	// stop the tailers.
@@ -192,8 +191,7 @@ func (s *Launcher) scan() {
 		}
 	}
 
-	// Recompute 'tailersLen' to take into account the tailers we stopped.
-	tailersLen = len(s.tailers)
+	tailersLen := len(s.tailers)
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
 	for _, file := range files {
