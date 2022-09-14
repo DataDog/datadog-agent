@@ -544,7 +544,6 @@ func TestApplyOrdering(t *testing.T) {
 		fs.createFileWithTime("q.log", baseTime.Add(time.Second*3))
 		fs.createFileWithTime("z.log", baseTime.Add(time.Second*1))
 
-		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		files := []*tailer.File{
 			{Path: fs.path("t.log")},
 			{Path: fs.path("a.log")},
@@ -552,7 +551,8 @@ func TestApplyOrdering(t *testing.T) {
 			{Path: fs.path("q.log")},
 		}
 		// When we apply ordering
-		fileProvider.applyOrdering(files)
+		applyModTimeOrdering(files)
+
 		// Then we should see all files in descending mtime order
 		assert.Len(t, files, 4)
 		assert.Equal(t, fs.path("a.log"), files[0].Path)
@@ -569,7 +569,6 @@ func TestApplyOrdering(t *testing.T) {
 		fs.createFileWithTime("b.log", baseTime.Add(time.Second*3))
 		fs.createFileWithTime("c.log", baseTime.Add(time.Second*1))
 
-		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		files := []*tailer.File{
 			{Path: fs.path("z.log")},
 			{Path: fs.path("a.log")},
@@ -577,7 +576,7 @@ func TestApplyOrdering(t *testing.T) {
 			{Path: fs.path("b.log")},
 		}
 		// When we apply ordering
-		fileProvider.applyOrdering(files)
+		applyModTimeOrdering(files)
 		// Then we should see all files in descending mtime order
 		assert.Len(t, files, 4)
 		assert.Equal(t, fs.path("a.log"), files[0].Path)
@@ -588,9 +587,6 @@ func TestApplyOrdering(t *testing.T) {
 	})
 
 	t.Run("Reverse Lexicographical", func(t *testing.T) {
-		fileProvider := NewFileProvider(0, WildcardUseFileName)
-		// For lexicographical ordering, we don't actually need the files
-		// to exist on the FS, so that part is skipped for these tests
 		t.Run("Flat Directory", func(t *testing.T) {
 			files := []*tailer.File{
 				{Path: "a.log"},
@@ -598,7 +594,7 @@ func TestApplyOrdering(t *testing.T) {
 				{Path: "q.log"},
 				{Path: "z.log"},
 			}
-			fileProvider.applyOrdering(files)
+			applyReverseLexicographicalOrdering(files)
 
 			assert.Len(t, files, 4)
 			assert.Equal(t, "z.log", files[0].Path)
@@ -613,7 +609,7 @@ func TestApplyOrdering(t *testing.T) {
 				{Path: "/tmp/2/2018.log"},
 				{Path: "/tmp/1/2016.log"},
 			}
-			fileProvider.applyOrdering(files)
+			applyReverseLexicographicalOrdering(files)
 			assert.Equal(t, "/tmp/2/2018.log", files[0].Path)
 			assert.Equal(t, "/tmp/1/2018.log", files[1].Path)
 			assert.Equal(t, "/tmp/1/2017.log", files[2].Path)
@@ -626,7 +622,7 @@ func TestApplyOrdering(t *testing.T) {
 				{Path: "/tmp/2020-02-21/error.log"},
 				{Path: "/tmp/2020-02-22/error.log"},
 			}
-			fileProvider.applyOrdering(files)
+			applyReverseLexicographicalOrdering(files)
 			assert.Equal(t, "/tmp/2020-02-22/error.log", files[0].Path)
 			assert.Equal(t, "/tmp/2020-02-21/error.log", files[1].Path)
 			assert.Equal(t, "/tmp/2020-02-20/error.log", files[2].Path)
@@ -640,7 +636,7 @@ func TestApplyOrdering(t *testing.T) {
 				{Path: "/tmp/3/2018.log"},
 				{Path: "/tmp/1/2017.log"},
 			}
-			fileProvider.applyOrdering(files)
+			applyReverseLexicographicalOrdering(files)
 
 			assert.Equal(t, "/tmp/3/2018.log", files[0].Path)
 			assert.Equal(t, "/tmp/3/2016.log", files[1].Path)

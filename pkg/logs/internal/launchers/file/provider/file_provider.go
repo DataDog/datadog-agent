@@ -276,45 +276,52 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 	return files, nil
 }
 
+func applyModTimeOrdering(files []*tailer.File) {
+	statResults := make(map[*tailer.File]time.Time, len(files))
+	for _, file := range files {
+		statRes, err := os.Stat(file.Path)
+		if err != nil {
+			// File has moved, de-prioritize this file to avoid selecting it
+			// If it is selected anyway, Launcher#startNewTailer will fail and log a warning
+			statResults[file] = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
+		} else {
+			statResults[file] = statRes.ModTime()
+		}
+	}
+	// sort paths descending by mtime
+	sort.SliceStable(files, func(i, j int) bool {
+		return statResults[files[i]].After(statResults[files[j]])
+	})
+}
+
+func applyReverseLexicographicalOrdering(files []*tailer.File) {
+	// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
+	// This is true in the current go implementation, but it is unsafe to assume
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=330;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
+	// https://github.com/golang/go/issues/17153
+	//
+	// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
+	// contains information in the file datetime. Most of the time we want the most recent files.
+	// Here, we reverse paths to have stable sort keep reverse lexicographical order w.r.t dir names. Example:
+	// [/tmp/1/2017.log, /tmp/1/2018.log, /tmp/2/2018.log] becomes [/tmp/2/2018.log, /tmp/1/2018.log, /tmp/1/2017.log]
+	// then kept as is by the sort below.
+
+	// https://github.com/golang/go/wiki/SliceTricks#reversing
+	for i := len(files)/2 - 1; i >= 0; i-- {
+		opp := len(files) - 1 - i
+		files[i], files[opp] = files[opp], files[i]
+	}
+	// sort paths by descending filenames
+	sort.SliceStable(files, func(i, j int) bool {
+		return filepath.Base(files[i].Path) > filepath.Base(files[j].Path)
+	})
+}
+
 // applyOrdering sorts the 'files' slice in-place by the currently configured 'wildcardOrder'
 func (p *FileProvider) applyOrdering(files []*tailer.File) {
 	if p.wildcardOrder == wildcardModTime {
-		statResults := make(map[*tailer.File]time.Time, len(files))
-		for _, file := range files {
-			statRes, err := os.Stat(file.Path)
-			if err != nil {
-				// File has moved, de-prioritize this file to avoid selecting it
-				// If it is selected anyway, Launcher#startNewTailer will fail and log a warning
-				statResults[file] = time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
-			} else {
-				statResults[file] = statRes.ModTime()
-			}
-		}
-		// sort paths descending by mtime
-		sort.SliceStable(files, func(i, j int) bool {
-			return statResults[files[i]].After(statResults[files[j]])
-		})
+		applyModTimeOrdering(files)
 	} else if p.wildcardOrder == wildcardReverseLexicographical {
-		// FIXME - this codepath assumes that the 'paths' will arrive in lexicographical order
-		// This is true in the current go implementation, but it is unsafe to assume
-		// https://cs.opensource.google/go/go/+/refs/tags/go1.19:src/path/filepath/match.go;l=330;drc=e4b624eae5fa3c51b8ca808da29442d3e3aaef04
-		// https://github.com/golang/go/issues/17153
-		//
-		// Files are sorted because of a heuristic on the filename: often the filename and/or the folder name
-		// contains information in the file datetime. Most of the time we want the most recent files.
-		// Here, we reverse paths to have stable sort keep reverse lexicographical order w.r.t dir names. Example:
-		// [/tmp/1/2017.log, /tmp/1/2018.log, /tmp/2/2018.log] becomes [/tmp/2/2018.log, /tmp/1/2018.log, /tmp/1/2017.log]
-		// then kept as is by the sort below.
-
-		// https://github.com/golang/go/wiki/SliceTricks#reversing
-		for i := len(files)/2 - 1; i >= 0; i-- {
-			opp := len(files) - 1 - i
-			files[i], files[opp] = files[opp], files[i]
-		}
-		// sort paths by descending filenames
-		sort.SliceStable(files, func(i, j int) bool {
-			return filepath.Base(files[i].Path) > filepath.Base(files[j].Path)
-		})
+		applyReverseLexicographicalOrdering(files)
 	}
-
 }
