@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -297,6 +298,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
+			Device:   "SomeDevice",
 			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		})
 	}
@@ -311,10 +313,12 @@ func TestMarshalSplitCompress(t *testing.T) {
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
 	for _, compressedPayload := range payloads {
-		_, err := decompressPayload(*compressedPayload)
+		payload, err := decompressPayload(*compressedPayload)
 		require.NoError(t, err)
 
-		// TODO: unmarshal these when agent-payload has support
+		pl := new(gogen.MetricPayload)
+		err = pl.Unmarshal(payload)
+		require.NoError(t, err)
 	}
 }
 

@@ -206,6 +206,11 @@ type StatCounters struct {
 	TCPClosed      uint32
 }
 
+// IsZero returns whether all the stat counter values are zeroes
+func (s StatCounters) IsZero() bool {
+	return s == StatCounters{}
+}
+
 // StatCountersByCookie stores StatCounters by unique cookie
 type StatCountersByCookie []*struct {
 	StatCounters
