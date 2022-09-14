@@ -712,7 +712,9 @@ def kitchen_prepare(ctx):
     ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
 
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    cookbook_files_dir = os.path.join(ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files")
+    cookbook_files_dir = os.path.join(
+        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
+    )
 
     testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
     build_functional_tests(
