@@ -1,5 +1,7 @@
 cws:
   template: ci/dynamic-build/cws.tpl.yml
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
   changed:
     - pkg/ebpf/**/*
     - pkg/security/**/*

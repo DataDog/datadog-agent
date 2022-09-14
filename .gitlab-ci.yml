@@ -759,5 +759,4 @@ variables:
     allow_failure: true
 
 dynamic-build-run:
-  needs: ["dynamic-build-create"]
   stage: source_test
