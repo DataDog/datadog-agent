@@ -1,5 +1,7 @@
 cws:
   template: ci/dynamic-build/cws.tpl.yml
+  variables:
+    DD_AGENT_TESTING_DIR: $DD_AGENT_TESTING_DIR
   changed:
     - pkg/ebpf/**/*
     - pkg/security/**/*
