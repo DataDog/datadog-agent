@@ -90,7 +90,7 @@ func (adm *ActivityDumpManager) cleanup() {
 	dumps := adm.getExpiredDumps()
 
 	for _, ad := range dumps {
-		ad.Stop(true)
+		ad.Finalize(true)
 		seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 
 		// persist dump
@@ -375,7 +375,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	toDelete := -1
 	for i, d := range adm.activeDumps {
 		if d.commMatches(params.GetComm()) {
-			d.Stop(true)
+			d.Finalize(true)
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i
 
@@ -543,7 +543,7 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 	// handle overweight dumps
 	for _, ad := range dumps {
 		// stop the dump but do not release the cgroup
-		ad.Stop(false)
+		ad.Finalize(false)
 		seclog.Infof("tracing paused for [%s]", ad.GetSelectorStr())
 
 		// persist dump
@@ -560,8 +560,8 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		}
 		seclog.Infof("tracing resumed for [%s]", newDump.GetSelectorStr())
 
-		// remove old load config
-		if err := ad.removeLoadConfig(); err != nil {
+		// disable old dump
+		if err := ad.disable(); err != nil {
 			seclog.Errorf("couldn't clean up old dump [%s]: %v", ad.GetSelectorStr(), err)
 		}
 	}

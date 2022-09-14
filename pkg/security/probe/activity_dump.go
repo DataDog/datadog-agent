@@ -464,21 +464,26 @@ func (ad *ActivityDump) disable() error {
 	return nil
 }
 
-// Stop stops an active dump
-func (ad *ActivityDump) Stop(releaseTracedCgroupSpot bool) {
+// Finalize finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
+// spot can be released, the dump will be fully stopped.
+func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 	ad.Lock()
 	defer ad.Unlock()
 	ad.DumpMetadata.End = time.Now()
 
-	if err := ad.disable(); err != nil {
-		seclog.Errorf("couldn't disable activity dump: %v", err)
-	}
-
-	// make sure we release a cgroup spot only for cgroup generated dumps
-	if releaseTracedCgroupSpot && len(ad.DumpMetadata.ContainerID) > 0 {
-		if err := ad.adm.loadController.releaseTracedCgroupSpot(); err != nil {
-			seclog.Errorf("couldn't release a traced cgroup spot: %v", err)
+	if releaseTracedCgroupSpot || len(ad.DumpMetadata.Comm) > 0 {
+		if err := ad.disable(); err != nil {
+			seclog.Errorf("couldn't disable activity dump: %v", err)
 		}
+
+		// make sure we release a cgroup spot only for cgroup generated dumps
+		if len(ad.DumpMetadata.ContainerID) > 0 {
+			if err := ad.adm.loadController.releaseTracedCgroupSpot(); err != nil {
+				seclog.Errorf("couldn't release a traced cgroup spot: %v", err)
+			}
+		}
+
+		ad.state = Stopped
 	}
 
 	// add additional tags
@@ -494,7 +499,6 @@ func (ad *ActivityDump) Stop(releaseTracedCgroupSpot bool) {
 
 	// scrub processes and retain args envs now
 	ad.scrubAndRetainProcessArgsEnvs()
-	ad.state = Stopped
 }
 
 func (ad *ActivityDump) scrubAndRetainProcessArgsEnvs() {
