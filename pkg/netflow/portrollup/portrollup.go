@@ -25,7 +25,12 @@ const (
 	IsEphemeralDestPort = IsEphemeralStatus(2)
 )
 
-// EndpointPairPortRollupStore contains port rollup states
+// EndpointPairPortRollupStore contains port rollup states.
+// It tracks ports that have been seen so far and help decide whether a port should be rolled up or not.
+// We use two stores (curStore, newStore) to be able to clean old tracked ports when they are not seen anymore.
+// Adding a port will double write to curStore and newStore. This means a port is tracked for `2 * portRollupThreshold` seconds.
+// When IsEphemeral is called, only curStore is used.
+// UseNewStoreAsCurrentStore is meant to be called externally to use new store as current store and empty the new store.
 type EndpointPairPortRollupStore struct {
 	portRollupThreshold int
 	curStore            map[string]*portRollupTracker
