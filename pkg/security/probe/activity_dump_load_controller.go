@@ -245,7 +245,9 @@ func (lc *ActivityDumpLoadController) pushTracedCgroupsCount() error {
 
 func (lc *ActivityDumpLoadController) releaseTracedCgroupSpot() error {
 	return retry.Do(lc.editCgroupsCounter(func(counter *tracedCgroupsCounter) error {
+		seclog.Infof("AD kernel space counter is at %d", counter.Counter)
 		if counter.Counter > 0 {
+			seclog.Infof("AD setting kernel space counter to %d", counter.Counter)
 			counter.Counter--
 		}
 		return nil

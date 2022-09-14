@@ -204,6 +204,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     // increment active dumps counter
     // Warning: this must happen only once we are sure that the new dump is fully operational
     counter->counter++;
+    bpf_printk("counter is at: %d\n", counter->counter);
 
     unlock_cgroups_counter();
     return true;
