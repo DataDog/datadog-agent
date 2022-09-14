@@ -277,6 +277,8 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 
 	// append activity dump to the list of active dumps
 	adm.activeDumps = append(adm.activeDumps, newDump)
+
+	seclog.Infof("tracing started for [%s]", newDump.GetSelectorStr())
 	return nil
 }
 
@@ -320,7 +322,6 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 		seclog.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
 		return
 	}
-	seclog.Infof("tracing started for [%s]", newDump.GetSelectorStr())
 }
 
 // DumpActivity handles an activity dump request
@@ -348,7 +349,6 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
 		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
 	}
-	seclog.Infof("tracing started for [%s]", newDump.GetSelectorStr())
 
 	return newDump.ToSecurityActivityDumpMessage(), nil
 }
@@ -486,6 +486,7 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 	var event model.CgroupTracingEvent
 	containerIDB := make([]byte, model.ContainerIDLen)
 	iterator := adm.tracedCgroupsMap.Iterate()
+	seclog.Infof("snapshotting traced_cgroups map")
 
 	for iterator.Next(&containerIDB, &event.ConfigCookie) {
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
@@ -558,10 +559,9 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 			seclog.Errorf("couldn't resume tracing [%s]: %v", newDump.GetSelectorStr(), err)
 			return
 		}
-		seclog.Infof("tracing resumed for [%s]", newDump.GetSelectorStr())
 
 		// disable old dump
-		if err := ad.disable(); err != nil {
+		if err := ad.removeLoadConfig(); err != nil {
 			seclog.Errorf("couldn't clean up old dump [%s]: %v", ad.GetSelectorStr(), err)
 		}
 	}

@@ -174,9 +174,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
         goto fail;
     }
 
-    if (counter->counter < counter->max) {
-        counter->counter++;
-    } else {
+    if (counter->counter >= counter->max) {
         goto fail;
     }
 
@@ -202,6 +200,10 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
         // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
         goto fail;
     }
+
+    // increment active dumps counter
+    // Warning: this must happen only once we are sure that the new dump is fully operational
+    counter->counter++;
 
     unlock_cgroups_counter();
     return true;
