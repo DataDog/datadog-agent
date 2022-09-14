@@ -29,10 +29,12 @@ func TestAggregator(t *testing.T) {
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 	conf := config.NetflowConfig{
-		StopTimeout:             10,
-		AggregatorBufferSize:    20,
-		AggregatorFlushInterval: 1,
-		LogPayloads:             true,
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
+		LogPayloads:                            true,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,

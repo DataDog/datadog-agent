@@ -6,9 +6,8 @@
 package flowaggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/enrichment"
-
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/netflow/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 )
 
