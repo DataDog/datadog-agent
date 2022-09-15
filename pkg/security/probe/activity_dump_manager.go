@@ -491,6 +491,7 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
+			seclog.Errorf("config not found for (%s): %v", string(containerIDB), err)
 			_ = adm.tracedCgroupsMap.Delete(containerIDB)
 			continue
 		}

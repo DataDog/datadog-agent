@@ -61,11 +61,12 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.probe.config.ActivityDumpTracedEventTypes,
 		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout,
-		lc.adm.probe.config.ActivityDumpCgroupWaitListTimeout,
+		0,
 		lc.adm.probe.config.ActivityDumpRateLimiter,
 		time.Now(),
 		lc.adm.probe.resolvers.TimeResolver,
 	)
+	defaults.WaitListTimestampRaw = uint64(lc.adm.probe.config.ActivityDumpCgroupWaitListTimeout)
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}

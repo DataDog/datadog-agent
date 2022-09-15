@@ -392,7 +392,7 @@ func (ad *ActivityDump) enable() error {
 // pause (thread unsafe) assuming the current dump is running, "pause" sets the kernel space filters of the dump so that
 // events are ignored in kernel space, and not sent to user space.
 func (ad *ActivityDump) pause() error {
-	if ad.state > Paused {
+	if ad.state <= Paused {
 		// nothing to do
 		return nil
 	}
@@ -417,7 +417,7 @@ func (ad *ActivityDump) removeLoadConfig() error {
 // disable (thread unsafe) assuming the current dump is running, "disable" removes kernel space filters so that events are no longer sent
 // from kernel space
 func (ad *ActivityDump) disable() error {
-	if ad.state > Disabled {
+	if ad.state <= Disabled {
 		// nothing to do
 		return nil
 	}

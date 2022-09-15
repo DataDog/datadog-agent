@@ -141,6 +141,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     *config = *defaults;
     config->start_timestamp = now;
     config->end_timestamp = config->start_timestamp + config->timeout;
+    config->wait_list_timestamp = config->start_timestamp + config->wait_list_timestamp;
 
     int ret = bpf_map_update_elem(&activity_dumps_config, &cookie, config, BPF_ANY);
     if (ret < 0) {
