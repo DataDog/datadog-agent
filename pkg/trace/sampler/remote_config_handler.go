@@ -11,22 +11,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-// ApmRemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
-type ApmRemoteConfigHandler struct {
+// APMRemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
+type APMRemoteConfigHandler struct {
 	remoteClient    config.RemoteClient
 	conf            *config.AgentConfig
 	prioritySampler *PrioritySampler
 	errorsSampler   *ErrorsSampler
 }
 
-func NewApmRemoteConfigHandler(conf *config.AgentConfig, prioritySampler *PrioritySampler, errorSampler *ErrorsSampler) *ApmRemoteConfigHandler {
+func NewAPMRemoteConfigHandler(conf *config.AgentConfig, prioritySampler *PrioritySampler, errorSampler *ErrorsSampler) *APMRemoteConfigHandler {
 	if conf.RemoteSamplingClient == nil {
 		return nil
 	}
 
-	prioritySampler.EnableRemoteRates(conf.MaxRemoteTPS, conf.AgentVersion)
+	prioritySampler.enableRemoteRates(conf.MaxRemoteTPS, conf.AgentVersion)
 
-	return &ApmRemoteConfigHandler{
+	return &APMRemoteConfigHandler{
 		remoteClient:    conf.RemoteSamplingClient,
 		conf:            conf,
 		prioritySampler: prioritySampler,
@@ -34,7 +34,7 @@ func NewApmRemoteConfigHandler(conf *config.AgentConfig, prioritySampler *Priori
 	}
 }
 
-func (a *ApmRemoteConfigHandler) Start() {
+func (a *APMRemoteConfigHandler) Start() {
 	if a == nil {
 		return
 	}
@@ -43,13 +43,13 @@ func (a *ApmRemoteConfigHandler) Start() {
 	a.remoteClient.RegisterAPMUpdate(a.onUpdate)
 }
 
-func (a *ApmRemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
+func (a *APMRemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
 	a.prioritySampler.remoteRates.update(update)
 	a.updateRareSamplerConfig(update)
 	a.updateErrorsSamplerConfig(update)
 }
 
-func (a *ApmRemoteConfigHandler) updateRareSamplerConfig(update map[string]state.APMSamplingConfig) {
+func (a *APMRemoteConfigHandler) updateRareSamplerConfig(update map[string]state.APMSamplingConfig) {
 	for _, conf := range update {
 		// We expect the `update` map to contain only one entry for now
 		switch conf.Config.RareSamplerConfig {
@@ -61,7 +61,7 @@ func (a *ApmRemoteConfigHandler) updateRareSamplerConfig(update map[string]state
 	}
 }
 
-func (a *ApmRemoteConfigHandler) updateErrorsSamplerConfig(update map[string]state.APMSamplingConfig) {
+func (a *APMRemoteConfigHandler) updateErrorsSamplerConfig(update map[string]state.APMSamplingConfig) {
 	for _, conf := range update {
 		// We expect the `update` map to contain only one entry for now
 		if conf.Config.ErrorsSamplerConfig == nil {

@@ -135,7 +135,7 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	return sampled
 }
 
-func (s *PrioritySampler) EnableRemoteRates(maxTPS float64, agentVersion string) {
+func (s *PrioritySampler) enableRemoteRates(maxTPS float64, agentVersion string) {
 	s.remoteRates = newRemoteRates(maxTPS, agentVersion)
 }
 

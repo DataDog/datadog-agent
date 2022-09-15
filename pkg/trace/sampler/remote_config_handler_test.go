@@ -23,7 +23,7 @@ func TestRemoteConfigDisbled(t *testing.T) {
 	}
 
 	// when we build the APM remote config handler
-	a := NewApmRemoteConfigHandler(conf, nil, nil)
+	a := NewAPMRemoteConfigHandler(conf, nil, nil)
 
 	// then nil is returned
 	assert.Nil(t, a)
@@ -45,7 +45,7 @@ func TestConstructorRemoteConfigEnabled(t *testing.T) {
 	errorsSampler := ErrorsSampler{}
 
 	// when we build the APM remote config handler
-	a := NewApmRemoteConfigHandler(&conf, &prioritySampler, &errorsSampler)
+	a := NewAPMRemoteConfigHandler(&conf, &prioritySampler, &errorsSampler)
 
 	assert.Equal(t, &conf, a.conf)
 	assert.Equal(t, &prioritySampler, a.prioritySampler)
@@ -74,7 +74,7 @@ func TestToggleRareSampler(t *testing.T) {
 	}
 	prioritySampler := PrioritySampler{}
 	errorsSampler := ErrorsSampler{}
-	a := NewApmRemoteConfigHandler(&conf, &prioritySampler, &errorsSampler)
+	a := NewAPMRemoteConfigHandler(&conf, &prioritySampler, &errorsSampler)
 	a.Start()
 
 	// when an unset remote config value for rare sampler is received
@@ -114,7 +114,7 @@ func TestUpdateErrorsSamplerTPS(t *testing.T) {
 	}
 	prioritySampler := PrioritySampler{}
 	errorsSampler := ErrorsSampler{ScoreSampler: ScoreSampler{Sampler: &Sampler{targetTPS: atomic.NewFloat64(1)}}}
-	a := NewApmRemoteConfigHandler(&conf, &prioritySampler, &errorsSampler)
+	a := NewAPMRemoteConfigHandler(&conf, &prioritySampler, &errorsSampler)
 	a.Start()
 
 	// when a remote config value for errors TPS is received

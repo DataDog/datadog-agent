@@ -48,7 +48,7 @@ type Agent struct {
 	EventProcessor         *event.Processor
 	TraceWriter            *writer.TraceWriter
 	StatsWriter            *writer.StatsWriter
-	ApmRemoteConfigHandler *sampler.ApmRemoteConfigHandler
+	ApmRemoteConfigHandler *sampler.APMRemoteConfigHandler
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -102,7 +102,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
-	agnt.ApmRemoteConfigHandler = sampler.NewApmRemoteConfigHandler(conf, agnt.PrioritySampler, agnt.ErrorsSampler)
+	agnt.ApmRemoteConfigHandler = sampler.NewAPMRemoteConfigHandler(conf, agnt.PrioritySampler, agnt.ErrorsSampler)
 
 	return agnt
 }
