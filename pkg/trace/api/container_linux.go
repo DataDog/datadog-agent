@@ -7,14 +7,15 @@ package api
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type ucredKey struct{}
@@ -127,9 +128,10 @@ func (c *cgroupIDProvider) getCachedContainerID(pid string) (string, error) {
 	return val, nil
 }
 
-// The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go
-// It is not imported to avoid importing the entirety of datadog-agent which causes problems for the trace-agent
-
+// The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go. It is not
+// imported to avoid making the datadog-agent module a dependency of the pkg/trace module. The
+// datadog-agent module contains replace directives which are not inherited by packages that
+// require it, and cannot be guaranteed to function correctly as a dependency.
 type cacheEntry struct {
 	value     interface{}
 	err       error
