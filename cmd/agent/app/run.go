@@ -338,7 +338,7 @@ func StartAgent() error {
 	if config.IsFeaturePresent(config.CloudFoundry) && !config.Datadog.GetBool("cloud_foundry_buildpack") {
 		containerTagger, err := containertagger.NewContainerTagger()
 		if err != nil {
-			log.Errorf("Failed to start Cloud Foundry container tagger: %v", err)
+			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
 		} else {
 			containerTagger.Start(common.MainCtx)
 		}
