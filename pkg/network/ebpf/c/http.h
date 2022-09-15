@@ -4,37 +4,34 @@
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
+#include "https.h"
 
 #include <uapi/linux/ptrace.h>
 
-static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, http_batch_state_t *batch_state) {
-    __builtin_memset(key, 0, sizeof(http_batch_key_t));
-    key->cpu = cpu;
-    key->page_num = batch_state->idx % HTTP_BATCH_PAGES;
+static __always_inline http_batch_key_t http_get_batch_key(u64 batch_idx) {
+    http_batch_key_t key = { 0 };
+    key.cpu = bpf_get_smp_processor_id();
+    key.page_num = batch_idx % HTTP_BATCH_PAGES;
+    return key;
 }
 
-static __always_inline void http_notify_batch(struct pt_regs *ctx) {
+static __always_inline void http_flush_batch(struct pt_regs *ctx) {
     u32 zero = 0;
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
-    if (batch_state == NULL || batch_state->idx_to_notify == batch_state->idx) {
+    if (batch_state == NULL || batch_state->idx_to_flush == batch_state->idx) {
         // batch is not ready to be flushed
         return;
     }
 
-    // It's important to zero the struct so we account for the padding
-    // introduced by the compilation, otherwise you get a `invalid indirect read
-    // from stack off`. Alternatively we can either use a #pragma pack directive
-    // or try to manually add the padding to the struct definition. More
-    // information in https://docs.cilium.io/en/v1.8/bpf/ under the
-    // alignment/padding section
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_notification_t notification = { 0 };
-    notification.cpu = cpu;
-    notification.batch_idx = batch_state->idx_to_notify;
+    http_batch_key_t key = http_get_batch_key(batch_state->idx_to_flush);
+    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
+    if (batch == NULL) {
+        return;
+    }
 
-    bpf_perf_event_output(ctx, &http_notifications, cpu, &notification, sizeof(http_batch_notification_t));
-    log_debug("http batch notification flushed: cpu: %d idx: %d\n", notification.cpu, notification.batch_idx);
-    batch_state->idx_to_notify++;
+    bpf_perf_event_output(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
+    log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
+    batch_state->idx_to_flush++;
 }
 
 static __always_inline int http_responding(http_transaction_t *http) {
@@ -49,43 +46,19 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         return;
     }
 
-    u32 cpu = bpf_get_smp_processor_id();
-    http_batch_key_t key;
-    http_prepare_key(cpu, &key, batch_state);
-
     // Retrieve the batch object
+    http_batch_key_t key = http_get_batch_key(batch_state->idx);
     http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
     if (batch == NULL) {
         return;
     }
 
-    // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
-    // If you try to directly write the desired batch slot by doing
-    //
-    //  __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
-    //
-    // You get an error like the following:
-    //
-    // R0=inv R1=map_value(ks=4,vs=4816) R2=imm5 R3=imm0 R4=imm0 R6=map_value(ks=48,vs=96) R7=imm1 R8=imm0 R9=inv R10=fp
-    ///809: (79) r2 = *(u64 *)(r6 +88)
-    // 810: (7b) *(u64 *)(r0 +88) = r2
-    // R0 invalid mem access 'inv'
-    //
-    // This is because the value range of the R0 register (holding the memory address of the batch) can't be
-    // figured out by the verifier and thus the memory access can't be considered safe during verification time.
-    // It seems that support for this type of access range by the verifier was added later on:
-    // https://patchwork.ozlabs.org/project/netdev/patch/1475074472-23538-1-git-send-email-jbacik@fb.com/
-    //
-    // What is unfortunate about this is not only that enqueuing a HTTP transaction is O(HTTP_BATCH_SIZE),
-    // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
-#pragma unroll
-    for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
-        if (i == batch_state->pos) {
-            __builtin_memcpy(&batch->txs[i], http, sizeof(http_transaction_t));
-        }
+    if (!(batch_state->pos >= 0 && batch_state->pos < HTTP_BATCH_SIZE)) {
+        return;
     }
 
-    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch_state->idx, batch_state->pos);
+    __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch_state->pos);
     batch_state->pos++;
 
     // Copy batch state information for user-space
@@ -168,23 +141,9 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
     return http_ebpf;
 }
 
-static __always_inline http_transaction_t* http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    // this can happen in the context of keep-alives
-    bool must_flush = (packet_type == HTTP_REQUEST && http->request_started) ||
+static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
+    return (packet_type == HTTP_REQUEST && http->request_started) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
-
-    if (!must_flush) {
-        return NULL;
-    }
-
-    u32 zero = 0;
-    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
-    if (batch_state == NULL) {
-        return NULL;
-    }
-
-    __builtin_memcpy(&batch_state->scratch_tx, http, sizeof(http_transaction_t));
-    return &batch_state->scratch_tx;
 }
 
 static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *skb_info, u16 pre_norm_src_port) {
@@ -215,7 +174,10 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         return 0;
     }
 
-    http_transaction_t *to_flush = http_should_flush_previous_state(http, packet_type);
+    if (http_should_flush_previous_state(http, packet_type)) {
+        http_enqueue(http);
+    }
+
     if (packet_type == HTTP_REQUEST) {
         http_begin_request(http, method, buffer);
     } else if (packet_type == HTTP_RESPONSE) {
@@ -224,32 +186,36 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     http->tags |= tags;
 
-    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
-    // This is to prevent things such as keep-alives adding up to the transaction latency
-    if (buffer[0] != 0) {
+    if (http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
-    bool conn_closed = http_closed(http, skb_info, http_stack->owned_by_src_port);
-
-    // It's a bit confusing that we're potentially overriding the return value
-    // of the call to `http_should_flush_previous_state` above, but in reality
-    // when `conn_closed` is true the previous value of `to_flush` should be
-    // null.  We write the code in this way to avoid inlining `http_enqueue`
-    // multiple times and keep the number of eBPF instructions to a minimum.
-    if (conn_closed) {
-        to_flush = http;
-    }
-
-    if (to_flush) {
-        http_enqueue(to_flush);
-    }
-
-    if (conn_closed) {
+    if (http_closed(http, skb_info, http_stack->owned_by_src_port)) {
+        http_enqueue(http);
         bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
     }
 
     return 0;
 }
+
+// this function is called by the socket-filter program to decide whether or not we should inspect
+// the contents of a certain packet, in order to avoid the cost of processing packets that are not
+// of interest such as empty ACKs, UDP data or encrypted traffic.
+static __always_inline bool http_allow_packet(http_transaction_t *http, struct __sk_buff* skb, skb_info_t *skb_info) {
+    // we're only interested in TCP traffic
+    if (!(http->tup.metadata&CONN_TYPE_TCP)) {
+        return false;
+    }
+
+    // if payload data is empty or if this is an encrypted packet, we only
+    // process it if the packet represents a TCP termination
+    bool empty_payload = skb_info->data_off == skb->len;
+    if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
+        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+    }
+
+    return true;
+}
+
 
 #endif

@@ -57,35 +57,35 @@ var mainProbes = map[probes.ProbeName]string{
 }
 
 var altProbes = map[probes.ProbeName]string{
-	probes.TCPRetransmitPre470:     "kprobe__tcp_retransmit_skb_pre_4_7_0",
-	probes.IP6MakeSkbPre470:        "kprobe__ip6_make_skb__pre_4_7_0",
-	probes.UDPRecvMsgPre410:        "kprobe__udp_recvmsg_pre_4_1_0",
-	probes.UDPv6RecvMsgPre410:      "kprobe__udpv6_recvmsg_pre_4_1_0",
-	probes.TCPSendMsgPre410:        "kprobe__tcp_sendmsg__pre_4_1_0",
-	probes.SKBConsumeUDP:           "kprobe__skb_consume_udp",
-	probes.SKBFreeDatagramLocked:   "kprobe__skb_free_datagram_locked",
-	probes.SKB__FreeDatagramLocked: "kprobe____skb_free_datagram_locked",
+	probes.TCPRetransmitPre470:              "kprobe__tcp_retransmit_skb_pre_4_7_0",
+	probes.IP6MakeSkbPre470:                 "kprobe__ip6_make_skb__pre_4_7_0",
+	probes.UDPRecvMsgPre410:                 "kprobe__udp_recvmsg_pre_4_1_0",
+	probes.UDPv6RecvMsgPre410:               "kprobe__udpv6_recvmsg_pre_4_1_0",
+	probes.TCPSendMsgPre410:                 "kprobe__tcp_sendmsg__pre_4_1_0",
+	probes.SKBConsumeUDP:                    "kprobe__skb_consume_udp",
+	probes.SKBFreeDatagramLocked:            "kprobe__skb_free_datagram_locked",
+	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
 func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
-			{Name: string(probes.TcpStatsMap)},
-			{Name: string(probes.TcpConnectSockPidMap)},
+			{Name: string(probes.TCPStatsMap)},
+			{Name: string(probes.TCPConnectSockPidMap)},
 			{Name: string(probes.ConnCloseBatchMap)},
 			{Name: "udp_recv_sock"},
 			{Name: "udpv6_recv_sock"},
 			{Name: string(probes.PortBindingsMap)},
-			{Name: string(probes.UdpPortBindingsMap)},
+			{Name: string(probes.UDPPortBindingsMap)},
 			{Name: "pending_bind"},
 			{Name: string(probes.TelemetryMap)},
 			{Name: string(probes.SockByPidFDMap)},
 			{Name: string(probes.PidFDBySockMap)},
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
-			{Name: string(probes.TcpSendMsgArgsMap)},
-			{Name: string(probes.IpMakeSkbArgsMap)},
+			{Name: string(probes.TCPSendMsgArgsMap)},
+			{Name: string(probes.IPMakeSkbArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -118,7 +118,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 	if runtimeTracer {
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.SKBFreeDatagramLocked], UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKB__FreeDatagramLocked), EBPFFuncName: altProbes[probes.SKB__FreeDatagramLocked], UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UnderscoredSKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.UnderscoredSKBFreeDatagramLocked], UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBConsumeUDP), EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}},
 		)
 	} else {

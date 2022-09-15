@@ -781,6 +781,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	testutil.RunCommands(t, cmds, false)
 
 	ifs, err := net.Interfaces()
+	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
@@ -1089,16 +1090,6 @@ func TestSelfConnect(t *testing.T) {
 		t.Logf("connections: %v", conns)
 		return len(conns) == 2
 	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
-
-	// forked child should have exited, and only the parent should remain
-	require.Eventually(t, func() bool {
-		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
-			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
-		})
-
-		t.Logf("connections: %v", conns)
-		return len(conns) == 1
-	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
 }
 
 func TestUDPPeekCount(t *testing.T) {
@@ -1612,6 +1603,7 @@ func TestShortWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	sndBufSize, err := unix.GetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_SNDBUF)
+	require.NoError(t, err)
 	require.GreaterOrEqual(t, sndBufSize, 5000)
 
 	var sa unix.SockaddrInet4
@@ -1619,6 +1611,7 @@ func TestShortWrite(t *testing.T) {
 	require.NoError(t, err)
 	copy(sa.Addr[:], net.ParseIP(host).To4())
 	port, err := strconv.ParseInt(portStr, 10, 32)
+	require.NoError(t, err)
 	sa.Port = int(port)
 
 	err = unix.Connect(s, &sa)

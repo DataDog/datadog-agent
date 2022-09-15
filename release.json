@@ -1,15 +1,15 @@
 {
     "base_branch": "main",
     "last_stable": {
-        "6": "6.37.0",
-        "7": "7.37.0"
+        "6": "6.39.0",
+        "7": "7.39.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-        "JMXFETCH_VERSION": "0.46.0",
-        "JMXFETCH_HASH": "3c41c0660e9c53451dfb51e8dad33bc87b03be1abc1fcd3c856ea81e6b0894ee",
+        "JMXFETCH_VERSION": "0.47.0",
+        "JMXFETCH_HASH": "83e76f30df776a9b261b7c69b26516a6a07075336da60c577c3ca2f6b82eebb8",
         "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.0.2",
@@ -20,8 +20,8 @@
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-        "JMXFETCH_VERSION": "0.46.0",
-        "JMXFETCH_HASH": "3c41c0660e9c53451dfb51e8dad33bc87b03be1abc1fcd3c856ea81e6b0894ee",
+        "JMXFETCH_VERSION": "0.47.0",
+        "JMXFETCH_HASH": "83e76f30df776a9b261b7c69b26516a6a07075336da60c577c3ca2f6b82eebb8",
         "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.0.2",

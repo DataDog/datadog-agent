@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/ebpf/perf"
 )
 
+// PerfHandler wraps an eBPF perf buffer
 type PerfHandler struct {
 	DataChannel  chan *DataEvent
 	LostChannel  chan uint64
@@ -23,6 +24,7 @@ type PerfHandler struct {
 	closed       bool
 }
 
+// DataEvent is a single event read from a perf buffer
 type DataEvent struct {
 	CPU  int
 	Data []byte
@@ -30,6 +32,7 @@ type DataEvent struct {
 	r *perf.Record
 }
 
+// Done returns the data buffer back to a sync.Pool
 func (d *DataEvent) Done() {
 	recordPool.Put(d.r)
 }
@@ -40,6 +43,7 @@ var recordPool = sync.Pool{
 	},
 }
 
+// NewPerfHandler creates a PerfHandler
 func NewPerfHandler(dataChannelSize int) *PerfHandler {
 	return &PerfHandler{
 		DataChannel: make(chan *DataEvent, dataChannelSize),
@@ -50,6 +54,7 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 	}
 }
 
+// LostHandler is the callback intended to be used when configuring PerfMapOptions
 func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	if c.closed {
 		return
@@ -57,6 +62,7 @@ func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.Pe
 	c.LostChannel <- lostCount
 }
 
+// RecordHandler is the callback intended to be used when configuring PerfMapOptions
 func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	if c.closed {
 		return
@@ -65,6 +71,7 @@ func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMa
 	c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}
 }
 
+// Stop stops the perf handler and closes both channels
 func (c *PerfHandler) Stop() {
 	c.once.Do(func() {
 		c.closed = true

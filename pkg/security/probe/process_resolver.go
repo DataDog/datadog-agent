@@ -478,6 +478,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	if !entry.HasInterpreter() {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	}
+
 	// add netns
 	entry.NetNS, _ = utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
 
@@ -705,6 +711,10 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
+	} else {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	p.SetProcessArgs(entry)
@@ -802,34 +812,28 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	}
 
 	var ppid uint32
-	inserted := false
-	entry := p.entryCache[pid]
-	if entry == nil {
-		proc, err := process.NewProcess(int32(pid))
-		if err != nil {
-			return nil
-		}
-
-		filledProc := utils.GetFilledProcess(proc)
-		if filledProc == nil {
-			return nil
-		}
-
-		// ignore kthreads
-		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-			return nil
-		}
-
-		entry, inserted = p.syncCache(proc, filledProc)
-		if entry != nil {
-			// consider kworker processes with 0 as ppid
-			entry.IsKworker = filledProc.Ppid == 0
-		}
-
-		ppid = uint32(filledProc.Ppid)
-	} else {
-		ppid = entry.PPid
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		return nil
 	}
+
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return nil
+	}
+
+	// ignore kthreads
+	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+		return nil
+	}
+
+	entry, inserted := p.syncCache(proc, filledProc)
+	if entry != nil {
+		// consider kworker processes with 0 as ppid
+		entry.IsKworker = filledProc.Ppid == 0
+	}
+
+	ppid = uint32(filledProc.Ppid)
 
 	parent := p.resolveFromProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
@@ -1123,7 +1127,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	if entry != nil {
 		p.setAncestor(entry)
 
-		return nil, false
+		return entry, false
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})

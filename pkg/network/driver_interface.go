@@ -114,6 +114,10 @@ func (di *DriverInterface) Close() error {
 	return nil
 }
 
+func (di *DriverInterface) GetHandle() driver.Handle {
+	return di.driverFlowHandle
+}
+
 // setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) setupFlowHandle() error {

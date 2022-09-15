@@ -1,18 +1,20 @@
 version: '2.3'
 services:
   kubelet:
-    image: "datadog/docker-library:hyperkube_1_8_3"
-    command: "/hyperkube
-        kubelet
-        --cloud-provider=''
+    image: "datadog/docker-library:kubelet_1.25"
+    command: "--cloud-provider=''
         --fail-swap-on=false
         --make-iptables-util-chains=false
         --hairpin-mode=none
-        --pod-manifest-path=/opt
-        "
+        --container-runtime-endpoint=unix:///run/cri-dockerd.sock
+        --pod-manifest-path=/opt"
     network_mode: ${network_mode}
     volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys:/sys
+      - vardata:/var
+    tty: true
+    privileged: true
     healthcheck:
       test: ["CMD", "/bin/ls", "/var/lib/kubelet/pki/kubelet.crt"]
       interval: 1s
@@ -29,3 +31,5 @@ services:
       kubelet:
         condition: service_healthy
     network_mode: none
+volumes:
+  vardata:

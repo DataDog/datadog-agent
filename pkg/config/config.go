@@ -530,8 +530,9 @@ func InitConfig(config Config) {
 	// Depth of the channel the capture writer reads before persisting to disk.
 	// Default is 0 - blocking channel
 	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
-	// enable the no-aggregation pipeline
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", false)
+	// Enable the no-aggregation pipeline.
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
+	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
@@ -1061,7 +1062,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", false)
+	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
+	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
