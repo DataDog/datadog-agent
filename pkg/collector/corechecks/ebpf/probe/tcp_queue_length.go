@@ -44,7 +44,7 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, nil, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,9 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 }
 
 func (t *TCPQueueLengthTracer) Close() {
-	t.m.Stop(manager.CleanAll)
+	if err := t.m.Stop(manager.CleanAll); err != nil {
+		log.Errorf("error stopping TCP Queue Length: %s", err)
+	}
 }
 
 func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {

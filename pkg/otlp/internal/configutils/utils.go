@@ -44,10 +44,10 @@ type mapProvider struct {
 	cfg *confmap.Conf
 }
 
-func (m *mapProvider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (confmap.Retrieved, error) {
+func (m *mapProvider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (*confmap.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
 	if uri != mapLocation {
-		return confmap.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
+		return &confmap.Retrieved{}, fmt.Errorf("%v location is not supported by %v provider", uri, mapSchemeName)
 	}
 
 	return confmap.NewRetrieved(m.cfg.ToStringMap())
@@ -65,12 +65,13 @@ func (m *mapProvider) Shutdown(context.Context) error {
 func NewConfigProviderFromMap(cfg *confmap.Conf) service.ConfigProvider {
 	provider := &mapProvider{cfg}
 	settings := service.ConfigProviderSettings{
-		Locations: []string{mapLocation},
-		MapProviders: map[string]confmap.Provider{
-			"map": provider,
-		},
-		MapConverters: []confmap.Converter{},
-	}
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{mapLocation},
+			Providers: map[string]confmap.Provider{
+				"map": provider,
+			},
+			Converters: []confmap.Converter{},
+		}}
 	cp, err := service.NewConfigProvider(settings)
 	if err != nil {
 		panic(err)

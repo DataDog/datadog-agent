@@ -14,10 +14,11 @@ import (
 	"math"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -67,6 +68,7 @@ func newTelemetry() telemetry {
 	}
 }
 
+// New creates a new tracer
 func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
@@ -81,9 +83,9 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
@@ -170,10 +172,10 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(string(probes.TcpStatsMap))
+	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
 	if err != nil {
 		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
 	}
 
 	return tr, nil
@@ -238,7 +240,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 			continue
 		}
 		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, tcp)
+			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 		*buffer.Next() = *conn
 	}
@@ -260,16 +262,16 @@ func (t *telemetry) assign(other telemetry) {
 }
 
 func (t *telemetry) addConnection(conn *network.ConnectionStats) {
-	isTcp := conn.Type == network.TCP
+	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
-		if isTcp {
+		if isTCP {
 			t.tcpConns6.Inc()
 		} else {
 			t.udpConns6.Inc()
 		}
 	case network.AFINET:
-		if isTcp {
+		if isTCP {
 			t.tcpConns4.Inc()
 		} else {
 			t.udpConns4.Inc()
@@ -278,16 +280,16 @@ func (t *telemetry) addConnection(conn *network.ConnectionStats) {
 }
 
 func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
-	isTcp := conn.Type == network.TCP
+	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
-		if isTcp {
+		if isTCP {
 			t.tcpConns6.Dec()
 		} else {
 			t.udpConns6.Dec()
 		}
 	case network.AFINET:
-		if isTcp {
+		if isTCP {
 			t.tcpConns4.Dec()
 		} else {
 			t.udpConns4.Dec()
@@ -382,50 +384,55 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true); err != nil {
+	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true)
+	if err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
-	} else {
-		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
-		if err != nil {
-			return fmt.Errorf("failed to get TCP port binding map: %w", err)
-		}
-		for p, count := range tcpPorts {
-			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
-			pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
-			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-				return fmt.Errorf("failed to update TCP port binding map: %w", err)
-			}
+	}
+
+	tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
+	if err != nil {
+		return fmt.Errorf("failed to get TCP port binding map: %w", err)
+	}
+	for p, count := range tcpPorts {
+		log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
+		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
+		err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("failed to update TCP port binding map: %w", err)
 		}
 	}
 
-	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false); err != nil {
+	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false)
+	if err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
-	} else {
-		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
-		if err != nil {
-			return fmt.Errorf("failed to get UDP port binding map: %w", err)
-		}
-		for p, count := range udpPorts {
-			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
-			// UDP port bindings currently do not have network namespace numbers
-			pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
-			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
-			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-				return fmt.Errorf("failed to update UDP port binding map: %w", err)
-			}
+	}
+
+	udpPortMap, _, err := m.GetMap(string(probes.UDPPortBindingsMap))
+	if err != nil {
+		return fmt.Errorf("failed to get UDP port binding map: %w", err)
+	}
+	for p, count := range udpPorts {
+		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
+		// UDP port bindings currently do not have network namespace numbers
+		pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
+		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("failed to update UDP port binding map: %w", err)
 		}
 	}
 	return nil
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	conn.Monotonic.Retransmits = tcpStats.Retransmits
-	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+
+	m, _ := conn.Monotonic.Get(cookie)
+	m.Retransmits = tcpStats.Retransmits
+	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.Monotonic.Put(cookie, m)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -447,6 +454,7 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 		if _, reported := seen[*tuple]; reported {
 			t.pidCollisions.Inc()
 			stats.Retransmits = 0
+			stats.State_transitions = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}
@@ -465,15 +473,17 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic: network.StatCounters{
-			SentBytes:   s.Sent_bytes,
-			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
-		},
-		LastUpdateEpoch: s.Timestamp,
-		IsAssured:       s.IsAssured(),
+		Monotonic:        make(network.StatCountersByCookie, 0, 3),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
 	}
+
+	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
+	})
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

@@ -72,7 +72,11 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
     fi
 fi
 
-agent_major_version=6
+macos_full_version=$(sw_vers -productVersion)
+macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
+macos_minor_version=$(echo "${macos_full_version}" | cut -d '.' -f 2)
+
+agent_major_version=7
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
@@ -80,14 +84,29 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 7 by default.\033[0m"
 fi
 
-dmg_remote_file="datadogagent.dmg"
-if [ "$agent_major_version" = "7" ]; then
-    dmg_remote_file="datadog-agent-7-latest.dmg"
+dmg_version=
+if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 12 ]; }; then
+    echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
+    exit 1
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
+    echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
+    dmg_version="${agent_major_version}.34.0-1"
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
+    echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
+    dmg_version="${agent_major_version}.38.2-1"
+else
+    if [ "${agent_major_version}" -eq 6 ]; then
+        echo -e "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
+        exit 1
+    else
+        dmg_version="7-latest"
+    fi
 fi
-dmg_url="$dmg_base_url/$dmg_remote_file"
+
+dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then

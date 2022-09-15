@@ -41,7 +41,7 @@ type OOMKillProbe struct {
 }
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	compiledOutput, err := runtime.OomKill.Compile(cfg, nil, statsd.Client)
+	compiledOutput, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,9 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 }
 
 func (k *OOMKillProbe) Close() {
-	k.m.Stop(manager.CleanAll)
+	if err := k.m.Stop(manager.CleanAll); err != nil {
+		log.Errorf("error stopping OOM Kill: %s", err)
+	}
 }
 
 func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {

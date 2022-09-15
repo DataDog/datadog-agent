@@ -27,6 +27,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewIngressCollectorVersions builds the group of collector versions.
+func NewIngressCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewIngressCollector(),
+	)
+}
+
 // IngressCollector is a collector for Kubernetes Ingresss.
 type IngressCollector struct {
 	informer    netv1Informers.IngressInformer
@@ -41,9 +48,11 @@ type IngressCollector struct {
 func NewIngressCollector() *IngressCollector {
 	return &IngressCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "ingresses",
-			NodeType: orchestrator.K8sIngress,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "ingresses",
+			NodeType:         orchestrator.K8sIngress,
+			Version:          "networking.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
 	}

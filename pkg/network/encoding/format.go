@@ -7,10 +7,13 @@ package encoding
 
 import (
 	"math"
+	"reflect"
 	"sync"
+	"unsafe"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
+	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -76,14 +79,13 @@ func FormatConnection(
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
-
-	httpStats, tags := httpEncoder.GetHTTPAggregationsAndTags(conn)
+	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	conn.Tags |= tags
-	c.Tags = formatTags(tagsSet, conn)
+	conn.Tags |= staticTags
+	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
 	return c
 }
@@ -233,9 +235,31 @@ func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
 }
 
-func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []uint32) {
+func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
+	mm := murmur3.New32()
 	for _, tag := range network.GetStaticTags(c.Tags) {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
-	return tagsIdx
+
+	// Dynamic tags
+	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	return
+}
+
+func unsafeStringSlice(key string) []byte {
+	if len(key) == 0 {
+		return nil
+	}
+	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
+	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
 }

@@ -29,11 +29,11 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -101,11 +101,17 @@ type ProcessResolver struct {
 	pidCacheMap      *lib.Map
 	cacheSize        *atomic.Int64
 	opts             ProcessResolverOpts
-	hitsStats        map[string]*atomic.Int64
-	missStats        *atomic.Int64
-	addedEntries     *atomic.Int64
-	flushedEntries   *atomic.Int64
-	pathErrStats     *atomic.Int64
+
+	// stats
+	hitsStats      map[string]*atomic.Int64
+	missStats      *atomic.Int64
+	addedEntries   *atomic.Int64
+	flushedEntries *atomic.Int64
+	pathErrStats   *atomic.Int64
+	argsTruncated  *atomic.Int64
+	argsSize       *atomic.Int64
+	envsTruncated  *atomic.Int64
+	envsSize       *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -311,6 +317,30 @@ func (p *ProcessResolver) SendStats() error {
 		}
 	}
 
+	if count := p.argsTruncated.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverArgsTruncated, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send args truncated metric: %w", err)
+		}
+	}
+
+	if count := p.argsSize.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverArgsSize, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send args size metric: %w", err)
+		}
+	}
+
+	if count := p.envsTruncated.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverEnvsTruncated, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send envs truncated metric: %w", err)
+		}
+	}
+
+	if count := p.envsSize.Swap(0); count > 0 {
+		if err := p.probe.statsdClient.Count(metrics.MetricProcessResolverEnvsSize, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send envs size metric: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -421,8 +451,41 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	// Heuristic to detect likely interpreter event
+	// Cannot detect when a script if as follows:
+	// perl <<__HERE__
+	//#!/usr/bin/perl
+	//
+	//sleep 10;
+	//
+	//print "Hello from Perl\n";
+	//__HERE__
+	// Because the entry only has 1 argument (perl in this case). But can detect when a script is as follows:
+	//cat << EOF > perlscript.pl
+	//#!/usr/bin/perl
+	//
+	//sleep 15;
+	//
+	//print "Hello from Perl\n";
+	//
+	//EOF
+	if valueCount := len(entry.ArgsEntry.Values); valueCount > 1 {
+		firstArg := entry.ArgsEntry.Values[0]
+		lastArg := entry.ArgsEntry.Values[valueCount-1]
+		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
+		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
+			entry.LinuxBinprm.FileEvent = entry.FileEvent
+		}
+	}
+
+	if !entry.HasInterpreter() {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	}
+
 	// add netns
-	entry.NetNS, _ = utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(pid))
+	entry.NetNS, _ = utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
 
 	if p.probe.config.NetworkEnabled {
 		// snapshot pid routes in kernel space
@@ -559,29 +622,30 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	if entry.FileEvent.Inode == 0 || entry.FileEvent.MountID == 0 {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, error) {
+
+	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+		fileEvent.SetPathnameStr("")
+		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields)
 	if err != nil {
-		entry.FileEvent.SetPathnameStr("")
-		entry.FileEvent.SetBasenameStr("")
+		fileEvent.SetPathnameStr("")
+		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
 
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
-	entry.FileEvent.SetPathnameStr(pathnameStr)
-	entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 
-	return entry.FileEvent.PathnameStr, nil
+	fileEvent.SetPathnameStr(pathnameStr)
+	fileEvent.SetBasenameStr(path.Base(fileEvent.PathnameStr))
+
+	return fileEvent.PathnameStr, nil
 }
 
 func isBusybox(pathname string) bool {
@@ -639,8 +703,18 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(entry); err != nil {
+	if _, err := p.SetProcessPath(&entry.FileEvent); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
+	}
+
+	if entry.HasInterpreter() {
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
+			return fmt.Errorf("failed to resolve interpreter path: %w", err)
+		}
+	} else {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	p.SetProcessArgs(entry)
@@ -738,34 +812,28 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	}
 
 	var ppid uint32
-	inserted := false
-	entry := p.entryCache[pid]
-	if entry == nil {
-		proc, err := process.NewProcess(int32(pid))
-		if err != nil {
-			return nil
-		}
-
-		filledProc := utils.GetFilledProcess(proc)
-		if filledProc == nil {
-			return nil
-		}
-
-		// ignore kthreads
-		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-			return nil
-		}
-
-		entry, inserted = p.syncCache(proc, filledProc)
-		if entry != nil {
-			// consider kworker processes with 0 as ppid
-			entry.IsKworker = filledProc.Ppid == 0
-		}
-
-		ppid = uint32(filledProc.Ppid)
-	} else {
-		ppid = entry.PPid
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		return nil
 	}
+
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return nil
+	}
+
+	// ignore kthreads
+	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+		return nil
+	}
+
+	entry, inserted := p.syncCache(proc, filledProc)
+	if entry != nil {
+		// consider kworker processes with 0 as ppid
+		entry.IsKworker = filledProc.Ppid == 0
+	}
+
+	ppid = uint32(filledProc.Ppid)
 
 	parent := p.resolveFromProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
@@ -782,8 +850,15 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
+		if pce.ArgsTruncated {
+			p.argsTruncated.Inc()
+		}
+
+		entry := e.(*model.ArgsEnvsCacheEntry)
+		p.argsSize.Add(int64(entry.TotalSize))
+
 		pce.ArgsEntry = &model.ArgsEntry{
-			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+			ArgsEnvsCacheEntry: entry,
 		}
 
 		// attach to a process thus retain the head of the chain
@@ -846,8 +921,15 @@ func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, b
 // SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
+		if pce.EnvsTruncated {
+			p.envsTruncated.Inc()
+		}
+
+		entry := e.(*model.ArgsEnvsCacheEntry)
+		p.envsSize.Add(int64(entry.TotalSize))
+
 		pce.EnvsEntry = &model.EnvsEntry{
-			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+			ArgsEnvsCacheEntry: entry,
 		}
 
 		// attach to a process thus retain the head of the chain
@@ -1045,7 +1127,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	if entry != nil {
 		p.setAncestor(entry)
 
-		return nil, false
+		return entry, false
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
@@ -1210,6 +1292,10 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 		addedEntries:   atomic.NewInt64(0),
 		flushedEntries: atomic.NewInt64(0),
 		pathErrStats:   atomic.NewInt64(0),
+		argsTruncated:  atomic.NewInt64(0),
+		argsSize:       atomic.NewInt64(0),
+		envsTruncated:  atomic.NewInt64(0),
+		envsSize:       atomic.NewInt64(0),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)

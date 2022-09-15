@@ -14,14 +14,18 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go"
 	"github.com/davecgh/go-spew/spew"
@@ -30,6 +34,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -340,7 +345,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "args-overflow", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -364,8 +369,17 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
-			assert.Equal(t, 254, len(argv[1]), "wrong arg length")
+			assert.Equal(t, 255, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
+
+			// truncated is reported if a single argument is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.args_truncated")
+			if err != nil {
+				t.Errorf("not able to get args truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("arg not truncated: %s", args.(string))
+			}
 
 			argv0, err := event.GetFieldValue("exec.argv0")
 			if err != nil {
@@ -373,16 +387,18 @@ func TestProcessContext(t *testing.T) {
 			}
 			assert.Equal(t, "ls", argv0, "incorrect argv0: %s", argv0)
 		}))
+	})
 
-		var arg string
-		for i := 0; i != 300; i++ {
-			arg += "a"
-		}
+	test.Run(t, "args-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
 
 		// number of args overflow
-		nArgs, args := 200, []string{"-al"}
+		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
-			args = append(args, arg)
+			args = append(args, eval.RandString(50))
 		}
 
 		test.WaitSignal(t, func() error {
@@ -391,20 +407,70 @@ func TestProcessContext(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
-			args, err := event.GetFieldValue("exec.args")
+			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
 			}
 
-			argv := strings.Split(args.(string), " ")
-			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
+			argv := strings.Split(execArgs.(string), " ")
+			assert.Equal(t, 132, len(argv), "incorrect number of args: %s", argv)
 
+			for i := 0; i != 132; i++ {
+				assert.Equal(t, args[i], argv[i], "expected arg not found")
+			}
+
+			// truncated is reported if a single argument is truncated or if the list is truncated
 			truncated, err := event.GetFieldValue("exec.args_truncated")
 			if err != nil {
 				t.Errorf("not able to get args truncated")
 			}
 			if !truncated.(bool) {
-				t.Errorf("arg not truncated: %s", args.(string))
+				t.Errorf("arg not truncated: %s", execArgs.(string))
+			}
+		}))
+	})
+
+	test.Run(t, "args-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
+
+		// number of args overflow
+		nArgs, args := 1024, []string{"-al"}
+		for i := 0; i != nArgs; i++ {
+			args = append(args, eval.RandString(500))
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			// we need to ignore the error because the string of "a" generates a "File name too long" error
+			_ = cmd.Run()
+			return nil
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execArgs, err := event.GetFieldValue("exec.args")
+			if err != nil {
+				t.Errorf("not able to get args")
+			}
+
+			argv := strings.Split(execArgs.(string), " ")
+			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
+
+			for i := 0; i != 159; i++ {
+				expected := args[i]
+				if len(expected) > model.MaxArgEnvSize {
+					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+				}
+				assert.Equal(t, expected, argv[i], "expected arg not found")
+			}
+
+			// truncated is reported if a single argument is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.args_truncated")
+			if err != nil {
+				t.Errorf("not able to get args truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
 		}))
 	})
@@ -1472,12 +1538,11 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root())
+	wrapper, err := newDockerCmdWrapper(test.Root(), "alpine")
 	if err != nil {
 		t.Skip("docker no available")
 		return
 	}
-	wrapper.SetImage("alpine")
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
@@ -1528,6 +1593,171 @@ func TestProcessBusybox(t *testing.T) {
 	})
 }
 
+func TestProcessIdentifyInterpreter(t *testing.T) {
+	python, whichPythonErr := whichNonFatal("python")
+	if whichPythonErr != nil {
+		python = which(t, "python3")
+	}
+	perl := which(t, "perl")
+
+	tests := []struct {
+		name            string
+		rule            *rules.RuleDefinition
+		scriptName      string
+		executedScript  string
+		innerScriptName string
+		check           func(event *sprobe.Event, rule *rules.Rule)
+	}{
+		{
+			name: "regular exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_regular_exec",
+				Expression: `exec.file.name == ~"*python*" && process.ancestors.interpreter.file.name == "bash" && process.ancestors.file.name == "testsuite"`, // RHEL python is platform-python3.6
+			},
+			scriptName: "regularExec.sh",
+			executedScript: fmt.Sprintf(`#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+%s - << EOF
+print('Executing print inside a python (%s) script')
+
+EOF
+
+echo "Back to bash"`, python, python),
+		},
+		{
+			name: "regular exec without interpreter rule",
+			rule: &rules.RuleDefinition{
+				ID:         "test_regular_exec_without_interpreter_rule",
+				Expression: `exec.file.name == "perl" && exec.interpreter.file.name == ""`,
+			},
+			scriptName: "regularExecWithInterpreterRule.sh",
+			executedScript: fmt.Sprintf(`#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+%s <<__HERE__
+#!%s
+
+print "Executing print inside a perl (%s) script\n";
+__HERE__
+
+echo "Back to bash"`, perl, perl, perl),
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "")
+			},
+		},
+		{
+			name: "interpreted exec",
+			rule: &rules.RuleDefinition{
+				ID:         "test_interpreted_event",
+				Expression: `exec.interpreter.file.name == ~"*python*" && exec.file.name == "pyscript.py"`,
+			},
+			scriptName:      "interpretedExec.sh",
+			innerScriptName: "pyscript.py",
+			executedScript: fmt.Sprintf(`#!/bin/bash
+
+echo "Executing echo inside a bash script"
+
+cat << EOF > pyscript.py
+#!%s
+
+print('Executing print inside a python (%s) script')
+
+EOF
+
+echo "Back to bash"
+
+chmod 755 pyscript.py
+./pyscript.py`, python, python),
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
+			},
+		},
+		// TODO: Test for snapshotted processes
+		// TODO: Nested interpreted exec is unsupported for now
+		//		{
+		//			name: "nested interpreted exec",
+		//			rule: &rules.RuleDefinition{
+		//				ID:         "test_nested_interpreted_event",
+		//				Expression: fmt.Sprintf(`exec.interpreter.file.name == ~"perl"`),
+		//			},
+		//			scriptName: "nestedInterpretedExec.sh",
+		//			executedScript: `#!/bin/bash
+		//
+		//echo "Executing echo inside a bash script"
+		//
+		//cat << '__HERE__' > hello.pl
+		//#!/usr/bin/perl
+		//
+		//my $foo = "Hello from Perl";
+		//print "$foo\n";
+		//
+		//__HERE__
+		//
+		//chmod 755 hello.pl
+		//
+		//cat << EOF > pyscript.py
+		//#!/usr/bin/python3
+		//
+		//import subprocess
+		//
+		//print('Executing print inside a python script')
+		//
+		//subprocess.run(["perl", "./hello.pl"])
+		//
+		//EOF
+		//
+		//echo "Back to bash"
+		//
+		//chmod 755 pyscript.py
+		//./pyscript.py`,
+		//		},
+	}
+
+	var ruleList []*rules.RuleDefinition
+	for _, test := range tests {
+		ruleList = append(ruleList, test.rule)
+	}
+
+	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testModule.Close()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
+				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
+			}
+			defer os.Remove(scriptLocation)
+			defer os.Remove(test.innerScriptName) // script created by script is in working directory
+
+			testModule.WaitSignal(t, func() error {
+				cmd := exec.Command(scriptLocation)
+				output, scriptRunErr := cmd.CombinedOutput()
+				if scriptRunErr != nil {
+					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)
+				}
+				t.Logf(string(output))
+
+				offsets, _ := testModule.probe.GetOffsetConstants()
+				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
+
+				return nil
+			}, func(event *sprobe.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, test.rule.ID)
+				if test.check != nil {
+					test.check(event, rule)
+				}
+			})
+		})
+	}
+}
+
 func TestProcessResolution(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1564,7 +1794,9 @@ func TestProcessResolution(t *testing.T) {
 	test.WaitSignal(t, func() error {
 		var err error
 
-		args := []string{"multi-open", "/tmp/test-process-resolution", "/tmp/test-process-resolution"}
+		args := []string{"open", "/tmp/test-process-resolution", ";",
+			"getchar", ";",
+			"open", "/tmp/test-process-resolution"}
 
 		cmd := exec.Command(syscallTester, args...)
 		stdin, err = cmd.StdinPipe()
@@ -1575,8 +1807,6 @@ func TestProcessResolution(t *testing.T) {
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
-
-		_, err = io.WriteString(stdin, "\n")
 
 		return err
 	}, func(event *sprobe.Event, rule *rules.Rule) {
@@ -1594,6 +1824,7 @@ func TestProcessResolution(t *testing.T) {
 		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
 			t.Helper()
 
+			assert.NotNil(t, entry1)
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
@@ -1612,15 +1843,15 @@ func TestProcessResolution(t *testing.T) {
 
 		equals(t, cacheEntry, mapsEntry)
 
+		// This makes use of the cache and do not parse /proc
+		// it still checks the ResolveFromProcfs returns the correct entry
 		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
 		if procEntry == nil {
-			t.Errorf("not able to resolve the entry")
+			t.Fatalf("not able to resolve the entry")
 		}
 
-		equals(t, cacheEntry, procEntry)
+		equals(t, mapsEntry, procEntry)
 
-		if _, err = io.WriteString(stdin, "\n"); err != nil {
-			t.Error(err)
-		}
+		io.WriteString(stdin, "\n")
 	})
 }

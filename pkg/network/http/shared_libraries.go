@@ -25,22 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-/*
-#include "../ebpf/c/http-types.h"
-*/
-import "C"
-
-const pathMaxSize = int(C.LIB_PATH_MAX_SIZE)
-
-type libPath = C.lib_path_t
-
-func toLibPath(data []byte) C.lib_path_t {
-	return *(*C.lib_path_t)(unsafe.Pointer(&data[0]))
+func toLibPath(data []byte) libPath {
+	return *(*libPath)(unsafe.Pointer(&data[0]))
 }
 
 func (l *libPath) Bytes() []byte {
-	b := *(*[pathMaxSize]byte)(unsafe.Pointer(&l.buf))
-	return b[:l.len]
+	return l.Buf[:l.Len]
 }
 
 // syncInterval controls the frequency at which /proc/<PID>/maps are inspected.
@@ -109,7 +99,7 @@ func (w *soWatcher) Start() {
 				// if this shared library was loaded by system-probe we ignore it.
 				// this is to avoid a feedback-loop since the shared libraries here monitored
 				// end up being opened by system-probe
-				if int(lib.pid) == thisPID {
+				if int(lib.Pid) == thisPID {
 					event.Done()
 					break
 				}
@@ -122,7 +112,7 @@ func (w *soWatcher) Start() {
 
 					var (
 						libPath = string(path)
-						pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
+						pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
 					)
 
 					// resolving paths is expensive so we cache the libraries we've already seen
@@ -185,7 +175,9 @@ func (w *soWatcher) sync(libraries []so.Library) {
 		}
 
 		log.Debugf("unregistering library=%s", path)
-		unregisterCB(path)
+		if err := unregisterCB(path); err != nil {
+			log.Debugf("unregisterCB %s : %s", path, err)
+		}
 	}
 }
 
@@ -193,7 +185,9 @@ func (w *soWatcher) register(libPath string, r soRule) {
 	err := r.registerCB(libPath)
 	if err != nil {
 		log.Debugf("error registering library=%s: %s", libPath, err)
-		r.unregisterCB(libPath)
+		if err := r.unregisterCB(libPath); err != nil {
+			log.Debugf("unregisterCB %s : %s", libPath, err)
+		}
 		w.registered[libPath] = nil
 		return
 	}

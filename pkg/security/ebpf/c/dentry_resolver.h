@@ -12,6 +12,7 @@
 
 #define DENTRY_INVALID -1
 #define DENTRY_DISCARDED -2
+#define DENTRY_ERROR -3
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
@@ -98,22 +99,35 @@ struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_progs") dentry_resolver_
     .max_entries = 1,
 };
 
+struct bpf_map_def SEC("maps/is_discarded_by_inode_gen") is_discarded_by_inode_gen = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct is_discarded_by_inode_t),
+    .max_entries = 1,
+};
+
 int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct dentry_resolver_input_t *input) {
     struct path_leaf_t map_value = {};
     struct path_key_t key = input->key;
     struct path_key_t next_key = input->key;
     struct qstr qstr;
     struct dentry *dentry = input->dentry;
-    struct dentry *d_parent;
+    struct dentry *d_parent = NULL;
     struct inode *d_inode = NULL;
     int segment_len = 0;
-    struct is_discarded_by_inode_t params = {
+
+    u32 zero = 0;
+    struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
+    if (!params) {
+        return DENTRY_ERROR;
+    }
+    *params = (struct is_discarded_by_inode_t){
         .event_type = input->discarder_type,
         .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
     };
     // check if we should ignore the normal discarder check because of an activity dump
-    fill_activity_dump_discarder_state(ctx, &params);
+    fill_activity_dump_discarder_state(ctx, params);
 
     if (key.ino == 0 || key.mount_id == 0) {
         return DENTRY_INVALID;
@@ -125,7 +139,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
-        d_parent = NULL;
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
         key = next_key;
@@ -138,11 +151,17 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         }
 
         if (input->discarder_type && i <= 3) {
-            params.discarder.path_key.ino = key.ino;
-            params.discarder.path_key.mount_id = key.mount_id;
-            params.discarder.is_leaf = i == 0;
-            if (is_discarded_by_inode(&params)) {
+            params->discarder.path_key.ino = key.ino;
+            params->discarder.path_key.mount_id = key.mount_id;
+            params->discarder.is_leaf = i == 0;
+
+            switch (is_discarded_by_inode(params)) {
+            case DISCARDED:
                 return DENTRY_DISCARDED;
+            case SAVED_BY_AD:
+                input->saved_by_ad = true;
+            default:
+                break;
             }
         }
 

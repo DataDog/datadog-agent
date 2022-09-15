@@ -75,6 +75,21 @@ type Config struct {
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
+	// EnableHTTPHTTPSMonitoringViaETW specifies whether the tracer (on Windows) should monitor HTTP and or HTTPS traffic
+	EnableHTTPHTTPSMonitoringViaETW bool
+
+	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
+	// value is currently Windows only
+	MaxTrackedHTTPConnections int64
+
+	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling
+	// to be retrieved.  Currently Windows only
+	HTTPNotificationThreshold int64
+
+	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
+	// Currently Windows only
+	HTTPMaxRequestFragment int64
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -161,6 +176,16 @@ type Config struct {
 
 	// HTTP replace rules
 	HTTPReplaceRules []*ReplaceRule
+
+	// EnableRootNetNs disables using the network namespace of the root process (1)
+	// for things like creating netlink sockets for conntrack updates, etc.
+	EnableRootNetNs bool
+
+	// HTTPMapCleanerInterval is the interval to run the cleaner function.
+	HTTPMapCleanerInterval time.Duration
+
+	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
+	HTTPIdleConnectionTTL time.Duration
 }
 
 func join(pieces ...string) string {
@@ -205,9 +230,14 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		EnableHTTPMonitoring:            cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring:           cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableHTTPHTTPSMonitoringViaETW: cfg.GetBool(join(netNS, "enable_http_https_monitoring_via_etw")),
+		MaxHTTPStatsBuffered:            cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+
+		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
@@ -221,6 +251,11 @@ func New() *Config {
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 
 		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
+
+		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
+
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
@@ -231,7 +266,17 @@ func New() *Config {
 		// connections
 		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
 	}
+	if c.HTTPNotificationThreshold >= c.MaxTrackedHTTPConnections {
+		log.Warnf("Notification threshold set higher than tracked connections.  %d > %d ; resetting to %d",
+			c.HTTPNotificationThreshold, c.MaxTrackedHTTPConnections, c.MaxTrackedHTTPConnections/2)
+		c.HTTPNotificationThreshold = c.MaxTrackedHTTPConnections / 2
+	}
 
+	maxHTTPFrag := uint64(64)
+	if c.HTTPMaxRequestFragment > int64(maxHTTPFrag) { // dbtodo where is the actual max defined?
+		log.Warnf("Max HTTP fragment too large (%d) resetting to (%d) ", c.HTTPMaxRequestFragment, maxHTTPFrag)
+		c.HTTPMaxRequestFragment = int64(maxHTTPFrag)
+	}
 	httpRRKey := join(netNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
@@ -280,5 +325,10 @@ func New() *Config {
 			c.EnableKernelHeaderDownload = true
 		}
 	}
+
+	if !c.EnableRootNetNs {
+		c.EnableConntrackAllNamespaces = false
+	}
+
 	return c
 }

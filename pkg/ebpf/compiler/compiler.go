@@ -36,6 +36,7 @@ var (
 
 const compilationStepTimeout = 60 * time.Second
 
+// CompileToObjectFile compiles an eBPF program
 func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
 		return fmt.Errorf("unable to find kernel headers")

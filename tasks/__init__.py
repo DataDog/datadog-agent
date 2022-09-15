@@ -29,6 +29,7 @@ from . import (
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
+from .fuzz import fuzz
 from .go import (
     check_mod_tidy,
     deps,
@@ -86,6 +87,7 @@ ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(generate_config)
 ns.add_task(junit_upload)
+ns.add_task(fuzz)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

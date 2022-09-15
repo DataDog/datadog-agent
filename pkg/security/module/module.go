@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -167,16 +167,20 @@ func (m *Module) Start() error {
 		seclog.Errorf("failed to parse agent version: %v", err)
 	}
 
-	filters := make([]rules.RuleFilter, 0, 1)
+	var macroFilters []rules.MacroFilter
+	var ruleFilters []rules.RuleFilter
+
 	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
 	if err != nil {
 		seclog.Errorf("failed to create agent version filter: %v", err)
 	} else {
-		filters = append(filters, agentVersionFilter)
+		macroFilters = append(macroFilters, agentVersionFilter)
+		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
 	m.policyOpts = rules.PolicyLoaderOpts{
-		RuleFilters: filters,
+		MacroFilters: macroFilters,
+		RuleFilters:  ruleFilters,
 	}
 
 	// directory policy provider
@@ -355,14 +359,14 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
 
-	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 
 	// non fatal error, just log
-	if loadErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies: %+v", loadErrs)
-	} else if loadApproversErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErrs)
+	if loadApproversErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies: %+v", loadApproversErrs)
+	} else if loadErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies for Approvers: %+v", loadErrs)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -377,7 +381,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// notify listeners
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet, loadErrs)
+		m.rulesLoaded(ruleSet, loadApproversErrs)
 	}
 
 	// add module as listener for ruleset events
@@ -402,10 +406,10 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if sendLoadedReport {
 		// report that a new policy was loaded
 		monitor := m.probe.GetMonitor()
-		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
+		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadApproversErrs)
 		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies())
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
@@ -457,6 +461,11 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
+	// if the event should have been discarded in kernel space, we don't need to evaluate it
+	if event.SavedByActivityDumps {
+		return
+	}
+
 	if ruleSet := m.GetRuleSet(); ruleSet != nil {
 		ruleSet.Evaluate(event)
 	}

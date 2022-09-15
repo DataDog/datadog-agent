@@ -45,6 +45,8 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 	// do not support regular expression on path, currently unable to support discarder for regex value
 	if fieldValue.Type == eval.RegexpValueType {
 		return fmt.Errorf("regexp not supported on path `%s`", field)
+	} else if fieldValue.Type == eval.VariableValueType {
+		return nil
 	}
 
 	if value, ok := fieldValue.Value.(string); ok {
@@ -137,19 +139,20 @@ type ChownEvent struct {
 // ContainerContext holds the container context of an event
 //msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                 // ID of the container
-	Tags []string `field:"tags,handler:ResolveContainerTags,weight:9999"` // Tags of the container
+	ID   string   `field:"id,handler:ResolveContainerID"`                              // ID of the container
+	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
 //msgp:ignore Event
 // genaccessors
 type Event struct {
-	ID           string    `field:"-" json:"-"`
-	Type         uint32    `field:"-"`
-	Async        bool      `field:"async" msg:"async" event:"*"` // True if the syscall was asynchronous
-	TimestampRaw uint64    `field:"-" json:"-"`
-	Timestamp    time.Time `field:"-"` // Timestamp of the event
+	ID                   string    `field:"-" json:"-"`
+	Type                 uint32    `field:"-"`
+	Async                bool      `field:"async" event:"*"` // True if the syscall was asynchronous
+	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
+	TimestampRaw         uint64    `field:"-" json:"-"`
+	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -318,11 +321,21 @@ type Credentials struct {
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *Process) GetPathResolutionError() string {
-	if e.FileEvent.PathResolutionError != nil {
-		return e.FileEvent.PathResolutionError.Error()
+func (p *Process) GetPathResolutionError() string {
+	if p.FileEvent.PathResolutionError != nil {
+		return p.FileEvent.PathResolutionError.Error()
 	}
 	return ""
+}
+
+// HasInterpreter returns whether the process uses an interpreter
+func (p *Process) HasInterpreter() bool {
+	return p.LinuxBinprm.FileEvent.Inode != 0 && p.LinuxBinprm.FileEvent.MountID != 0
+}
+
+// LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
+type LinuxBinprm struct {
+	FileEvent FileEvent `field:"file" msg:"file"`
 }
 
 // Process represents a process
@@ -337,8 +350,9 @@ type Process struct {
 	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
 	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`              // Comm attribute of the process
+	TTYName     string      `field:"tty_name" msg:"tty,omitempty"`            // Name of the TTY associated with the process
+	Comm        string      `field:"comm" msg:"comm"`                         // Comm attribute of the process
+	LinuxBinprm LinuxBinprm `field:"interpreter" msg:"interpreter,omitempty"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`

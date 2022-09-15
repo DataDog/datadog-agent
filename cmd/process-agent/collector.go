@@ -188,7 +188,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	if c.Name() == config.PodCheckName {
 		handlePodChecks(l, start, c.Name(), messages, results)
 	} else {
-		l.messagesToResults(start, c.Name(), messages, results)
+		l.messagesToResultsQueue(start, c.Name(), messages, results)
 	}
 
 	if !c.RealTime() {
@@ -206,7 +206,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	l.messagesToResults(start, c.Name(), run.Standard, results)
+	l.messagesToResultsQueue(start, c.Name(), run.Standard, results)
 	if options.RunStandard {
 		// We are only updating the run counter for the standard check
 		// since RT checks are too frequent and we only log standard check
@@ -216,7 +216,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 
-	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
+	l.messagesToResultsQueue(start, c.RealTimeName(), run.RealTime, rtResults)
 	if options.RunRealTime {
 		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
 	}
@@ -247,9 +247,19 @@ func (l *Collector) nextGroupID() int32 {
 	return l.groupID.Inc()
 }
 
-func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
-	if len(messages) == 0 {
+func (l *Collector) messagesToResultsQueue(start time.Time, name string, messages []model.MessageBody, queue *api.WeightedQueue) {
+	result := l.messagesToCheckResult(start, name, messages)
+	if result == nil {
 		return
+	}
+	queue.Add(result)
+	// update proc and container count for info
+	updateProcContainerCount(messages)
+}
+
+func (l *Collector) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
+	if len(messages) == 0 {
+		return nil
 	}
 
 	payloads := make([]checkPayload, 0, len(messages))
@@ -296,14 +306,11 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		sizeInBytes += len(body)
 	}
 
-	result := &checkResult{
+	return &checkResult{
 		name:        name,
 		payloads:    payloads,
 		sizeInBytes: int64(sizeInBytes),
 	}
-	results.Add(result)
-	// update proc and container count for info
-	updateProcContainerCount(messages)
 }
 
 func (l *Collector) run(exit chan struct{}) error {
@@ -788,8 +795,8 @@ func ignoreResponseBody(checkName string) bool {
 // By default we only send pod payloads containing pod metadata and pod manifests (yaml)
 // Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
 func handlePodChecks(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
-	l.messagesToResults(start, name, messages[:len(messages)/2], results)
+	l.messagesToResultsQueue(start, name, messages[:len(messages)/2], results)
 	if l.cfg.Orchestrator.IsManifestCollectionEnabled {
-		l.messagesToResults(start, name, messages[len(messages)/2:], results)
+		l.messagesToResultsQueue(start, name, messages[len(messages)/2:], results)
 	}
 }

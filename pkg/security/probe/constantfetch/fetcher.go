@@ -16,7 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ErrorSentinel is the value of an unavailable offset or size
@@ -107,7 +107,7 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 
 		res, err := fetcher.FinishAndGetResults()
 		if err != nil {
-			log.Errorf("failed to run constant fetcher: %v", err)
+			seclog.Errorf("failed to run constant fetcher: %v", err)
 		}
 
 		for _, req := range f.requests {
@@ -176,7 +176,7 @@ func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor
 	res := make([]manager.ConstantEditor, 0, len(constants))
 	for name, value := range constants {
 		if value == ErrorSentinel {
-			log.Errorf("failed to fetch constant for %s", name)
+			seclog.Errorf("failed to fetch constant for %s", name)
 			value = 0
 		}
 

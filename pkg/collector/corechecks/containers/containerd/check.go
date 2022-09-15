@@ -23,7 +23,7 @@ import (
 	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -113,7 +113,7 @@ func (c *ContainerdCheck) Run() error {
 		_ = c.Warnf("Error collecting metrics: %s", err)
 	}
 
-	if err := c.runContainerdCustom(sender, c.client); err != nil {
+	if err := c.runContainerdCustom(sender); err != nil {
 		_ = c.Warnf("Error collecting metrics: %s", err)
 	}
 
@@ -126,15 +126,14 @@ func (c *ContainerdCheck) runProcessor(sender aggregator.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender, cl cutil.ContainerdItf) error {
+func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender) error {
 	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
 	if err != nil {
 		return err
 	}
 
 	for _, namespace := range namespaces {
-		c.client.SetCurrentNamespace(namespace)
-		if err := c.collectImageSizes(sender, c.client); err != nil {
+		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
 			log.Infof("Failed to collect images size, err: %s", err)
 		}
 	}
@@ -142,9 +141,9 @@ func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender, cl cutil
 	return nil
 }
 
-func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.ContainerdItf) error {
+func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.ContainerdItf, namespace string) error {
 	// Report images size
-	images, err := cl.ListImages()
+	images, err := cl.ListImages(namespace)
 	if err != nil {
 		return err
 	}
@@ -152,7 +151,7 @@ func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.C
 	for _, image := range images {
 		var size int64
 
-		if err := cl.CallWithClientContext(func(c context.Context) error {
+		if err := cl.CallWithClientContext(namespace, func(c context.Context) error {
 			size, err = image.Size(c)
 			return err
 		}); err != nil {
@@ -173,9 +172,6 @@ func (c *ContainerdCheck) collectEvents(sender aggregator.Sender) {
 
 	if !c.subscriber.isRunning() {
 		// Keep track of the health of the Containerd socket.
-		//
-		// Check events does not rely on the "namespace" attribute of the
-		// client, so we can share it.
 		c.subscriber.CheckEvents(c.client)
 	}
 	events := c.subscriber.Flush(time.Now().Unix())

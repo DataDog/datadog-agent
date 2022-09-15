@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -37,7 +37,6 @@ const (
 	// to inspect plain HTTP traffic
 	httpSocketFilterStub = "socket/http_filter_entry"
 	httpSocketFilter     = "socket/http_filter"
-	HTTP_PROG            = 0
 	httpProgsMap         = "http_progs"
 
 	// maxActive configures the maximum number of instances of the
@@ -50,8 +49,6 @@ const (
 	batchNotificationsChanSize = 100
 
 	probeUID = "http"
-
-	maxRequestLinger = 30 * time.Second
 )
 
 type ebpfProgram struct {
@@ -73,10 +70,10 @@ type subprogram interface {
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
-	var bytecode bytecode.AssetReader
+	var bc bytecode.AssetReader
 	var err error
 	if enableRuntimeCompilation(c) {
-		bytecode, err = getRuntimeCompiledHTTP(c)
+		bc, err = getRuntimeCompiledHTTP(c)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
 				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
@@ -85,8 +82,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		}
 	}
 
-	if bytecode == nil {
-		bytecode, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+	if bc == nil {
+		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
 		if err != nil {
 			return nil, fmt.Errorf("could not read bpf module: %s", err)
 		}
@@ -147,7 +144,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                mgr,
-		bytecode:               bytecode,
+		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
@@ -165,6 +162,11 @@ func (e *ebpfProgram) Init() error {
 	}
 	e.Manager.DumpHandler = dumpMapsHandler
 
+	onlineCPUs, err := cpupossible.Get()
+	if err != nil {
+		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -176,11 +178,16 @@ func (e *ebpfProgram) Init() error {
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
+			httpBatchesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
+				EditorFlag: manager.EditMaxEntries,
+			},
 		},
 		TailCallRouter: []manager.TailCallRoute{
 			{
 				ProgArrayName: httpProgsMap,
-				Key:           HTTP_PROG,
+				Key:           httpProg,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
@@ -217,7 +224,7 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err := e.InitWithOptions(e.bytecode, options)
+	err = e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -252,24 +259,24 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(httpTX))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
-	ttl := maxRequestLinger.Nanoseconds()
-	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
-		httpTX, ok := val.(*httpTX)
+	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
+		httpTxn, ok := val.(*ebpfHttpTx)
 		if !ok {
 			return false
 		}
 
-		if updated := int64(httpTX.response_last_seen); updated > 0 {
+		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTX.request_started)
+		started := int64(httpTxn.RequestStarted())
 		return started > 0 && (now-started) > ttl
 	})
 
