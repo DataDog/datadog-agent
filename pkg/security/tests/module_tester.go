@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -748,7 +749,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	t.Log("Instantiating a new security module")
 
-	statsdClient := NewStatsdClient()
+	statsdClient := metrics.NewStatsdClient()
 
 	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
 	if err != nil {
