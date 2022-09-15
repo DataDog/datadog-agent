@@ -114,6 +114,18 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				RouteIdx: -1,
 			},
 		},
+		FailedConns: []*model.FailedConnection{
+			{
+				Laddr:        &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:        &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
+				Pid:          6000,
+				NetNS:        7,
+				Type:         model.ConnectionType_tcp,
+				Family:       model.ConnectionFamily_v4,
+				Direction:    model.ConnectionDirection_outgoing,
+				FailureCount: 3,
+			},
+		},
 		Dns: map[string]*model.DNSEntry{
 			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
@@ -192,6 +204,22 @@ func TestSerialization(t *testing.T) {
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Tags:      uint64(1),
+				},
+			},
+			FailedConns: []network.FailedConnStats{
+				{
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					SPort:  1000,
+					DPort:  9000,
+					Pid:    6000,
+					NetNS:  7,
+
+					Type:      network.TCP,
+					Family:    network.AFINET,
+					Direction: network.OUTGOING,
+
+					FailureCount: 3,
 				},
 			},
 		},

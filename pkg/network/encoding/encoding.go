@@ -68,6 +68,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	})
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
+	agentFailedConns := make([]*model.FailedConnection, len(conns.FailedConns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
@@ -76,6 +77,10 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
+	}
+
+	for i, fc := range conns.FailedConns {
+		agentFailedConns[i] = FormatFailedConnection(fc, ipc)
 	}
 
 	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
@@ -93,6 +98,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload := new(model.Connections)
 	payload.AgentConfiguration = agentCfg
 	payload.Conns = agentConns
+	payload.FailedConns = agentFailedConns
 	payload.Domains = dnsFormatter.Domains()
 	payload.Dns = dnsFormatter.DNS()
 	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)

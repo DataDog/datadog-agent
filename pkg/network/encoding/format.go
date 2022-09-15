@@ -27,6 +27,12 @@ var connPool = sync.Pool{
 	},
 }
 
+var failedConnPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.FailedConnection)
+	},
+}
+
 // RouteIdx stores the route and the index into the route collection for a route
 type RouteIdx struct {
 	Idx   int32
@@ -90,6 +96,21 @@ func FormatConnection(
 	return c
 }
 
+// FormatFailedConnection converts a FailedConnStats into a model.FailedConnection
+func FormatFailedConnection(failedConn network.FailedConnStats, ipc ipCache) *model.FailedConnection {
+	fc := failedConnPool.Get().(*model.FailedConnection)
+	fc.Laddr = formatAddr(failedConn.Source, failedConn.SPort, ipc)
+	fc.Raddr = formatAddr(failedConn.Dest, failedConn.DPort, ipc)
+	fc.Pid = int32(failedConn.Pid)
+	fc.NetNS = failedConn.NetNS
+	fc.Type = formatType(failedConn.Type)
+	fc.Family = formatFamily(failedConn.Family)
+	fc.Direction = formatDirection(failedConn.Direction)
+	fc.FailureCount = failedConn.FailureCount
+
+	return fc
+}
+
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilationTelemetry) map[string]*model.RuntimeCompilationTelemetry {
 	if telByAsset == nil {
@@ -122,17 +143,17 @@ func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[stri
 }
 
 func returnToPool(c *model.Connections) {
-	if c.Conns != nil {
-		for _, c := range c.Conns {
-			c.Reset()
-			connPool.Put(c)
-		}
+	for _, c := range c.Conns {
+		c.Reset()
+		connPool.Put(c)
 	}
-	if c.Dns != nil {
-		for _, e := range c.Dns {
-			e.Reset()
-			dnsPool.Put(e)
-		}
+	for _, c := range c.FailedConns {
+		c.Reset()
+		failedConnPool.Put(c)
+	}
+	for _, e := range c.Dns {
+		e.Reset()
+		dnsPool.Put(e)
 	}
 }
 
