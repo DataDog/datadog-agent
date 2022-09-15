@@ -105,7 +105,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 
 		container, err := c.gardenUtil.GetContainer(containerID)
 		if err != nil {
-			return fmt.Errorf("Error retrieving container %s from the garden API: %v", containerID, err)
+			return fmt.Errorf("error retrieving container %s from the garden API: %v", containerID, err)
 		}
 
 		log.Infof("Updating tags in container %s", containerID)
