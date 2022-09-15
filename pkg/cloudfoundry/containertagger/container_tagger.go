@@ -80,10 +80,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 	containerID := evt.Entity.GetID().ID
 
 	if evt.Type == workloadmeta.EventTypeSet {
-		storeContainer, err := c.store.GetContainer(containerID)
-		if err != nil {
-			return fmt.Errorf("Error retrieving container %s from the workloadmeta store: %v", containerID, err)
-		}
+		storeContainer := evt.Entity.(*workloadmeta.Container)
 
 		// extract tags
 		hostTags := host.GetHostTags(ctx, true)
@@ -122,6 +119,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 	} else if evt.Type == workloadmeta.EventTypeUnset {
 		hash := c.tagsHashByContainerID[containerID]
 		delete(c.seen, hash)
+		delete(c.tagsHashByContainerID, containerID)
 	}
 	return nil
 }
