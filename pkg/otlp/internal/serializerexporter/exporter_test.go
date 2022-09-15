@@ -184,7 +184,7 @@ func newMetrics(
 	// Histgram
 	met := metricsArray.AppendEmpty()
 	met.SetName(histogramMetricName)
-	met.SetDataType(pmetric.MetricDataTypeHistogram)
+	met.SetEmptyHistogram()
 	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 	hdps := met.Histogram().DataPoints()
 	hdp := hdps.AppendEmpty()
@@ -202,7 +202,7 @@ func newMetrics(
 	// Gauge
 	met = metricsArray.AppendEmpty()
 	met.SetName(numberMetricName)
-	met.SetDataType(pmetric.MetricDataTypeGauge)
+	met.SetEmptyGauge()
 	gdps := met.Gauge().DataPoints()
 	gdp := gdps.AppendEmpty()
 	gdp.SetTimestamp(numberDataPoint.Timestamp())

@@ -53,7 +53,7 @@ func newHistogramMetric(p pmetric.HistogramDataPoint) pmetric.Metrics {
 	ilm := ilms.AppendEmpty()
 	metricsArray := ilm.Metrics()
 	m := metricsArray.AppendEmpty()
-	m.SetDataType(pmetric.MetricDataTypeHistogram)
+	m.SetEmptyHistogram()
 	m.SetName("test")
 
 	// Copy Histogram point
@@ -206,7 +206,7 @@ func TestExactSumCount(t *testing.T) {
 				ilm := ilms.AppendEmpty()
 				metricsArray := ilm.Metrics()
 				m := metricsArray.AppendEmpty()
-				m.SetDataType(pmetric.MetricDataTypeHistogram)
+				m.SetEmptyHistogram()
 				m.SetName("test")
 				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 				dp := m.Histogram().DataPoints()
@@ -238,7 +238,7 @@ func TestExactSumCount(t *testing.T) {
 				ilm := ilms.AppendEmpty()
 				metricsArray := ilm.Metrics()
 				m := metricsArray.AppendEmpty()
-				m.SetDataType(pmetric.MetricDataTypeHistogram)
+				m.SetEmptyHistogram()
 				m.SetName("test")
 				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 				dp := m.Histogram().DataPoints()
@@ -277,7 +277,7 @@ func TestExactSumCount(t *testing.T) {
 				ilm := ilms.AppendEmpty()
 				metricsArray := ilm.Metrics()
 				m := metricsArray.AppendEmpty()
-				m.SetDataType(pmetric.MetricDataTypeHistogram)
+				m.SetEmptyHistogram()
 				m.SetName("test")
 
 				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
