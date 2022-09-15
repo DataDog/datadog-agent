@@ -20,8 +20,7 @@ import (
 )
 
 const (
-	SharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
-	componentName           = "cloudfoundry-container-tagger"
+	componentName = "cloudfoundry-container-tagger"
 )
 
 // ContainerTagger is a simple component that injects host tags and CAPI metadata

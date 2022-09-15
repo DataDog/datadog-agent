@@ -8,7 +8,6 @@ package cloudfoundry_container
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"os"
 	"strings"
 
@@ -20,8 +19,9 @@ import (
 )
 
 const (
-	collectorID   = "cloudfoundry-container"
-	componentName = "workloadmeta-cloudfoundry-container"
+	collectorID             = "cloudfoundry-container"
+	componentName           = "workloadmeta-cloudfoundry-container"
+	sharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
 )
 
 type collector struct {
@@ -76,9 +76,9 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	// read shared node tags file if it exists
-	sharedNodeTagsBytes, err := os.ReadFile(containertagger.SharedNodeAgentTagsFile)
+	sharedNodeTagsBytes, err := os.ReadFile(sharedNodeAgentTagsFile)
 	if err != nil {
-		log.Errorf("Error reading shared node agent tags file under '%s': %v", containertagger.SharedNodeAgentTagsFile, err)
+		log.Errorf("Error reading shared node agent tags file under '%s': %v", sharedNodeAgentTagsFile, err)
 	} else {
 		// TODO: handle json tags
 		sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
