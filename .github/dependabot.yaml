@@ -130,6 +130,18 @@ updates:
     milestone: 22
     schedule:
       interval: "monthly"
+  - package-ecosystem: "pip"
+    directory: "/test/e2e/cws-tests"
+    labels:
+      - dependencies
+      - python
+      - team/agent-security
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
+    schedule:
+      interval: "monthly"
   - package-ecosystem: "github-actions"
     directory: "/"
     labels:
