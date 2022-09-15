@@ -314,7 +314,6 @@ func (a *Agent) Process(p *api.Payload) {
 		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep && sampler.ApplySpanSampling(chunk) {
 			// The span sampler decided to keep some of the spans anyway. It modified chunk in-place.
-			keep = true
 		} else if !keep {
 			if numEvents == 0 {
 				// the trace was dropped and no analyzed span were kept
