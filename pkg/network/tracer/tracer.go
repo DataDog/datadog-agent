@@ -109,9 +109,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
 
-	usmSupported := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+	usmSupported := currKernelVersion >= http.MinimumKernelVersion
 	if !usmSupported && config.ServiceMonitoringEnabled {
-		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of 4.14.0 or higher. We detected %s", currKernelVersion)
+		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
 		if !config.NPMEnabled {
 			return nil, fmt.Errorf(errStr)
 		}

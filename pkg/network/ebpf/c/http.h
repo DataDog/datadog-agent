@@ -73,12 +73,9 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     }
 }
 
-static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
+static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method) {
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
-    http->response_last_seen = 0;
-    http->response_status_code = 0;
-    __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
 }
 
 static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
@@ -116,8 +113,27 @@ static __always_inline void http_parse_data(char const *p, http_packet_t *packet
     }
 }
 
+static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_t *skb_info) {
+    if (!skb_info || !skb_info->tcp_seq) {
+        return false;
+    }
 
-static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, skb_info_t *skb_info, http_packet_t packet_type) {
+    // check if we've seen this TCP segment before. this can happen in the
+    // context of localhost traffic where the same TCP segment can be seen
+    // multiple times coming in and out from different interfaces
+    return http->tcp_seq == skb_info->tcp_seq;
+}
+
+static __always_inline void http_update_seen_before(http_transaction_t *http, skb_info_t *skb_info) {
+    if (!skb_info || !skb_info->tcp_seq) {
+        return;
+    }
+
+    http->tcp_seq = skb_info->tcp_seq;
+}
+
+
+static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, http_packet_t packet_type) {
     if (packet_type == HTTP_PACKET_UNKNOWN) {
         return bpf_map_lookup_elem(&http_in_flight, &http->tup);
     }
@@ -125,20 +141,7 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
     // We detected either a request or a response
     // In this case we initialize (or fetch) state associated to this tuple
     bpf_map_update_elem(&http_in_flight, &http->tup, http, BPF_NOEXIST);
-    http_transaction_t *http_ebpf = bpf_map_lookup_elem(&http_in_flight, &http->tup);
-    if (http_ebpf == NULL || skb_info == NULL) {
-        return http_ebpf;
-    }
-
-    // Bail out if we've seen this TCP segment before
-    // This can happen in the context of localhost traffic where the same TCP segment
-    // can be seen multiple times coming in and out from different interfaces
-    if (http_ebpf->tcp_seq == skb_info->tcp_seq) {
-        return NULL;
-    }
-
-    http_ebpf->tcp_seq = skb_info->tcp_seq;
-    return http_ebpf;
+    return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 }
 
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
@@ -169,19 +172,22 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
 
-    http_transaction_t *http = http_fetch_state(http_stack, skb_info, packet_type);
-    if (http == NULL) {
+    http_transaction_t *http = http_fetch_state(http_stack, packet_type);
+    if (!http || http_seen_before(http, skb_info)) {
         return 0;
     }
 
     if (http_should_flush_previous_state(http, packet_type)) {
         http_enqueue(http);
+        __builtin_memcpy(http, http_stack, sizeof(http_transaction_t));
     }
 
     if (packet_type == HTTP_REQUEST) {
-        http_begin_request(http, method, buffer);
+        http_begin_request(http, method);
+        http_update_seen_before(http, skb_info);
     } else if (packet_type == HTTP_RESPONSE) {
         http_begin_response(http, buffer);
+        http_update_seen_before(http, skb_info);
     }
 
     http->tags |= tags;
