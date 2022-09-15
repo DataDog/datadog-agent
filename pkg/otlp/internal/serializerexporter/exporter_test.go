@@ -69,8 +69,10 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		{
 			name: "no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
+				bucketCounts := pcommon.NewUInt64Slice()
+				bucketCounts.FromRaw([]uint64{100})
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts(pcommon.NewImmutableUInt64Slice([]uint64{100}))
+				h.SetBucketCounts(bucketCounts)
 				h.SetCount(100)
 				h.SetSum(0)
 
@@ -84,8 +86,10 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		{
 			name: "metric tags and extra tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
+				bucketCounts := pcommon.NewUInt64Slice()
+				bucketCounts.FromRaw([]uint64{100})
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts(pcommon.NewImmutableUInt64Slice([]uint64{100}))
+				h.SetBucketCounts(bucketCounts)
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()

@@ -111,13 +111,14 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 		for i := 0; i < b; i++ {
 			buckets[i] = 10
 		}
-		immutableBuckets := pcommon.NewImmutableUInt64Slice(buckets)
+		bucketsSlice := pcommon.NewUInt64Slice()
+		bucketsSlice.FromRaw(buckets)
 
 		point.Negative().SetOffset(2)
-		point.Negative().SetBucketCounts(immutableBuckets)
+		point.Negative().SetBucketCounts(bucketsSlice)
 
 		point.Positive().SetOffset(3)
-		point.Positive().SetBucketCounts(immutableBuckets)
+		point.Positive().SetBucketCounts(bucketsSlice)
 
 		point.SetTimestamp(seconds(0))
 	}
