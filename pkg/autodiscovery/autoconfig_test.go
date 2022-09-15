@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -408,43 +407,6 @@ func TestRemoveTemplate(t *testing.T) {
 func TestGetLoadedConfigNotInitialized(t *testing.T) {
 	ac := AutoConfig{}
 	assert.Equal(t, countLoadedConfigs(&ac), 0)
-}
-
-func TestCheckOverride(t *testing.T) {
-	ctx := context.Background()
-
-	tpl := integration.Config{
-		Name:          "redis",
-		ADIdentifiers: []string{"redis"},
-		Provider:      names.File,
-	}
-
-	// check must be overridden (same check)
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{"redis"},
-	})
-	assert.Len(t, ac.processNewConfig(tpl).Schedule, 0)
-
-	// check must be overridden (empty config)
-	ac = NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{""},
-	})
-	assert.Len(t, ac.processNewConfig(tpl).Schedule, 0)
-
-	// check must be scheduled (different checks)
-	ac = NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{"tcp_check"},
-	})
-	assert.Len(t, ac.processNewConfig(tpl).Schedule, 1)
 }
 
 func TestDecryptConfig(t *testing.T) {
