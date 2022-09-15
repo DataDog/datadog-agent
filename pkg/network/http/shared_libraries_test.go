@@ -183,6 +183,11 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},
+			"http_in_flight": {
+				Type:       ebpf.LRUHash,
+				MaxEntries: 1,
+				EditorFlag: manager.EditMaxEntries,
+			},
 		},
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
