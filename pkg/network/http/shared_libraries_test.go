@@ -32,11 +32,8 @@ import (
 
 func TestSharedLibraryDetection(t *testing.T) {
 	perfHandler, doneFn := initEBPFProgram(t)
-	fpath := filepath.Join(os.TempDir(), "foo.so")
-	t.Cleanup(func() {
-		os.Remove(fpath)
-		doneFn()
-	})
+	fpath := filepath.Join(t.TempDir(), "foo.so")
+	t.Cleanup(doneFn)
 
 	var (
 		mux          sync.Mutex
@@ -68,13 +65,9 @@ func TestSharedLibraryDetection(t *testing.T) {
 
 func TestSameInodeRegression(t *testing.T) {
 	perfHandler, doneFn := initEBPFProgram(t)
-	fpath1 := filepath.Join(os.TempDir(), "a-foo.so")
-	fpath2 := filepath.Join(os.TempDir(), "b-foo.so")
-	t.Cleanup(func() {
-		os.Remove(fpath1)
-		os.Remove(fpath2)
-		doneFn()
-	})
+	fpath1 := filepath.Join(t.TempDir(), "a-foo.so")
+	fpath2 := filepath.Join(t.TempDir(), "b-foo.so")
+	t.Cleanup(doneFn)
 
 	f, err := os.Create(fpath1)
 	require.NoError(t, err)
