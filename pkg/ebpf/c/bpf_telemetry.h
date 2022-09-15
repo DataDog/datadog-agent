@@ -53,7 +53,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
                  * This patch point is placed here because the above instruction
                  * fails on the 4.4 verifier. On 4.4 this instruction is replaced
-                 * with a nop: r1 = r1*/ \
+                 * with a nop: r1 = r1 */ \
                 bpf_telemetry_update_patch((unsigned long)target, add);             \
             }                                                                       \
         }                                                                           \
@@ -62,9 +62,11 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define MK_FN_INDX(fn) FN_INDX_##fn
 
 #define FN_INDX_bpf_probe_read read_indx
+
 #define FN_INDX_bpf_probe_read_kernel read_kernel_indx
-#define FN_INDX_bpf_probe_read_user read_user_indx
 #define FN_INDX_bpf_probe_read_kernel_str read_kernel_indx
+
+#define FN_INDX_bpf_probe_read_user read_user_indx
 #define FN_INDX_bpf_probe_read_user_str read_user_indx
 
 #define helper_with_telemetry(fn, dst, sz, src)                                                \

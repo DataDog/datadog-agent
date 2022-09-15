@@ -105,7 +105,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 	}
 
 	var val HelperErrTelemetry
-	t := make(map[string]interface{})
+	helperTelemMap := make(map[string]interface{})
 
 	for m, k := range b.probeKeys {
 		err := b.HelperErrMap.Lookup(&k, &val)
@@ -113,12 +113,13 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue
 		}
-		if t := getHelperTelemetry(&val); len(t) > 0 {
-			t[m] = t
+		t := getHelperTelemetry(&val)
+		if len(t) > 0 {
+			helperTelemMap[m] = t
 		}
 	}
 
-	return t
+	return helperTelemMap
 }
 
 func getHelperTelemetry(v *HelperErrTelemetry) map[string]interface{} {
