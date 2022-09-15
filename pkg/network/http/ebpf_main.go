@@ -106,8 +106,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{
 				Map: manager.Map{Name: httpBatchEvents},
 				PerfMapOptions: manager.PerfMapOptions{
-					// revisit this before merging
-					PerfRingBufferSize: 128 * os.Getpagesize(),
+					PerfRingBufferSize: 256 * os.Getpagesize(),
 					Watermark:          1,
 					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
