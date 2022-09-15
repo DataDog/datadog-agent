@@ -58,7 +58,7 @@ func (s *remoteStore) latestVersion(r role) uint64 {
 	return latestVersion
 }
 
-// GetMeta implements go-tuf's RemoteStore.<
+// GetMeta implements go-tuf's RemoteStore.GetMeta
 // See https://pkg.go.dev/github.com/theupdateframework/go-tuf/client#RemoteStore
 func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 	metaPath, err := parseMetaPath(path)
