@@ -272,6 +272,7 @@ func (tx *etwHttpTX) DynamicTags() []string {
 	return []string{
 		fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 		fmt.Sprintf("http.iis.site:%v", tx.SiteID),
+		fmt.Sprintf("service:%v", tx.AppPool),
 	}
 }
 
