@@ -86,22 +86,20 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		}
 
 		// extract tags
-		tags := storeContainer.CollectorTags
 		hostTags := host.GetHostTags(ctx, true)
+		tags := storeContainer.CollectorTags
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)
 
-		// hash tags
+		// hashing tags to keep track of containers tags
+		// as they contain the container_id as `app_instance_guid`
 		tagsHash := utils.ComputeTagsHash(tags)
 
 		// will be useful for deletion
 		c.tagsHashByContainerID[containerID] = tagsHash
 
 		// check if the tags were already injected
-		_, exist := c.seen[tagsHash]
-
-		// skip event
-		if exist {
+		if _, exist := c.seen[tagsHash]; exist {
 			return nil
 		}
 
@@ -113,11 +111,13 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 			return fmt.Errorf("Error retrieving container %s from the garden API: %v", containerID, err)
 		}
 
-		log.Debugf("Writing tags into container %s", containerID)
-		err = writeTagsIntoContainer(container, tags)
-		if err != nil {
-			fmt.Errorf("Error running a process inside container %s: %v", containerID, err)
-		}
+		log.Infof("Updating tags in container %s", containerID)
+		go func() {
+			err = updateTagsInContainer(container, tags)
+			if err != nil {
+				log.Errorf("Error running a process inside container %s: %v", containerID, err)
+			}
+		}()
 
 	} else if evt.Type == workloadmeta.EventTypeUnset {
 		hash := c.tagsHashByContainerID[containerID]
@@ -126,28 +126,10 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 	return nil
 }
 
-func writeTagsIntoContainer(container garden.Container, tags []string) error {
+// updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
+func updateTagsInContainer(container garden.Container, tags []string) error {
 	process, err := container.Run(garden.ProcessSpec{
-		Path: "tee",
-		Args: []string{SharedNodeAgentTagsFile},
-		User: "vcap",
-	}, garden.ProcessIO{
-		Stdin: strings.NewReader(strings.Join(tags, ",")),
-	})
-	if err != nil {
-		return err
-	}
-	exitCode, err := process.Wait()
-	if err != nil {
-		return err
-	}
-	log.Debugf("Process %s exited with code: %d", process.ID(), exitCode)
-	return nil
-}
-
-func restartContainerAgent(container garden.Container, tags []string) error {
-	process, err := container.Run(garden.ProcessSpec{
-		Path: "bash",
+		Path: "/bin/sh",
 		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},
 		User: "vcap",
 		Env:  []string{fmt.Sprintf("DD_NODE_AGENT_TAGS=%s", strings.Join(tags, ","))},
