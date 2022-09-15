@@ -89,7 +89,10 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 if (helper_indx >= 0) {                                                        \
                     int *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
                     unsigned long add = 1;                                                     \
-                    /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); */      \
+                    /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
+                     * This patch point is placed here because the above instruction
+                     * fails on the 4.4 verifier. On 4.4 this instruction is replaced
+                     * with a nop: r1 = r1 */        \
                     bpf_telemetry_update_patch((unsigned long)target, add);                    \
                 }                                                                              \
             }                                                                                  \
