@@ -16,9 +16,9 @@ import (
 
 var (
 	// OTLPFixedSpanID specifies a fixed test SpanID.
-	OTLPFixedSpanID = pcommon.NewSpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	OTLPFixedSpanID = pcommon.SpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 	// OTLPFixedTraceID specifies a fixed test TraceID.
-	OTLPFixedTraceID = pcommon.NewTraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	OTLPFixedTraceID = pcommon.TraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 )
 
 // OTLPSpanEvent defines an OTLP test span event.
@@ -57,15 +57,15 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 	if isZero(s.TraceID[:]) {
 		span.SetTraceID(OTLPFixedTraceID)
 	} else {
-		span.SetTraceID(pcommon.NewTraceID(s.TraceID))
+		span.SetTraceID(pcommon.TraceID(s.TraceID))
 	}
 	if isZero(s.SpanID[:]) {
 		span.SetSpanID(OTLPFixedSpanID)
 	} else {
-		span.SetSpanID(pcommon.NewSpanID(s.SpanID))
+		span.SetSpanID(pcommon.SpanID(s.SpanID))
 	}
 	span.SetTraceState(ptrace.TraceState(s.TraceState))
-	span.SetParentSpanID(pcommon.NewSpanID(s.ParentID))
+	span.SetParentSpanID(pcommon.SpanID(s.ParentID))
 	span.SetName(s.Name)
 	span.SetKind(s.Kind)
 	if s.Start == 0 {
