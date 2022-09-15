@@ -9,7 +9,6 @@
 package http
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -274,8 +273,6 @@ func followSymlink(path string) string {
 	return path
 }
 
-var errInvalidStat = errors.New("invalid file stat")
-
 func getInode(path string) (uint64, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -284,7 +281,7 @@ func getInode(path string) (uint64, error) {
 
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		return 0, errInvalidStat
+		return 0, fmt.Errorf("invalid file stat")
 	}
 
 	return stat.Ino, nil
