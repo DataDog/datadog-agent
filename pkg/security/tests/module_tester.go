@@ -222,7 +222,7 @@ type testModule struct {
 	cmdWrapper            cmdWrapper
 	ruleHandler           testRuleHandler
 	eventDiscarderHandler testEventDiscarderHandler
-	statsdClient          *StatsdClient
+	statsdClient          *metrics.StatsdClient
 	proFile               *os.File
 }
 

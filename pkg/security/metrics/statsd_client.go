@@ -15,13 +15,13 @@ var _ statsd.ClientInterface = &StatsdClient{}
 
 // StatsdClient is a statsd client for used for tests
 type StatsdClient struct {
-	counts map[string]int64
+	Counts map[string]int64
 }
 
 // NewStatsdClient returns a new StatsdClient
 func NewStatsdClient() *StatsdClient {
 	return &StatsdClient{
-		counts: make(map[string]int64),
+		Counts: make(map[string]int64),
 	}
 }
 
@@ -33,11 +33,11 @@ func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate flo
 // Count does nothing and returns nil
 func (s *StatsdClient) Count(name string, value int64, tags []string, rate float64) error {
 	if len(tags) == 0 {
-		s.counts[name] = value
+		s.Counts[name] = value
 	}
 
 	for _, tag := range tags {
-		s.counts[name+":"+tag] = value
+		s.Counts[name+":"+tag] = value
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ func (s *StatsdClient) Close() error {
 
 // Flush does nothing and returns nil
 func (s *StatsdClient) Flush() error {
-	s.counts = make(map[string]int64)
+	s.Counts = make(map[string]int64)
 	return nil
 }
 
