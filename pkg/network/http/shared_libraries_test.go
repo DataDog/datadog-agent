@@ -31,11 +31,6 @@ import (
 )
 
 func TestSharedLibraryDetection(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-	if !httpsSupported() {
-		t.Skip("shared library detection not supported. skipping.")
-	}
-
 	perfHandler, doneFn := initEBPFProgram(t)
 	fpath := filepath.Join(os.TempDir(), "foo.so")
 	t.Cleanup(func() {
@@ -72,11 +67,6 @@ func TestSharedLibraryDetection(t *testing.T) {
 }
 
 func TestSameInodeRegression(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-	if !httpsSupported() {
-		t.Skip("shared library detection not supported. skipping.")
-	}
-
 	perfHandler, doneFn := initEBPFProgram(t)
 	fpath1 := filepath.Join(os.TempDir(), "a-foo.so")
 	fpath2 := filepath.Join(os.TempDir(), "b-foo.so")
@@ -128,13 +118,13 @@ func simulateOpenAt(path string) {
 
 func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 	c := config.New()
-	c.EnableHTTPSMonitoring = true
+	if !HTTPSSupported(c) {
+		t.Skip("https not supported for this kernel version")
+	}
 
 	probe := "do_sys_open"
-	if p, err := newSSLProgram(c, nil); err != nil {
-		if p.sysOpenAt2Supported() {
-			probe = "do_sys_openat2"
-		}
+	if sysOpenAt2Supported(c) {
+		probe = "do_sys_openat2"
 	}
 
 	perfHandler := ddebpf.NewPerfHandler(10)
