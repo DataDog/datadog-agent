@@ -209,9 +209,10 @@ func setMetric(s *pb.Span, key string, val float64) {
 // and sets the chunk's sampling priority to "user keep." Tracers that wish to
 // keep certain spans even when the trace is dropped will set the appropriate
 // tags on the spans to be kept.
+// ApplySpanSampling returns whether any changes were actually made.
 // Do not call ApplySpanSampling on a chunk that the other samplers have
 // decided to keep. Doing so might wrongfully remove spans from a kept trace.
-func ApplySpanSampling(chunk *pb.TraceChunk) (applied bool) {
+func ApplySpanSampling(chunk *pb.TraceChunk) bool {
 	var sampledSpans []*pb.Span
 	for _, span := range chunk.Spans {
 		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
