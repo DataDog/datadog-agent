@@ -6,10 +6,11 @@
 package containertagger
 
 import (
-	"code.cloudfoundry.org/garden"
 	"context"
 	"fmt"
 	"strings"
+
+	"code.cloudfoundry.org/garden"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
