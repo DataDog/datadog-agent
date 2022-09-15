@@ -535,8 +535,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64(otlpTestTraceID.Bytes()))
-		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64(otlpTestSpanID.Bytes()))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -811,8 +811,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			libname: "ddtracer",
 			libver:  "v2",
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID.Bytes(),
-				SpanID:     otlpTestSpanID.Bytes(),
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
 				TraceState: "state",
 				Name:       "/path",
 				Kind:       ptrace.SpanKindServer,
@@ -896,8 +896,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			libname: "ddtracer",
 			libver:  "v2",
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID.Bytes(),
-				SpanID:     otlpTestSpanID.Bytes(),
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
 				TraceState: "state",
 				Name:       "/path",
 				Kind:       ptrace.SpanKindServer,
