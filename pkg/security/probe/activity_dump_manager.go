@@ -497,6 +497,13 @@ func (adm *ActivityDumpManager) snapshotTracedCgroups() {
 	seclog.Infof("snapshotting traced_cgroups map")
 
 	for iterator.Next(&containerIDB, &event.ConfigCookie) {
+		adm.Lock()
+		if adm.ignoreFromSnapshot[string(containerIDB)] {
+			adm.Unlock()
+			continue
+		}
+		adm.Unlock()
+
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
 			_ = adm.tracedCgroupsMap.Delete(containerIDB)
