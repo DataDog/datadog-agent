@@ -91,12 +91,14 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)
 
-		hash := utils.ComputeTagsHash(tags)
+		// hash tags
+		tagsHash := utils.ComputeTagsHash(tags)
 
-		c.tagsHashByContainerID[containerID] = hash
+		// will be useful for deletion
+		c.tagsHashByContainerID[containerID] = tagsHash
 
 		// check if the tags were already injected
-		_, exist := c.seen[hash]
+		_, exist := c.seen[tagsHash]
 
 		// skip event
 		if exist {
@@ -104,7 +106,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		}
 
 		// mark as seen
-		c.seen[hash] = struct{}{}
+		c.seen[tagsHash] = struct{}{}
 
 		container, err := c.gardenUtil.GetContainer(containerID)
 		if err != nil {
@@ -112,9 +114,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		}
 
 		log.Debugf("Writing tags into container %s", containerID)
-
-		// write tags into a file inside the container
-		p, err := container.Run(garden.ProcessSpec{
+		process, err := container.Run(garden.ProcessSpec{
 			Path: "/usr/bin/tee",
 			Args: []string{SharedNodeAgentTagsFile},
 			User: "vcap",
@@ -124,13 +124,14 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		if err != nil {
 			return fmt.Errorf("Error running a process inside container %s: %v", containerID, err)
 		}
+
 		go func() {
-			exitCode, err := p.Wait()
+			exitCode, err := process.Wait()
 			if err != nil {
-				log.Warnf("0Error while running process %s inside container %s: %v", p.ID(), containerID, err)
+				log.Warnf("0Error while running process %s inside container %s: %v", process.ID(), containerID, err)
 				return
 			}
-			log.Debugf("Process %s under container %s exited with code: %d", containerID, p.ID(), exitCode)
+			log.Debugf("Process %s under container %s exited with code: %d", containerID, process.ID(), exitCode)
 		}()
 	} else if evt.Type == workloadmeta.EventTypeUnset {
 		hash := c.tagsHashByContainerID[containerID]
