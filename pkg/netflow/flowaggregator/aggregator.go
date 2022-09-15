@@ -29,7 +29,6 @@ type FlowAggregator struct {
 	flowAcc                      *flowAccumulator
 	sender                       aggregator.Sender
 	stopChan                     chan struct{}
-	logPayload                   bool
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
@@ -47,7 +46,6 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
 		stopChan:                     make(chan struct{}),
-		logPayload:                   config.LogPayloads,
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
@@ -92,12 +90,10 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			log.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
-		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
 
-		// For debug purposes print out all flows
-		if agg.logPayload {
-			log.Debugf("flushed flow: %s", string(payloadBytes))
-		}
+		payloadStr := string(payloadBytes)
+		log.Tracef("flushed flow: %s", payloadStr)
+		agg.sender.EventPlatformEvent(payloadStr, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
 }
 
