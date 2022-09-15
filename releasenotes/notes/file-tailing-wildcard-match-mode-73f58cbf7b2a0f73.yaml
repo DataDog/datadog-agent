@@ -8,10 +8,10 @@
 ---
 enhancements:
   - |
-    A new config option ``logs_config.file_wildcard_selection_mode`` has been added.
-    This option allows users to configure how log wildcard file matches are
-    prioritized if the number of matches exceeds ``logs_config.open_files_limit``
+    A new config option, ``logs_config.file_wildcard_selection_mode``, 
+    allows you to configure how log wildcard file matches are
+    prioritized if the number of matches exceeds ``logs_config.open_files_limit``.
 
-    This defaults to ``by_name`` which is the current behavior.
-    The new option is ``by_modification_time`` which will prioritize more recently
-    modified files, but it comes with a performance penalty compared to ``by_name``.
+    The option defaults to ``by_name`` which is the previous behavior.
+    The new option is ``by_modification_time`` which prioritizes more recently
+    modified files, but using it can result in slower performance compared to using ``by_name``.
