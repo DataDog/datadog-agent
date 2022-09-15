@@ -479,6 +479,10 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 
 		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+
+		// mark interpreter as resolved too
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	return ev.ProcessCacheEntry
