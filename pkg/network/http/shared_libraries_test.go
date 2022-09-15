@@ -31,6 +31,7 @@ import (
 )
 
 func TestSharedLibraryDetection(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
 	if !httpsSupported() {
 		t.Skip("shared library detection not supported. skipping.")
 	}
@@ -71,6 +72,7 @@ func TestSharedLibraryDetection(t *testing.T) {
 }
 
 func TestSameInodeRegression(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
 	if !httpsSupported() {
 		t.Skip("shared library detection not supported. skipping.")
 	}
@@ -125,6 +127,16 @@ func simulateOpenAt(path string) {
 }
 
 func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
+	c := config.New()
+	c.EnableHTTPSMonitoring = true
+
+	probe := "do_sys_open"
+	if p, err := newSSLProgram(c, nil); err != nil {
+		if p.sysOpenAt2Supported() {
+			probe = "do_sys_openat2"
+		}
+	}
+
 	perfHandler := ddebpf.NewPerfHandler(10)
 	mgr := &manager.Manager{
 		PerfMaps: []*manager.PerfMap{
@@ -142,16 +154,16 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/do_sys_open",
-					EBPFFuncName: "kprobe__do_sys_open",
+					EBPFSection:  "kprobe/" + probe,
+					EBPFFuncName: "kprobe__" + probe,
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/do_sys_open",
-					EBPFFuncName: "kretprobe__do_sys_open",
+					EBPFSection:  "kretprobe/" + probe,
+					EBPFFuncName: "kretprobe__" + probe,
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
@@ -175,22 +187,21 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/do_sys_open",
-					EBPFFuncName: "kprobe__do_sys_open",
+					EBPFSection:  "kprobe/" + probe,
+					EBPFFuncName: "kprobe__" + probe,
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/do_sys_open",
-					EBPFFuncName: "kretprobe__do_sys_open",
+					EBPFSection:  "kretprobe/" + probe,
+					EBPFFuncName: "kretprobe__" + probe,
 					UID:          probeUID,
 				},
 			},
 		},
 	}
 
-	c := config.New()
 	bc, err := netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
 	require.NoError(t, err)
 	err = mgr.InitWithOptions(bc, options)
