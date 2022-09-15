@@ -41,6 +41,7 @@ type ActivityDumpManager struct {
 	tracedCgroupsMap       *ebpf.Map
 	cgroupWaitListMap      *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
+	ignoreFromSnapshot     map[string]bool
 
 	activeDumps    []*ActivityDump
 	snapshotQueue  chan *ActivityDump
@@ -97,6 +98,11 @@ func (adm *ActivityDumpManager) cleanup() {
 		if err := adm.storage.Persist(ad); err != nil {
 			seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
 		}
+
+		// remove from the map of ignored dumps
+		adm.Lock()
+		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
+		adm.Unlock()
 	}
 }
 
@@ -111,6 +117,7 @@ func (adm *ActivityDumpManager) getExpiredDumps() []*ActivityDump {
 		if time.Now().After(ad.DumpMetadata.End) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
+			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true
 		}
 	}
 	for _, i := range toDelete {
@@ -191,6 +198,7 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		cgroupWaitListMap:      cgroupWaitList,
 		activityDumpsConfigMap: activityDumpsConfigMap,
 		snapshotQueue:          make(chan *ActivityDump, 100),
+		ignoreFromSnapshot:     make(map[string]bool),
 		storage:                storageManager,
 	}
 
@@ -555,10 +563,16 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		// restart a new dump for the same workload
 		newDump := adm.loadController.NextPartialDump(ad)
 
+		adm.Lock()
 		if err := adm.insertActivityDump(newDump); err != nil {
 			seclog.Errorf("couldn't resume tracing [%s]: %v", newDump.GetSelectorStr(), err)
+			adm.Unlock()
 			return
 		}
+
+		// remove container ID from the map of ignored container IDs for the snapshot
+		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
+		adm.Unlock()
 
 		// disable old dump
 		if err := ad.removeLoadConfig(); err != nil {
@@ -585,6 +599,7 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
+			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true
 		}
 	}
 	for _, i := range toDelete {
