@@ -81,15 +81,6 @@ func SetMeta(s *pb.Span, key, val string) {
 	s.Meta[key] = val
 }
 
-// GetMetric returns the value of a metric and reports its presence.
-func GetMetric(s *pb.Span, key string) (float64, bool) {
-	if s.Metrics == nil {
-		return 0, false
-	}
-	val, ok := s.Metrics[key]
-	return val, ok
-}
-
 // GetMeta gets the metadata value in the span Meta map.
 func GetMeta(s *pb.Span, key string) (string, bool) {
 	if s.Meta == nil {
