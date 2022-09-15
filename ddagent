@@ -1,0 +1,1 @@
+./bin/agent/agent $@ -c bin/agent/dist/datadog.yaml
