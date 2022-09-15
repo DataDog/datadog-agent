@@ -123,9 +123,8 @@ type Config struct {
 	ActivityDumpCgroupDumpTimeout time.Duration
 	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
 	ActivityDumpRateLimiter int
-	// ActivityDumpCgroupWaitListSize defines the size of the cgroup wait list. The wait list is used to introduce a
-	// delay between 2 activity dumps of the same cgroup.
-	ActivityDumpCgroupWaitListSize int
+	// ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
+	ActivityDumpCgroupWaitListTimeout time.Duration
 	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
 	// arguments for dumps.
 	ActivityDumpCgroupDifferentiateArgs bool
@@ -245,7 +244,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
 		ActivityDumpRateLimiter:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.rate_limiter"),
-		ActivityDumpCgroupWaitListSize:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_size"),
+		ActivityDumpCgroupWaitListTimeout:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_timeout")) * time.Minute,
 		ActivityDumpCgroupDifferentiateArgs:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     coreconfig.Datadog.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
@@ -356,14 +355,6 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 
 	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
-	}
-
-	if c.ActivityDumpCgroupWaitListSize <= 0 {
-		c.ActivityDumpCgroupWaitListSize = c.ActivityDumpTracedCgroupsCount
-	}
-
-	if c.ActivityDumpCgroupWaitListSize > model.MaxTracedCgroupsCount {
-		c.ActivityDumpCgroupWaitListSize = model.MaxTracedCgroupsCount
 	}
 	return nil
 }

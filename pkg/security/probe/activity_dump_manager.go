@@ -39,7 +39,6 @@ type ActivityDumpManager struct {
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
 	tracedCgroupsMap       *ebpf.Map
-	cgroupWaitListMap      *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
 
@@ -161,14 +160,6 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_comms map")
 	}
 
-	cgroupWaitList, found, err := p.manager.GetMap("cgroup_wait_list")
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find cgroup_wait_list map")
-	}
-
 	tracedCgroupsMap, found, err := p.manager.GetMap("traced_cgroups")
 	if err != nil {
 		return nil, err
@@ -195,7 +186,6 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
 		tracedCgroupsMap:       tracedCgroupsMap,
-		cgroupWaitListMap:      cgroupWaitList,
 		activityDumpsConfigMap: activityDumpsConfigMap,
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
@@ -213,11 +203,6 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 
 	adm.prepareContextTags()
 	return adm, nil
-}
-
-type tracedCgroupsCounter struct {
-	Max     uint64
-	Counter uint64
 }
 
 func (adm *ActivityDumpManager) prepareContextTags() {

@@ -862,12 +862,13 @@ type CgroupTracingEvent struct {
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
 //msgp:ignore ActivityDumpLoadConfig
 type ActivityDumpLoadConfig struct {
-	TracedEventTypes  []EventType
-	Timeout           time.Duration
-	StartTimestampRaw uint64
-	EndTimestampRaw   uint64
-	Rate              uint32 // max number of events per sec
-	Paused            uint32
+	TracedEventTypes     []EventType
+	Timeout              time.Duration
+	WaitListTimestampRaw uint64
+	StartTimestampRaw    uint64
+	EndTimestampRaw      uint64
+	Rate                 uint32 // max number of events per sec
+	Paused               uint32
 }
 
 // SetTimeout updates the timeout of an activity dump

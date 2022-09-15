@@ -4,6 +4,7 @@
 struct activity_dump_config {
     u64 event_mask;
     u64 timeout;
+    u64 wait_list_timestamp;
     u64 start_timestamp;
     u64 end_timestamp;
     u32 events_rate;
@@ -153,6 +154,9 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
         bpf_map_delete_elem(&activity_dumps_config, &cookie);
         return false;
     }
+
+    // we're tracing a new cgroup, update its wait list timeout
+    bpf_map_update_elem(&cgroup_wait_list, &cgroup[0], &config->wait_list_timestamp, BPF_ANY);
     return true;
 }
 

@@ -126,7 +126,7 @@ type ActivityDump struct {
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
-func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, rate int, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
+func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *TimeResolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
@@ -135,6 +135,7 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, rat
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))
 		adlc.EndTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start.Add(timeout)))
+		adlc.WaitListTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start.Add(waitListTimeout)))
 	}
 	return adlc
 }
@@ -188,6 +189,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		adm.probe.config.ActivityDumpTracedEventTypes,
 		adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		adm.probe.config.ActivityDumpCgroupWaitListTimeout,
 		adm.probe.config.ActivityDumpRateLimiter,
 		now,
 		adm.probe.resolvers.TimeResolver,
@@ -239,6 +241,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	ad.LoadConfig = NewActivityDumpLoadConfig(
 		[]model.EventType{},
 		timeout,
+		0,
 		0,
 		startTime,
 		nil,
@@ -373,19 +376,6 @@ func (ad *ActivityDump) enable() error {
 	// insert load config now (it might already exist, do not update in that case)
 	if err := ad.adm.activityDumpsConfigMap.Put(ad.LoadConfigCookie, ad.LoadConfig); err != nil {
 		return fmt.Errorf("couldn't push activity dump load config: %w", err)
-	}
-
-	if len(ad.DumpMetadata.ContainerID) > 0 {
-		containerIDB := make([]byte, model.ContainerIDLen)
-		copy(containerIDB, ad.DumpMetadata.ContainerID)
-
-		// put this container ID on the wait list so that we don't snapshot it again before a while
-		waitListTimeout := time.Now().Add(time.Duration(ad.adm.probe.config.ActivityDumpCgroupWaitListSize) * ad.LoadConfig.Timeout)
-		waitListTimeoutRaw := ad.adm.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(waitListTimeout)
-		err := ad.adm.cgroupWaitListMap.Put(containerIDB, waitListTimeoutRaw)
-		if err != nil {
-			return fmt.Errorf("couldn't push container ID %s to cgroup_wait_list: %v", ad.DumpMetadata.ContainerID, err)
-		}
 	}
 
 	if len(ad.DumpMetadata.Comm) > 0 {

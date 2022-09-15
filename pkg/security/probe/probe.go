@@ -1433,7 +1433,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
 		p.config.ActivityDumpTracedCgroupsCount,
-		p.config.ActivityDumpCgroupWaitListSize,
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.config.EventStreamBufferSize),
