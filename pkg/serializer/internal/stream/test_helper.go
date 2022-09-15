@@ -9,12 +9,12 @@
 package stream
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
-func BuildJSONPayload(b *JSONPayloadBuilder, m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+func BuildJSONPayload(b *JSONPayloadBuilder, m marshaler.StreamJSONMarshaler) (transaction.BytesPayloads, error) {
 	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
 	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)
 }

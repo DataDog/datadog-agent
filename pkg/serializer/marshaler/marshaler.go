@@ -57,11 +57,6 @@ type IterableStreamJSONMarshaler interface {
 	WriteCurrentItem(*jsoniter.Stream) error
 	DescribeCurrentItem() string
 	MoveNext() bool
-}
-
-// IterableStreamWithPointJSONMarshaler extends IterableStreamJSONMarshaler for items having points (like series)
-type IterableStreamWithPointJSONMarshaler interface {
-	IterableStreamJSONMarshaler
 	GetCurrentItemPointCount() int
 }
 

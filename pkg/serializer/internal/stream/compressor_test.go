@@ -82,7 +82,7 @@ func TestOnePayloadSimple(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
-	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
+	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
 }
 
 func TestMaxCompressedSizePayload(t *testing.T) {
@@ -99,7 +99,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
-	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
+	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
 }
 
 func TestTwoPayload(t *testing.T) {
@@ -116,8 +116,8 @@ func TestTwoPayload(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
 
-	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
-	require.Equal(t, "{[D,E,F]}", payloadToString(*payloads[1]))
+	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
+	require.Equal(t, "{[D,E,F]}", payloadToString(payloads[1].GetContent()))
 }
 
 func TestLockedCompressorProducesSamePayloads(t *testing.T) {
@@ -135,7 +135,7 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 	payloads2, err := BuildJSONPayload(builderUnLocked, m)
 	require.NoError(t, err)
 
-	require.Equal(t, payloadToString(*payloads1[0]), payloadToString(*payloads2[0]))
+	require.Equal(t, payloadToString(payloads1[0].GetContent()), payloadToString(payloads2[0].GetContent()))
 }
 
 func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
@@ -143,7 +143,7 @@ func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", nil)
 	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
 	builder := NewJSONPayloadBuilder(false)
-	payloads, err := builder.BuildWithOnErrItemTooBigPolicyMetadata(
+	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
 		marshaler,
 		DropItemOnErrItemTooBig)
 	r := require.New(t)

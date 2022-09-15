@@ -83,7 +83,7 @@ func BenchmarkSeries(b *testing.B) {
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
 	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := &metricsserializer.IterableSeries{SerieSource: metricsserializer.CreateSerieSource(series)}
-		return payloadBuilder.BuildWithOnErrItemTooBigPolicyMetadata(iterableSeries, stream.DropItemOnErrItemTooBig)
+		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 
 	for _, items := range []int{5, 10, 100, 500, 1000, 10000, 100000} {

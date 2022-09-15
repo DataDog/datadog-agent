@@ -83,7 +83,7 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 	var uncompressedPayloads [][]byte
 
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(*compressedPayload)
+		payload, err := decompressPayload(compressedPayload.GetContent())
 		assert.NoError(t, err)
 
 		uncompressedPayloads = append(uncompressedPayloads, payload)

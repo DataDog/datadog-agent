@@ -17,7 +17,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -103,66 +102,7 @@ const (
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
-	var receiver rawPayloadsReceiver
-	err := b.buildWithOnErrItemTooBigPolicy(
-		m,
-		policy,
-		&receiver)
-
-	return receiver.payloads, err
-}
-
-// payloadsReceiver receives payloads created by buildWithOnErrItemTooBigPolicy
-type payloadsReceiver interface {
-	onItemAddedToNextPayload(m marshaler.IterableStreamJSONMarshaler)
-	append(payload *[]byte)
-}
-
-// rawPayloadsReceiver is a simple receiver that stores payload as []*[]byte
-type rawPayloadsReceiver struct{ payloads []*[]byte }
-
-func (p *rawPayloadsReceiver) append(payload *[]byte) { p.payloads = append(p.payloads, payload) }
-
-func (p *rawPayloadsReceiver) onItemAddedToNextPayload(m marshaler.IterableStreamJSONMarshaler) {}
-
-// BuildWithOnErrItemTooBigPolicyMetadata serializes a metadata payload and sends it to the forwarder
-func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicyMetadata(
-	m marshaler.IterableStreamWithPointJSONMarshaler,
 	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
-	var receiver metadataPayloadsReceiver
-	err := b.buildWithOnErrItemTooBigPolicy(
-		m,
-		policy,
-		&receiver)
-
-	return receiver.payloads, err
-}
-
-// metadataPayloadsReceiver is a receiver that stores payloads as BytesPayloads
-// This type is designed to be used only in BuildWithOnErrItemTooBigPolicyMetadata as
-// it supports only IterableStreamWithPointJSONMarshaler.
-type metadataPayloadsReceiver struct {
-	payloads   transaction.BytesPayloads
-	pointCount int
-}
-
-func (p *metadataPayloadsReceiver) append(payload *[]byte) {
-	if payload != nil {
-		p.payloads = append(p.payloads, transaction.NewBytesPayload(*payload, p.pointCount))
-	}
-	p.pointCount = 0
-}
-
-func (p *metadataPayloadsReceiver) onItemAddedToNextPayload(m marshaler.IterableStreamJSONMarshaler) {
-	p.pointCount += m.(marshaler.IterableStreamWithPointJSONMarshaler).GetCurrentItemPointCount()
-}
-
-// BuildWithOnErrItemTooBigPolicy serializes a metadata payloads and sends it to the forwarder
-func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
-	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy,
-	receiver payloadsReceiver) error {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed
@@ -192,6 +132,7 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 		output = bytes.NewBuffer(make([]byte, 0, b.outputSizeHint))
 	}
 
+	var payloads transaction.BytesPayloads
 	expvarsTotalCalls.Add(1)
 	tlmTotalCalls.Inc()
 	start := time.Now()
@@ -202,13 +143,13 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 
 	err := m.WriteHeader(jsonStream)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	jsonStream.Reset(&footer)
 	err = m.WriteFooter(jsonStream)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	compressor, err := NewCompressor(
@@ -216,9 +157,10 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 		maxPayloadSize, maxUncompressedSize,
 		header.Bytes(), footer.Bytes(), []byte(","))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	pointCount := 0
 	ok := m.MoveNext()
 	for ok {
 		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
@@ -240,9 +182,10 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 			// payload is full, we need to create a new one
 			payload, err := compressor.Close()
 			if err != nil {
-				return err
+				return payloads, err
 			}
-			receiver.append(&payload)
+			payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
+			pointCount = 0
 			input.Reset()
 			output.Reset()
 			compressor, err = NewCompressor(
@@ -250,18 +193,18 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 				maxPayloadSize, maxUncompressedSize,
 				header.Bytes(), footer.Bytes(), []byte(","))
 			if err != nil {
-				return err
+				return nil, err
 			}
 		case nil:
 			// All good, continue to next item
-			receiver.onItemAddedToNextPayload(m)
+			pointCount += m.GetCurrentItemPointCount()
 			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
 		case ErrItemTooBig:
 			if policy == FailOnErrItemTooBig {
-				return ErrItemTooBig
+				return nil, ErrItemTooBig
 			}
 			fallthrough
 		default:
@@ -277,9 +220,9 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 	// Close last payload
 	payload, err := compressor.Close()
 	if err != nil {
-		return err
+		return payloads, err
 	}
-	receiver.append(&payload)
+	payloads = append(payloads, transaction.NewBytesPayload(payload, pointCount))
 
 	if !b.shareAndLockBuffers {
 		b.inputSizeHint = input.Cap()
@@ -290,5 +233,5 @@ func (b *JSONPayloadBuilder) buildWithOnErrItemTooBigPolicy(
 	expvarsSerializationTime.Add(int64(elapsed))
 	tlmTotalSerializationTime.Add(float64(elapsed))
 
-	return nil
+	return payloads, nil
 }
