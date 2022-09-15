@@ -9,12 +9,8 @@
 package runtime
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -24,24 +20,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// asset represents an asset that needs its content integrity checked at runtime
-type asset struct {
+var ConstantFetcher = newGeneratedAsset("constant_fetcher.c")
+
+// generatedAsset represents an asset whose contents will be dynamically generated at runtime
+type generatedAsset struct {
 	filename string
-	hash     string
 	tm       CompilationTelemetry
 }
 
-func newAsset(filename, hash string) *asset {
-	return &asset{
+func newGeneratedAsset(filename string) *generatedAsset {
+	return &generatedAsset{
 		filename: filename,
-		hash:     hash,
 		tm:       newCompilationTelemetry(),
 	}
 }
 
-// Compile compiles the asset to an object file, writes it to the configured output directory, and
+// Compile compiles the provided c code to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
-func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
@@ -60,42 +56,20 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 
 	outputDir := config.RuntimeCompilerOutputDir
 
-	inputReader, err := a.verify(config.BPFDir)
+	inputReader := strings.NewReader(inputCode)
+	inputHash, err := sha256hex([]byte(inputCode))
 	if err != nil {
-		a.tm.compilationResult = verificationError
-		return nil, fmt.Errorf("error reading input file: %s", err)
+		a.tm.compilationResult = inputHashError
+		return nil, fmt.Errorf("error hashing input: %w", err)
 	}
 
-	out, result, err := compileToObjectFile(inputReader, outputDir, a.filename, a.hash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(inputReader, outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
 	
 	return out, err
 }
 
-// verify reads the asset in the provided directory and verifies the content hash matches what is expected.
-// On success, it returns an io.Reader for the contents
-func (a *asset) verify(dir string) (io.Reader, error) {
-	p := filepath.Join(dir, "runtime", a.filename)
-	f, err := os.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var buf bytes.Buffer
-	h := sha256.New()
-
-	w := io.MultiWriter(&buf, h)
-	if _, err := io.Copy(w, f); err != nil {
-		return nil, fmt.Errorf("error hashing file %s: %w", f.Name(), err)
-	}
-	if fmt.Sprintf("%x", h.Sum(nil)) != a.hash {
-		return nil, fmt.Errorf("file content hash does not match expected value")
-	}
-	return &buf, nil
-}
-
 // GetTelemetry returns the compilation telemetry for this asset
-func (a *asset) GetTelemetry() CompilationTelemetry {
+func (a *generatedAsset) GetTelemetry() CompilationTelemetry {
 	return a.tm
 }
