@@ -496,8 +496,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
-	if in.TraceStateStruct().AsRaw() != ptrace.TraceStateEmpty {
-		setMetaOTLP(span, "w3c.tracestate", string(in.TraceStateStruct().AsRaw()))
+	if in.TraceStateStruct().AsRaw() != "" {
+		setMetaOTLP(span, "w3c.tracestate", in.TraceStateStruct().AsRaw())
 	}
 	if lib.Name() != "" {
 		setMetaOTLP(span, semconv.OtelLibraryName, lib.Name())
