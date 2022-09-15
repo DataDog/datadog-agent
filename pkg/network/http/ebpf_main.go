@@ -23,15 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap          = "http_in_flight"
-	httpBatchesMap           = "http_batches"
-	httpBatchStateMap        = "http_batch_state"
-	httpNotificationsPerfMap = "http_notifications"
+	httpInFlightMap   = "http_in_flight"
+	httpBatchesMap    = "http_batches"
+	httpBatchStateMap = "http_batch_state"
+	httpBatchEvents   = "http_batch_events"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
@@ -72,7 +71,7 @@ type subprogram interface {
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
 	var bc bytecode.AssetReader
 	var err error
-	if enableRuntimeCompilation(c) {
+	if c.EnableRuntimeCompiler {
 		bc, err = getRuntimeCompiledHTTP(c)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
@@ -104,9 +103,9 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
-				Map: manager.Map{Name: httpNotificationsPerfMap},
+				Map: manager.Map{Name: httpBatchEvents},
 				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
+					PerfRingBufferSize: 256 * os.Getpagesize(),
 					Watermark:          1,
 					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
@@ -281,20 +280,4 @@ func (e *ebpfProgram) setupMapCleaner() {
 	})
 
 	e.mapCleaner = httpMapCleaner
-}
-
-func enableRuntimeCompilation(c *config.Config) bool {
-	if !c.EnableRuntimeCompiler {
-		return false
-	}
-
-	// The runtime-compiled version of HTTP monitoring requires Kernel 4.5
-	// because we use the `bpf_skb_load_bytes` helper.
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. falling back to pre-compiled program.")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(4, 5, 0)
 }
