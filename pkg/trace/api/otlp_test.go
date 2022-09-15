@@ -1095,7 +1095,10 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		e.Attributes().Insert(k, pcommon.NewValueString(attrs[k]))
+		_, ok := e.Attributes().Get(k)
+		if !ok {
+			e.Attributes().PutString(k, attrs[k])
+		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
 	e.SetDroppedAttributesCount(dropped)

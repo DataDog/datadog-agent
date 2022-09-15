@@ -123,17 +123,35 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 	for k, anyv := range from {
 		switch v := anyv.(type) {
 		case string:
-			attr.Insert(k, pcommon.NewValueString(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutString(k, v)
+			}
 		case bool:
-			attr.Insert(k, pcommon.NewValueBool(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutBool(k, v)
+			}
 		case int:
-			attr.Insert(k, pcommon.NewValueInt(int64(v)))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutInt(k, int64(v))
+			}
 		case int64:
-			attr.Insert(k, pcommon.NewValueInt(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutInt(k, v)
+			}
 		case float64:
-			attr.Insert(k, pcommon.NewValueDouble(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutDouble(k, v)
+			}
 		default:
-			attr.Insert(k, pcommon.NewValueString(fmt.Sprint(v)))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutString(k, fmt.Sprint(v))
+			}
 		}
 	}
 }

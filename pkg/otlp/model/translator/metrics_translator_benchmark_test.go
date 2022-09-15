@@ -52,9 +52,9 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutString(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -84,9 +84,9 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 	rm := rms.AppendEmpty()
 
 	resourceAttrs := rm.Resource().Attributes()
-	resourceAttrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	resourceAttrs.PutString(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		resourceAttrs.InsertString(attr, val)
+		resourceAttrs.PutString(attr, val)
 	}
 
 	ilms := rm.ScopeMetrics()
@@ -133,9 +133,9 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutString(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 

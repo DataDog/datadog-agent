@@ -93,16 +93,16 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()
-				hAttrs.Insert("histogram_1_id", pcommon.NewValueString("value1"))
-				hAttrs.Insert("histogram_2_id", pcommon.NewValueString("value2"))
-				hAttrs.Insert("histogram_3_id", pcommon.NewValueString("value3"))
+				hAttrs.PutString("histogram_1_id", "value1")
+				hAttrs.PutString("histogram_2_id", "value2")
+				hAttrs.PutString("histogram_3_id", "value3")
 
 				n := pmetric.NewNumberDataPoint()
 				n.SetIntVal(777)
 				nAttrs := n.Attributes()
-				nAttrs.Insert("gauge_1_id", pcommon.NewValueString("value1"))
-				nAttrs.Insert("gauge_2_id", pcommon.NewValueString("value2"))
-				nAttrs.Insert("gauge_3_id", pcommon.NewValueString("value3"))
+				nAttrs.PutString("gauge_1_id", "value1")
+				nAttrs.PutString("gauge_2_id", "value2")
+				nAttrs.PutString("gauge_3_id", "value3")
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			setConfig: func(t *testing.T) {
@@ -198,10 +198,7 @@ func newMetrics(
 	hdp.SetExplicitBounds(histogramDataPoint.ExplicitBounds())
 	hdp.SetTimestamp(histogramDataPoint.Timestamp())
 	hdpAttrs := hdp.Attributes()
-	histogramDataPoint.Attributes().Range(func(k string, v pcommon.Value) bool {
-		hdpAttrs.Insert(k, v)
-		return true
-	})
+	histogramDataPoint.Attributes().CopyTo(hdpAttrs)
 
 	// Gauge
 	met = metricsArray.AppendEmpty()
@@ -212,10 +209,7 @@ func newMetrics(
 	gdp.SetTimestamp(numberDataPoint.Timestamp())
 	gdp.SetIntVal(numberDataPoint.IntVal())
 	gdpAttrs := gdp.Attributes()
-	numberDataPoint.Attributes().Range(func(k string, v pcommon.Value) bool {
-		gdpAttrs.Insert(k, v)
-		return true
-	})
+	numberDataPoint.Attributes().CopyTo(gdpAttrs)
 
 	return md
 }
