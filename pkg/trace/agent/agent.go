@@ -190,26 +190,6 @@ func (a *Agent) loop() {
 	}
 }
 
-// sanitizeSpan applies some additional sanitization, including obfuscation,
-// truncation, and adding metadata based on the configured tags.
-func (a *Agent) sanitizeSpan(span *pb.Span, chunk *pb.TraceChunk, clientComputedTopLevel bool) {
-	for k, v := range a.conf.GlobalTags {
-		if k == tagOrigin {
-			chunk.Origin = v
-		} else {
-			traceutil.SetMeta(span, k, v)
-		}
-	}
-	if a.ModifySpan != nil {
-		a.ModifySpan(span)
-	}
-	a.obfuscateSpan(span)
-	Truncate(span)
-	if clientComputedTopLevel {
-		traceutil.UpdateTracerTopLevel(span)
-	}
-}
-
 // setRootSpanTags sets up any necessary tags on the root span.
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
@@ -277,7 +257,21 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
-			a.sanitizeSpan(span, chunk, p.ClientComputedTopLevel)
+			for k, v := range a.conf.GlobalTags {
+				if k == tagOrigin {
+					chunk.Origin = v
+				} else {
+					traceutil.SetMeta(span, k, v)
+				}
+			}
+			if a.ModifySpan != nil {
+				a.ModifySpan(span)
+			}
+			a.obfuscateSpan(span)
+			Truncate(span)
+			if p.ClientComputedTopLevel {
+				traceutil.UpdateTracerTopLevel(span)
+			}
 		}
 		a.Replacer.Replace(chunk.Spans)
 
