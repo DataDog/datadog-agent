@@ -16,14 +16,16 @@ import (
 
 // orchestratorList is a payload list of orchestrator payloads
 type orchestratorList struct {
-	orchestratorYaml     []interface{}
+	// We use yaml size as weight indicator
+	orchestratorYaml []interface{}
+	// Slice of payloads to be chunked, it's a generic attribute for metadata payloads and manifest payloads
 	orchestratorPayloads []interface{}
 	chunker              orchestratorChunker
 }
 
 // orchestratorChunker abstracts chunking of orchestrator payloads
 type orchestratorChunker interface {
-	// Accept takes a slice of orchestrator and allocates them to the current chunk
+	// Accept takes a slice of orchestrator payloads and allocates them to the current chunk
 	Accept(orchestrator []interface{}, weight int)
 }
 
