@@ -30,7 +30,7 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 			func(cfg *config.AgentConfig) {
 				cfg.StatsdEnabled = false
 			},
-			http.StatusMethodNotAllowed,
+			http.StatusServiceUnavailable,
 		},
 		{
 			"bad statsd host",

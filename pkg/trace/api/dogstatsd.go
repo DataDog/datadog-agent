@@ -19,9 +19,9 @@ import (
 // if StatsdSocket is set in the *AgentConfig).
 func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 	if !r.conf.StatsdEnabled {
-		log.Info("DogstatsD disabled in the Agent configuration")
+		log.Info("DogstatsD disabled in the Agent configuration. The DogstatsD proxy endpoint will be non-functional.")
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "405 Method Not Allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "503 Status Unavailable", http.StatusServiceUnavailable)
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
