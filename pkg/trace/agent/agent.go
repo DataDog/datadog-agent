@@ -307,20 +307,19 @@ func (a *Agent) Process(p *api.Payload) {
 
 		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep {
-			// If we're not keeping the trace, then either span sampling is
-			// going to happen, or we're going to use the spans extracted by the
-			// sampler.
-			if !sampler.ApplySpanSampling(chunk) {
-				if numEvents == 0 {
-					// the trace was dropped and no analyzed span were kept
-					p.RemoveChunk(i)
-					continue
-				}
-				// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
-				// is added to the TracerPayload to be sent to TraceWriter.
-				// The complete chunk is still sent to the stats concentrator.
-				p.ReplaceChunk(i, filteredChunk)
+			keep = sampler.ApplySpanSampling(chunk)
+		}
+		if !keep {
+			if numEvents == 0 {
+				// the trace was dropped and no analyzed span were kept
+				p.RemoveChunk(i)
+				continue
 			}
+			// The sampler step filtered a subset of spans in the chunk. The new
+			// filtered chunk is added to the TracerPayload to be sent to
+			// TraceWriter. The complete chunk is still sent to the stats
+			// concentrator.
+			p.ReplaceChunk(i, filteredChunk)
 		}
 
 		if !chunk.DroppedTrace {
