@@ -114,28 +114,51 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		}
 
 		log.Debugf("Writing tags into container %s", containerID)
-		process, err := container.Run(garden.ProcessSpec{
-			Path: "/usr/bin/tee",
-			Args: []string{SharedNodeAgentTagsFile},
-			User: "vcap",
-		}, garden.ProcessIO{
-			Stdin: strings.NewReader(strings.Join(tags, ",")),
-		})
+		err = writeTagsIntoContainer(container, tags)
 		if err != nil {
-			return fmt.Errorf("Error running a process inside container %s: %v", containerID, err)
+			fmt.Errorf("Error running a process inside container %s: %v", containerID, err)
 		}
 
-		go func() {
-			exitCode, err := process.Wait()
-			if err != nil {
-				log.Warnf("0Error while running process %s inside container %s: %v", process.ID(), containerID, err)
-				return
-			}
-			log.Debugf("Process %s under container %s exited with code: %d", containerID, process.ID(), exitCode)
-		}()
 	} else if evt.Type == workloadmeta.EventTypeUnset {
 		hash := c.tagsHashByContainerID[containerID]
 		delete(c.seen, hash)
 	}
+	return nil
+}
+
+func writeTagsIntoContainer(container garden.Container, tags []string) error {
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "tee",
+		Args: []string{SharedNodeAgentTagsFile},
+		User: "vcap",
+	}, garden.ProcessIO{
+		Stdin: strings.NewReader(strings.Join(tags, ",")),
+	})
+	if err != nil {
+		return err
+	}
+	exitCode, err := process.Wait()
+	if err != nil {
+		return err
+	}
+	log.Debugf("Process %s exited with code: %d", process.ID(), exitCode)
+	return nil
+}
+
+func restartContainerAgent(container garden.Container, tags []string) error {
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "bash",
+		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},
+		User: "vcap",
+		Env:  []string{fmt.Sprintf("DD_NODE_AGENT_TAGS=%s", strings.Join(tags, ","))},
+	}, garden.ProcessIO{})
+	if err != nil {
+		return err
+	}
+	exitCode, err := process.Wait()
+	if err != nil {
+		return err
+	}
+	log.Debugf("Process %s exited with code: %d", process.ID(), exitCode)
 	return nil
 }
