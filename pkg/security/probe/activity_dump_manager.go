@@ -580,11 +580,6 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 		// remove container ID from the map of ignored container IDs for the snapshot
 		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
 		adm.Unlock()
-
-		// disable old dump
-		if err := ad.removeLoadConfig(); err != nil {
-			seclog.Errorf("couldn't clean up old dump [%s]: %v", ad.GetSelectorStr(), err)
-		}
 	}
 }
 

@@ -149,7 +149,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, tracedCgroupSize int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -164,7 +164,7 @@ func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, 
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"traced_cgroups": {
-			MaxEntries: model.MaxTracedCgroupsCount,
+			MaxEntries: uint32(tracedCgroupSize),
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"activity_dumps_config": {

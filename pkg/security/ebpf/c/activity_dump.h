@@ -44,18 +44,6 @@ struct bpf_map_def SEC("maps/traced_cgroups") traced_cgroups = {
     .max_entries = 1, // will be overridden at runtime
 };
 
-struct traced_cgroups_counter_t {
-    u64 max;
-    u64 counter;
-};
-
-struct bpf_map_def SEC("maps/traced_cgroups_counter") traced_cgroups_counter = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct traced_cgroups_counter_t),
-    .max_entries = 1,
-};
-
 struct bpf_map_def SEC("maps/cgroup_wait_list") cgroup_wait_list = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = CONTAINER_ID_LEN,
@@ -141,49 +129,13 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
-struct bpf_map_def SEC("maps/traced_cgroups_lock") traced_cgroups_lock = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 1,
-};
-
-__attribute__((always_inline)) bool lock_cgroups_counter() {
-    u32 key = 0;
-    return bpf_map_update_elem(&traced_cgroups_lock, &key, &key, BPF_NOEXIST) == 0;
-}
-
-__attribute__((always_inline)) void unlock_cgroups_counter() {
-    u32 key = 0;
-    bpf_map_delete_elem(&traced_cgroups_lock, &key);
-}
-
 __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u32 cookie, struct activity_dump_config *config) {
-    if (!lock_cgroups_counter()) {
-        return false;
-    }
-
-    void *already_in = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
-    if (already_in) {
-        goto fail;
-    }
-
-    u32 key = 0;
-    struct traced_cgroups_counter_t *counter = bpf_map_lookup_elem(&traced_cgroups_counter, &key);
-    if (!counter) {
-        goto fail;
-    }
-
-    if (counter->counter >= counter->max) {
-        goto fail;
-    }
-
     // insert dump config defaults
     u32 defaults_key = 0;
     struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &defaults_key);
     if (defaults == NULL) {
         // should never happen, ignore
-        goto fail;
+        return false;
     }
     *config = *defaults;
     config->start_timestamp = now;
@@ -192,26 +144,16 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     int ret = bpf_map_update_elem(&activity_dumps_config, &cookie, config, BPF_ANY);
     if (ret < 0) {
         // should never happen, ignore
-        goto fail;
+        return false;
     }
 
     ret = bpf_map_update_elem(&traced_cgroups, &cgroup[0], &cookie, BPF_NOEXIST);
     if (ret < 0) {
-        // this should be caught earlier but we're already tracing too many cgroups concurrently, ignore this one for now
-        goto fail;
+        // we didn't get a lock, skip this cgroup for now and go back to it later
+        bpf_map_delete_elem(&activity_dumps_config, &cookie);
+        return false;
     }
-
-    // increment active dumps counter
-    // Warning: this must happen only once we are sure that the new dump is fully operational
-    counter->counter++;
-    bpf_printk("counter is at: %d\n", counter->counter);
-
-    unlock_cgroups_counter();
     return true;
-
-fail:
-    unlock_cgroups_counter();
-    return false;
 }
 
 __attribute__((always_inline)) u32 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {

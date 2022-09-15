@@ -12,16 +12,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/cilium/ebpf"
 	"golang.org/x/time/rate"
 
-	ebpfutils "github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -36,33 +33,12 @@ type ActivityDumpLoadController struct {
 	rateLimiter *rate.Limiter
 	adm         *ActivityDumpManager
 
-	// config
-	tracedCgroupsCount uint64
-
 	// eBPF maps
-	tracedCgroupsCounterMap    *ebpf.Map
-	tracedCgroupsLockMap       *ebpf.Map
 	activityDumpConfigDefaults *ebpf.Map
 }
 
 // NewActivityDumpLoadController returns a new activity dump load controller
 func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadController, error) {
-	tracedCgroupsCounterMap, found, err := adm.probe.manager.GetMap("traced_cgroups_counter")
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_cgroups_counter map")
-	}
-
-	tracedCgroupsLockMap, found, err := adm.probe.manager.GetMap("traced_cgroups_lock")
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_cgroups_lock map")
-	}
-
 	activityDumpConfigDefaultsMap, found, err := adm.probe.manager.GetMap("activity_dump_config_defaults")
 	if err != nil {
 		return nil, err
@@ -74,9 +50,6 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	return &ActivityDumpLoadController{
 		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
 		rateLimiter:                rate.NewLimiter(rate.Every(adm.probe.config.ActivityDumpCgroupDumpTimeout), 1),
-		tracedCgroupsCounterMap:    tracedCgroupsCounterMap,
-		tracedCgroupsLockMap:       tracedCgroupsLockMap,
-		tracedCgroupsCount:         uint64(adm.probe.config.ActivityDumpTracedCgroupsCount),
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
 		adm:                        adm,
 	}, nil
@@ -95,9 +68,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
-
-	// push traced cgroups count
-	return lc.pushTracedCgroupsCount()
+	return nil
 }
 
 // reduceConfig reduces the configuration of the load controller.
@@ -105,11 +76,6 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 func (lc *ActivityDumpLoadController) reduceConfig() error {
 	if !lc.rateLimiter.Allow() {
 		return nil
-	}
-
-	// try to reduce the number of concurrent dumps first
-	if lc.tracedCgroupsCount > 1 {
-		return lc.reduceTracedCgroupsCount()
 	}
 	return nil
 }
@@ -143,6 +109,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	newDump.LoadConfig.TracedEventTypes = make([]model.EventType, len(ad.LoadConfig.TracedEventTypes))
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
 	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
+	newDump.LoadConfigCookie = ad.LoadConfigCookie
 
 	if timeToThreshold < MinDumpTimeout {
 		if err := lc.reduceDumpRate(ad, newDump); err != nil {
@@ -213,75 +180,6 @@ func (lc *ActivityDumpLoadController) reduceDumpTimeout(new *ActivityDump) error
 
 	// send metric
 	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:dump_timeout"})
-}
-
-// reduceTracedCgroupsCount decrements the maximum count of cgroups that can be traced simultaneously and applies the
-// updated value to kernel space.
-// nolint: unused
-func (lc *ActivityDumpLoadController) reduceTracedCgroupsCount() error {
-	// sanity check
-	if lc.tracedCgroupsCount <= 1 {
-		return nil
-	}
-	lc.tracedCgroupsCount--
-
-	// push new value to kernel space
-	if err := lc.pushTracedCgroupsCount(); err != nil {
-		return err
-	}
-
-	// send metric
-	return lc.sendLoadControllerTriggeredMetric([]string{"reduction:traced_cgroups_count"})
-}
-
-// pushTracedCgroupsCount pushes the current traced cgroups count to kernel space
-func (lc *ActivityDumpLoadController) pushTracedCgroupsCount() error {
-	return retry.Do(lc.editCgroupsCounter(func(counter *tracedCgroupsCounter) error {
-		log.Debugf("AD: got counter = %v, when propagating config", counter)
-		counter.Max = lc.tracedCgroupsCount
-		return nil
-	}))
-}
-
-func (lc *ActivityDumpLoadController) releaseTracedCgroupSpot() error {
-	return retry.Do(lc.editCgroupsCounter(func(counter *tracedCgroupsCounter) error {
-		seclog.Infof("AD kernel space counter is at %d", counter.Counter)
-		if counter.Counter > 0 {
-			seclog.Infof("AD setting kernel space counter to %d", counter.Counter)
-			counter.Counter--
-		}
-		return nil
-	}))
-}
-
-type cgroupsCounterEditor = func(*tracedCgroupsCounter) error
-
-func (lc *ActivityDumpLoadController) editCgroupsCounter(editor cgroupsCounterEditor) func() error {
-	return func() error {
-		if err := lc.tracedCgroupsLockMap.Update(ebpfutils.ZeroUint32MapItem, uint32(1), ebpf.UpdateNoExist); err != nil {
-			return fmt.Errorf("failed to lock traced cgroup counter: %w", err)
-		}
-
-		defer func() {
-			if err := lc.tracedCgroupsLockMap.Delete(ebpfutils.ZeroUint32MapItem); err != nil {
-				log.Errorf("failed to unlock traced cgroup counter: %v", err)
-			}
-		}()
-
-		var counter tracedCgroupsCounter
-		if err := lc.tracedCgroupsCounterMap.Lookup(ebpfutils.ZeroUint32MapItem, &counter); err != nil {
-			return fmt.Errorf("failed to get traced cgroup counter: %w", err)
-		}
-
-		if err := editor(&counter); err != nil {
-			return err
-		}
-
-		if err := lc.tracedCgroupsCounterMap.Put(ebpfutils.ZeroUint32MapItem, counter); err != nil {
-			return fmt.Errorf("failed to change counter max: %w", err)
-		}
-		return nil
-	}
 }
 
 func (lc *ActivityDumpLoadController) sendLoadControllerTriggeredMetric(tags []string) error {

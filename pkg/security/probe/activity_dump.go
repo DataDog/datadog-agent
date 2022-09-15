@@ -371,17 +371,13 @@ func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
 	// insert load config now (it might already exist, do not update in that case)
-	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+	if err := ad.adm.activityDumpsConfigMap.Put(ad.LoadConfigCookie, ad.LoadConfig); err != nil {
 		return fmt.Errorf("couldn't push activity dump load config: %w", err)
 	}
 
 	if len(ad.DumpMetadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
 		copy(containerIDB, ad.DumpMetadata.ContainerID)
-		// make sure this container ID is traced
-		if err := ad.adm.tracedCgroupsMap.Put(containerIDB, ad.LoadConfigCookie); err != nil {
-			return fmt.Errorf("couldn't push container ID to traced_cgroups map: %w", err)
-		}
 
 		// put this container ID on the wait list so that we don't snapshot it again before a while
 		waitListTimeout := time.Now().Add(time.Duration(ad.adm.probe.config.ActivityDumpCgroupWaitListSize) * ad.LoadConfig.Timeout)
@@ -474,13 +470,6 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 	if releaseTracedCgroupSpot || len(ad.DumpMetadata.Comm) > 0 {
 		if err := ad.disable(); err != nil {
 			seclog.Errorf("couldn't disable activity dump: %v", err)
-		}
-
-		// make sure we release a cgroup spot only for cgroup generated dumps
-		if len(ad.DumpMetadata.ContainerID) > 0 {
-			if err := ad.adm.loadController.releaseTracedCgroupSpot(); err != nil {
-				seclog.Errorf("couldn't release a traced cgroup spot: %v", err)
-			}
 		}
 
 		ad.state = Stopped
