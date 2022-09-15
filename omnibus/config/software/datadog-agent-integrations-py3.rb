@@ -99,7 +99,9 @@ end
 
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
+agent_aerospike_requirements_file = 'agent_aerospike_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
+filtered_agent_aerospike_requirements_in = 'agent_aerospike_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
 
 build do
@@ -155,6 +157,10 @@ build do
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
     }
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
     # wheels (eg. ddtrace).
@@ -168,15 +174,6 @@ build do
       nix_build_env["CFLAGS"] += " -std=c99"
     end
 
-    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    # nix_build_env["EXT_CFLAGS"] = nix_build_env["CFLAGS"]
-
-    # TODO: Maybe remove the CFLAGS from thehash: nix_build_env.except("CFLAGS")
-    specific_build_env = {
-      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => "-std=gnu99"}),
-      }
-
-
     #
     # Prepare the requirements file containing ALL the dependencies needed by
     # any integration. This will provide the "static Python environment" of the Agent.
@@ -186,13 +183,16 @@ build do
     if windows?
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+      static_aerospike_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_aerospike_requirements_in}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+      static_aerospike_reqs_out_file = "#{project_dir}/#{filtered_agent_aerospike_requirements_in}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
     requirements = Array.new
+    requirements_aerospike = Array.new
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
       blacklist_flag = false
       blacklist_packages.each do |blacklist_regex|
@@ -203,7 +203,12 @@ build do
       end
 
       if !blacklist_flag
-        requirements.push(line)
+        # Keeping the aerospike lines apart to install them with a specific env
+        if Regexp.new(/^aerospike==/).freeze.match line
+          requirements_aerospike.push(line)
+        else
+          requirements.push(line)
+        end
       end
     end
 
@@ -215,6 +220,12 @@ build do
         dest: "#{static_reqs_out_file}",
         mode: 0640,
         vars: { requirements: requirements }
+
+    # Render the filtered requirements file
+    erb source: "static_requirements.txt.erb",
+        dest: "#{static_aerospike_reqs_out_file}",
+        mode: 0640,
+        vars: { requirements: requirements_aerospike }
 
     # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
     pip_max_retries = 20
@@ -229,6 +240,8 @@ build do
       command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
+      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_aerospike_requirements_file} #{static_aerospike_reqs_out_file} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => specific_build_env["aerospike"]
     else
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
@@ -236,6 +249,8 @@ build do
       command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
+      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_aerospike_requirements_file} #{static_aerospike_reqs_out_file} " \
+        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => specific_build_env["aerospike"]
     end
 
     #
@@ -245,9 +260,7 @@ build do
       command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
       # First we install the dependencies that need specific flags
-      specific_build_env.each do |lib, build_env|
-        command "#{pip} install --no-deps #{lib}", :env => build_env
-      end
+      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_aerospike_requirements_file}", :env => specific_build_env["aerospike"]
       # Then we install the rest (already installed libraries will be ignored) witht the main flags
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
