@@ -8,10 +8,10 @@ package cloudfoundry_container
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"os"
 	"strings"
 
-	cf "github.com/DataDog/datadog-agent/pkg/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -76,9 +76,9 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	// read shared node tags file if it exists
-	sharedNodeTagsBytes, err := os.ReadFile(cf.SharedNodeAgentTagsFile)
+	sharedNodeTagsBytes, err := os.ReadFile(containertagger.SharedNodeAgentTagsFile)
 	if err != nil {
-		log.Errorf("Error reading shared node agent tags file under '%s': %v", cf.SharedNodeAgentTagsFile, err)
+		log.Errorf("Error reading shared node agent tags file under '%s': %v", containertagger.SharedNodeAgentTagsFile, err)
 	} else {
 		// TODO: handle json tags
 		sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
