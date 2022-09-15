@@ -164,7 +164,12 @@ build do
     end
 
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    nix_build_env["EXT_CFLAGS"] = nix_build_env["CFLAGS"]
+    # nix_build_env["EXT_CFLAGS"] = nix_build_env["CFLAGS"]
+
+    # TODO: Maybe remove the CFLAGS from thehash: nix_build_env.except("CFLAGS")
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => "-std=gnu99"}),
+      }
 
     #
     # Prepare the requirements file containing ALL the dependencies needed by
@@ -233,6 +238,11 @@ build do
     if windows?
       command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
+      # First we install the dependencies that need specific flags
+      specific_build_env.each do |lib, build_env|
+        command "#{pip} install --no-deps #{lib}", :env => build_env
+      end
+      # Then we install the rest (already installed libraries will be ignored) witht the main flags
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
 
