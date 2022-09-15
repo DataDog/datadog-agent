@@ -55,7 +55,6 @@ network_devices:
 				AggregatorFlowContextTTL:               40,
 				AggregatorPortRollupThreshold:          20,
 				AggregatorRollupTrackerRefreshInterval: 60,
-				LogPayloads:                            true,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -90,7 +89,6 @@ network_devices:
 				AggregatorFlowContextTTL:               300,
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 3600,
-				LogPayloads:                            false,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -119,7 +117,6 @@ network_devices:
 				AggregatorFlowContextTTL:               50,
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 3600,
-				LogPayloads:                            false,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,

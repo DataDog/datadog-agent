@@ -34,7 +34,6 @@ func TestAggregator(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
-		LogPayloads:                            true,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
