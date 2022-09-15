@@ -13,7 +13,7 @@ import (
 	"log"
 	"strings"
 
-	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
+	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/androidasset"
@@ -42,7 +42,8 @@ func AndroidMain(apikey string, hostname string, tags string) {
 	config.Datadog.SetConfigFile("datadog.yaml")
 	config.AddOverrides(overrides)
 
-	ddapp.StartAgent()
+	// TODO: use an fxutil.Run(..) just like core agent
+	runcmd.StartAgent(&app.GlolbalArgs{})
 }
 
 func GetStatus() string {
