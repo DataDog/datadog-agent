@@ -46,7 +46,7 @@ struct bpf_map_def SEC("maps/traced_cgroups") traced_cgroups = {
 };
 
 struct bpf_map_def SEC("maps/cgroup_wait_list") cgroup_wait_list = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
+    .type = BPF_MAP_TYPE_HASH,
     .key_size = CONTAINER_ID_LEN,
     .value_size = sizeof(u64),
     .max_entries = 1, // will be overridden at runtime

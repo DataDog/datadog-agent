@@ -39,6 +39,7 @@ type ActivityDumpManager struct {
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
 	tracedCgroupsMap       *ebpf.Map
+	cgroupWaitList         *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
 
@@ -103,6 +104,20 @@ func (adm *ActivityDumpManager) cleanup() {
 		delete(adm.ignoreFromSnapshot, ad.DumpMetadata.ContainerID)
 		adm.Unlock()
 	}
+
+	// cleanup cgroup_wait_list map
+	iterator := adm.cgroupWaitList.Iterate()
+	containerIDB := make([]byte, model.ContainerIDLen)
+	var timestamp uint64
+
+	for iterator.Next(&containerIDB, &timestamp) {
+		if time.Now().After(adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
+			if err := adm.cgroupWaitList.Delete(&containerIDB); err != nil {
+				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%s): %v", string(containerIDB), err)
+			}
+		}
+	}
+
 }
 
 // getExpiredDumps returns the list of dumps that have timed out
@@ -176,6 +191,14 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find activity_dumps_config map")
 	}
 
+	cgroupWaitList, found, err := p.manager.GetMap("cgroup_wait_list")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("couldn't find cgroup_wait_list map")
+	}
+
 	storageManager, err := NewActivityDumpStorageManager(p)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump storage manager: %w", err)
@@ -186,6 +209,7 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
 		tracedCgroupsMap:       tracedCgroupsMap,
+		cgroupWaitList:         cgroupWaitList,
 		activityDumpsConfigMap: activityDumpsConfigMap,
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
