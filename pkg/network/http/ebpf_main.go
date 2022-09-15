@@ -69,23 +69,9 @@ type subprogram interface {
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
-	var bc bytecode.AssetReader
-	var err error
-	if c.EnableRuntimeCompiler {
-		bc, err = getRuntimeCompiledHTTP(c)
-		if err != nil {
-			if !c.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
-			}
-			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
-		}
-	}
-
-	if bc == nil {
-		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
+	bc, err := getBytecode(c)
+	if err != nil {
+		return nil, err
 	}
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
@@ -280,4 +266,25 @@ func (e *ebpfProgram) setupMapCleaner() {
 	})
 
 	e.mapCleaner = httpMapCleaner
+}
+
+func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
+	if c.EnableRuntimeCompiler {
+		bc, err = getRuntimeCompiledHTTP(c)
+		if err != nil {
+			if !c.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network http tracer: %w", err)
+			}
+			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
+		}
+	}
+
+	if bc == nil {
+		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
+	}
+
+	return
 }

@@ -22,7 +22,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -190,7 +189,7 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		},
 	}
 
-	bc, err := netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+	bc, err := getBytecode(c)
 	require.NoError(t, err)
 	err = mgr.InitWithOptions(bc, options)
 	require.NoError(t, err)
