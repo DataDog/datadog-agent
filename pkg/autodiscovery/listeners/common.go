@@ -87,14 +87,14 @@ func newContainerFilters() (*containerFilters, error) {
 	}, nil
 }
 
-func (f *containerFilters) IsExcluded(filter containers.FilterType, name, image, ns string) bool {
+func (f *containerFilters) IsExcluded(filter containers.FilterType, name, image, ns string, annotations, labels map[string]string) bool {
 	switch filter {
 	case containers.GlobalFilter:
-		return f.global.IsExcluded(name, image, ns)
+		return f.global.IsExcluded(name, image, ns, annotations, labels)
 	case containers.MetricsFilter:
-		return f.metrics.IsExcluded(name, image, ns)
+		return f.metrics.IsExcluded(name, image, ns, annotations, labels)
 	case containers.LogsFilter:
-		return f.logs.IsExcluded(name, image, ns)
+		return f.logs.IsExcluded(name, image, ns, annotations, labels)
 	}
 	return false
 }

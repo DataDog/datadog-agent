@@ -117,6 +117,8 @@ func (l *KubeletListener) createContainerService(
 		containerName,
 		containerImg.RawName,
 		pod.Namespace,
+		pod.Annotations,
+		pod.Labels,
 	) {
 		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
@@ -166,12 +168,16 @@ func (l *KubeletListener) createContainerService(
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
+			pod.Annotations,
+			pod.Labels,
 		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
+			pod.Annotations,
+			pod.Labels,
 		),
 	}
 

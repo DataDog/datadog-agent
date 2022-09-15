@@ -149,7 +149,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 
 	isExcluded := func(container types.Container) bool {
 		for _, name := range container.Names {
-			if filter.IsExcluded(name, container.Image, "") {
+			if filter.IsExcluded(name, container.Image, "", nil, container.Labels) {
 				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
 				return true
 			}

@@ -65,6 +65,8 @@ const (
 	imageFilterPrefix         = `image:`
 	nameFilterPrefix          = `name:`
 	kubeNamespaceFilterPrefix = `kube_namespace:`
+	annotationFilterPrefix    = `annotation:`
+	labelFilterPrefix         = `label:`
 )
 
 // FilterType indicates the container filter type
@@ -81,19 +83,23 @@ const (
 
 // Filter holds the state for the container filtering logic
 type Filter struct {
-	Enabled              bool
-	ImageIncludeList     []*regexp.Regexp
-	NameIncludeList      []*regexp.Regexp
-	NamespaceIncludeList []*regexp.Regexp
-	ImageExcludeList     []*regexp.Regexp
-	NameExcludeList      []*regexp.Regexp
-	NamespaceExcludeList []*regexp.Regexp
-	Errors               map[string]struct{}
+	Enabled               bool
+	ImageIncludeList      []*regexp.Regexp
+	NameIncludeList       []*regexp.Regexp
+	NamespaceIncludeList  []*regexp.Regexp
+	AnnotationIncludeList []*regexp.Regexp
+	LabelIncludeList      []*regexp.Regexp
+	ImageExcludeList      []*regexp.Regexp
+	NameExcludeList       []*regexp.Regexp
+	NamespaceExcludeList  []*regexp.Regexp
+	AnnotationExcludeList []*regexp.Regexp
+	LabelExcludeList      []*regexp.Regexp
+	Errors                map[string]struct{}
 }
 
 var sharedFilter *Filter
 
-func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string, err error) {
+func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters, annotationFilters, labelFilters []*regexp.Regexp, filterErrs []string, err error) {
 	var filterWarnings []string
 	for _, filter := range filters {
 		switch {
@@ -118,6 +124,20 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 				continue
 			}
 			namespaceFilters = append(namespaceFilters, r)
+		case strings.HasPrefix(filter, annotationFilterPrefix):
+			r, err := filterToRegex(filter, annotationFilterPrefix)
+			if err != nil {
+				filterErrs = append(filterErrs, err.Error())
+				continue
+			}
+			annotationFilters = append(annotationFilters, r)
+		case strings.HasPrefix(filter, labelFilterPrefix):
+			r, err := filterToRegex(filter, labelFilterPrefix)
+			if err != nil {
+				filterErrs = append(filterErrs, err.Error())
+				continue
+			}
+			labelFilters = append(labelFilters, r)
 		default:
 			warnmsg := fmt.Sprintf("Container filter %q is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'", filter)
 			log.Warnf(warnmsg)
@@ -126,9 +146,9 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 		}
 	}
 	if len(filterErrs) > 0 {
-		return nil, nil, nil, append(filterErrs, filterWarnings...), errors.New(filterErrs[0])
+		return nil, nil, nil, nil, nil, append(filterErrs, filterWarnings...), errors.New(filterErrs[0])
 	}
-	return imageFilters, nameFilters, namespaceFilters, filterWarnings, nil
+	return imageFilters, nameFilters, namespaceFilters, annotationFilters, labelFilters, filterWarnings, nil
 }
 
 // filterToRegex checks a filter's regex
@@ -200,11 +220,11 @@ func GetFilterErrors() map[string]struct{} {
 
 // NewFilter creates a new container filter from a two slices of
 // regexp patterns for a include list and exclude list. Each pattern should have
-// the following format: "field:pattern" where field can be: [image, name, kube_namespace].
+// the following format: "field:pattern" where field can be: [image, name, kube_namespace, annotation, label].
 // An error is returned if any of the expression don't compile.
 func NewFilter(includeList, excludeList []string) (*Filter, error) {
-	imgIncl, nameIncl, nsIncl, filterErrsIncl, errIncl := parseFilters(includeList)
-	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
+	imgIncl, nameIncl, nsIncl, annotationIncl, labelIncl, filterErrsIncl, errIncl := parseFilters(includeList)
+	imgExcl, nameExcl, nsExcl, annotationExcl, labelExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
 
 	errors := append(filterErrsIncl, filterErrsExcl...)
 	errorsMap := make(map[string]struct{})
@@ -222,14 +242,18 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 	}
 
 	return &Filter{
-		Enabled:              len(includeList) > 0 || len(excludeList) > 0,
-		ImageIncludeList:     imgIncl,
-		NameIncludeList:      nameIncl,
-		NamespaceIncludeList: nsIncl,
-		ImageExcludeList:     imgExcl,
-		NameExcludeList:      nameExcl,
-		NamespaceExcludeList: nsExcl,
-		Errors:               errorsMap,
+		Enabled:               len(includeList) > 0 || len(excludeList) > 0,
+		ImageIncludeList:      imgIncl,
+		NameIncludeList:       nameIncl,
+		NamespaceIncludeList:  nsIncl,
+		AnnotationIncludeList: annotationIncl,
+		LabelIncludeList:      labelIncl,
+		ImageExcludeList:      imgExcl,
+		NameExcludeList:       nameExcl,
+		NamespaceExcludeList:  nsExcl,
+		AnnotationExcludeList: annotationExcl,
+		LabelExcludeList:      labelExcl,
+		Errors:                errorsMap,
 	}, nil
 }
 
@@ -307,7 +331,7 @@ func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
 // based on the filters in the containerFilter instance.
 // Note: exclude filters are not applied to empty container names, empty
 // images and empty namespaces.
-func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) bool {
+func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string, podAnnotations, podLabels map[string]string) bool {
 	if !cf.Enabled {
 		return false
 	}
@@ -326,6 +350,22 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	for _, r := range cf.NamespaceIncludeList {
 		if r.MatchString(podNamespace) {
 			return false
+		}
+	}
+
+	for _, r := range cf.AnnotationIncludeList {
+		for k, v := range podAnnotations {
+			if r.MatchString(fmt.Sprintf("%s:%s", k, v)) {
+				return false
+			}
+		}
+	}
+
+	for _, r := range cf.LabelIncludeList {
+		for k, v := range podLabels {
+			if r.MatchString(fmt.Sprintf("%s:%s", k, v)) {
+				return false
+			}
 		}
 	}
 
@@ -349,6 +389,22 @@ func (cf Filter) IsExcluded(containerName, containerImage, podNamespace string) 
 	if podNamespace != "" {
 		for _, r := range cf.NamespaceExcludeList {
 			if r.MatchString(podNamespace) {
+				return true
+			}
+		}
+	}
+
+	for _, r := range cf.AnnotationExcludeList {
+		for k, v := range podAnnotations {
+			if r.MatchString(fmt.Sprintf("%s:%s", k, v)) {
+				return true
+			}
+		}
+	}
+
+	for _, r := range cf.LabelExcludeList {
+		for k, v := range podLabels {
+			if r.MatchString(fmt.Sprintf("%s:%s", k, v)) {
 				return true
 			}
 		}

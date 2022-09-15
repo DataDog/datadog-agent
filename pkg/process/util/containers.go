@@ -102,7 +102,13 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+		if p.filter != nil && p.filter.IsExcluded(
+			container.Name,
+			container.Image.Name,
+			container.Labels[kubernetes.CriContainerNamespaceLabel],
+			container.Annotations,
+			container.Labels,
+		) {
 			continue
 		}
 

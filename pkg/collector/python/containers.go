@@ -40,7 +40,7 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 		goNs = C.GoString(namespace)
 	}
 
-	if filter.IsExcluded(goName, goImg, goNs) {
+	if filter.IsExcluded(goName, goImg, goNs, nil, nil) {
 		return 1
 	}
 	return 0

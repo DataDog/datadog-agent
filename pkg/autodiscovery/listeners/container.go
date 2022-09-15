@@ -64,6 +64,8 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		container.Name,
 		containerImg.RawName,
 		"",
+		container.Annotations,
+		container.Labels,
 	) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
@@ -148,12 +150,16 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			container.Name,
 			containerImg.RawName,
 			"",
+			container.Annotations,
+			container.Labels,
 		)
 		svc.logsExcluded = l.IsExcluded(
 			containers.LogsFilter,
 			container.Name,
 			containerImg.RawName,
 			"",
+			container.Annotations,
+			container.Labels,
 		)
 	}
 

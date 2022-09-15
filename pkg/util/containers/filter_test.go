@@ -25,8 +25,10 @@ type ctnDef struct {
 
 func TestFilter(t *testing.T) {
 	containers := []struct {
-		c  ctnDef
-		ns string
+		c           ctnDef
+		ns          string
+		annotations map[string]string
+		labels      map[string]string
 	}{
 		{
 			c: ctnDef{
@@ -34,7 +36,9 @@ func TestFilter(t *testing.T) {
 				Name:  "secret-container-dd",
 				Image: "docker-dd-agent",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -42,7 +46,9 @@ func TestFilter(t *testing.T) {
 				Name:  "webapp1-dd",
 				Image: "apache:2.2",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -50,7 +56,9 @@ func TestFilter(t *testing.T) {
 				Name:  "mysql-dd",
 				Image: "mysql:5.3",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -58,7 +66,9 @@ func TestFilter(t *testing.T) {
 				Name:  "linux-dd",
 				Image: "alpine:latest",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -66,7 +76,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "gcr.io/random-project/superpause:1.0",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -74,7 +86,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "gcr.io/random-project/pause:1.0",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -82,7 +96,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD.f8120f_kube-proxy-gke-pool-1-2890-pv0",
 				Image: "gcr.io/google_containers/pause-amd64:3.0",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -90,7 +106,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "k8s.gcr.io/pause-amd64:3.1",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -98,7 +116,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "kubernetes/pause:latest",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -106,7 +126,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 				Image: "asia.gcr.io/google_containers/pause-amd64:3.0",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -114,7 +136,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_AZURE_pause",
 				Image: "k8s-gcrio.azureedge.net/pause-amd64:3.0",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -122,7 +146,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_AZURE_pause",
 				Image: "gcrio.azureedge.net/google_containers/pause-amd64",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -130,7 +156,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_rancher_pause",
 				Image: "rancher/pause-amd64:3.0",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -138,7 +166,9 @@ func TestFilter(t *testing.T) {
 				Name:  "foo-dd",
 				Image: "foo:1.0",
 			},
-			ns: "foo",
+			ns:          "foo",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -146,7 +176,9 @@ func TestFilter(t *testing.T) {
 				Name:  "bar-dd",
 				Image: "bar:1.0",
 			},
-			ns: "bar",
+			ns:          "bar",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -154,7 +186,9 @@ func TestFilter(t *testing.T) {
 				Name:  "foo",
 				Image: "gcr.io/gke-release/pause-win:1.1.0",
 			},
-			ns: "bar",
+			ns:          "bar",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -162,7 +196,9 @@ func TestFilter(t *testing.T) {
 				Name:  "foo",
 				Image: "mcr.microsoft.com/k8s/core/pause:1.2.0",
 			},
-			ns: "bar",
+			ns:          "bar",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -170,7 +206,9 @@ func TestFilter(t *testing.T) {
 				Name:  "foo",
 				Image: "ecr.us-east-1.amazonaws.com/pause",
 			},
-			ns: "bar",
+			ns:          "bar",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -178,7 +216,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_AKS_pause",
 				Image: "aksrepos.azurecr.io/mirror/pause-amd64:3.1",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -186,7 +226,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_OSE3",
 				Image: "registry.access.redhat.com/rhel7/pod-infrastructure:latest",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -194,7 +236,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_EKS_Win",
 				Image: "amazonaws.com/eks/pause-windows:latest",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -202,7 +246,9 @@ func TestFilter(t *testing.T) {
 				Name:  "k8s_POD_AKS_Win",
 				Image: "kubeletwin/pause:latest",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -210,7 +256,9 @@ func TestFilter(t *testing.T) {
 				Name:  "eu_gcr",
 				Image: "eu.gcr.io/k8s-artifacts-prod/pause:3.3",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -218,7 +266,9 @@ func TestFilter(t *testing.T) {
 				Name:  "private_jfrog",
 				Image: "foo.jfrog.io/google_containers/pause",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -226,7 +276,9 @@ func TestFilter(t *testing.T) {
 				Name:  "private_ecr_upstream",
 				Image: "2342834325.ecr.us-east-1.amazonaws.com/upstream/pause",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{
@@ -234,7 +286,9 @@ func TestFilter(t *testing.T) {
 				Name:  "cdk",
 				Image: "cdk/pause-amd64:3.1",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{ // Empty name
@@ -242,7 +296,9 @@ func TestFilter(t *testing.T) {
 				Name:  "",
 				Image: "redis",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{ // Empty image
@@ -250,7 +306,9 @@ func TestFilter(t *testing.T) {
 				Name:  "empty_image",
 				Image: "",
 			},
-			ns: "default",
+			ns:          "default",
+			annotations: nil,
+			labels:      nil,
 		},
 		{
 			c: ctnDef{ // Empty namespace
@@ -258,7 +316,49 @@ func TestFilter(t *testing.T) {
 				Name:  "empty_namespace",
 				Image: "redis",
 			},
-			ns: "",
+			ns:          "",
+			annotations: nil,
+			labels:      nil,
+		},
+		{
+			c: ctnDef{
+				ID:    "32",
+				Name:  "pdcsi-node-8dp72",
+				Image: "gke.gcr.io/csi-node-driver-registrar:v2.5.1-gke.0",
+			},
+			ns:          "kube-system",
+			annotations: map[string]string{"components.foo.io/component-version": "0.13.3", "kubernetes.io/config.source": "api", "foo.bar/exclude": "true", "seccomp.security.alpha.kubernetes.io/pod": "runtime/default", "components.gke.io/component-name": "pdcsi"},
+			labels:      map[string]string{"k8s-app": "gcp-compute-persistent-disk-csi-driver", "pod-template-generation": "10", "controller-revision-hash": "7d96cb4b8"},
+		},
+		{
+			c: ctnDef{
+				ID:    "33",
+				Name:  "busybox",
+				Image: "busybox",
+			},
+			ns:          "default",
+			annotations: map[string]string{"components.foo.io/component-version": "1.18.3", "foo.bar/exclude": "false"},
+			labels:      map[string]string{"k8s-app": "busybox", "pod-template-generation": "14"},
+		},
+		{
+			c: ctnDef{
+				ID:    "34",
+				Name:  "busybox",
+				Image: "busybox",
+			},
+			ns:          "default",
+			annotations: map[string]string{"components.foo.io/component-version": "1.18.3", "foo.bar/exclude": "true", "foo.bar/include": "true"},
+			labels:      map[string]string{"foo.bar/exclude": "true", "k8s-app": "busybox", "pod-template-generation": "14"},
+		},
+		{
+			c: ctnDef{
+				ID:    "35",
+				Name:  "busybox",
+				Image: "busybox",
+			},
+			ns:          "default",
+			annotations: map[string]string{"foo.bar/include": "true"},
+			labels:      map[string]string{"exclude": "true", "app": "buxybox", "foo": "bar"},
 		},
 	}
 
@@ -268,25 +368,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35"},
 		},
 		{
 			excludeList: []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35"},
 		},
 		{
 			excludeList: []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35"},
 		},
 		{
 			includeList: []string{},
 			excludeList: []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35"},
 		},
 		{
 			includeList: []string{"name:mysql"},
 			excludeList: []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35"},
 		},
 		{
 			excludeList: []string{"kube_namespace:.*"},
@@ -295,7 +395,7 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			excludeList: []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35"},
 		},
 		{
 			excludeList: []string{"name:.*"},
@@ -326,7 +426,27 @@ func TestFilter(t *testing.T) {
 				pauseContainerUpstream,
 				pauseContainerCDK,
 			},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15", "29", "30", "31"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "14", "15", "29", "30", "31", "32", "33", "34", "35"},
+		},
+		{
+			excludeList: []string{"annotation:foo.bar/exclude:true"},
+			includeList: []string{},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "33", "35"},
+		},
+		{
+			excludeList: []string{"annotation:foo.bar/exclude:true"},
+			includeList: []string{"annotation:foo.bar/include:true"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "33", "34", "35"},
+		},
+		{
+			excludeList: []string{"label:foo.bar/exclude:true"},
+			includeList: []string{"label:include:true"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "35"},
+		},
+		{
+			excludeList: []string{"annotation:.*", "name:.*"},
+			includeList: []string{"label:foo:bar"},
+			expectedIDs: []string{"29", "35"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -335,7 +455,7 @@ func TestFilter(t *testing.T) {
 
 			var allowed []string
 			for _, c := range containers {
-				if !f.IsExcluded(c.c.Name, c.c.Image, c.ns) {
+				if !f.IsExcluded(c.c.Name, c.c.Image, c.ns, c.annotations, c.labels) {
 					allowed = append(allowed, c.c.ID)
 				}
 			}
@@ -352,16 +472,16 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	f, err := newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
+	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
+	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil, nil))
 
 	config.Datadog.SetDefault("exclude_pause_container", false)
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
 
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{})
@@ -376,11 +496,11 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.True(t, f.IsExcluded("ddmetric-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("ddmetric-152462", "nginx:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.True(t, f.IsExcluded("ddmetric-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("ddmetric-152462", "nginx:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
 }
 
 func TestNewAutodiscoveryFilter(t *testing.T) {
@@ -393,11 +513,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err := NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil, nil))
 	resetConfig()
 
 	// Global - new config - legacy config ignored
@@ -409,12 +529,12 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd/legacy-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd/legacy-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil, nil))
 	resetConfig()
 
 	// Metrics
@@ -424,11 +544,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(MetricsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil, nil))
 	resetConfig()
 
 	// Logs
@@ -438,11 +558,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(LogsFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil, nil))
 	resetConfig()
 
 	// Filter errors - non-duplicate error messages
@@ -452,11 +572,11 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
-	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "dummy", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", "", nil, nil))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", "", nil, nil))
 	fe := map[string]struct{}{
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}
@@ -517,6 +637,20 @@ func TestValidateFilter(t *testing.T) {
 			expectedErr:    nil,
 		},
 		{
+			desc:           "annotation filter",
+			filter:         "annotation:kubernetes.io/config.source:api",
+			prefix:         annotationFilterPrefix,
+			expectedRegexp: regexp.MustCompile("kubernetes.io/config.source:api"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "label filter",
+			filter:         "label:k8s-app:gcp-compute-persistent-disk-csi-driver",
+			prefix:         labelFilterPrefix,
+			expectedRegexp: regexp.MustCompile("k8s-app:gcp-compute-persistent-disk-csi-driver"),
+			expectedErr:    nil,
+		},
+		{
 			desc:           "invalid golang regex",
 			filter:         "image:?",
 			prefix:         imageFilterPrefix,
@@ -534,51 +668,61 @@ func TestValidateFilter(t *testing.T) {
 
 func TestParseFilters(t *testing.T) {
 	for filters, tc := range []struct {
-		desc             string
-		filters          []string
-		imageFilters     []*regexp.Regexp
-		nameFilters      []*regexp.Regexp
-		namespaceFilters []*regexp.Regexp
-		expectedErrMsg   error
-		filterErrors     []string
+		desc              string
+		filters           []string
+		imageFilters      []*regexp.Regexp
+		nameFilters       []*regexp.Regexp
+		namespaceFilters  []*regexp.Regexp
+		annotationFilters []*regexp.Regexp
+		labelFilters      []*regexp.Regexp
+		expectedErrMsg    error
+		filterErrors      []string
 	}{
 		{
-			desc:             "valid filters",
-			filters:          []string{"image:nginx.*", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc"},
-			imageFilters:     []*regexp.Regexp{regexp.MustCompile("nginx.*")},
-			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
-			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
-			expectedErrMsg:   nil,
-			filterErrors:     nil,
+			desc:              "valid filters",
+			filters:           []string{"image:nginx.*", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc", "annotation:seccomp.security.alpha.kubernetes.io/pod:runtime/default", "label:controller-revision-hash:7d96cb4b8"},
+			imageFilters:      []*regexp.Regexp{regexp.MustCompile("nginx.*")},
+			nameFilters:       []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
+			namespaceFilters:  []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
+			annotationFilters: []*regexp.Regexp{regexp.MustCompile("seccomp.security.alpha.kubernetes.io/pod:runtime/default")},
+			labelFilters:      []*regexp.Regexp{regexp.MustCompile("controller-revision-hash:7d96cb4b8")},
+			expectedErrMsg:    nil,
+			filterErrors:      nil,
 		},
 		{
-			desc:             "invalid regex",
-			filters:          []string{"image:apache.*", "name:a(?=b)", "kube_namespace:sandbox.*", "name:abc"},
-			imageFilters:     nil,
-			nameFilters:      nil,
-			namespaceFilters: nil,
-			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
-			filterErrors:     []string{"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"},
+			desc:              "invalid regex",
+			filters:           []string{"image:apache.*", "name:a(?=b)", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:      nil,
+			nameFilters:       nil,
+			namespaceFilters:  nil,
+			annotationFilters: nil,
+			labelFilters:      nil,
+			expectedErrMsg:    errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			filterErrors:      []string{"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"},
 		},
 		{
-			desc:             "invalid filter prefix, valid regex",
-			filters:          []string{"image:redis.*", "invalid", "name:dd-.*", "kube_namespace:dev-.*", "name:abc", "also invalid"},
-			imageFilters:     []*regexp.Regexp{regexp.MustCompile("redis.*")},
-			nameFilters:      []*regexp.Regexp{regexp.MustCompile("dd-.*"), regexp.MustCompile("abc")},
-			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("dev-.*")},
-			expectedErrMsg:   nil,
+			desc:              "invalid filter prefix, valid regex",
+			filters:           []string{"image:redis.*", "invalid", "name:dd-.*", "kube_namespace:dev-.*", "name:abc", "annotation:.*", "label:abc/dce:fgh", "also invalid"},
+			imageFilters:      []*regexp.Regexp{regexp.MustCompile("redis.*")},
+			nameFilters:       []*regexp.Regexp{regexp.MustCompile("dd-.*"), regexp.MustCompile("abc")},
+			namespaceFilters:  []*regexp.Regexp{regexp.MustCompile("dev-.*")},
+			annotationFilters: []*regexp.Regexp{regexp.MustCompile(".*")},
+			labelFilters:      []*regexp.Regexp{regexp.MustCompile("abc/dce:fgh")},
+			expectedErrMsg:    nil,
 			filterErrors: []string{
 				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 			},
 		},
 		{
-			desc:             "invalid regex and invalid filter prefix",
-			filters:          []string{"invalid", "name:a(?=b)", "image:apache.*", "kube_namespace:?", "also invalid", "name:abc"},
-			imageFilters:     nil,
-			nameFilters:      nil,
-			namespaceFilters: nil,
-			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			desc:              "invalid regex and invalid filter prefix",
+			filters:           []string{"invalid", "name:a(?=b)", "image:apache.*", "kube_namespace:?", "also invalid", "name:abc"},
+			imageFilters:      nil,
+			nameFilters:       nil,
+			namespaceFilters:  nil,
+			annotationFilters: nil,
+			labelFilters:      nil,
+			expectedErrMsg:    errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
 			filterErrors: []string{
 				"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`",
 				"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`",
@@ -588,10 +732,12 @@ func TestParseFilters(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
-			imageFilters, nameFilters, namespaceFilters, filterErrors, err := parseFilters(tc.filters)
+			imageFilters, nameFilters, namespaceFilters, annotationFilters, labelFilters, filterErrors, err := parseFilters(tc.filters)
 			assert.Equal(t, tc.imageFilters, imageFilters)
 			assert.Equal(t, tc.nameFilters, nameFilters)
 			assert.Equal(t, tc.namespaceFilters, namespaceFilters)
+			assert.Equal(t, tc.annotationFilters, annotationFilters)
+			assert.Equal(t, tc.labelFilters, labelFilters)
 			assert.Equal(t, tc.filterErrors, filterErrors)
 			assert.Equal(t, tc.expectedErrMsg, err)
 		})

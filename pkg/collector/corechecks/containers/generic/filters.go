@@ -51,7 +51,13 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 
-	return f.OldFilter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel])
+	return f.OldFilter.IsExcluded(
+		container.Name,
+		container.Image.Name,
+		container.Labels[kubernetes.CriContainerNamespaceLabel],
+		container.Annotations,
+		container.Labels,
+	)
 }
 
 // RuntimeContainerFilter filters containers by runtime
