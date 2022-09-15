@@ -32,13 +32,14 @@ import (
 	"time"
 	"unsafe"
 
+	"runtime/pprof"
+
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
-	"runtime/pprof"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1521,22 +1522,25 @@ func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
 	return nil
 }
 
-func (tm *testModule) DecodeMSPActivityDump(t *testing.T, path string) (*sprobe.ActivityDump, error) {
+func (tm *testModule) DecodeActivityDump(t *testing.T, path string) (*sprobe.ActivityDump, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
 	}
+
 	adm := monitor.GetActivityDumpManager()
 	if adm == nil {
 		return nil, errors.New("No activity dump manager")
 	}
+
 	ad := sprobe.NewActivityDump(adm)
 	if ad == nil {
-		return nil, errors.New("Creatioln of new activity dump fails")
+		return nil, errors.New("Creation of new activity dump fails")
 	}
-	err := ad.Decode(path)
-	if err != nil {
+
+	if err := ad.Decode(path); err != nil {
 		return nil, err
 	}
+
 	return ad, nil
 }
