@@ -9,7 +9,6 @@
 package telemetry
 
 import (
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"syscall"
@@ -31,8 +30,6 @@ const (
 	readUserIndx
 	readKernelIndx
 )
-
-var errIgnore = errors.New("ignore telemetry")
 
 var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel"}
 
