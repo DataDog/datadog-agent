@@ -18,9 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
-	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -220,7 +217,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 }
 
-func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, msgpValidator func(ad *probe.ActivityDump) bool) {
+func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *probe.ActivityDump) bool) {
 	perExtOK := make(map[string]bool)
 	for _, format := range expectedFormats {
 		ext := fmt.Sprintf(".%s", format)
@@ -245,14 +242,14 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			perExtOK[ext] = true
 
 		case ".protobuf":
-			content, err := os.ReadFile(f)
+			ad, err := test.DecodeActivityDump(t, f)
 			if err != nil {
 				t.Fatal(err)
 			}
-			ad := &adproto.ActivityDump{}
-			err = proto.Unmarshal(content, ad)
-			if err != nil {
-				t.Error(err)
+
+			found := validator(ad)
+			if !found {
+				t.Error("Invalid activity dump")
 			}
 			perExtOK[ext] = true
 
