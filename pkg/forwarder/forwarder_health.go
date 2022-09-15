@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/fatih/color"
-
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
@@ -35,19 +33,42 @@ var (
 
 	validateAPIKeyTimeout = 10 * time.Second
 
-	apiKeyStatus = expvar.Map{}
+	apiKeyStatus       = expvar.Map{}
+	apiKeyFailure      = expvar.Map{}
+	apiKeyShellFailure = expvar.Map{}
 )
+
+// Map of Success + Fail
+// When func setAPIKeyStatus run, depends on the status:
+// If success, then the code runs normally
+// If fail/invalid, remove the status from the apiKeyStatus map and move it to the apiKeyFailure
+// Renderer file will then evaluate both the status and the success/fail of the key to color the expvar.
+// TIP: put both  SUCCESS+FAILURE into both apiKeyStatus and apiKeyFailure expvar, and then after getting it to work then workout the filtering logic.
+// Function validateAPIKey validate the APIKEY via another file (HTTP request) and ultimately bring the status back to the SetAPIKEyStatus function
+// Within status.go both the APIKEYSTATUS and APIKEYFAILURe will be parsed via into forwarderStats map
+// Another function somewhere will call that, and transfer it to the renderer (tmpl file), within the tmpl file, both the.APIKEYSTATUS and .APIKEYFAILURE will be available for use and the logic there can be assigned for SCSS (and also another bucket for SHELL)
+
+// Status.go divide into 3 buckets:
+// Success (both HTML + SHell can use normally)
+// Failure (ONLY for HTML, and CSS on HTML can handle the coloring)
+// Failure BUT the status of that failure has been wrapped with the color library (escape code) [FOR SHELL ONLY]
+
+//       <!-- 2 blocks, one for success, 1 for failure, move the logic of invalid API to failure (all of this is because we have dual shipping for API -->
 
 func init() {
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
-	apiKeyInvalid.Set(color.YellowString("API Key invalid"))
+	apiKeyInvalid.Set("API Key invalid")
 	apiKeyValid.Set("API Key valid")
 	apiKeyFake.Set("Fake API Key that skips validation")
 }
 
 func initForwarderHealthExpvars() {
 	apiKeyStatus.Init()
+	apiKeyFailure.Init()
+	apiKeyShellFailure.Init()
 	transaction.ForwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	transaction.ForwarderExpvars.Set("APIKeyFailure", &apiKeyFailure)
+	transaction.ForwarderExpvars.Set("APIKeyShellFailure", &apiKeyShellFailure)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
@@ -146,17 +167,27 @@ func (fh *forwarderHealth) computeDomainsURL() {
 	}
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, statusCode int, status expvar.Var) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
-	apiKeyStatus.Set(obfuscatedKey, status)
+
+	if statusCode == 200 {
+		apiKeyStatus.Set(obfuscatedKey, status)
+	} else {
+		// Can we
+		shellStatus := status.Value()
+		apiKeyFailure.Set(obfuscatedKey, status)
+		apiKeyShellFailure.Set(obfuscatedKey, shellStatus)
+	}
 }
 
+// Validating API Key Logic
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 	if apiKey == fakeAPIKey {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyFake)
+		fakeAPIKey_status_code := 202
+		fh.setAPIKeyStatus(apiKey, domain, fakeAPIKey_status_code, &apiKeyFake)
 		return true, nil
 	}
 
@@ -171,7 +202,8 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		get_request_status_code := 444
+		fh.setAPIKeyStatus(apiKey, domain, get_request_status_code, &apiKeyStatusUnknown)
 		return false, err
 	}
 
@@ -179,21 +211,21 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		fh.setAPIKeyStatus(apiKey, domain, resp.StatusCode, &apiKeyStatusUnknown)
 		return false, err
 	}
 	defer resp.Body.Close()
 
 	// Server will respond 200 if the key is valid or 403 if invalid
 	if resp.StatusCode == 200 {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyValid)
+		fh.setAPIKeyStatus(apiKey, domain, resp.StatusCode, &apiKeyValid)
 		return true, nil
 	} else if resp.StatusCode == 403 {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyInvalid)
+		fh.setAPIKeyStatus(apiKey, domain, resp.StatusCode, &apiKeyInvalid)
 		return false, nil
 	}
 
-	fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+	fh.setAPIKeyStatus(apiKey, domain, resp.StatusCode, &apiKeyStatusUnknown)
 	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
@@ -211,7 +243,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)
 				validKey = true
 			} else {
-				log.Warnf("api_key '%s' for domain %s is invalid", apiKey, domain)
+				log.Warnf("api_key '%s' for  domain %s is invalid", apiKey, domain)
 			}
 		}
 	}

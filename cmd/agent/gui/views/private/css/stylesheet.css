@@ -324,6 +324,14 @@ a {
   margin: 0;
   padding: 0 0 0 20px;
 }
+
+.stat_subdata_valid_api {
+  /* color: greenyellow */
+}
+
+.stat_subdata_invalid_api {
+  color: orangered
+}
 #main #general_status .stat .error, #main #collector_status .stat .error {
   color: red;
   font-weight: bold;

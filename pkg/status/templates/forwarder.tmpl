@@ -76,7 +76,15 @@ Forwarder
   API Keys status
   ===============
   {{- range $key, $value := .APIKeyStatus }}
-    {{$key}}: {{$value}}
+  
+    {{ if eq $value "API Key valid"}}
+       {{$key}}: {{$value}} [green color]
+    {{ else }}
+       {{$key}}: {{$value}} [red color]
+    {{ end }}
+
+
+
   {{- end }}
 {{- end}}
 

@@ -275,8 +275,10 @@
         {{- if .APIKeyStatus}}
           <span class="stat_subtitle">API Keys Status</span>
           <span class="stat_subdata">
-            {{- range $key, $value := .APIKeyStatus}}
-              {{$key}}: {{$value}}<br>
+            {{ range $key, $value := .APIKeyStatus}}
+              {{ if eq $value "API Key valid"}}
+                <span class="stat_subdata_valid_api"> {{$key}}: {{$value}} <span> <br>
+              {{ end }}
             {{- end -}}
           </span>
         {{- end}}
