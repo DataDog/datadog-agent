@@ -278,7 +278,7 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 		ccc.RUnlock()
 
 		if !updatedOnce {
-			return nil, fmt.Errorf("cccache is still warming up")
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
@@ -346,7 +346,7 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 		ccc.RUnlock()
 
 		if !updatedOnce {
-			return nil, fmt.Errorf("cccache is still warming up")
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// cfclient.V3App and CFApplication share the same guid which causes a deadlock in the ccc.activeResources map if not properly handled
@@ -459,7 +459,7 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 		ccc.RUnlock()
 
 		if !updatedOnce {
-			return nil, fmt.Errorf("cccache is still warming up")
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
@@ -515,7 +515,7 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 		ccc.RUnlock()
 
 		if !updatedOnce {
-			return nil, fmt.Errorf("cccache is still warming up")
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
@@ -571,7 +571,7 @@ func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
 		ccc.RUnlock()
 
 		if !updatedOnce {
-			return nil, fmt.Errorf("cccache is still warming up")
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
