@@ -32,13 +32,12 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     u64 offset = (u64)info->data_off;
 
 #define BLK_SIZE (16)
-    const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
     const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
 
     unsigned i = 0;
 
-#pragma unroll
-    for (; i < iter; i++) {
+#pragma unroll(HTTP_BUFFER_SIZE / BLK_SIZE)
+    for (; i < (HTTP_BUFFER_SIZE / BLK_SIZE); i++) {
         if (offset + BLK_SIZE - 1 >= len) { break; }
 
         bpf_skb_load_bytes(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
