@@ -81,7 +81,7 @@ loop:
 	elog.Info(0x4000000d, config.ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	app.StopAgent()
+	runcmd.StopAgent()
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }
