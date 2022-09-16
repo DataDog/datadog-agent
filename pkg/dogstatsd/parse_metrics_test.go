@@ -472,17 +472,14 @@ func TestParseGaugeTimestampMalformed(t *testing.T) {
 	defer config.Datadog.Set("dogstatsd_no_aggregation_pipeline", false)
 
 	// bad value
-
 	_, err := parseMetricSample([]byte("metric:1234|g|#onetag|TABCD"))
 	assert.Error(t, err)
 
 	// no value
-
 	_, err = parseMetricSample([]byte("metric:1234|g|#onetag|T"))
 	assert.Error(t, err)
 
-	// negative value (testing that it's not crashing nor erroring, just have a unusable time)
-
+	// negative value
 	_, err = parseMetricSample([]byte("metric:1234|g|#onetag|T-102348932"))
 	assert.Error(t, err)
 }
