@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var ConstantFetcher = newGeneratedAsset("constant_fetcher.c")
@@ -65,7 +65,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 
 	out, result, err := compileToObjectFile(inputReader, outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
-	
+
 	return out, err
 }
 

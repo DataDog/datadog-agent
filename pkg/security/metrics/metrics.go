@@ -406,7 +406,3 @@ func newRuntimeMetric(name string) string {
 func newAgentMetric(name string) string {
 	return MetricAgentPrefix + name
 }
-
-func newRuntimeCompiledConstantsMetric(name string) string {
-	return newRuntimeMetric(".runtime_compilation.constants" + name)
-}

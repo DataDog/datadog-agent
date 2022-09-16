@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // asset represents an asset that needs its content integrity checked at runtime
@@ -68,7 +68,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 
 	out, result, err := compileToObjectFile(inputReader, outputDir, a.filename, a.hash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
-	
+
 	return out, err
 }
 

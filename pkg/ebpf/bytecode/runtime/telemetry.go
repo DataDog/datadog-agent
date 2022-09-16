@@ -1,19 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 //go:build linux_bpf
 // +build linux_bpf
 
 package runtime
 
 import (
-	"time"
 	"fmt"
 	"strings"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -24,7 +29,7 @@ type CompilationResult int
 const (
 	notAttempted CompilationResult = iota
 	compilationSuccess
-	kernelVersionErr  // nolint:deadcode,unused
+	kernelVersionErr // nolint:deadcode,unused
 	verificationError
 	outputDirErr
 	outputFileErr

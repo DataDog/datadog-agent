@@ -17,10 +17,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/sys/unix"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 type CompiledOutput interface {
@@ -51,7 +51,7 @@ var defaultFlags = []string{
 }
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
-func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {	
+func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, outputDirErr, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
 	}
@@ -64,7 +64,7 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 	}
 
 	var result CompilationResult
-	if 	_, err := os.Stat(outputFile); err != nil {
+	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
