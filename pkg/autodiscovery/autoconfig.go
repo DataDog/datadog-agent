@@ -45,7 +45,10 @@ type AutoConfig struct {
 	delService         chan listeners.Service
 	store              *store
 	cfgMgr             configManager
-	m                  sync.RWMutex
+
+	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
+	// not the values they point to.
+	m sync.RWMutex
 
 	// ranOnce is set to 1 once the AutoConfig has been executed
 	ranOnce *atomic.Bool
@@ -147,11 +150,8 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	// stop polled config providers
-	for _, pd := range ac.configPollers {
+	// stop polled config providers without holding ac.m
+	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
 	}
 
@@ -160,6 +160,9 @@ func (ac *AutoConfig) Stop() {
 
 	// stop the meta scheduler
 	ac.scheduler.Stop()
+
+	ac.m.RLock()
+	defer ac.m.RUnlock()
 
 	// stop the listener retry logic if running
 	if ac.listenerRetryStop != nil {
@@ -178,16 +181,10 @@ func (ac *AutoConfig) Stop() {
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
 func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+	cp := newConfigPoller(provider, shouldPoll, pollInterval)
+
 	ac.m.Lock()
 	defer ac.m.Unlock()
-
-	if shouldPoll {
-		log.Infof("Registering %s config provider polled every %s", provider.String(), pollInterval.String())
-	} else {
-		log.Infof("Registering %s config provider", provider.String())
-	}
-
-	cp := newConfigPoller(provider, shouldPoll, pollInterval)
 	ac.configPollers = append(ac.configPollers, cp)
 }
 
@@ -195,11 +192,13 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 // and schedules them. Should always be run once so providers
 // that don't need polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	for _, cp := range ac.configPollers {
+	for _, cp := range ac.getConfigPollers() {
 		cp.start(ctx, ac)
+		if cp.canPoll {
+			log.Infof("Started config provider %q, polled every %s", cp.provider.String(), cp.pollInterval.String())
+		} else {
+			log.Infof("Started config provider %q", cp.provider.String())
+		}
 
 		// TODO: this probably belongs somewhere inside the file config
 		// provider itself, but since it already lived in AD it's been
@@ -213,7 +212,6 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 	}
 
 	ac.ranOnce.Store(true)
-	log.Debug("LoadAndRun done.")
 }
 
 // ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
@@ -353,9 +351,6 @@ func (ac *AutoConfig) retryListenerCandidates() {
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
 	ac.scheduler.Register(name, s, replayConfigs)
 }
 
@@ -464,14 +459,11 @@ func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Servi
 // unique error messages.  The resource names do not match other identifiers
 // and are only intended for display in diagnostic tools like `agent status`.
 func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
 	errors := map[string]map[string]providers.ErrorMsgSet{}
-	for _, pd := range ac.configPollers {
-		configErrors := pd.provider.GetConfigErrors()
+	for _, cp := range ac.getConfigPollers() {
+		configErrors := cp.provider.GetConfigErrors()
 		if len(configErrors) > 0 {
-			errors[pd.provider.String()] = configErrors
+			errors[cp.provider.String()] = configErrors
 		}
 	}
 	return errors
@@ -494,6 +486,17 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 
 		ac.scheduler.Schedule(changes.Schedule)
 	}
+}
+
+// getConfigPollers gets a slice of config pollers that can be used without holding
+// ac.m.
+func (ac *AutoConfig) getConfigPollers() []*configPoller {
+	ac.m.RLock()
+	defer ac.m.RUnlock()
+
+	// this value is only ever appended to, so the sliced elements will not change and
+	// no race can occur.
+	return ac.configPollers
 }
 
 func configType(c integration.Config) string {

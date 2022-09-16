@@ -67,7 +67,7 @@ int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     struct expire_inode_discarder_t discarder;
     bpf_probe_read(&discarder, sizeof(discarder), data);
 
-    expire_inode_discarder(discarder.mount_id, discarder.inode);
+    expire_inode_discarders(discarder.mount_id, discarder.inode);
 
     return 0;
 }

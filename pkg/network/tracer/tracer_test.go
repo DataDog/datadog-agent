@@ -161,7 +161,7 @@ func TestGetStats(t *testing.T) {
 		"dns_pid_collisions": 0,
 		"dns_stats_dropped": 0,
 		"http_stats_dropped": 0,
-		"stats_resets": 0,
+		"stats_underflows": 0,
 		"time_sync_collisions": 0
       },
       "tracer": {
@@ -272,9 +272,10 @@ func TestTCPSendAndReceive(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	assert.Equal(t, 10*clientMessageSize, int(conn.Monotonic.SentBytes))
-	assert.Equal(t, 10*serverMessageSize, int(conn.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
+	m := conn.MonotonicSum()
+	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
+	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
+	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
@@ -324,9 +325,10 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.Monotonic.SentBytes))
-	assert.Equal(t, serverMessageSize, int(conn.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
+	m := conn.MonotonicSum()
+	assert.Equal(t, clientMessageSize, int(m.SentBytes))
+	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
+	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
@@ -379,17 +381,18 @@ func TestTCPShortlived(t *testing.T) {
 		return ok
 	}, 3*time.Second, time.Second, "connection not found")
 
-	assert.Equal(t, clientMessageSize, int(conn.Monotonic.SentBytes))
-	assert.Equal(t, serverMessageSize, int(conn.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
+	m := conn.MonotonicSum()
+	assert.Equal(t, clientMessageSize, int(m.SentBytes))
+	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
+	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
 	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
-	assert.Equal(t, uint32(1), conn.Monotonic.TCPEstablished)
-	assert.Equal(t, uint32(1), conn.Monotonic.TCPClosed)
+	assert.Equal(t, uint32(1), m.TCPEstablished)
+	assert.Equal(t, uint32(1), m.TCPClosed)
 
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
@@ -449,9 +452,10 @@ func TestTCPOverIPv6(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.Monotonic.SentBytes))
-	assert.Equal(t, serverMessageSize, int(conn.Monotonic.RecvBytes))
-	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
+	m := conn.MonotonicSum()
+	assert.Equal(t, clientMessageSize, int(m.SentBytes))
+	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
+	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
@@ -589,8 +593,8 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 		assert.Equal(t, network.INCOMING, incoming.Direction)
 
 		// make sure the inverse values are seen for the other message
-		assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
-		assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
+		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSum().SentBytes), "incoming sent")
+		assert.Equal(t, clientMessageSize, int(incoming.MonotonicSum().RecvBytes), "incoming recv")
 		assert.True(t, incoming.IntraHost, "incoming intrahost")
 	}
 
@@ -598,8 +602,8 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	if assert.True(t, ok, "unable to find outgoing connection") {
 		assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
-		assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
-		assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
+		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSum().SentBytes), "outgoing sent")
+		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicSum().RecvBytes), "outgoing recv")
 		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
 	}
 }
@@ -746,20 +750,66 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	initTracerState(t, tr)
 
 	// Make sure we're not picking up 127.0.0.1:80
-	for _, c := range getConnections(t, tr).Conns {
+	cxs := getConnections(t, tr)
+	for _, c := range cxs.Conns {
 		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
 		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 	}
 
 	// ensure one of the connections is UDP to 127.0.0.1:80
 	assert.Condition(t, func() bool {
-		for _, c := range getConnections(t, tr).Conns {
+		for _, c := range cxs.Conns {
 			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
 				return true
 			}
 		}
 		return false
 	}, "Unable to find UDP connection to 127.0.0.1:80")
+}
+
+func TestShouldExcludeEmptyStatsConnection(t *testing.T) {
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Connect to 127.0.0.1:80
+	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
+	assert.NoError(t, err)
+
+	cn, err := net.DialUDP("udp", nil, addr)
+	assert.NoError(t, err)
+	defer cn.Close()
+
+	// Write anything
+	_, err = cn.Write([]byte("test"))
+	assert.NoError(t, err)
+
+	initTracerState(t, tr)
+	var zeroConn network.ConnectionStats
+	require.Eventually(t, func() bool {
+		cxs := getConnections(t, tr)
+		for _, c := range cxs.Conns {
+			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 {
+				zeroConn = c
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, time.Second)
+
+	// next call should not have the same connection
+	cxs := getConnections(t, tr)
+	found := false
+	for _, c := range cxs.Conns {
+		if c.Source == zeroConn.Source && c.SPort == zeroConn.SPort &&
+			c.Dest == zeroConn.Dest && c.DPort == zeroConn.DPort &&
+			c.Pid == zeroConn.Pid {
+			found = true
+			break
+		}
+	}
+	require.False(t, found, "empty connections should be filtered out")
 }
 
 func TestSkipConnectionDNS(t *testing.T) {
@@ -1176,7 +1226,7 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
 	require.True(t, ok)
 
-	assert.Equal(t, queryMsg.Len(), int(conn.Monotonic.SentBytes))
+	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSum().SentBytes))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
@@ -1295,8 +1345,9 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	conn, ok := findConnection(laddr, raddr, connections)
 
 	require.True(t, ok)
-	assert.Equal(t, uint32(0), conn.Monotonic.TCPEstablished)
-	assert.Equal(t, uint32(1), conn.Monotonic.TCPClosed)
+	m := conn.MonotonicSum()
+	assert.Equal(t, uint32(0), m.TCPEstablished)
+	assert.Equal(t, uint32(1), m.TCPClosed)
 }
 
 func TestUnconnectedUDPSendIPv4(t *testing.T) {
@@ -1322,7 +1373,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	})
 
 	require.Len(t, outgoing, 1)
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSum().SentBytes))
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
@@ -1353,7 +1404,7 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSum().SentBytes))
 }
 
 func TestConnectionClobber(t *testing.T) {
@@ -1665,10 +1716,10 @@ func TestHTTPStats(t *testing.T) {
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpSupported(t) {
-		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
+		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
 	}
 	if !httpsSupported(t) {
-		t.Skip("HTTPS feature not available on ARM pre 5.5.0 kernels")
+		t.Skip("HTTPS feature not available supported for this setup")
 	}
 
 	tlsLibs := []*regexp.Regexp{
@@ -1687,43 +1738,46 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		name  string
 		value bool
 	}{
-		{name: " without keep-alives", value: false},
-		{name: " with keep-alives", value: true},
+		{name: "without keep-alives", value: false},
+		{name: "with keep-alives", value: true},
 	} {
-		// Spin-up HTTPS server
-		serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-			EnableTLS:        true,
-			EnableKeepAlives: keepAlives.value,
-		})
-		for _, test := range tests {
-			t.Run(test.name+keepAlives.name, func(t *testing.T) {
-				fetch, err := exec.LookPath(test.fetchCmd[0])
-				if err != nil {
-					t.Skipf("%s not found; skipping test.", test.fetchCmd)
-				}
-				ldd, err := exec.LookPath("ldd")
-				if err != nil {
-					t.Skip("ldd not found; skipping test.")
-				}
-				linked, _ := exec.Command(ldd, fetch).Output()
-
-				foundSSLLib := false
-				for _, lib := range tlsLibs {
-					libSSLPath := lib.FindString(string(linked))
-					if _, err := os.Stat(libSSLPath); err == nil {
-						foundSSLLib = true
-						break
-					}
-				}
-				if !foundSSLLib {
-					t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
-				}
-
-				testHTTPSLibrary(t, test.fetchCmd)
-
+		t.Run(keepAlives.name, func(t *testing.T) {
+			// Spin-up HTTPS server
+			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+				EnableTLS:        true,
+				EnableKeepAlives: keepAlives.value,
 			})
-		}
-		serverDoneFn()
+			t.Cleanup(serverDoneFn)
+
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					fetch, err := exec.LookPath(test.fetchCmd[0])
+					if err != nil {
+						t.Skipf("%s not found; skipping test.", test.fetchCmd)
+					}
+					ldd, err := exec.LookPath("ldd")
+					if err != nil {
+						t.Skip("ldd not found; skipping test.")
+					}
+					linked, _ := exec.Command(ldd, fetch).Output()
+
+					foundSSLLib := false
+					for _, lib := range tlsLibs {
+						libSSLPath := lib.FindString(string(linked))
+						if _, err := os.Stat(libSSLPath); err == nil {
+							foundSSLLib = true
+							break
+						}
+					}
+					if !foundSSLLib {
+						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
+					}
+
+					testHTTPSLibrary(t, test.fetchCmd)
+
+				})
+			}
+		})
 	}
 }
 
@@ -1735,6 +1789,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
+	err = tr.RegisterClient("1")
+	require.NoError(t, err)
 
 	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
 	exec.Command(fetchCmd[0]).Run()
@@ -1746,8 +1802,9 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	cmd := append(fetchCmd, targetURL)
 	requestCmd := exec.Command(cmd[0], cmd[1:]...)
-	err = requestCmd.Run()
-	require.NoErrorf(t, err, "failed to issue request via %s: %s", fetchCmd, err)
+	var out []byte
+	out, err = requestCmd.CombinedOutput()
+	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
 
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")
@@ -1760,7 +1817,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 				continue
 			}
 
-			statsTags := stats.Stats(200).Tags
+			statsTags := stats.Stats(200).StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
 			foundPathAndHTTPTag := false
@@ -1773,7 +1830,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 			for _, c := range payload.Conns {
-				t.Logf("conn sport %d dport %d tags %x connKey %v\n", c.SPort, c.DPort, c.Tags, network.HTTPKeyTupleFromConn(c))
+				possibleKeyTuples := network.HTTPKeyTuplesFromConn(c)
+				t.Logf("conn sport %d dport %d tags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, possibleKeyTuples[0], possibleKeyTuples[1])
 			}
 		}
 

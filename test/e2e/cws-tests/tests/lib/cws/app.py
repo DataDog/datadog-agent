@@ -84,8 +84,6 @@ class App(common.App):
         common.App.__init__(self)
 
         configuration = Configuration()
-        configuration.unstable_operations["search_security_monitoring_signals"] = True
-
         self.api_client = ApiClient(configuration)
 
     def __exit__(self):

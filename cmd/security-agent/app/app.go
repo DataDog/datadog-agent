@@ -7,6 +7,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -44,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -163,6 +165,9 @@ func start(cmd *cobra.Command, args []string) error {
 	go handleSignals(stopCh)
 
 	err := RunAgent(ctx)
+	if errors.Is(err, errAllComponentsDisabled) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -172,6 +177,8 @@ func start(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+
+var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
 
 // RunAgent initialized resources and starts API server
 func RunAgent(ctx context.Context) (err error) {
@@ -218,7 +225,7 @@ func RunAgent(ctx context.Context) (err error) {
 		// to startup because of an error. Only applies on Debian 7.
 		time.Sleep(5 * time.Second)
 
-		return nil
+		return errAllComponentsDisabled
 	}
 
 	if !coreconfig.Datadog.IsSet("api_key") {
@@ -325,6 +332,10 @@ func RunAgent(ctx context.Context) (err error) {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
+	if err := setupInternalProfiling(); err != nil {
+		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
+	}
+
 	log.Infof("Datadog Security Agent is now running.")
 
 	return
@@ -389,4 +400,45 @@ func StopAgent(cancel context.CancelFunc) {
 
 	log.Info("See ya!")
 	log.Flush()
+}
+
+func setupInternalProfiling() error {
+	cfg := coreconfig.Datadog
+	if cfg.GetBool(secAgentKey("internal_profiling.enabled")) {
+		v, _ := version.Agent()
+
+		cfgSite := cfg.GetString(secAgentKey("internal_profiling.site"))
+		cfgURL := cfg.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))
+
+		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+		var site string
+		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
+		} else {
+			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
+			if cfgURL != "" {
+				site = cfgURL
+			}
+		}
+
+		profSettings := profiling.Settings{
+			ProfilingURL:         site,
+			Env:                  cfg.GetString(secAgentKey("internal_profiling.env")),
+			Service:              "security-agent",
+			Period:               cfg.GetDuration(secAgentKey("internal_profiling.period")),
+			CPUDuration:          cfg.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: cfg.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
+			BlockProfileRate:     cfg.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
+			WithGoroutineProfile: cfg.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		}
+
+		return profiling.Start(profSettings)
+	}
+
+	return nil
+}
+
+func secAgentKey(sub string) string {
+	return fmt.Sprintf("security_agent.%s", sub)
 }

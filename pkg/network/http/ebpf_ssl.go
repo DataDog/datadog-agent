@@ -10,11 +10,8 @@ package http
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/twmb/murmur3"
 
@@ -24,7 +21,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +43,8 @@ var cryptoProbes = map[string]string{
 }
 
 var gnuTLSProbes = map[string]string{
+	"uprobe/gnutls_handshake":          "uprobe__gnutls_handshake",
+	"uretprobe/gnutls_handshake":       "uretprobe__gnutls_handshake",
 	"uprobe/gnutls_transport_set_int2": "uprobe__gnutls_transport_set_int2",
 	"uprobe/gnutls_transport_set_ptr":  "uprobe__gnutls_transport_set_ptr",
 	"uprobe/gnutls_transport_set_ptr2": "uprobe__gnutls_transport_set_ptr2",
@@ -85,7 +83,7 @@ type sslProgram struct {
 var _ subprogram = &sslProgram{}
 
 func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
-	if !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
 		return nil, nil
 	}
 
@@ -103,10 +101,6 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 	o.manager = m
 
-	if !httpsSupported() {
-		return
-	}
-
 	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
 		Map: manager.Map{Name: sharedLibrariesPerfMap},
 		PerfMapOptions: manager.PerfMapOptions{
@@ -119,7 +113,7 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 	})
 
 	probeSysOpen := doSysOpen
-	if o.sysOpenAt2Supported() {
+	if sysOpenAt2Supported(o.cfg) {
 		probeSysOpen = doSysOpenAt2
 	}
 	for _, kprobe := range kprobeKretprobePrefix {
@@ -138,10 +132,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		return
 	}
 
-	if !httpsSupported() {
-		return
-	}
-
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(o.cfg.MaxTrackedConnections),
@@ -149,7 +139,7 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	}
 
 	probeSysOpen := doSysOpen
-	if o.sysOpenAt2Supported() {
+	if sysOpenAt2Supported(o.cfg) {
 		probeSysOpen = doSysOpenAt2
 	}
 	for _, kprobe := range kprobeKretprobePrefix {
@@ -259,11 +249,14 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 			}
 
 			program := p.Program()
-			m.DetachHook(manager.ProbeIdentificationPair{
+			err := m.DetachHook(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
 				EBPFFuncName: funcName,
 				UID:          uid,
 			})
+			if err != nil {
+				log.Debugf("detachhook %s/%s/%s : %s", sec, funcName, uid, err)
+			}
 			if program != nil {
 				program.Close()
 			}
@@ -281,38 +274,4 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
-}
-
-func runningOnARM() bool {
-	return strings.HasPrefix(runtime.GOARCH, "arm")
-}
-
-// We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
-func httpsSupported() bool {
-	if !runningOnARM() {
-		return true
-	}
-
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. https monitoring disabled.")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 5, 0)
-}
-
-func (o *sslProgram) sysOpenAt2Supported() bool {
-	ksymPath := filepath.Join(o.cfg.ProcRoot, "kallsyms")
-	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.section})
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
 }

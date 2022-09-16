@@ -2,6 +2,186 @@
 Release Notes
 =============
 
+.. _Release Notes_7.39.0:
+
+7.39.0 / 6.39.0
+======
+
+.. _Release Notes_7.39.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-09-12
+
+- Please refer to the `7.39.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7390>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.39.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Starting with version 6.39.0, Agent 6 is no longer built for macOS.
+  Only Agent 7 will be built for macOS going forward. macOS 10.14 and
+  above are supported with Agent 7.39.0.
+
+
+.. _Release Notes_7.39.0_New Features:
+
+New Features
+------------
+
+- Add an integrated snmpwalk command to perform a walk for all snmp versions based on the gosnmp library.
+
+- APM: Add two options under the `vector` config prefix to send traces
+  to Vector instead of Datadog. Set `vector.traces.enabled` to true.
+  Set `vector.traces.url` to point to a Vector endpoint. This overrides 
+  the main endpoint. Additional endpoints remains fully functional.
+
+
+.. _Release Notes_7.39.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the `tagger-list` command to the `process-agent` to ease
+  tagging issue investigation.
+
+- Update SNMP traps database with bit enumerations.
+
+- Resolve SNMP trap variables with bit enumerations to their string representation.
+
+- Logs: Support filtering on arbitrary journal log fields
+
+- APM: The trace-agent version string has been made more consistent and is now available in different build environments.
+
+- Delay starting the auto multi-line detection timeout until at 
+  least one log has been processed. 
+
+- The ``helm`` check has new configuration parameters:
+  - ``extra_sync_timeout_seconds`` (default 120)
+  - ``informers_resync_interval_minutes`` (default 10)
+
+- Improves the `labelsAsTags` feature of the Kubernetes State Metrics core check by performing the transformations of characters ['/' , '-' , '.'] 
+  to underscores ['_'] within the Datadog agent.  
+  Previously users had to perform these conversions manually in order to discover the labels on their resources.
+
+- The new ``min_tls_version`` configuration parameter allows configuration of
+  the minimum TLS version used for connections to the Datadog intake.  This
+  replaces the ``force_tls_12`` configuration parameter which only allowed
+  the minimum to be set to tlsv1.2.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.56.0
+
+- 'agent status' command output is now parseable as JSON
+  directly from stdout. Before this change, the
+  logger front-matter made it hard to parse 'status'
+  output directly as JSON.
+
+- Raise the default ``logs_config.open_files_limit`` to ``200`` on 
+  Windows and macOS. Raised to ``500`` for all other operating systems. 
+
+- Support disabling DatadogMetric autogeneration with the
+  external_metrics_provider.enable_datadogmetric_autogen configuration option
+  (enabled by default).
+
+
+.. _Release Notes_7.39.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM: The `datadog.trace_agent.trace_writer.bytes_estimated` metric has been removed. It was meant to be a metric used for debugging, without any user added value.
+
+- APM: The trace-agent /info endpoint no longer reports "build_date".
+
+- The ``force_tls_12`` configuration parameter is deprecated, replaced by
+  ``min_tls_version``.  If ``min_tls_version`` is not given, but ``force_tls_12``
+  is true, then ``min_tls_version`` defaults to tlsv1.2.
+
+
+.. _Release Notes_7.39.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Traps variable OIDs that had the index as a suffix are now correctly resolved.
+
+- Agent status command should always log at info level to allow
+  full status output regardless of Agent log level settings.
+
+- APM: The "datadog.trace_agent.otlp.spans" metric was incorrectly reporting span count. This release fixes that.
+
+- Fix panic when Agent stops jmxfetch.
+
+- Fixed a bug in Kubernetes Autodiscovery based on pod annotations: The Agent no longer skips valid configurations if other invalid configurations exist.
+  Note: This regression was introduced in Agents 7.36.0 and 6.36.0
+
+- Fix a bug in autodiscovery that would not unschedule some checks when check configuration contains secrets.
+
+- Orchestrator check: make sure we don't return labels and annotations with a suffixed `:`
+
+- Fixed a bug in the Docker check that affects the
+  `docker.containers.running` metric. It was reporting wrong values in cases
+  where multiple containers with different `env`, `service`, `version`, etc.
+  tags were using the same image.
+
+- Fixed a deadlock in the DogStatsD when running the capture (`agent dogstatsd-capture`). The Agent now flushes the
+  captured messages properly when the capture stops.
+
+- Fix parsing of init_config in AD annotations v2.
+
+- The ``internal_profiling.period`` parameter is now taken into account by the agent.
+
+- Fix duplicated check or logs configurations, targeting dead containers when containers are re-created by Docker Compose.
+
+- Fix concurrent map access issues when using OTLP ingest.
+
+- [orchestrator check] Fixes race condition during check startup.
+
+- The Windows installer will now respect the DDAGENTUSER_PASSWORD option and update the services passwords when the user already exists.
+
+- The KSM Core check now handles cron job schedules with time zones.
+
+- The v5 metadata payload's filesystem information is now more robust against failures in the ``df`` command, such as when a mountpoint is stuck.
+
+- Fixes a disk check issue in the Docker Agent where a disproportionate amount of automount
+  request system logs would be produced by the host after each disk check run.
+
+- [epforwarder] Update NetFlow EP forwarder default configs
+
+- The Agent starts faster on a Windows Docker host with many containers running by fetching the containers in parallel.
+
+- On Windows, NPM driver adds support for Receive Segment Coalescing.
+  This works around a Windows bug which in some situations causes
+  system probe to hang on startup
+
+
+.. _Release Notes_7.38.2:
+
+7.38.2 / 6.38.2
+======
+
+.. _Release Notes_7.38.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-08-10
+
+- Please refer to the `7.38.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7382>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.38.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug making the agent creating a lot of zombie (defunct) processes.
+  This bug happened only with the docker images ``7.38.x`` when the containerized agent was launched without ``hostPID: true``.
+
+
 .. _Release Notes_7.38.1:
 
 7.38.1 / 6.38.1
@@ -677,6 +857,8 @@ Upgrade Notes
   environment variables will be removed in Agent 7.37. Use the ``otlp_config`` section or the
   ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT`` and ``DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT``
   environment variables instead.
+
+- macOS 10.12 support has been removed. Only macOS 10.13 and later are now supported.
 
 
 .. _Release Notes_7.35.0_New Features:

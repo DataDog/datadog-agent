@@ -78,6 +78,9 @@ func parsePredicates(customJSON *json.RawMessage) (*pbgo.TracerPredicates, error
 
 func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1) (bool, error) {
 	for _, predicate := range predicates {
+		if predicate.ClientID != "" && client.Id != predicate.ClientID {
+			continue
+		}
 		if client.IsTracer {
 			tracer := client.ClientTracer
 			if predicate.RuntimeID != "" && tracer.RuntimeId != predicate.RuntimeID {

@@ -11,14 +11,13 @@ package probe
 import (
 	"bytes"
 	"fmt"
-	"reflect"
 	"strings"
 	"text/template"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -347,14 +346,8 @@ func NewRandomNodeID() NodeID {
 }
 
 // NewNodeIDFromPtr returns a new NodeID based on a pointer value
-func NewNodeIDFromPtr(v interface{}) NodeID {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		log.Errorf("invalid ID generation: %T", v)
-		return NewRandomNodeID()
-	}
-
-	ptr := rv.Pointer()
+func NewNodeIDFromPtr[T any](v *T) NodeID {
+	ptr := uintptr(unsafe.Pointer(v))
 	return NodeID{
 		inner: uint64(ptr),
 	}

@@ -68,33 +68,34 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentCloudProvider                 AgentMetadataName = "cloud_provider"
-	AgentHostnameSource                AgentMetadataName = "hostname_source"
-	AgentVersion                       AgentMetadataName = "agent_version"
-	AgentFlavor                        AgentMetadataName = "flavor"
-	AgentConfigAPMDDURL                AgentMetadataName = "config_apm_dd_url"
-	AgentConfigDDURL                   AgentMetadataName = "config_dd_url"
-	AgentConfigSite                    AgentMetadataName = "config_site"
-	AgentConfigLogsDDURL               AgentMetadataName = "config_logs_dd_url"
-	AgentConfigLogsSocks5ProxyAddress  AgentMetadataName = "config_logs_socks5_proxy_address"
-	AgentConfigNoProxy                 AgentMetadataName = "config_no_proxy"
-	AgentConfigProcessDDURL            AgentMetadataName = "config_process_dd_url"
-	AgentConfigProxyHTTP               AgentMetadataName = "config_proxy_http"
-	AgentConfigProxyHTTPS              AgentMetadataName = "config_proxy_https"
-	AgentInstallMethodInstallerVersion AgentMetadataName = "install_method_installer_version"
-	AgentInstallMethodTool             AgentMetadataName = "install_method_tool"
-	AgentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
-	AgentLogsTransport                 AgentMetadataName = "logs_transport"
-	AgentCWSEnabled                    AgentMetadataName = "feature_cws_enabled"
-	AgentOTLPEnabled                   AgentMetadataName = "feature_otlp_enabled"
-	AgentProcessEnabled                AgentMetadataName = "feature_process_enabled"
-	AgentProcessesContainerEnabled     AgentMetadataName = "feature_processes_container_enabled"
-	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
-	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
-	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
-	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
-	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
-	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
+	AgentCloudProvider                  AgentMetadataName = "cloud_provider"
+	AgentHostnameSource                 AgentMetadataName = "hostname_source"
+	AgentVersion                        AgentMetadataName = "agent_version"
+	AgentFlavor                         AgentMetadataName = "flavor"
+	AgentConfigAPMDDURL                 AgentMetadataName = "config_apm_dd_url"
+	AgentConfigDDURL                    AgentMetadataName = "config_dd_url"
+	AgentConfigSite                     AgentMetadataName = "config_site"
+	AgentConfigLogsDDURL                AgentMetadataName = "config_logs_dd_url"
+	AgentConfigLogsSocks5ProxyAddress   AgentMetadataName = "config_logs_socks5_proxy_address"
+	AgentConfigNoProxy                  AgentMetadataName = "config_no_proxy"
+	AgentConfigProcessDDURL             AgentMetadataName = "config_process_dd_url"
+	AgentConfigProxyHTTP                AgentMetadataName = "config_proxy_http"
+	AgentConfigProxyHTTPS               AgentMetadataName = "config_proxy_https"
+	AgentInstallMethodInstallerVersion  AgentMetadataName = "install_method_installer_version"
+	AgentInstallMethodTool              AgentMetadataName = "install_method_tool"
+	AgentInstallMethodToolVersion       AgentMetadataName = "install_method_tool_version"
+	AgentLogsTransport                  AgentMetadataName = "logs_transport"
+	AgentCWSEnabled                     AgentMetadataName = "feature_cws_enabled"
+	AgentOTLPEnabled                    AgentMetadataName = "feature_otlp_enabled"
+	AgentProcessEnabled                 AgentMetadataName = "feature_process_enabled"
+	AgentProcessesContainerEnabled      AgentMetadataName = "feature_processes_container_enabled"
+	AgentNetworksEnabled                AgentMetadataName = "feature_networks_enabled"
+	AgentNetworksHTTPEnabled            AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled           AgentMetadataName = "feature_networks_https_enabled"
+	AgentNetworksHTTPHTTPSViaETWEnabled AgentMetadataName = "feature_networks_http_https_via_etw_enabled"
+	AgentLogsEnabled                    AgentMetadataName = "feature_logs_enabled"
+	AgentCSPMEnabled                    AgentMetadataName = "feature_cspm_enabled"
+	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
 
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
@@ -116,6 +117,10 @@ func Refresh() {
 
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -128,6 +133,10 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 
 // SetHostMetadata updates the host metadata value in the cache
 func SetHostMetadata(name AgentMetadataName, value interface{}) {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -140,7 +149,7 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 func SetCheckMetadata(checkID, key string, value interface{}) {
-	if checkID == "" {
+	if checkID == "" || !config.Datadog.GetBool("inventories_enabled") {
 		return
 	}
 
@@ -166,6 +175,10 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 // RemoveCheckMetadata removes metadata for a check a trigger a new payload. This need to be called when a check is
 // unscheduled.
 func RemoveCheckMetadata(checkID string) {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -248,14 +261,11 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		})
 	}
 
-	// if metadata were added for a check not in the collector we still need
-	// to add them to the payloadCheckMeta (this happens when using the
-	// 'check' command)
+	// if metadata were added for a check not in the collector we clear the cache. This can happen when a check
+	// submit metadata after being unscheduled but before exiting its last run.
 	for id := range checkMetadata {
 		if _, found := foundInCollector[id]; !found {
-			// id should be "check_name:check_hash"
-			parts := strings.SplitN(id, ":", 2)
-			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, "", "", "", withConfigs))
+			delete(checkMetadata, id)
 		}
 	}
 
@@ -283,8 +293,34 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 	}
 }
 
+// GetCheckMetadata returns metadata for a check instance
+func GetCheckMetadata(c check.Check) *CheckInstanceMetadata {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return nil
+	}
+
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
+	checkID := string(c.ID())
+	if _, found := checkMetadata[checkID]; found {
+		return createCheckInstanceMetadata(
+			checkID,
+			strings.Split(c.ConfigSource(), ":")[0],
+			c.InitConfig(),
+			c.InstanceConfig(),
+			false,
+		)
+	}
+	return nil
+}
+
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
 func GetPayload(ctx context.Context, hostname string, coll CollectorInterface, withConfigs bool) *Payload {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return nil
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -310,6 +346,10 @@ func GetLastPayload() ([]byte, error) {
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC
 // signal to run the collector out of its regular interval.
 func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.Duration) error {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return nil
+	}
+
 	go func() {
 		for {
 			<-metadataUpdatedC
@@ -328,6 +368,10 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 
 // InitializeData inits the inventories payload with basic and static information (agent version, flavor name, ...)
 func InitializeData() {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	SetAgentMetadata(AgentVersion, version.AgentVersion)
 	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
 
@@ -369,6 +413,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPHTTPSViaETWEnabled, config.Datadog.GetBool("network_config.enable_http_https_monitoring_via_etw"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))

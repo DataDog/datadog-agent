@@ -136,6 +136,18 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
+	// Tags: -
+	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
+	// MetricProcessResolverArgsSize is the name of the metric used to report the number of args size
+	// Tags: -
+	MetricProcessResolverArgsSize = newRuntimeMetric(".process_resolver.args.size")
+	// MetricProcessResolverEnvsTruncated is the name of the metric used to report the number of envs truncated
+	// Tags: -
+	MetricProcessResolverEnvsTruncated = newRuntimeMetric(".process_resolver.envs.truncated")
+	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
+	// Tags: -
+	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
 
 	// Activity dump metrics
 
@@ -158,8 +170,11 @@ var (
 	// Tags: -
 	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
-	// Tags: -
+	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
+	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
+	// Tags: -
+	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
 	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
 	// be sent because they are too big
 	// Tags: format, compression
@@ -188,6 +203,9 @@ var (
 	// MetricPolicy is the name of the metric used to report policy versions
 	// Tags: -
 	MetricPolicy = newRuntimeMetric(".policy")
+	// MetricRuleStatus is the name of the metric used to report the rule status
+	// Tags: -
+	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
 	// Others
 

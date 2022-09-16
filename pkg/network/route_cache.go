@@ -20,6 +20,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -176,19 +177,21 @@ type netlinkRouter struct {
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
-func NewNetlinkRouter(procRoot string) (Router, error) {
-	return newNetlinkRouter(procRoot)
-}
+func NewNetlinkRouter(cfg *config.Config) (Router, error) {
+	rootNs, err := cfg.GetRootNetNs()
+	if err != nil {
+		return nil, err
+	}
+	defer rootNs.Close()
 
-func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
-	rootNs, err := util.GetNetNsInoFromPid(procRoot, 1)
+	rootNsIno, err := util.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = util.WithRootNS(procRoot, func() (sockErr error) {
+	err = util.WithNS(cfg.ProcRoot, rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}
@@ -202,7 +205,7 @@ func newNetlinkRouter(procRoot string) (*netlinkRouter, error) {
 	}
 
 	nr := &netlinkRouter{
-		rootNs:  rootNs,
+		rootNs:  rootNsIno,
 		ioctlFD: fd,
 		// ifcache should ideally fit all interfaces on a given node
 		ifcache:  lru.New(128),

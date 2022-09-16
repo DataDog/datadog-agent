@@ -7,8 +7,6 @@ package docker
 
 import (
 	"errors"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 var (
@@ -26,12 +24,12 @@ var (
 	ErrDockerNotCompiled = errors.New("docker support not compiled in")
 )
 
-// ContainerIDToEntityName returns a prefixed entity name from a container ID
-func ContainerIDToEntityName(cid string) string {
-	return containers.BuildEntityName(containers.RuntimeNameDocker, cid)
-}
-
-// ContainerIDToTaggerEntityName returns a prefixed entity name from a container ID
-func ContainerIDToTaggerEntityName(cid string) string {
-	return containers.BuildTaggerEntityName(cid)
-}
+// Container network modes
+const (
+	DefaultNetworkMode string = "default" // bridge
+	HostNetworkMode    string = "host"
+	BridgeNetworkMode  string = "bridge"
+	NoneNetworkMode    string = "none"
+	AwsvpcNetworkMode  string = "awsvpc"
+	UnknownNetworkMode string = "unknown"
+)

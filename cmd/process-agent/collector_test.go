@@ -6,17 +6,23 @@
 package main
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -342,6 +348,217 @@ func TestIgnoreResponseBody(t *testing.T) {
 	} {
 		t.Run(tc.checkName, func(t *testing.T) {
 			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
+		})
+	}
+}
+
+func TestCollectorRunCheckWithRealTime(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	check := mocks.NewCheckWithRealTime(t)
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	results := api.NewWeightedQueue(1, 1024)
+	rtResults := api.NewWeightedQueue(1, 1024)
+
+	standardOption := checks.RunOptions{
+		RunStandard: true,
+	}
+
+	result := &checks.RunResult{
+		Standard: []model.MessageBody{
+			&model.CollectorProc{},
+		},
+	}
+
+	check.On("RunWithOptions", mock.Anything, mock.Anything, standardOption).Once().Return(result, nil)
+	check.On("Name").Return("foo")
+	check.On("RealTimeName").Return("bar")
+
+	c.runCheckWithRealTime(
+		check,
+		results,
+		rtResults,
+		standardOption,
+	)
+
+	assert.Equal(t, results.Len(), 1)
+	item, ok := results.Poll()
+	assert.True(t, ok)
+	assert.Equal(t, item.Type(), "foo")
+
+	assert.Equal(t, rtResults.Len(), 0)
+
+	rtResult := &checks.RunResult{
+		RealTime: []model.MessageBody{
+			&model.CollectorProc{},
+		},
+	}
+
+	rtOption := checks.RunOptions{
+		RunRealTime: true,
+	}
+
+	check.On("RunWithOptions", mock.Anything, mock.Anything, rtOption).Once().Return(rtResult, nil)
+
+	c.runCheckWithRealTime(
+		check,
+		results,
+		rtResults,
+		rtOption,
+	)
+
+	assert.Equal(t, results.Len(), 0)
+	assert.Equal(t, rtResults.Len(), 1)
+	item, ok = rtResults.Poll()
+	assert.True(t, ok)
+	assert.Equal(t, item.Type(), "bar")
+}
+
+func TestCollectorRunCheck(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	check := mocks.NewCheck(t)
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	results := api.NewWeightedQueue(1, 1024)
+
+	result := []model.MessageBody{
+		&model.CollectorProc{},
+	}
+
+	check.On("Run", mock.Anything, mock.Anything).Return(result, nil)
+	check.On("Name").Return("foo")
+	check.On("RealTime").Return(false)
+	check.On("ShouldSaveLastRun").Return(true)
+
+	c.runCheck(
+		check,
+		results,
+	)
+
+	assert.Equal(t, results.Len(), 1)
+	item, ok := results.Poll()
+	assert.True(t, ok)
+	assert.Equal(t, item.Type(), "foo")
+}
+
+func TestCollectorMessagesToCheckResult(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	cfg.HostName = "host"
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	now := time.Now()
+	agentVersion, _ := version.Agent()
+
+	tests := []struct {
+		name          string
+		message       model.MessageBody
+		expectHeaders map[string]string
+	}{
+		{
+			name: "process",
+			message: &model.CollectorProc{
+				Containers: []*model.Container{
+					{}, {}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "3",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name: "rt_process",
+			message: &model.CollectorRealTime{
+				ContainerStats: []*model.ContainerStat{
+					{}, {}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "3",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name: "container",
+			message: &model.CollectorContainer{
+				Containers: []*model.Container{
+					{}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "2",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name: "rt_container",
+			message: &model.CollectorContainerRealTime{
+				Stats: []*model.ContainerStat{
+					{}, {}, {}, {}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "5",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name:    "process_discovery",
+			message: &model.CollectorProcDiscovery{},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "0",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name:    "process_events",
+			message: &model.CollectorProcEvent{},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:             "host",
+				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
+				headers.ContainerCountHeader:   "0",
+				headers.ContentTypeHeader:      headers.ProtobufContentType,
+				headers.EVPOriginHeader:        "process-agent",
+				headers.EVPOriginVersionHeader: version.AgentVersion,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			messages := []model.MessageBody{
+				test.message,
+			}
+			result := c.messagesToCheckResult(now, test.name, messages)
+			assert.Equal(t, test.name, result.name)
+			assert.Len(t, result.payloads, 1)
+			payload := result.payloads[0]
+			assert.Len(t, payload.headers, len(test.expectHeaders))
+			for k, v := range test.expectHeaders {
+				assert.Equal(t, v, payload.headers.Get(k))
+			}
 		})
 	}
 }

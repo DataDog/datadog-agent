@@ -70,14 +70,14 @@ func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.Confi
 
 func normalize(policy *rules.Policy) {
 	// remove the version
-	els := strings.SplitN(policy.Name, ".", 2)
-	if len(els) > 1 {
-		policy.Name = els[1]
+	_, normalized, found := strings.Cut(policy.Name, ".")
+	if found {
+		policy.Name = normalized
 	}
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (r *RCPolicyProvider) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
 
@@ -87,13 +87,12 @@ func (r *RCPolicyProvider) LoadPolicies(filters []rules.RuleFilter) ([]*rules.Po
 	for _, c := range r.lastConfigs {
 		reader := bytes.NewReader(c.Config)
 
-		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, filters)
+		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
-		} else {
-			normalize(policy)
-			policies = append(policies, policy)
 		}
+		normalize(policy)
+		policies = append(policies, policy)
 	}
 
 	return policies, errs
