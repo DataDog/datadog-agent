@@ -1,5 +1,5 @@
 name "snowflake-connector-python-py3"
-default_version "2.7.12"
+default_version "2.7.3"
 
 dependency "pip3"
 
