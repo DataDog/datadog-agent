@@ -211,13 +211,12 @@ func (bc *BBSCache) readData() {
 	var desiredLRPs map[string]*DesiredLRP
 	var errActual, errDesired error
 
+	wg.Add(2)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		actualLRPsByProcessGUID, actualLRPsByCellID, errActual = bc.readActualLRPs()
 	}()
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		desiredLRPs, errDesired = bc.readDesiredLRPs()
 	}()
