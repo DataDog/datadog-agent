@@ -23,6 +23,7 @@ replace (
 	github.com/lxn/walk => github.com/lxn/walk v0.0.0-20180521183810-02935bac0ab8
 	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
+	github.com/theupdateframework/go-tuf => github.com/DataDog/go-tuf v0.3.0--fix-localmeta
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
