@@ -528,7 +528,7 @@
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->
-    <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
+    <Icon Id="project.ico" SourceFile="Resources\assets\project.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
     <Property Id="ARPHELPLINK" Value="https://datadoghq.com/" />
     <!--
@@ -563,6 +563,7 @@
       </Publish>
       <?include Resources\assets\apikeydlg.wxi ?>
       <?include Resources\assets\sitedlg.wxi ?>
+      <?include Resources\assets\ddagentuserdlg.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -574,6 +575,8 @@
       <DialogRef Id="WelcomeDlg" />
       <DialogRef Id="ApiKeyDlg"/>
       <DialogRef Id="SiteDlg"/>
+      <DialogRef Id="DDAgentUserDlg"/>
+      <DialogRef Id="DDAgentUserInvalidDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
       <?if $(var.IncludeSysprobe) = true ?>
       <DialogRef Id="CustomizeDlg"/>
@@ -588,6 +591,7 @@
            Customize IF APPLICABLE
            Apikey
            Site
+           DDAgentUser
            VerifyReady
 
            -->
@@ -624,7 +628,7 @@
       <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
 
       <!-- if the previous installation or the datadog.yaml file exists, implying the API key and Site are known, go back to the CustomizeDlg or LicenseAgreementDlg -->
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">(NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DDAgentUserDlg">(NOT PREVIOUSFOUND) AND (NOT DATADOGYAMLEXISTS)</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
 
@@ -637,7 +641,6 @@
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg">WixUI_InstallMode = "Repair" OR WixUI_InstallMode = "Remove"</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-
 
       <AdminUISequence>
         <Show Dialog="FatalError" OnExit="error" />
@@ -717,6 +720,7 @@
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
 
+    <CustomAction Id='ValidateDDAgentUserDlgInput' BinaryKey='wixcadll' DllEntry='ValidateDDAgentUserDlgInput' Execute='immediate' Return='check' />
 
     <!--
     <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>

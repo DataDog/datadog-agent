@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package cloudfoundry
+package cloudfoundry_vm
 
 import (
 	"context"
@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	collectorID   = "cloudfoundry"
-	componentName = "workloadmeta-cloudfoundry"
+	collectorID   = "cloudfoundry-vm"
+	componentName = "workloadmeta-cloudfoundry-vm"
 )
 
 type collector struct {

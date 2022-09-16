@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
 )
 
 // MockTimeNow mocks time.Now
@@ -44,8 +45,8 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 		TCPFlags:       synFlag,
 	}
 	flowA2 := &common.Flow{
@@ -58,8 +59,8 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 		TCPFlags:       ackFlag,
 	}
 	flowB1 := &common.Flow{
@@ -73,12 +74,12 @@ func Test_flowAccumulator_add(t *testing.T) {
 		// different destination addr
 		DstAddr:    []byte{10, 10, 10, 30},
 		IPProtocol: uint32(6),
-		SrcPort:    uint32(2000),
-		DstPort:    uint32(80),
+		SrcPort:    2000,
+		DstPort:    80,
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -100,6 +101,104 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, []byte{10, 10, 10, 30}, wrappedFlowB.flow.DstAddr)
 }
 
+func Test_flowAccumulator_portRollUp(t *testing.T) {
+	synFlag := uint32(2)
+	ackFlag := uint32(16)
+	synAckFlag := synFlag | ackFlag
+
+	// Given
+	flowA1 := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		DeviceAddr:     []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        4,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        1000,
+		DstPort:        80,
+		TCPFlags:       synFlag,
+	}
+	flowA2 := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		DeviceAddr:     []byte{127, 0, 0, 1},
+		StartTimestamp: 1234578,
+		EndTimestamp:   1234579,
+		Bytes:          10,
+		Packets:        2,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        1000,
+		DstPort:        80,
+		TCPFlags:       ackFlag,
+	}
+	flowB1 := common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		DeviceAddr:     []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          100,
+		Packets:        10,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 30},
+		IPProtocol:     uint32(6),
+		SrcPort:        80,
+		DstPort:        2001,
+	}
+
+	// When
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3)
+	acc.add(flowA1)
+	acc.add(flowA2)
+
+	acc.add(&flowB1)
+	flowB2 := flowB1
+	flowB2.DstPort = 2002
+	acc.add(&flowB2)
+	flowB3 := flowB1
+	flowB3.DstPort = 2003
+	acc.add(&flowB3)
+	flowB4 := flowB1
+	flowB4.DstPort = 2004
+	acc.add(&flowB4)
+	flowB5 := flowB1
+	flowB5.DstPort = 2005
+	acc.add(&flowB5)
+	flowB6 := flowB1
+	flowB6.DstPort = 2006
+	acc.add(&flowB6)
+
+	flowBwithPortRollup := flowB1
+	flowBwithPortRollup.DstPort = portrollup.EphemeralPort
+
+	sourcePortCount := acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80)
+
+	assert.Equal(t, uint16(3), sourcePortCount)
+
+	// Then
+	assert.Equal(t, 4, len(acc.flows))
+
+	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
+	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
+	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
+	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
+	assert.Equal(t, uint64(6), wrappedFlowA.flow.Packets)
+	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
+	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
+	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
+
+	assert.Equal(t, uint64(10), acc.flows[flowB1.AggregationHash()].flow.Packets)
+	assert.Equal(t, int32(2001), acc.flows[flowB1.AggregationHash()].flow.DstPort)
+	assert.Equal(t, uint64(10), acc.flows[flowB2.AggregationHash()].flow.Packets)
+	assert.Equal(t, int32(2002), acc.flows[flowB2.AggregationHash()].flow.DstPort)
+	// flowB3, B4, B5, B6 are aggregated into one flow with DstPort = 0
+	assert.Equal(t, uint64(40), acc.flows[flowBwithPortRollup.AggregationHash()].flow.Packets)
+	assert.Equal(t, int32(-1), acc.flows[flowBwithPortRollup.AggregationHash()].flow.DstPort)
+}
+
 func Test_flowAccumulator_flush(t *testing.T) {
 	timeNow = MockTimeNow
 	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -117,12 +216,12 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold)
 	acc.add(flow)
 
 	// Then

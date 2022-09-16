@@ -20,12 +20,8 @@
 #endif
 
 #define MAIN_ICON 1
-#define ICON_16_16 2
-#define ICON_32_32 3
 
 MAIN_ICON ICON "..\\..\\omnibus\\resources\\agent\\msi\\assets\\project.ico"
-ICON_16_16 ICON "..\\..\\omnibus\\resources\\agent\\msi\\assets\\project_16x16.ico"
-ICON_32_32 ICON "..\\..\\omnibus\\resources\\agent\\msi\\assets\\project_32x32.ico"
 
 #define VS_VERSION_INFO 1
 VS_VERSION_INFO VERSIONINFO
