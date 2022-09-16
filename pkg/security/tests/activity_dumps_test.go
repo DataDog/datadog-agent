@@ -26,10 +26,12 @@ import (
 
 var expectedFormats = []string{"json", "protobuf"}
 
+const testActivityDumpRateLimiter = 20
+
 func TestActivityDumps(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
 		enableActivityDump:      true,
-		activityDumpRateLimiter: 10,
+		activityDumpRateLimiter: testActivityDumpRateLimiter,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -229,15 +231,13 @@ func TestActivityDumps(t *testing.T) {
 
 		time.Sleep(2 * time.Second) // a quick sleep to let starts and snapshot events to be added to the dump
 
-		for i := 0; i < 20; i++ {
-			if err := os.MkdirAll("/tmp/ratelimiter", os.ModePerm); err != nil {
-				t.Fatal(err)
-			}
-			temp, err := os.CreateTemp("/tmp/ratelimiter", "ad-test-create")
+		tempDir := t.TempDir()
+		defer os.RemoveAll(tempDir)
+		for i := 0; i < testActivityDumpRateLimiter*10; i++ {
+			_, err := os.CreateTemp(tempDir, "ad-test-create")
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer os.Remove(temp.Name())
 		}
 
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
@@ -256,17 +256,22 @@ func TestActivityDumps(t *testing.T) {
 				t.Fatal("Captured more than one testsuite node")
 			}
 
-			node := nodes[0]
-			tmp := node.Files["tmp"]
-			if tmp == nil {
-				t.Fatal("Didn't find /tmp node")
+			dirs := strings.Split(tempDir, "/")
+			node := nodes[0].Files[dirs[1]]
+			if node == nil {
+				t.Fatalf("Didn't find %s node", dirs[1])
 			}
-			ratelimiter := tmp.Children["ratelimiter"]
-			if ratelimiter == nil {
-				t.Fatal("Didn't find /tmp/ratelimiter node")
+			for _, dir := range dirs[2:] {
+				node = node.Children[dir]
+				if node == nil {
+					t.Fatalf("Didn't find %s node", dir)
+				}
 			}
-			if len(ratelimiter.Children) != 10 {
-				t.Fatalf("Didn't find the good number of files in tmp node (%d/10)", len(ratelimiter.Children))
+
+			numberOfFiles := len(node.Children)
+			if numberOfFiles < testActivityDumpRateLimiter/4 || numberOfFiles > testActivityDumpRateLimiter {
+				t.Fatalf("Didn't find the good number of files in tmp node (%d/%d)",
+					numberOfFiles, testActivityDumpRateLimiter)
 			}
 
 			return true
