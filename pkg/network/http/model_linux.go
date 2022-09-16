@@ -9,42 +9,39 @@
 package http
 
 import (
+	"bytes"
 	"encoding/hex"
+	"strconv"
 	"strings"
-	"unsafe"
 )
-
-/*
-#include "../ebpf/c/http-types.h"
-*/
-import "C"
 
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
 func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
-
-	// b might contain a null terminator in the middle
-	bLen := strlen(b[:])
-
-	var i, j int
-	for i = 0; i < bLen && b[i] != ' '; i++ {
+	bLen := bytes.IndexByte(tx.Request_fragment[:], 0)
+	if bLen == -1 {
+		bLen = len(tx.Request_fragment)
 	}
-
+	// trim null byte + after
+	b := tx.Request_fragment[:bLen]
+	// find first space after request method
+	i := bytes.IndexByte(b, ' ')
 	i++
-
-	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+	// ensure we found a space, it isn't at the end, and the next chars are '/' or '*'
+	if i == 0 || i == len(b) || (b[i] != '/' && b[i] != '*') {
 		return nil, false
 	}
-
-	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
+	// trim to start of path
+	b = b[i:]
+	// capture until we find the slice end, a space, or a question mark (we ignore the query parameters)
+	var j int
+	for j = 0; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
 	}
-
-	// no bound check necessary here as we know we at least have '/' character
-	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	n := copy(buffer, b[:j])
+	// indicate if we knowingly captured the entire path
+	fullPath := n < len(b)
 	return buffer[:n], fullPath
 }
 
@@ -59,7 +56,7 @@ func (tx *ebpfHttpTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return nsTimestampToFloat(uint64(tx.Response_last_seen - tx.Request_started))
+	return nsTimestampToFloat(tx.Response_last_seen - tx.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
@@ -69,8 +66,7 @@ func (tx *ebpfHttpTx) Incomplete() bool {
 }
 
 func (tx *ebpfHttpTx) ReqFragment() []byte {
-	asSlice := (*[1 << 30]byte)(unsafe.Pointer(&tx.Request_fragment))[:int(C.HTTP_BUFFER_SIZE):int(C.HTTP_BUFFER_SIZE)]
-	return asSlice
+	return tx.Request_fragment[:]
 }
 
 func (tx *ebpfHttpTx) isIPV4() bool {
@@ -78,27 +74,27 @@ func (tx *ebpfHttpTx) isIPV4() bool {
 }
 
 func (tx *ebpfHttpTx) SrcIPHigh() uint64 {
-	return uint64(tx.Tup.Saddr_h)
+	return tx.Tup.Saddr_h
 }
 
 func (tx *ebpfHttpTx) SrcIPLow() uint64 {
-	return uint64(tx.Tup.Saddr_l)
+	return tx.Tup.Saddr_l
 }
 
 func (tx *ebpfHttpTx) SrcPort() uint16 {
-	return uint16(tx.Tup.Sport)
+	return tx.Tup.Sport
 }
 
 func (tx *ebpfHttpTx) DstIPHigh() uint64 {
-	return uint64(tx.Tup.Daddr_h)
+	return tx.Tup.Daddr_h
 }
 
 func (tx *ebpfHttpTx) DstIPLow() uint64 {
-	return uint64(tx.Tup.Daddr_l)
+	return tx.Tup.Daddr_l
 }
 
 func (tx *ebpfHttpTx) DstPort() uint16 {
-	return uint16(tx.Tup.Dport)
+	return tx.Tup.Dport
 }
 
 func (tx *ebpfHttpTx) Method() Method {
@@ -106,23 +102,23 @@ func (tx *ebpfHttpTx) Method() Method {
 }
 
 func (tx *ebpfHttpTx) StatusCode() uint16 {
-	return uint16(tx.Response_status_code)
+	return tx.Response_status_code
 }
 
 func (tx *ebpfHttpTx) SetStatusCode(code uint16) {
-	tx.Response_status_code = uint16(code)
+	tx.Response_status_code = code
 }
 
 func (tx *ebpfHttpTx) ResponseLastSeen() uint64 {
-	return uint64(tx.Response_last_seen)
+	return tx.Response_last_seen
 }
 
 func (tx *ebpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
-	tx.Response_last_seen = uint64(lastSeen)
+	tx.Response_last_seen = lastSeen
 
 }
 func (tx *ebpfHttpTx) RequestStarted() uint64 {
-	return uint64(tx.Request_started)
+	return tx.Request_started
 }
 
 func (tx *ebpfHttpTx) RequestMethod() uint32 {
@@ -133,10 +129,10 @@ func (tx *ebpfHttpTx) SetRequestMethod(m uint32) {
 	tx.Request_method = uint8(m)
 }
 
-// Tags returns an uint64 representing the tags bitfields
+// StaticTags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
 func (tx *ebpfHttpTx) StaticTags() uint64 {
-	return uint64(tx.Tags)
+	return tx.Tags
 }
 
 func (tx *ebpfHttpTx) DynamicTags() []string {
@@ -145,17 +141,17 @@ func (tx *ebpfHttpTx) DynamicTags() []string {
 
 func (tx *ebpfHttpTx) String() string {
 	var output strings.Builder
-	fragment := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
 	output.WriteString("ebpfHttpTx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
-	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
+	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags, 16) + "', ")
+	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
 
 // Transactions returns the slice of HTTP transactions embedded in the batch
 func (batch *httpBatch) Transactions() []ebpfHttpTx {
-	return (*(*[HTTPBatchSize]ebpfHttpTx)(unsafe.Pointer(&batch.Txs)))[:]
+	return batch.Txs[:]
 }
 
 // below is copied from pkg/trace/stats/statsraw.go
@@ -173,9 +169,10 @@ func nsTimestampToFloat(ns uint64) float64 {
 }
 
 func requestFragment(fragment []byte) [HTTPBufferSize]byte {
-	var b [HTTPBufferSize]byte
-	for i := 0; i < len(b) && i < len(fragment); i++ {
-		b[i] = byte(fragment[i])
+	if len(fragment) >= HTTPBufferSize {
+		return *(*[HTTPBufferSize]byte)(fragment)
 	}
+	var b [HTTPBufferSize]byte
+	copy(b[:], fragment)
 	return b
 }
