@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -48,6 +47,11 @@ type remoteSampler struct {
 	target apmsampling.TargetTPS
 }
 
+type RemoteRateUpdate struct {
+	Version uint64
+	Config  apmsampling.APMSampling
+}
+
 func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion string) *RemoteRates {
 	if client == nil {
 		return nil
@@ -61,20 +65,14 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 	}
 }
 
-func (r *RemoteRates) onUpdate(update map[string]state.APMSamplingConfig) {
+func (r *RemoteRates) onUpdate(updates []RemoteRateUpdate) {
 	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
 	// In the meantime we will just use a version of one of the config files.
-	var version uint64
-	for _, c := range update {
-		if c.Metadata.Version > version {
-			version = c.Metadata.Version
-		}
-		break
-	}
+	version := updates[0].Version
 
 	log.Debugf("fetched config version %d from remote config management", version)
 	tpsTargets := make(map[Signature]apmsampling.TargetTPS, len(r.tpsTargets))
-	for _, rates := range update {
+	for _, rates := range updates {
 		for _, targetTPS := range rates.Config.TargetTPS {
 			if targetTPS.Value > r.maxSigTPS {
 				targetTPS.Value = r.maxSigTPS

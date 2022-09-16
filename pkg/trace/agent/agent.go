@@ -7,9 +7,10 @@ package agent
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"runtime"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -109,7 +110,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
-	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler)
+	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	return agnt
 }
 
@@ -514,13 +515,8 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	var rare bool
-	if !a.conf.RareSamplerEnabled {
-		rare = false
-	} else {
-		// run this early to make sure the signature gets counted by the RareSampler.
-		rare = a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	}
+	// run this early to make sure the signature gets counted by the RareSampler.
+	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}

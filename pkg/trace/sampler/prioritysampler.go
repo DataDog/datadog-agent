@@ -21,7 +21,6 @@ package sampler
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -83,8 +82,12 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
-func (s *PrioritySampler) UpdateRemoteRates(update map[string]state.APMSamplingConfig) {
-	s.remoteRates.onUpdate(update)
+func (s *PrioritySampler) UpdateRemoteRates(updates []RemoteRateUpdate) {
+	s.remoteRates.onUpdate(updates)
+}
+
+func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
+	s.localRates.updateTargetTPS(targetTPS)
 }
 
 // report sampler stats
