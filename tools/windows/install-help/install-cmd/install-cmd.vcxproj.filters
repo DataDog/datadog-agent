@@ -10,6 +10,9 @@
     <ClCompile Include="..\cal\customactiondata.cpp">
       <Filter>cal_imported</Filter>
     </ClCompile>
+    <ClCompile Include="..\cal\PropertyView.cpp">
+      <Filter>cal_imported</Filter>
+    </ClCompile>
     <ClCompile Include="..\cal\ddreg.cpp">
       <Filter>cal_imported</Filter>
     </ClCompile>

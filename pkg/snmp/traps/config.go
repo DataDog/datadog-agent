@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"hash/fnv"
 
+	"github.com/gosnmp/gosnmp"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-	"github.com/gosnmp/gosnmp"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.

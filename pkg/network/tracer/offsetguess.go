@@ -24,15 +24,17 @@ import (
 	"time"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -52,7 +54,7 @@ var stateString = map[netebpf.TracerState]string{
 // These constants should be in sync with the equivalent definitions in the ebpf program.
 const (
 	disabled uint8 = 0
-	enabled        = 1
+	enabled  uint8 = 1
 )
 
 var whatString = map[netebpf.GuessWhat]string{
@@ -82,7 +84,7 @@ var whatString = map[netebpf.GuessWhat]string{
 
 const (
 	tcpGetSockOptKProbeNotCalled uint64 = 0
-	tcpGetSockOptKProbeCalled           = 1
+	tcpGetSockOptKProbeCalled    uint64 = 1
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -165,7 +167,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	saddr = nativeEndian.Uint32(net.ParseIP(saddrStr).To4())
+	saddr = native.Endian.Uint32(net.ParseIP(saddrStr).To4())
 	sportn, err := strconv.Atoi(sportStr)
 	if err != nil {
 		return
@@ -176,7 +178,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	daddr = nativeEndian.Uint32(net.ParseIP(daddrStr).To4())
+	daddr = native.Endian.Uint32(net.ParseIP(daddrStr).To4())
 	dportn, err := strconv.Atoi(dportStr)
 	if err != nil {
 		return
@@ -302,7 +304,7 @@ func ownNetNS() (uint64, error) {
 func htons(a uint16) uint16 {
 	var arr [2]byte
 	binary.BigEndian.PutUint16(arr[:], a)
-	return nativeEndian.Uint16(arr[:])
+	return native.Endian.Uint16(arr[:])
 }
 
 func generateRandomIPv6Address() net.IP {
@@ -327,10 +329,10 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 		return
 	}
 
-	addr[0] = nativeEndian.Uint32(buf[0:4])
-	addr[1] = nativeEndian.Uint32(buf[4:8])
-	addr[2] = nativeEndian.Uint32(buf[8:12])
-	addr[3] = nativeEndian.Uint32(buf[12:16])
+	addr[0] = native.Endian.Uint32(buf[0:4])
+	addr[1] = native.Endian.Uint32(buf[4:8])
+	addr[2] = native.Endian.Uint32(buf[8:12])
+	addr[3] = native.Endian.Uint32(buf[12:16])
 	return
 }
 

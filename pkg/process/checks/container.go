@@ -11,6 +11,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -59,6 +60,9 @@ func (c *ContainerCheck) Name() string { return config.ContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }
+
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.

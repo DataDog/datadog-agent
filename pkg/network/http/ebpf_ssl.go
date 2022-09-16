@@ -11,22 +11,24 @@ package http
 import (
 	"os"
 	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/twmb/murmur3"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var openSSLProbes = map[string]string{
 	"uprobe/SSL_do_handshake":    "uprobe__SSL_do_handshake",
 	"uretprobe/SSL_do_handshake": "uretprobe__SSL_do_handshake",
+	"uprobe/SSL_connect":         "uprobe__SSL_connect",
+	"uretprobe/SSL_connect":      "uretprobe__SSL_connect",
 	"uprobe/SSL_set_bio":         "uprobe__SSL_set_bio",
 	"uprobe/SSL_set_fd":          "uprobe__SSL_set_fd",
 	"uprobe/SSL_read":            "uprobe__SSL_read",
@@ -41,6 +43,8 @@ var cryptoProbes = map[string]string{
 }
 
 var gnuTLSProbes = map[string]string{
+	"uprobe/gnutls_handshake":          "uprobe__gnutls_handshake",
+	"uretprobe/gnutls_handshake":       "uretprobe__gnutls_handshake",
 	"uprobe/gnutls_transport_set_int2": "uprobe__gnutls_transport_set_int2",
 	"uprobe/gnutls_transport_set_ptr":  "uprobe__gnutls_transport_set_ptr",
 	"uprobe/gnutls_transport_set_ptr2": "uprobe__gnutls_transport_set_ptr2",
@@ -54,10 +58,18 @@ var gnuTLSProbes = map[string]string{
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
+)
 
-	// probe used for streaming shared library events
-	doSysOpen    = "kprobe/do_sys_open"
-	doSysOpenRet = "kretprobe/do_sys_open"
+type ebpfSectionFunction struct {
+	section  string
+	function string
+}
+
+// probe used for streaming shared library events
+var (
+	kprobeKretprobePrefix = []string{"kprobe", "kretprobe"}
+	doSysOpen             = ebpfSectionFunction{section: "do_sys_open", function: "do_sys_open"}
+	doSysOpenAt2          = ebpfSectionFunction{section: "do_sys_openat2", function: "do_sys_openat2"}
 )
 
 type sslProgram struct {
@@ -71,7 +83,7 @@ type sslProgram struct {
 var _ subprogram = &sslProgram{}
 
 func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
-	if !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
 		return nil, nil
 	}
 
@@ -89,27 +101,26 @@ func (o *sslProgram) ConfigureManager(m *manager.Manager) {
 
 	o.manager = m
 
-	if !runningOnARM() {
-		m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
-			Map: manager.Map{Name: sharedLibrariesPerfMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      o.perfHandler.RecordHandler,
-				LostHandler:        o.perfHandler.LostHandler,
-				RecordGetter:       o.perfHandler.RecordGetter,
-			},
-		})
+	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+		Map: manager.Map{Name: sharedLibrariesPerfMap},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      o.perfHandler.RecordHandler,
+			LostHandler:        o.perfHandler.LostHandler,
+			RecordGetter:       o.perfHandler.RecordGetter,
+		},
+	})
 
+	probeSysOpen := doSysOpen
+	if sysOpenAt2Supported(o.cfg) {
+		probeSysOpen = doSysOpenAt2
+	}
+	for _, kprobe := range kprobeKretprobePrefix {
 		m.Probes = append(m.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpen,
-				EBPFFuncName: "kprobe__do_sys_open",
-				UID:          probeUID,
-			}, KProbeMaxActive: maxActive},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  doSysOpenRet,
-				EBPFFuncName: "kretprobe__do_sys_open",
+				EBPFSection:  kprobe + "/" + probeSysOpen.section,
+				EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 				UID:          probeUID,
 			}, KProbeMaxActive: maxActive},
 		)
@@ -127,19 +138,16 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	if !runningOnARM() {
+	probeSysOpen := doSysOpen
+	if sysOpenAt2Supported(o.cfg) {
+		probeSysOpen = doSysOpenAt2
+	}
+	for _, kprobe := range kprobeKretprobePrefix {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpen,
-					EBPFFuncName: "kprobe__do_sys_open",
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  doSysOpenRet,
-					EBPFFuncName: "kretprobe__do_sys_open",
+					EBPFSection:  kprobe + "/" + probeSysOpen.section,
+					EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 					UID:          probeUID,
 				},
 			},
@@ -241,11 +249,14 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 			}
 
 			program := p.Program()
-			m.DetachHook(manager.ProbeIdentificationPair{
+			err := m.DetachHook(manager.ProbeIdentificationPair{
 				EBPFSection:  sec,
 				EBPFFuncName: funcName,
 				UID:          uid,
 			})
+			if err != nil {
+				log.Debugf("detachhook %s/%s/%s : %s", sec, funcName, uid, err)
+			}
 			if program != nil {
 				program.Close()
 			}
@@ -253,10 +264,6 @@ func removeHooks(m *manager.Manager, probes map[string]string) func(string) erro
 
 		return nil
 	}
-}
-
-func runningOnARM() bool {
-	return strings.HasPrefix(runtime.GOARCH, "arm")
 }
 
 func getUID(libPath string) string {

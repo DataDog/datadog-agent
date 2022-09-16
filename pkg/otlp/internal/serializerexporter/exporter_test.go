@@ -1,17 +1,23 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package serializerexporter
 
 import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 var _ serializer.MetricSerializer = (*metricRecorder)(nil)
@@ -46,6 +52,9 @@ func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 }
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	const (
 		histogramMetricName = "test.histogram"
 		numberMetricName    = "test.gauge"
@@ -61,7 +70,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			name: "no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
 				h := pmetric.NewHistogramDataPoint()
-				h.SetMBucketCounts([]uint64{100})
+				h.SetBucketCounts(pcommon.NewImmutableUInt64Slice([]uint64{100}))
 				h.SetCount(100)
 				h.SetSum(0)
 
@@ -76,7 +85,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			name: "metric tags and extra tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
 				h := pmetric.NewHistogramDataPoint()
-				h.SetMBucketCounts([]uint64{100})
+				h.SetBucketCounts(pcommon.NewImmutableUInt64Slice([]uint64{100}))
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()
@@ -181,8 +190,8 @@ func newMetrics(
 	hdp := hdps.AppendEmpty()
 	hdp.SetCount(histogramDataPoint.Count())
 	hdp.SetSum(histogramDataPoint.Sum())
-	hdp.SetMBucketCounts(histogramDataPoint.MBucketCounts())
-	hdp.SetMExplicitBounds(histogramDataPoint.MExplicitBounds())
+	hdp.SetBucketCounts(histogramDataPoint.BucketCounts())
+	hdp.SetExplicitBounds(histogramDataPoint.ExplicitBounds())
 	hdp.SetTimestamp(histogramDataPoint.Timestamp())
 	hdpAttrs := hdp.Attributes()
 	histogramDataPoint.Attributes().Range(func(k string, v pcommon.Value) bool {

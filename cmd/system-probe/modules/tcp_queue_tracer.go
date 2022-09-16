@@ -13,12 +13,13 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"go.uber.org/atomic"
 )
 
 // TCPQueueLength Factory

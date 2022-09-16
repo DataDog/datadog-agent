@@ -17,12 +17,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestConntrackExists(t *testing.T) {

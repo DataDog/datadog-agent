@@ -8,7 +8,7 @@ instances:
 
   -
     ## @param offset_threshold - integer - optional - default: 60
-    ## Offset threshold above which a CRITICAL service check is sent.
+    ## Offset threshold in seconds above which a CRITICAL service check is sent.
     #
     # offset_threshold: 60
 

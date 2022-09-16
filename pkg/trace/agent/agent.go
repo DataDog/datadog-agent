@@ -88,7 +88,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
 		ErrorsSampler:         sampler.NewErrorsSampler(conf),
-		RareSampler:           sampler.NewRareSampler(),
+		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
 		TraceWriter:           writer.NewTraceWriter(conf),
@@ -474,7 +474,7 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	var rare bool
-	if a.conf.DisableRareSampler {
+	if a.conf.RareSamplerDisabled {
 		rare = false
 	} else {
 		// run this early to make sure the signature gets counted by the RareSampler.
@@ -525,6 +525,7 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 	extractors := []event.Extractor{
 		event.NewMetricBasedExtractor(),
+		event.NewSingleSpanExtractor(),
 	}
 	if len(conf.AnalyzedSpansByService) > 0 {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))

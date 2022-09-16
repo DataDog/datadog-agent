@@ -189,11 +189,15 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
 		}
 
+		if ev.Action != docker.ContainerEventActionStart && !container.State.Running {
+			return event, fmt.Errorf("received event: %s on dead container: %q, discarding", ev.Action, ev.ContainerID)
+		}
+
 		var createdAt time.Time
 		if container.Created != "" {
 			createdAt, err = time.Parse(time.RFC3339, container.Created)
 			if err != nil {
-				log.Debugf("could not parse creation time '%q' for container %q: %s", container.Created, container.ID, err)
+				log.Debugf("Could not parse creation time '%q' for container %q: %s", container.Created, container.ID, err)
 			}
 		}
 
@@ -201,7 +205,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		if container.State.StartedAt != "" {
 			startedAt, err = time.Parse(time.RFC3339, container.State.StartedAt)
 			if err != nil {
-				log.Debugf("cannot parse StartedAt %q for container %q: %s", container.State.StartedAt, container.ID, err)
+				log.Debugf("Cannot parse StartedAt %q for container %q: %s", container.State.StartedAt, container.ID, err)
 			}
 		}
 
@@ -209,7 +213,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		if container.State.FinishedAt != "" {
 			finishedAt, err = time.Parse(time.RFC3339, container.State.FinishedAt)
 			if err != nil {
-				log.Debugf("cannot parse FinishedAt %q for container %q: %s", container.State.FinishedAt, container.ID, err)
+				log.Debugf("Cannot parse FinishedAt %q for container %q: %s", container.State.FinishedAt, container.ID, err)
 			}
 		}
 

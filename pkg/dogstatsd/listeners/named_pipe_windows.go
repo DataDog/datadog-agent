@@ -13,11 +13,12 @@ import (
 	"net"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 
 	"github.com/Microsoft/go-winio"
 )

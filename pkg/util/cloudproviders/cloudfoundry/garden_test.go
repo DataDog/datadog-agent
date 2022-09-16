@@ -11,14 +11,9 @@ import (
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
-	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 )
 
 func TestListContainers(t *testing.T) {
-	defer providers.Deregister()
-	providers.Register(providerMocks.FakeContainerImpl{})
 	cli := gardenfakes.FakeClient{}
 	bulkContainers := map[string]garden.ContainerInfoEntry{
 		"ok": {

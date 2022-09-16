@@ -1,12 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 func TestReadConfig(t *testing.T) {
@@ -25,6 +32,9 @@ network_devices:
     stop_timeout: 10
     aggregator_buffer_size: 20
     aggregator_flush_interval: 30
+    aggregator_flow_context_ttl: 40
+    aggregator_port_rollup_threshold: 20
+    aggregator_rollup_tracker_refresh_interval: 60
     log_payloads: true
     listeners:
       - flow_type: netflow9
@@ -39,10 +49,12 @@ network_devices:
         namespace: my-ns2
 `,
 			expectedConfig: NetflowConfig{
-				StopTimeout:             10,
-				AggregatorBufferSize:    20,
-				AggregatorFlushInterval: 30,
-				LogPayloads:             true,
+				StopTimeout:                            10,
+				AggregatorBufferSize:                   20,
+				AggregatorFlushInterval:                30,
+				AggregatorFlowContextTTL:               40,
+				AggregatorPortRollupThreshold:          20,
+				AggregatorRollupTrackerRefreshInterval: 60,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -71,10 +83,40 @@ network_devices:
       - flow_type: netflow9
 `,
 			expectedConfig: NetflowConfig{
-				StopTimeout:             5,
-				AggregatorBufferSize:    100,
-				AggregatorFlushInterval: 300,
-				LogPayloads:             false,
+				StopTimeout:                            5,
+				AggregatorBufferSize:                   100,
+				AggregatorFlushInterval:                300,
+				AggregatorFlowContextTTL:               300,
+				AggregatorPortRollupThreshold:          10,
+				AggregatorRollupTrackerRefreshInterval: 3600,
+				Listeners: []ListenerConfig{
+					{
+						FlowType:  common.TypeNetFlow9,
+						BindHost:  "0.0.0.0",
+						Port:      uint16(2055),
+						Workers:   1,
+						Namespace: "default",
+					},
+				},
+			},
+		},
+		{
+			name: "flow context ttl equal to flush interval if not defined",
+			configYaml: `
+network_devices:
+  netflow:
+    enabled: true
+    aggregator_flush_interval: 50
+    listeners:
+      - flow_type: netflow9
+`,
+			expectedConfig: NetflowConfig{
+				StopTimeout:                            5,
+				AggregatorBufferSize:                   100,
+				AggregatorFlushInterval:                50,
+				AggregatorFlowContextTTL:               50,
+				AggregatorPortRollupThreshold:          10,
+				AggregatorRollupTrackerRefreshInterval: 3600,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,

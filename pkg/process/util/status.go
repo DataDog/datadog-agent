@@ -16,7 +16,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -66,27 +66,31 @@ type MemInfo struct {
 
 // ProcessExpvars holds values fetched from the exp var server
 type ProcessExpvars struct {
-	Pid                 int                 `json:"pid"`
-	Uptime              int                 `json:"uptime"`
-	UptimeNano          float64             `json:"uptime_nano"`
-	MemStats            MemInfo             `json:"memstats"`
-	Version             InfoVersion         `json:"version"`
-	DockerSocket        string              `json:"docker_socket"`
-	LastCollectTime     string              `json:"last_collect_time"`
-	ProcessCount        int                 `json:"process_count"`
-	ContainerCount      int                 `json:"container_count"`
-	ProcessQueueSize    int                 `json:"process_queue_size"`
-	RTProcessQueueSize  int                 `json:"rtprocess_queue_size"`
-	PodQueueSize        int                 `json:"pod_queue_size"`
-	ProcessQueueBytes   int                 `json:"process_queue_bytes"`
-	RTProcessQueueBytes int                 `json:"rtprocess_queue_bytes"`
-	PodQueueBytes       int                 `json:"pod_queue_bytes"`
-	ContainerID         string              `json:"container_id"`
-	ProxyURL            string              `json:"proxy_url"`
-	LogFile             string              `json:"log_file"`
-	EnabledChecks       []string            `json:"enabled_checks"`
-	Endpoints           map[string][]string `json:"endpoints"`
-	DropCheckPayloads   []string            `json:"drop_check_payloads"`
+	Pid                   int                 `json:"pid"`
+	Uptime                int                 `json:"uptime"`
+	UptimeNano            float64             `json:"uptime_nano"`
+	MemStats              MemInfo             `json:"memstats"`
+	Version               InfoVersion         `json:"version"`
+	DockerSocket          string              `json:"docker_socket"`
+	LastCollectTime       string              `json:"last_collect_time"`
+	ProcessCount          int                 `json:"process_count"`
+	ContainerCount        int                 `json:"container_count"`
+	ProcessQueueSize      int                 `json:"process_queue_size"`
+	RTProcessQueueSize    int                 `json:"rtprocess_queue_size"`
+	ConnectionsQueueSize  int                 `json:"connections_queue_size"`
+	EventQueueSize        int                 `json:"event_queue_size"`
+	PodQueueSize          int                 `json:"pod_queue_size"`
+	ProcessQueueBytes     int                 `json:"process_queue_bytes"`
+	RTProcessQueueBytes   int                 `json:"rtprocess_queue_bytes"`
+	ConnectionsQueueBytes int                 `json:"connections_queue_bytes"`
+	EventQueueBytes       int                 `json:"event_queue_bytes"`
+	PodQueueBytes         int                 `json:"pod_queue_bytes"`
+	ContainerID           string              `json:"container_id"`
+	ProxyURL              string              `json:"proxy_url"`
+	LogFile               string              `json:"log_file"`
+	EnabledChecks         []string            `json:"enabled_checks"`
+	Endpoints             map[string][]string `json:"endpoints"`
+	DropCheckPayloads     []string            `json:"drop_check_payloads"`
 }
 
 // Status holds runtime information from process-agent
@@ -117,11 +121,11 @@ func OverrideTime(t time.Time) StatusOption {
 }
 
 func getCoreStatus() (s CoreStatus) {
-	hostnameData, err := util.GetHostnameData(context.Background())
+	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(context.Background(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		metadata = host.GetPayloadFromCache(context.Background(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
 	} else {
 		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
 	}

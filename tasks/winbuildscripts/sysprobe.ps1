@@ -16,6 +16,8 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Py
 
 & inv -e deps
 
+& inv -e golangci-lint --build system-probe .\pkg
+
 & inv -e system-probe.kitchen-prepare
 
 $err = $LASTEXITCODE

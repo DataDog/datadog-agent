@@ -27,6 +27,7 @@ var (
 	checkName string
 )
 
+// GetClusterChecksCobraCmd TODO <container-integrations>
 func GetClusterChecksCobraCmd(flagNoColor *bool, confPath *string, loggerName config.LoggerName) *cobra.Command {
 	clusterChecksCmd := &cobra.Command{
 		Use:   "clusterchecks",
@@ -61,6 +62,7 @@ func GetClusterChecksCobraCmd(flagNoColor *bool, confPath *string, loggerName co
 	return clusterChecksCmd
 }
 
+// RebalanceClusterChecksCobraCmd TODO <container-integrations>
 func RebalanceClusterChecksCobraCmd(flagNoColor *bool, confPath *string, loggerName config.LoggerName) *cobra.Command {
 	clusterChecksCmd := &cobra.Command{
 		Use:   "rebalance",

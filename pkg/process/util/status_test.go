@@ -19,7 +19,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -51,16 +51,18 @@ func TestGetStatus(t *testing.T) {
 				"fakeAPIKey",
 			},
 		},
-		LastCollectTime:     "2022-02-011 10:10:00",
-		DockerSocket:        "/var/run/docker.sock",
-		ProcessCount:        30,
-		ContainerCount:      2,
-		ProcessQueueSize:    1,
-		RTProcessQueueSize:  3,
-		PodQueueSize:        4,
-		ProcessQueueBytes:   2 * 1024,
-		RTProcessQueueBytes: 512,
-		PodQueueBytes:       4 * 1024,
+		LastCollectTime:       "2022-02-011 10:10:00",
+		DockerSocket:          "/var/run/docker.sock",
+		ProcessCount:          30,
+		ContainerCount:        2,
+		ProcessQueueSize:      1,
+		RTProcessQueueSize:    3,
+		ConnectionsQueueSize:  4,
+		PodQueueSize:          5,
+		ProcessQueueBytes:     2 * 1024,
+		RTProcessQueueBytes:   512,
+		ConnectionsQueueBytes: 8 * 1024,
+		PodQueueBytes:         4 * 1024,
 	}
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
@@ -68,10 +70,10 @@ func TestGetStatus(t *testing.T) {
 	ddconfig.Mock(t)
 	ddconfig.DetectFeatures()
 
-	hostnameData, err := util.GetHostnameData(context.Background())
+	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
-		metadata = host.GetPayloadFromCache(context.Background(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		metadata = host.GetPayloadFromCache(context.Background(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
 	} else {
 		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
 	}

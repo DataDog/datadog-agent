@@ -254,10 +254,12 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]float64)
+	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
 		for i := 0; i < libspans.Spans().Len(); i++ {
+			spancount++
 			span := libspans.Spans().At(i)
 			traceID := traceIDToUint64(span.TraceID().Bytes())
 			if tracesByID[traceID] == nil {
@@ -291,7 +293,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		}
 	}
 	tags := tagstats.AsTags()
-	metrics.Count("datadog.trace_agent.otlp.spans", int64(rspans.ScopeSpans().Len()), tags, 1)
+	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
@@ -322,7 +324,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 			hostname = ""
 		}
 	} else {
+		// fallback hostname
 		hostname = o.conf.Hostname
+		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
@@ -336,6 +340,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
 		p.TracerPayload.Tags = map[string]string{
 			tagContainersTags: ctags,
+		}
+	} else {
+		// we couldn't obtain any container tags
+		if src.Kind == source.AWSECSFargateKind {
+			// but we have some information from the source provider that we can add
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: src.Tag(),
+			}
 		}
 	}
 	select {
@@ -444,18 +456,17 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := in.TraceID().Bytes()
-	meta := make(map[string]string, len(rattr))
-	for k, v := range rattr {
-		meta[k] = v
-	}
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
 		SpanID:   spanIDToUint64(in.SpanID().Bytes()),
 		ParentID: spanIDToUint64(in.ParentSpanID().Bytes()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
-		Meta:     meta,
+		Meta:     make(map[string]string, len(rattr)),
 		Metrics:  map[string]float64{},
+	}
+	for k, v := range rattr {
+		setMetaOTLP(span, k, v)
 	}
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
 	if _, ok := span.Meta["version"]; !ok {
@@ -516,8 +527,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if span.Service == "" {
 		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-			span.Service = svc
-		} else if svc := rattr[string(semconv.AttributeServiceName)]; svc != "" {
 			span.Service = svc
 		} else {
 			span.Service = "OTLPResourceNoServiceName"

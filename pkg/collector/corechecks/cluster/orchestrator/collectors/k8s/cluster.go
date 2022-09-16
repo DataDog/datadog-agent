@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewClusterCollectorVersions builds the group of collector versions.
+func NewClusterCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewClusterCollector(),
+	)
+}
+
 // ClusterCollector is a collector for Kubernetes clusters.
 type ClusterCollector struct {
 	informer  corev1Informers.NodeInformer
@@ -33,9 +40,10 @@ type ClusterCollector struct {
 func NewClusterCollector() *ClusterCollector {
 	return &ClusterCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "clusters",
-			NodeType: orchestrator.K8sCluster,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "clusters",
+			NodeType:         orchestrator.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}
@@ -75,7 +83,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed, err := c.processor.Process(ctx, list)
+	processResult, processed, err := c.processor.Process(ctx, list)
 
 	// This would happen when recovering from a processor panic. In the nominal
 	// case we would have a positive integer set at the very end of processing.
@@ -93,7 +101,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    1,
 		ResourcesProcessed: processed,
 	}

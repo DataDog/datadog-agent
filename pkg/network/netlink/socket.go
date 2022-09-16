@@ -123,6 +123,32 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 	return nil, errNotImplemented
 }
 
+// ReceiveAndDiscard reads netlink messages off the socket & discards them.
+// If the NLMSG_DONE flag is found in one of the messages, returns true.
+func (s *Socket) ReceiveAndDiscard() (bool, error) {
+	n, _, err := s.recvmsg()
+	if err != nil {
+		return false, os.NewSyscallError("recvmsg", err)
+	}
+
+	n = nlmsgAlign(n)
+	i := 0
+	for n >= syscall.NLMSG_HDRLEN {
+		header := (*syscall.NlMsghdr)(unsafe.Pointer(&s.recvbuf[i]))
+		if header.Type == syscall.NLMSG_DONE {
+			return true, nil
+		}
+		msgLen := nlmsgAlign(int(header.Len))
+		if msgLen < syscall.NLMSG_HDRLEN {
+			return false, syscall.EINVAL
+		}
+		i += msgLen
+		n -= msgLen
+	}
+
+	return false, nil
+}
+
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 	n, oobn, err := s.recvmsg()

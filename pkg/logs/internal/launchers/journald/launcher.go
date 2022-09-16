@@ -9,6 +9,8 @@
 package journald
 
 import (
+	"github.com/coreos/go-systemd/sdjournal"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
@@ -17,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/coreos/go-systemd/sdjournal"
 )
 
 // Launcher is in charge of starting and stopping new journald tailers

@@ -64,12 +64,12 @@ func TestIgnoreContainer(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.MockedContainerdClient{
-				MockInfo: func(containerd.Container) (containerdcontainers.Container, error) {
+				MockInfo: func(namespace string, ctn containerd.Container) (containerdcontainers.Container, error) {
 					return containerdcontainers.Container{
 						Image: test.imgName,
 					}, nil
 				},
-				MockIsSandbox: func(ctn containerd.Container) (bool, error) {
+				MockIsSandbox: func(namespace string, ctn containerd.Container) (bool, error) {
 					return test.isSandbox, nil
 				},
 			}
@@ -79,7 +79,7 @@ func TestIgnoreContainer(t *testing.T) {
 				filterPausedContainers: pauseFilter,
 			}
 
-			ignored, err := containerdCollector.ignoreContainer(test.container)
+			ignored, err := containerdCollector.ignoreContainer("default", test.container)
 			assert.NoError(t, err)
 
 			if test.expectsIgnored {

@@ -5,6 +5,7 @@
 
 package eval
 
+// MacroStore represents a store of SECL Macros
 type MacroStore struct {
 	Macros map[MacroID]*Macro
 }

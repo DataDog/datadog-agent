@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
@@ -31,9 +30,6 @@ type KubeUtilInterface interface {
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
-	ListContainers(ctx context.Context) ([]*containers.Container, error)
-	IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error)
-	UpdateContainerMetrics(ctrList []*containers.Container) error
 	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 }

@@ -11,15 +11,16 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"time"
+	"unsafe"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
@@ -34,12 +35,12 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -67,6 +68,13 @@ var (
 
 	checkPoliciesArgs = struct {
 		dir string
+	}{}
+
+	evalArgs = struct {
+		dir       string
+		ruleID    string
+		eventFile string
+		debug     bool
 	}{}
 
 	networkNamespaceCmd = &cobra.Command{
@@ -171,6 +179,12 @@ var (
 		RunE:  checkPolicies,
 	}
 
+	evalCmd = &cobra.Command{
+		Use:   "eval",
+		Short: "Evaluate given event data against the give rule",
+		RunE:  evalRule,
+	}
+
 	downloadPolicyCmd = &cobra.Command{
 		Use:   "download",
 		Short: "Download policies",
@@ -185,6 +199,18 @@ var (
 	commonPolicyCmd = &cobra.Command{
 		Use:   "policy",
 		Short: "Policy related commands",
+	}
+
+	/*Discarders*/
+	discardersCmd = &cobra.Command{
+		Use:   "discarders",
+		Short: "discarders commands",
+	}
+
+	dumpDiscardersCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "dump discarders",
+		RunE:  dumpDiscarders,
 	}
 )
 
@@ -305,6 +331,14 @@ func init() {
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
+	commonPolicyCmd.AddCommand(evalCmd)
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired("rule-id")
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired("event-file")
+	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
 
@@ -321,6 +355,10 @@ func init() {
 	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
 	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
 	runtimeCmd.AddCommand(networkNamespaceCmd)
+
+	/*Discarders*/
+	discardersCmd.AddCommand(dumpDiscardersCmd)
+	runtimeCmd.AddCommand(discardersCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -331,13 +369,13 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process cache dump")
+		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}
 
 	fmt.Printf("Process dump file: %s\n", filename)
@@ -353,13 +391,13 @@ func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	resp, err := client.DumpNetworkNamespace(dumpNetworkNamespaceArgs.snapshotInterfaces)
 	if err != nil {
-		return errors.Wrap(err, "couldn't send network namespace cache dump request")
+		return fmt.Errorf("couldn't send network namespace cache dump request: %w", err)
 	}
 
 	if len(resp.GetError()) > 0 {
@@ -429,7 +467,7 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -463,7 +501,7 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -495,7 +533,7 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -542,7 +580,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 
 	} else {
 		// encoding request will be handled locally
-		var ad sprobe.ActivityDump
+		ad := sprobe.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -566,7 +604,7 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
 
-		err = storage.Persist(&ad)
+		err = storage.Persist(ad)
 		if err != nil {
 			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
 		}
@@ -586,6 +624,15 @@ func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 		fmt.Println("encoding generation succeeded: empty output")
 	}
 	return nil
+}
+
+func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	return rules.NewAgentVersionFilter(agentVersion)
 }
 
 func checkPoliciesInner(dir string) error {
@@ -611,24 +658,40 @@ func checkPoliciesInner(dir string) error {
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLogger(&seclog.PatternLogger{})
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
 
-	agentVersion, err := utils.GetAgentSemverVersion()
+	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create agent version filter: %w", err)
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false, agentVersion)
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			agentVersionFilter,
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
 		return err
 	}
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -654,16 +717,159 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	return checkPoliciesInner(checkPoliciesArgs.dir)
 }
 
+// EvalReport defines a report of an evaluation
+type EvalReport struct {
+	Succeeded bool
+	Approvers map[string]rules.Approvers
+	Event     eval.Event
+	Error     error `json:",omitempty"`
+}
+
+// EventData defines the structure used to represent an event
+type EventData struct {
+	Type   eval.EventType
+	Values map[string]interface{}
+}
+
+func eventDataFromJSON(file string) (eval.Event, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	decoder.UseNumber()
+
+	var eventData EventData
+	if err := decoder.Decode(&eventData); err != nil {
+		return nil, err
+	}
+
+	kind := model.ParseEvalEventType(eventData.Type)
+	if kind == model.UnknownEventType {
+		return nil, errors.New("unknown event type")
+	}
+
+	m := &model.Model{}
+	event := m.NewEventWithType(kind)
+	event.Init()
+
+	for k, v := range eventData.Values {
+		switch v := v.(type) {
+		case json.Number:
+			value, err := v.Int64()
+			if err != nil {
+				return nil, err
+			}
+			if err := event.SetFieldValue(k, int(value)); err != nil {
+				return nil, err
+			}
+		default:
+			if err := event.SetFieldValue(k, v); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return event, nil
+}
+
+func evalRule(cmd *cobra.Command, args []string) error {
+	cfg := &secconfig.Config{
+		PoliciesDir:         evalArgs.dir,
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
+
+	// enabled all the rules
+	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(enabled).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLogger(seclog.DefaultLogger)
+
+	model := &model.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			&rules.RuleIDFilter{
+				ID: evalArgs.ruleID,
+			},
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	event, err := eventDataFromJSON(evalArgs.eventFile)
+	if err != nil {
+		return err
+	}
+
+	report := EvalReport{
+		Event: event,
+	}
+
+	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		report.Error = err
+	} else {
+		report.Approvers = approvers
+	}
+
+	report.Succeeded = ruleSet.Evaluate(event)
+	output, err := json.MarshalIndent(report, "", "    ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", string(output))
+
+	if !report.Succeeded {
+		os.Exit(-1)
+	}
+
+	return nil
+}
+
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	selfTestResult, err := client.RunSelfTest()
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process self test")
+		return fmt.Errorf("unable to get a process self test: %w", err)
 	}
 
 	if selfTestResult.Ok {
@@ -677,13 +883,13 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	_, err = client.ReloadPolicies()
 	if err != nil {
-		return errors.Wrap(err, "unable to reload policies")
+		return fmt.Errorf("unable to reload policies: %w", err)
 	}
 
 	return nil
@@ -729,7 +935,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
+		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
 	stopper.Add(agent)
 
@@ -819,4 +1025,22 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 
 	_, err = outputWriter.Write(resBytes)
 	return err
+}
+
+func dumpDiscarders(cmd *cobra.Command, args []string) error {
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer runtimeSecurityClient.Close()
+
+	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
+
+	if dumpErr != nil {
+		return fmt.Errorf("unable to dump discarders: %w", dumpErr)
+	}
+
+	fmt.Printf("Discarder dump file: %s\n", dumpFilename)
+
+	return nil
 }

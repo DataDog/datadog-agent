@@ -120,7 +120,7 @@ func NewMemBasedRateLimiter(
 	}, nil
 }
 
-// Wait and try to release the memory. See MemBasedRateLimiter for more information.
+// MayWait waits and tries to release the memory. See MemBasedRateLimiter for more information.
 func (m *MemBasedRateLimiter) MayWait() error {
 	if !m.memoryRateLimiter.keep() {
 		m.telemetry.incNoWait()

@@ -8,6 +8,7 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -15,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -64,6 +64,7 @@ type ident struct {
 	Ident *string
 }
 
+// ReplacementContext represents the group of Options and Macro Store used during SECL evaluation
 type ReplacementContext struct {
 	*Opts
 	*MacroStore
@@ -297,6 +298,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx Replace
 	}
 
 	return &StringEvaluator{
+		Value:     str,
 		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			var result string
