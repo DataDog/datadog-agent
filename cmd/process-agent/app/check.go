@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -30,14 +31,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+var (
+	waitInterval time.Duration
+)
+
+const (
+	defaultWaitInterval = time.Second
+)
+
 func init() {
 	CheckCmd.Flags().BoolVar(&checkOutputJSON, "json", false, "Output check results in JSON")
+	CheckCmd.Flags().DurationVarP(&waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 }
 
 // CheckCmd is a command that runs the process-agent version data
 var CheckCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery",
+	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
 
 	Args:         cobra.ExactArgs(1),
 	RunE:         runCheckCmd,
@@ -121,6 +131,8 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	}()
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if check == checks.Connections.Name() {
+		// use a different client ID to prevent destructive querying of connections data
+		checks.ProcessAgentClientID = "process-agent-cli-check-id"
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 		// Clean up the process check state only after the connections check is executed
@@ -153,7 +165,8 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	log.Infof("Waiting %s before running the check", waitInterval.String())
+	time.Sleep(waitInterval)
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.Name())
@@ -185,7 +198,8 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	log.Infof("Waiting %s before running the check", waitInterval.String())
+	time.Sleep(waitInterval)
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.RealTimeName())

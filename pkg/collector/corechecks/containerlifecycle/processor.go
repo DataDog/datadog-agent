@@ -42,6 +42,7 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 
 	for _, event := range evBundle.Events {
 		entityID := event.Entity.GetID()
+		log.Debugf("Received deletion event for kind %q - ID %q", entityID.Kind, entityID.ID)
 
 		switch entityID.Kind {
 		case workloadmeta.KindContainer:

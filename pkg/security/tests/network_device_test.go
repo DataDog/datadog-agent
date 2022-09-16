@@ -43,13 +43,13 @@ func TestNetDevice(t *testing.T) {
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{enableNetwork: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	currentNetns, err := utils.GetProcessNetworkNamespace(utils.NetNSPathFromPid(uint32(utils.Getpid())))
+	currentNetns, err := utils.NetNSPathFromPid(uint32(utils.Getpid())).GetProcessNetworkNamespace()
 	if err != nil {
 		t.Errorf("couldn't retrieve current network namespace ID: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestNetDevice(t *testing.T) {
 			}
 
 			// retrieve new netnsid
-			fi, err := os.Stat(fmt.Sprintf("/var/run/netns/test_netns"))
+			fi, err := os.Stat("/var/run/netns/test_netns")
 			if err != nil {
 				return err
 			}

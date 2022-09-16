@@ -27,20 +27,26 @@ type endpointInfo struct {
 
 	// Payload is the HTTP request body we want to send to the endpoint.
 	Payload []byte
-
-	// ApiKeyInQueryString is set to true if the API Key has to be in the query string
-	// i.e. https://domain/endpoint?api_key=***************************XXXXX
-	APIKeyInQueryString bool
 }
 
 var (
-	apiKeyInQueryString = true
+	// Each added/modified endpointInfo should be tested on all sites.
 
-	emptyPayload = []byte("")
+	emptyPayload    = []byte("{}")
+	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
 
-	// TODO : add more endpoints info and a filtering function to only keep used endpoints
-	v1SeriesEndpointInfo   = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload, apiKeyInQueryString}
-	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", emptyPayload, apiKeyInQueryString}
+	// v1 endpoints
+	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
+	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
+	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
+	// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
+	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
+	v1MetadataEndpointInfo = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
 
-	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1ValidateEndpointInfo}
+	// v2 endpoints
+	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
+	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
+
+	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
+		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
 )

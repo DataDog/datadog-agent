@@ -8,9 +8,10 @@ package message
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSetTagsEmpty(t *testing.T) {

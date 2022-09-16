@@ -19,6 +19,9 @@ import (
 
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -28,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -46,10 +51,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/spf13/cobra"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -304,11 +308,11 @@ func StartAgent() error {
 		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	log.Infof("Hostname is: %s", hostname)
+	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// HACK: init host metadata module (CPU) early to avoid any
 	//       COM threading model conflict with the python checks
@@ -324,6 +328,19 @@ func StartAgent() error {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else if err := configService.Start(context.Background()); err != nil {
 			log.Errorf("Failed to start config management service: %s", err)
+		}
+	}
+
+	// create and setup the Autoconfig instance
+	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+
+	// start the cloudfoundry container tagger
+	if config.IsFeaturePresent(config.CloudFoundry) && !config.Datadog.GetBool("cloud_foundry_buildpack") {
+		containerTagger, err := containertagger.NewContainerTagger()
+		if err != nil {
+			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
+		} else {
+			containerTagger.Start(common.MainCtx)
 		}
 	}
 
@@ -361,9 +378,10 @@ func StartAgent() error {
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
 	// Enable core agent specific features like persistence-to-disk
 	forwarderOpts.EnabledFeatures = forwarder.SetFeature(forwarderOpts.EnabledFeatures, forwarder.CoreFeatures)
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts.EnableNoAggregationPipeline = config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 	opts.UseContainerLifecycleForwarder = config.Datadog.GetBool("container_lifecycle.enabled")
-	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
+	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -385,7 +403,7 @@ func StartAgent() error {
 
 	// Start SNMP trap server
 	if traps.IsEnabled() {
-		err = traps.StartServer(hostname, demux)
+		err = traps.StartServer(hostnameDetected, demux)
 		if err != nil {
 			log.Errorf("Failed to start snmp-traps server: %s", err)
 		}
@@ -401,8 +419,9 @@ func StartAgent() error {
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()
 
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, config.Datadog.GetString("confd_path"))
+	// Set up check collector
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
@@ -445,7 +464,7 @@ func StartAgent() error {
 	}
 
 	// load and run all configs in AD
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(common.MainCtx)
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog()
@@ -456,10 +475,8 @@ func StartAgent() error {
 		return err
 	}
 
-	if config.Datadog.GetBool("inventories_enabled") {
-		if err := metadata.SetupInventories(common.MetadataScheduler, common.AC, common.Coll); err != nil {
-			return err
-		}
+	if err := metadata.SetupInventories(common.MetadataScheduler, common.Coll); err != nil {
+		return err
 	}
 
 	// start dependent services

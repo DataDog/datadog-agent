@@ -22,9 +22,10 @@ import (
 	"time"
 	"unicode"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -72,10 +73,10 @@ func WithReturnZeroPermStats(enabled bool) Option {
 
 // WithPermission configures if process collection should fetch fields
 // that require elevated permission or not
-func WithPermission(enabled bool) Option {
+func WithPermission(elevatedPermissions bool) Option {
 	return func(p Probe) {
 		if linuxProbe, ok := p.(*probe); ok {
-			linuxProbe.withPermission = enabled
+			linuxProbe.elevatedPermissions = elevatedPermissions
 		}
 	}
 }
@@ -100,7 +101,7 @@ type probe struct {
 	exit         chan struct{}
 
 	// configurations
-	withPermission          bool
+	elevatedPermissions     bool
 	returnZeroPermStats     bool
 	bootTimeRefreshInterval time.Duration
 }
@@ -185,9 +186,9 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
-		if p.withPermission {
-			stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+		if p.elevatedPermissions {
+			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -257,9 +258,9 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 			},
 		}
-		if p.withPermission {
-			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+		if p.elevatedPermissions {
+			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
 			proc.Stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -284,7 +285,7 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 			continue
 		}
 
-		fds := p.getFDCountImproved(pathForPID)
+		fds := p.getFDCount(pathForPID)
 		io := p.parseIO(pathForPID)
 
 		// don't return entries with all zero values if returnZeroPermStats is disabled
@@ -459,7 +460,7 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
-		// the fields are all having format "field_name:\tfield_value", so we always
+		// the fields are all having format "field_name:\s+field_value", so we always
 		// look for ":\t" and skip them
 		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
@@ -516,19 +517,22 @@ func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.ctxSwitches.Involuntary = v
 		}
 	case "VmRSS":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.RSS = v * 1024
 		}
 	case "VmSize":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.VMS = v * 1024
 		}
 	case "VmSwap":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.Swap = v * 1024
@@ -689,30 +693,9 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-// getFDCount gets num_fds from /proc/(pid)/fd
-func (p *probe) getFDCount(pidPath string) int32 {
-	path := filepath.Join(pidPath, "fd")
-
-	if err := p.ensurePathReadable(path); err != nil {
-		return -1
-	}
-
-	d, err := os.Open(path)
-	if err != nil {
-		return -1
-	}
-	defer d.Close()
-
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return -1
-	}
-	return int32(len(names))
-}
-
-// getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
+// getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
-func (p *probe) getFDCountImproved(pidPath string) int32 {
+func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
 	if err := p.ensurePathReadable(path); err != nil {

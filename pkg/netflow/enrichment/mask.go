@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package enrichment
 
 import (
@@ -5,6 +10,7 @@ import (
 	"strconv"
 )
 
+// FormatMask formats mask raw value (uint32) into CIDR format (e.g. `192.1.128.64/26`)
 func FormatMask(ipAddr []byte, maskRawValue uint32) string {
 	maskSuffix := "/" + strconv.Itoa(int(maskRawValue))
 

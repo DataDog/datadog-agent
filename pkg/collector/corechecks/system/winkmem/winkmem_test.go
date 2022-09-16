@@ -10,8 +10,9 @@ package winkmem
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 func TestWinKMem(t *testing.T) {

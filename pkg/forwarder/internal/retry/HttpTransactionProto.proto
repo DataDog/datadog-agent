@@ -27,6 +27,7 @@ message HttpTransactionProto {
     int64 CreatedAt = 6;
     bool Retryable = 7;
     TransactionPriorityProto priority = 8;
+    int32 PointCount = 9;
 }
 
 message HttpTransactionProtoCollection {

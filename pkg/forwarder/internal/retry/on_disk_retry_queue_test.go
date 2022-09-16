@@ -6,30 +6,30 @@
 package retry
 
 import (
-	"io/ioutil"
-	"os"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/stretchr/testify/assert"
 )
 
 const domainName = "domain"
 
 func TestOnDiskRetryQueue(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
-	defer clean()
+	path := t.TempDir()
 
+	pointDropped := fileStoragePointDroppedCountTelemetry.expvar.Value()
 	q := newTestOnDiskRetryQueue(a, path, 1000)
 	err := q.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
 	err = q.Serialize(createHTTPTransactionCollectionTests("endpoint3", "endpoint4"))
 	a.NoError(err)
 	a.Equal(2, q.getFilesCount())
+	a.Equal(pointDropped, fileStoragePointDroppedCountTelemetry.expvar.Value())
 
 	transactions, err := q.Deserialize()
 	a.NoError(err)
@@ -45,10 +45,10 @@ func TestOnDiskRetryQueue(t *testing.T) {
 
 func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
-	defer clean()
+	path := t.TempDir()
 
 	maxSizeInBytes := int64(100)
+	pointDropped := fileStoragePointDroppedCountTelemetry.expvar.Value()
 	q := newTestOnDiskRetryQueue(a, path, maxSizeInBytes)
 
 	i := 0
@@ -58,12 +58,21 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	a.Greaterf(maxNumberOfFiles, 2, "Not enough files for this test, increase maxSizeInBytes")
 
 	fileToDrop := 2
+	expectedPointDrop := int64(0)
 	for i++; i < maxNumberOfFiles+fileToDrop; i++ {
-		err := q.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
+		transactions := createHTTPTransactionCollectionTests(strconv.Itoa(i))
+		err := q.Serialize(transactions)
 		a.NoError(err)
+		if i >= maxNumberOfFiles {
+			for _, tr := range transactions {
+				expectedPointDrop += int64(tr.GetPointCount())
+			}
+		}
 	}
 	a.LessOrEqual(q.GetDiskSpaceUsed(), maxSizeInBytes)
 	a.Equal(maxNumberOfFiles, q.getFilesCount())
+
+	a.Equal(pointDropped+expectedPointDrop, fileStoragePointDroppedCountTelemetry.expvar.Value())
 
 	for i--; i >= fileToDrop; i-- {
 		transactions, err := q.Deserialize()
@@ -76,8 +85,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 
 func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	a := assert.New(t)
-	path, clean := createTmpFolder(a)
-	defer clean()
+	path := t.TempDir()
 
 	retryQueue := newTestOnDiskRetryQueue(a, path, 1000)
 	err := retryQueue.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
@@ -98,15 +106,11 @@ func createHTTPTransactionCollectionTests(endpoints ...string) []transaction.Tra
 		t := transaction.NewHTTPTransaction()
 		t.Domain = domainName
 		t.Endpoint.Name = d
+		payload := make([]byte, 0)
+		t.Payload = transaction.NewBytesPayload(payload, 1)
 		transactions = append(transactions, t)
 	}
 	return transactions
-}
-
-func createTmpFolder(a *assert.Assertions) (string, func()) {
-	path, err := ioutil.TempDir("", "tests")
-	a.NoError(err)
-	return path, func() { _ = os.Remove(path) }
 }
 
 func getEndpointsFromTransactions(transactions []transaction.Transaction) []string {

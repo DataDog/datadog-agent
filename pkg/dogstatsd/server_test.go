@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -87,12 +88,43 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err, "port is not available, it should be")
 }
 
+// This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
+// It should not fail since `cachedTlmOriginIds` and `cachedOrder` should be
+// properly protected from multiple accesses by `cachedTlmLock`.
+// The main purpose of this test is to detect early if a future code change is
+// introducing a data race.
+func TestNoRaceOriginTagMaps(t *testing.T) {
+	const N = 100
+	s := &Server{cachedTlmOriginIds: make(map[string]cachedTagsOriginMap)}
+	sync := make(chan struct{})
+	done := make(chan struct{}, N)
+	for i := 0; i < N; i++ {
+		id := fmt.Sprintf("%d", i)
+		go func() {
+			defer func() { done <- struct{}{} }()
+			<-sync
+			s.createOriginTagMaps(id)
+		}()
+	}
+	close(sync)
+	for i := 0; i < N; i++ {
+		<-done
+	}
+}
+
 func TestUDPReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true) // another test may have turned it off
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts.FlushInterval = 10 * time.Millisecond
+	opts.DontStartForwarders = true
+	opts.UseNoopEventPlatformForwarder = true
+	opts.EnableNoAggregationPipeline = true
+
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(opts)
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
 	require.NoError(t, err, "cannot start DSD")
@@ -105,8 +137,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples := demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample := samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -116,8 +149,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -127,8 +161,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -138,8 +173,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -149,8 +185,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon_set")
@@ -160,8 +197,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-metric packet
 	conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 2, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 2)
+	require.Len(t, timedSamples, 0)
 	sample1 := samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -176,8 +214,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-value packet
 	conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 3, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 3)
+	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -197,8 +236,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-value packet with skip empty
 	conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 3, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 3)
+	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -218,8 +258,9 @@ func TestUDPReceive(t *testing.T) {
 
 	//	// slightly malformed multi-metric packet, should still be parsed in whole
 	conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 2, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 2)
+	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -234,8 +275,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test erroneous metric
 	conn.Write([]byte("daemon1:666a|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon2")
@@ -243,11 +285,52 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test empty metric
 	conn.Write([]byte("daemon1:|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon2")
+	demux.Reset()
+
+	// Late gauge
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 0)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
+
+	// Late count
+	conn.Write([]byte("daemon:666|c|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 0)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Mtype, metrics.CounterType)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
+
+	// Late metric and a normal one
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	sample = samples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon2")
+	demux.Reset()
 
 	// Test Service Check
 	// ------------------
@@ -375,8 +458,9 @@ func TestHistToDist(t *testing.T) {
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
 	time.Sleep(time.Millisecond * 200) // give some time to the socket write/read
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 2, len(samples))
+	require.Equal(t, 0, len(timedSamples))
 	histMetric := samples[0]
 	distMetric := samples[1]
 	assert.NotNil(t, histMetric)
@@ -463,8 +547,9 @@ func TestE2EParsing(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	assert.Equal(t, 2, len(samples))
+	assert.Equal(t, 0, len(timedSamples))
 	demux.Reset()
 	demux.Stop(false)
 	s.Stop()
@@ -480,8 +565,9 @@ func TestE2EParsing(t *testing.T) {
 
 	// Test metric expecting an EOL
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	samples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
+	assert.Equal(t, 0, len(timedSamples))
 	s.Stop()
 	demux.Reset()
 	demux.Stop(false)
@@ -506,8 +592,9 @@ func TestExtraTags(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
+	require.Equal(t, 0, len(timedSamples))
 	sample := samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -523,6 +610,7 @@ func TestStaticTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	config.Datadog.SetDefault("eks_fargate", true) // triggers DD_TAGS in static_tags
 	config.Datadog.SetDefault("tags", []string{"from:dd_tags"})
+	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 	defer config.Datadog.SetDefault("eks_fargate", false)
 
@@ -538,8 +626,9 @@ func TestStaticTags(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
+	require.Equal(t, 0, len(timedSamples))
 	sample := samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -557,7 +646,11 @@ func TestDebugStatsSpike(t *testing.T) {
 	assert := assert.New(t)
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
+
 	s, err := NewServer(demux, false)
+	clk := clock.NewMock()
+	s.Debug = newDSDServerDebugWithClock(clk)
+
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	require.NoError(t, err, "cannot start DSD")
@@ -572,27 +665,39 @@ func TestDebugStatsSpike(t *testing.T) {
 	}
 
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
 	time.Sleep(500 * time.Millisecond)
+
 	assert.True(s.hasSpike())
 
 	s.EnableMetricsStats()
+	// This sleep is necessary as we need to wait for the goroutine function within 'EnableMetricsStats' to start.
+	// If we remove the sleep, the debug loop ticker will not be triggered by the clk.Add() call and the 500 samples
+	// added with 'send(500)' will be considered as if they had been added in the same second as the previous 500 samples.
+	// This will lead to a spike because we have 1000 samples in 1 second instead of having 500 and 500 in 2 different seconds.
 	time.Sleep(1050 * time.Millisecond)
+
+	clk.Add(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
 	s.DisableMetricsStats()
 	time.Sleep(500 * time.Millisecond)
+
 	// it is no more considered a spike because we had another second with 500 metrics
 	assert.False(s.hasSpike())
 }
@@ -601,6 +706,8 @@ func TestDebugStats(t *testing.T) {
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
+	clk := clock.NewMock()
+	s.Debug = newDSDServerDebugWithClock(clk)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -623,7 +730,7 @@ func TestDebugStats(t *testing.T) {
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
 	s.storeMetricStats(sample2)
-	time.Sleep(10 * time.Millisecond)
+	clk.Add(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	data, err := s.GetJSONDebugStats()
@@ -639,7 +746,7 @@ func TestDebugStats(t *testing.T) {
 	require.True(t, stats[hash1].LastSeen.After(stats[hash2].LastSeen), "some.metric1 should have appeared again after some.metric2")
 
 	s.storeMetricStats(sample3)
-	time.Sleep(10 * time.Millisecond)
+	clk.Add(10 * time.Millisecond)
 	s.storeMetricStats(sample1)
 
 	s.storeMetricStats(sample4)

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package goflowlib
 
 import (
@@ -13,7 +18,7 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		FlowType:        convertFlowType(srcFlow.Type),
 		SamplingRate:    srcFlow.SamplingRate,
 		Direction:       srcFlow.FlowDirection,
-		ExporterAddr:    srcFlow.SamplerAddress,
+		DeviceAddr:      srcFlow.SamplerAddress, // Sampler is renamed to Device since it's a device in most cases
 		StartTimestamp:  srcFlow.TimeFlowStart,
 		EndTimestamp:    srcFlow.TimeFlowEnd,
 		Bytes:           srcFlow.Bytes,
@@ -26,8 +31,8 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		DstMask:         srcFlow.DstNet,
 		EtherType:       srcFlow.Etype,
 		IPProtocol:      srcFlow.Proto,
-		SrcPort:         srcFlow.SrcPort,
-		DstPort:         srcFlow.DstPort,
+		SrcPort:         int32(srcFlow.SrcPort),
+		DstPort:         int32(srcFlow.DstPort),
 		InputInterface:  srcFlow.InIf,
 		OutputInterface: srcFlow.OutIf,
 		Tos:             srcFlow.IPTos,

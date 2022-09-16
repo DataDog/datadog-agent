@@ -392,11 +392,17 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				cachedEntity = entitiesOfKind[entityID.ID]
 			}
 
-			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
+			found, changed := cachedEntity.set(ev.Source, ev.Entity)
+
+			if !found {
 				telemetry.StoredEntities.Inc(
 					string(entityID.Kind),
 					string(ev.Source),
 				)
+			}
+
+			if !changed {
+				continue
 			}
 		case EventTypeUnset:
 			// if the entity we're trying to remove was not
@@ -481,6 +487,10 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Unlock()
 
 	for sub, evs := range filteredEvents {
+		if len(evs) == 0 {
+			continue
+		}
+
 		notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
@@ -533,10 +543,6 @@ func (s *store) unsubscribeAll() {
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
-	if len(events) == 0 {
-		return
-	}
-
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,

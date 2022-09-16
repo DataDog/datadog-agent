@@ -16,9 +16,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 
 FROM baseimage AS nosys-seccomp
-COPY nosys-seccomp/nosys.c /tmp/nosys.c
+COPY nosys-seccomp/nosys.c   /tmp/nosys.c
+COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -o /tmp/nosys.so /tmp/nosys.c -lseccomp
+RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 ############################################
 #  Preparation stage: extract and cleanup  #
@@ -125,7 +126,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 \
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
@@ -201,8 +202,7 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so \
-    NOSYS_SYSCALLS=faccessat2,clone3
+ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so
 
 # Single entrypoint
 COPY entrypoint.sh /bin/entrypoint.sh

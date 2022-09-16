@@ -5,7 +5,11 @@
 
 package info
 
-import "go.uber.org/atomic"
+import (
+	"encoding/json"
+
+	"go.uber.org/atomic"
+)
 
 // TraceWriterInfo represents statistics from the trace writer.
 type TraceWriterInfo struct {
@@ -21,7 +25,6 @@ type TraceWriterInfo struct {
 	Retries           atomic.Int64
 	Bytes             atomic.Int64
 	BytesUncompressed atomic.Int64
-	BytesEstimated    atomic.Int64
 	SingleMaxSize     atomic.Int64
 }
 
@@ -54,6 +57,22 @@ func publishTraceWriterInfo() interface{} {
 	return traceWriterInfo
 }
 
+// MarshalJSON implements encoding/json.MarshalJSON.
+func (twi TraceWriterInfo) MarshalJSON() ([]byte, error) {
+	asMap := map[string]float64{
+		"Payloads":          float64(twi.Payloads.Load()),
+		"Traces":            float64(twi.Traces.Load()),
+		"Events":            float64(twi.Events.Load()),
+		"Spans":             float64(twi.Spans.Load()),
+		"Errors":            float64(twi.Errors.Load()),
+		"Retries":           float64(twi.Retries.Load()),
+		"Bytes":             float64(twi.Bytes.Load()),
+		"BytesUncompressed": float64(twi.BytesUncompressed.Load()),
+		"SingleMaxSize":     float64(twi.SingleMaxSize.Load()),
+	}
+	return json.Marshal(asMap)
+}
+
 // UpdateStatsWriterInfo updates internal stats writer stats
 func UpdateStatsWriterInfo(sws StatsWriterInfo) {
 	infoMu.Lock()
@@ -65,4 +84,19 @@ func publishStatsWriterInfo() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
 	return statsWriterInfo
+}
+
+// MarshalJSON implements encoding/json.MarshalJSON.
+func (swi StatsWriterInfo) MarshalJSON() ([]byte, error) {
+	asMap := map[string]float64{
+		"Payloads":       float64(swi.Payloads.Load()),
+		"ClientPayloads": float64(swi.ClientPayloads.Load()),
+		"StatsBuckets":   float64(swi.StatsBuckets.Load()),
+		"StatsEntries":   float64(swi.StatsEntries.Load()),
+		"Errors":         float64(swi.Errors.Load()),
+		"Retries":        float64(swi.Retries.Load()),
+		"Splits":         float64(swi.Splits.Load()),
+		"Bytes":          float64(swi.Bytes.Load()),
+	}
+	return json.Marshal(asMap)
 }

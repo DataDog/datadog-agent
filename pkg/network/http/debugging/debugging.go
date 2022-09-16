@@ -6,10 +6,11 @@
 package debugging
 
 import (
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // RequestSummary represents a (debug-friendly) aggregated view of requests
@@ -101,6 +102,6 @@ func getSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
 		return 0.0
 	}
 
-	val, _ := sketch.GetValueAtQuantile(0.5)
+	val, _ := sketch.GetValueAtQuantile(percentile)
 	return val
 }

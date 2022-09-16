@@ -16,6 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+const Traces DataType = "traces"
+
 func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
@@ -49,6 +52,8 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
+
+	bindVectorOptions(config, Traces)
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled

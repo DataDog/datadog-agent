@@ -14,10 +14,11 @@ import (
 	"syscall"
 	"testing"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/mailru/easyjson"
 	"github.com/stretchr/testify/assert"
+
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 var eventOnce sync.Once

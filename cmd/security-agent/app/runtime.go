@@ -11,14 +11,16 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"time"
+	"unsafe"
 
-	"github.com/pkg/errors"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
@@ -33,17 +35,18 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -65,6 +68,13 @@ var (
 
 	checkPoliciesArgs = struct {
 		dir string
+	}{}
+
+	evalArgs = struct {
+		dir       string
+		ruleID    string
+		eventFile string
+		debug     bool
 	}{}
 
 	networkNamespaceCmd = &cobra.Command{
@@ -103,14 +113,16 @@ var (
 	}
 
 	activityDumpArgs = struct {
-		comm              string
-		file              string
-		timeout           int
-		withGraph         bool
-		differentiateArgs bool
-		outputDirectory   string
-		outputFormat      string
-		remote            bool
+		comm                     string
+		file                     string
+		timeout                  int
+		differentiateArgs        bool
+		localStorageDirectory    string
+		localStorageFormats      []string
+		localStorageCompression  bool
+		remoteStorageFormats     []string
+		remoteStorageCompression bool
+		remoteRequest            bool
 	}{}
 
 	activityDumpGenerateCmd = &cobra.Command{
@@ -124,16 +136,10 @@ var (
 		RunE:  generateActivityDump,
 	}
 
-	activityDumpGenerateProfileCmd = &cobra.Command{
-		Use:   "profile",
-		Short: "generate a profile from an activity dump",
-		RunE:  generateProfileFromActivityDump,
-	}
-
-	activityDumpGenerateGraphCmd = &cobra.Command{
-		Use:   "graph",
-		Short: "generate a graph from an activity dump",
-		RunE:  generateGraphFromActivityDump,
+	activityDumpGenerateEncodingCmd = &cobra.Command{
+		Use:   "encoding",
+		Short: "encode an activity dump to the requested formats",
+		RunE:  generateEncodingFromActivityDump,
 	}
 
 	activityDumpStopCmd = &cobra.Command{
@@ -173,6 +179,12 @@ var (
 		RunE:  checkPolicies,
 	}
 
+	evalCmd = &cobra.Command{
+		Use:   "eval",
+		Short: "Evaluate given event data against the give rule",
+		RunE:  evalRule,
+	}
+
 	downloadPolicyCmd = &cobra.Command{
 		Use:   "download",
 		Short: "Download policies",
@@ -187,6 +199,18 @@ var (
 	commonPolicyCmd = &cobra.Command{
 		Use:   "policy",
 		Short: "Policy related commands",
+	}
+
+	/*Discarders*/
+	discardersCmd = &cobra.Command{
+		Use:   "discarders",
+		Short: "discarders commands",
+	}
+
+	dumpDiscardersCmd = &cobra.Command{
+		Use:   "dump",
+		Short: "dump discarders",
+		RunE:  dumpDiscarders,
 	}
 )
 
@@ -206,28 +230,40 @@ func init() {
 		"timeout for the activity dump in minutes",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&activityDumpArgs.withGraph,
-		"graph",
-		false,
-		"generate a graph from the generated dump",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&activityDumpArgs.differentiateArgs,
 		"differentiate-args",
-		false,
+		true,
 		"add the arguments in the process node merge algorithm",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.outputDirectory,
+		&activityDumpArgs.localStorageDirectory,
 		"output",
 		"/tmp/activity_dumps/",
-		"output directory",
+		"local storage output directory",
 	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.outputFormat,
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
+		&activityDumpArgs.localStorageCompression,
+		"compression",
+		false,
+		"defines if the local storage output should be compressed before persisting the data to disk",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
+		&activityDumpArgs.localStorageFormats,
 		"format",
-		"msgp",
-		"output format. Available options are \"msgp\" and \"json\".",
+		[]string{},
+		fmt.Sprintf("local storage output formats. Available options are %v.", dump.AllStorageFormats()),
+	)
+	activityDumpGenerateDumpCmd.Flags().BoolVar(
+		&activityDumpArgs.remoteStorageCompression,
+		"remote-compression",
+		true,
+		"defines if the remote storage output should be compressed before sending the data",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
+		&activityDumpArgs.remoteStorageFormats,
+		"remote-format",
+		[]string{},
+		fmt.Sprintf("remote storage output formats. Available options are %v.", dump.AllStorageFormats()),
 	)
 
 	activityDumpStopCmd.Flags().StringVar(
@@ -237,40 +273,55 @@ func init() {
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
 
-	activityDumpGenerateProfileCmd.Flags().StringVar(
+	activityDumpGenerateEncodingCmd.Flags().StringVar(
 		&activityDumpArgs.file,
 		"input",
 		"",
 		"path to the activity dump file",
 	)
-	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
-	activityDumpGenerateProfileCmd.Flags().BoolVar(
-		&activityDumpArgs.remote,
+	_ = activityDumpGenerateEncodingCmd.MarkFlagRequired("input")
+	activityDumpGenerateEncodingCmd.Flags().StringVar(
+		&activityDumpArgs.localStorageDirectory,
+		"output",
+		"/tmp/activity_dumps/",
+		"local storage output directory",
+	)
+	activityDumpGenerateEncodingCmd.Flags().BoolVar(
+		&activityDumpArgs.localStorageCompression,
+		"compression",
+		false,
+		"defines if the local storage output should be compressed before persisting the data to disk",
+	)
+	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
+		&activityDumpArgs.localStorageFormats,
+		"format",
+		[]string{},
+		fmt.Sprintf("local storage output formats. Available options are %v.", dump.AllStorageFormats()),
+	)
+	activityDumpGenerateEncodingCmd.Flags().BoolVar(
+		&activityDumpArgs.remoteStorageCompression,
+		"remote-compression",
+		true,
+		"defines if the remote storage output should be compressed before sending the data",
+	)
+	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
+		&activityDumpArgs.remoteStorageFormats,
+		"remote-format",
+		[]string{},
+		fmt.Sprintf("remote storage output formats. Available options are %v.", dump.AllStorageFormats()),
+	)
+	activityDumpGenerateEncodingCmd.Flags().BoolVar(
+		&activityDumpArgs.remoteRequest,
 		"remote",
 		false,
-		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
-	)
-
-	activityDumpGenerateGraphCmd.Flags().StringVar(
-		&activityDumpArgs.file,
-		"input",
-		"",
-		"path to the activity dump file",
-	)
-	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
-	activityDumpGenerateGraphCmd.Flags().BoolVar(
-		&activityDumpArgs.remote,
-		"remote",
-		false,
-		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
+		"when set, the transcoding will be done by system-probe instead of the current security-agent instance",
 	)
 
 	processCacheCmd.AddCommand(processCacheDumpCmd)
 	runtimeCmd.AddCommand(processCacheCmd)
 
 	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateProfileCmd)
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateGraphCmd)
+	activityDumpGenerateCmd.AddCommand(activityDumpGenerateEncodingCmd)
 
 	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
 	activityDumpCmd.AddCommand(activityDumpListCmd)
@@ -279,6 +330,14 @@ func init() {
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+
+	commonPolicyCmd.AddCommand(evalCmd)
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired("rule-id")
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired("event-file")
+	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
 
 	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
@@ -296,6 +355,10 @@ func init() {
 	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
 	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
 	runtimeCmd.AddCommand(networkNamespaceCmd)
+
+	/*Discarders*/
+	discardersCmd.AddCommand(dumpDiscardersCmd)
+	runtimeCmd.AddCommand(discardersCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -306,68 +369,17 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process cache dump")
+		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}
 
 	fmt.Printf("Process dump file: %s\n", filename)
 
-	return nil
-}
-
-func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDumpMessage) {
-	fmt.Printf("%s- start: %s\n", prefix, msg.Start)
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.Timeout)
-	fmt.Printf("%s  left: %s\n", prefix, msg.Left)
-	if len(msg.OutputFilename) > 0 {
-		fmt.Printf("%s  output filename: %s\n", prefix, msg.OutputFilename)
-	}
-	if len(msg.GraphFilename) > 0 {
-		fmt.Printf("%s  graph filename: %s\n", prefix, msg.GraphFilename)
-	}
-	if len(msg.Comm) > 0 {
-		fmt.Printf("%s  comm: %s\n", prefix, msg.Comm)
-	}
-	if len(msg.ContainerID) > 0 {
-		fmt.Printf("%s  container ID: %s\n", prefix, msg.ContainerID)
-	}
-	if len(msg.Tags) > 0 {
-		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.Tags, ", "))
-	}
-	fmt.Printf("%s  with graph: %v\n", prefix, msg.WithGraph)
-	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.DifferentiateArgs)
-}
-
-func generateActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
-	if len(activityDumpArgs.outputDirectory) == 0 && activityDumpArgs.withGraph {
-		return fmt.Errorf("the output directory cannot be empty if \"--graph\" is provided")
-	}
-
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
-	}
-	defer client.Close()
-
-	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs, activityDumpArgs.outputDirectory, activityDumpArgs.outputFormat)
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
-	}
-
-	printSecurityActivityDumpMessage("", output)
 	return nil
 }
 
@@ -379,13 +391,13 @@ func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	resp, err := client.DumpNetworkNamespace(dumpNetworkNamespaceArgs.snapshotInterfaces)
 	if err != nil {
-		return errors.Wrap(err, "couldn't send network namespace cache dump request")
+		return fmt.Errorf("couldn't send network namespace cache dump request: %w", err)
 	}
 
 	if len(resp.GetError()) > 0 {
@@ -397,6 +409,90 @@ func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
+	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
+	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
+	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
+}
+
+func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
+	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
+	if len(msg.GetMetadata().GetComm()) > 0 {
+		fmt.Printf("%s  comm: %s\n", prefix, msg.GetMetadata().GetComm())
+	}
+	if len(msg.GetMetadata().GetContainerID()) > 0 {
+		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
+	}
+	if len(msg.GetTags()) > 0 {
+		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
+	}
+	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
+	if len(msg.GetStorage()) > 0 {
+		fmt.Printf("%s  storage:\n", prefix)
+		for _, storage := range msg.GetStorage() {
+			printStorageRequestMessage(prefix+"\t", storage)
+		}
+	}
+}
+
+func parseStorageRequest() (*api.StorageRequestParams, error) {
+	// parse local storage formats
+	_, err := dump.ParseStorageFormats(activityDumpArgs.localStorageFormats)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse local storage formats %v: %v", activityDumpArgs.localStorageFormats, err)
+	}
+
+	// parse remote storage formats
+	_, err = dump.ParseStorageFormats(activityDumpArgs.remoteStorageFormats)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse remote storage formats %v: %v", activityDumpArgs.remoteStorageFormats, err)
+	}
+	return &api.StorageRequestParams{
+		LocalStorageDirectory:    activityDumpArgs.localStorageDirectory,
+		LocalStorageCompression:  activityDumpArgs.localStorageCompression,
+		LocalStorageFormats:      activityDumpArgs.localStorageFormats,
+		RemoteStorageCompression: activityDumpArgs.remoteStorageCompression,
+		RemoteStorageFormats:     activityDumpArgs.remoteStorageFormats,
+	}, nil
+}
+
+func generateActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	storage, err := parseStorageRequest()
+	if err != nil {
+		return err
+	}
+
+	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
+		Comm:              activityDumpArgs.comm,
+		Timeout:           int32(activityDumpArgs.timeout),
+		DifferentiateArgs: activityDumpArgs.differentiateArgs,
+		Storage:           storage,
+	})
+	if err != nil {
+		return fmt.Errorf("unable send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
+	}
+
+	printSecurityActivityDumpMessage("", output)
+	return nil
+}
+
 func listActivityDumps(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
 	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
@@ -405,7 +501,7 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -418,12 +514,12 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(output.Dumps) > 0 {
-		fmt.Println("Active dumps:")
+		fmt.Println("active dumps:")
 		for _, d := range output.Dumps {
 			printSecurityActivityDumpMessage("\t", d)
 		}
 	} else {
-		fmt.Println("No active dumps found")
+		fmt.Println("no active dumps found")
 	}
 
 	return nil
@@ -437,7 +533,7 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
@@ -453,74 +549,90 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func generateProfileFromActivityDump(cmd *cobra.Command, args []string) error {
+func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
 	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
+	var output *api.TranscodingRequestMessage
 
-	var profilePath string
-
-	if activityDumpArgs.remote {
+	if activityDumpArgs.remoteRequest {
+		// send the encoding request to system-probe
 		client, err := secagent.NewRuntimeSecurityClient()
 		if err != nil {
-			return fmt.Errorf("profile generation failed: %w", err)
+			return fmt.Errorf("encoding generation failed: %w", err)
 		}
 		defer client.Close()
 
-		output, err := client.GenerateProfile(activityDumpArgs.file)
+		// parse encoding request
+		storage, err := parseStorageRequest()
+		if err != nil {
+			return err
+		}
+
+		output, err = client.GenerateEncoding(&api.TranscodingRequestParams{
+			ActivityDumpFile: activityDumpArgs.file,
+			Storage:          storage,
+		})
 		if err != nil {
 			return fmt.Errorf("couldn't send request to system-probe: %w", err)
 		}
-		if len(output.Error) > 0 {
-			return fmt.Errorf("profile generation failed: %s", output.Error)
-		}
-		profilePath = output.ProfilePath
+
 	} else {
-		output, err := sprobe.GenerateProfile(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("profile generation failed: %w", err)
+		// encoding request will be handled locally
+		ad := sprobe.NewEmptyActivityDump()
+
+		// open and parse input file
+		if err := ad.Decode(activityDumpArgs.file); err != nil {
+			return err
 		}
-		profilePath = output
+		parsedRequests, err := parseStorageRequest()
+		if err != nil {
+			return err
+		}
+
+		storageRequests, err := dump.ParseStorageRequests(parsedRequests)
+		if err != nil {
+			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
+		}
+		for _, request := range storageRequests {
+			ad.AddStorageRequest(request)
+		}
+
+		storage, err := sprobe.NewActivityDumpStorageManager(nil)
+		if err != nil {
+			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
+		}
+
+		err = storage.Persist(ad)
+		if err != nil {
+			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
+		}
+
+		output = ad.ToTranscodingRequestMessage()
 	}
 
-	fmt.Printf("Generated profile: %s\n", profilePath)
+	if len(output.GetError()) > 0 {
+		return fmt.Errorf("encoding generation failed: %s", output.GetError())
+	}
+	if len(output.GetStorage()) > 0 {
+		fmt.Printf("encoding generation succeeded:\n")
+		for _, storage := range output.GetStorage() {
+			printStorageRequestMessage("\t", storage)
+		}
+	} else {
+		fmt.Println("encoding generation succeeded: empty output")
+	}
 	return nil
 }
 
-func generateGraphFromActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
+func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return nil, err
 	}
 
-	var graphPath string
-
-	if activityDumpArgs.remote {
-		client, err := secagent.NewRuntimeSecurityClient()
-		if err != nil {
-			return fmt.Errorf("graph generation failed: %w", err)
-		}
-		defer client.Close()
-
-		output, err := client.GenerateGraph(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("couldn't send request to system-probe: %w", err)
-		}
-		if len(output.Error) > 0 {
-			return fmt.Errorf("graph generation failed: %s", output.Error)
-		}
-		graphPath = output.GraphPath
-	} else {
-		output, err := sprobe.GenerateGraph(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("graph generation failed: %w", err)
-		}
-		graphPath = output
-	}
-
-	fmt.Printf("Generated graph: %s\n", graphPath)
-	return nil
+	return rules.NewAgentVersionFilter(agentVersion)
 }
 
 func checkPoliciesInner(dir string) error {
@@ -535,18 +647,42 @@ func checkPoliciesInner(dir string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
-		WithLogger(&seclog.PatternLogger{})
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			agentVersionFilter,
+		},
+	}
 
 	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
@@ -555,7 +691,7 @@ func checkPoliciesInner(dir string) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -581,16 +717,159 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	return checkPoliciesInner(checkPoliciesArgs.dir)
 }
 
+// EvalReport defines a report of an evaluation
+type EvalReport struct {
+	Succeeded bool
+	Approvers map[string]rules.Approvers
+	Event     eval.Event
+	Error     error `json:",omitempty"`
+}
+
+// EventData defines the structure used to represent an event
+type EventData struct {
+	Type   eval.EventType
+	Values map[string]interface{}
+}
+
+func eventDataFromJSON(file string) (eval.Event, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	decoder.UseNumber()
+
+	var eventData EventData
+	if err := decoder.Decode(&eventData); err != nil {
+		return nil, err
+	}
+
+	kind := model.ParseEvalEventType(eventData.Type)
+	if kind == model.UnknownEventType {
+		return nil, errors.New("unknown event type")
+	}
+
+	m := &model.Model{}
+	event := m.NewEventWithType(kind)
+	event.Init()
+
+	for k, v := range eventData.Values {
+		switch v := v.(type) {
+		case json.Number:
+			value, err := v.Int64()
+			if err != nil {
+				return nil, err
+			}
+			if err := event.SetFieldValue(k, int(value)); err != nil {
+				return nil, err
+			}
+		default:
+			if err := event.SetFieldValue(k, v); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return event, nil
+}
+
+func evalRule(cmd *cobra.Command, args []string) error {
+	cfg := &secconfig.Config{
+		PoliciesDir:         evalArgs.dir,
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
+
+	// enabled all the rules
+	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(enabled).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLogger(seclog.DefaultLogger)
+
+	model := &model.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			&rules.RuleIDFilter{
+				ID: evalArgs.ruleID,
+			},
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	event, err := eventDataFromJSON(evalArgs.eventFile)
+	if err != nil {
+		return err
+	}
+
+	report := EvalReport{
+		Event: event,
+	}
+
+	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		report.Error = err
+	} else {
+		report.Approvers = approvers
+	}
+
+	report.Succeeded = ruleSet.Evaluate(event)
+	output, err := json.MarshalIndent(report, "", "    ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", string(output))
+
+	if !report.Succeeded {
+		os.Exit(-1)
+	}
+
+	return nil
+}
+
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	selfTestResult, err := client.RunSelfTest()
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process self test")
+		return fmt.Errorf("unable to get a process self test: %w", err)
 	}
 
 	if selfTestResult.Ok {
@@ -604,13 +883,13 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	_, err = client.ReloadPolicies()
 	if err != nil {
-		return errors.Wrap(err, "unable to reload policies")
+		return fmt.Errorf("unable to reload policies: %w", err)
 	}
 
 	return nil
@@ -656,7 +935,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
+		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
 	stopper.Add(agent)
 
@@ -746,4 +1025,22 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 
 	_, err = outputWriter.Write(resBytes)
 	return err
+}
+
+func dumpDiscarders(cmd *cobra.Command, args []string) error {
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer runtimeSecurityClient.Close()
+
+	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
+
+	if dumpErr != nil {
+		return fmt.Errorf("unable to dump discarders: %w", dumpErr)
+	}
+
+	fmt.Printf("Discarder dump file: %s\n", dumpFilename)
+
+	return nil
 }

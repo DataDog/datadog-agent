@@ -26,9 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -304,11 +304,11 @@ func getCommonStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	stats["flavor"] = flavor.GetFlavor()
-	hostnameData, err := util.GetHostnameData(context.TODO())
+	hostnameData, err := hostname.GetWithProvider(context.TODO())
 
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
 	} else {
 		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostnameData)
 	}
@@ -420,7 +420,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 					if vStr, ok := v.(string); ok {
 						if k == "config.hash" {
 							checkHash = vStr
-						} else if k != "config.provider" && k != "last_updated" {
+						} else if k != "config.provider" {
 							metadata[k] = vStr
 						}
 					}

@@ -11,13 +11,14 @@ package http
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHttpCompile(t *testing.T) {
-	if !rtcHttpSupported(t) {
+	if !rtcHTTPSupported(t) {
 		t.Skip("HTTP Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
@@ -26,7 +27,7 @@ func TestHttpCompile(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func rtcHttpSupported(t *testing.T) bool {
+func rtcHTTPSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	return currKernelVersion >= kernel.VersionCode(4, 5, 0)

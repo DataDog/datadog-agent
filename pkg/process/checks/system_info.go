@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/gopsutil/mem"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 

@@ -1,10 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package goflowlib
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"testing"
+
 	flowpb "github.com/netsampler/goflow2/pb"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
 func Test_convertFlowType(t *testing.T) {
@@ -71,7 +78,7 @@ func TestConvertFlow(t *testing.T) {
 		FlowType:        common.TypeNetFlow9,
 		SamplingRate:    10,
 		Direction:       1,
-		ExporterAddr:    []byte{127, 0, 0, 1},
+		DeviceAddr:      []byte{127, 0, 0, 1},
 		StartTimestamp:  1234568,
 		EndTimestamp:    1234569,
 		Bytes:           10,
@@ -84,8 +91,8 @@ func TestConvertFlow(t *testing.T) {
 		DstMask:         uint32(20),
 		EtherType:       uint32(1),
 		IPProtocol:      uint32(6),
-		SrcPort:         uint32(2000),
-		DstPort:         uint32(80),
+		SrcPort:         2000,
+		DstPort:         80,
 		InputInterface:  10,
 		OutputInterface: 20,
 		Tos:             3,

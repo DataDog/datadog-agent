@@ -20,19 +20,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
@@ -49,6 +52,10 @@ const (
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
 )
+
+var extendedCollectors = map[string]string{
+	"jobs": "jobs_extended",
+}
 
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
@@ -158,6 +165,12 @@ func (jc *JoinsConfig) setupGetAllLabels() {
 	}
 }
 
+var labelRegexp *regexp.Regexp
+
+func init() {
+	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
+}
+
 func init() {
 	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
@@ -166,12 +179,7 @@ func init() {
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
 	k.BuildID(config, initConfig)
 
-	err := k.CommonConfigure(config, source)
-	if err != nil {
-		return err
-	}
-
-	err = k.CommonConfigure(initConfig, source)
+	err := k.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -208,10 +216,6 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	// Enable the KSM default collectors if the config collectors list is empty.
 	if len(collectors) == 0 {
 		collectors = options.DefaultResources.AsSlice()
-	}
-
-	if err := builder.WithEnabledResources(collectors); err != nil {
-		return err
 	}
 
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
@@ -272,6 +276,16 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
 
+	// configure custom resources required for extended features and
+	// compatibility across deprecated/removed versions of APIs
+	cr := k.discoverCustomResources(c, collectors)
+	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+	builder.WithCustomResourceStoreFactories(cr.factories...)
+	builder.WithCustomResourceClients(cr.clients)
+	if err := builder.WithEnabledResources(cr.collectors); err != nil {
+		return err
+	}
+
 	// Start the collection process
 	k.allStores = builder.BuildStores()
 
@@ -280,6 +294,89 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
+}
+
+type customResources struct {
+	collectors []string
+	factories  []customresource.RegistryFactory
+	clients    map[string]interface{}
+}
+
+func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []string) customResources {
+	// automatically add extended collectors if their standard ones are
+	// enabled
+	for _, c := range collectors {
+		if extended, ok := extendedCollectors[c]; ok {
+			collectors = append(collectors, extended)
+		}
+	}
+
+	// extended resource collectors always have a factory registered
+	factories := []customresource.RegistryFactory{
+		customresources.NewExtendedJobFactory(),
+	}
+
+	_, resources, err := c.DiscoveryCl.ServerGroupsAndResources()
+	if err != nil {
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			log.Warnf("unable to perform resource discovery: %s", err)
+		} else {
+			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
+			}
+		}
+	}
+
+	// backwards/forwards compatibility resource factories are only
+	// registered if they're needed, otherwise they'd overwrite the default
+	// ones that ship with ksm
+	resourceReplacements := map[string]map[string]func() customresource.RegistryFactory{
+		// support for older k8s versions where the resources are no
+		// longer supported in KSM
+		"batch/v1": {
+			"CronJob": customresources.NewCronJobV1Beta1Factory,
+		},
+		"policy/v1": {
+			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
+		},
+
+		// support for newer k8s versions where the newer resources are
+		// not yet supported by KSM
+		"autoscaling/v2beta2": {
+			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Factory,
+		},
+	}
+
+	for gv, resourceReplacement := range resourceReplacements {
+		for _, resource := range resources {
+			if resource.GroupVersion != gv {
+				continue
+			}
+
+			for _, apiResource := range resource.APIResources {
+				if _, ok := resourceReplacement[apiResource.Kind]; ok {
+					delete(resourceReplacement, apiResource.Kind)
+				}
+			}
+		}
+	}
+
+	for _, resourceReplacement := range resourceReplacements {
+		for _, factory := range resourceReplacement {
+			factories = append(factories, factory())
+		}
+	}
+
+	clients := make(map[string]interface{}, len(factories))
+	for _, f := range factories {
+		clients[f.Name()] = c.Cl
+	}
+
+	return customResources{
+		collectors: collectors,
+		clients:    clients,
+		factories:  factories,
+	}
 }
 
 // Run runs the KSM check
@@ -522,7 +619,7 @@ func (k *KSMCheck) processLabelsAsTags() {
 	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
 		labels := make([]string, 0, len(labelsMapper))
 		for label, tag := range labelsMapper {
-			label = "label_" + label
+			label = "label_" + labelRegexp.ReplaceAllString(label, "_")
 			if _, ok := k.instance.LabelsMapper[label]; !ok {
 				k.instance.LabelsMapper[label] = tag
 			}
@@ -543,7 +640,7 @@ func (k *KSMCheck) processLabelsAsTags() {
 
 // getClusterName retrieves the name of the cluster, if found
 func (k *KSMCheck) getClusterName() {
-	hostname, _ := util.GetHostname(context.TODO())
+	hostname, _ := hostnameUtil.Get(context.TODO())
 	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
 		k.clusterName = clusterName
 	}

@@ -11,8 +11,9 @@ package modules
 import (
 	"fmt"
 	"net/http"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -32,7 +33,10 @@ var OOMKillProbe = module.Factory{
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the OOM kill probe: %w", err)
 		}
-		return &oomKillModule{OOMKillProbe: okp}, nil
+		return &oomKillModule{
+			OOMKillProbe: okp,
+			lastCheck:    atomic.NewInt64(0),
+		}, nil
 	},
 }
 
@@ -40,12 +44,12 @@ var _ module.Module = &oomKillModule{}
 
 type oomKillModule struct {
 	*probe.OOMKillProbe
-	lastCheck int64
+	lastCheck *atomic.Int64
 }
 
 func (o *oomKillModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check/oom_kill", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		atomic.StoreInt64(&o.lastCheck, time.Now().Unix())
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		o.lastCheck.Store(time.Now().Unix())
 		stats := o.OOMKillProbe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	}))
@@ -55,6 +59,6 @@ func (o *oomKillModule) Register(httpMux *module.Router) error {
 
 func (o *oomKillModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"last_check": atomic.LoadInt64(&o.lastCheck),
+		"last_check": o.lastCheck.Load(),
 	}
 }

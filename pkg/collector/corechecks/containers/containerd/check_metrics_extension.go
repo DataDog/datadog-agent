@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -29,11 +29,16 @@ func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFu
 	cext.aggSender = aggSender
 }
 
-func (cext *containerdCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
+func (cext *containerdCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
+		return
+	}
+
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
 		return
 	}
 

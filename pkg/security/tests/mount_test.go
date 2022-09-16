@@ -35,7 +35,7 @@ func TestMount(t *testing.T) {
 		Expression: fmt.Sprintf(`chown.file.path == "{{.Root}}/%s/test-release"`, dstMntBasename),
 	}}
 
-	testDrive, err := newTestDrive("xfs", []string{})
+	testDrive, err := newTestDrive(t, "xfs", []string{})
 	if err != nil {
 		t.Fatal(err)
 	}

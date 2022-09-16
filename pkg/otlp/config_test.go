@@ -11,9 +11,10 @@ package otlp
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 )
 
 func TestIsEnabled(t *testing.T) {
@@ -61,6 +62,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
+				},
 			},
 		},
 		{
@@ -79,6 +83,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
+				},
 			},
 		},
 		{
@@ -96,6 +103,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
 				},
 			},
 		},
@@ -129,6 +139,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
 				},
 			},
 		},
@@ -175,6 +188,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
+				},
 			},
 		},
 		{
@@ -200,6 +216,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
 				},
 			},
 		},
@@ -234,6 +253,35 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"histograms": map[string]interface{}{
 						"mode": "counters",
 					},
+				},
+				Debug: map[string]interface{}{
+					"loglevel": "info",
+				},
+			},
+		},
+		{
+			name: "only gRPC, disabled logging",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
+				"DD_OTLP_CONFIG_DEBUG_LOGLEVEL":                   "disabled",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9999",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{
+					"loglevel": "disabled",
 				},
 			},
 		},
@@ -279,6 +327,9 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				Debug: map[string]interface{}{
+					"loglevel": "debug",
 				},
 			},
 		},

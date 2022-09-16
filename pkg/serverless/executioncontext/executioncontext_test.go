@@ -76,13 +76,17 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:my-super-function"
 	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	startTime := time.Now()
+	endTime := startTime.Add(10 * time.Second)
 	ec := ExecutionContext{}
 	ec.SetFromInvocation(testArn, testRequestID)
 	ec.UpdateFromStartLog(testRequestID, startTime)
+	ec.UpdateFromRuntimeDoneLog(endTime)
 
 	err := ec.SaveCurrentExecutionContext()
 	assert.Nil(err)
 
+	ec.UpdateFromStartLog(testRequestID, startTime.Add(time.Hour))
+	ec.UpdateFromRuntimeDoneLog(endTime.Add(time.Hour))
 	ec.SetFromInvocation("this-arn-should-be-overwritten", "this-request-id-should-be-overwritten")
 
 	err = ec.RestoreCurrentStateFromFile()
@@ -90,4 +94,16 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 
 	assert.Equal(testRequestID, ec.lastRequestID)
 	assert.Equal(testArn, ec.arn)
+	assert.WithinDuration(startTime, ec.startTime, time.Millisecond)
+	assert.WithinDuration(endTime, ec.endTime, time.Millisecond)
+}
+
+func TestUpdateFromRuntimeDoneLog(t *testing.T) {
+	assert := assert.New(t)
+
+	endTime := time.Now()
+	ec := ExecutionContext{}
+	ec.UpdateFromRuntimeDoneLog(endTime)
+
+	assert.Equal(endTime, ec.endTime)
 }

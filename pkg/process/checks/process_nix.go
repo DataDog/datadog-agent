@@ -13,9 +13,15 @@ import (
 	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/gopsutil/cpu"
+)
+
+var (
+	// overridden in tests
+	hostCPUCount = system.HostCPUCount
 )
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {
@@ -40,7 +46,7 @@ func formatUser(fp *procutil.Process) *model.ProcessUser {
 }
 
 func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
-	numCPU := float64(system.HostCPUCount())
+	numCPU := float64(hostCPUCount())
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{
 		LastCpu:    "cpu",

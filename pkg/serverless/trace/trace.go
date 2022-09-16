@@ -43,6 +43,9 @@ const lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
 const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
 
+// lambdaStatsDURLPrefix is the first part of a URL for a call from Statsd
+const lambdaStatsDURLPrefix = "http://127.0.0.1:8125"
+
 const invocationSpanResource = "dd-tracer-serverless-span"
 
 // Load loads the config from a file path
@@ -77,6 +80,13 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	}
 }
 
+// Flush performs a synchronous flushing in the trace agent
+func (s *ServerlessTraceAgent) Flush() {
+	if s.Get() != nil {
+		s.ta.FlushSync()
+	}
+}
+
 // Get returns the trace agent instance
 func (s *ServerlessTraceAgent) Get() *agent.Agent {
 	return s.ta
@@ -84,8 +94,12 @@ func (s *ServerlessTraceAgent) Get() *agent.Agent {
 
 // SetTags sets the tags to the trace agent config and span processor
 func (s *ServerlessTraceAgent) SetTags(tagMap map[string]string) {
-	s.ta.SetGlobalTagsUnsafe(tagMap)
-	s.spanModifier.tags = tagMap
+	if s.Get() != nil {
+		s.ta.SetGlobalTagsUnsafe(tagMap)
+		s.spanModifier.tags = tagMap
+	} else {
+		log.Debug("could not set tags as the trace agent has not been initialized")
+	}
 }
 
 // Stop stops the trace agent
@@ -103,6 +117,12 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 			log.Debugf("Detected span with http url %s, removing it", val)
 			return true
 		}
+
+		if strings.HasPrefix(val, lambdaStatsDURLPrefix) {
+			log.Debugf("Detected span with http url %s, removing it", val)
+			return true
+		}
+
 		if strings.HasPrefix(val, lambdaRuntimeURLPrefix) {
 			log.Debugf("Detected span with http url %s, removing it", val)
 			return true

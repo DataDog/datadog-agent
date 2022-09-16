@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/mohae/deepcopy"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -47,7 +49,8 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	rawVal := cfg.Get(section)
 	stringMap := map[string]interface{}{}
 	if val, ok := rawVal.(map[string]interface{}); ok {
-		stringMap = val
+		// deep copy since `cfg.Get` returns a reference
+		stringMap = deepcopy.Copy(val).(map[string]interface{})
 	}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
@@ -57,7 +60,8 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	for _, key := range cfg.AllKeys() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
-			stringMap[mapKey] = cfg.Get(key)
+			// deep copy since `cfg.Get` returns a reference
+			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
 		}
 	}
 	return confmap.NewFromStringMap(stringMap)
@@ -78,7 +82,6 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	if !metricsEnabled && !tracesEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
-
 	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
 
 	return PipelineConfig{
@@ -87,6 +90,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		Metrics:            metricsConfig.ToStringMap(),
+		Debug:              map[string]interface{}{"loglevel": cfg.GetString(config.OTLPDebugLogLevel)},
 	}, multierr.Combine(errs...)
 }
 

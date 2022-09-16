@@ -133,7 +133,7 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.22.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1"
     command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools2.rb
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
@@ -264,7 +264,17 @@ build do
       File.exist?(manifest_file_path) || next
 
       manifest = JSON.parse(File.read(manifest_file_path))
-      manifest['supported_os'].include?(os) || next
+      if manifest.key?("supported_os")
+        manifest["supported_os"].include?(os) || next
+      else
+        if os == "mac_os"
+          tag = "Supported OS::macOS"
+        else
+          tag = "Supported OS::#{os.capitalize}"
+        end
+
+        manifest["tile"]["classifier_tags"].include?(tag) || next
+      end
 
       File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
       # Check if it supports Python 2.
@@ -413,9 +423,11 @@ build do
       if windows?
         patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
         patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{python_2_embedded}/Lib/site-packages/tuf/client/updater.py"
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_2_embedded}/Lib/site-packages/psutil/__init__.py"
       else
         patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
         patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/__init__.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

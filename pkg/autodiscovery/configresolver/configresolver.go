@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -188,7 +189,7 @@ func listDataToResolve(config *integration.Config) []dataToResolve {
 
 	if config.IsLogConfig() {
 		p := yamlp
-		if config.Provider == names.Container || config.Provider == names.Kubernetes {
+		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer {
 			p = jsonp
 		}
 		res = append(res, dataToResolve{
@@ -283,10 +284,10 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 			}
 			top.set(s)
 
-		case int, bool:
+		case nil, int, bool:
 
 		default:
-			return data, fmt.Errorf("Unknown type: %T", elem)
+			log.Errorf("Unknown type: %T", elem)
 		}
 	}
 
@@ -463,15 +464,22 @@ func tagsAdder(tags []string) func(interface{}) error {
 					}
 				}
 			}
+
 			for _, t := range tags {
 				tagSet[t] = struct{}{}
 			}
-			typedTree["tags"] = make([]string, len(tagSet))
+
+			allTags := make([]string, len(tagSet))
+
 			i := 0
 			for k := range tagSet {
-				typedTree["tags"].([]string)[i] = k
+				allTags[i] = k
 				i++
 			}
+
+			sort.Strings(allTags)
+
+			typedTree["tags"] = allTags
 		}
 		return nil
 	}

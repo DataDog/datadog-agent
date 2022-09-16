@@ -122,6 +122,33 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
+	if cfg.DebugLogEnabled() {
+		m := map[string]interface{}{
+			"exporters": map[string]interface{}{
+				"logging": map[string]interface{}{
+					"loglevel": cfg.Debug["loglevel"],
+				},
+			},
+		}
+		if cfg.MetricsEnabled {
+			key := buildKey("service", "pipelines", "metrics", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		if cfg.TracesEnabled {
+			key := buildKey("service", "pipelines", "traces", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		errs = append(errs, retMap.Merge(confmap.NewFromStringMap(m)))
+	}
+
 	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
 	errs = append(errs, err)
 

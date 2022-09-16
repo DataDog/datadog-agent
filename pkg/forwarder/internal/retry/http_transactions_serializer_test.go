@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 )
 
 const apiKey1 = "apiKey1"
@@ -119,7 +120,7 @@ func createHTTPTransactionWithHeaderTests(header http.Header, domain string) *tr
 	tr.Domain = domain
 	tr.Endpoint = transaction.Endpoint{Route: "route" + apiKey1, Name: "name"}
 	tr.Headers = header
-	tr.Payload = &payload
+	tr.Payload = transaction.NewBytesPayload(payload, 10)
 	tr.ErrorCount = 1
 	tr.CreatedAt = time.Now()
 	tr.Retryable = true

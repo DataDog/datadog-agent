@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -207,17 +208,8 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in pt
 	}
 }
 
-// OTLPIngestSummary returns a summary of the received resource spans.
-type OTLPIngestSummary struct {
-	// Hostname indicates the hostname of the passed resource spans.
-	Hostname string
-	// Tags returns a set of Datadog-specific tags which are relevant for identifying
-	// the source of the passed resource spans.
-	Tags []string
-}
-
-// ReceiveResourceSpans processes the given rspans and sends them to writer.
-func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) OTLPIngestSummary {
+// ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
+func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -226,15 +218,15 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		rattr[k] = v.AsString()
 		return true
 	})
-	hostname, hostok := attributes.HostnameFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
+	src, srcok := attributes.SourceFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
-			hostname = v
-			hostok = true
+			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			srcok = true
 		}
 	}
-	if !hostok {
+	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
 	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
@@ -262,17 +254,19 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]float64)
+	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
 		for i := 0; i < libspans.Spans().Len(); i++ {
+			spancount++
 			span := libspans.Spans().At(i)
 			traceID := traceIDToUint64(span.TraceID().Bytes())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
 			ddspan := o.convertSpan(rattr, lib, span)
-			if !hostok {
+			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
 				hostFromMap(ddspan.Meta, "_dd.hostname")
@@ -299,7 +293,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		}
 	}
 	tags := tagstats.AsTags()
-	metrics.Count("datadog.trace_agent.otlp.spans", int64(rspans.ScopeSpans().Len()), tags, 1)
+	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
@@ -318,8 +312,21 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	if env == "" {
 		env = o.conf.DefaultEnv
 	}
-	if !hostok {
+
+	// Get the hostname or set to empty if source is empty
+	var hostname string
+	if srcok {
+		switch src.Kind {
+		case source.HostnameKind:
+			hostname = src.Identifier
+		default:
+			// We are not on a hostname (serverless), hence the hostname is empty
+			hostname = ""
+		}
+	} else {
+		// fallback hostname
 		hostname = o.conf.Hostname
+		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
@@ -334,6 +341,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		p.TracerPayload.Tags = map[string]string{
 			tagContainersTags: ctags,
 		}
+	} else {
+		// we couldn't obtain any container tags
+		if src.Kind == source.AWSECSFargateKind {
+			// but we have some information from the source provider that we can add
+			p.TracerPayload.Tags = map[string]string{
+				tagContainersTags: src.Tag(),
+			}
+		}
 	}
 	select {
 	case o.out <- &p:
@@ -341,10 +356,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
-	return OTLPIngestSummary{
-		Hostname: hostname,
-		Tags:     attributes.RunningTagsFromAttributes(attr),
-	}
+	return src
 }
 
 // marshalEvents marshals events into JSON.
@@ -444,18 +456,17 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := in.TraceID().Bytes()
-	meta := make(map[string]string, len(rattr))
-	for k, v := range rattr {
-		meta[k] = v
-	}
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
 		SpanID:   spanIDToUint64(in.SpanID().Bytes()),
 		ParentID: spanIDToUint64(in.ParentSpanID().Bytes()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
-		Meta:     meta,
+		Meta:     make(map[string]string, len(rattr)),
 		Metrics:  map[string]float64{},
+	}
+	for k, v := range rattr {
+		setMetaOTLP(span, k, v)
 	}
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
 	if _, ok := span.Meta["version"]; !ok {
@@ -516,8 +527,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if span.Service == "" {
 		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-			span.Service = svc
-		} else if svc := rattr[string(semconv.AttributeServiceName)]; svc != "" {
 			span.Service = svc
 		} else {
 			span.Service = "OTLPResourceNoServiceName"

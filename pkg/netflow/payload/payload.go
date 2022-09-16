@@ -5,15 +5,16 @@
 
 package payload
 
-// Exporter contains exporter details
-type Exporter struct {
-	IP string `json:"ip"`
+// Device contains device (exporter) details
+type Device struct {
+	IP        string `json:"ip"`
+	Namespace string `json:"namespace"`
 }
 
 // Endpoint contains source or destination endpoint details
 type Endpoint struct {
 	IP   string `json:"ip"`
-	Port uint32 `json:"port"`
+	Port string `json:"port"` // Port number can be zero/positive or `*` (ephemeral port)
 	Mac  string `json:"mac"`
 	Mask string `json:"mask"`
 }
@@ -44,12 +45,11 @@ type FlowPayload struct {
 	Packets      uint64           `json:"packets"`
 	EtherType    string           `json:"ether_type,omitempty"`
 	IPProtocol   string           `json:"ip_protocol"`
-	Exporter     Exporter         `json:"exporter"`
+	Device       Device           `json:"device"`
 	Source       Endpoint         `json:"source"`
 	Destination  Endpoint         `json:"destination"`
 	Ingress      ObservationPoint `json:"ingress"`
 	Egress       ObservationPoint `json:"egress"`
-	Namespace    string           `json:"namespace"`
 	Host         string           `json:"host"`
 	TCPFlags     []string         `json:"tcp_flags,omitempty"`
 	NextHop      NextHop          `json:"next_hop,omitempty"`

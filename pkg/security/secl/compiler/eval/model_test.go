@@ -7,12 +7,11 @@ package eval
 
 import (
 	"container/list"
+	"fmt"
 	"net"
 	"reflect"
 	"syscall"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 var legacyFields = map[Field]Field{
@@ -144,18 +143,15 @@ func (m *testModel) NewEvent() Event {
 
 func (m *testModel) ValidateField(key string, value FieldValue) error {
 	switch key {
-
 	case "process.uid":
-
 		uid, ok := value.Value.(int)
 		if !ok {
-			return errors.New("invalid type for process.ui")
+			return fmt.Errorf("invalid type for process.ui: %v", reflect.TypeOf(value.Value))
 		}
 
 		if uid < 0 {
-			return errors.New("process.uid cannot be negative")
+			return fmt.Errorf("process.uid cannot be negative: %d", uid)
 		}
-
 	}
 
 	return nil
@@ -400,23 +396,23 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orNameValues()
 						},
 					}
 
-					return StringValuesContains(a, &evaluator, opts, state)
+					return StringValuesContains(a, &evaluator, state)
 				},
-				StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+				StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orNameValues()
 						},
 					}
 
-					return StringValuesContains(a, &evaluator, opts, state)
+					return StringValuesContains(a, &evaluator, state)
 				},
 			},
 		}, nil
@@ -435,23 +431,23 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orArrayValues()
 						},
 					}
 
-					return StringArrayMatches(b, &evaluator, opts, state)
+					return StringArrayMatches(b, &evaluator, state)
 				},
-				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return (*testEvent)(ctx.Object).process.orArrayValues()
 						},
 					}
 
-					return StringArrayMatches(a, &evaluator, opts, state)
+					return StringArrayMatches(a, &evaluator, state)
 				},
 			},
 		}, nil
@@ -494,6 +490,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	return nil, &ErrFieldNotFound{Field: field}
 }
+
+func (e *testEvent) Init() {}
 
 func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	switch field {

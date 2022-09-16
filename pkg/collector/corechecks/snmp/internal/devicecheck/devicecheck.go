@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -38,9 +38,10 @@ const (
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config  *checkconfig.CheckConfig
-	sender  *report.MetricSender
-	session session.Session
+	config           *checkconfig.CheckConfig
+	sender           *report.MetricSender
+	session          session.Session
+	savedDynamicTags []string
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -77,7 +78,7 @@ func (d *DeviceCheck) GetIDTags() []string {
 func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 	if d.config.UseDeviceIDAsHostname {
 		hostname := deviceHostnamePrefix + d.config.DeviceID
-		normalizedHostname, err := util.NormalizeHost(hostname)
+		normalizedHostname, err := validate.NormalizeHost(hostname)
 		if err != nil {
 			return "", err
 		}
@@ -94,10 +95,15 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
-	deviceReachable, tags, values, checkErr := d.getValuesAndTags(staticTags)
+
+	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
+	tags := common.CopyStrings(staticTags)
 	if checkErr != nil {
+		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
+		d.savedDynamicTags = dynamicTags
+		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
 	}
 	if values != nil {
@@ -135,10 +141,10 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
 
-func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *valuestore.ResultValueStore, error) {
+func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
 	var deviceReachable bool
 	var checkErrors []string
-	tags := common.CopyStrings(staticTags)
+	var tags []string
 
 	// Create connection
 	connErr := d.session.Connect()

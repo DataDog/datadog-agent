@@ -92,6 +92,11 @@ type Payload struct {
 	RequestID          string         `json:"requestId"`
 }
 
+// FlushableAgent allows flushing
+type FlushableAgent interface {
+	Flush()
+}
+
 // ReportInitError reports an init error to the environment.
 func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 	var err error
@@ -121,6 +126,7 @@ func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 		return fmt.Errorf("ReportInitError: while POST init error route: %s", err)
 	}
 
+	defer response.Body.Close()
 	if response.StatusCode >= 300 {
 		return fmt.Errorf("ReportInitError: received an HTTP %s", response.Status)
 	}

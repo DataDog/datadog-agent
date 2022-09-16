@@ -9,20 +9,31 @@ update every 5 minutes (see `inventories_min_interval`).
 
 # Content
 
-The package offers 3 methods to add data to the payload: `SetAgentMetadata`, `SetHostMetadata` and `SetCheckMetadata`.
+The current payload contains 3 sections `check_metadata`, `agent_metadata`, and `host_metadata`.
+Those are not guaranteed to be sent in one payload. If the final serialized payload is to big, each section is sent in a
+different payload with `hostname` and `timestamp` always present. This is why some field are duplicated between section,
+like `agent_version`.
+
+The package offers 3 methods to the agent codebase to add data to the payload: `SetAgentMetadata`, `SetHostMetadata` and
+`SetCheckMetadata`.
 As the name suggests, checks use `SetCheckMetadata` and each metadata is linked to a check ID. Everything agent-related
-uses `SetAgentMetadata` and for host metadata `SetHostMetadata` is used.
+uses `SetAgentMetadata` and for host metadata `SetHostMetadata` is used. Any part of the Agent can add metadata to the
+inventory payload.
 
-Any part of the agent can add metadata to the inventory payload.
+## Agent Configuration
 
-The current payload contains 3 sections `check_metadata`, `agent_metadata` and `host_metadata`. Those are not guaranteed
-to be sent in one payload. For now they are but each will be sent in it's own payload at some point. The `hostname` and
-`timestamp` field will always be present. This is why some field are duplicated like `agent_version`.
+`agent_metadata.full_configuration` and `agent_metadata.provided_configuration` are scrubbed from any sensitive
+information (same logic than for the flare).
+
+Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 
 ## Check metadata
 
 `SetCheckMetadata` registers data per check instance. Metadata can include the check version, the version of the
 monitored software, ... It depends on each check.
+
+For every running check, no matter if it registered extra metadata or not, we send: name, ID, configuration,
+configuration provider. Sending checks configuration can be disabled using `inventories_checks_configuration_enabled`.
 
 ## Agent metadata
 
@@ -42,16 +53,17 @@ The payload is a JSON dict with the following fields
 - `check_metadata` - **dict of string to list**: dictionary with check names as keys; values are a list of the metadata for each
   instance of that check.
   Each instance is composed of:
-    - `last_updated` - **int**: timestamp of the last metadata update for this instance
     - `config.hash` - **string**: the instance ID for this instance (as shown in the status page).
     - `config.provider` - **string**: where the configuration came from for this instance (disk, docker labels, ...).
+    - `init_config` - **string**: the `init_config` part of the configuration for this check instance.
+    - `instance_config` - **string**: the YAML configuration for this check instance
     - Any other metadata registered by the instance (instance version, version of the software monitored, ...).
 <!-- NOTE: when modifying this list, please also update the constants in `inventories.go` -->
 - `agent_metadata` - **dict of string to JSON type**:
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent (omitted if no cloud is
     detected). Deprecated since `7.38.0`, for now this is duplicated in the `host_metadata` section and will soon be
     remove from `agent_metadata`.
-  - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname.go:GetHostnameData).
+  - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
@@ -81,11 +93,18 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-proble.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-proble.yaml`).
+  - `feature_networks_http_https_via_etw_enabled` - **bool**: True if HTTP or HTTPS monitoring on Windows via Event Tracing for Windows (ETW) is enabled for Network Performance Monitoring (see: `network_config.enable_http_https_via_etw_monitoring` config option in `system-proble.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
+  - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
+    string.
+  - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
+    string. This includes the settings configured by the user (throuh the configuration file, the environment or CLI),
+    as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
+    agent itself based on the load).
 - `host_metadata` - **dict of string to JSON type**:
   - `cpu_cores` - **int**: the number of core for the host.
   - `cpu_logical_processors` - **int**:  the number of logical core for the host.
@@ -147,69 +166,72 @@ Here an example of an inventory payload:
         "install_method_tool": "undefined",
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
+        "full_configuration": "<entire yaml configuration for the agent>",
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false"
     }
     "check_metadata": {
         "cpu": [
-           {
-               "config.hash": "cpu",
-               "config.provider": "file",
-               "last_updated": 1631281744506400319
-           }
+            {
+                "config.hash": "cpu",
+                "config.provider": "file",
+                "init_config": "",
+                "instance_config: {}
+            }
         ],
         "disk": [
             {
                 "config.hash": "disk:e5dffb8bef24336f",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "init_config": "",
+                "instance_config: {}
             }
         ],
         "file_handle": [
             {
                 "config.hash": "file_handle",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "init_config": "",
+                "instance_config: {}
             }
         ],
         "io": [
             {
                 "config.hash": "io",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "init_config": "",
+                "instance_config: {}
             }
         ],
         "load": [
             {
                 "config.hash": "load",
                 "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "init_config": "",
+                "instance_config: {}
             }
         ],
-        "memory": [
+        "redisdb": [
             {
-                "config.hash": "memory",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
-            }
-        ],
-        "network": [
+                "config.hash": "redisdb:6e5e79e5b724c83a",
+                "config.provider": "container",
+                "init_config": "test: 21",
+                "instance_config": "host: localhost\nport: 6379\ntags:\n- docker_image:redis\n- image_name:redis\n- short_image:redis",
+                "version.major": "7",
+                "version.minor": "0",
+                "version.patch": "2",
+                "version.raw": "7.0.2",
+                "version.scheme": "semver"
+            },
             {
-                "config.hash": "network:d884b5186b651429",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
-            }
-        ],
-        "ntp": [
-            {
-                "config.hash": "ntp:d884b5186b651429",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
-            }
-        ],
-        "uptime": [
-            {
-                "config.hash": "uptime",
-                "config.provider": "file",
-                "last_updated": 1631281744506400319
+                "config.hash": "redisdb:c776ecdbdded09b8",
+                "config.provider": "container",
+                "init_config": "test: 21",
+                "instance_config": "host: localhost\nport: 7379\ntags:\n- docker_image:redis\n- image_name:redis\n- short_image:redis",
+                "version.major": "7",
+                "version.minor": "0",
+                "version.patch": "2",
+                "version.raw": "7.0.2",
+                "version.scheme": "semver"
             }
         ]
     },

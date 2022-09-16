@@ -14,7 +14,11 @@
 
 package translator
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+)
 
 type translatorConfig struct {
 	// metrics export behavior
@@ -25,7 +29,7 @@ type translatorConfig struct {
 	ResourceAttributesAsTags bool
 	// Deprecated: use InstrumentationScopeMetadataAsTags instead in favor of
 	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-	// Both must not be set at the same time.
+	// Both must not be enabled at the same time.
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 
@@ -35,7 +39,7 @@ type translatorConfig struct {
 
 	// hostname provider configuration
 	previewHostnameFromAttributes bool
-	fallbackHostnameProvider      HostnameProvider
+	fallbackSourceProvider        source.Provider
 }
 
 // Option is a translator creation option.
@@ -57,11 +61,11 @@ func WithDeltaTTL(deltaTTL int64) Option {
 	}
 }
 
-// WithFallbackHostnameProvider sets the fallback hostname provider.
+// WithFallbackSourceProvider sets the fallback source provider.
 // By default, an empty hostname is used as a fallback.
-func WithFallbackHostnameProvider(provider HostnameProvider) Option {
+func WithFallbackSourceProvider(provider source.Provider) Option {
 	return func(t *translatorConfig) error {
-		t.fallbackHostnameProvider = provider
+		t.fallbackSourceProvider = provider
 		return nil
 	}
 }
