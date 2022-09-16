@@ -420,6 +420,9 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+
+	// ContainerProcRoot is the root dir for `proc` info
+	ContainerProcRoot string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
