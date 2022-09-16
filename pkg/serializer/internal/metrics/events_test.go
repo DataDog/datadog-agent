@@ -331,7 +331,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 		b.ResetTimer()
 
 		for n := 0; n < b.N; n++ {
-			payloadBuilder.Build(events.CreateSingleMarshaler())
+			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
 		}
 	})
 }
@@ -345,7 +345,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 
 		for n := 0; n < b.N; n++ {
 			for _, m := range events.CreateMarshalersBySourceType() {
-				payloadBuilder.Build(m)
+				stream.BuildJSONPayload(payloadBuilder, m)
 			}
 		}
 	})
@@ -370,9 +370,9 @@ func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			// As CreateMarshalersBySourceType is called only after CreateSingleMarshaler,
 			// we also call CreateSingleMarshaler in this benchmark.
-			payloadBuilder.Build(events.CreateSingleMarshaler())
+			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
 			for _, m := range events.CreateMarshalersBySourceType() {
-				payloadBuilder.Build(m)
+				stream.BuildJSONPayload(payloadBuilder, m)
 			}
 		}
 	})
