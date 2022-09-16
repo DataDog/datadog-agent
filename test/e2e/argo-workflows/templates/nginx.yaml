@@ -132,7 +132,9 @@ spec:
                   selector:
                     matchLabels:
                         kube_container_name: nginx
-                targetAverageValue: 9
+                target:
+                  type: AverageValue
+                  averageValue: 9
 
     - name: delete-service
       inputs:
