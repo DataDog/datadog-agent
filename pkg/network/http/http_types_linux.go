@@ -15,10 +15,9 @@ type httpConnTuple struct {
 	Metadata uint32
 }
 type httpBatchState struct {
-	Scratch_tx    ebpfHttpTx
-	Idx           uint64
-	Pos           uint8
-	Idx_to_notify uint64
+	Idx      uint64
+	Pos      uint8
+	To_flush uint64
 }
 type sslSock struct {
 	Tup       httpConnTuple
@@ -41,10 +40,6 @@ type ebpfHttpTx struct {
 	Tcp_seq              uint32
 	Tags                 uint64
 }
-type httpNotification struct {
-	Cpu uint32
-	Idx uint64
-}
 type httpBatch struct {
 	Idx uint64
 	Pos uint8
@@ -63,7 +58,7 @@ type libPath struct {
 
 const (
 	HTTPBatchSize  = 0xf
-	HTTPBatchPages = 0xf
+	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
 
 	httpProg = 0x0

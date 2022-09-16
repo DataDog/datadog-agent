@@ -99,6 +99,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
+	cfg.ContainerProcRoot = coreconfig.Datadog.GetString("container_proc_root")
 	return cfg, nil
 }
 

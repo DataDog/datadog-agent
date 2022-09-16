@@ -8,7 +8,6 @@ package event
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -67,25 +66,24 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		}
 
 		numExtracted++
-		if _, ok := traceutil.GetMetric(span, sampler.KeySpanSamplingMechanism); !ok {
-			sampled, epsRate := p.maxEPSSample(span, priority)
-			if !sampled {
-				continue
-			}
-			// event analytics tags shouldn't be set on sampled single spans
-			sampler.SetMaxEPSRate(span, epsRate)
-			sampler.SetClientRate(span, clientSampleRate)
-			sampler.SetPreSampleRate(span, preSampleRate)
-			sampler.SetEventExtractionRate(span, extractionRate)
-			sampler.SetAnalyzedSpan(span)
+
+		sampled, epsRate := p.maxEPSSample(span, priority)
+		if !sampled {
+			continue
 		}
+		// event analytics tags shouldn't be set on sampled single spans
+		sampler.SetMaxEPSRate(span, epsRate)
+		sampler.SetClientRate(span, clientSampleRate)
+		sampler.SetPreSampleRate(span, preSampleRate)
+		sampler.SetEventExtractionRate(span, extractionRate)
+		sampler.SetAnalyzedSpan(span)
 		if t.DroppedTrace {
 			events = append(events, span)
 		}
 		numEvents++
 	}
 	if t.DroppedTrace {
-		// we are not keeping anything out of this trace, except the events and sampled single spans
+		// we are not keeping anything out of this trace, except the events
 		t.Spans = events
 	}
 	return numEvents, numExtracted
