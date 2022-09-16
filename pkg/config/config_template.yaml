@@ -3175,7 +3175,7 @@ api_key:
     ## @param enabled - boolean - optional - default: false
     ## Set to true to enable collection of NetFlow traffic.
     #
-    # enabled: true
+    # enabled: false
 
     ## @param listeners - custom object - optional
     ## This section configures one or more listeners ports that will receive flow traffic.
