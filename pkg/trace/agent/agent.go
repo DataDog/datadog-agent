@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"runtime"
 	"time"
 
@@ -54,6 +55,7 @@ type Agent struct {
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
+	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -107,6 +109,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler)
 	return agnt
 }
 
@@ -121,6 +124,7 @@ func (a *Agent) Run() {
 		a.NoPrioritySampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
+		a.RemoteConfigHandler,
 	} {
 		starter.Start()
 	}

@@ -132,17 +132,6 @@ func (r *RemoteRates) updateTPS(tpsTargets map[Signature]apmsampling.TargetTPS) 
 	r.mu.Unlock()
 }
 
-// Start runs and adjust rates per signature following remote TPS targets
-func (r *RemoteRates) Start() {
-	r.client.Start()
-	r.client.RegisterAPMUpdate(r.onUpdate)
-}
-
-// Stop stops RemoteRates main loop
-func (r *RemoteRates) Stop() {
-	r.client.Close()
-}
-
 func (r *RemoteRates) getSampler(sig Signature) (*remoteSampler, bool) {
 	r.mu.RLock()
 	s, ok := r.samplers[sig]
