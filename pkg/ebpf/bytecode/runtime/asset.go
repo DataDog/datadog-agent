@@ -48,7 +48,9 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 	a.tm.compilationEnabled = true
 	defer func() {
 		a.tm.compilationDuration = time.Since(start)
-		a.tm.SubmitTelemetry(a.filename, client)
+		if client != nil {
+			a.tm.SubmitTelemetry(a.filename, client)
+		}
 	}()
 
 	kernelHeaders, fetchResult, err := kernel.GetKernelHeaders(config.EnableKernelHeaderDownload, config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
