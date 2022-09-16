@@ -86,6 +86,10 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 	if err != nil {
 		return err
 	}
+
+	// Disabling HTTP2
+	server.GenericAPIServer.SecureServingInfo.DisableHTTP2 = true
+
 	// TODO Add extra logic to only tear down the External Metrics Server if only some components fail.
 	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }

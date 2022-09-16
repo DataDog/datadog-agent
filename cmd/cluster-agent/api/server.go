@@ -97,6 +97,8 @@ func StartServer() error {
 	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
 
 	srv := &http.Server{
+		// Disable HTTP2 by setting TLSNextProto explicitly
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 		Handler:      router,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,

@@ -93,6 +93,8 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 				return cert, nil
 			},
 		},
+		// Disable HTTP2 by setting TLSNextProto explicitly
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 	}
 	go func() error {
 		return log.Error(server.ListenAndServeTLS("", ""))
