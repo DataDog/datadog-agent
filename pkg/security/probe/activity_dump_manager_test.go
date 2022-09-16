@@ -190,7 +190,8 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adm := &ActivityDumpManager{
-				activeDumps: tt.fields.activeDumps,
+				activeDumps:        tt.fields.activeDumps,
+				ignoreFromSnapshot: make(map[string]bool),
 			}
 
 			compareListOfDumps(t, adm.getExpiredDumps(), tt.expiredDumps)
@@ -354,6 +355,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 						ActivityDumpMaxDumpSize: 2048,
 					},
 				},
+				ignoreFromSnapshot: make(map[string]bool),
 			}
 
 			compareListOfDumps(t, adm.getOverweightDumps(), tt.overweightDumps)
