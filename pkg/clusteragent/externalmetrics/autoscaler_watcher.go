@@ -100,10 +100,10 @@ func NewAutoscalerWatcher(
 			genericInformerFactory, err := informer.ForResource(hpaGVR)
 			if err != nil {
 				log.Errorf("error creating generic informer: %s", err)
+			} else {
+				autoscalerLister = genericInformerFactory.Lister()
+				autoscalerListerSynced = genericInformerFactory.Informer().HasSynced
 			}
-
-			autoscalerLister = genericInformerFactory.Lister()
-			autoscalerListerSynced = genericInformerFactory.Informer().HasSynced
 		}
 
 	}
