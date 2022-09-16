@@ -49,8 +49,8 @@ func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentS
 	}
 }
 
-func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, name string, image string, ns string) bool {
-	return l.filters.IsExcluded(ft, name, image, ns)
+func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, name, image, ns string, annotation, label map[string]string) bool {
+	return l.filters.IsExcluded(ft, name, image, ns, annotation, label)
 }
 
 func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wlmListenerSvc) {
