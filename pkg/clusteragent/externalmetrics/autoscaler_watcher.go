@@ -95,16 +95,16 @@ func NewAutoscalerWatcher(
 	if informer != nil {
 		hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(client)
 		if err != nil {
-			log.Errorf("unable to discover HPA GroupVersionResource: %s", err)
-		} else {
-			genericInformerFactory, err := informer.ForResource(hpaGVR)
-			if err != nil {
-				log.Errorf("error creating generic informer: %s", err)
-			} else {
-				autoscalerLister = genericInformerFactory.Lister()
-				autoscalerListerSynced = genericInformerFactory.Informer().HasSynced
-			}
+			return nil, fmt.Errorf("unable to discover HPA GroupVersionResource: %s", err)
 		}
+
+		genericInformerFactory, err := informer.ForResource(hpaGVR)
+		if err != nil {
+			return nil, fmt.Errorf("error creating generic informer: %s", err)
+		}
+
+		autoscalerLister = genericInformerFactory.Lister()
+		autoscalerListerSynced = genericInformerFactory.Informer().HasSynced
 
 	}
 
