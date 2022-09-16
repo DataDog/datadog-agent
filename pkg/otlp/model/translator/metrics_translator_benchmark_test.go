@@ -52,9 +52,9 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutString(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -66,7 +66,7 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 		// IntGauge
 		met := metricsArray.AppendEmpty()
 		met.SetName(fmt.Sprintf("int.gauge.%d", i))
-		met.SetDataType(pmetric.MetricDataTypeGauge)
+		met.SetEmptyGauge()
 		dpsInt := met.Gauge().DataPoints()
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetTimestamp(seconds(0))
@@ -84,9 +84,9 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 	rm := rms.AppendEmpty()
 
 	resourceAttrs := rm.Resource().Attributes()
-	resourceAttrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	resourceAttrs.PutString(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		resourceAttrs.InsertString(attr, val)
+		resourceAttrs.PutString(attr, val)
 	}
 
 	ilms := rm.ScopeMetrics()
@@ -96,7 +96,7 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 	for i := 0; i < n; i++ {
 		met := metricsArray.AppendEmpty()
 		met.SetName("expHist.test")
-		met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
+		met.SetEmptyExponentialHistogram()
 		met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 		points := met.ExponentialHistogram().DataPoints()
 		point := points.AppendEmpty()
@@ -111,13 +111,14 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 		for i := 0; i < b; i++ {
 			buckets[i] = 10
 		}
-		immutableBuckets := pcommon.NewImmutableUInt64Slice(buckets)
+		bucketsSlice := pcommon.NewUInt64Slice()
+		bucketsSlice.FromRaw(buckets)
 
 		point.Negative().SetOffset(2)
-		point.Negative().SetBucketCounts(immutableBuckets)
+		point.Negative().SetBucketCounts(bucketsSlice)
 
 		point.Positive().SetOffset(3)
-		point.Positive().SetBucketCounts(immutableBuckets)
+		point.Positive().SetBucketCounts(bucketsSlice)
 
 		point.SetTimestamp(seconds(0))
 	}
@@ -132,9 +133,9 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutString(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -145,7 +146,7 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 	for i := 0; i < n; i++ {
 		met := metricsArray.AppendEmpty()
 		met.SetName("double.delta.monotonic.sum")
-		met.SetDataType(pmetric.MetricDataTypeSum)
+		met.SetEmptySum()
 		met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 		dpsDouble := met.Sum().DataPoints()
 		dpDouble := dpsDouble.AppendEmpty()

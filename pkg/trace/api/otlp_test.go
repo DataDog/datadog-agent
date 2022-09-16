@@ -530,14 +530,14 @@ func TestOTLPReceiver(t *testing.T) {
 }
 
 var (
-	otlpTestSpanID  = pcommon.NewSpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
-	otlpTestTraceID = pcommon.NewTraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	otlpTestSpanID  = pcommon.SpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	otlpTestTraceID = pcommon.TraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 )
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64(otlpTestTraceID.Bytes()))
-		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64(otlpTestSpanID.Bytes()))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -812,8 +812,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			libname: "ddtracer",
 			libver:  "v2",
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID.Bytes(),
-				SpanID:     otlpTestSpanID.Bytes(),
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
 				TraceState: "state",
 				Name:       "/path",
 				Kind:       ptrace.SpanKindServer,
@@ -897,8 +897,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			libname: "ddtracer",
 			libver:  "v2",
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID.Bytes(),
-				SpanID:     otlpTestSpanID.Bytes(),
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
 				TraceState: "state",
 				Name:       "/path",
 				Kind:       ptrace.SpanKindServer,
@@ -1096,7 +1096,10 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		e.Attributes().Insert(k, pcommon.NewValueString(attrs[k]))
+		_, ok := e.Attributes().Get(k)
+		if !ok {
+			e.Attributes().PutString(k, attrs[k])
+		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
 	e.SetDroppedAttributesCount(dropped)

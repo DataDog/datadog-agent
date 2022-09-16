@@ -263,7 +263,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		for i := 0; i < libspans.Spans().Len(); i++ {
 			spancount++
 			span := libspans.Spans().At(i)
-			traceID := traceIDToUint64(span.TraceID().Bytes())
+			traceID := traceIDToUint64(span.TraceID())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
@@ -460,8 +460,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	traceID := in.TraceID().Bytes()
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
-		SpanID:   spanIDToUint64(in.SpanID().Bytes()),
-		ParentID: spanIDToUint64(in.ParentSpanID().Bytes()),
+		SpanID:   spanIDToUint64(in.SpanID()),
+		ParentID: spanIDToUint64(in.ParentSpanID()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
 		Meta:     make(map[string]string, len(rattr)),
@@ -498,8 +498,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
-	if in.TraceState() != ptrace.TraceStateEmpty {
-		setMetaOTLP(span, "w3c.tracestate", string(in.TraceState()))
+	if in.TraceStateStruct().AsRaw() != "" {
+		setMetaOTLP(span, "w3c.tracestate", in.TraceStateStruct().AsRaw())
 	}
 	if lib.Name() != "" {
 		setMetaOTLP(span, semconv.OtelLibraryName, lib.Name())
