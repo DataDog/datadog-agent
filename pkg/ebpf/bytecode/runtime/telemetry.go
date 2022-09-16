@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/nikos/types"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -46,14 +45,12 @@ type CompilationTelemetry struct {
 	compilationEnabled  bool
 	compilationResult   CompilationResult
 	compilationDuration time.Duration
-	headerFetchResult   kernel.HeaderFetchResult
 }
 
 func newCompilationTelemetry() CompilationTelemetry {
 	return CompilationTelemetry{
 		compilationEnabled: false,
 		compilationResult:  notAttempted,
-		headerFetchResult:  kernel.NotAttempted,
 	}
 }
 
@@ -70,11 +67,6 @@ func (tm *CompilationTelemetry) CompilationResult() int32 {
 // CompilationDurationNS returns the duration of runtime compilation
 func (tm *CompilationTelemetry) CompilationDurationNS() int64 {
 	return tm.compilationDuration.Nanoseconds()
-}
-
-// KernelHeaderFetchResult returns the result of kernel header fetching
-func (tm *CompilationTelemetry) KernelHeaderFetchResult() int32 {
-	return int32(tm.headerFetchResult)
 }
 
 // SubmitTelemetry sends telemetry using the provided statsd client
@@ -114,24 +106,6 @@ func (tm *CompilationTelemetry) SubmitTelemetry(filename string, statsdClient st
 
 		if err := statsdClient.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil {
 			log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
-		}
-	}
-
-	if tm.headerFetchResult != kernel.NotAttempted {
-		var resultTag string
-		if tm.headerFetchResult <= kernel.DownloadSuccess {
-			resultTag = "success"
-		} else {
-			resultTag = "failure"
-		}
-
-		khdTags := append(tags,
-			fmt.Sprintf("result:%s", resultTag),
-			fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(tm.headerFetchResult).String()),
-		)
-
-		if err := statsdClient.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
-			log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
 		}
 	}
 }

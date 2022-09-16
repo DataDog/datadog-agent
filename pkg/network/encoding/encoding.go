@@ -97,6 +97,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Dns = dnsFormatter.DNS()
 	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
+	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 
