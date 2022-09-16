@@ -192,7 +192,7 @@ build do
     specific_build_env.each do |lib, env|
       requirements_custom[lib] = {
         "req_lines" => Array.new,
-        "req_file_path" => static_reqs_out_folder + lib + ".in",
+        "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
       }
     end
 
@@ -211,9 +211,9 @@ build do
           if Regexp.new('^' + lib + '==').freeze.match line
             lib_req["req_lines"].push(line)
           end
-          # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
-          # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
-          requirements.push(line)
+        # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
+        # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
+        requirements.push(line)
         end
       end
     end
@@ -275,14 +275,14 @@ build do
       specific_build_env.each do |lib, env|
         command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py2.txt", :env => env
       end
-      # Then we install the rest (already installed libraries will be ignored) witht the main flags
+      # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
     else
       # First we install the dependencies that need specific flags
       specific_build_env.each do |lib, env|
         command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py2.txt", :env => env
       end
-      # Then we install the rest (already installed libraries will be ignored) witht the main flags
+      # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
 
