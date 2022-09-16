@@ -13,6 +13,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -43,7 +44,7 @@ func AndroidMain(apikey string, hostname string, tags string) {
 	config.AddOverrides(overrides)
 
 	// TODO: use an fxutil.Run(..) just like core agent
-	runcmd.StartAgent(&app.GlolbalArgs{})
+	runcmd.StartAgent(&app.GlobalArgs{})
 }
 
 func GetStatus() string {
