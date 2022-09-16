@@ -639,6 +639,10 @@ func (ccc *CCCache) readData() {
 					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
 					return
 				}
+				// skip apps without sidecars
+				if len(sidecars) == 0 {
+					continue
+				}
 				for _, sidecar := range sidecars {
 					s := sidecar
 					allSidecars = append(allSidecars, &s)
