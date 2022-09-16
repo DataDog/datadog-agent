@@ -37,6 +37,7 @@ type MacroDefinition struct {
 	Expression             string        `yaml:"expression"`
 	Description            string        `yaml:"description"`
 	AgentVersionConstraint string        `yaml:"agent_version"`
+	Filters                []string      `yaml:"filters"`
 	Values                 []string      `yaml:"values"`
 	Combine                CombinePolicy `yaml:"combine"`
 }
@@ -74,6 +75,7 @@ type RuleDefinition struct {
 	Description            string             `yaml:"description"`
 	Tags                   map[string]string  `yaml:"tags"`
 	AgentVersionConstraint string             `yaml:"agent_version"`
+	Filters                []string           `yaml:"filters"`
 	Disabled               bool               `yaml:"disabled"`
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
