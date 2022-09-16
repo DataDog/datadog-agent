@@ -28,7 +28,7 @@ func TestDogStatsDReverseProxyEndToEndUDS(t *testing.T) {
 	sock := "/tmp/com.datadoghq.datadog-agent.trace-agent.dogstatsd.test.sock"
 
 	cfg := config.New()
-	cfg.StatsdSocket = sock            // this should take precendence
+	cfg.StatsdSocket = sock            // this should take precedence
 	cfg.StatsdHost = "this is invalid" // this should get ignored
 	cfg.StatsdPort = 8080              // this should get ignored
 	receiver := newTestReceiverFromConfig(cfg)
