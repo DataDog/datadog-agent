@@ -9,6 +9,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+var _ IterableStreamJSONMarshaler = (*IterableStreamJSONMarshalerAdapter)(nil)
+
 // IterableStreamJSONMarshalerAdapter adapts an object implementing `StreamJSONMarshaler`
 // into an object implementing `IterableStreamJSONMarshaler`
 type IterableStreamJSONMarshalerAdapter struct {
@@ -51,4 +53,9 @@ func (a *IterableStreamJSONMarshalerAdapter) MoveNext() bool {
 		return false
 	}
 	return true
+}
+
+// GetCurrentItemPointCount gets the number of points in the current item
+func (a *IterableStreamJSONMarshalerAdapter) GetCurrentItemPointCount() int {
+	return 0
 }

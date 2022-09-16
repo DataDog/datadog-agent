@@ -102,7 +102,7 @@ func addTransaction(
 	unixTime int64) {
 
 	payload := make([]byte, payloadSize)
-	tr := &transaction.HTTPTransaction{Payload: &payload}
+	tr := &transaction.HTTPTransaction{Payload: transaction.NewBytesPayloadWithoutMetaData(payload)}
 	err := capacity.OnTransaction(tr, domain, time.Unix(unixTime, 0))
 	r.NoError(err)
 }
