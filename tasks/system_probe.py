@@ -863,7 +863,7 @@ def setup_runtime_clang(ctx):
 
     sudo = "sudo" if not is_root() else ""
     if not os.path.exists("/opt/datadog-agent/embedded/bin"):
-        ctx.run(f"{sudo}mkdir -p /opt/datadog-agent/embedded/bin")
+        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
 
     arch = arch_mapping.get(platform.machine())
     if arch == "x64":

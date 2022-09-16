@@ -17,6 +17,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -337,7 +338,14 @@ func (l *Collector) run(exit chan struct{}) error {
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	var checkNames []string
+	checkNamesLength := len(l.enabledChecks)
+	if !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
+		// as well as the original check name
+		checkNamesLength = checkNamesLength * 2
+	}
+
+	checkNames := make([]string, 0, checkNamesLength)
 	for _, check := range l.enabledChecks {
 		checkNames = append(checkNames, check.Name())
 
@@ -598,7 +606,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 		result := item.(*checkResult)
 		for _, payload := range result.payloads {
 			var (
-				forwarderPayload = forwarder.Payloads{&payload.body}
+				forwarderPayload = transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})
 				responses        chan forwarder.Response
 				err              error
 				updateRTStatus   = l.runRealTime

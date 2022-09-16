@@ -245,7 +245,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	icon, err := walk.NewIconFromResourceId(3)
+	// 1 is the ID of the MAIN_ICON in systray.rc
+	icon, err := walk.NewIconFromResourceId(1)
 	if err != nil {
 		log.Warnf("Failed to load icon %v", err)
 	}

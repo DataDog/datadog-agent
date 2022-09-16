@@ -58,7 +58,8 @@ func TestConfigEndpoint(t *testing.T) {
 			grpc := mockAgentSecureServer{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
 			mux := http.NewServeMux()
-			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", nil))
+			cfg := &config.AgentConfig{}
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", cfg))
 			server := httptest.NewServer(mux)
 			if tc.valid {
 				var request pbgo.ClientGetConfigsRequest
@@ -101,6 +102,7 @@ func TestTags(t *testing.T) {
 			name:                    "tracer tags only",
 			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
 			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:      "container tags only",
@@ -116,6 +118,7 @@ func TestTags(t *testing.T) {
 			name:                    "no tracer",
 			tracerReq:               `{"client":{"id":"test_client"}}`,
 			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
+			cfg:                     &config.AgentConfig{},
 		},
 	}
 	for _, tc := range tcs {

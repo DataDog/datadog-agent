@@ -131,6 +131,7 @@ shoud_send_event:
         // send an event now
         struct syscall_monitor_event_t event = {
             .syscalls = *entry,
+            .event.is_activity_dump_sample = 1, // syscall events are used only by activity dumps
         };
         struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
         fill_container_context(proc_cache_entry, &event.container);
