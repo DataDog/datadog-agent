@@ -163,10 +163,6 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"traced_cgroups": {
-			MaxEntries: uint32(tracedCgroupSize),
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
@@ -180,6 +176,14 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+
+	if tracedCgroupSize > 0 {
+		editors["traced_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: uint32(tracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	if supportMmapableMaps {
 		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
 			Flags:      unix.BPF_F_MMAPABLE,
