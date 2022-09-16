@@ -56,7 +56,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e
+	github.com/DataDog/ebpf-manager v0.0.0-20220916102325-8091ed929797
 	github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec
 	github.com/DataDog/gopsutil v1.2.1
 	github.com/DataDog/nikos v1.8.0
@@ -83,7 +83,7 @@ require (
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.9.0
+	github.com/cilium/ebpf v0.9.1
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.4
@@ -163,7 +163,7 @@ require (
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.2.0-beta.0.20220404152918-5e915e014938
-	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
+	github.com/vishvananda/netns v0.0.0-20220913150850-18c4f4234207
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.3.6
@@ -178,7 +178,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
+	golang.org/x/sys v0.0.0-20220915200043-7b5979e65e41
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	golang.org/x/tools v0.1.12
