@@ -80,5 +80,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ../otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ../quantile
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
-	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../util/cgroups //this might be wrong
+	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
 )
