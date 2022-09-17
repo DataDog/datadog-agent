@@ -221,10 +221,10 @@ def ninja_cgo_type_files(nw, windows):
         nw.rule(
             name="godefs",
             pool="cgo_pool",
-            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8';"
+            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'ascii';"
             + "(cd $in_dir);"
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path > $out_file);"
+            + "go run $script_path | Out-File -encoding ascii $out_file);"
             + "exit $$LastExitCode\"",
         )
     else:
