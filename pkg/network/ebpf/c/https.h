@@ -21,6 +21,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer((char *)http.request_fragment, buffer, len);
     http.owned_by_src_port = http.tup.sport;
+    log_debug("https_process: htx=%llx sport=%d\n", &http, http.owned_by_src_port);
     http_process(&http, NULL, tags);
 }
 

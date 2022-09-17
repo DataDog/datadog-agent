@@ -47,6 +47,7 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
     // map connection tuple during SSL_do_handshake(ctx)
     init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
     return 0;
@@ -54,6 +55,7 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
 
 SEC("kretprobe/security_sock_rcv_skb")
 int kretprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
+    log_debug("kretprobe/security_sock_rcv_skb:\n");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_flush_batch(ctx);
@@ -65,6 +67,7 @@ SEC("uprobe/SSL_do_handshake")
 int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
@@ -72,6 +75,7 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_do_handshake")
 int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/SSL_do_handshake: pid_tgid=%llx\n", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
@@ -80,6 +84,7 @@ SEC("uprobe/SSL_connect")
 int uprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
@@ -87,6 +92,7 @@ int uprobe__SSL_connect(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_connect")
 int uretprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/SSL_connect: pid_tgid=%llx\n", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
@@ -96,6 +102,7 @@ SEC("uprobe/SSL_set_fd")
 int uprobe__SSL_set_fd(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u32 socket_fd = (u32)PT_REGS_PARM2(ctx);
+    log_debug("uprobe/SSL_set_fd: ctx=%llx fd=%d\n", ssl_ctx, socket_fd);
     init_ssl_sock(ssl_ctx, socket_fd);
     return 0;
 }
@@ -104,6 +111,7 @@ SEC("uprobe/BIO_new_socket")
 int uprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
+    log_debug("uprobe/BIO_new_socket: pid_tgid=%llx fd=%d\n", pid_tgid, socket_fd);
     bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
     return 0;
 }
@@ -111,6 +119,7 @@ int uprobe__BIO_new_socket(struct pt_regs* ctx) {
 SEC("uretprobe/BIO_new_socket")
 int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/BIO_new_socket: pid_tgid=%llx\n", pid_tgid);
     u32 *socket_fd = bpf_map_lookup_elem(&bio_new_socket_args, &pid_tgid);
     if (socket_fd == NULL) {
         return 0;
@@ -131,6 +140,7 @@ SEC("uprobe/SSL_set_bio")
 int uprobe__SSL_set_bio(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     void *bio = (void *)PT_REGS_PARM2(ctx);
+    log_debug("uprobe/SSL_set_bio: ctx=%llx bio=%llx\n", ssl_ctx, bio);
     u32 *socket_fd = bpf_map_lookup_elem(&fd_by_ssl_bio, &bio);
     if (socket_fd == NULL)  {
         return 0;
@@ -146,6 +156,7 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -153,6 +164,7 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_read")
 int uretprobe__SSL_read(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/SSL_read: pid_tgid=%llx\n", pid_tgid);
     ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
     if (args == NULL) {
         return 0;
@@ -161,10 +173,16 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     void *ssl_ctx = args->ctx;
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
+        log_debug("uretprobe/SSL_read: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
         goto cleanup;
     }
 
-    u32 len = (u32)PT_REGS_RC(ctx);
+    int len = (int)PT_REGS_RC(ctx);
+    if (len <= 0) {
+        log_debug("uretprobe/SSL_read: pid_tgid=%llx ctx=%llx ret=%d\n", pid_tgid, ssl_ctx, len);
+        goto cleanup;
+    }
+
     https_process(t, args->buf, len, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
@@ -175,13 +193,14 @@ SEC("uprobe/SSL_write")
 int uprobe__SSL_write(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_write: pid_tgid=%llx ctx=%llx\n", pid_tgid, ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
         return 0;
     }
 
     void *ssl_buffer = (void *)PT_REGS_PARM2(ctx);
-    size_t len = (size_t)PT_REGS_PARM3(ctx);
+    int len = (int)PT_REGS_PARM3(ctx);
     https_process(t, ssl_buffer, len, LIBSSL);
     return 0;
 }
@@ -190,6 +209,7 @@ SEC("uprobe/SSL_shutdown")
 int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%llx\n", pid_tgid, ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
         return 0;
@@ -296,6 +316,9 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
         goto cleanup;
     }
 
+    if (read_len <= 0) {
+        goto cleanup;
+    }
     https_process(t, args->buf, read_len, LIBGNUTLS);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
