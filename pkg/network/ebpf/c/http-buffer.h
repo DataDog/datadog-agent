@@ -1,6 +1,7 @@
 #ifndef __HTTP_BUFFER_H
 #define __HTTP_BUFFER_H
 
+#include <linux/err.h>
 #include "http-types.h"
 
 // This function reads a constant number of bytes into the fragment buffer of the http
@@ -14,8 +15,8 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
         data_size = HTTP_BUFFER_SIZE - 1;
     }
 
-    // we read HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
-    if (unlikely(bpf_probe_read_user(buffer, data_size, data) < 0)) {
+    // we read at most HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
+    if (unlikely(bpf_probe_read_user(buffer, data_size, data) == -EFAULT)) {
 // note: bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
 #pragma unroll
         for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
