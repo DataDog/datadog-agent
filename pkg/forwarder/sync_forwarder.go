@@ -63,19 +63,19 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *SyncForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSeries will send timeseries to the v2 endpoint
-func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, true, extra)
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
@@ -86,78 +86,78 @@ func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) erro
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
-func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
-func (f *SyncForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
-func (f *SyncForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
-func (f *SyncForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitProcessChecks sends process checks
-func (f *SyncForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
 }
 
 // SubmitProcessDiscoveryChecks sends process discovery checks
-func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
 // SubmitProcessEventChecks sends process events checks
-func (f *SyncForwarder) SubmitProcessEventChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
-func (f *SyncForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
-func (f *SyncForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
-func (f *SyncForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
-func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }
 
 // SubmitOrchestratorManifests sends orchestrator manifests
-func (f *SyncForwarder) SubmitOrchestratorManifests(payload Payloads, extra http.Header) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
 }
 
 // SubmitContainerLifecycleEvents sends container lifecycle events
-func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload Payloads, extra http.Header) error {
+func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.defaultForwarder.SubmitContainerLifecycleEvents(payload, extra)
 }

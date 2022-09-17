@@ -982,8 +982,13 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	activatedProbes = append(activatedProbes, p.selectTCProbes())
 
 	// Add syscall monitor probes
-	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1427,7 +1432,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.config.ActivityDumpCgroupWaitListSize,
+		p.config.ActivityDumpTracedCgroupsCount,
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.config.EventStreamBufferSize),
@@ -1437,9 +1442,14 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
-		// Add syscall monitor probes
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				// Add syscall monitor probes
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
 	}
 
 	p.constantOffsets, err = p.GetOffsetConstants()

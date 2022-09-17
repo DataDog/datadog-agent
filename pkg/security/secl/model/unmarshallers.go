@@ -82,7 +82,8 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	e.Type = ByteOrder.Uint32(data[16:20])
 	e.Async = data[20] != 0
 	e.SavedByActivityDumps = data[21] != 0
-	// 22-24: padding
+	e.IsActivityDumpSample = data[22] != 0
+	// padding 1 byte
 
 	return 24, nil
 }
@@ -833,13 +834,47 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	cursor := read
 
-	if len(data)-read < 8 {
+	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
+
+	if len(data)-cursor < 4 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimeoutRaw = ByteOrder.Uint64(data[read : read+8])
-	return read + 8, nil
+	e.ConfigCookie = ByteOrder.Uint32(data[cursor : cursor+4])
+	return cursor + 4, nil
+}
+
+// EventUnmarshalBinary unmarshals a binary representation of itself
+func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 48 {
+		return 0, ErrNotEnoughData
+	}
+
+	eventMask := ByteOrder.Uint64(data[0:8])
+	for i := uint64(0); i < 64; i++ {
+		if eventMask&(1<<i) == (1 << i) {
+			adlc.TracedEventTypes = append(adlc.TracedEventTypes, EventType(i)+FirstDiscarderEventType)
+		}
+	}
+	adlc.Timeout = time.Duration(ByteOrder.Uint64(data[8:16]))
+	adlc.WaitListTimestampRaw = ByteOrder.Uint64(data[16:24])
+	adlc.StartTimestampRaw = ByteOrder.Uint64(data[24:32])
+	adlc.EndTimestampRaw = ByteOrder.Uint64(data[32:40])
+	adlc.Rate = ByteOrder.Uint32(data[40:44])
+	adlc.Paused = ByteOrder.Uint32(data[44:48])
+	return 48, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (adlc *ActivityDumpLoadConfig) UnmarshalBinary(data []byte) error {
+	_, err := adlc.EventUnmarshalBinary(data)
+	return err
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

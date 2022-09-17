@@ -743,6 +743,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
+	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -894,8 +895,17 @@ func InitConfig(config Config) {
 	// Time in seconds
 	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
+	// Controls how wildcard file log source are prioritized when there are more files
+	// that match wildcard log configurations than the `logs_config.open_files_limit`
+	//
+	// Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
+	//
+	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
+	// more disk I/O at the wildcard log paths
+	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+
 	// temporary feature flag until this becomes the only option
-	config.BindEnvAndSetDefault("logs_config.cca_in_ad", false)
+	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -1062,7 +1072,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", false)
+	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
@@ -1106,13 +1116,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 2)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_max_total_size", 100)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 3)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "bind"})
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 20)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 0)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
@@ -1120,7 +1131,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
