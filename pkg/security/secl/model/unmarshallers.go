@@ -80,12 +80,9 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 
 	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
 	e.Type = ByteOrder.Uint32(data[16:20])
-	if data[20] != 0 {
-		e.Async = true
-	} else {
-		e.Async = false
-	}
-	// 21-24: padding
+	e.Async = data[20] != 0
+	e.SavedByActivityDumps = data[21] != 0
+	// 22-24: padding
 
 	return 24, nil
 }
@@ -151,7 +148,7 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
-// UnmarshalProcEntryBinary unmarshalls Unmarshal proc_entry_t
+// UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 	const size = 160
 	if len(data) < size {
@@ -219,7 +216,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 240
+	const size = 256 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -236,6 +233,24 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	read += n
+
+	// Unmarshal linux_binprm_t
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	// TODO: Is there a better way to determine if there's no interpreter?
+	inode, mountID := ByteOrder.Uint64(data[read:read+8]), ByteOrder.Uint32(data[read+8:read+12])
+	if e.FileEvent.Inode != inode || e.FileEvent.MountID != mountID {
+		e.LinuxBinprm.FileEvent.Inode, e.LinuxBinprm.FileEvent.MountID = inode, mountID
+		e.LinuxBinprm.FileEvent.PathID = ByteOrder.Uint32(data[read+12 : read+16])
+	}
+
+	read += 16
+
+	if len(data[read:]) < 16 {
+		return 0, ErrNotEnoughData
+	}
 
 	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
 	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
@@ -287,18 +302,18 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < maxArgEnvSize+8 {
+	if len(data) < MaxArgEnvSize+8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = ByteOrder.Uint32(data[0:4])
 	e.Size = ByteOrder.Uint32(data[4:8])
-	if e.Size > maxArgEnvSize {
-		e.Size = maxArgEnvSize
+	if e.Size > MaxArgEnvSize {
+		e.Size = MaxArgEnvSize
 	}
-	SliceToArray(data[8:maxArgEnvSize+8], unsafe.Pointer(&e.ValuesRaw))
+	SliceToArray(data[8:MaxArgEnvSize+8], unsafe.Pointer(&e.ValuesRaw))
 
-	return maxArgEnvSize + 8, nil
+	return MaxArgEnvSize + 8, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

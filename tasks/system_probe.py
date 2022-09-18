@@ -63,14 +63,6 @@ def ninja_define_windows_resources(ctx, nw, major_version):
     )
 
 
-def ninja_define_cp_rule(nw):
-    nw.variable("sudo", "sudo" if not is_root() else "")
-    nw.rule(
-        name="cpobj",
-        command="$sudo cp $in $out && $sudo chown root:root $out",
-    )
-
-
 def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None):
     nw.variable("target", "-emit-llvm")
     nw.variable("ebpfflags", get_ebpf_build_flags())
@@ -86,7 +78,6 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
         name="llc",
         command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
     )
-    ninja_define_cp_rule(nw)
 
 
 def ninja_define_exe_compiler(nw):
@@ -111,11 +102,6 @@ def ninja_ebpf_program(nw, infile, outfile, variables=None):
         inputs=[f"{out_base}.bc"],
         outputs=[f"{out_base}.o"],
         rule="llc",
-    )
-    nw.build(
-        inputs=[f"{out_base}.o"],
-        outputs=[f"{EMBEDDED_SHARE_DIR}/{basename}.o"],
-        rule="cpobj",
     )
 
 
@@ -205,11 +191,6 @@ def ninja_runtime_compilation_files(nw):
             outputs=[c_file],
             implicit_outputs=[hash_file],
             rule="headerincl",
-        )
-        nw.build(
-            inputs=[c_file],
-            outputs=[f"{EMBEDDED_SHARE_DIR}/runtime/{out_filename}.c"],
-            rule="cpobj",
         )
 
 
@@ -851,6 +832,12 @@ def build_object_files(
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
     ctx.run(f"ninja -d explain -f {nf_path}")
 
+    if not windows:
+        sudo = "" if is_root() else "sudo"
+        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
+
 
 @task
 def object_files(ctx, kernel_release=None):
@@ -864,8 +851,7 @@ def clean_object_files(
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
     ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
 
-    runner = ctx.run if is_root() else ctx.sudo
-    runner(f"ninja -f {nf_path} -t clean")
+    ctx.run(f"ninja -f {nf_path} -t clean")
 
 
 # deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
@@ -874,7 +860,6 @@ def generate_runtime_files(ctx):
     nf_path = os.path.join(ctx.cwd, 'runtime-only.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_cp_rule(nw)
         ninja_runtime_compilation_files(nw)
 
     ctx.run(f"ninja -f {nf_path}")

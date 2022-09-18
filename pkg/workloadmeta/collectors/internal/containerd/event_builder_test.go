@@ -42,7 +42,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 
 	client := containerdClient(&container)
 
-	workloadMetaContainer, err := buildWorkloadMetaContainer(&container, &client)
+	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client)
 	workloadMetaContainer.Namespace = namespace
 	assert.NoError(t, err)
 
@@ -284,32 +284,32 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 	createdAt, _ := time.Parse("2006-01-02", "2021-10-11")
 
 	return fake.MockedContainerdClient{
-		MockContainerWithCtx: func(ctx context.Context, id string) (containerd.Container, error) {
+		MockContainerWithCtx: func(ctx context.Context, namespace string, id string) (containerd.Container, error) {
 			return container, nil
 		},
-		MockLabels: func(ctn containerd.Container) (map[string]string, error) {
+		MockLabels: func(namespace string, ctn containerd.Container) (map[string]string, error) {
 			return labels, nil
 		},
-		MockImage: func(ctn containerd.Container) (containerd.Image, error) {
+		MockImage: func(namespace string, ctn containerd.Container) (containerd.Image, error) {
 			return &mockedImage{
 				mockName: func() string {
 					return imgName
 				},
 			}, nil
 		},
-		MockEnvVars: func(ctn containerd.Container) (map[string]string, error) {
+		MockEnvVars: func(namespace string, ctn containerd.Container) (map[string]string, error) {
 			return envVars, nil
 		},
-		MockInfo: func(ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
 			return containers.Container{CreatedAt: createdAt}, nil
 		},
-		MockSpec: func(ctn containerd.Container) (*oci.Spec, error) {
+		MockSpec: func(namespace string, ctn containerd.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName}, nil
 		},
-		MockStatus: func(ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}

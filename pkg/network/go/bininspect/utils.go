@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
@@ -51,7 +52,14 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 // GetAllSymbolsByName returns all the elf file's symbols mapped by their name.
 func GetAllSymbolsByName(elfFile *elf.File) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := elfFile.Symbols()
+	if regularSymbolsErr != nil {
+		log.Warnf("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
+	}
+
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
+	if dynamicSymbolsErr != nil {
+		log.Warnf("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
+	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
@@ -156,7 +164,7 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 	}
 
 	if len(sectionsToSearchForSymbol) == 0 {
-		return 0, fmt.Errorf("symbol %s not found in file - no sections to search", symbol)
+		return 0, fmt.Errorf("symbol %q not found in file - no sections to search", symbol)
 	}
 
 	var executableSection *elf.Section

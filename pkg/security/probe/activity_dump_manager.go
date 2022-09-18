@@ -20,14 +20,11 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-
-	// util.GetHostname(...) will panic without this import
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -161,12 +158,12 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 		return nil, fmt.Errorf("couldn't find traced_cgroups map")
 	}
 
-	loadController, err := NewActivityDumpLoadController(p.config, p.manager)
+	loadController, err := NewActivityDumpLoadController(p.config, p.manager, p.statsdClient)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump load controller: %w", err)
 	}
-	if err := loadController.propagateLoadSettings(); err != nil {
-		return nil, fmt.Errorf("failed to propagate load settings: %w", err)
+	if err := loadController.PushCurrentConfig(); err != nil {
+		return nil, fmt.Errorf("failed to push load controller config settings to kernel space: %w", err)
 	}
 
 	storageManager, err := NewActivityDumpStorageManager(p)
@@ -523,20 +520,21 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 	defer adm.Unlock()
 
 	// we first compute the total size used by current activity dumps
-	var totalSize uint64
+	var totalSize, dumpSize uint64
 	for _, ad := range adm.activeDumps {
-		totalSize += ad.computeMemorySize()
+		dumpSize = ad.computeMemorySize()
+		totalSize += dumpSize
+
+		// look for image_name and image_tag tags
+		if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{}, 1); err != nil {
+			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
+		}
 	}
 
 	maxTotalADSize := adm.probe.config.ActivityDumpLoadControlMaxTotalSize * (1 << 20)
 	if totalSize > uint64(maxTotalADSize) {
-		// we may be rate limited
-		success := adm.loadController.reduceConfig()
-
-		if success {
-			if err := adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, nil, 1.0); err != nil {
-				seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
-			}
+		if err := adm.loadController.reduceConfig(); err != nil {
+			seclog.Errorf("configuration reduction failed: %v", err)
 		}
 	}
 }

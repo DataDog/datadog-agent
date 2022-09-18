@@ -120,6 +120,19 @@ func Test_injectEnv(t *testing.T) {
 			},
 			injected: true,
 		},
+		{
+			name: "init containers",
+			args: args{
+				pod: fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container")),
+				env: fakeEnv("inject-me"),
+			},
+			wantPodFunc: func() corev1.Pod {
+				pod := fakePodWithInitContainer("foo-pod", fakeContainer("foo-init-container"))
+				pod.Spec.InitContainers[0].Env = append([]corev1.EnvVar{fakeEnv("inject-me")}, pod.Spec.InitContainers[0].Env...)
+				return *pod
+			},
+			injected: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -157,11 +170,47 @@ func Test_injectVolume(t *testing.T) {
 		{
 			name: "volume exists",
 			args: args{
-				pod:         fakePodWithVolume("podfoo", "volumefoo"),
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
 				volume:      corev1.Volume{Name: "volumefoo"},
 				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
 			},
 			injected: false,
+		},
+		{
+			name: "volume mount exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: false,
+		},
+		{
+			name: "mount path exists in one container",
+			args: args{
+				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "second-container"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+			},
+			injected: true,
+		},
+		{
+			name: "mount path exists",
+			args: args{
+				pod:         fakePodWithVolume("podfoo", "volumefoo", "/foo"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "differentName", MountPath: "/foo"},
+			},
+			injected: false,
+		},
+		{
+			name: "mount path exists in one container",
+			args: args{
+				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "-second-container"),
+				volume:      corev1.Volume{Name: "differentName"},
+				volumeMount: corev1.VolumeMount{Name: "differentName", MountPath: "/foo"},
+			},
+			injected: true,
 		},
 	}
 	for _, tt := range tests {

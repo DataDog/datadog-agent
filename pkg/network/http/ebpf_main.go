@@ -16,6 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -173,6 +174,11 @@ func (e *ebpfProgram) Init() error {
 	}
 	e.Manager.DumpHandler = dumpMapsHandler
 
+	onlineCPUs, err := cpupossible.Get()
+	if err != nil {
+		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -182,6 +188,11 @@ func (e *ebpfProgram) Init() error {
 			httpInFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			httpBatchesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
@@ -225,7 +236,7 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err := e.InitWithOptions(e.bytecode, options)
+	err = e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -266,8 +277,8 @@ func (e *ebpfProgram) setupMapCleaner() {
 		return
 	}
 
-	ttl := maxRequestLinger.Nanoseconds()
-	httpMapCleaner.Clean(5*time.Minute, func(now int64, key, val interface{}) bool {
+	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
 		httpTX, ok := val.(*httpTX)
 		if !ok {
 			return false

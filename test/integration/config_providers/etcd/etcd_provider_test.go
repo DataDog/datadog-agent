@@ -45,6 +45,8 @@ func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
+	config.DetectFeatures()
+
 	suite.compose = &utils.ComposeConf{
 		ProjectName: "etcd",
 		FilePath:    "testdata/etcd.compose",

@@ -403,7 +403,10 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	}
 
 	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
-	_ = configresolver.SubstituteTemplateEnvVars(&conf)
+	e := configresolver.SubstituteTemplateEnvVars(&conf)
+	if e != nil {
+		log.Errorf("Failed to substitute template var %s", e)
+	}
 
 	conf.Source = "file:" + fpath
 

@@ -53,7 +53,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 
 	batch := testDemuxSamples(t)
 
-	demux.AddLateMetrics(batch)
+	demux.SendSamplesWithoutAggregation(batch)
 	require.Len(demux.statsd.workers[0].samplesChan, 1)
 	read := <-demux.statsd.workers[0].samplesChan
 	require.Len(read, 3)
@@ -75,7 +75,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	batch := testDemuxSamples(t)
 
-	demux.AddLateMetrics(batch)
+	demux.SendSamplesWithoutAggregation(batch)
 	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
 	demux.Stop(true)
 

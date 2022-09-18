@@ -456,18 +456,17 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := in.TraceID().Bytes()
-	meta := make(map[string]string, len(rattr))
-	for k, v := range rattr {
-		meta[k] = v
-	}
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
 		SpanID:   spanIDToUint64(in.SpanID().Bytes()),
 		ParentID: spanIDToUint64(in.ParentSpanID().Bytes()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
-		Meta:     meta,
+		Meta:     make(map[string]string, len(rattr)),
 		Metrics:  map[string]float64{},
+	}
+	for k, v := range rattr {
+		setMetaOTLP(span, k, v)
 	}
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
 	if _, ok := span.Meta["version"]; !ok {
@@ -528,8 +527,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if span.Service == "" {
 		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-			span.Service = svc
-		} else if svc := rattr[string(semconv.AttributeServiceName)]; svc != "" {
 			span.Service = svc
 		} else {
 			span.Service = "OTLPResourceNoServiceName"

@@ -220,6 +220,22 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `process.ancestors.gid` | int | GID of the process |  |
 | `process.ancestors.group` | string | Group of the process |  |
+| `process.ancestors.interpreter.file.change_time` | int | Change time of the file |  |
+| `process.ancestors.interpreter.file.filesystem` | string | File's filesystem |  |
+| `process.ancestors.interpreter.file.gid` | int | GID of the file's owner |  |
+| `process.ancestors.interpreter.file.group` | string | Group of the file's owner |  |
+| `process.ancestors.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `process.ancestors.interpreter.file.inode` | int | Inode of the file |  |
+| `process.ancestors.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `process.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `process.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `process.ancestors.interpreter.file.name` | string | File's basename |  |
+| `process.ancestors.interpreter.file.name.length` | int | Length of 'process.ancestors.interpreter.file.name' string |  |
+| `process.ancestors.interpreter.file.path` | string | File's path |  |
+| `process.ancestors.interpreter.file.path.length` | int | Length of 'process.ancestors.interpreter.file.path' string |  |
+| `process.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `process.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
+| `process.ancestors.interpreter.file.user` | string | User of the file's owner |  |
 | `process.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -269,6 +285,22 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.fsuser` | string | FileSystem-user of the process |  |
 | `process.gid` | int | GID of the process |  |
 | `process.group` | string | Group of the process |  |
+| `process.interpreter.file.change_time` | int | Change time of the file |  |
+| `process.interpreter.file.filesystem` | string | File's filesystem |  |
+| `process.interpreter.file.gid` | int | GID of the file's owner |  |
+| `process.interpreter.file.group` | string | Group of the file's owner |  |
+| `process.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `process.interpreter.file.inode` | int | Inode of the file |  |
+| `process.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `process.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `process.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `process.interpreter.file.name` | string | File's basename |  |
+| `process.interpreter.file.name.length` | int | Length of 'process.interpreter.file.name' string |  |
+| `process.interpreter.file.path` | string | File's path |  |
+| `process.interpreter.file.path.length` | int | Length of 'process.interpreter.file.path' string |  |
+| `process.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `process.interpreter.file.uid` | int | UID of the file's owner |  |
+| `process.interpreter.file.user` | string | User of the file's owner |  |
 | `process.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -430,6 +462,22 @@ A process was executed or forked
 | `exec.fsuser` | string | FileSystem-user of the process |  |
 | `exec.gid` | int | GID of the process |  |
 | `exec.group` | string | Group of the process |  |
+| `exec.interpreter.file.change_time` | int | Change time of the file |  |
+| `exec.interpreter.file.filesystem` | string | File's filesystem |  |
+| `exec.interpreter.file.gid` | int | GID of the file's owner |  |
+| `exec.interpreter.file.group` | string | Group of the file's owner |  |
+| `exec.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `exec.interpreter.file.inode` | int | Inode of the file |  |
+| `exec.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `exec.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `exec.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `exec.interpreter.file.name` | string | File's basename |  |
+| `exec.interpreter.file.name.length` | int | Length of 'exec.interpreter.file.name' string |  |
+| `exec.interpreter.file.path` | string | File's path |  |
+| `exec.interpreter.file.path.length` | int | Length of 'exec.interpreter.file.path' string |  |
+| `exec.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `exec.interpreter.file.uid` | int | UID of the file's owner |  |
+| `exec.interpreter.file.user` | string | User of the file's owner |  |
 | `exec.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exec.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -488,6 +536,22 @@ A process was terminated
 | `exit.fsuser` | string | FileSystem-user of the process |  |
 | `exit.gid` | int | GID of the process |  |
 | `exit.group` | string | Group of the process |  |
+| `exit.interpreter.file.change_time` | int | Change time of the file |  |
+| `exit.interpreter.file.filesystem` | string | File's filesystem |  |
+| `exit.interpreter.file.gid` | int | GID of the file's owner |  |
+| `exit.interpreter.file.group` | string | Group of the file's owner |  |
+| `exit.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `exit.interpreter.file.inode` | int | Inode of the file |  |
+| `exit.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `exit.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `exit.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `exit.interpreter.file.name` | string | File's basename |  |
+| `exit.interpreter.file.name.length` | int | Length of 'exit.interpreter.file.name' string |  |
+| `exit.interpreter.file.path` | string | File's path |  |
+| `exit.interpreter.file.path.length` | int | Length of 'exit.interpreter.file.path' string |  |
+| `exit.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `exit.interpreter.file.uid` | int | UID of the file's owner |  |
+| `exit.interpreter.file.user` | string | User of the file's owner |  |
 | `exit.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `exit.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exit.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -700,6 +764,22 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `ptrace.tracee.ancestors.gid` | int | GID of the process |  |
 | `ptrace.tracee.ancestors.group` | string | Group of the process |  |
+| `ptrace.tracee.ancestors.interpreter.file.change_time` | int | Change time of the file |  |
+| `ptrace.tracee.ancestors.interpreter.file.filesystem` | string | File's filesystem |  |
+| `ptrace.tracee.ancestors.interpreter.file.gid` | int | GID of the file's owner |  |
+| `ptrace.tracee.ancestors.interpreter.file.group` | string | Group of the file's owner |  |
+| `ptrace.tracee.ancestors.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `ptrace.tracee.ancestors.interpreter.file.inode` | int | Inode of the file |  |
+| `ptrace.tracee.ancestors.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `ptrace.tracee.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `ptrace.tracee.ancestors.interpreter.file.name` | string | File's basename |  |
+| `ptrace.tracee.ancestors.interpreter.file.name.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.name' string |  |
+| `ptrace.tracee.ancestors.interpreter.file.path` | string | File's path |  |
+| `ptrace.tracee.ancestors.interpreter.file.path.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.path' string |  |
+| `ptrace.tracee.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
+| `ptrace.tracee.ancestors.interpreter.file.user` | string | User of the file's owner |  |
 | `ptrace.tracee.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -749,6 +829,22 @@ A ptrace command was executed
 | `ptrace.tracee.fsuser` | string | FileSystem-user of the process |  |
 | `ptrace.tracee.gid` | int | GID of the process |  |
 | `ptrace.tracee.group` | string | Group of the process |  |
+| `ptrace.tracee.interpreter.file.change_time` | int | Change time of the file |  |
+| `ptrace.tracee.interpreter.file.filesystem` | string | File's filesystem |  |
+| `ptrace.tracee.interpreter.file.gid` | int | GID of the file's owner |  |
+| `ptrace.tracee.interpreter.file.group` | string | Group of the file's owner |  |
+| `ptrace.tracee.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `ptrace.tracee.interpreter.file.inode` | int | Inode of the file |  |
+| `ptrace.tracee.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `ptrace.tracee.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `ptrace.tracee.interpreter.file.name` | string | File's basename |  |
+| `ptrace.tracee.interpreter.file.name.length` | int | Length of 'ptrace.tracee.interpreter.file.name' string |  |
+| `ptrace.tracee.interpreter.file.path` | string | File's path |  |
+| `ptrace.tracee.interpreter.file.path.length` | int | Length of 'ptrace.tracee.interpreter.file.path' string |  |
+| `ptrace.tracee.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.interpreter.file.uid` | int | UID of the file's owner |  |
+| `ptrace.tracee.interpreter.file.user` | string | User of the file's owner |  |
 | `ptrace.tracee.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -960,6 +1056,22 @@ A signal was sent
 | `signal.target.ancestors.fsuser` | string | FileSystem-user of the process |  |
 | `signal.target.ancestors.gid` | int | GID of the process |  |
 | `signal.target.ancestors.group` | string | Group of the process |  |
+| `signal.target.ancestors.interpreter.file.change_time` | int | Change time of the file |  |
+| `signal.target.ancestors.interpreter.file.filesystem` | string | File's filesystem |  |
+| `signal.target.ancestors.interpreter.file.gid` | int | GID of the file's owner |  |
+| `signal.target.ancestors.interpreter.file.group` | string | Group of the file's owner |  |
+| `signal.target.ancestors.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `signal.target.ancestors.interpreter.file.inode` | int | Inode of the file |  |
+| `signal.target.ancestors.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.ancestors.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `signal.target.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `signal.target.ancestors.interpreter.file.name` | string | File's basename |  |
+| `signal.target.ancestors.interpreter.file.name.length` | int | Length of 'signal.target.ancestors.interpreter.file.name' string |  |
+| `signal.target.ancestors.interpreter.file.path` | string | File's path |  |
+| `signal.target.ancestors.interpreter.file.path.length` | int | Length of 'signal.target.ancestors.interpreter.file.path' string |  |
+| `signal.target.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.ancestors.interpreter.file.uid` | int | UID of the file's owner |  |
+| `signal.target.ancestors.interpreter.file.user` | string | User of the file's owner |  |
 | `signal.target.ancestors.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.ancestors.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.ancestors.pid` | int | Process ID of the process (also called thread group ID) |  |
@@ -1009,6 +1121,22 @@ A signal was sent
 | `signal.target.fsuser` | string | FileSystem-user of the process |  |
 | `signal.target.gid` | int | GID of the process |  |
 | `signal.target.group` | string | Group of the process |  |
+| `signal.target.interpreter.file.change_time` | int | Change time of the file |  |
+| `signal.target.interpreter.file.filesystem` | string | File's filesystem |  |
+| `signal.target.interpreter.file.gid` | int | GID of the file's owner |  |
+| `signal.target.interpreter.file.group` | string | Group of the file's owner |  |
+| `signal.target.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `signal.target.interpreter.file.inode` | int | Inode of the file |  |
+| `signal.target.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `signal.target.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `signal.target.interpreter.file.name` | string | File's basename |  |
+| `signal.target.interpreter.file.name.length` | int | Length of 'signal.target.interpreter.file.name' string |  |
+| `signal.target.interpreter.file.path` | string | File's path |  |
+| `signal.target.interpreter.file.path.length` | int | Length of 'signal.target.interpreter.file.path' string |  |
+| `signal.target.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.interpreter.file.uid` | int | UID of the file's owner |  |
+| `signal.target.interpreter.file.user` | string | User of the file's owner |  |
 | `signal.target.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |

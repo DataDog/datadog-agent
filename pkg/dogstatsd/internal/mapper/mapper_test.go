@@ -71,7 +71,7 @@ dogstatsd_mapper_profiles:
 			},
 			expectedResults: []MapResult{
 				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type"}, matched: true},
-				{Name: "test.task.duration", Tags: nil, matched: true},
+				{Name: "test.task.duration", Tags: make([]string, 0), matched: true},
 			},
 		},
 		{
@@ -150,8 +150,8 @@ dogstatsd_mapper_profiles:
 				"test.my-worker.stop.worker-name",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.worker.start", Tags: nil, matched: true},
-				{Name: "test.worker.stop", Tags: nil, matched: true},
+				{Name: "test.worker.start", Tags: make([]string, 0), matched: true},
+				{Name: "test.worker.stop", Tags: make([]string, 0), matched: true},
 			},
 		},
 		{
@@ -168,7 +168,7 @@ dogstatsd_mapper_profiles:
 				"test.abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-01234567.123",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.alphabet", Tags: nil, matched: true},
+				{Name: "test.alphabet", Tags: make([]string, 0), matched: true},
 			},
 		},
 		{
