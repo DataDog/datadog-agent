@@ -73,7 +73,7 @@ func getConnPointer(result *bininspect.Result, funcName string) (ebpf.Location, 
 func getReadBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error) {
 	params := result.Functions[bininspect.ReadGoTLSFunc].Parameters
 	if len(params) < 2 {
-		return ebpf.SliceLocation{}, errors.New("expected at least two parameter for read function")
+		return ebpf.SliceLocation{}, errors.New("expected at least two parameters for read function")
 	}
 	bufferParam := params[1]
 	if result.GoVersion.Major == 1 && result.GoVersion.Minor == 16 && len(bufferParam.Pieces) == 0 {
@@ -124,31 +124,24 @@ func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
 		// Manually assign the registers.
 		// This is fairly finnicky, but is simple
 		// since the return arguments are short and are word-aligned
-		var regOrder []int
 		switch result.Arch {
 		case bininspect.GoArchX86_64:
 			// The order registers is assigned is in the below slice
 			// (where each value is the register number):
 			// From https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md
 			// RAX, RBX, RCX, RDI, RSI, R8, R9, R10, R11
-			regOrder = []int{0, 3, 2, 5, 4, 8, 9, 10, 11}
+			// regOrder = []int{0, 3, 2, 5, 4, 8, 9, 10, 11}
+			return ebpf.Location{
+				Exists:      boolToBinary(true),
+				In_register: boolToBinary(true),
+				X_register:  int64(0), // RAX
+			}, nil
 		case bininspect.GoArchARM64:
 			// TODO implement
-			return ebpf.Location{}, fmt.Errorf("ARM-64 register ABI fallback not implemented")
+			return ebpf.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
+		default:
+			return ebpf.Location{}, bininspect.ErrUnsupportedArch
 		}
-
-		curReg := 0
-		getNextReg := func() int {
-			nextReg := regOrder[curReg]
-			curReg += 1
-			return nextReg
-		}
-
-		return ebpf.Location{
-			Exists:      boolToBinary(true),
-			In_register: boolToBinary(true),
-			X_register:  int64(getNextReg()),
-		}, nil
 	case bininspect.GoABIStack:
 		// Manually reconstruct the offsets into the stack.
 		// Assume the return parameters exist on the stack in the stable struct,
@@ -171,7 +164,6 @@ func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
 	default:
 		return ebpf.Location{}, fmt.Errorf("unknoen abi %q", result.ABI)
 	}
-
 }
 
 func makeReturnUID(uid string, returnNumber int) string {

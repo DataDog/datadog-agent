@@ -32,13 +32,12 @@ static __always_inline int read_goroutine_id_from_tls(goroutine_id_metadata_t* m
 
     if (bpf_probe_read_user(&g_addr, sizeof(uintptr_t), base + m->runtime_g_tls_addr_offset)) {
         return 1;
-	}
-	void* goroutine_id_ptr = (void*) (g_addr + m->goroutine_id_offset);
-	if (bpf_probe_read(dest, sizeof(int64_t), goroutine_id_ptr)) {
-	    return 1;
-	}
-
-	return 0;
+    }
+    void* goroutine_id_ptr = (void*) (g_addr + m->goroutine_id_offset);
+    if (bpf_probe_read(dest, sizeof(int64_t), goroutine_id_ptr)) {
+        return 1;
+    }
+    return 0;
 }
 
 static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {
@@ -60,10 +59,10 @@ static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, 
 }
 
 static __always_inline int read_goroutine_id(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {
-	if (m->runtime_g_in_register) {
-	    return read_goroutine_id_from_register(ctx, m, dest);
-	}
-	return read_goroutine_id_from_tls(m, dest);
+    if (m->runtime_g_in_register) {
+        return read_goroutine_id_from_register(ctx, m, dest);
+    }
+    return read_goroutine_id_from_tls(m, dest);
 }
 
 #endif //__GO_TLS_GOID_H

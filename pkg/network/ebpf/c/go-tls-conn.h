@@ -24,7 +24,7 @@ static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr
     void* conn_fd_ptr_ptr = tcp_conn_inner_conn_ptr + cl->conn_fd_offset;
 
     void* conn_fd_ptr;
-    if (bpf_probe_read(&conn_fd_ptr, sizeof(conn_fd_ptr), conn_fd_ptr_ptr)) {
+    if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr), conn_fd_ptr_ptr)) {
         return 1;
     }
 
@@ -33,10 +33,10 @@ static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr
     void* fd_sysfd_ptr = net_fd_pfd_ptr + cl->fd_sysfd_offset;
 
     // Finally, dereference the pointer to get the file descriptor
-    return bpf_probe_read(dest, sizeof(*dest), fd_sysfd_ptr);
+    return bpf_probe_read_user(dest, sizeof(*dest), fd_sysfd_ptr);
 }
 
-static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_probe_data_t* pd, void* conn, uint64_t pid_tgid) {
+static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* pd, void* conn, uint64_t pid_tgid) {
     conn_tuple_t* tup = bpf_map_lookup_elem(&conn_tup_by_tls_conn, &conn);
     if (tup != NULL) {
         return tup;
