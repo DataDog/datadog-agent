@@ -97,12 +97,12 @@
             "x86_64": {
                 "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
                 "amazonlinux2-5-10": "ami-033b95fb8079dc481",
-                "amazonlinux2022-5-15": "ami-0a0cf2b8bc4634fe1"
+                "amazonlinux2022-5-15": "ami-0309aede310b9cc1f"
             },
             "arm64": {
                 "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
                 "amazonlinux2-5-10": "ami-0e449176cecc3e577",
-                "amazonlinux2022-5-15": "ami-00bca6c8c9d0e6f92"
+                "amazonlinux2022-5-15": "ami-0a8495f6303122235"
             }
         }
     },
