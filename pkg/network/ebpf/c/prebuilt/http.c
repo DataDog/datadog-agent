@@ -201,7 +201,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 }
 
 SEC("uretprobe/SSL_write")
-int uretprobe_SSL_write(struct pt_regs* ctx) {
+int uretprobe__SSL_write(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int write_len = (int)PT_REGS_RC(ctx);
     log_debug("uretprobe/SSL_write: pid_tgid=%llx len=%d\n", pid_tgid, write_len);
