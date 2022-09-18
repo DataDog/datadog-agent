@@ -17,19 +17,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 )
 
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
-	c, err := NewConsumer(
-		&config.Config{
-			Config: ebpf.Config{
-				ProcRoot: "/proc",
-			},
-			ConntrackRateLimit:           1,
-			EnableRootNetNs:              true,
-			EnableConntrackAllNamespaces: false,
-		})
+	ns := testutil.SetupCrossNsDNAT(t)
+	cfg := &config.Config{
+		Config: ebpf.Config{
+			ProcRoot: "/proc",
+		},
+		ConntrackRateLimit:           1,
+		ConntrackRateLimitInterval:   1 * time.Second,
+		EnableRootNetNs:              true,
+		EnableConntrackAllNamespaces: false,
+	}
+	c, err := NewConsumer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	exited := make(chan struct{})
@@ -43,21 +46,15 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	require.NotNil(t, ev)
 
 	go func() {
+		defer close(exited)
 		for range ev {
 		}
-
-		close(exited)
 	}()
 
-	isRecvLoopRunning := func() bool {
-		return c.recvLoopRunning.Load()
-	}
+	isRecvLoopRunning := c.recvLoopRunning.Load
+	require.Eventually(t, isRecvLoopRunning, cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
 
-	require.Eventually(t, func() bool {
-		return isRecvLoopRunning()
-	}, 3*time.Second, 100*time.Millisecond)
-
-	srv := nettestutil.StartServerTCP(t, net.ParseIP("127.0.0.1"), 0)
+	srv := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 0, ns)
 	defer srv.Close()
 
 	l := srv.(net.Listener)
@@ -67,12 +64,14 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	// `tickInterval` seconds (3s currently) for
 	// the circuit breaker to detect the over-limit
 	// rate of updates
-	for i := 0; i < 16; i++ {
+	sleepAmt := 250 * time.Millisecond
+	loopCount := (cfg.ConntrackRateLimitInterval.Nanoseconds() / sleepAmt.Nanoseconds()) + 1
+
+	for i := int64(0); i < loopCount; i++ {
 		conn, err := net.Dial("tcp", l.Addr().String())
 		require.NoError(t, err)
 		defer conn.Close()
-
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(sleepAmt)
 	}
 
 	// on pre 3.15 kernels, the receive loop
@@ -81,13 +80,11 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	if pre315Kernel {
 		require.Eventually(t, func() bool {
 			return !isRecvLoopRunning() && c.breaker.IsOpen()
-		}, 3*time.Second, 100*time.Millisecond)
+		}, cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
 	} else {
 		require.Eventually(t, func() bool {
 			return c.samplingRate < 1.0
-		}, 3*time.Second, 100*time.Millisecond)
-
+		}, cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
 		require.True(t, isRecvLoopRunning())
 	}
-
 }
