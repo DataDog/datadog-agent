@@ -368,12 +368,12 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
 
     ssl_write_args_t *args = bpf_map_lookup_elem(&ssl_write_args, &pid_tgid);
     if (args == NULL) {
-        goto cleanup;
+        return 0;
     }
 
     conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (t == NULL) {
-        return 0;
+        goto cleanup;
     }
 
     https_process(t, args->buf, write_len, LIBGNUTLS);
