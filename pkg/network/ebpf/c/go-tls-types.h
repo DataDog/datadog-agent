@@ -60,7 +60,7 @@ typedef struct {
 typedef struct {
     __u32 pid;
     __s64 goroutine_id;
-} go_tls_read_args_key_t;
+} go_tls_function_args_key_t;
 
 typedef struct {
     __u64 conn_pointer;

@@ -30,15 +30,17 @@ const (
 	readReturnFuncName = "uprobe__crypto_tls_Conn_Read__return"
 	closeFuncName      = "uprobe__crypto_tls_Conn_Close"
 
-	writeProbe      = "uprobe/crypto/tls.(*Conn).Write"
-	readProbe       = "uprobe/crypto/tls.(*Conn).Read"
-	readReturnProbe = "uprobe/crypto/tls.(*Conn).Read/return"
-	closeProbe      = "uprobe/crypto/tls.(*Conn).Close"
+	writeProbe       = "uprobe/crypto/tls.(*Conn).Write"
+	writeReturnProbe = "uprobe/crypto/tls.(*Conn).Write/return"
+	readProbe        = "uprobe/crypto/tls.(*Conn).Read"
+	readReturnProbe  = "uprobe/crypto/tls.(*Conn).Read/return"
+	closeProbe       = "uprobe/crypto/tls.(*Conn).Close"
+	closeReturnProbe = "uprobe/crypto/tls.(*Conn).Close/return"
 )
 
 var functionsConfig = map[string]bininspect.FunctionConfiguration{
 	bininspect.WriteGoTLSFunc: {
-		IncludeReturnLocations: false,
+		IncludeReturnLocations: true,
 		ParamLookupFunction:    lookup.GetWriteParams,
 	},
 	bininspect.ReadGoTLSFunc: {
@@ -46,7 +48,7 @@ var functionsConfig = map[string]bininspect.FunctionConfiguration{
 		ParamLookupFunction:    lookup.GetReadParams,
 	},
 	bininspect.CloseGoTLSFunc: {
-		IncludeReturnLocations: false,
+		IncludeReturnLocations: true,
 		ParamLookupFunction:    lookup.GetCloseParams,
 	},
 }
@@ -196,6 +198,8 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) er
 		}
 		p.probeIDs = append(p.probeIDs, probeID)
 	}
+
+	// TODO Add attaching of write-return probes and close-return probes
 
 	probes := []*manager.Probe{
 		{

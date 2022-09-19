@@ -565,6 +565,13 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
     return 0;
 }
 
+// func (c *Conn) Write(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Write/return")
+int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
+    // TODO
+    return 0;
+}
+
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read")
 int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
@@ -577,7 +584,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
     }
 
     // Read the TGID and goroutine ID to make the partial call key
-    go_tls_read_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read] failed reading reading go routine id for pid %d\n", pid);
@@ -612,7 +619,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     }
 
     // Read the TGID and goroutine ID to make the partial call key
-    go_tls_read_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
@@ -676,6 +683,13 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_tls_conn, &conn_pointer);
 
+    return 0;
+}
+
+// func (c *Conn) Close(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Close/return")
+int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
+    // TODO
     return 0;
 }
 
