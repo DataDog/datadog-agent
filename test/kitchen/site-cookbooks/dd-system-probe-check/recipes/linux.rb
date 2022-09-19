@@ -7,7 +7,14 @@ file "/tmp/color_idx" do
 end
 
 if platform?('centos')
-  include_recipe '::old_vault'
+  case node['platform_version'].to_i
+  when 7
+    if node['platform_version'] != '7.9.2009'
+      include_recipe '::old_vault'
+    end
+  when 8
+    include_recipe '::old_vault'
+  end
 end
 
 case node[:platform]
