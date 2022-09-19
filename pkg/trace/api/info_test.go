@@ -21,14 +21,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
+// ensureKeys takes 2 maps, expect and result, and ensures that the set of keys in expect and
+// result match. For each key (k) in expect, if expect[k] is of type map[string]interface{}, then
+// ensureKeys recurses on expect[k], result[k], prefix + "." + k.
+// 
+// This should ensure that whatever keys and maps are defined in expect are exactly mirrored in
+// result, but without checking for specific values in result.
 func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 	for k, ev := range expect {
 		rv, ok := result[k]
 		if !ok {
+			path := k
 			if prefix != "" {
-				k = prefix + "." + k
+				path = prefix + "." + k
 			}
-			return fmt.Errorf("Expected key %s, but it is not present in the output.\n", k)
+			return fmt.Errorf("Expected key %s, but it is not present in the output.\n", path)
 		}
 
 		if em, ok := ev.(map[string]interface{}); ok {
@@ -49,10 +56,11 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 	for k, _ := range result {
 		_, ok := expect[k]
 		if !ok {
+			path := k
 			if prefix != "" {
-				k = prefix + "." + k
-				return fmt.Errorf("Found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests.\n", k)
+				path = prefix + "." + k
 			}
+			return fmt.Errorf("Found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests.\n", path)
 		}
 	}
 	return nil
