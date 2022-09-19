@@ -19,6 +19,7 @@ type httpTX interface {
 	DstIPLow() uint64
 	DstIPHigh() uint64
 	DstPort() uint16
+	ConnCookie() uint64
 	Method() Method
 	StatusCode() uint16
 	SetStatusCode(uint16)

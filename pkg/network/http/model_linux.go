@@ -97,6 +97,10 @@ func (tx *ebpfHttpTx) DstPort() uint16 {
 	return tx.Tup.Dport
 }
 
+func (tx *ebpfHttpTx) ConnCookie() uint64 {
+	return tx.Conn_cookie
+}
+
 func (tx *ebpfHttpTx) Method() Method {
 	return Method(tx.Request_method)
 }

@@ -126,6 +126,10 @@ func (tx *FullHttpTransaction) DstPort() uint16 {
 	return tx.Txn.Tup.SrvPort
 }
 
+func (tx *FullHttpTransaction) ConnCookie() uint64 {
+	return 0
+}
+
 func (tx *FullHttpTransaction) Method() Method {
 	return Method(tx.Txn.RequestMethod)
 }

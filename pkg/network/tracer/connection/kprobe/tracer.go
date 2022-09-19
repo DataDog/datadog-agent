@@ -178,8 +178,8 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.ConnMap, err)
 	}
 
-	if tr.tcpStats, _, err = m.GetMap(string(probes.TcpStatsMap)); err != nil {
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.TcpStatsMap, err)
+	if tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap)); err != nil {
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.TCPStatsMap, err)
 	}
 
 	if tr.connCookies, _, err = m.GetMap(string(probes.ConnCookiesMap)); err != nil {

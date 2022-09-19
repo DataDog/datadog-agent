@@ -87,6 +87,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: "skb_socks"},
+			{Name: "security_sock_rcv_skb_params"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -124,24 +126,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					UID:          probeUID,
 				},
 			},
-		},
-	}
-
-	if enableRuntimeCompilation(c) {
-		mgr.Maps = append(mgr.Maps,
-			&manager.Map{Name: "skb_socks"},
-			&manager.Map{Name: "security_sock_rcv_skb_params"},
-		)
-
-		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{
+			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  "kprobe/security_sock_rcv_skb",
 					EBPFFuncName: "kprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 			},
-		)
+		},
 	}
 
 	sslProgram, _ := newSSLProgram(c, sockFD)
@@ -219,12 +211,6 @@ func (e *ebpfProgram) Init() error {
 					UID:          probeUID,
 				},
 			},
-		},
-		ConstantEditors: e.offsets,
-	}
-
-	if enableRuntimeCompilation(e.cfg) {
-		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  "kprobe/security_sock_rcv_skb",
@@ -232,7 +218,8 @@ func (e *ebpfProgram) Init() error {
 					UID:          probeUID,
 				},
 			},
-		)
+		},
+		ConstantEditors: e.offsets,
 	}
 
 	for _, s := range e.subprograms {
