@@ -86,13 +86,21 @@ func TestConntrackers(t *testing.T) {
 func setupEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.EnableRuntimeCompiler = true
 	cfg.AllowPrecompiledFallback = false
-	return NewEBPFConntracker(cfg, nil)
+	ct, err := NewEBPFConntracker(cfg, nil)
+	if err != nil {
+		return nil, err
+	}
+	return ct, ct.Start()
 }
 
 func setupNetlinkConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	ct, err := netlink.NewConntracker(cfg)
+	if err != nil {
+		return nil, err
+	}
+	err = ct.Start()
 	time.Sleep(100 * time.Millisecond)
 	return ct, err
 }

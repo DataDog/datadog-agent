@@ -45,6 +45,8 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	cfg.EnableConntrackAllNamespaces = false
 	ct, err := NewConntracker(cfg)
 	require.NoError(t, err)
+	err = ct.Start()
+	require.NoError(t, err)
 	time.Sleep(time.Second)
 
 	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)

@@ -60,6 +60,7 @@ func newEbpfConntrackerStats() ebpfConntrackerStats {
 }
 
 type ebpfConntracker struct {
+	cfg          *config.Config
 	m            *manager.Manager
 	ctMap        *ebpf.Map
 	telemetryMap *ebpf.Map
@@ -72,7 +73,7 @@ type ebpfConntracker struct {
 	stats ebpfConntrackerStats
 }
 
-// NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
+// NewEBPFConntracker creates a netlink.Conntracker that monitors conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
 	// eBPF conntrack require nf_conntrack symbols
@@ -103,50 +104,54 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		}
 	}
 
-	err = m.Start()
-	if err != nil {
-		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
-	}
-
-	ctMap, _, err := m.GetMap(string(probes.ConntrackMap))
-	if err != nil {
-		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
-	}
-
-	telemetryMap, _, err := m.GetMap(string(probes.ConntrackTelemetryMap))
-	if err != nil {
-		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
-	}
-
 	rootNS, err := util.GetNetNsInoFromPid(cfg.ProcRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("could not find network root namespace: %w", err)
 	}
 
 	e := &ebpfConntracker{
-		m:            m,
-		ctMap:        ctMap,
-		telemetryMap: telemetryMap,
-		rootNS:       rootNS,
-		stats:        newEbpfConntrackerStats(),
-		stop:         make(chan struct{}),
+		cfg:    cfg,
+		m:      m,
+		rootNS: rootNS,
+		stats:  newEbpfConntrackerStats(),
+		stop:   make(chan struct{}),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
+	return e, nil
+}
+
+func (e *ebpfConntracker) Start() error {
+	err := e.m.Start()
+	if err != nil {
+		_ = e.m.Stop(manager.CleanAll)
+		return fmt.Errorf("failed to start ebpf conntracker: %w", err)
+	}
+
+	e.ctMap, _, err = e.m.GetMap(string(probes.ConntrackMap))
+	if err != nil {
+		_ = e.m.Stop(manager.CleanAll)
+		return fmt.Errorf("unable to get conntrack map: %w", err)
+	}
+
+	e.telemetryMap, _, err = e.m.GetMap(string(probes.ConntrackTelemetryMap))
+	if err != nil {
+		_ = e.m.Stop(manager.CleanAll)
+		return fmt.Errorf("unable to get telemetry map: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), e.cfg.ConntrackInitTimeout)
 	defer cancel()
 
-	err = e.dumpInitialTables(ctx, cfg)
+	err = e.dumpInitialTables(ctx, e.cfg)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("could not initialize conntrack after %s", cfg.ConntrackInitTimeout)
+			return fmt.Errorf("could not initialize conntrack after %s", e.cfg.ConntrackInitTimeout)
 		}
-		return nil, err
+		_ = e.m.Stop(manager.CleanAll)
+		return err
 	}
 	log.Infof("initialized ebpf conntrack")
-	return e, nil
+	return nil
 }
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {

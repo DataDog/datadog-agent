@@ -34,6 +34,7 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
+	Start() error
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
 	IsSampling() bool
@@ -82,28 +83,7 @@ type realConntracker struct {
 
 	compactTicker *time.Ticker
 	stats         stats
-}
-
-// NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(config *config.Config) (Conntracker, error) {
-	var (
-		err         error
-		conntracker Conntracker
-	)
-
-	done := make(chan struct{})
-
-	go func() {
-		conntracker, err = newConntrackerOnce(config)
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		return conntracker, err
-	case <-time.After(config.ConntrackInitTimeout):
-		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
-	}
+	timeout       time.Duration
 }
 
 func newStats() stats {
@@ -119,7 +99,8 @@ func newStats() stats {
 	}
 }
 
-func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
+// NewConntracker creates a new conntracker with a short term buffer capped at the given size
+func NewConntracker(cfg *config.Config) (Conntracker, error) {
 	consumer, err := NewConsumer(cfg)
 	if err != nil {
 		return nil, err
@@ -132,22 +113,36 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 		compactTicker: time.NewTicker(compactInterval),
 		decoder:       NewDecoder(),
 		stats:         newStats(),
+		timeout:       cfg.ConntrackInitTimeout,
 	}
-
-	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
-		events, err := consumer.DumpTable(family)
-		if err != nil {
-			return nil, fmt.Errorf("error dumping conntrack table for family %d: %w", family, err)
-		}
-		ctr.loadInitialState(events)
-	}
-
-	if err := ctr.run(); err != nil {
-		return nil, err
-	}
-
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", cfg.ConntrackRateLimit)
 	return ctr, nil
+}
+
+func (ctr *realConntracker) Start() error {
+	errchan := make(chan error)
+	go func() {
+		for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
+			events, err := ctr.consumer.DumpTable(family)
+			if err != nil {
+				errchan <- fmt.Errorf("error dumping conntrack table for family %d: %w", family, err)
+				return
+			}
+			ctr.loadInitialState(events)
+		}
+		errchan <- nil
+	}()
+
+	select {
+	case err := <-errchan:
+		if err != nil {
+			return err
+		}
+	case <-time.After(ctr.timeout):
+		return fmt.Errorf("could not initialize conntrack after: %s", ctr.timeout)
+	}
+
+	return ctr.run()
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {

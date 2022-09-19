@@ -21,6 +21,10 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
+func (*noOpConntracker) Start() error {
+	return nil
+}
+
 func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	return nil
 }

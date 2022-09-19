@@ -48,6 +48,7 @@ const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
+	running      *atomic.Bool
 	config       *config.Config
 	state        network.State
 	conntracker  netlink.Conntracker
@@ -91,8 +92,22 @@ type Tracer struct {
 	sysctlUDPConnStreamTimeout *sysctl.Int
 }
 
-// NewTracer creates a Tracer
-func NewTracer(config *config.Config) (*Tracer, error) {
+// NewTracer creates a Tracer and starts collection immediately.
+func NewTracer(cfg *config.Config) (*Tracer, error) {
+	tr, err := NewIdleTracer(cfg)
+	if err != nil {
+		return nil, err
+	}
+	err = tr.Start()
+	if err != nil {
+		tr.Stop()
+		return nil, fmt.Errorf("could not start tracer: %s", err)
+	}
+	return tr, nil
+}
+
+// NewIdleTracer creates a Tracer, but does not start collection immediately. Use Start to start the tracer.
+func NewIdleTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
@@ -192,19 +207,52 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
 		bpfTelemetry:     bpfTelemetry,
+		running:          atomic.NewBool(false),
 	}
-
-	err = ebpfTracer.Start(tr.storeClosedConnections)
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
-	}
-
-	if err = tr.reverseDNS.Start(); err != nil {
-		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
-	}
-
 	return tr, nil
+}
+
+// Start begins network data collection
+func (t *Tracer) Start() error {
+	if t.running.Load() {
+		return nil
+	}
+
+	err := t.conntracker.Start()
+	if err != nil {
+		if t.config.IgnoreConntrackInitFailure {
+			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
+			t.conntracker.Close()
+			t.conntracker = netlink.NewNoOpConntracker()
+		}
+		return fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	}
+
+	err = t.ebpfTracer.Start(t.storeClosedConnections)
+	if err != nil {
+		t.Stop()
+		return fmt.Errorf("could not start ebpf manager: %s", err)
+	}
+
+	if err = t.reverseDNS.Start(); err != nil {
+		t.Stop()
+		return fmt.Errorf("could not start reverse dns monitor: %w", err)
+	}
+
+	if t.httpMonitor != nil {
+		err = t.httpMonitor.Start()
+		if err != nil {
+			if errors.Is(err, syscall.ENOMEM) {
+				err = fmt.Errorf("not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			}
+			t.Stop()
+			return fmt.Errorf("could not enable http monitoring: %s", err)
+		}
+		log.Info("http monitoring enabled")
+	}
+
+	t.running.Store(true)
+	return nil
 }
 
 func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {
@@ -338,6 +386,7 @@ func (t *Tracer) Stop() {
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
 	t.conntracker.Close()
+	t.running.Store(false)
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -793,18 +842,5 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return nil
 	}
-
-	err = monitor.Start()
-	if errors.Is(err, syscall.ENOMEM) {
-		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
-		return nil
-	}
-
-	if err != nil {
-		log.Errorf("could not enable http monitoring: %s", err)
-		return nil
-	}
-
-	log.Info("http monitoring enabled")
 	return monitor
 }

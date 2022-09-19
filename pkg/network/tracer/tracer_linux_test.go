@@ -658,16 +658,14 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
 	oldCloud := cloud
-	defer func() {
-		cloud = oldCloud
-	}()
+	t.Cleanup(func() { cloud = oldCloud })
 
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := NewTracer(cfg)
+	tr, err := NewIdleTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	defer tr.Stop()
@@ -682,8 +680,9 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 		}
 		return network.Subnet{}, assert.AnError
 	}
-
 	tr.gwLookup.purge()
+	err = tr.Start()
+	require.NoError(t, err)
 
 	getConnections(t, tr)
 
@@ -721,7 +720,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := NewTracer(cfg)
+	tr, err := NewIdleTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	defer tr.Stop()
@@ -780,6 +779,9 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		return network.Subnet{Alias: "subnet"}, nil
 	}
 	tr.gwLookup.purge()
+
+	err = tr.Start()
+	require.NoError(t, err)
 
 	test1Ns, err := vnetns.GetFromName("test1")
 	require.NoError(t, err)
