@@ -95,7 +95,6 @@ type Version struct {
 	UnameRelease  string
 
 	haveMmapableMaps *bool
-	haveRingBuffers  *bool
 }
 
 func (k *Version) String() string {
@@ -280,14 +279,7 @@ func (k *Version) HaveMmapableMaps() bool {
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
 func (k *Version) HaveRingBuffers() bool {
-	if k.haveRingBuffers != nil {
-		return *k.haveRingBuffers
-	}
-
 	// This checks ring buffer maps, which appeared in 5.8
 	err := features.HaveMapType(ebpf.RingBuf)
-	k.haveRingBuffers = new(bool)
-	*k.haveRingBuffers = err == nil
-
-	return *k.haveRingBuffers
+	return err != nil
 }
