@@ -65,6 +65,16 @@ typedef struct {
 typedef struct {
     __u64 conn_pointer;
     __u64 b_data;
-} go_tls_function_args_data_t;
+} go_tls_read_args_data_t;
+
+typedef struct {
+    __u64 conn_pointer;
+    __u64 b_data;
+    __u64 b_len;
+} go_tls_write_args_data_t;
+
+typedef struct {
+
+} go_tls_close_args_data_t;
 
 #endif //__GO_TLS_TYPES_H
