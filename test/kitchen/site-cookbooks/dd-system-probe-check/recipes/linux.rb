@@ -66,6 +66,8 @@ package 'curl' do
   end
 end
 
+package 'iptables'
+
 # Enable IPv6 support
 kernel_module 'ipv6' do
   action :load
