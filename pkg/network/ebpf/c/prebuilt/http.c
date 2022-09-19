@@ -580,7 +580,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 
     // Read the parameters to make the partial call data
     // (since the parameters might not be live by the time the return probe is hit).
-    go_tls_read_args_data_t call_data = {0};
+    go_tls_function_args_data_t call_data = {0};
     if (read_location(ctx, &pd->read_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
         log_debug("[go-tls-read] failed reading read conn pointer for pid %d\n", pid);
         return 1;
@@ -614,7 +614,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
+    go_tls_function_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
         log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
         return 1;
