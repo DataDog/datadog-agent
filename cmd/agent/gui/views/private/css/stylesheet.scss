@@ -388,18 +388,14 @@ a {
       }
 
       .stat_subdata_valid_api {
-        color:greenyellow
-      }
-
-      .stat_subdata_invalid_api {
-        color:orangered
+        font-weight: bold;
       }
 
       .error {
         color: red;
         font-weight: bold;
       }
-
+      
       .warning {
         color: #FFA500;
         font-weight: bold;
