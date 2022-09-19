@@ -1543,14 +1543,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		)
 	}
 
-	if useRingBuffers {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "use_ring_buffer",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "use_ring_buffer",
+			Value: utils.BoolTouint64(useRingBuffers),
+		},
+	)
 
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled, p.config.NetworkEnabled, useMmapableMaps)
