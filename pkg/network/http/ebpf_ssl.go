@@ -34,6 +34,7 @@ var openSSLProbes = map[string]string{
 	"uprobe/SSL_read":            "uprobe__SSL_read",
 	"uretprobe/SSL_read":         "uretprobe__SSL_read",
 	"uprobe/SSL_write":           "uprobe__SSL_write",
+	"uretprobe/SSL_write":        "uretprobe__SSL_write",
 	"uprobe/SSL_shutdown":        "uprobe__SSL_shutdown",
 }
 
@@ -51,6 +52,7 @@ var gnuTLSProbes = map[string]string{
 	"uprobe/gnutls_record_recv":        "uprobe__gnutls_record_recv",
 	"uretprobe/gnutls_record_recv":     "uretprobe__gnutls_record_recv",
 	"uprobe/gnutls_record_send":        "uprobe__gnutls_record_send",
+	"uretprobe/gnutls_record_send":     "uretprobe__gnutls_record_send",
 	"uprobe/gnutls_bye":                "uprobe__gnutls_bye",
 	"uprobe/gnutls_deinit":             "uprobe__gnutls_deinit",
 }
