@@ -713,6 +713,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
+	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
