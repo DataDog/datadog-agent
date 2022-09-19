@@ -84,8 +84,8 @@ func TestEnsureKeys(t *testing.T) {
 		},
 		{
 			expect: map[string]interface{}{
-				"one": nil,
-				"two": nil,
+				"one":   nil,
+				"two":   nil,
 				"three": nil,
 			},
 			result: map[string]interface{}{
@@ -100,8 +100,8 @@ func TestEnsureKeys(t *testing.T) {
 				"two": nil,
 			},
 			result: map[string]interface{}{
-				"one": 1,
-				"two": "two",
+				"one":   1,
+				"two":   "two",
 				"three": 3,
 			},
 			err: true,
@@ -110,7 +110,7 @@ func TestEnsureKeys(t *testing.T) {
 			expect: map[string]interface{}{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{} {
+				"sub": map[string]interface{}{
 					"subone": nil,
 					"subtwo": nil,
 				},
@@ -118,7 +118,7 @@ func TestEnsureKeys(t *testing.T) {
 			result: map[string]interface{}{
 				"one": 1,
 				"two": "two",
-				"sub": map[string]interface{} {
+				"sub": map[string]interface{}{
 					"subone": 1,
 					"subtwo": 2,
 				},
@@ -128,18 +128,18 @@ func TestEnsureKeys(t *testing.T) {
 			expect: map[string]interface{}{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{} {
+				"sub": map[string]interface{}{
 					"subone": nil,
 					"subtwo": nil,
 				},
 			},
 			result: map[string]interface{}{
 				"one": 1,
-				"two": map[string]interface{} { // Map values not described in expect are NOT checked, so this is OK.
+				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
 					"subone": 1,
 					"subtwo": 2,
 				},
-				"sub": map[string]interface{} {
+				"sub": map[string]interface{}{
 					"subone": 1,
 					"subtwo": 2,
 				},
@@ -149,19 +149,19 @@ func TestEnsureKeys(t *testing.T) {
 			expect: map[string]interface{}{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{} {
-					"subone": nil,
-					"subtwo": nil,
+				"sub": map[string]interface{}{
+					"subone":   nil,
+					"subtwo":   nil,
 					"subthree": nil,
 				},
 			},
 			result: map[string]interface{}{
 				"one": 1,
-				"two": map[string]interface{} { // Map values not described in expect are NOT checked, so this is OK.
+				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
 					"subone": 1,
 					"subtwo": 2,
 				},
-				"sub": map[string]interface{} {
+				"sub": map[string]interface{}{
 					"subone": 1,
 					"subtwo": 2,
 				},
@@ -172,20 +172,20 @@ func TestEnsureKeys(t *testing.T) {
 			expect: map[string]interface{}{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{} {
+				"sub": map[string]interface{}{
 					"subone": nil,
 					"subtwo": nil,
 				},
 			},
 			result: map[string]interface{}{
 				"one": 1,
-				"two": map[string]interface{} { // Map values not described in expect are NOT checked, so this is OK.
+				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
 					"subone": 1,
 					"subtwo": 2,
 				},
-				"sub": map[string]interface{} {
-					"subone": 1,
-					"subtwo": 2,
+				"sub": map[string]interface{}{
+					"subone":   1,
+					"subtwo":   2,
 					"subthree": 3,
 				},
 			},
