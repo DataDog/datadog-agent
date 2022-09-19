@@ -66,7 +66,6 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 // * In case a field name gets modified, the `json:""` struct field tag
 // should be used to ensure the old key is marshalled for this endpoint.
 func TestInfoHandler(t *testing.T) {
-	t.Skip("https://github.com/DataDog/datadog-agent/issues/13569")
 	u, err := url.Parse("http://localhost:8888/proxy")
 	if err != nil {
 		log.Fatal(err)
