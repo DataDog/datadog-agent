@@ -8,7 +8,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http/httptest"
 	"net/url"
@@ -337,11 +336,7 @@ func TestInfoHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/info", nil)
 	h.ServeHTTP(rec, req)
 	var m map[string]interface{}
-	b, err := ioutil.ReadAll(rec.Body)
-	if !assert.NoError(t, err) {
-		return
-	}
-	if !assert.NoError(t, json.Unmarshal(b, &m)) {
+	if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&m)) {
 		return
 	}
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
