@@ -458,7 +458,6 @@ def test(
         "pkgs": packages,
         "run": f"-run {run}" if run else "",
         "failfast": "-failfast" if failfast else "",
-        "go": "go",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -466,11 +465,7 @@ def test(
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    go_root = os.getenv("GOROOT")
-    if go_root:
-        args["go"] = os.path.join(go_root, "bin", "go")
-
-    cmd = '{go} test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
+    cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
