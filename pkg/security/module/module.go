@@ -359,14 +359,14 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
 
-	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 
 	// non fatal error, just log
-	if loadErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies: %+v", loadErrs)
-	} else if loadApproversErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErrs)
+	if loadApproversErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies: %+v", loadApproversErrs)
+	} else if loadErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies for Approvers: %+v", loadErrs)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -381,7 +381,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// notify listeners
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet, loadErrs)
+		m.rulesLoaded(ruleSet, loadApproversErrs)
 	}
 
 	// add module as listener for ruleset events
@@ -406,10 +406,10 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if sendLoadedReport {
 		// report that a new policy was loaded
 		monitor := m.probe.GetMonitor()
-		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
+		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadApproversErrs)
 		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies())
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
 	return nil

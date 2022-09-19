@@ -57,6 +57,7 @@ type IterableStreamJSONMarshaler interface {
 	WriteCurrentItem(*jsoniter.Stream) error
 	DescribeCurrentItem() string
 	MoveNext() bool
+	GetCurrentItemPointCount() int
 }
 
 // BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations

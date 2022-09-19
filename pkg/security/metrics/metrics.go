@@ -173,7 +173,7 @@ var (
 	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
 	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
-	// Tags: -
+	// Tags: dump_index
 	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
 	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
 	// be sent because they are too big
@@ -203,6 +203,9 @@ var (
 	// MetricPolicy is the name of the metric used to report policy versions
 	// Tags: -
 	MetricPolicy = newRuntimeMetric(".policy")
+	// MetricRuleStatus is the name of the metric used to report the rule status
+	// Tags: -
+	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
 	// Others
 

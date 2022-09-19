@@ -10,20 +10,26 @@ package helm
 
 import "sync"
 
+type taggedRelease struct {
+	release                 *release
+	commonTags              []string // tags for service checks, metrics, and events
+	tagsForMetricsAndEvents []string // tags only for metrics and events
+}
+
 type releasesStore struct {
-	store           map[helmStorage]map[namespacedName]map[revision]*release
+	store           map[helmStorage]map[namespacedName]map[revision]*taggedRelease
 	latestRevisions map[helmStorage]map[namespacedName]revision
 	mutex           sync.Mutex
 }
 
 func newReleasesStore() *releasesStore {
 	res := &releasesStore{
-		store:           make(map[helmStorage]map[namespacedName]map[revision]*release),
+		store:           make(map[helmStorage]map[namespacedName]map[revision]*taggedRelease),
 		latestRevisions: make(map[helmStorage]map[namespacedName]revision),
 	}
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
-		res.store[storageDriver] = make(map[namespacedName]map[revision]*release)
+		res.store[storageDriver] = make(map[namespacedName]map[revision]*taggedRelease)
 		res.latestRevisions[storageDriver] = make(map[namespacedName]revision)
 	}
 
@@ -31,15 +37,19 @@ func newReleasesStore() *releasesStore {
 }
 
 // add stores a release
-func (rs *releasesStore) add(rel *release, storage helmStorage) {
+func (rs *releasesStore) add(rel *release, storage helmStorage, commonTags []string, tagsForMetricsAndEvents []string) {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
 	if rs.store[storage][rel.namespacedName()] == nil {
-		rs.store[storage][rel.namespacedName()] = make(map[revision]*release)
+		rs.store[storage][rel.namespacedName()] = make(map[revision]*taggedRelease)
 	}
 
-	rs.store[storage][rel.namespacedName()][rel.revision()] = rel
+	rs.store[storage][rel.namespacedName()][rel.revision()] = &taggedRelease{
+		release:                 rel,
+		commonTags:              commonTags,
+		tagsForMetricsAndEvents: tagsForMetricsAndEvents,
+	}
 
 	if rel.revision() > rs.latestRevisions[storage][rel.namespacedName()] {
 		rs.latestRevisions[storage][rel.namespacedName()] = rel.revision()
@@ -48,7 +58,7 @@ func (rs *releasesStore) add(rel *release, storage helmStorage) {
 
 // get returns the release stored with the given namespacedName, revision and
 // storage. Returns nil when it does not exist.
-func (rs *releasesStore) get(namespacedName namespacedName, revision revision, storage helmStorage) *release {
+func (rs *releasesStore) get(namespacedName namespacedName, revision revision, storage helmStorage) *taggedRelease {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
@@ -60,11 +70,11 @@ func (rs *releasesStore) get(namespacedName namespacedName, revision revision, s
 }
 
 // getAll returns all the releases stored for the given helmStorage
-func (rs *releasesStore) getAll(storage helmStorage) []*release {
+func (rs *releasesStore) getAll(storage helmStorage) []*taggedRelease {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
-	var res []*release
+	var res []*taggedRelease
 
 	for _, releasesByRevision := range rs.store[storage] {
 		for _, rel := range releasesByRevision {
@@ -77,11 +87,11 @@ func (rs *releasesStore) getAll(storage helmStorage) []*release {
 
 // getLatestRevisions returns the releases with the latest revision for the
 // given helmStorage
-func (rs *releasesStore) getLatestRevisions(storage helmStorage) []*release {
+func (rs *releasesStore) getLatestRevisions(storage helmStorage) []*taggedRelease {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
-	var res []*release
+	var res []*taggedRelease
 
 	for namespaced, rev := range rs.latestRevisions[storage] {
 		res = append(res, rs.store[storage][namespaced][rev])

@@ -47,6 +47,7 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
+CLANG_VERSION = "14.0.6"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -319,6 +320,7 @@ def build(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    strip_binary=False,
 ):
     """
     Build the system-probe
@@ -343,6 +345,7 @@ def build(
         go_mod=go_mod,
         race=race,
         incremental_build=incremental_build,
+        strip_binary=strip_binary,
     )
 
 
@@ -370,6 +373,7 @@ def build_sysprobe_binary(
     arch=CURRENT_ARCH,
     nikos_embedded_path=None,
     bundle_ebpf=False,
+    strip_binary=False,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -383,6 +387,9 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if nikos_embedded_path:
         build_tags.append(DNF_TAG)
+
+    if strip_binary:
+        ldflags += ' -s -w'
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
@@ -719,10 +726,10 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
 
     if kernel_release and minimal_kernel_release:
         match = re.compile(r'(\d+)\.(\d+)(\.(\d+))?').match(kernel_release)
-        version_tuple = list(map(int, map(lambda x: x or '0', match.group(1, 2, 4))))
+        version_tuple = [int(x) or 0 for x in match.group(1, 2, 4)]
         if version_tuple < minimal_kernel_release:
             print(
-                f"You need to have kernel headers for at least {'.'.join(map(lambda x: str(x), minimal_kernel_release))} to enable all system-probe features"
+                f"You need to have kernel headers for at least {'.'.join([str(x) for x in minimal_kernel_release])} to enable all system-probe features"
             )
 
     src_kernels_dir = "/usr/src/kernels"
@@ -846,6 +853,32 @@ def run_ninja(
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
+def setup_runtime_clang(ctx):
+    # check if correct version is already present
+    res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
+    if res.ok:
+        version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
+        if version_str == CLANG_VERSION:
+            return
+
+    sudo = "sudo" if not is_root() else ""
+    if not os.path.exists("/opt/datadog-agent/embedded/bin"):
+        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
+
+    arch = arch_mapping.get(platform.machine())
+    if arch == "x64":
+        arch = "amd64"
+
+    # download correct version from dd-agent-omnibus S3 bucket
+    clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
+    ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
+    ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+
+    llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+    ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
+    ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+
+
 def build_object_files(
     ctx,
     windows=is_windows,
@@ -859,6 +892,7 @@ def build_object_files(
 
     if not windows:
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
+        setup_runtime_clang(ctx)
         print("checking for clang executable...")
         ctx.run("which clang")
 

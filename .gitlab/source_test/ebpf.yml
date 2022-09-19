@@ -2,8 +2,8 @@
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/bin
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.$ARCH /tmp/clang-bpf
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.$ARCH /tmp/llc-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH /tmp/clang-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH /tmp/llc-bpf
   # Retrieve nikos from S3
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
   - mkdir -p $NIKOS_EMBEDDED_PATH
@@ -65,9 +65,9 @@ tests_ebpf_x64:
     - cd $SRC_PATH
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
-    - export PATH=$PATH:$GOPATH/bin
+    - invoke -e golangci-lint --build system-probe ./pkg
+    - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
@@ -89,9 +89,9 @@ tests_ebpf_arm64:
     - cd $SRC_PATH
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - !reference [.build_sysprobe_artifacts]
     - inv -e install-tools
-    - export PATH=$PATH:$GOPATH/bin
+    - invoke -e golangci-lint --build system-probe ./pkg
+    - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf

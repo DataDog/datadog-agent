@@ -298,6 +298,7 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx Replace
 	}
 
 	return &StringEvaluator{
+		Value:     str,
 		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			var result string

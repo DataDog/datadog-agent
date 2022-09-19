@@ -90,10 +90,9 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
-		} else {
-			normalize(policy)
-			policies = append(policies, policy)
 		}
+		normalize(policy)
+		policies = append(policies, policy)
 	}
 
 	return policies, errs

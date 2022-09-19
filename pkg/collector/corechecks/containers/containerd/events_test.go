@@ -218,7 +218,7 @@ func TestComputeEvents(t *testing.T) {
 				},
 			},
 			expectedTitle: "Event on containers from Containerd",
-			expectedTags:  []string{"foo:bar"},
+			expectedTags:  []string{"foo:bar", "event_type:destroy"},
 			numberEvents:  1,
 		},
 		{

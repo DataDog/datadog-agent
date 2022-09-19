@@ -141,7 +141,10 @@ type RequestStat struct {
 	FirstLatencySample float64
 
 	// Tags bitfields from tags-types.h
-	Tags uint64
+	StaticTags uint64
+
+	// Dynamic tags (if attached)
+	DynamicTags []string
 }
 
 func (r *RequestStats) idx(status int) int {
@@ -188,7 +191,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		newStatsData := newStats.Stats(statusClass)
 		if newStatsData.Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
-			r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.Tags)
+			r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.StaticTags, newStatsData.DynamicTags)
 			continue
 		}
 
@@ -221,7 +224,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusClass int, latency float64, tags uint64) {
+func (r *RequestStats) AddRequest(statusClass int, latency float64, staticTags uint64, dynamicTags []string) {
 	if !r.isValid(statusClass) {
 		return
 	}
@@ -231,7 +234,11 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64, tags uint64)
 		stats = r.Stats(statusClass)
 	}
 
-	stats.Tags |= tags
+	stats.StaticTags |= staticTags
+	if len(dynamicTags) != 0 {
+		stats.DynamicTags = append(stats.DynamicTags, dynamicTags...)
+	}
+
 	stats.Count++
 	if stats.Count == 1 {
 		// We postpone the creation of histograms when we have only one latency sample
@@ -263,4 +270,14 @@ func (r *RequestStat) initSketch() (err error) {
 		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
 	return
+}
+
+// HalfAllCounts sets the count of all stats for each status class to half their current value.
+// This is used to remove duplicates from the count in the context of Windows localhost traffic.
+func (r *RequestStats) HalfAllCounts() {
+	for i := 0; i < NumStatusClasses; i++ {
+		if r.data[i] != nil {
+			r.data[i].Count = r.data[i].Count / 2
+		}
+	}
 }

@@ -4,4 +4,4 @@
 
 package runtime
 
-var Http = NewRuntimeAsset("http.c", "fad87c6eca996c81c5b5256a7ecb9dcc0f654fb108a34d9fd6030d63ba97bf56")
+var Http = NewAsset("http.c", "fe61afe06c49e856dd4f61695f95a96d658bc7d08935451fc2f5fd476ef23067")

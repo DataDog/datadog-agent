@@ -49,14 +49,14 @@ type incompleteBuffer struct {
 }
 
 type txParts struct {
-	requests  []*httpTX
-	responses []*httpTX
+	requests  []httpTX
+	responses []httpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]*httpTX, 0, 5),
-		responses: make([]*httpTX, 0, 5),
+		requests:  make([]httpTX, 0, 5),
+		responses: make([]httpTX, 0, 5),
 	}
 }
 
@@ -69,12 +69,11 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 	}
 }
 
-func (b *incompleteBuffer) Add(tx *httpTX) {
+func (b *incompleteBuffer) Add(tx httpTX) {
 	key := KeyTuple{
-		SrcIPHigh: uint64(tx.Tup.Saddr_h),
-		SrcIPLow:  uint64(tx.Tup.Saddr_l),
-		SrcPort:   uint16(tx.Tup.Sport),
-		Cookie:    uint64(tx.Conn_cookie),
+		SrcIPHigh: uint64(tx.SrcIPHigh()),
+		SrcIPLow:  uint64(tx.SrcIPLow()),
+		SrcPort:   uint16(tx.SrcPort()),
 	}
 
 	parts, ok := b.data[key]
@@ -88,6 +87,18 @@ func (b *incompleteBuffer) Add(tx *httpTX) {
 		b.data[key] = parts
 	}
 
+	// copy underlying httpTX value. this is now needed because these objects are
+	// now coming directly from pooled perf records
+	ebpfTX, ok := tx.(*ebpfHttpTx)
+	if !ok {
+		// should never happen
+		return
+	}
+
+	ebpfTxCopy := new(ebpfHttpTx)
+	*ebpfTxCopy = *ebpfTX
+	tx = ebpfTxCopy
+
 	if tx.StatusClass() == 0 {
 		parts.requests = append(parts.requests, tx)
 	} else {
@@ -95,9 +106,9 @@ func (b *incompleteBuffer) Add(tx *httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 	var (
-		joined   []*httpTX
+		joined   []httpTX
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
@@ -114,14 +125,14 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 		for i < len(parts.requests) && j < len(parts.responses) {
 			request := parts.requests[i]
 			response := parts.responses[j]
-			if request.Request_started > response.Response_last_seen {
+			if request.RequestStarted() > response.ResponseLastSeen() {
 				j++
 				continue
 			}
 
 			// Merge response into request
-			request.Response_status_code = response.Response_status_code
-			request.Response_last_seen = response.Response_last_seen
+			request.SetStatusCode(response.StatusCode())
+			request.SetResponseLastSeen(response.ResponseLastSeen())
 			joined = append(joined, request)
 			i++
 			j++
@@ -144,21 +155,23 @@ func (b *incompleteBuffer) Flush(now time.Time) []*httpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx *httpTX, now int64) bool {
-	then := int64(tx.Request_started)
+func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
+	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []*httpTX
+type byRequestTime []httpTX
 
-func (rt byRequestTime) Len() int           { return len(rt) }
-func (rt byRequestTime) Swap(i, j int)      { rt[i], rt[j] = rt[j], rt[i] }
-func (rt byRequestTime) Less(i, j int) bool { return rt[i].Request_started < rt[j].Request_started }
+func (rt byRequestTime) Len() int      { return len(rt) }
+func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
+func (rt byRequestTime) Less(i, j int) bool {
+	return rt[i].RequestStarted() < rt[j].RequestStarted()
+}
 
-type byResponseTime []*httpTX
+type byResponseTime []httpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
 func (rt byResponseTime) Less(i, j int) bool {
-	return rt[i].Response_last_seen < rt[j].Response_last_seen
+	return rt[i].ResponseLastSeen() < rt[j].ResponseLastSeen()
 }

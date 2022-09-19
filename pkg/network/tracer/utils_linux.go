@@ -80,7 +80,7 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCode)
 
 	var missingFuncs []string
-	for f, _ := range missing {
+	for f := range missing {
 		missingFuncs = append(missingFuncs, f)
 	}
 	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missingFuncs, ", "))

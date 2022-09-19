@@ -70,15 +70,17 @@ type HelmCheck struct {
 }
 
 type checkConfig struct {
-	CollectEvents                  bool `yaml:"collect_events"`
-	ExtraSyncTimeoutSeconds        int  `yaml:"extra_sync_timeout_seconds"`
-	InformersResyncIntervalMinutes int  `yaml:"informers_resync_interval_minutes"`
+	CollectEvents                  bool              `yaml:"collect_events"`
+	HelmValuesAsTags               map[string]string `yaml:"helm_values_as_tags"`
+	ExtraSyncTimeoutSeconds        int               `yaml:"extra_sync_timeout_seconds"`
+	InformersResyncIntervalMinutes int               `yaml:"informers_resync_interval_minutes"`
 }
 
 // Parse parses the config and sets default values
 func (cc *checkConfig) Parse(data []byte) error {
 	// default values
 	cc.CollectEvents = false
+	cc.HelmValuesAsTags = make(map[string]string)
 
 	return yaml.Unmarshal(data, cc)
 }
@@ -150,7 +152,8 @@ func (hc *HelmCheck) Run() error {
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
-			sender.Gauge("helm.release", 1, "", tagsForMetricsAndEvents(rel, storageDriver, true))
+			tags := append(rel.commonTags, rel.tagsForMetricsAndEvents...)
+			sender.Gauge("helm.release", 1, "", tags)
 		}
 	}
 
@@ -201,8 +204,15 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 	)
 }
 
-func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includeRevision bool) []string {
-	tags := tagsForServiceCheck(release, storageDriver)
+func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
+	return append(
+		commonTags(release, storageDriver),
+		hc.tagsForMetricsAndEvents(release, includeRevision)...,
+	)
+}
+
+func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision bool) []string {
+	var tags []string
 
 	if includeRevision {
 		tags = append(tags, fmt.Sprintf("helm_revision:%d", release.Version))
@@ -227,12 +237,22 @@ func tagsForMetricsAndEvents(release *release, storageDriver helmStorage, includ
 		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
 	}
 
+	for helmValue, tagName := range hc.instance.HelmValuesAsTags {
+		value, err := release.getConfigValue(helmValue)
+		if err != nil {
+			log.Tracef("Value for %s specified in helm_values_as_tags not found", helmValue)
+			continue
+		}
+		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))
+	}
+
 	return tags
 }
 
-// tagsForServiceCheck returns the tags needed for the service check which
-// are the ones that don't change between revisions
-func tagsForServiceCheck(release *release, storageDriver helmStorage) []string {
+// commonTags returns the common tags that are included in service checks, the
+// metrics, and the events. These are the tags that don't change between
+// revisions
+func commonTags(release *release, storageDriver helmStorage) []string {
 	tags := []string{
 		fmt.Sprintf("helm_release:%s", release.Name),
 		fmt.Sprintf("helm_storage:%s", storageDriver),
@@ -377,15 +397,19 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 
 	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
 
+	genericTags := commonTags(decodedRelease, storageDriver)
+	tagsMetricsAndEvents := hc.tagsForMetricsAndEvents(decodedRelease, true)
+	allTags := append(genericTags, tagsMetricsAndEvents...)
+
 	if needToEmitEvent {
 		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
-			hc.eventsManager.addEventForUpdatedRelease(previous, decodedRelease, storageDriver)
+			hc.eventsManager.addEventForUpdatedRelease(previous.release, decodedRelease, allTags)
 		} else {
-			hc.eventsManager.addEventForNewRelease(decodedRelease, storageDriver)
+			hc.eventsManager.addEventForNewRelease(decodedRelease, allTags)
 		}
 	}
 
-	hc.store.add(decodedRelease, storageDriver)
+	hc.store.add(decodedRelease, storageDriver, genericTags, tagsMetricsAndEvents)
 }
 
 func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
@@ -401,7 +425,8 @@ func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStor
 	// time. To avoid generating many events with the same info, we just emit
 	// one when there are no more revisions left.
 	if hc.instance.CollectEvents && !moreRevisionsLeft {
-		hc.eventsManager.addEventForDeletedRelease(decodedRelease, storageDriver)
+		tags := hc.allTags(decodedRelease, storageDriver, false)
+		hc.eventsManager.addEventForDeletedRelease(decodedRelease, tags)
 	}
 }
 
@@ -428,10 +453,10 @@ func isLeader() (bool, error) {
 
 func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
-		for _, rel := range hc.store.getLatestRevisions(storageDriver) {
-			tags := tagsForServiceCheck(rel, storageDriver)
+		for _, taggedRel := range hc.store.getLatestRevisions(storageDriver) {
+			tags := taggedRel.commonTags
 
-			if rel.Info != nil && rel.Info.Status == "failed" {
+			if taggedRel.release.Info != nil && taggedRel.release.Info.Status == "failed" {
 				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
 			} else {
 				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckOK, "", tags, "")

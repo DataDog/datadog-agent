@@ -345,6 +345,7 @@ type AgentConfig struct {
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
+	StatsdEnabled  bool
 	StatsdHost     string
 	StatsdPort     int
 	StatsdPipeName string // for Windows Pipes
@@ -420,6 +421,9 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+
+	// ContainerProcRoot is the root dir for `proc` info
+	ContainerProcRoot string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -469,8 +473,9 @@ func New() *AgentConfig {
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
 
-		StatsdHost: "localhost",
-		StatsdPort: 8125,
+		StatsdHost:    "localhost",
+		StatsdPort:    8125,
+		StatsdEnabled: true,
 
 		LogThrottling: true,
 

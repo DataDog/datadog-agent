@@ -24,7 +24,7 @@ func TestOrphanEntries(t *testing.T) {
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		buffer := newIncompleteBuffer(config.New(), tel)
-		request := &httpTX{
+		request := &ebpfHttpTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
 		}
@@ -35,7 +35,7 @@ func TestOrphanEntries(t *testing.T) {
 		complete := buffer.Flush(now)
 		assert.Len(t, complete, 0)
 
-		response := &httpTX{
+		response := &ebpfHttpTx{
 			Response_status_code: 200,
 			Response_last_seen:   uint64(now.UnixNano()),
 		}
@@ -56,7 +56,7 @@ func TestOrphanEntries(t *testing.T) {
 		buffer := newIncompleteBuffer(config.New(), tel)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &httpTX{
+		request := &ebpfHttpTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
 		}

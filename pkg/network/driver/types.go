@@ -75,6 +75,7 @@ const (
 )
 
 type HttpTransactionType C.struct__HttpTransactionType
+type HttpConfigurationSettings C.struct__HttpConfigurationSettings
 type ConnTupleType C.struct__ConnTupleType
 type HttpMethodType C.enum__HttpMethodType
 
@@ -82,4 +83,5 @@ const (
 	HttpBatchSize           = C.HTTP_BATCH_SIZE
 	HttpBufferSize          = C.HTTP_BUFFER_SIZE
 	HttpTransactionTypeSize = C.sizeof_struct__HttpTransactionType
+	HttpSettingsTypeSize    = C.sizeof_struct__HttpConfigurationSettings
 )

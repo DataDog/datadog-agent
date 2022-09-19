@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
 import (
-	"encoding/binary"
-	"fmt"
 	"regexp"
 	"strconv"
 	"testing"
@@ -68,25 +66,6 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			assert.True(t, p50 <= expectedLatency+acceptableError)
 		}
 	}
-}
-
-func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
-	var tx httpTX
-
-	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := uint64(latency)
-	tx.Request_started = 1
-	tx.Request_method = 1
-	tx.Response_last_seen = tx.Request_started + latencyNS
-	tx.Response_status_code = uint16(code)
-	tx.Request_fragment = requestFragment([]byte(reqFragment))
-	tx.Tup.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Bytes()))
-	tx.Tup.Sport = uint16(sourcePort)
-	tx.Tup.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Bytes()))
-	tx.Tup.Dport = uint16(destPort)
-	tx.Tup.Metadata = 1
-
-	return tx
 }
 
 func BenchmarkProcessSameConn(b *testing.B) {
@@ -248,7 +227,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			404,
 			30*time.Millisecond,
 		)
-		tx.Request_method = 0 /* This is MethodUnknown */
+		tx.SetRequestMethod(0) /* This is MethodUnknown */
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)

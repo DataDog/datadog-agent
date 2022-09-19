@@ -177,6 +177,9 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			if err != nil {
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %v", optionalField[len(timestampFieldPrefix):], err)
 			}
+			if ts < 1 {
+				return dogstatsdMetricSample{}, fmt.Errorf("dogstatsd timestamp should be > 0")
+			}
 			timestamp = time.Unix(ts, 0)
 		// container ID
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):

@@ -60,7 +60,7 @@ func TestNewOTLPSpan(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal(testTraceID, span.TraceID().Bytes())
 		assert.Equal(testSpanID, span.SpanID().Bytes())
-		assert.Equal("state", string(span.TraceState()))
+		assert.Equal("state", string(span.TraceStateStruct().AsRaw()))
 		assert.Equal(testParentID, span.ParentSpanID().Bytes())
 		assert.Equal("name", span.Name())
 		assert.Equal(ptrace.SpanKindInternal, span.Kind())
