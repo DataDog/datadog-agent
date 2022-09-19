@@ -131,7 +131,6 @@ func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 			DstIPHigh: tx.DstIPHigh(),
 			DstIPLow:  tx.DstIPLow(),
 			DstPort:   tx.DstPort(),
-			Cookie:    tx.ConnCookie(),
 		},
 		Path: Path{
 			Content:  path,

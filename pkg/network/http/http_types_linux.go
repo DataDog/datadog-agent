@@ -39,7 +39,6 @@ type ebpfHttpTx struct {
 	Owned_by_src_port    uint16
 	Tcp_seq              uint32
 	Tags                 uint64
-	Conn_cookie          uint64
 }
 type httpBatch struct {
 	Idx uint64

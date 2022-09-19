@@ -68,8 +68,6 @@ typedef struct {
     __u32 tcp_seq;
 
     __u64 tags;
-
-    __u64 conn_cookie;
 } http_transaction_t;
 
 typedef struct {

@@ -181,8 +181,6 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         return 0;
     }
 
-    log_debug("http cookie: %u\n", http->conn_cookie);
-
     if (http_should_flush_previous_state(http, packet_type)) {
         http_enqueue(http);
         __builtin_memcpy(http, http_stack, sizeof(http_transaction_t));

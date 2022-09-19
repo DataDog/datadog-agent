@@ -78,8 +78,6 @@ type KeyTuple struct {
 	// ports separated for alignment/size optimization
 	SrcPort uint16
 	DstPort uint16
-
-	Cookie uint64 // socket cookie, may or may not be populated by ebpf
 }
 
 // Key is an identifier for a group of HTTP transactions
@@ -93,7 +91,7 @@ type Key struct {
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
 	return Key{
-		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport, 0),
+		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
@@ -103,7 +101,7 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPat
 }
 
 // NewKeyTuple generates a new KeyTuple
-func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16, cookie uint64) KeyTuple {
+func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 	saddrl, saddrh := util.ToLowHigh(saddr)
 	daddrl, daddrh := util.ToLowHigh(daddr)
 	return KeyTuple{
@@ -113,7 +111,6 @@ func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16, cookie uint64) 
 		DstIPHigh: daddrh,
 		DstIPLow:  daddrl,
 		DstPort:   dport,
-		Cookie:    cookie,
 	}
 }
 

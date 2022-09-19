@@ -95,10 +95,6 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	for _, conn := range payload.Conns {
 		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
 			encoder.aggregations[key] = nil
-			// add without cookie as well as the cookie
-			// is not guaranteed to be there
-			key.Cookie = 0
-			encoder.aggregations[key] = nil
 		}
 	}
 

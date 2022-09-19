@@ -11,6 +11,7 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
+
 	//"encoding/hex"
 	"errors"
 	"fmt"
@@ -124,10 +125,6 @@ func (tx *FullHttpTransaction) DstIPHigh() uint64 {
 
 func (tx *FullHttpTransaction) DstPort() uint16 {
 	return tx.Txn.Tup.SrvPort
-}
-
-func (tx *FullHttpTransaction) ConnCookie() uint64 {
-	return 0
 }
 
 func (tx *FullHttpTransaction) Method() Method {

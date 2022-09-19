@@ -87,8 +87,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
-			{Name: "skb_socks"},
-			{Name: "security_sock_rcv_skb_params"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -123,13 +121,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilterStub,
 					EBPFFuncName: "socket__http_filter_entry",
-					UID:          probeUID,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kprobe__security_sock_rcv_skb",
 					UID:          probeUID,
 				},
 			},
@@ -211,13 +202,6 @@ func (e *ebpfProgram) Init() error {
 					UID:          probeUID,
 				},
 			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kprobe__security_sock_rcv_skb",
-					UID:          probeUID,
-				},
-			},
 		},
 		ConstantEditors: e.offsets,
 	}
@@ -226,7 +210,8 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	if err := e.InitWithOptions(e.bytecode, options); err != nil {
+	err = e.InitWithOptions(e.bytecode, options)
+	if err != nil {
 		return err
 	}
 

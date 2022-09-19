@@ -492,8 +492,8 @@ func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
 	// and which is the local address. To account for this, we'll construct 2 possible
 	// http keys and check for both of them in our http aggregations map.
 	return [2]http.KeyTuple{
-		http.NewKeyTuple(laddr, raddr, lport, rport, c.Cookie),
-		http.NewKeyTuple(raddr, laddr, rport, lport, c.Cookie),
+		http.NewKeyTuple(laddr, raddr, lport, rport),
+		http.NewKeyTuple(raddr, laddr, rport, lport),
 	}
 }
 
