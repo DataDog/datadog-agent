@@ -222,10 +222,6 @@ func TestActivityDumps(t *testing.T) {
 	test.Run(t, "activity-dump-comm-rate-limiter", func(t *testing.T, kind wrapperType,
 		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
-		if kind == dockerWrapperType { // do not check ratelimiter on docker for now
-			return
-		}
-
 		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
 		if err != nil {
 			t.Fatal(err)
@@ -234,7 +230,10 @@ func TestActivityDumps(t *testing.T) {
 		time.Sleep(2 * time.Second) // a quick sleep to let starts and snapshot events to be added to the dump
 
 		for i := 0; i < 20; i++ {
-			temp, err := os.CreateTemp("/tmp", "ad-test-create")
+			if err := os.MkdirAll("/tmp/ratelimiter", os.ModePerm); err != nil {
+				t.Fatal(err)
+			}
+			temp, err := os.CreateTemp("/tmp/ratelimiter", "ad-test-create")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -260,10 +259,14 @@ func TestActivityDumps(t *testing.T) {
 			node := nodes[0]
 			tmp := node.Files["tmp"]
 			if tmp == nil {
-				t.Fatal("Didn't find tmp node")
+				t.Fatal("Didn't find /tmp node")
 			}
-			if len(tmp.Children) != 10 {
-				t.Fatalf("Didn't find the good number of files in tmp node (%d/10)", len(tmp.Children))
+			ratelimiter := tmp.Children["ratelimiter"]
+			if ratelimiter == nil {
+				t.Fatal("Didn't find /tmp/ratelimiter node")
+			}
+			if len(ratelimiter.Children) != 10 {
+				t.Fatalf("Didn't find the good number of files in tmp node (%d/10)", len(ratelimiter.Children))
 			}
 
 			return true
