@@ -25,10 +25,6 @@
 
 #include "sock.h"
 
-static __always_inline void store_socket_cookie(conn_tuple_t *t, struct sock *sk) {
-    // no-op on prebuilt
-}
-
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;

@@ -10,6 +10,7 @@
 #include "tags-types.h"
 #include "sock.h"
 #include "port_range.h"
+#include "cookie.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -35,6 +36,15 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    u64 skb_key = (u64)skb;
+    struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&skb_socks, &skb_key);
+    if (skpp) {
+        http.conn_cookie = get_socket_cookie(*skpp);
+    }
+    bpf_map_delete_elem(&skb_socks, &skb_key);
+
+    log_debug("http cookie: %llx\n", http.conn_cookie);
+
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
     http.owned_by_src_port = http.tup.sport;
@@ -53,15 +63,35 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kprobe/security_sock_rcv_skb")
+int kprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
+    struct sock *sk = (struct sock*) PT_REGS_PARM1(ctx);
+    struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM2(ctx);
+
+    u64 skb_key = (u64) skb;
+    bpf_map_update_elem(&skb_socks, &skb_key, &sk, BPF_ANY);
+    log_debug("inserted skb %llx sk %llx\n", skb_key, sk);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&security_sock_rcv_skb_params, &pid_tgid, &skb_key, BPF_ANY);
+    return 0;
+}
+
 SEC("kretprobe/security_sock_rcv_skb")
 int kretprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
-    log_debug("kretprobe/security_sock_rcv_skb:\n");
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64* skb_key = (u64*) bpf_map_lookup_elem(&security_sock_rcv_skb_params, &pid_tgid);
+    int err = (int) PT_REGS_RC(ctx);
+    if (err && skb_key) {
+        bpf_map_delete_elem(&skb_socks, skb_key);
+    }
+    bpf_map_delete_elem(&security_sock_rcv_skb_params, &pid_tgid);
+
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_flush_batch(ctx);
     return 0;
 }
-
 
 SEC("uprobe/SSL_do_handshake")
 int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
