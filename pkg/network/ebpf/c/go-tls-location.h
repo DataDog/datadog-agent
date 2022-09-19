@@ -137,7 +137,7 @@ static __always_inline int read_location(struct pt_regs* ctx, location_t* loc, s
     }
 
     if (loc->in_register) {
-        if (size != sizeof(void *)) {
+        if (size != REG_SIZE) {
             return 1;
         }
 
