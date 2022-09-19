@@ -185,7 +185,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}()
 
 	// Setup healthcheck port
-	var healthPort = config.Datadog.GetInt("health_port")
+	healthPort := config.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(mainCtx, healthPort)
 		if err != nil {
