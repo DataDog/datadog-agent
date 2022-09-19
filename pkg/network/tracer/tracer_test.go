@@ -591,6 +591,7 @@ func testTCPFailedConnsTimeout(t *testing.T) {
 		NetNS:        ns,
 		Direction:    network.OUTGOING,
 		FailureCount: 1,
+		LastErrno:    int32(syscall.ETIMEDOUT),
 	})
 }
 func testTCPFailedConnsClosedDest(t *testing.T) {
@@ -627,6 +628,7 @@ func testTCPFailedConnsClosedDest(t *testing.T) {
 		NetNS:        ns,
 		Direction:    network.OUTGOING,
 		FailureCount: 1,
+		LastErrno:    int32(syscall.ECONNREFUSED),
 	})
 }
 

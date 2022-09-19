@@ -74,6 +74,7 @@ typedef struct {
 typedef struct {
     conn_tuple_t ct;
     conn_direction_t dir;
+    int errno;
 } failed_conn_stats_t;
 
 typedef struct {

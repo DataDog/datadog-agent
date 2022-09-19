@@ -551,6 +551,7 @@ func getFailedConnStats(t *netebpf.ConnTuple, s *failedConnStats) *network.Faile
 		Type:         network.TCP,
 		Direction:    network.ConnectionDirection(s.direction),
 		FailureCount: s.failureCount,
+		LastErrno:    s.lastErrno,
 	}
 
 	switch t.Family() {

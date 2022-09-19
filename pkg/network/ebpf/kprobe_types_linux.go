@@ -32,9 +32,9 @@ type ConnStats struct {
 	Recv_packets uint64
 }
 type FailedConnStats struct {
-	Ct        ConnTuple
-	Dir       uint32
-	Pad_cgo_0 [4]byte
+	Ct    ConnTuple
+	Dir   uint32
+	Errno int32
 }
 type Conn struct {
 	Tup        ConnTuple

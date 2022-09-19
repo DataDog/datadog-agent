@@ -19,6 +19,7 @@ import (
 type failedConnStats struct {
 	direction    netebpf.ConnDirection
 	failureCount uint64
+	lastErrno    int32
 }
 
 type failedConnMap map[netebpf.ConnTuple]failedConnStats
@@ -85,6 +86,7 @@ func (c *tcpFailedConnConsumer) addFailedConn(s *netebpf.FailedConnStats) {
 	stats := c.failedConns[(*s).Ct]
 	stats.failureCount += 1
 	stats.direction = netebpf.ConnDirection((*s).Dir)
+	stats.lastErrno = (*s).Errno
 
 	c.failedConns[(*s).Ct] = stats
 }

@@ -124,6 +124,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Family:       model.ConnectionFamily_v4,
 				Direction:    model.ConnectionDirection_outgoing,
 				FailureCount: 3,
+				LastErrno:    110,
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
@@ -220,6 +221,7 @@ func TestSerialization(t *testing.T) {
 					Direction: network.OUTGOING,
 
 					FailureCount: 3,
+					LastErrno:    110,
 				},
 			},
 		},

@@ -307,6 +307,7 @@ type FailedConnStats struct {
 	Direction ConnectionDirection
 
 	FailureCount uint64
+	LastErrno    int32
 }
 
 // Via has info about the routing decision for a flow
