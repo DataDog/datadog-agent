@@ -217,7 +217,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)
 				validKey = true
 			} else {
-				log.Warnf("api_key '%s' for  domain %s is invalid", apiKey, domain)
+				log.Warnf("api_key '%s' for domain %s is invalid", apiKey, domain)
 			}
 		}
 	}
