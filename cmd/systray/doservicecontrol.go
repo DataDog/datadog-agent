@@ -8,26 +8,26 @@
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func onRestart() {
-	if err := app.StopService(config.ServiceName, true); err == nil {
-		app.StartService(nil, nil)
+	if err := runcmd.StopService(config.ServiceName, true); err == nil {
+		runcmd.StartService(nil, nil)
 	}
 
 }
 func onStart() {
-	if err := app.StartService(nil, nil); err != nil {
+	if err := runcmd.StartService(nil, nil); err != nil {
 		log.Warnf("Failed to start datadog service %v", err)
 	}
 
 }
 
 func onStop() {
-	if err := app.StopService(config.ServiceName, true); err != nil {
+	if err := runcmd.StopService(config.ServiceName, true); err != nil {
 		log.Warnf("Failed to stop datadog service %v", err)
 	}
 
