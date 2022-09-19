@@ -24,7 +24,7 @@ import (
 // ensureKeys takes 2 maps, expect and result, and ensures that the set of keys in expect and
 // result match. For each key (k) in expect, if expect[k] is of type map[string]interface{}, then
 // ensureKeys recurses on expect[k], result[k], prefix + "." + k.
-// 
+//
 // This should ensure that whatever keys and maps are defined in expect are exactly mirrored in
 // result, but without checking for specific values in result.
 func ensureKeys(expect, result map[string]interface{}, prefix string) error {
@@ -64,6 +64,143 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 		}
 	}
 	return nil
+}
+
+func TestEnsureKeys(t *testing.T) {
+	for _, tt := range []struct {
+		expect map[string]interface{}
+		result map[string]interface{}
+		err    bool
+	}{
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+			},
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"three": nil,
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+			},
+			err: true,
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+				"three": 3,
+			},
+			err: true,
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{} {
+					"subone": nil,
+					"subtwo": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+				"sub": map[string]interface{} {
+					"subone": 1,
+					"subtwo": 2,
+				},
+			},
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{} {
+					"subone": nil,
+					"subtwo": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": map[string]interface{} { // Map values not described in expect are NOT checked, so this is OK.
+					"subone": 1,
+					"subtwo": 2,
+				},
+				"sub": map[string]interface{} {
+					"subone": 1,
+					"subtwo": 2,
+				},
+			},
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{} {
+					"subone": nil,
+					"subtwo": nil,
+					"subthree": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": map[string]interface{} { // Map values not described in expect are NOT checked, so this is OK.
+					"subone": 1,
+					"subtwo": 2,
+				},
+				"sub": map[string]interface{} {
+					"subone": 1,
+					"subtwo": 2,
+				},
+			},
+			err: true,
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{} {
+					"subone": nil,
+					"subtwo": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": map[string]interface{} { // Map values not described in expect are NOT checked, so this is OK.
+					"subone": 1,
+					"subtwo": 2,
+				},
+				"sub": map[string]interface{} {
+					"subone": 1,
+					"subtwo": 2,
+					"subthree": 3,
+				},
+			},
+			err: true,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			err := ensureKeys(tt.expect, tt.result, "")
+			if tt.err {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 // TestInfoHandler ensures that the keys returned by the /info handler do not
