@@ -190,10 +190,10 @@ func runJmxCommandConsole(command string) error {
 	//       WaitForConfigsFromAD will timeout and return no AD configs.
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(discoveryTimeout)*time.Second)
-	allConfigs := common.WaitForConfigsFromAD(waitCtx, cliSelectedChecks, int(discoveryMinInstances))
+	allConfigs := common.WaitForAllConfigsFromAD(waitCtx)
 	cancelTimeout()
 
-	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, allConfigs)
+	err = standalone.ExecJMXCommandConsole(command, []string{}, logLevel, allConfigs)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")
