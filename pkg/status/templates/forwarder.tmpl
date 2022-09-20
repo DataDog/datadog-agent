@@ -72,11 +72,10 @@ Forwarder
   {{- end}}
 
 {{- if .APIKeyStatus }}
-  
   API Keys status
   ===============
   {{- range $key, $value := .APIKeyStatus }}
-      {{$key}}: {{$value}} 
+    {{$key}}: {{$value}} 
   {{- end }}
 {{- end}}
 

@@ -154,8 +154,10 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status 
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
 	if status == &apiKeyInvalid {
 		apiKeyFailure.Set(obfuscatedKey, status)
+		apiKeyStatus.Set("", nil)
 	} else {
 		apiKeyStatus.Set(obfuscatedKey, status)
+		apiKeyFailure.Set("", nil)
 	}
 }
 
