@@ -233,7 +233,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 }
 
 func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPHTTPSMonitoringViaETW {
+	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")
@@ -241,17 +241,8 @@ func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
 	var monitor http.Monitor
 	var err error
 
-	if c.EnableHTTPHTTPSMonitoringViaETW {
-		monitor, err = http.NewEtwMonitor(c)
-		if err == nil {
-			log.Infof("http monitoring via ETW has been enabled")
-		}
-	} else {
-		monitor, err = http.NewDriverMonitor(c, dh)
-		if err == nil {
-			log.Infof("http monitoring via driver inspection has been enabled")
-		}
-	}
+	monitor, err = http.NewWindowsMonitor(c, dh)
+
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return nil
