@@ -152,6 +152,7 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
                     return &ctx->regs[15];
                 default:
                     return NULL;
+            }
         }
         return NULL;
     #else
