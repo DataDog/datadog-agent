@@ -87,9 +87,7 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue
 		}
-		if count := getMapErrCount(&val); len(count) > 0 {
-			t[m] = count
-		}
+		t[m] = getMapErrCount(&val)
 	}
 
 	return t
@@ -110,10 +108,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue
 		}
-		t := getHelperTelemetry(&val)
-		if len(t) > 0 {
-			helperTelemMap[m] = t
-		}
+		helperTelemMap[m] = getHelperTelemetry(&val)
 	}
 
 	return helperTelemMap
