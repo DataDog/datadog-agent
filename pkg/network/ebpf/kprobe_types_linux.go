@@ -13,6 +13,7 @@ type ConnTuple struct {
 	Netns    uint32
 	Pid      uint32
 	Metadata uint32
+	Cookie   uint64
 }
 type TCPStats struct {
 	Retransmits       uint32
@@ -32,10 +33,9 @@ type ConnStats struct {
 	Recv_packets uint64
 }
 type Conn struct {
-	Tup         ConnTuple
-	Conn_stats  ConnStats
-	Tcp_stats   TCPStats
-	Conn_cookie uint64
+	Tup        ConnTuple
+	Conn_stats ConnStats
+	Tcp_stats  TCPStats
 }
 type Batch struct {
 	C0  Conn

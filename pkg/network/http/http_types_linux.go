@@ -13,6 +13,7 @@ type httpConnTuple struct {
 	Netns    uint32
 	Pid      uint32
 	Metadata uint32
+	Cookie   uint64
 }
 type httpBatchState struct {
 	Idx      uint64

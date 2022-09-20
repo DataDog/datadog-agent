@@ -69,6 +69,7 @@ typedef struct {
     // First bit indicates if the connection is TCP (1) or UDP (0)
     // Second bit indicates if the connection is V6 (1) or V4 (0)
     __u32 metadata; // This is that big because it seems that we atleast need a 32-bit aligned struct
+    __u64 cookie;
 } conn_tuple_t;
 
 typedef struct {
@@ -85,7 +86,6 @@ typedef struct {
     conn_tuple_t tup;
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
-    __u64 conn_cookie;
 } conn_t;
 
 // From include/net/tcp.h

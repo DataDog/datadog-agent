@@ -43,7 +43,6 @@ type kprobeTracer struct {
 
 	conns       *ebpf.Map
 	tcpStats    *ebpf.Map
-	connCookies *ebpf.Map
 	config      *config.Config
 
 	// tcp_close events
@@ -89,7 +88,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.ConnCookiesMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: constants,
 	}
@@ -182,10 +180,6 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.TCPStatsMap, err)
 	}
 
-	if tr.connCookies, _, err = m.GetMap(string(probes.ConnCookiesMap)); err != nil {
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %w", probes.ConnCookiesMap, err)
-	}
-
 	return tr, nil
 }
 
@@ -251,7 +245,6 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 
-		_ = t.connCookies.Lookup(unsafe.Pointer(key), unsafe.Pointer(&conn.Cookie))
 		*buffer.Next() = *conn
 	}
 
@@ -486,6 +479,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Monotonic:        make(network.StatCountersByCookie, 0, 3),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
+		Cookie:           uint64(t.Cookie),
 	}
 
 	stats.Monotonic.Put(s.Cookie, network.StatCounters{

@@ -350,6 +350,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
+			log.Tracef("closed connection: %+v", c)
 			key := string(c.ByteKey(ns.buf))
 
 			if i, ok := client.closedConnectionsKeys[key]; ok {

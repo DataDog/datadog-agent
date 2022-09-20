@@ -158,7 +158,6 @@ const (
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
 	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
 	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
-	ConnCookiesMap        BPFMapName = "conn_cookies"
 )
 
 // SectionName returns the SectionName for the given BPF map

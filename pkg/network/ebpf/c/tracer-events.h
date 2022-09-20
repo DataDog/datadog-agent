@@ -13,11 +13,11 @@ static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
 }
 
-static __always_inline void cleanup_conn(conn_tuple_t *tup, u64 cookie) {
+static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
-    conn_t conn = { .tup = *tup, .conn_cookie = cookie };
+    conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
     bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;

@@ -8,11 +8,6 @@
 
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
-static __always_inline void store_socket_cookie(conn_tuple_t *t, struct sock *sk) {
-    u64 cookie = get_socket_cookie(sk);
-    bpf_map_update_elem(&conn_cookies, t, &cookie, BPF_ANY);
-}
-
 static __always_inline u32 get_stat_cookie(struct sock *sk) {
     u64 t = bpf_ktime_get_ns();
     s64 cookie = get_socket_cookie(sk);
@@ -135,15 +130,8 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
                                           __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk)
 {
-    // only use connection cookie for TCP connections for now
-    if (t->metadata & CONN_TYPE_TCP) {
-        store_socket_cookie(t, sk);
-    }
-
     u64 ts = bpf_ktime_get_ns();
-
     update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, sk);
-
     return 0;
 }
 

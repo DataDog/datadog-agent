@@ -3,6 +3,8 @@
 
 #include "kconfig.h"
 
+#include "cookie.h"
+
 /* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
  * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
  * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
@@ -187,6 +189,9 @@ static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
 static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->pid = pid_tgid >> 32;
     t->metadata = type;
+    if (t->metadata & CONN_TYPE_TCP) {
+        t->cookie = get_socket_cookie(skp);
+    }
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends

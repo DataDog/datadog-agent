@@ -9,6 +9,8 @@
 
 #include <net/inet_sock.h>
 
+#include "cookie.h"
+
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
     bpf_probe_read_kernel(&sport, sizeof(sport), &skp->sk_num);
@@ -26,6 +28,9 @@ static __always_inline __u16 read_sport(struct sock* skp) {
 static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     t->pid = pid_tgid >> 32;
     t->metadata = type;
+    if (t->metadata & CONN_TYPE_TCP) {
+        t->cookie = get_socket_cookie(skp);
+    }
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends

@@ -11,8 +11,6 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
-
-	//"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
