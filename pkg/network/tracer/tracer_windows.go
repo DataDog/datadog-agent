@@ -233,20 +233,6 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 }
 
 func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
-		return nil
-	}
-	log.Infof("http monitoring has been enabled")
-
-	var monitor http.Monitor
-	var err error
-
-	monitor, err = http.NewWindowsMonitor(c, dh)
-
-	if err != nil {
-		log.Errorf("could not instantiate http monitor: %s", err)
-		return nil
-	}
-	monitor.Start()
-	return monitor
+	log.Warnf("HTTP Monitoring not yet supported")
+	return nil
 }
