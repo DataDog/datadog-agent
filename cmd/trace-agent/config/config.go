@@ -99,6 +99,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
+	cfg.ContainerProcRoot = coreconfig.Datadog.GetString("container_proc_root")
 	return cfg, nil
 }
 
@@ -405,6 +406,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	c.Site = coreconfig.Datadog.GetString("site")
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
+	}
+	if k := "use_dogstatsd"; coreconfig.Datadog.IsSet(k) {
+		c.StatsdEnabled = coreconfig.Datadog.GetBool(k)
 	}
 	if k := "appsec_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.AppSec.Enabled = coreconfig.Datadog.GetBool(k)

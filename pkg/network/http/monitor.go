@@ -78,8 +78,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, err
 	}
 
-	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
-	numCPUs := int(notificationMap.MaxEntries())
+	batchEventsMap, _, _ := mgr.GetMap(httpBatchEvents)
+	numCPUs := int(batchEventsMap.MaxEntries())
 
 	telemetry, err := newTelemetry()
 	if err != nil {
@@ -131,9 +131,7 @@ func (m *Monitor) Start() error {
 					return
 				}
 
-				// The notification we read from the perf ring tells us which HTTP batch of transactions is ready to be consumed
-				notification := toHTTPNotification(dataEvent.Data)
-				transactions, err := m.batchManager.GetTransactionsFrom(notification)
+				transactions, err := m.batchManager.GetTransactionsFrom(dataEvent)
 				m.process(transactions, err)
 				dataEvent.Done()
 			case _, ok := <-m.batchCompletionHandler.LostChannel:

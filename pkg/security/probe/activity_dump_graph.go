@@ -128,7 +128,7 @@ func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data 
 		Shape: processShape,
 	}
 	switch p.GenerationType {
-	case Runtime:
+	case Runtime, Unknown:
 		pan.FillColor = processRuntimeColor
 	case Snapshot:
 		pan.FillColor = processSnapshotColor
@@ -257,7 +257,7 @@ func (ad *ActivityDump) prepareFileNode(f *FileActivityNode, data *graph, prefix
 		Shape: fileShape,
 	}
 	switch f.GenerationType {
-	case Runtime:
+	case Runtime, Unknown:
 		fn.FillColor = fileRuntimeColor
 	case Snapshot:
 		fn.FillColor = fileSnapshotColor

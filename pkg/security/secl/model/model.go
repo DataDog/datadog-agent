@@ -156,6 +156,7 @@ type Event struct {
 	Type                 uint32    `field:"-"`
 	Async                bool      `field:"async" event:"*"` // True if the syscall was asynchronous
 	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
+	IsActivityDumpSample bool      `field:"-"`               // True if the event was sampled for the activity dumps
 	TimestampRaw         uint64    `field:"-" json:"-"`
 	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
@@ -859,7 +860,26 @@ type SpliceEvent struct {
 //msgp:ignore CgroupTracingEvent
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
-	TimeoutRaw       uint64
+	Config           ActivityDumpLoadConfig
+	ConfigCookie     uint32
+}
+
+// ActivityDumpLoadConfig represents the load configuration of an activity dump
+//msgp:ignore ActivityDumpLoadConfig
+type ActivityDumpLoadConfig struct {
+	TracedEventTypes     []EventType
+	Timeout              time.Duration
+	WaitListTimestampRaw uint64
+	StartTimestampRaw    uint64
+	EndTimestampRaw      uint64
+	Rate                 uint32 // max number of events per sec
+	Paused               uint32
+}
+
+// SetTimeout updates the timeout of an activity dump
+func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
+	adlc.Timeout = duration
+	adlc.EndTimestampRaw = adlc.StartTimestampRaw + uint64(duration)
 }
 
 // NetworkDeviceContext represents the network device context of a network event

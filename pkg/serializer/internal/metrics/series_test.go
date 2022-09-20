@@ -19,8 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -297,6 +298,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
+			Device:   "SomeDevice",
 			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		})
 	}
@@ -311,10 +313,12 @@ func TestMarshalSplitCompress(t *testing.T) {
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
 	for _, compressedPayload := range payloads {
-		_, err := decompressPayload(*compressedPayload)
+		payload, err := decompressPayload(compressedPayload.GetContent())
 		require.NoError(t, err)
 
-		// TODO: unmarshal these when agent-payload has support
+		pl := new(gogen.MetricPayload)
+		err = pl.Unmarshal(payload)
+		require.NoError(t, err)
 	}
 }
 
@@ -378,7 +382,7 @@ func TestPayloadsSeries(t *testing.T) {
 	require.Nil(t, err)
 	var splitSeries = []Series{}
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(*compressedPayload)
+		payload, err := decompressPayload(compressedPayload.GetContent())
 		require.NoError(t, err)
 
 		var s = map[string]Series{}
@@ -398,7 +402,7 @@ func TestPayloadsSeries(t *testing.T) {
 	require.Equal(t, originalLength, newLength)
 }
 
-var result forwarder.Payloads
+var result transaction.BytesPayloads
 
 func BenchmarkPayloadsSeries(b *testing.B) {
 	testSeries := metrics.Series{}
@@ -416,7 +420,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 		testSeries = append(testSeries, &point)
 	}
 
-	var r forwarder.Payloads
+	var r transaction.BytesPayloads
 	builder := stream.NewJSONPayloadBuilder(true)
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
@@ -434,7 +438,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 		if p == nil {
 			continue
 		}
-		compressedSize += len(*p)
+		compressedSize += len(p.GetContent())
 	}
 	if compressedSize > 3000000 {
 		panic(fmt.Sprintf("expecting no more than 3 MB, got %d", compressedSize))

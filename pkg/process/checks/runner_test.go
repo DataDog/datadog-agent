@@ -38,6 +38,7 @@ func TestRunnerWithRealTime(t *testing.T) {
 			desc:      "rt-enabled",
 			rtEnabled: true,
 			expectRuns: []RunOptions{
+				runOptionsWithStandard,
 				runOptionsWithBoth,
 				runOptionsWithRealTime,
 				runOptionsWithRealTime,
@@ -51,6 +52,7 @@ func TestRunnerWithRealTime(t *testing.T) {
 			desc:      "rt-disabled",
 			rtEnabled: false,
 			expectRuns: []RunOptions{
+				runOptionsWithStandard,
 				runOptionsWithStandard,
 				runOptionsWithStandard,
 			},

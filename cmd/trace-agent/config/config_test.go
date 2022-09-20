@@ -376,6 +376,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal("localhost", c.StatsdHost)
 	assert.Equal(8125, c.StatsdPort)
+	assert.Equal(true, c.StatsdEnabled)
 
 	assert.Equal(true, c.Enabled)
 }
