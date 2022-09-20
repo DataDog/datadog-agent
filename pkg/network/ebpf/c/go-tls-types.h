@@ -73,8 +73,4 @@ typedef struct {
     __u64 b_len;
 } go_tls_write_args_data_t;
 
-typedef struct {
-
-} go_tls_close_args_data_t;
-
 #endif //__GO_TLS_TYPES_H

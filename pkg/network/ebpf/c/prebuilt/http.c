@@ -696,8 +696,6 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
         return 1;
     }
 
-    // TODO add data to close map
-
     void* conn_pointer = NULL;
     if (read_location(ctx, &pd->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
         log_debug("[go-tls-close] failed reading close conn pointer for pid %d\n", pid);
@@ -715,13 +713,6 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_tls_conn, &conn_pointer);
 
-    return 0;
-}
-
-// func (c *Conn) Close(b []byte) (int, error)
-SEC("uprobe/crypto/tls.(*Conn).Close/return")
-int uprobe__crypto_tls_Conn_Close__return(struct pt_regs *ctx) {
-    // TODO
     return 0;
 }
 

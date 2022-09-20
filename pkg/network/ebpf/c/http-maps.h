@@ -45,10 +45,6 @@ BPF_HASH_MAP(go_tls_read_args, go_tls_function_args_key_t, go_tls_read_args_data
    The key contains the go routine id and the pid. */
 BPF_HASH_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_data_t, 1024)
 
-/* go_tls_close_args is used to get the close function info when running in the close-return uprobe.
-   The key contains the go routine id and the pid. */
-BPF_HASH_MAP(go_tls_close_args, go_tls_function_args_key_t, go_tls_close_args_data_t, 1024)
-
 /* This map associates crypto/tls.(*Conn) values to the corresponding conn_tuple_t* value.
    It is used to implement a simplified version of tup_from_ssl_ctx from http.c */
 BPF_HASH_MAP(conn_tup_by_tls_conn, __u32, conn_tuple_t, 1024)

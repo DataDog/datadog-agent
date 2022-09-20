@@ -34,40 +34,37 @@ type uprobeInfo struct {
 }
 
 type uprobesInfo struct {
-	functionInfo uprobeInfo
-	returnInfo   uprobeInfo
+	functionInfo *uprobeInfo
+	returnInfo   *uprobeInfo
 }
 
 var functionToProbes = map[string]uprobesInfo{
 	bininspect.ReadGoTLSFunc: {
-		functionInfo: uprobeInfo{
+		functionInfo: &uprobeInfo{
 			ebpfFunctionName: "uprobe__crypto_tls_Conn_Read",
 			ebpfSection:      "uprobe/crypto/tls.(*Conn).Read",
 		},
-		returnInfo: uprobeInfo{
+		returnInfo: &uprobeInfo{
 			ebpfFunctionName: "uprobe__crypto_tls_Conn_Read__return",
 			ebpfSection:      "uprobe/crypto/tls.(*Conn).Read/return",
 		},
 	},
 	bininspect.WriteGoTLSFunc: {
-		functionInfo: uprobeInfo{
+		functionInfo: &uprobeInfo{
 			ebpfFunctionName: "uprobe__crypto_tls_Conn_Write",
 			ebpfSection:      "uprobe/crypto/tls.(*Conn).Write",
 		},
-		returnInfo: uprobeInfo{
+		returnInfo: &uprobeInfo{
 			ebpfFunctionName: "uprobe__crypto_tls_Conn_Write__return",
 			ebpfSection:      "uprobe/crypto/tls.(*Conn).Write/return",
 		},
 	},
 	bininspect.CloseGoTLSFunc: {
-		functionInfo: uprobeInfo{
+		functionInfo: &uprobeInfo{
 			ebpfFunctionName: "uprobe__crypto_tls_Conn_Close",
 			ebpfSection:      "uprobe/crypto/tls.(*Conn).Close",
 		},
-		returnInfo: uprobeInfo{
-			ebpfFunctionName: "uprobe__crypto_tls_Conn_Close__return",
-			ebpfSection:      "uprobe/crypto/tls.(*Conn).Close/return",
-		},
+		returnInfo: nil,
 	},
 }
 
@@ -81,7 +78,7 @@ var functionsConfig = map[string]bininspect.FunctionConfiguration{
 		ParamLookupFunction:    lookup.GetReadParams,
 	},
 	bininspect.CloseGoTLSFunc: {
-		IncludeReturnLocations: true,
+		IncludeReturnLocations: false,
 		ParamLookupFunction:    lookup.GetCloseParams,
 	},
 }
@@ -215,9 +212,9 @@ func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPa
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) error {
 	uid := getUID(binPath)
-	
+
 	for function, uprobes := range functionToProbes {
-		if functionsConfig[function].IncludeReturnLocations {
+		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo != nil {
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
 					EBPFSection:  uprobes.returnInfo.ebpfSection,
@@ -238,22 +235,23 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) er
 			}
 		}
 
-		probeID := manager.ProbeIdentificationPair{
-			EBPFSection:  uprobes.functionInfo.ebpfSection,
-			EBPFFuncName: uprobes.functionInfo.ebpfFunctionName,
-			UID:          uid,
-		}
+		if uprobes.functionInfo != nil {
+			probeID := manager.ProbeIdentificationPair{
+				EBPFSection:  uprobes.functionInfo.ebpfSection,
+				EBPFFuncName: uprobes.functionInfo.ebpfFunctionName,
+				UID:          uid,
+			}
 
-		err := p.manager.AddHook("", &manager.Probe{
-			BinaryPath:              binPath,
-			UprobeOffset:            result.Functions[function].EntryLocation,
-			ProbeIdentificationPair: probeID,
-		})
-		if err != nil {
-			return fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo.ebpfFunctionName, result.Functions[function].EntryLocation, err)
+			err := p.manager.AddHook("", &manager.Probe{
+				BinaryPath:              binPath,
+				UprobeOffset:            result.Functions[function].EntryLocation,
+				ProbeIdentificationPair: probeID,
+			})
+			if err != nil {
+				return fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo.ebpfFunctionName, result.Functions[function].EntryLocation, err)
+			}
+			p.probeIDs = append(p.probeIDs, probeID)
 		}
-		p.probeIDs = append(p.probeIDs, probeID)
-
 	}
 
 	return nil
