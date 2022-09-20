@@ -121,7 +121,7 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
                 case 0:
                     return &ctx->regs[0];
                 case 1:
-                    return &ctx->reg[1];
+                    return &ctx->regs[1];
                 case 2:
                     return &ctx->regs[2];
                 case 3:
