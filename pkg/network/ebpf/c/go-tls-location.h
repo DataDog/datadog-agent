@@ -116,7 +116,42 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
         }
     #elif defined(__aarch64__)
         if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
-            return &ctx->regs[regnum];
+            // Verifier won't allow direct access to regs array if the index is not const
+            switch (regnum) {
+                case 0:
+                    return &ctx->regs[0];
+                case 1:
+                    return &ctx->reg[1];
+                case 2:
+                    return &ctx->regs[2];
+                case 3:
+                    return &ctx->regs[3];
+                case 4:
+                    return &ctx->regs[4];
+                case 5:
+                    return &ctx->regs[5];
+                case 6:
+                    return &ctx->regs[6];
+                case 7:
+                    return &ctx->regs[7];
+                case 8:
+                    return &ctx->regs[8];
+                case 9:
+                    return &ctx->regs[9];
+                case 10:
+                    return &ctx->regs[10];
+                case 11:
+                    return &ctx->regs[11];
+                case 12:
+                    return &ctx->regs[12];
+                case 13:
+                    return &ctx->regs[13];
+                case 14:
+                    return &ctx->regs[14];
+                case 15:
+                    return &ctx->regs[15];
+                default:
+                    return NULL;
         }
         return NULL;
     #else
