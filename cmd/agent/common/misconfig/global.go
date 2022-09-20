@@ -19,8 +19,11 @@ func ToLog(agent AgentType) {
 }
 
 // AgentType denotes the type of agent that is currently being run
+// AgentType denotes the type of agent that is currently being run
 type AgentType int
+
 type checkFn func() error
+
 type check struct {
 	name            string
 	run             checkFn
