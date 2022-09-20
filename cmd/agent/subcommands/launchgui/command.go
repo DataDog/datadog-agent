@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -20,7 +20,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	launchCmd := &cobra.Command{
 		Use:   "launch-gui",
 		Short: "starts the Datadog Agent GUI",
@@ -34,7 +34,7 @@ func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
-func launchGui(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
+func launchGui(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
 	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)

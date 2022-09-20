@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -27,7 +27,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	remoteConfigCmd := &cobra.Command{
 		Use:   "remote-config",
 		Short: "Remote configuration state command",

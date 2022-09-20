@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package app implements the top-level `agent` binary, including its subcommands.
-package app
+// Package command implements the top-level `agent` binary, including its subcommands.
+package command
 
 import (
 	"fmt"
@@ -13,6 +13,20 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+
+// GlobalArgs contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
+type GlobalArgs struct {
+	// ConfFilePath holds the path to the folder containing the configuration
+	// file, to allow overrides from the command line
+	ConfFilePath string
+
+	// SysProbeConfFilePath holds the path to the folder containing the system-probe
+	// configuration file, to allow overrides from the command line
+	SysProbeConfFilePath string
+}
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
 type SubcommandFactory func(globalArgs *GlobalArgs) []*cobra.Command

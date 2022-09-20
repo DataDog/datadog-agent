@@ -12,14 +12,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	getHostnameCommand := &cobra.Command{
 		Use:   "hostname",
 		Short: "Print the hostname used by the Agent",

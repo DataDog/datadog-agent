@@ -17,7 +17,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
@@ -75,7 +75,7 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID] [OPTIONS]",
 		Short: "Perform a snmpwalk",

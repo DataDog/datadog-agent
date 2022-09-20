@@ -12,12 +12,12 @@ package secrethelper
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/secrets"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	// TODO: move to cmd/common/secrethelper?
 	return []*cobra.Command{secrets.SecretHelperCmd}
 }

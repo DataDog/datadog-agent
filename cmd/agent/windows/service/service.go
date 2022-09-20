@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
@@ -37,7 +37,7 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
-	if err := runcmd.StartAgent(&app.GlobalArgs{}); err != nil {
+	if err := runcmd.StartAgent(&command.GlobalArgs{}); err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())
 		errno = 1 // indicates non-successful return from handler.

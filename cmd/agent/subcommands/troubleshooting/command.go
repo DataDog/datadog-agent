@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,7 +23,7 @@ const (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	payloadV5Cmd := &cobra.Command{
 		Use:   "metadata_v5",
 		Short: "Print the metadata payload for the agent.",
@@ -61,7 +61,7 @@ This command offers a list of helpers to troubleshoot the Datadog Agent.`,
 	return []*cobra.Command{troubleshootingCmd}
 }
 
-func printPayload(globalArgs *app.GlobalArgs, payloadName string) error {
+func printPayload(globalArgs *command.GlobalArgs, payloadName string) error {
 	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
 	if err != nil {
 		fmt.Printf("unable to set up global agent configuration: %v\n", err)

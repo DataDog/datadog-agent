@@ -9,13 +9,13 @@
 package subcommands
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdstop "github.com/DataDog/datadog-agent/cmd/agent/subcommands/stop"
 )
 
 // windowsSubcommands returns SubcommandFactories for subcommands dependent on the `windows` build tag.
-func windowsSubcommands() []app.SubcommandFactory {
-	return []app.SubcommandFactory{
+func windowsSubcommands() []command.SubcommandFactory {
+	return []command.SubcommandFactory{
 		cmdstop.Commands,
 	}
 }

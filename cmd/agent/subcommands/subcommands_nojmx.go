@@ -8,11 +8,9 @@
 
 package subcommands
 
-import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
-)
+import "github.com/DataDog/datadog-agent/cmd/agent/command"
 
 // jmxSubcommands returns SubcommandFactories for subcommands dependent on the `jmx` build tag.
-func jmxSubcommands() []app.SubcommandFactory {
-	return []app.SubcommandFactory{}
+func jmxSubcommands() []command.SubcommandFactory {
+	return []command.SubcommandFactory{}
 }

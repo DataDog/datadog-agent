@@ -19,7 +19,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/internal/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -39,7 +39,7 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	jmxCmd := &cobra.Command{
 		Use:   "jmx",
 		Short: "Run troubleshooting commands on JMXFetch integrations",
@@ -142,7 +142,7 @@ func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
-func runJmxCommandConsole(globalArgs *app.GlobalArgs, command string) error {
+func runJmxCommandConsole(globalArgs *command.GlobalArgs, command string) error {
 	logFile := ""
 	if saveFlare {
 		// Windows cannot accept ":" in file names

@@ -9,7 +9,7 @@ package diagnose
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -22,7 +22,7 @@ import (
 var noTrace bool
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	diagnoseMetadataAvailabilityCommand := &cobra.Command{
 		Use:   "metadata-availability",
 		Short: "Check availability of cloud provider and container metadata endpoints",
@@ -62,7 +62,7 @@ func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func configAndLogSetup(globalArgs *app.GlobalArgs) error {
+func configAndLogSetup(globalArgs *command.GlobalArgs) error {
 	// Global config setup
 	err := common.SetupConfig(globalArgs.ConfFilePath)
 	if err != nil {

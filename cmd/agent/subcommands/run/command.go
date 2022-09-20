@@ -24,7 +24,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -99,7 +99,7 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the Agent",
@@ -125,7 +125,7 @@ func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
 // Run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func Run(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
+func Run(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
 	defer func() {
 		StopAgent()
 	}()
@@ -177,7 +177,7 @@ func Run(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
 }
 
 // StartAgent Initializes the agent process
-func StartAgent(globalArgs *app.GlobalArgs) error {
+func StartAgent(globalArgs *command.GlobalArgs) error {
 	var (
 		err            error
 		configSetupErr error

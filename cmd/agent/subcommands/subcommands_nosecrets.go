@@ -8,11 +8,9 @@
 
 package subcommands
 
-import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
-)
+import "github.com/DataDog/datadog-agent/cmd/agent/command"
 
 // secretsSubcommands returns SubcommandFactories for subcommands dependent on the `secrets` build tag.
-func secretsSubcommands() []app.SubcommandFactory {
-	return []app.SubcommandFactory{}
+func secretsSubcommands() []command.SubcommandFactory {
+	return []command.SubcommandFactory{}
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/internal/standalone"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -103,7 +103,7 @@ func setupCmd(cmd *cobra.Command) {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
 		Short: "Run the specified check",

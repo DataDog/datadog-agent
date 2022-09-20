@@ -6,7 +6,7 @@
 package subcommands
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
@@ -33,8 +33,8 @@ import (
 
 // AgentSubcommands returns SubcommandFactories for the subcommands supported
 // with the current build flags.
-func AgentSubcommands() []app.SubcommandFactory {
-	factories := []app.SubcommandFactory{
+func AgentSubcommands() []command.SubcommandFactory {
+	factories := []command.SubcommandFactory{
 		// universal subcommands, present for all build flag combinations
 		cmdcheck.Commands,
 		cmdconfigcheck.Commands,

@@ -9,15 +9,15 @@
 package subcommands
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
 	cmdinstallsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/installsvc"
 	cmdremovesvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/removesvc"
 )
 
 // windowsSubcommands returns SubcommandFactories for subcommands dependent on the `windows` build tag.
-func windowsSubcommands() []app.SubcommandFactory {
-	return []app.SubcommandFactory{
+func windowsSubcommands() []command.SubcommandFactory {
+	return []command.SubcommandFactory{
 		cmdcontrolsvc.Commands,
 		cmdinstallsvc.Commands,
 		cmdremovesvc.Commands,

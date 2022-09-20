@@ -8,11 +8,9 @@
 
 package subcommands
 
-import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
-)
+import "github.com/DataDog/datadog-agent/cmd/agent/command"
 
 // pythonSubcommands returns SubcommandFactories for subcommands dependent on the `python` build tag.
-func pythonSubcommands() []app.SubcommandFactory {
-	return []app.SubcommandFactory{}
+func pythonSubcommands() []command.SubcommandFactory {
+	return []command.SubcommandFactory{}
 }

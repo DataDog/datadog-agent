@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
@@ -70,7 +70,7 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *app.GlobalArgs) []*cobra.Command {
+func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	integrationCmd := &cobra.Command{
 		Use:   "integration [command]",
 		Short: "Datadog integration manager",
@@ -138,7 +138,7 @@ You must specify a version of the package to install using the syntax: <package>
 	return []*cobra.Command{integrationCmd}
 }
 
-func loadPythonInfo(globalArgs *app.GlobalArgs) error {
+func loadPythonInfo(globalArgs *command.GlobalArgs) error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -297,7 +297,7 @@ func validateArgs(args []string, local bool) error {
 	return nil
 }
 
-func pip(globalArgs *app.GlobalArgs, args []string, stdout io.Writer, stderr io.Writer) error {
+func pip(globalArgs *command.GlobalArgs, args []string, stdout io.Writer, stderr io.Writer) error {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return err
@@ -349,7 +349,7 @@ func pip(globalArgs *app.GlobalArgs, args []string, stdout io.Writer, stderr io.
 	return nil
 }
 
-func install(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
+func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
 	if err := loadPythonInfo(globalArgs); err != nil {
 		return err
 	}
@@ -836,7 +836,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	return nil
 }
 
-func remove(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
+func remove(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
 	if err := loadPythonInfo(globalArgs); err != nil {
 		return err
 	}
@@ -860,7 +860,7 @@ func remove(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error
 	return pip(globalArgs, pipArgs, os.Stdout, os.Stderr)
 }
 
-func list(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
+func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
 	if err := loadPythonInfo(globalArgs); err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ func list(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func show(globalArgs *app.GlobalArgs, cmd *cobra.Command, args []string) error {
+func show(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
 	if err := loadPythonInfo(globalArgs); err != nil {
 		return err
 	}

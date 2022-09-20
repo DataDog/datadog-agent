@@ -9,13 +9,13 @@
 package subcommands
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secrethelper"
 )
 
 // secretsSubcommands returns SubcommandFactories for subcommands dependent on the `secrets` build tag.
-func secretsSubcommands() []app.SubcommandFactory {
-	return []app.SubcommandFactory{
+func secretsSubcommands() []command.SubcommandFactory {
+	return []command.SubcommandFactory{
 		cmdsecrethelper.Commands,
 	}
 }
