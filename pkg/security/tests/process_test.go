@@ -1859,19 +1859,34 @@ func TestProcessResolution(t *testing.T) {
 func TestProcessFilelessExecution(t *testing.T) {
 
 	tests := []struct {
-		name    string
-		rule    *rules.RuleDefinition
-		command string
-		check   func(event *sprobe.Event, rule *rules.Rule)
+		name                             string
+		rule                             *rules.RuleDefinition
+		syscallTesterToRun               string
+		syscallTesterScriptFilenameToRun string
+		check                            func(event *sprobe.Event, rule *rules.Rule)
 	}{
+		{
+			name: "fileless with script name",
+			rule: &rules.RuleDefinition{
+				ID:         "test_fileless_with_filename",
+				Expression: `exec.file.path =~ "/memfd:script"`,
+			},
+			syscallTesterToRun:               "fileless",
+			syscallTesterScriptFilenameToRun: "script",
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "exec.file.path", "/memfd:script")
+			},
+		},
 		{
 			name: "fileless",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless",
 				Expression: `exec.file.path =~ "/memfd:*"`,
 			},
+			syscallTesterToRun:               "fileless",
+			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldPrefixedBy(t, event, "exec.file.name", "memfd:")
+				assertFieldEqual(t, event, "exec.file.path", "/memfd:")
 			},
 		},
 	}
@@ -1896,7 +1911,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			testModule.WaitSignal(t, func() error {
-				return runSyscallTesterFunc(t, syscallTester, "fileless", "script")
+				return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
 				if test.check != nil {
