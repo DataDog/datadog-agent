@@ -414,8 +414,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
 
-require github.com/go-openapi/spec v0.20.3 // indirect
-
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
