@@ -33,7 +33,7 @@ while True:
 `
 
 const oomKilledBashScript = `
-exec systemd-run --scope -p MemoryMax=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
+exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
 `
 
 func writeTempFile(pattern string, content string) (*os.File, error) {
