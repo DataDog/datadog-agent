@@ -181,6 +181,7 @@ func runJmxCommandConsole(command string) error {
 	}
 
 	common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
+	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
