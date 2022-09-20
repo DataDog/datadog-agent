@@ -127,7 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // This is exported because it also used from the deprecated `agent start` command.
 func Run(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
 	defer func() {
-		StopAgent()
+		stopAgent()
 	}()
 
 	// prepare go runtime
@@ -166,7 +166,7 @@ func Run(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) 
 		}
 	}()
 
-	if err := StartAgent(globalParams); err != nil {
+	if err := startAgent(globalParams); err != nil {
 		return err
 	}
 
@@ -176,8 +176,13 @@ func Run(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) 
 	}
 }
 
-// StartAgent Initializes the agent process
-func StartAgent(globalParams *command.GlobalParams) error {
+// StartAgentWithDefaults is a temporary way for other packages to use startAgent.
+func StartAgentWithDefaults() error {
+	return startAgent(&command.GlobalParams{})
+}
+
+// startAgent Initializes the agent process
+func startAgent(globalParams *command.GlobalParams) error {
 	var (
 		err            error
 		configSetupErr error
@@ -501,8 +506,13 @@ func StartAgent(globalParams *command.GlobalParams) error {
 	return nil
 }
 
-// StopAgent Tears down the agent process
-func StopAgent() {
+// StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
+func StopAgentWithDefaults() {
+	stopAgent()
+}
+
+// stopAgent Tears down the agent process
+func stopAgent() {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
