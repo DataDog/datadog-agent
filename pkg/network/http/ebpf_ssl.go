@@ -10,7 +10,6 @@ package http
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 
@@ -22,7 +21,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -278,36 +276,6 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
-}
-
-// We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
-func httpsSupported() bool {
-	if !runningOnARM() {
-		return true
-	}
-
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. https monitoring disabled.")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 5, 0)
-}
-
-func (o *sslProgram) sysOpenAt2Supported() bool {
-	ksymPath := filepath.Join(o.cfg.ProcRoot, "kallsyms")
-	missing, err := ddebpf.VerifyKernelFuncs(ksymPath, []string{doSysOpenAt2.section})
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
 func (o *sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
