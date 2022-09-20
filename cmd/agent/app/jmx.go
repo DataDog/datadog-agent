@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -187,14 +188,19 @@ func runJmxCommandConsole(command string) error {
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
 	collector.InitCheckScheduler(common.Coll)
 
-	// Note: when no checks are selected, cliSelectedChecks will be the empty slice and thus
-	//       WaitForConfigsFromAD will timeout and return no AD configs.
+	// if cliSelectedChecks is empty, then we want to fetch all check configs;
+	// otherwise, we fetch only the matching cehck configs.
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(discoveryTimeout)*time.Second)
-	allConfigs := common.WaitForAllConfigsFromAD(waitCtx)
+	var allConfigs []integration.Config
+	if len(cliSelectedChecks) == 0 {
+		allConfigs = common.WaitForAllConfigsFromAD(waitCtx)
+	} else {
+		allConfigs = common.WaitForConfigsFromAD(waitCtx, cliSelectedChecks, int(discoveryMinInstances))
+	}
 	cancelTimeout()
 
-	err = standalone.ExecJMXCommandConsole(command, []string{}, logLevel, allConfigs)
+	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, allConfigs)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")
