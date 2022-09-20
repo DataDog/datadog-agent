@@ -65,7 +65,7 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 	}
 
 	if err == errLostBatch {
-		t.misses.Add(int64(HTTPBatchSize))
+		t.misses.Add(int64(len(txs)))
 	}
 }
 

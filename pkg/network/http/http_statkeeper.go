@@ -37,12 +37,13 @@ type httpStatKeeper struct {
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
+
 	return &httpStatKeeper{
 		stats:             make(map[Key]*RequestStats),
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
-		buffer:            make([]byte, HTTPBufferSize),
+		buffer:            make([]byte, getPathBufferSize(c)),
 		interned:          make(map[string]string),
 		telemetry:         telemetry,
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -84,7 +85,6 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		h.telemetry.malformed.Inc()
 		return
 	}
-
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return
@@ -174,7 +174,6 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 		h.telemetry.malformed.Inc()
 		return "", true
 	}
-
 	return h.intern(path), false
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/etw"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,10 +30,11 @@ type Monitor interface {
 	Stop() error
 }
 
-// DriverMonitor is responsible for aggregating and emitting metrics based on
+// WindowsMonitor is responsible for aggregating and emitting metrics based on
 // batches of HTTP transactions received from the driver interface
-type DriverMonitor struct {
+type WindowsMonitor struct {
 	di         *httpDriverInterface
+	hei        *httpEtwInterface
 	telemetry  *telemetry
 	statkeeper *httpStatKeeper
 
@@ -40,29 +42,36 @@ type DriverMonitor struct {
 	eventLoopWG sync.WaitGroup
 }
 
-// NewDriverMonitor returns a new DriverMonitor instance
-func NewDriverMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
+// NewWindowsMonitor returns a new WindowsMonitor instance
+func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	di, err := newDriverInterface(c, dh)
 	if err != nil {
 		return nil, err
 	}
+	hei := newHttpEtwInterface(c)
+
+	hei.setMaxFlows(uint64(c.MaxTrackedConnections))
+	hei.setMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
+	hei.setCapturedProtocols(c.EnableHTTPMonitoring, c.EnableHTTPSMonitoring)
 
 	telemetry, err := newTelemetry()
 	if err != nil {
 		return nil, err
 	}
 
-	return &DriverMonitor{
+	return &WindowsMonitor{
 		di:         di,
+		hei:        hei,
 		telemetry:  telemetry,
 		statkeeper: newHTTPStatkeeper(c, telemetry),
 	}, nil
 }
 
 // Start consuming HTTP events
-func (m *DriverMonitor) Start() {
+func (m *WindowsMonitor) Start() {
 	log.Infof("Driver Monitor: starting")
 	m.di.startReadingBuffers()
+	m.hei.startReadingHttpFlows()
 
 	m.eventLoopWG.Add(1)
 	go func() {
@@ -78,14 +87,38 @@ func (m *DriverMonitor) Start() {
 				// gets aggregated under the hood.  Do we need somthing
 				// analogous
 				m.process(transactionBatch, nil)
+			case transactions, ok := <-m.hei.dataChannel:
+				if !ok {
+					return
+				}
+				// dbtodo
+				// the linux side has an error code potentially, that
+				// gets aggregated under the hood.  Do we need somthing
+				// analogous
+				if len(transactions) > 0 {
+					m.processEtw(transactions, nil)
+				}
 			}
+
 		}
 	}()
 
 	return
 }
 
-func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction, err error) {
+func (m *WindowsMonitor) processEtw(transactionBatch []etw.Http, err error) {
+	transactions := make([]httpTX, len(transactionBatch))
+	for i := range transactionBatch {
+		transactions[i] = &etwHttpTX{Http: &transactionBatch[i]}
+	}
+
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	m.telemetry.aggregate(transactions, err)
+	m.statkeeper.Process(transactions)
+}
+func (m *WindowsMonitor) process(transactionBatch []FullHttpTransaction, err error) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = &transactionBatch[i]
@@ -101,7 +134,7 @@ func (m *DriverMonitor) process(transactionBatch []FullHttpTransaction, err erro
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *DriverMonitor) GetHTTPStats() map[Key]*RequestStats {
+func (m *WindowsMonitor) GetHTTPStats() map[Key]*RequestStats {
 	// dbtodo  This is now going to cause any pending transactions
 	// to be read and then stuffed into the channel.  Which then I think
 	// creates a race condition that there still could be some mid-
@@ -145,13 +178,14 @@ func isLocalhost(k Key) bool {
 }
 
 // GetStats gets driver stats related to the HTTP handle
-func (m *DriverMonitor) GetStats() (map[string]int64, error) {
+func (m *WindowsMonitor) GetStats() (map[string]int64, error) {
 	return m.di.getStats()
 }
 
 // Stop HTTP monitoring
-func (m *DriverMonitor) Stop() error {
+func (m *WindowsMonitor) Stop() error {
 	err := m.di.close()
+	m.hei.close()
 	m.eventLoopWG.Wait()
 	return err
 }
