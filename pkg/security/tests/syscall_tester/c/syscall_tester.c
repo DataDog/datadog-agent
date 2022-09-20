@@ -599,14 +599,15 @@ int test_memfd_create(int argc, char **argv) {
             err(1, "%s failed", "fputs");
         }
 
-        const char * const argv[] = {filename, NULL};
-        const char * const envp[] = {NULL};
+        char * const argv[] = {filename, NULL};
+        char * const envp[] = {NULL};
         fflush(stream);
         if (fexecve(fd, argv, envp) < 0){
             err(1, "%s failed", "fexecve");
         }
 
         fclose(stream);
+        close(fd);
     }
 
     return EXIT_SUCCESS;
@@ -675,8 +676,7 @@ int main(int argc, char **argv) {
             exit_code = test_unlink(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
-        } 
-        else {
+        } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
         }
