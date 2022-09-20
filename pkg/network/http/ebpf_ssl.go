@@ -12,9 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/twmb/murmur3"
 
@@ -280,10 +278,6 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
-}
-
-func runningOnARM() bool {
-	return strings.HasPrefix(runtime.GOARCH, "arm")
 }
 
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled

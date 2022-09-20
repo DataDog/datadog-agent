@@ -68,7 +68,7 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
-    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -85,7 +85,7 @@ int uprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
-    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -112,7 +112,7 @@ int uprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
     log_debug("uprobe/BIO_new_socket: pid_tgid=%llx fd=%d\n", pid_tgid, socket_fd);
-    bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
+    bpf_map_update_with_telemetry(bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
     return 0;
 }
 
@@ -157,7 +157,7 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -196,7 +196,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -353,7 +353,7 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
