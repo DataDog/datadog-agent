@@ -54,11 +54,12 @@ type Spec struct {
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
 type ContainerSpec struct {
-	Name           string              `json:"name"`
-	Image          string              `json:"image,omitempty"`
-	Ports          []ContainerPortSpec `json:"ports,omitempty"`
-	ReadinessProbe *ContainerProbe     `json:"readinessProbe,omitempty"`
-	Env            []EnvVar            `json:"env,omitempty"`
+	Name            string               `json:"name"`
+	Image           string               `json:"image,omitempty"`
+	Ports           []ContainerPortSpec  `json:"ports,omitempty"`
+	ReadinessProbe  *ContainerProbe      `json:"readinessProbe,omitempty"`
+	Env             []EnvVar             `json:"env,omitempty"`
+	SecurityContext *SecurityContextSpec `json:"securityContext,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -67,6 +68,27 @@ type ContainerPortSpec struct {
 	HostPort      int    `json:"hostPort"`
 	Name          string `json:"name"`
 	Protocol      string `json:"protocol"`
+}
+
+// SecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
+type SecurityContextSpec struct {
+	Privileged     *bool               `json:"privileged,omitempty"`
+	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+}
+
+// SeccompProfileType is used for unmarshalling Pod.Spec.Containers.SecurityContext.SeccompProfile.Type
+type SeccompProfileType string
+
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfileSpec struct {
+	Type             SeccompProfileType `json:"type"`
+	LocalhostProfile *string            `json:"localhostProfile,omitempty"`
 }
 
 // ContainerProbe contains fields for unmarshalling a Pod.Spec.Containers.ReadinessProbe
