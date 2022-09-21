@@ -25,7 +25,6 @@ const (
 	offsetsDataMap    = "offsets_data"
 	goTLSReadArgsMap  = "go_tls_read_args"
 	goTLSWriteArgsMap = "go_tls_write_args"
-	goTLSCloseArgsMap = "go_tls_close_args"
 )
 
 type uprobeInfo struct {
@@ -116,7 +115,6 @@ func (p *GoTLSProgram) ConfigureManager(m *manager.Manager) {
 		{Name: offsetsDataMap},
 		{Name: goTLSReadArgsMap},
 		{Name: goTLSWriteArgsMap},
-		{Name: goTLSCloseArgsMap},
 	}...)
 	// Hooks will be added in runtime for each binary
 }
@@ -129,7 +127,6 @@ func (p *GoTLSProgram) Start() {
 	}
 	// In the future Start() should just initiate the new processes listener
 	// and this implementation should be done for each new process found.
-
 	binPath := os.Getenv("GO_TLS_TEST")
 	if binPath != "" {
 		p.handleNewBinary(binPath)
