@@ -252,10 +252,10 @@ func (w *TraceWriter) flush() {
 			"Content-Encoding": "zstd",
 			headerLanguages:    strings.Join(info.Languages(), "|"),
 		})
-		gzipw, err := zstd.NewWriter(p.body)
+		gzipw, err := zstd.NewWriter(p.body, zstd.WithEncoderLevel(zstd.SpeedFastest))
 		if err != nil {
 			// it will never happen, unless an invalid compression is chosen;
-			// we know gzip.BestSpeed is valid.
+			// we know zstd.SpeedFastest is valid.
 			log.Errorf("zstd.NewWriterLevel: %d", err)
 			return
 		}
