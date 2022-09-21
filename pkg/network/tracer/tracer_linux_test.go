@@ -214,6 +214,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	allConnections := getConnections(t, tr)
 	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
 	require.Len(t, conns, numProcesses)
+	t.Logf("%+v", conns)
 
 	totalSent := 0
 	for _, c := range conns {
@@ -221,21 +222,13 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	}
 	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
 
-	// Since we can't reliably identify the PID associated to a retransmit, we have opted
-	// to report the total number of retransmits for *one* of the connections sharing the
-	// same socket
 	connsWithRetransmits := 0
 	for _, c := range conns {
 		if c.MonotonicSum().Retransmits > 0 {
 			connsWithRetransmits++
 		}
 	}
-	assert.Equal(t, 1, connsWithRetransmits)
-
-	telemetry := tr.ebpfTracer.GetTelemetry()
-	// Test if telemetry measuring PID collisions is correct
-	// >= because there can be other connections going on during CI that increase pidCollisions
-	assert.GreaterOrEqual(t, telemetry["pid_collisions"], int64(numProcesses-1))
+	assert.Equal(t, numProcesses, connsWithRetransmits)
 }
 
 func TestTCPRTT(t *testing.T) {
