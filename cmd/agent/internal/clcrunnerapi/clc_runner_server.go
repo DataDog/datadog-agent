@@ -79,14 +79,14 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler) error {
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
+		// Disable HTTP2 by setting TLSNextProto explicitly
+		NextProtos: []string{"http/1.1"},
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
 
 	srv := &http.Server{
-		// Disable HTTP2 by setting TLSNextProto explicitly
-		TLSNextProto:      map[string]func(*http.Server, *tls.Conn, http.Handler){},
 		Handler:           r,
 		ErrorLog:          stdLog.New(logWriter, "Error from the clc runner http API server: ", 0), // log errors to seelog,
 		TLSConfig:         &tlsConfig,
