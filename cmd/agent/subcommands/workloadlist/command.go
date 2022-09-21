@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package workloadlist implement an agent sub-command.
+// Package workloadlist implements 'agent workload-list'.
 package workloadlist
 
 import (

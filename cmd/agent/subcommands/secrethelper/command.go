@@ -6,7 +6,7 @@
 //go:build secrets
 // +build secrets
 
-// Package secrethelper implement an agent sub-command.
+// Package secrethelper implements 'agent secret-helper'
 package secrethelper
 
 import (

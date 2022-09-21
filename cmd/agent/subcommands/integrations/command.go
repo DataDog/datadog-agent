@@ -6,7 +6,7 @@
 //go:build python
 // +build python
 
-// Package integrations implement an agent sub-command.
+// Package integrations implements 'agent integration'.
 package integrations
 
 import (

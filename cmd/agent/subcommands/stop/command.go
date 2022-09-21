@@ -6,7 +6,7 @@
 //go:build !windows
 // +build !windows
 
-// Package stop implement an agent sub-command.
+// Package stop implements 'agent stop'.
 package stop
 
 import (

@@ -6,7 +6,8 @@
 //go:build windows
 // +build windows
 
-// Package controlsvc implement an agent sub-command.
+// Package controlsvc implements 'agent start-service', 'agent stopservice',
+// and 'agent restart-service'.
 package controlsvc
 
 import (

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package streamlogs implement an agent sub-command.
+// Package streamlogs implements 'agent stream-logs'.
 package streamlogs
 
 import (

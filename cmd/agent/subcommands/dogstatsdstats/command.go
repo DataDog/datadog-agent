@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-// Package dogstatsdstats implement an agent sub-command.
+// Package dogstatsdstats implements 'agent dogstatsd-stats'.
 package dogstatsdstats
 
 import (

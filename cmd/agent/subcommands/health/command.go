@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package health implement an agent sub-command.
+// Package health implements 'agent health'.
 package health
 
 import (

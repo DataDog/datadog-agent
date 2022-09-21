@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package remoteconfig implement an agent sub-command.
+// Package remoteconfig implements 'agent remote-config'.
 package remoteconfig
 
 import (

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package launchgui implement an agent sub-command.
+// Package launchgui implements 'agent launch-gui'.
 package launchgui
 
 import (

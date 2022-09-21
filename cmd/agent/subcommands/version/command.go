@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package version implement an agent sub-command.
+// Package version implements 'agent version'.
 package version
 
 import (

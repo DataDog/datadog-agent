@@ -6,7 +6,7 @@
 //go:build jmx
 // +build jmx
 
-// Package jmx implement an agent sub-command.
+// Package jmx implements 'agent jmx'.
 package jmx
 
 import (

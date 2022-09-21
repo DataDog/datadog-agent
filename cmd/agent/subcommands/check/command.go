@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package check implement an agent sub-command.
+// Package check implements 'agent check'.
 package check
 
 import (

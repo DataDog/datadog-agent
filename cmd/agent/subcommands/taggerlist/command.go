@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package taggerlist implement an agent sub-command.
+// Package taggerlist implements 'agent tagger-list'.
 package taggerlist
 
 import (

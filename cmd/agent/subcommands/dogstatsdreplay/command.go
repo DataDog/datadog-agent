@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-2020 Datadog, Inc.
 
-// Package dogstatsdreplay implement an agent sub-command.
+// Package dogstatsdreplay implements 'agent dogstatsd-replay'.
 package dogstatsdreplay
 
 import (

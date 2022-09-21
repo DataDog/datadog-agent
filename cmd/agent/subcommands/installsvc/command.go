@@ -6,7 +6,7 @@
 //go:build windows
 // +build windows
 
-// Package installsvc implement an agent sub-command.
+// Package installsvc implements 'agent installservice'.
 package installsvc
 
 import (

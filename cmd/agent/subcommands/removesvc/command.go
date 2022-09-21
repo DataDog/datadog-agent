@@ -6,7 +6,7 @@
 //go:build windows
 // +build windows
 
-// Package removesvc implement an agent sub-command.
+// Package removesvc implements 'agent remove-service'.
 package removesvc
 
 import (
