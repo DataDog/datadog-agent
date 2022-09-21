@@ -77,13 +77,13 @@ func TestMacroMerge(t *testing.T) {
 		},
 	})
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -98,7 +98,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader); err == nil {
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected macro ID conflict")
 	}
 }
@@ -138,13 +138,13 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -159,7 +159,7 @@ func TestRuleMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader); err == nil {
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected rule ID conflict")
 	}
 }
@@ -313,13 +313,13 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() != nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -401,18 +401,18 @@ func TestActionSetVariableConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, nil)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	loader := NewPolicyLoader(provider)
 
-	if errs := rs.LoadPolicies(loader); errs.ErrorOrNil() == nil {
+	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
 	}
 }
 
-func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Version) (*RuleSet, *multierror.Error) {
+func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
 	enabled := map[eval.EventType]bool{"*": true}
 
 	var evalOpts eval.Opts
@@ -433,14 +433,14 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, agentVersion *semver.Versio
 		t.Fatal(err)
 	}
 
-	provider, err := NewPoliciesDirProvider(tmpDir, false, agentVersion)
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	loader := NewPolicyLoader(provider)
 
-	return rs, rs.LoadPolicies(loader)
+	return rs, rs.LoadPolicies(loader, policyOpts)
 }
 
 func TestRuleErrorLoading(t *testing.T) {
@@ -461,10 +461,10 @@ func TestRuleErrorLoading(t *testing.T) {
 		},
 	}
 
-	rs, err := loadPolicy(t, testPolicy, nil)
+	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 2)
-	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: internal rule ID conflict")
+	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: multiple definition with the same ID")
 	assert.ErrorContains(t, err.Errors[1], "rule `testB` definition error: syntax error: 1:16: unexpected token")
 
 	assert.Contains(t, rs.rules, "testA")
@@ -472,69 +472,182 @@ func TestRuleErrorLoading(t *testing.T) {
 }
 
 func TestRuleAgentConstraint(t *testing.T) {
-	testEntries := []struct {
-		name           string
-		agentVersion   string
-		ruleConstraint string
-		expectLoad     bool
-	}{
-		{
-			name:           "basic",
-			agentVersion:   "7.38",
-			ruleConstraint: "< 7.37",
-			expectLoad:     false,
+	testPolicy := &PolicyDef{
+		Macros: []*MacroDefinition{
+			{
+				ID:         "macro1",
+				Expression: `[1, 2]`,
+			},
+			{
+				ID:                     "macro2",
+				Expression:             `[3, 4]`,
+				AgentVersionConstraint: ">= 7.37, < 7.38",
+			},
+			{
+				ID:                     "macro2",
+				Expression:             `[3, 4, 5]`,
+				AgentVersionConstraint: ">= 7.38",
+			},
 		},
-		{
-			name:           "basic2",
-			agentVersion:   "7.35",
-			ruleConstraint: "< 7.37",
-			expectLoad:     true,
-		},
-		{
-			name:           "range",
-			agentVersion:   "7.35",
-			ruleConstraint: ">= 7.30, < 7.37",
-			expectLoad:     true,
-		},
-		{
-			name:           "range_not",
-			agentVersion:   "7.35",
-			ruleConstraint: ">= 7.30, < 7.37, != 7.35",
-			expectLoad:     false,
-		},
-		{
-			name:           "rc_prerelease",
-			agentVersion:   "7.38.0-rc.2",
-			ruleConstraint: ">= 7.38",
-			expectLoad:     true,
+		Rules: []*RuleDefinition{
+			{
+				ID:         "no_constraint",
+				Expression: `open.filename == "/tmp/test"`,
+			},
+			{
+				ID:                     "conflict",
+				Expression:             `open.filename == "/tmp/test1"`,
+				AgentVersionConstraint: "< 7.37",
+			},
+			{
+				ID:                     "conflict",
+				Expression:             `open.filename == "/tmp/test2"`,
+				AgentVersionConstraint: ">= 7.37",
+			},
+			{
+				ID:                     "basic",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: "< 7.37",
+			},
+			{
+				ID:                     "basic2",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: "> 7.37",
+			},
+			{
+				ID:                     "range",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.30, < 7.39",
+			},
+			{
+				ID:                     "range_not",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.30, < 7.39, != 7.38",
+			},
+			{
+				ID:                     "rc_prerelease",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+			{
+				ID:                     "with_macro1",
+				Expression:             `open.filename == "/tmp/test" && open.mode in macro1`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+			{
+				ID:                     "with_macro2",
+				Expression:             `open.filename == "/tmp/test" && open.mode in macro2`,
+				AgentVersionConstraint: ">= 7.38",
+			},
 		},
 	}
 
-	for _, entry := range testEntries {
-		t.Run(entry.name, func(t *testing.T) {
-			ruleID := fmt.Sprintf("test_rule_%s", entry.name)
+	expected := []struct {
+		ruleID       string
+		expectedLoad bool
+	}{
+		{
+			ruleID:       "no_constraint",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "conflict",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "basic",
+			expectedLoad: false,
+		},
+		{
+			ruleID:       "basic2",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "range",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "range_not",
+			expectedLoad: false,
+		},
+		{
+			ruleID:       "rc_prerelease",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "with_macro1",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "with_macro2",
+			expectedLoad: true,
+		},
+	}
 
-			testPolicy := &PolicyDef{
-				Rules: []*RuleDefinition{{
-					ID:                     ruleID,
-					Expression:             `open.filename == "/tmp/test"`,
-					AgentVersionConstraint: entry.ruleConstraint,
-				}},
-			}
+	agentVersion, err := semver.NewVersion("7.38")
+	assert.Nil(t, err)
 
-			agentVersion, err := semver.NewVersion(entry.agentVersion)
-			assert.Nil(t, err)
+	agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
+	assert.Nil(t, err)
 
-			rs, err := loadPolicy(t, testPolicy, agentVersion)
-			assert.Nil(t, err)
+	policyOpts := PolicyLoaderOpts{
+		MacroFilters: []MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []RuleFilter{
+			agentVersionFilter,
+		},
+	}
 
-			if entry.expectLoad {
-				assert.Contains(t, rs.rules, ruleID)
+	rs, err := loadPolicy(t, testPolicy, policyOpts)
+	assert.Nil(t, err)
+
+	for _, exp := range expected {
+		t.Run(exp.ruleID, func(t *testing.T) {
+			if exp.expectedLoad {
+				assert.Contains(t, rs.rules, exp.ruleID)
 			} else {
-				assert.NotContains(t, rs.rules, ruleID)
+				assert.NotContains(t, rs.rules, exp.ruleID)
+
+				var present bool
+				for _, skipped := range rs.policies[0].RuleSkipped {
+					if skipped.ID == exp.ruleID {
+						present = true
+					}
+				}
+				assert.True(t, present)
 			}
 		})
 	}
+}
+
+func TestRuleIDFilter(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test1",
+				Expression: `open.filename == "/tmp/test"`,
+			},
+			{
+				ID:         "test2",
+				Expression: `open.filename != "/tmp/test"`,
+			},
+		},
+	}
+
+	policyOpts := PolicyLoaderOpts{
+		RuleFilters: []RuleFilter{
+			&RuleIDFilter{
+				ID: "test2",
+			},
+		},
+	}
+
+	rs, err := loadPolicy(t, testPolicy, policyOpts)
+	assert.Nil(t, err)
+
+	assert.NotContains(t, rs.rules, "test1")
+	assert.Contains(t, rs.rules, "test2")
 }
 
 func TestActionSetVariableInvalid(t *testing.T) {
@@ -553,7 +666,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("policy should fail to load")
 		} else {
 			t.Log(err)
@@ -578,7 +691,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -603,7 +716,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -624,7 +737,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -656,7 +769,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -687,7 +800,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)
@@ -719,7 +832,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			}},
 		}
 
-		if _, err := loadPolicy(t, testPolicy, nil); err == nil {
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
 			t.Log(err)

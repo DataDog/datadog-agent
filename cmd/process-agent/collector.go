@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"go.uber.org/atomic"
 )
 
 type checkResult struct {
@@ -54,11 +56,11 @@ type checkPayload struct {
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
-	// Set to 1 if enabled 0 is not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	realTimeEnabled int32
+	// true if real-time is enabled
+	realTimeEnabled *atomic.Bool
 
-	groupID int32
+	// the next groupID to be issued
+	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
@@ -72,8 +74,11 @@ type Collector struct {
 
 	processResults   *api.WeightedQueue
 	rtProcessResults *api.WeightedQueue
-	podResults       *api.WeightedQueue
 	eventResults     *api.WeightedQueue
+
+	connectionsResults *api.WeightedQueue
+
+	podResults *api.WeightedQueue
 
 	forwarderRetryQueueMaxBytes int
 
@@ -126,6 +131,9 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(queueBytes))
 	log.Debugf("Creating rt process check queue with max_size=%d and max_weight=%d", rtProcessResults.MaxSize(), rtProcessResults.MaxWeight())
 
+	connectionsResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
+	log.Debugf("Creating connections queue with max_size=%d and max_weight=%d", connectionsResults.MaxSize(), connectionsResults.MaxWeight())
+
 	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
@@ -140,17 +148,18 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	return Collector{
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
-		groupID:       rand.Int31(),
+		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
-		realTimeEnabled:  0,
+		realTimeEnabled:  atomic.NewBool(false),
 
-		processResults:   processResults,
-		rtProcessResults: rtProcessResults,
-		podResults:       podResults,
-		eventResults:     eventResults,
+		processResults:     processResults,
+		rtProcessResults:   rtProcessResults,
+		connectionsResults: connectionsResults,
+		podResults:         podResults,
+		eventResults:       eventResults,
 
 		forwarderRetryQueueMaxBytes: queueBytes,
 
@@ -171,8 +180,17 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	checks.StoreCheckOutput(c.Name(), messages)
-	l.messagesToResults(start, c.Name(), messages, results)
+	if c.ShouldSaveLastRun() {
+		checks.StoreCheckOutput(c.Name(), messages)
+	} else {
+		checks.StoreCheckOutput(c.Name(), nil)
+	}
+
+	if c.Name() == config.PodCheckName {
+		handlePodChecks(l, start, c.Name(), messages, results)
+	} else {
+		l.messagesToResultsQueue(start, c.Name(), messages, results)
+	}
 
 	if !c.RealTime() {
 		logCheckDuration(c.Name(), start, runCounter)
@@ -180,7 +198,6 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 }
 
 func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rtResults *api.WeightedQueue, options checks.RunOptions) {
-	runCounter := l.nextRunCounter(c.Name())
 	start := time.Now()
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
@@ -190,13 +207,17 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	l.messagesToResults(start, c.Name(), run.Standard, results)
+	l.messagesToResultsQueue(start, c.Name(), run.Standard, results)
 	if options.RunStandard {
+		// We are only updating the run counter for the standard check
+		// since RT checks are too frequent and we only log standard check
+		// durations
+		runCounter := l.nextRunCounter(c.Name())
 		checks.StoreCheckOutput(c.Name(), run.Standard)
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 
-	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
+	l.messagesToResultsQueue(start, c.RealTimeName(), run.RealTime, rtResults)
 	if options.RunRealTime {
 		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
 	}
@@ -224,12 +245,22 @@ func logCheckDuration(name string, start time.Time, runCounter int32) {
 }
 
 func (l *Collector) nextGroupID() int32 {
-	return atomic.AddInt32(&l.groupID, 1)
+	return l.groupID.Inc()
 }
 
-func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
-	if len(messages) == 0 {
+func (l *Collector) messagesToResultsQueue(start time.Time, name string, messages []model.MessageBody, queue *api.WeightedQueue) {
+	result := l.messagesToCheckResult(start, name, messages)
+	if result == nil {
 		return
+	}
+	queue.Add(result)
+	// update proc and container count for info
+	updateProcContainerCount(messages)
+}
+
+func (l *Collector) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
+	if len(messages) == 0 {
+		return nil
 	}
 
 	payloads := make([]checkPayload, 0, len(messages))
@@ -256,6 +287,11 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 			}
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+
+			switch m.(type) {
+			case *model.CollectorManifest:
+				extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
+			}
 		}
 
 		if name == checks.ProcessEvents.Name() {
@@ -271,14 +307,11 @@ func (l *Collector) messagesToResults(start time.Time, name string, messages []m
 		sizeInBytes += len(body)
 	}
 
-	result := &checkResult{
+	return &checkResult{
 		name:        name,
 		payloads:    payloads,
 		sizeInBytes: int64(sizeInBytes),
 	}
-	results.Add(result)
-	// update proc and container count for info
-	updateProcContainerCount(messages)
 }
 
 func (l *Collector) run(exit chan struct{}) error {
@@ -305,7 +338,14 @@ func (l *Collector) run(exit chan struct{}) error {
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	var checkNames []string
+	checkNamesLength := len(l.enabledChecks)
+	if !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks") {
+		// checkNamesLength is double when realtime checks is enabled as we append the Process real time name
+		// as well as the original check name
+		checkNamesLength = checkNamesLength * 2
+	}
+
+	checkNames := make([]string, 0, checkNamesLength)
 	for _, check := range l.enabledChecks {
 		checkNames = append(checkNames, check.Name())
 
@@ -325,6 +365,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		<-exit
 		l.processResults.Stop()
 		l.rtProcessResults.Stop()
+		l.connectionsResults.Stop()
 		l.podResults.Stop()
 		l.eventResults.Stop()
 	}()
@@ -355,14 +396,16 @@ func (l *Collector) run(exit chan struct{}) error {
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				updateQueueStats(&queueStats{
-					processQueueSize:    l.processResults.Len(),
-					rtProcessQueueSize:  l.rtProcessResults.Len(),
-					eventQueueSize:      l.eventResults.Len(),
-					podQueueSize:        l.podResults.Len(),
-					processQueueBytes:   l.processResults.Weight(),
-					rtProcessQueueBytes: l.rtProcessResults.Weight(),
-					eventQueueBytes:     l.eventResults.Weight(),
-					podQueueBytes:       l.podResults.Weight(),
+					processQueueSize:      l.processResults.Len(),
+					rtProcessQueueSize:    l.rtProcessResults.Len(),
+					connectionsQueueSize:  l.connectionsResults.Len(),
+					eventQueueSize:        l.eventResults.Len(),
+					podQueueSize:          l.podResults.Len(),
+					processQueueBytes:     l.processResults.Weight(),
+					rtProcessQueueBytes:   l.rtProcessResults.Weight(),
+					connectionsQueueBytes: l.connectionsResults.Weight(),
+					eventQueueBytes:       l.eventResults.Weight(),
+					podQueueBytes:         l.podResults.Weight(),
 				})
 			case <-queueLogTicker.C:
 				l.logQueuesSize()
@@ -377,8 +420,11 @@ func (l *Collector) run(exit chan struct{}) error {
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	// rt forwarder can reuse processForwarder's config
+	// rt forwarder reuses processForwarder's config
 	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
+	// connections forwarder reuses processForwarder's config
+	connectionsForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
@@ -396,6 +442,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	if err := rtProcessForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting RT forwarder: %s", err)
+	}
+
+	if err := connectionsForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting connections forwarder: %s", err)
 	}
 
 	if err := podForwarder.Start(); err != nil {
@@ -416,6 +466,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	go func() {
 		defer wg.Done()
 		l.consumePayloads(l.rtProcessResults, rtProcessForwarder)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(l.connectionsResults, connectionsForwarder)
 	}()
 
 	wg.Add(1)
@@ -453,6 +509,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	processForwarder.Stop()
 	rtProcessForwarder.Stop()
+	connectionsForwarder.Stop()
 	podForwarder.Stop()
 	return nil
 }
@@ -463,6 +520,8 @@ func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
 		return l.podResults
 	case checks.Process.RealTimeName(), checks.RTContainer.Name():
 		return l.rtProcessResults
+	case checks.Connections.Name():
+		return l.connectionsResults
 	case checks.ProcessEvents.Name():
 		return l.eventResults
 	}
@@ -487,7 +546,7 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 			ExitChan:       exit,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
-				return atomic.LoadInt32(&l.realTimeEnabled) == 1
+				return l.realTimeEnabled.Load()
 			},
 			RunCheck: func(options checks.RunOptions) {
 				l.runCheckWithRealTime(withRealTime, results, rtResults, options)
@@ -507,7 +566,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 		for {
 			select {
 			case <-ticker.C:
-				realTimeEnabled := l.runRealTime && atomic.LoadInt32(&l.realTimeEnabled) == 1
+				realTimeEnabled := l.runRealTime && l.realTimeEnabled.Load()
 				if !c.RealTime() || realTimeEnabled {
 					l.runCheck(c, results)
 				}
@@ -547,7 +606,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 		result := item.(*checkResult)
 		for _, payload := range result.payloads {
 			var (
-				forwarderPayload = forwarder.Payloads{&payload.body}
+				forwarderPayload = transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})
 				responses        chan forwarder.Response
 				err              error
 				updateRTStatus   = l.runRealTime
@@ -571,7 +630,13 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				// Pod check contains two parts: metadata and manifest.
+				// The manifest payload header has Content-Encoding:zstd allowing us to decompress payload in the intake
+				if payload.headers.Get(headers.ContentEncodingHeader) == headers.ZSTDContentEncoding {
+					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
+				} else {
+					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				}
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
@@ -598,7 +663,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 }
 
 func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
-	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
+	curEnabled := l.realTimeEnabled.Load()
 
 	// If any of the endpoints wants real-time we'll do that.
 	// We will pick the maximum interval given since generally this is
@@ -619,10 +684,10 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 
 	if curEnabled && !shouldEnableRT {
 		log.Info("Detected 0 clients, disabling real-time mode")
-		atomic.StoreInt32(&l.realTimeEnabled, 0)
+		l.realTimeEnabled.Store(false)
 	} else if !curEnabled && shouldEnableRT {
 		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
-		atomic.StoreInt32(&l.realTimeEnabled, 1)
+		l.realTimeEnabled.Store(true)
 	}
 
 	if maxInterval != l.realTimeInterval {
@@ -640,16 +705,31 @@ func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 }
 
 func (l *Collector) logQueuesSize() {
-	processSize, rtProcessSize, eventSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.eventResults.Len(), l.podResults.Len()
-	if processSize > 0 || rtProcessSize > 0 || eventSize > 0 || podSize > 0 {
-		log.Infof(
-			"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
-			processSize, l.processResults.Weight(),
-			rtProcessSize, l.rtProcessResults.Weight(),
-			eventSize, l.eventResults.Weight(),
-			podSize, l.podResults.Weight(),
-		)
+	var (
+		processSize     = l.processResults.Len()
+		rtProcessSize   = l.rtProcessResults.Len()
+		connectionsSize = l.connectionsResults.Len()
+		eventsSize      = l.eventResults.Len()
+		podSize         = l.podResults.Len()
+	)
+
+	if processSize == 0 &&
+		rtProcessSize == 0 &&
+		connectionsSize == 0 &&
+		eventsSize == 0 &&
+		podSize == 0 {
+		return
 	}
+
+	log.Infof(
+		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
+		processSize, l.processResults.Weight(),
+		rtProcessSize, l.rtProcessResults.Weight(),
+		connectionsSize, l.connectionsResults.Weight(),
+		eventsSize, l.eventResults.Weight(),
+		podSize, l.podResults.Weight(),
+	)
+
 }
 
 // getContainerCount returns the number of containers in the message body
@@ -716,5 +796,15 @@ func ignoreResponseBody(checkName string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// Pod check returns a list of messages can be divided into two parts : pod payloads and manifest payloads
+// By default we only send pod payloads containing pod metadata and pod manifests (yaml)
+// Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
+func handlePodChecks(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+	l.messagesToResultsQueue(start, name, messages[:len(messages)/2], results)
+	if l.cfg.Orchestrator.IsManifestCollectionEnabled {
+		l.messagesToResultsQueue(start, name, messages[len(messages)/2:], results)
 	}
 }

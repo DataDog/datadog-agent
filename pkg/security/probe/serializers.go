@@ -190,6 +190,8 @@ type ProcessSerializer struct {
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
 	// File information of the executable
 	Executable *FileSerializer `json:"executable,omitempty"`
+	// File information of the interpreter
+	Interpreter *FileSerializer `json:"interpreter,omitempty"`
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// First command line argument
@@ -204,6 +206,8 @@ type ProcessSerializer struct {
 	EnvsTruncated bool `json:"envs_truncated,omitempty"`
 	// Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
 	IsThread bool `json:"is_thread,omitempty" jsonschema_description:""`
+	// Indicates whether the process is a kworker
+	IsKworker bool `json:"is_kworker,omitempty" jsonschema_description:""`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -609,6 +613,11 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		Envs:          envs,
 		EnvsTruncated: EnvsTruncated,
 		IsThread:      ps.IsThread,
+		IsKworker:     ps.IsKworker,
+	}
+
+	if ps.HasInterpreter() {
+		psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
 	}
 
 	credsSerializer := newCredentialsSerializer(&ps.Credentials)

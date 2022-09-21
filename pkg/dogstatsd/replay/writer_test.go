@@ -7,17 +7,21 @@ package replay
 
 import (
 	"io"
+	"math/rand"
 	"path"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func writerTest(t *testing.T, z bool) {
@@ -47,51 +51,69 @@ func writerTest(t *testing.T, z bool) {
 
 	var wg sync.WaitGroup
 	const (
-		iterations    = 50
-		sleepInterval = 100 * time.Millisecond
+		iterations   = 100
+		testDuration = 5 * time.Second
 	)
-
+	sleepDuration := testDuration / iterations
+	// For test to fail consistently we need to run with more threads than available CPU
+	threads := runtime.NumCPU()
 	start := make(chan struct{})
+	enqueued := atomic.NewInt32(0)
+
+	for i := 0; i < threads; i++ {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, threadNo int) {
+			defer wg.Done()
+			r := rand.New(rand.NewSource(int64(9223372036854 / (threadNo + 1))))
+			<-start
+			// Add a little bit of controlled jitter so tests fail if enqueuing not correct
+			duration := time.Duration(r.Int63n(int64(sleepDuration)))
+			time.Sleep(duration)
+
+			for i := 0; i < iterations; i++ {
+				buff := CapPool.Get().(*CaptureBuffer)
+				pkt := manager.Get().(*packets.Packet)
+				pkt.Buffer = []byte("foo.bar|5|#some:tag")
+				pkt.Source = packets.UDS
+				pkt.Contents = pkt.Buffer
+
+				buff.Pb.Timestamp = time.Now().Unix()
+				buff.Buff = pkt
+				buff.Pb.Pid = 0
+				buff.Pb.AncillarySize = int32(0)
+				buff.Pb.PayloadSize = int32(len(pkt.Buffer))
+				buff.Pb.Payload = pkt.Buffer // or packet.Buffer[:n] ?
+
+				if writer.Enqueue(buff) {
+					enqueued.Inc()
+				}
+			}
+
+			writer.StopCapture()
+		}(&wg, i)
+	}
 
 	wg.Add(1)
 	go func(wg *sync.WaitGroup) {
 		defer wg.Done()
 
 		close(start)
-		writer.Capture("foo/bar", iterations*sleepInterval, z)
+		writer.Capture("foo/bar", testDuration, z)
 	}(&wg)
 
-	enqueued := 0
-	wg.Add(1)
+	wgc := make(chan struct{})
 	go func(wg *sync.WaitGroup) {
-		defer wg.Done()
-
-		<-start
-
-		for i := 0; i < iterations; i++ {
-			time.Sleep(sleepInterval)
-			buff := CapPool.Get().(*CaptureBuffer)
-			pkt := manager.Get().(*packets.Packet)
-			pkt.Buffer = []byte("foo.bar|5|#some:tag")
-			pkt.Source = packets.UDS
-			pkt.Contents = pkt.Buffer
-
-			buff.Pb.Timestamp = time.Now().Unix()
-			buff.Buff = pkt
-			buff.Pb.Pid = 0
-			buff.Pb.AncillarySize = int32(0)
-			buff.Pb.PayloadSize = int32(len(pkt.Buffer))
-			buff.Pb.Payload = pkt.Buffer // or packet.Buffer[:n] ?
-
-			if writer.Enqueue(buff) {
-				enqueued++
-			}
-		}
-
-		writer.StopCapture()
+		defer close(wgc)
+		wg.Wait()
 	}(&wg)
 
-	wg.Wait()
+	<-start
+	select {
+	case <-wgc:
+		break
+	case <-time.After(testDuration * 2):
+		assert.FailNow(t, "Timed out waiting for capture to finish", "Timeout was: %v", testDuration*2)
+	}
 
 	// assert file
 	writer.RLock()
@@ -136,11 +158,13 @@ func writerTest(t *testing.T, z bool) {
 	reader.offset = uint32(len(datadogHeader))
 	reader.Unlock()
 
-	cnt := 0
+	var cnt int32
 	for _, err = reader.ReadNext(); err != io.EOF; _, err = reader.ReadNext() {
 		cnt++
 	}
-	assert.Equal(t, cnt, enqueued)
+	assert.Equal(t, cnt, enqueued.Load())
+	// Expect at least every thread to have enqueued a message
+	assert.Greater(t, enqueued.Load(), int32(threads))
 }
 
 func TestWriterUncompressed(t *testing.T) {
@@ -171,11 +195,9 @@ func TestValidateLocation(t *testing.T) {
 		captureFs.fs = originalFs
 	}()
 
-	writer := NewTrafficCaptureWriter(1)
-	_, err := writer.ValidateLocation(locationBad)
+	_, err := ValidateLocation(locationBad)
 	assert.NotNil(t, err)
-	l, err := writer.ValidateLocation(locationGood)
+	l, err := ValidateLocation(locationGood)
 	assert.Nil(t, err)
 	assert.Equal(t, locationGood, l)
-
 }

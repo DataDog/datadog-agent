@@ -103,7 +103,7 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 	return nil
 }
 
-// Deserialize deserializes a transactions from the file system.
+// Deserialize deserializes transactions from the file system.
 func (s *onDiskRetryQueue) Deserialize() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
@@ -157,6 +157,18 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 		index := 0
 		filename := s.filenames[index]
 		log.Errorf("Maximum disk space for retry transactions is reached. Removing %s", filename)
+
+		bytes, err := ioutil.ReadFile(filename)
+		if err != nil {
+			log.Errorf("Cannot read the file %v: %v", filename, err)
+		} else if transactions, _, errDeserialize := s.serializer.Deserialize(bytes); errDeserialize == nil {
+			for _, tr := range transactions {
+				s.telemetry.addPointDroppedCount(tr.GetPointCount())
+			}
+		} else {
+			log.Errorf("Cannot deserialize the content of file %v: %v", filename, errDeserialize)
+		}
+
 		if err := s.removeFileAt(index); err != nil {
 			return err
 		}

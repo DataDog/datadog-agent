@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
 import (
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -38,12 +37,13 @@ type httpStatKeeper struct {
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
+
 	return &httpStatKeeper{
 		stats:             make(map[Key]*RequestStats),
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
-		buffer:            make([]byte, HTTPBufferSize),
+		buffer:            make([]byte, getPathBufferSize(c)),
 		interned:          make(map[string]string),
 		telemetry:         telemetry,
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -52,7 +52,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
 	for i := range transactions {
-		tx := &transactions[i]
+		tx := transactions[i]
 		if tx.Incomplete() {
 			h.incomplete.Add(tx)
 			continue
@@ -61,7 +61,11 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 		h.add(tx)
 	}
 
-	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
+	h.telemetry.aggregations.Store(int64(len(h.stats)))
+}
+
+func (h *httpStatKeeper) ProcessCompleted() {
+	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
@@ -75,20 +79,19 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx *httpTX) {
+func (h *httpStatKeeper) add(tx httpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		h.telemetry.malformed.Inc()
 		return
 	}
-
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return
 	}
 
-	if Method(tx.request_method) == MethodUnknown {
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+	if Method(tx.RequestMethod()) == MethodUnknown {
+		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
 		}
@@ -97,7 +100,8 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		log.Infof("latency less than zero")
+		h.telemetry.malformed.Inc()
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
 		}
@@ -108,31 +112,31 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
-			atomic.AddInt64(&h.telemetry.dropped, 1)
+			h.telemetry.dropped.Inc()
 			return
 		}
 		stats = new(RequestStats)
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusClass(), latency, tx.Tags())
+	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
+func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
 		KeyTuple: KeyTuple{
-			SrcIPHigh: uint64(tx.tup.saddr_h),
-			SrcIPLow:  uint64(tx.tup.saddr_l),
-			SrcPort:   uint16(tx.tup.sport),
-			DstIPHigh: uint64(tx.tup.daddr_h),
-			DstIPLow:  uint64(tx.tup.daddr_l),
-			DstPort:   uint16(tx.tup.dport),
+			SrcIPHigh: tx.SrcIPHigh(),
+			SrcIPLow:  tx.SrcIPLow(),
+			SrcPort:   tx.SrcPort(),
+			DstIPHigh: tx.DstIPHigh(),
+			DstIPLow:  tx.DstIPLow(),
+			DstPort:   tx.DstPort(),
 		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
-		Method: Method(tx.request_method),
+		Method: tx.Method(),
 	}
 }
 
@@ -145,13 +149,13 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
-				atomic.AddInt64(&h.telemetry.rejected, 1)
+				h.telemetry.rejected.Inc()
 				return "", true
 			}
 
@@ -163,13 +167,13 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 	// If the user didn't specify a rule matching this particular path, we can check for its format.
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
+		log.Infof("http path malformed")
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("http path malformed: %s", tx.String())
+			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
 		}
-		atomic.AddInt64(&h.telemetry.malformed, 1)
+		h.telemetry.malformed.Inc()
 		return "", true
 	}
-
 	return h.intern(path), false
 }
 

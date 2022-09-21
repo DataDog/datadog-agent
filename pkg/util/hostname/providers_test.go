@@ -14,13 +14,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHostnameCaching(t *testing.T) {
@@ -56,6 +57,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		azureGetHostname = azure.GetHostname
 		osHostname = os.Hostname
 		fqdnHostname = getSystemFQDN
+		osHostnameUsable = isOSHostnameUsable
 
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
@@ -88,7 +90,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
-		isContainerized = func() bool { return false }
+		osHostnameUsable = func(ctx context.Context) bool { return true }
 		config.Datadog.Set("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
@@ -101,7 +103,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.OS || tc.OSEC2 {
 		// making isOSHostnameUsable return true
-		isContainerized = func() bool { return false }
+		osHostnameUsable = func(ctx context.Context) bool { return true }
 		if !tc.OSEC2 {
 			osHostname = func() (string, error) { return "hostname-from-os", nil }
 		} else {
@@ -163,7 +165,6 @@ func TestFromConfigurationTrue(t *testing.T) {
 	data, err := GetWithProvider(context.TODO())
 	assert.NoError(t, err)
 	assert.True(t, data.FromConfiguration())
-
 }
 
 func TestHostnamePrority(t *testing.T) {

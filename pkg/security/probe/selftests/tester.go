@@ -9,17 +9,19 @@
 package selftests
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -84,7 +86,7 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies() ([]*rules.Policy, *multierror.Error) {
+func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,
@@ -123,7 +125,7 @@ func (t *SelfTester) createTargetFile() error {
 // RunSelfTest runs the self test and return the result
 func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to run self test")
+		return nil, nil, fmt.Errorf("failed to run self test: %w", err)
 	}
 	defer t.EndWaitingForEvent()
 

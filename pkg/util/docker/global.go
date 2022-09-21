@@ -22,7 +22,6 @@ import (
 var (
 	globalDockerUtil      *DockerUtil
 	globalDockerUtilMutex sync.Mutex
-	invalidationInterval  = 5 * time.Minute
 )
 
 // GetDockerUtilWithRetrier returns a ready to use DockerUtil or a retrier

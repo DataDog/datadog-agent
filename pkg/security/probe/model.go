@@ -46,12 +46,12 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 	switch field {
 	case "bpf.map.name":
-		if offset, found := m.probe.constantOffsets["bpf_map_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
 			return fmt.Errorf("%s is not available on this kernel version", field)
 		}
 
 	case "bpf.prog.name":
-		if offset, found := m.probe.constantOffsets["bpf_prog_aux_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 			return fmt.Errorf("%s is not available on this kernel version", field)
 		}
 	}
@@ -212,14 +212,13 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 // UnmarshalProcessCacheEntry unmarshal a Process
 func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
 	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
+	ev.ProcessCacheEntry = entry
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
-
-	ev.ProcessCacheEntry = entry
 
 	return n, nil
 }
@@ -480,6 +479,10 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 
 		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+
+		// mark interpreter as resolved too
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	return ev.ProcessCacheEntry

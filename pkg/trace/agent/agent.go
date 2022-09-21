@@ -8,7 +8,6 @@ package agent
 import (
 	"context"
 	"runtime"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -191,6 +190,17 @@ func (a *Agent) loop() {
 	}
 }
 
+// setRootSpanTags sets up any necessary tags on the root span.
+func (a *Agent) setRootSpanTags(root *pb.Span) {
+	clientSampleRate := sampler.GetGlobalRate(root)
+	sampler.SetClientRate(root, clientSampleRate)
+
+	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+		rate := ratelimiter.RealRate()
+		sampler.SetPreSampleRate(root, rate)
+	}
+}
+
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
@@ -217,11 +227,11 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		tracen := int64(len(chunk.Spans))
-		atomic.AddInt64(&ts.SpansReceived, tracen)
+		ts.SpansReceived.Add(tracen)
 		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, tracen)
+			ts.SpansDropped.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -231,16 +241,16 @@ func (a *Agent) Process(p *api.Payload) {
 		normalizeChunk(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -265,16 +275,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 		a.Replacer.Replace(chunk.Spans)
 
-		{
-			// this section sets up any necessary tags on the root:
-			clientSampleRate := sampler.GetGlobalRate(root)
-			sampler.SetClientRate(root, clientSampleRate)
-
-			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-				rate := ratelimiter.RealRate()
-				sampler.SetPreSampleRate(root, rate)
-			}
-		}
+		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
@@ -306,14 +307,18 @@ func (a *Agent) Process(p *api.Payload) {
 
 		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep {
+			keep = sampler.ApplySpanSampling(chunk)
+		}
+		if !keep {
 			if numEvents == 0 {
 				// the trace was dropped and no analyzed span were kept
 				p.RemoveChunk(i)
 				continue
 			}
-			// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
-			// is added to the TracerPayload to be sent to TraceWriter.
-			// The complete chunk is still sent to the stats concentrator.
+			// The sampler step filtered a subset of spans in the chunk. The new
+			// filtered chunk is added to the TracerPayload to be sent to
+			// TraceWriter. The complete chunk is still sent to the stats
+			// concentrator.
 			p.ReplaceChunk(i, filteredChunk)
 		}
 
@@ -438,7 +443,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	if hasPriority {
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
 	} else {
-		atomic.AddInt64(&ts.TracesPriorityNone, 1)
+		ts.TracesPriorityNone.Inc()
 	}
 
 	if priority < 0 {
@@ -455,8 +460,8 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
-	atomic.AddInt64(&ts.EventsSampled, numEvents)
+	ts.EventsExtracted.Add(numExtracted)
+	ts.EventsSampled.Add(numEvents)
 
 	return numEvents, sampled, filteredChunk
 }
@@ -524,9 +529,7 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 }
 
 func newEventProcessor(conf *config.AgentConfig) *event.Processor {
-	extractors := []event.Extractor{
-		event.NewMetricBasedExtractor(),
-	}
+	extractors := []event.Extractor{event.NewMetricBasedExtractor()}
 	if len(conf.AnalyzedSpansByService) > 0 {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
 	} else if len(conf.AnalyzedRateByServiceLegacy) > 0 {

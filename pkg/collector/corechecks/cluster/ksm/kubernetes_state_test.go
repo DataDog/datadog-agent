@@ -13,14 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 type metricsExpected struct {
@@ -199,6 +200,7 @@ func TestProcessMetrics(t *testing.T) {
 								"label_app_kubernetes_io_component":  "db",
 								"label_app_kubernetes_io_part_of":    "my-app",
 								"label_app_kubernetes_io_managed_by": "helm",
+								"label_helm_sh_chart":                "mysql-2.35.6",
 							},
 						},
 					},
@@ -218,6 +220,7 @@ func TestProcessMetrics(t *testing.T) {
 						"kube_app_component:db",
 						"kube_app_part_of:my-app",
 						"kube_app_managed_by:helm",
+						"helm_chart:mysql-2.35.6",
 					},
 					hostname: "",
 				},

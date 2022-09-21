@@ -7,12 +7,11 @@ package eval
 
 import (
 	"container/list"
+	"fmt"
 	"net"
 	"reflect"
 	"syscall"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 var legacyFields = map[Field]Field{
@@ -144,18 +143,15 @@ func (m *testModel) NewEvent() Event {
 
 func (m *testModel) ValidateField(key string, value FieldValue) error {
 	switch key {
-
 	case "process.uid":
-
 		uid, ok := value.Value.(int)
 		if !ok {
-			return errors.New("invalid type for process.ui")
+			return fmt.Errorf("invalid type for process.ui: %v", reflect.TypeOf(value.Value))
 		}
 
 		if uid < 0 {
-			return errors.New("process.uid cannot be negative")
+			return fmt.Errorf("process.uid cannot be negative: %d", uid)
 		}
-
 	}
 
 	return nil
@@ -494,6 +490,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	return nil, &ErrFieldNotFound{Field: field}
 }
+
+func (e *testEvent) Init() {}
 
 func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	switch field {

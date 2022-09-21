@@ -1,10 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package service
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func TestClientPredicateBadTracerVersion(t *testing.T) {
@@ -79,8 +85,11 @@ func TestClientPredicates(t *testing.T) {
 	// empty string match
 	tester(true, []*pbgo.TracerPredicateV1{{Language: empty}})
 
-	// test match all
-	tester(true, []*pbgo.TracerPredicateV1{})
+	// test match everything
+	tester(true, []*pbgo.TracerPredicateV1{{}})
+
+	// test match nothing
+	tester(false, []*pbgo.TracerPredicateV1{})
 
 	// multiple fields
 	tester(
@@ -107,6 +116,40 @@ func TestClientPredicates(t *testing.T) {
 			{
 				TracerVersion: tracerVersion,
 				Service:       empty,
+			},
+		},
+	)
+
+	// multiple predicates, none matching
+	tester(
+		false,
+		[]*pbgo.TracerPredicateV1{
+			{
+				TracerVersion: tracerVersion,
+				Service:       serviceFail,
+			},
+			{
+				TracerVersion: tracerVersionFail,
+				Service:       serviceMatch,
+			},
+		},
+	)
+
+	// multple predicates, at least one matching
+	tester(
+		false,
+		[]*pbgo.TracerPredicateV1{
+			{
+				TracerVersion: tracerVersion,
+				Service:       serviceFail,
+			},
+			{
+				TracerVersion: tracerVersionFail,
+				Service:       serviceMatch,
+			},
+			{
+				TracerVersion: tracerVersionFail,
+				Service:       serviceMatch,
 			},
 		},
 	)

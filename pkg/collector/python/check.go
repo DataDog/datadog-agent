@@ -38,15 +38,17 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
-	id           check.ID
-	version      string
-	instance     *C.rtloader_pyobject_t
-	class        *C.rtloader_pyobject_t
-	ModuleName   string
-	interval     time.Duration
-	lastWarnings []error
-	source       string
-	telemetry    bool // whether or not the telemetry is enabled for this check
+	id             check.ID
+	version        string
+	instance       *C.rtloader_pyobject_t
+	class          *C.rtloader_pyobject_t
+	ModuleName     string
+	interval       time.Duration
+	lastWarnings   []error
+	source         string
+	telemetry      bool // whether or not the telemetry is enabled for this check
+	initConfig     string
+	instanceConfig string
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -156,6 +158,16 @@ func (c *PythonCheck) IsTelemetryEnabled() bool {
 // ConfigSource returns the source of the configuration for this check
 func (c *PythonCheck) ConfigSource() string {
 	return c.source
+}
+
+// InitConfig returns the init_config configuration for the check.
+func (c *PythonCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance configuration for the check.
+func (c *PythonCheck) InstanceConfig() string {
+	return c.instanceConfig
 }
 
 // GetWarnings grabs the last warnings from the struct
@@ -292,6 +304,9 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	} else {
 		s.FinalizeCheckServiceTag()
 	}
+
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(data)
 
 	log.Debugf("python check configure done %s", c.ModuleName)
 	return nil

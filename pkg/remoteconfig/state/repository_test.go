@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package state
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -429,4 +435,64 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	}
 	assert.Contains(t, state.CachedFiles, expectedCachedFileCWSDD)
 	assert.Contains(t, state.CachedFiles, expectedCachedFileAPMSampling)
+}
+
+// These tests involve generated JSON responses that the remote config service would send. They
+// were primarily created to assist tracer teams with unit tests around TUF integrity checks,
+// but they apply to agent clients as well, so we include them here as an extra layer of protection.
+func TestPreGeneratedIntegrityChecks(t *testing.T) {
+	testRoot := []byte(`{"signed":{"_type":"root","spec_version":"1.0","version":1,"expires":"2032-05-29T12:49:41.030418-04:00","keys":{"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e":{"keytype":"ed25519","scheme":"ed25519","keyid_hash_algorithms":["sha256","sha512"],"keyval":{"public":"7d3102e39abe71044d207550bda239c71380d013ec5a115f79f51622630054e6"}}},"roles":{"root":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1},"snapshot":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1},"targets":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1},"timestsmp":{"keyids":["ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e"],"threshold":1}},"consistent_snapshot":true},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"d7e24828d1d3104e48911860a13dd6ad3f4f96d45a9ea28c4a0f04dbd3ca6c205ed406523c6c4cacfb7ebba68f7e122e42746d1c1a83ffa89c8bccb6f7af5e06"}]}`)
+
+	type testData struct {
+		description string
+		isError     bool
+		rawUpdate   []byte
+	}
+
+	type pregeneratedResponse struct {
+		Targets     []byte `json:"targets"`
+		TargetFiles []struct {
+			Path string `json:"path"`
+			Raw  []byte `json:"raw"`
+		} `json:"target_files"`
+		ClientConfigs []string `json:"client_configs"`
+	}
+
+	tests := []testData{
+		{description: "valid", isError: false, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo0NywiaGFzaGVzIjp7InNoYTI1NiI6IjkyMjFkZmQ5ZjYwODQxNTEzMTNlM2U0OTIwMTIxYWU4NDM2MTRjMzI4ZTQ2MzBlYTM3MWJhNjZlMmYxNWEwYTYifSwiY3VzdG9tIjp7InYiOjF9fX0sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiJkNzQ4YjYzOTg5NTNiOGIwOWY3OTczMGI2Yjk3OTZkNWM2N2YyMmI2N2NkMTc4MjJmNjI2Mjk4ZjU1MjQ5ZWM5NGJkOGE2MmNiMjIwYTI0YmRiYTJiY2RhZTNjYTBkNGQ4ZDhhOTFjY2Q2NTcxY2E2MTc1MDlkNDJiNTMyNjYwMyJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+		{description: "invalid tuf targets signature", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6OTk5LCJleHBpcmVzIjoiMjAyMi0xMC0yN1QxNjo1Mzo1N1oiLCJ0YXJnZXRzIjp7ImRhdGFkb2cvMi9GRUFUVVJFUy9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJsZW5ndGgiOjQ3LCJoYXNoZXMiOnsic2hhMjU2IjoiOTIyMWRmZDlmNjA4NDE1MTMxM2UzZTQ5MjAxMjFhZTg0MzYxNGMzMjhlNDYzMGVhMzcxYmE2NmUyZjE1YTBhNiJ9LCJjdXN0b20iOnsidiI6MX19fSwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifX0sInNpZ25hdHVyZXMiOlt7ImtleWlkIjoiZWQ3NjcyYzlhMjRhYmRhNzg4NzJlZTMyZWU3MWM3Y2IxZDUyMzVlOGRiNGVjYmYxY2EyOGI5YzUwZWI3NWQ5ZSIsInNpZyI6ImQ3NDhiNjM5ODk1M2I4YjA5Zjc5NzMwYjZiOTc5NmQ1YzY3ZjIyYjY3Y2QxNzgyMmY2MjYyOThmNTUyNDllYzk0YmQ4YTYyY2IyMjBhMjRiZGJhMmJjZGFlM2NhMGQ0ZDhkOGE5MWNjZDY1NzFjYTYxNzUwOWQ0MmI1MzI2NjAzIn1dfQ==","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+		{description: "tuf targets signed with invalid key", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo0NywiaGFzaGVzIjp7InNoYTI1NiI6IjkyMjFkZmQ5ZjYwODQxNTEzMTNlM2U0OTIwMTIxYWU4NDM2MTRjMzI4ZTQ2MzBlYTM3MWJhNjZlMmYxNWEwYTYifSwiY3VzdG9tIjp7InYiOjF9fX0sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6IjE0NGQ4YTc3ZDUyOWVjYzNhYWE1ODgyZmU2YjEyYzI4ZjZkZmViZTliNjI4MWYyN2VkYjA5YmVhMDFhNmJiYWEiLCJzaWciOiIzMWNmZjIyNTJmNDFkZGZmZDBjYzBlYzhmNTY3NjdmZTRkODY2NjFjYjRkZGY5N2E3MjNkMDhlMjk0MjBmMzlmMzMyZTVjYjJiNDZhZTRjZjRmZjQwMjI1NTE1NjZhYTY4NzRlNTY4YmIwODg5M2JiMWIxMzUyMWMyMzdmZDAwZSJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+		{description: "missing target file in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6e30sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiI5MDE5MWIzNDcyYjBlMzRiMjVjZmY5ZjRiYTAwNDc5ZjAxZmNhYzU5MmMwNjBlZmNhZGY1NTc1YzFhYTNkNDU0NGJkNGM2Y2UxNTZlYzMyNTg4Y2UxY2E1MTk1MmUwODhkNTQ2NTVlOTI2MDgzYzRmY2ZjNTlmMTMyOGIyNzIwYiJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+		{description: "target file hash incorrect in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo0NywiaGFzaGVzIjp7InNoYTI1NiI6IjY2NjE2YjY1Njg2MTczNjgifSwiY3VzdG9tIjp7InYiOjF9fX0sImN1c3RvbSI6eyJvcGFxdWVfYmFja2VuZF9zdGF0ZSI6ImV5Sm1iMjhpT2lBaVltRnlJbjA9In19LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiI5ZjM4NTY5YTgwNjAxZTMzMTdmZDc4ZjJhNTY0MzM1Yzg2YjVhOWJkNzQyNDgxNzhmYmJkMmU4YTRlYmM4OTM0M2Y2YTVjMTMxN2NiZjg0NDE1ZGQ2ZjBiNTkxN2YyMThmZjllOWQ0ZTk5NTZiMmQ3NjAzMDkwNDQzMjVkODgwNCJ9XX0=","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+		{description: "target file length incorrect in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6MSwiZXhwaXJlcyI6IjIwMjItMTAtMjdUMTY6NTM6NTdaIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvRkVBVFVSRVMvRkVBVFVSRVMtYmFzZS9jb25maWciOnsibGVuZ3RoIjo5OTksImhhc2hlcyI6eyJzaGEyNTYiOiI2NjYxNmI2NTY4NjE3MzY4In0sImN1c3RvbSI6eyJ2IjoxfX19LCJjdXN0b20iOnsib3BhcXVlX2JhY2tlbmRfc3RhdGUiOiJleUptYjI4aU9pQWlZbUZ5SW4wPSJ9fSwic2lnbmF0dXJlcyI6W3sia2V5aWQiOiJlZDc2NzJjOWEyNGFiZGE3ODg3MmVlMzJlZTcxYzdjYjFkNTIzNWU4ZGI0ZWNiZjFjYTI4YjljNTBlYjc1ZDllIiwic2lnIjoiMjRmMTA2MTA3Y2ViMWIyZGVlYjdmMTJjMGVlY2JhZjk4N2RhZDUzZTZhMDlmMjA4YWNlYTM5Y2VhZDljMDE1M2UzYzkyOTM5YjY5OWE4MTBiZjVmMzEwMTE2ZTgzNDUzNTU1ZTUxY2I0ODJiZTk0YmQ0NjBiNzc5ZGVhZDgwMDIifV19","target_files":[{"path":"datadog/2/FEATURES/FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/FEATURES/FEATURES-base/config"]}`)},
+	}
+
+	for _, test := range tests {
+		// These payloads are the ClientGetConfigsResponse JSON from the protobuf layer, so we have
+		// to do a little processing first to be able to use them here in this internal package that is protobuf layer agnostic.
+		var parsed pregeneratedResponse
+		err := json.Unmarshal(test.rawUpdate, &parsed)
+		assert.NoError(t, err)
+		updateFiles := make(map[string][]byte)
+		for _, f := range parsed.TargetFiles {
+			updateFiles[f.Path] = f.Raw
+		}
+		update := Update{
+			TUFTargets:    parsed.Targets,
+			TargetFiles:   updateFiles,
+			ClientConfigs: parsed.ClientConfigs,
+		}
+
+		repository, err := NewRepository(testRoot)
+		assert.NoError(t, err)
+
+		result, err := repository.Update(update)
+		if test.isError {
+			assert.Error(t, err, test.description)
+			assert.Nil(t, result)
+		} else {
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+		}
+	}
 }

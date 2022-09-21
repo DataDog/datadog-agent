@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/viper"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // ErrNotInstalled is returned when the trace-agent can not be found in $PATH.

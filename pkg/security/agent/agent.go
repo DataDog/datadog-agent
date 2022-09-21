@@ -7,15 +7,14 @@ package agent
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -55,7 +54,7 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 
 	telemetry, err := newTelemetry()
 	if err != nil {
-		return nil, errors.Errorf("failed to initialize the telemetry reporter")
+		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
 	storage, err := probe.NewSecurityAgentStorageManager()
@@ -88,7 +87,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *confi
 	// Start activity dumps listener
 	go rsa.StartActivityDumpListener()
 	// Send Runtime Security Agent telemetry
-	go rsa.telemetry.run(ctx)
+	go rsa.telemetry.run(ctx, rsa)
 }
 
 // Stop the runtime recurity agent
@@ -202,26 +201,8 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
-	raw := bytes.NewBuffer(nil)
 
-	// uncompress if needed
-	if msg.GetIsCompressed() {
-		compressedRaw := bytes.NewBuffer(msg.GetData())
-		gzipReader, err := gzip.NewReader(compressedRaw)
-		if err != nil {
-			log.Errorf("couldn't create gzip reader: %v", err)
-			return
-		}
-		defer gzipReader.Close()
-
-		_, err = io.Copy(raw, gzipReader)
-		if err != nil {
-			log.Errorf("couldn't unzip: %v", err)
-			return
-		}
-	} else {
-		raw = bytes.NewBuffer(msg.GetData())
-	}
+	raw := bytes.NewBuffer(msg.GetData())
 
 	for _, requests := range dump.StorageRequests {
 		if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {

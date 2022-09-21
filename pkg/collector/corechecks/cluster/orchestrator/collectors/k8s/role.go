@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewRoleCollectorVersions builds the group of collector versions.
+func NewRoleCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewRoleCollector(),
+	)
+}
+
 // RoleCollector is a collector for Kubernetes Roles.
 type RoleCollector struct {
 	informer  rbacv1Informers.RoleInformer
@@ -32,9 +39,11 @@ type RoleCollector struct {
 func NewRoleCollector() *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "roles",
-			NodeType: orchestrator.K8sRole,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "roles",
+			NodeType:         orchestrator.K8sRole,
+			Version:          "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
 	}
@@ -74,14 +83,14 @@ func (c *RoleCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		NodeType:   c.metadata.NodeType,
 	}
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

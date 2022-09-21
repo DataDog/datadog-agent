@@ -26,11 +26,11 @@ const (
 type InformerName string
 
 const (
-	endpointsInformer InformerName = "endpoints"
+	endpointsInformer InformerName = "v1/endpoints"
 	// SecretsInformer holds the name of the informer
-	SecretsInformer InformerName = "secrets"
+	SecretsInformer InformerName = "v1/secrets"
 	// WebhooksInformer holds the name of the informer
-	WebhooksInformer InformerName = "webhooks"
+	WebhooksInformer InformerName = "admissionregistration.k8s.io/v1/mutatingwebhookconfigurations"
 	// ServicesInformer holds the name of the informer
-	ServicesInformer InformerName = "services"
+	ServicesInformer InformerName = "v1/services"
 )

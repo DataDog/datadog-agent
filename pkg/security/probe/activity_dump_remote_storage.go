@@ -18,11 +18,14 @@ import (
 	"strings"
 
 	"github.com/mailru/easyjson/jwriter"
+	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -43,10 +46,16 @@ func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 	return fmt.Sprintf("%s://%s:%v/%s", protocol, endpoint.Host, port, uri)
 }
 
+type tooLargeEntityStatsEntry struct {
+	storageFormat dump.StorageFormat
+	compression   bool
+}
+
 // ActivityDumpRemoteStorage is a remote storage that forwards dumps to the backend
 type ActivityDumpRemoteStorage struct {
-	urls    []string
-	apiKeys []string
+	urls             []string
+	apiKeys          []string
+	tooLargeEntities map[tooLargeEntityStatsEntry]*atomic.Uint64
 
 	client *http.Client
 }
@@ -54,9 +63,20 @@ type ActivityDumpRemoteStorage struct {
 // NewActivityDumpRemoteStorage returns a new instance of ActivityDumpRemoteStorage
 func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
+		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(),
 		},
+	}
+
+	for _, format := range dump.AllStorageFormats() {
+		for _, compression := range []bool{true, false} {
+			entry := tooLargeEntityStatsEntry{
+				storageFormat: format,
+				compression:   compression,
+			}
+			storage.tooLargeEntities[entry] = atomic.NewUint64(0)
+		}
 	}
 
 	endpoints, err := config.ActivityDumpRemoteStorageEndpoints("cws-intake.", "secdump", logsconfig.DefaultIntakeProtocol, "cloud-workload-security")
@@ -126,9 +146,9 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest,
 	var multipartWriter *multipart.Writer
 
 	if request.Compression {
-		gzipWriter := gzip.NewWriter(body)
-		defer gzipWriter.Close()
-		multipartWriter = multipart.NewWriter(gzipWriter)
+		compressor := gzip.NewWriter(body)
+		defer compressor.Close()
+		multipartWriter = multipart.NewWriter(compressor)
 	} else {
 		multipartWriter = multipart.NewWriter(body)
 	}
@@ -164,10 +184,17 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		return err
 	}
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf(resp.Status)
+	if resp.StatusCode == http.StatusAccepted {
+		return nil
 	}
-	return nil
+	if resp.StatusCode == http.StatusRequestEntityTooLarge {
+		entry := tooLargeEntityStatsEntry{
+			storageFormat: request.Format,
+			compression:   request.Compression,
+		}
+		storage.tooLargeEntities[entry].Inc()
+	}
+	return fmt.Errorf(resp.Status)
 }
 
 // Persist saves the provided buffer to the persistent storage
@@ -186,4 +213,15 @@ func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, a
 	}
 
 	return nil
+}
+
+// SendTelemetry sends telemetry for the current storage
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender aggregator.Sender) {
+	// send too large entity metric
+	for entry, count := range storage.tooLargeEntities {
+		if entityCount := count.Swap(0); entityCount > 0 {
+			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
+			sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", tags)
+		}
+	}
 }

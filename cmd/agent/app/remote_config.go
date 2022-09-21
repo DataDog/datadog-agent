@@ -11,16 +11,17 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 func init() {

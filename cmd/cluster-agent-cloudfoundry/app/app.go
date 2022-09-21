@@ -168,7 +168,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseEventPlatformForwarder = false
 	opts.UseOrchestratorForwarder = false
 	opts.UseContainerLifecycleForwarder = false
@@ -199,7 +199,7 @@ func run(cmd *cobra.Command, args []string) error {
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check
-	common.AC.LoadAndRun()
+	common.AC.LoadAndRun(mainCtx)
 
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
@@ -245,8 +245,10 @@ func initializeCCCache(ctx context.Context) error {
 		config.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
 		pollInterval,
 		config.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
+		config.Datadog.GetBool("cluster_agent.refresh_on_cache_miss"),
 		config.Datadog.GetBool("cluster_agent.serve_nozzle_data"),
-		config.Datadog.GetBool("cluster_agent.advanced_tagging"),
+		config.Datadog.GetBool("cluster_agent.sidecars_tags"),
+		config.Datadog.GetBool("cluster_agent.isolation_segments_tags"),
 		nil,
 	)
 	if err != nil {

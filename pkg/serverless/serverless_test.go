@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleInvocationShouldSetExtraTags(t *testing.T) {

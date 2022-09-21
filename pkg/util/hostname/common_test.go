@@ -12,11 +12,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // fromConfig
@@ -103,12 +104,12 @@ func TestFromFargate(t *testing.T) {
 // fromFQDN
 
 func TestFromFQDN(t *testing.T) {
-	// making isOSHostnameUsable return true
 	defer func() {
-		isContainerized = config.IsContainerized
+		// making isOSHostnameUsable return true
+		osHostnameUsable = isOSHostnameUsable
 		fqdnHostname = getSystemFQDN
 	}()
-	isContainerized = func() bool { return false }
+	osHostnameUsable = func(ctx context.Context) bool { return true }
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
 	config.Mock(t)
@@ -127,9 +128,11 @@ func TestFromFQDN(t *testing.T) {
 // fromOS
 
 func TestFromOS(t *testing.T) {
-	// making isOSHostnameUsable return true
-	defer func() { isContainerized = config.IsContainerized }()
-	isContainerized = func() bool { return false }
+	defer func() {
+		// making isOSHostnameUsable return true
+		osHostnameUsable = isOSHostnameUsable
+	}()
+	osHostnameUsable = func(ctx context.Context) bool { return true }
 	expected, _ := os.Hostname()
 
 	hostname, err := fromOS(context.TODO(), "")

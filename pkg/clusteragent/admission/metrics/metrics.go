@@ -56,4 +56,10 @@ var (
 		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
+	LibInjectionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_attempts",
+		[]string{"language", "injected"}, "Number of pod library injection attempts by language.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
+		[]string{"language"}, "Number of library injection failures by language",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

@@ -176,7 +176,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				} else {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
-				l.stringRecord = createStringRecordForReportLog(l)
 			case logTypePlatformRuntimeDone:
 				if status, ok := objectRecord["status"].(string); ok {
 					l.objectRecord.runtimeDoneItem.status = status
@@ -195,7 +194,7 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 }
 
 // shouldProcessLog returns whether or not the log should be further processed.
-func shouldProcessLog(ecs *executioncontext.State, message logMessage) bool {
+func shouldProcessLog(ecs *executioncontext.State, message *logMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
 	if len(ecs.ARN) == 0 || len(ecs.LastRequestID) == 0 {
 		return false
@@ -212,10 +211,14 @@ func shouldProcessLog(ecs *executioncontext.State, message logMessage) bool {
 	return true
 }
 
-func createStringRecordForReportLog(l *logMessage) string {
-	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
+func createStringRecordForReportLog(l *logMessage, ecs executioncontext.State) string {
+	runtimeDurationMs := float64(ecs.EndTime.Sub(ecs.StartTime).Milliseconds())
+	postRuntimeDurationMs := l.objectRecord.reportLogItem.durationMs - runtimeDurationMs
+	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
 		l.objectRecord.requestID,
 		l.objectRecord.reportLogItem.durationMs,
+		runtimeDurationMs,
+		postRuntimeDurationMs,
 		l.objectRecord.reportLogItem.billedDurationMs,
 		l.objectRecord.reportLogItem.memorySizeMB,
 		l.objectRecord.reportLogItem.maxMemoryUsedMB,
@@ -263,7 +266,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
+		processMessage(&message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -280,7 +283,7 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 
 // processMessage performs logic about metrics and tags on the message
 func processMessage(
-	message logMessage,
+	message *logMessage,
 	ec *executioncontext.ExecutionContext,
 	enhancedMetricsEnabled bool,
 	metricTags []string,
@@ -306,16 +309,25 @@ func processMessage(
 			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.stringRecord, message.time, tags, demux)
 		}
 		if message.logType == logTypePlatformReport {
-			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(
-				message.objectRecord.reportLogItem.initDurationMs,
-				message.objectRecord.reportLogItem.durationMs,
-				message.objectRecord.reportLogItem.billedDurationMs,
-				message.objectRecord.reportLogItem.memorySizeMB,
-				message.objectRecord.reportLogItem.maxMemoryUsedMB,
-				message.time, tags, demux)
+			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
+				InitDurationMs:   message.objectRecord.reportLogItem.initDurationMs,
+				DurationMs:       message.objectRecord.reportLogItem.durationMs,
+				BilledDurationMs: message.objectRecord.reportLogItem.billedDurationMs,
+				MemorySizeMb:     message.objectRecord.reportLogItem.memorySizeMB,
+				MaxMemoryUsedMb:  message.objectRecord.reportLogItem.maxMemoryUsedMB,
+				RuntimeStart:     ecs.StartTime,
+				RuntimeEnd:       ecs.EndTime,
+				T:                message.time,
+				Tags:             tags,
+				Demux:            demux,
+			}
+			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
+			message.stringRecord = createStringRecordForReportLog(message, ecs)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
 			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
+			ec.UpdateFromRuntimeDoneLog(message.time)
+			ecs = ec.GetCurrentState()
 		}
 	}
 

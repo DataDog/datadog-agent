@@ -74,6 +74,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
+	cfg.GitCommit = version.Commit
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	orch := fargate.GetOrchestrator(ctx)
 	cancel()
@@ -98,6 +99,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
+	cfg.ContainerProcRoot = coreconfig.Datadog.GetString("container_proc_root")
 	return cfg, nil
 }
 
@@ -138,7 +140,15 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
 	}
 
-	c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
+		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
+			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+		} else {
+			c.Endpoints[0].Host = host
+		}
+	} else {
+		c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	}
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if coreconfig.Datadog.IsSet("proxy.no_proxy") {
@@ -397,6 +407,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
 	}
+	if k := "use_dogstatsd"; coreconfig.Datadog.IsSet(k) {
+		c.StatsdEnabled = coreconfig.Datadog.GetBool(k)
+	}
 	if k := "appsec_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.AppSec.Enabled = coreconfig.Datadog.GetBool(k)
 	}
@@ -429,6 +442,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if k := "evp_proxy_config.api_key"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.app_key"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString(k)
+	} else {
+		// Default to the agent-wide app_key if set
+		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString("app_key")
 	}
 	if k := "evp_proxy_config.additional_endpoints"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)

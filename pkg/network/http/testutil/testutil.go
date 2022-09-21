@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,6 +25,9 @@ import (
 type Options struct {
 	EnableTLS        bool
 	EnableKeepAlives bool
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	SlowResponse     time.Duration
 }
 
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
@@ -35,9 +38,15 @@ type Options struct {
 // nolint
 func HTTPServer(t *testing.T, addr string, options Options) func() {
 	handler := func(w http.ResponseWriter, req *http.Request) {
+		if options.SlowResponse != 0 {
+			time.Sleep(options.SlowResponse)
+		}
 		statusCode := StatusFromPath(req.URL.Path)
-		io.Copy(ioutil.Discard, req.Body)
 		w.WriteHeader(statusCode)
+
+		reqBody, _ := io.ReadAll(req.Body)
+		defer req.Body.Close()
+		w.Write(reqBody)
 	}
 
 	srv := &http.Server{
@@ -46,19 +55,40 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
 	}
+	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
 
-	listenFn := func() { _ = srv.ListenAndServe() }
+	listenFn := func() error {
+		ln, err := net.Listen("tcp", srv.Addr)
+		if err == nil {
+			go func() { _ = srv.Serve(ln) }()
+		}
+		return err
+	}
+	if options.ReadTimeout != 0 {
+		srv.ReadTimeout = options.ReadTimeout
+	}
+
+	if options.WriteTimeout != 0 {
+		srv.WriteTimeout = options.WriteTimeout
+	}
 
 	// If certPath is set we enabled TLS
 	if options.EnableTLS {
 		curDir, _ := curDir()
 		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "testdata/server.key")
-		listenFn = func() { _ = srv.ListenAndServeTLS(crtPath, keyPath) }
+		listenFn = func() error {
+			ln, err := net.Listen("tcp", srv.Addr)
+			if err == nil {
+				go func() { _ = srv.ServeTLS(ln, crtPath, keyPath) }()
+			}
+			return err
+		}
 	}
-
-	go listenFn()
-	srv.SetKeepAlivesEnabled(options.EnableKeepAlives)
+	err := listenFn()
+	if err != nil {
+		t.Fatalf("server listen: %s", err)
+	}
 	return func() { srv.Shutdown(context.Background()) }
 }
 

@@ -10,18 +10,17 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 const (
@@ -77,7 +76,7 @@ func (lc *LoadController) SendStats() error {
 	// send load_controller.pids_discarder metric
 	if count := lc.pidDiscardersCount.Swap(0); count > 0 {
 		if err := lc.probe.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
-			return errors.Wrap(err, "couldn't send load_controller.pids_discarder metric")
+			return fmt.Errorf("couldn't send load_controller.pids_discarder metric: %w", err)
 		}
 	}
 	return nil
@@ -137,10 +136,12 @@ func (lc *LoadController) discardNoisiestProcess() {
 		return
 	}
 
+	var erpcRequest ERPCRequest
+
 	// push a temporary discarder on the noisiest process & event type tuple
 	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.pidDiscarders.discardWithTimeout(allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
-		log.Warnf("couldn't insert temporary discarder: %v", err)
+	if err := lc.probe.pidDiscarders.discardWithTimeout(&erpcRequest, allEventTypes, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
+		seclog.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
 
@@ -155,7 +156,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 	if lc.NoisyProcessCustomEventRate.Allow() {
 		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 		if process == nil {
-			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
+			seclog.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
 			return
 		}
 

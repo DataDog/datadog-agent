@@ -199,10 +199,11 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	opts := aggregator.DefaultDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
+	opts.EnableNoAggregationPipeline = config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
@@ -219,10 +220,8 @@ func runAgent(ctx context.Context) (err error) {
 		return
 	}
 
-	if config.Datadog.GetBool("inventories_enabled") {
-		if err = metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
-			return
-		}
+	if err = metadata.SetupInventories(metaScheduler, nil); err != nil {
+		return
 	}
 
 	// container tagging initialisation if origin detection is on

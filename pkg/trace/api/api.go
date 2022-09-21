@@ -25,10 +25,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/tinylib/msgp/msgp"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
@@ -42,6 +42,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
+
+// outOfCPULogThreshold is used to throttle the out-of-cpu warnning logs
+// i.e we log the warning on every outOfCPULogThreshold occurrences.
+// The value 10 is based on load test experiments and can be revisited in the future.
+const outOfCPULogThreshold uint32 = 10
 
 var bufferPool = sync.Pool{
 	New: func() interface{} {
@@ -65,17 +70,21 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out            chan *Payload
-	conf           *config.AgentConfig
-	dynConf        *sampler.DynamicConfig
-	server         *http.Server
-	statsProcessor StatsProcessor
-	appsecHandler  http.Handler
+	out                 chan *Payload
+	conf                *config.AgentConfig
+	dynConf             *sampler.DynamicConfig
+	server              *http.Server
+	statsProcessor      StatsProcessor
+	appsecHandler       http.Handler
+	containerIDProvider IDProvider
 
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
+
+	// outOfCPUCounter is counter to throttle the out of cpu warning log
+	outOfCPUCounter *atomic.Uint32
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -92,15 +101,18 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:            out,
-		statsProcessor: statsProcessor,
-		conf:           conf,
-		dynConf:        dynConf,
-		appsecHandler:  appsecHandler,
+		out:                 out,
+		statsProcessor:      statsProcessor,
+		conf:                conf,
+		dynConf:             dynConf,
+		appsecHandler:       appsecHandler,
+		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
 
 		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
+
+		outOfCPUCounter: atomic.NewUint32(0),
 	}
 }
 
@@ -113,7 +125,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -122,9 +134,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
 // HTTP headers containing version and state information.
-func replyWithVersion(hash string, h http.Handler) http.Handler {
+func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Datadog-Agent-Version", info.Version)
+		w.Header().Set("Datadog-Agent-Version", version)
 		w.Header().Set("Datadog-Agent-State", hash)
 		h.ServeHTTP(w, r)
 	})
@@ -147,6 +159,7 @@ func (r *HTTPReceiver) Start() {
 		WriteTimeout: timeout,
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      r.buildMux(),
+		ConnContext:  connContext,
 	}
 
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
@@ -402,7 +415,7 @@ func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 // - tp is the decoded payload
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *pb.TracerPayload, ranHook bool, err error) {
+func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
@@ -412,7 +425,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   ts.TracerVersion,
 		}, false, nil
@@ -427,7 +440,7 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, true, err
@@ -448,14 +461,14 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats) (tp *p
 		return &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
-			ContainerID:     req.Header.Get(headerContainerID),
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
 		}, ranHook, nil
 	}
 }
 
-// replyOK replies to the given http.ReponseWriter w based on the endpoint version, with either status 200/OK
+// replyOK replies to the given http.ResponseWriter w based on the endpoint version, with either status 200/OK
 // or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
 // was successful.
 func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWriter) (n uint64, ok bool) {
@@ -516,7 +529,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
-		atomic.AddInt64(&ts.PayloadRefused, 1)
+		ts.PayloadRefused.Inc()
 		return
 	}
 	if err == errInvalidHeaderTraceCountValue {
@@ -524,7 +537,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	start := time.Now()
-	tp, ranHook, err := decodeTracerPayload(v, req, ts)
+	tp, ranHook, err := decodeTracerPayload(v, req, ts, r.containerIDProvider)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -533,14 +546,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
 		case apiutil.ErrLimitedReaderLimitReached:
-			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
 		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
-			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
+			ts.TracesDropped.EOF.Add(tracen)
 		default:
 			if err, ok := err.(net.Error); ok && err.Timeout() {
-				atomic.AddInt64(&ts.TracesDropped.Timeout, tracen)
+				ts.TracesDropped.Timeout.Add(tracen)
 			} else {
-				atomic.AddInt64(&ts.TracesDropped.DecodingError, tracen)
+				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
@@ -561,9 +574,9 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	atomic.AddInt64(&ts.TracesReceived, int64(len(tp.Chunks)))
-	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
-	atomic.AddInt64(&ts.PayloadAccepted, 1)
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
 
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
 		if tp.Tags == nil {
@@ -586,6 +599,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	default:
 		// channel blocked, add a goroutine to ensure we never drop
 		r.wg.Add(1)
+		count := r.outOfCPUCounter.Inc()
+		if (count-1)%outOfCPULogThreshold == 0 {
+			// Log a warning on the first occurrence and every n+outOfCPULogThreshold occurrences.
+			log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
+		}
 		go func() {
 			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
 			defer func() {
@@ -620,13 +638,13 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
-			atomic.AddInt64(&ts.ClientDroppedP0Traces, count)
+			ts.ClientDroppedP0Traces.Add(count)
 		}
 	}
 	if v := h.Get(headerDroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
-			atomic.AddInt64(&ts.ClientDroppedP0Spans, count)
+			ts.ClientDroppedP0Spans.Add(count)
 		}
 	}
 	return dropped

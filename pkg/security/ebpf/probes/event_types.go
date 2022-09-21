@@ -60,7 +60,12 @@ var NetworkSelectors = []manager.ProbesSelector{
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
 var SyscallMonitorSelectors = []manager.ProbesSelector{
 	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/raw_syscalls/sys_enter", EBPFFuncName: "sys_enter"}},
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/sched/sched_process_exec", EBPFFuncName: "sched_process_exec"}},
+}
+
+// SnapshotSelectors selectors required during the snapshot
+var SnapshotSelectors = []manager.ProbesSelector{
+	// required to stat /proc/.../exe
+	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_getattr", EBPFFuncName: "kprobe_security_inode_getattr"}},
 }
 
 var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector
@@ -83,14 +88,14 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/bprm_execve", EBPFFuncName: "kprobe_bprm_execve"}},
 						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bprm_check", EBPFFuncName: "kprobe_security_bprm_check"}},
 					}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/setup_new_exec", EBPFFuncName: "kprobe_setup_new_exec"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_open", EBPFFuncName: "kprobe_vfs_open"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_dentry_open", EBPFFuncName: "kprobe_do_dentry_open"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/commit_creds", EBPFFuncName: "kprobe_commit_creds"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/__task_pid_nr_ns", EBPFFuncName: "kretprobe__task_pid_nr_ns"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/alloc_pid", EBPFFuncName: "kretprobe_alloc_pid"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/switch_task_namespaces", EBPFFuncName: "kprobe_switch_task_namespaces"}},
-					// required to stat /proc/.../exe
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_setattr", EBPFFuncName: "kprobe_security_inode_setattr"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_coredump", EBPFFuncName: "kprobe_do_coredump"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/cgroup_procs_write", EBPFFuncName: "kprobe_cgroup_procs_write"}},
@@ -187,6 +192,9 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "clone3"}, Entry),
 				},
 
+				// File Attributes
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_setattr", EBPFFuncName: "kprobe_security_inode_setattr"}},
+
 				// Open probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_truncate", EBPFFuncName: "kprobe_vfs_truncate"}},
@@ -210,12 +218,22 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "open_by_handle_at"}, EntryAndExit, true),
 				},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__io_openat_prep", EBPFFuncName: "kprobe___io_openat_prep"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat", EBPFFuncName: "kprobe_io_openat"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat2", EBPFFuncName: "kprobe_io_openat2"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_openat2", EBPFFuncName: "kretprobe_io_openat2"}},
 				}},
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filp_close", EBPFFuncName: "kprobe_filp_close"}},
+				}},
+
+				// iouring
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/io_uring/io_uring_create", EBPFFuncName: "io_uring_create"}},
+					&manager.OneOf{Selectors: []manager.ProbesSelector{
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_allocate_scq_urings", EBPFFuncName: "kprobe_io_allocate_scq_urings"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_sq_offload_start", EBPFFuncName: "kprobe_io_sq_offload_start"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_ring_ctx_alloc", EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
+					}},
 				}},
 
 				// Mount probes
@@ -291,11 +309,6 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_vfs_ioctl", EBPFFuncName: "kprobe_do_vfs_ioctl"}},
 				}},
 
-				// snapshot
-				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_getattr", EBPFFuncName: "kprobe_security_inode_getattr"}},
-				}},
-
 				// Link
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_link", EBPFFuncName: "kprobe_vfs_link"}},
@@ -321,6 +334,12 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				}},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/sel_commit_bools_write", EBPFFuncName: "kprobe_sel_commit_bools_write"}},
+				}},
+
+				// pipes
+				// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mntget", EBPFFuncName: "kprobe_mntget"}},
 				}},
 			},
 
@@ -560,6 +579,13 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bind"}, EntryAndExit),
 				},
+			},
+
+			// List of probes required to capture DNS events
+			"dns": {
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
+				}},
 			},
 		}
 	}
