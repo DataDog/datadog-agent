@@ -19,7 +19,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version info",

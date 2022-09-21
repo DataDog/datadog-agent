@@ -40,7 +40,7 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	jmxCmd := &cobra.Command{
 		Use:   "jmx",
 		Short: "Run troubleshooting commands on JMXFetch integrations",
@@ -56,7 +56,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "Start the collection of metrics based on your current configuration and display them in the console.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "collect")
+			return runJmxCommandConsole(globalParams, "collect")
 		},
 	}
 	jmxCollectCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
@@ -68,7 +68,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List every attributes available that has a type supported by JMXFetch.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_everything")
+			return runJmxCommandConsole(globalParams, "list_everything")
 		},
 	}
 
@@ -77,7 +77,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List attributes that match at least one of your instances configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_matching_attributes")
+			return runJmxCommandConsole(globalParams, "list_matching_attributes")
 		},
 	}
 
@@ -86,7 +86,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List attributes and metrics data that match at least one of your instances configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_with_metrics")
+			return runJmxCommandConsole(globalParams, "list_with_metrics")
 		},
 	}
 
@@ -95,7 +95,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List attributes and metrics data that match at least one of your instances configuration, including rates and counters.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_with_rate_metrics")
+			return runJmxCommandConsole(globalParams, "list_with_rate_metrics")
 		},
 	}
 
@@ -104,7 +104,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_limited_attributes")
+			return runJmxCommandConsole(globalParams, "list_limited_attributes")
 		},
 	}
 
@@ -113,7 +113,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List attributes that will actually be collected by your current instances configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_collected_attributes")
+			return runJmxCommandConsole(globalParams, "list_collected_attributes")
 		},
 	}
 
@@ -122,7 +122,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "List attributes that don’t match any of your instances configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJmxCommandConsole(globalArgs, "list_not_matching_attributes")
+			return runJmxCommandConsole(globalParams, "list_not_matching_attributes")
 		},
 	}
 
@@ -143,7 +143,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
-func runJmxCommandConsole(globalArgs *command.GlobalArgs, command string) error {
+func runJmxCommandConsole(globalParams *command.GlobalParams, command string) error {
 	logFile := ""
 	if saveFlare {
 		// Windows cannot accept ":" in file names
@@ -152,7 +152,7 @@ func runJmxCommandConsole(globalArgs *command.GlobalArgs, command string) error 
 		jmxLogLevel = "debug"
 	}
 
-	logLevel, _, err := standalone.SetupCLI(config.CoreLoggerName, globalArgs.ConfFilePath, "", logFile, jmxLogLevel, "debug")
+	logLevel, _, err := standalone.SetupCLI(config.CoreLoggerName, globalParams.ConfFilePath, "", logFile, jmxLogLevel, "debug")
 	if err != nil {
 		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err

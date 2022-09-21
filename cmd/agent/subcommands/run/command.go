@@ -99,13 +99,13 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the Agent",
 		Long:  `Runs the agent in the foreground`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return Run(globalArgs, cmd, args)
+			return Run(globalParams, cmd, args)
 		},
 	}
 	runCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -114,7 +114,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Use:        "start",
 		Deprecated: "Use \"run\" instead to start the Agent",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return Run(globalArgs, cmd, args)
+			return Run(globalParams, cmd, args)
 		},
 	}
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -125,7 +125,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 // Run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func Run(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
+func Run(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
 	defer func() {
 		StopAgent()
 	}()
@@ -166,7 +166,7 @@ func Run(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) erro
 		}
 	}()
 
-	if err := StartAgent(globalArgs); err != nil {
+	if err := StartAgent(globalParams); err != nil {
 		return err
 	}
 
@@ -177,7 +177,7 @@ func Run(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) erro
 }
 
 // StartAgent Initializes the agent process
-func StartAgent(globalArgs *command.GlobalArgs) error {
+func StartAgent(globalParams *command.GlobalParams) error {
 	var (
 		err            error
 		configSetupErr error
@@ -188,7 +188,7 @@ func StartAgent(globalArgs *command.GlobalArgs) error {
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
-	configSetupErr = common.SetupConfig(globalArgs.ConfFilePath)
+	configSetupErr = common.SetupConfig(globalParams.ConfFilePath)
 
 	// Setup logger
 	if runtime.GOOS != "android" {
@@ -420,7 +420,7 @@ func StartAgent(globalArgs *command.GlobalArgs) error {
 		}
 	}
 
-	if err = common.SetupSystemProbeConfig(globalArgs.SysProbeConfFilePath); err != nil {
+	if err = common.SetupSystemProbeConfig(globalParams.SysProbeConfFilePath); err != nil {
 		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 

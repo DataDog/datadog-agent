@@ -23,14 +23,14 @@ const (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	payloadV5Cmd := &cobra.Command{
 		Use:   "metadata_v5",
 		Short: "Print the metadata payload for the agent.",
 		Long: `
 This command print the V5 metadata payload for the Agent. This payload is used to populate the infra list and host map in Datadog. It's called 'V5' because it's the same payload sent since Agent V5. This payload is mandatory in order to create a new host in Datadog.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return printPayload(globalArgs, "v5")
+			return printPayload(globalParams, "v5")
 		},
 	}
 
@@ -40,7 +40,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 		Long: `
 This command print the last Inventory metadata payload sent by the Agent. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return printPayload(globalArgs, "inventory")
+			return printPayload(globalParams, "inventory")
 		},
 	}
 
@@ -61,8 +61,8 @@ This command offers a list of helpers to troubleshoot the Datadog Agent.`,
 	return []*cobra.Command{troubleshootingCmd}
 }
 
-func printPayload(globalArgs *command.GlobalArgs, payloadName string) error {
-	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
+func printPayload(globalParams *command.GlobalParams, payloadName string) error {
+	err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
 	if err != nil {
 		fmt.Printf("unable to set up global agent configuration: %v\n", err)
 		return nil

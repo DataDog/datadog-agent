@@ -23,7 +23,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "installservice",
 		Short: "Installs the agent within the service control manager",

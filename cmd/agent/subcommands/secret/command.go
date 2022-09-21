@@ -21,13 +21,13 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	secretInfoCommand := &cobra.Command{
 		Use:   "secret",
 		Short: "Print information about decrypted secrets in configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
+			err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
 			if err != nil {
 				fmt.Printf("unable to set up global agent configuration: %v\n", err)
 				return nil

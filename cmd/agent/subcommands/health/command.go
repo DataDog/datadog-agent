@@ -25,7 +25,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "health",
 		Short:        "Print the current agent health",
@@ -39,7 +39,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 
 			// Set up config without secrets so that running the health command (e.g. from container
 			// liveness probe script) does not trigger a secret backend command call.
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
+			err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}

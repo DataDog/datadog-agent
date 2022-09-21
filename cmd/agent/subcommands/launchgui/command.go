@@ -20,13 +20,13 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	launchCmd := &cobra.Command{
 		Use:   "launch-gui",
 		Short: "starts the Datadog Agent GUI",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return launchGui(globalArgs, cmd, args)
+			return launchGui(globalParams, cmd, args)
 		},
 		SilenceUsage: true,
 	}
@@ -34,8 +34,8 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
-func launchGui(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
+func launchGui(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
+	err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

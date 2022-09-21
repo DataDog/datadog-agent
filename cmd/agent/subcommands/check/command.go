@@ -103,7 +103,7 @@ func setupCmd(cmd *cobra.Command) {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
 		Short: "Run the specified check",
@@ -114,7 +114,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 				// we'll search for a config file named `datadog-cluster.yaml`
 				configName = "datadog-cluster"
 			}
-			resolvedLogLevel, warnings, err := standalone.SetupCLI(config.CoreLoggerName, globalArgs.ConfFilePath, configName, "", logLevel, "off")
+			resolvedLogLevel, warnings, err := standalone.SetupCLI(config.CoreLoggerName, globalParams.ConfFilePath, configName, "", logLevel, "off")
 			if err != nil {
 				fmt.Printf("Cannot initialize command: %v\n", err)
 				return err

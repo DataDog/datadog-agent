@@ -36,14 +36,14 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd := &cobra.Command{
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			err := common.SetupConfig(globalArgs.ConfFilePath)
+			err := common.SetupConfig(globalParams.ConfFilePath)
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}

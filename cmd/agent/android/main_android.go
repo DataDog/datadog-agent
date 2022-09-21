@@ -44,7 +44,7 @@ func AndroidMain(apikey string, hostname string, tags string) {
 	config.AddOverrides(overrides)
 
 	// TODO: use an fxutil.Run(..) just like core agent
-	runcmd.StartAgent(&command.GlobalArgs{})
+	runcmd.StartAgent(&command.GlobalParams{})
 }
 
 func GetStatus() string {
