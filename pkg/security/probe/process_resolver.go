@@ -1256,11 +1256,7 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
-	scoper := func(ctx *eval.Context) unsafe.Pointer {
-		return unsafe.Pointer((*Event)(ctx.Object).ProcessCacheEntry)
-	}
-
+func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) unsafe.Pointer) rules.VariableProvider {
 	var variables *eval.ScopedVariables
 	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
 		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
