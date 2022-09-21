@@ -47,7 +47,7 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "11.0.1"
+CLANG_VERSION = "14.0.6"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -221,10 +221,10 @@ def ninja_cgo_type_files(nw, windows):
         nw.rule(
             name="godefs",
             pool="cgo_pool",
-            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8';"
+            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'ascii';"
             + "(cd $in_dir);"
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path > $out_file);"
+            + "go run $script_path | Out-File -encoding ascii $out_file);"
             + "exit $$LastExitCode\"",
         )
     else:

@@ -161,6 +161,7 @@ func (rc *Compiler) CompileObjectFile(config *ebpf.Config, cflags []string, inpu
 		return nil, err
 	}
 
+	log.Debugf("looking for output file: %s", outputFile)
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
 			rc.telemetry.compilationResult = outputFileErr

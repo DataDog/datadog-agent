@@ -58,6 +58,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     }
 
     __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
+    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
     log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch_state->pos);
     batch_state->pos++;
 
@@ -76,6 +77,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
 static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method) {
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
+    log_debug("http_begin_request: htx=%llx method=%d start=%llx\n", http, http->request_method, http->request_started);
 }
 
 static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
@@ -84,6 +86,7 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     status_code += (buffer[HTTP_STATUS_OFFSET+1]-'0') * 10;
     status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
+    log_debug("http_begin_response: htx=%llx status=%d\n", http, status_code);
 }
 
 static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
@@ -129,6 +132,7 @@ static __always_inline void http_update_seen_before(http_transaction_t *http, sk
         return;
     }
 
+    log_debug("http_update_seen_before: htx=%llx old_seq=%d seq=%d\n", http, http->tcp_seq, skb_info->tcp_seq);
     http->tcp_seq = skb_info->tcp_seq;
 }
 
@@ -182,6 +186,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
         __builtin_memcpy(http, http_stack, sizeof(http_transaction_t));
     }
 
+    log_debug("http_process: type=%d method=%d\n", packet_type, method);
     if (packet_type == HTTP_REQUEST) {
         http_begin_request(http, method);
         http_update_seen_before(http, skb_info);
