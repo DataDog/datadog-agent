@@ -3202,9 +3202,9 @@ api_key:
     ## This section configures one or more listeners ports that will receive flow traffic.
     ## Each listener have the following options:
     ##  * flow_type    - string - The flow type correspond to the incoming flow protocol.
-    ##                            Choices are: netflow5, netflow9, ipfix, sflow
+    ##                            Choices are: netflow5, netflow9, ipfix, sflow5
     ##  * port         - string - (Optional) The port used to receive incoming flow traffic.
-    ##                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow(6343)
+    ##                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
     ##  * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
     ##                            Binds to 0.0.0.0 by default (accepting all packets).
     ##  * workers      - string - (Optional) Number of workers to use for this listener.
@@ -3217,7 +3217,7 @@ api_key:
     #   port: 2056
     # - flow_type: ipfix
     #   port: 4739
-    # - flow_type: sflow
+    # - flow_type: sflow5
     #   port: 6343
 
     ## stop_timeout - integer - optional - default: 5
