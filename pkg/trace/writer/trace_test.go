@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress"
 	kgzip "github.com/klauspost/compress/gzip"
@@ -138,9 +137,9 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 	var all pb.AgentPayload
 	for _, p := range payloads {
 		assert := assert.New(t)
-		gzipr, err := gzip.NewReader(p.body)
+		zstdr, err := zstd.NewReader(p.body)
 		assert.NoError(err)
-		slurp, err := ioutil.ReadAll(gzipr)
+		slurp, err := ioutil.ReadAll(zstdr)
 		assert.NoError(err)
 		var payload pb.AgentPayload
 		err = proto.Unmarshal(slurp, &payload)
@@ -331,7 +330,7 @@ func BenchmarkCompression(b *testing.B) {
 	traceChunks := testutil.GetTestTraceChunks(10, 20, true)
 	tp := []*pb.TracerPayload{{Chunks: traceChunks}}
 	p := pb.AgentPayload{
-		AgentVersion:   info.Version,
+		AgentVersion:   "v1.0.0",
 		HostName:       "someHostName",
 		Env:            "benchmark",
 		TargetTPS:      1,

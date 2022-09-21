@@ -246,7 +246,7 @@ func (w *TraceWriter) flush() {
 	go func() {
 		defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
 		defer w.wg.Done()
-		log.Infof("YEP ITS ANDREWS VERSION\n")
+		// log.Infof("YEP ITS ANDREWS VERSION\n")
 		p := newPayload(map[string]string{
 			"Content-Type":     "application/x-protobuf",
 			"Content-Encoding": "zstd",
