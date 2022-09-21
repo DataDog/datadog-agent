@@ -582,10 +582,24 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
+    uint64_t bytes_written = 0;
+    if (read_location(ctx, &pd->write_return_bytes, sizeof(bytes_written), &bytes_written)) {
+        log_debug("[go-tls-write-return] failed reading write return bytes location for pid %d\n", pid);
+        return 1;
+    }
+
+    if (bytes_written <= 0) {
+        log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %d\n", pid);
+        return 1;
+    }
+
+    // TODO handle error value
+
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-write-return] failed reading reading go routine id for pid %d\n", pid);
         return 1;
     }
+
 
     go_tls_write_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
     if (call_data_ptr == NULL) {
@@ -599,8 +613,6 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     if (t == NULL) {
         return 1;
     }
-
-    // TODO handle error value
 
     https_process(t, (void*) call_data_ptr->b_data, call_data_ptr->b_len, GO);
     return 0;
@@ -656,6 +668,23 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
+    uint64_t bytes_read = 0;
+    if (read_location(ctx, &pd->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
+        log_debug("[go-tls-read-return] failed reading read return bytes location for pid %d\n", pid);
+        return 1;
+    }
+
+    if (bytes_read <= 0) {
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        return 1;
+    }
+
+    // The error return value of Read isn't useful here
+    // unless we can determine whether it is equal to io.EOF
+    // (and if so, treat it like there's no error at all),
+    // and I didn't find a straightforward way of doing this.
+    // TODO handle error value
+
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading reading go routine id for pid %d\n", pid);
         return 1;
@@ -669,23 +698,10 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
 
-    uint64_t bytes_read = 0;
-    if (read_location(ctx, &pd->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading read return bytes location for pid %d\n", pid);
-        return 1;
-    }
-
     conn_tuple_t* t = conn_tup_from_tls_conn(pd, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
         return 1;
     }
-
-    // TODO handle error value
-
-    // The error return value of Read isn't useful here
-    // unless we can determine whether it is equal to io.EOF
-    // (and if so, treat it like there's no error at all),
-    // and I didn't find a straightforward way of doing this.
 
     https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
     return 0;
