@@ -87,6 +87,8 @@ func StartServer() error {
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
 		MinVersion:   tls.VersionTLS13,
+		// Disable HTTP2 by setting TLSNextProto explicitly
+		NextProtos: []string{"http/1.1"},
 	}
 
 	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
@@ -97,8 +99,6 @@ func StartServer() error {
 	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
 
 	srv := &http.Server{
-		// Disable HTTP2 by setting TLSNextProto explicitly
-		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 		Handler:      router,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
