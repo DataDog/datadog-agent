@@ -338,16 +338,19 @@ func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	binary.LittleEndian.PutUint64(buf[0:], p0)
 	n += 8
 
-	// cookie
-	binary.LittleEndian.PutUint64(buf[n:], c.Cookie)
-	n += 8
-
 	// Family (4 bits) + Type (4 bits) = 8 bits
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+
+	// cookie
+	if c.Cookie > 0 {
+		binary.LittleEndian.PutUint64(buf[n:], c.Cookie)
+		n += 8
+	}
+
 	return buf[:n]
 }
 
@@ -377,7 +380,7 @@ func (c ConnectionStats) clone() ConnectionStats {
 	return cl
 }
 
-const keyFmt = "p:%d|c:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
+const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d|c:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
 // it should be in sync with ByteKey
@@ -396,13 +399,12 @@ func BeautifyKey(key string) string {
 	pid := h >> 32
 	sport := (h >> 16) & 0xffff
 	dport := h & 0xffff
-
-	// Cookie
-	cookie := binary.LittleEndian.Uint64(raw[8:16])
+	n := 8
 
 	// Then we have the family, type
-	family := (raw[16] >> 4) & 0xf
-	typ := raw[16] & 0xf
+	family := (raw[n] >> 4) & 0xf
+	typ := raw[n] & 0xf
+	n++
 
 	// Finally source addr, dest addr
 	addrSize := 4
@@ -410,10 +412,17 @@ func BeautifyKey(key string) string {
 		addrSize = 16
 	}
 
-	source := bytesToAddress(raw[17 : 17+addrSize])
-	dest := bytesToAddress(raw[17+addrSize : 17+2*addrSize])
+	source := bytesToAddress(raw[n : n+addrSize])
+	n += addrSize
+	dest := bytesToAddress(raw[n : n+addrSize])
+	n += addrSize
 
-	return fmt.Sprintf(keyFmt, pid, cookie, source, sport, dest, dport, family, typ)
+	// Cookie (optionally)
+	var cookie uint64
+	if n+8 <= len(raw) {
+		cookie = binary.LittleEndian.Uint64(raw[n : n+8])
+	}
+	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ, cookie)
 }
 
 // ConnectionSummary returns a string summarizing a connection

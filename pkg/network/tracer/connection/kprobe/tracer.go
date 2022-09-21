@@ -41,9 +41,9 @@ const (
 type kprobeTracer struct {
 	m *manager.Manager
 
-	conns       *ebpf.Map
-	tcpStats    *ebpf.Map
-	config      *config.Config
+	conns    *ebpf.Map
+	tcpStats *ebpf.Map
+	config   *config.Config
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
