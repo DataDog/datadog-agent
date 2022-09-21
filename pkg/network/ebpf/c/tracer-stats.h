@@ -97,16 +97,11 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 }
 
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
-    // query stats without the PID from the tuple
-    __u32 pid = t->pid;
-    t->pid = 0;
-
     // initialize-if-no-exist the connetion state, and load it
     tcp_stats_t empty = {};
-    bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
+    bpf_map_update_elem(&tcp_stats, &(t->cookie), &empty, BPF_NOEXIST);
 
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
-    t->pid = pid;
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, &(t->cookie));
     if (val == NULL) {
         return;
     }

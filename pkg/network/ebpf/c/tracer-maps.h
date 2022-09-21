@@ -13,7 +13,7 @@ BPF_HASH_MAP(conn_stats, conn_tuple_t, conn_stats_ts_t, 0)
 /* This is a key/value store with the keys being a conn_tuple_t (but without the PID being used)
  * and the values being a tcp_stats_t *.
  */
-BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
+BPF_HASH_MAP(tcp_stats, __u64, tcp_stats_t, 0)
 
 /* Will hold the PIDs initiating TCP connections */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)

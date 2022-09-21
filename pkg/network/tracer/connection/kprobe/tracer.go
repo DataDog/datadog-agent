@@ -225,7 +225,6 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
-	seen := make(map[netebpf.ConnTuple]struct{})
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -241,7 +240,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 		if filter != nil && !filter(conn) {
 			continue
 		}
-		if t.getTCPStats(tcp, key, seen) {
+		if t.getTCPStats(tcp, key) {
 			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 
@@ -311,6 +310,7 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 	t.removeTuple.Pid = conn.Pid
 	t.removeTuple.Saddr_l, t.removeTuple.Saddr_h = util.ToLowHigh(conn.Source)
 	t.removeTuple.Daddr_l, t.removeTuple.Daddr_h = util.ToLowHigh(conn.Dest)
+	t.removeTuple.Cookie = conn.Cookie
 
 	if conn.Family == network.AFINET6 {
 		t.removeTuple.Metadata = uint32(netebpf.IPv6)
@@ -335,10 +335,8 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 
 	t.telemetry.removeConnection(conn)
 
-	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
-	t.removeTuple.Pid = 0
 	// We can ignore the error for this map since it will not always contain the entry
-	_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
+	_ = t.tcpStats.Delete(unsafe.Pointer(&t.removeTuple.Cookie))
 
 	return nil
 }
@@ -441,29 +439,13 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
+func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple) bool {
 	if tuple.Type() != netebpf.TCP {
 		return false
 	}
 
-	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
-	pid := tuple.Pid
-	tuple.Pid = 0
-
 	*stats = netebpf.TCPStats{}
-	err := t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats))
-	if err == nil {
-		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
-		if _, reported := seen[*tuple]; reported {
-			t.pidCollisions.Inc()
-			stats.Retransmits = 0
-			stats.State_transitions = 0
-		} else {
-			seen[*tuple] = struct{}{}
-		}
-	}
-
-	tuple.Pid = pid
+	_ = t.tcpStats.Lookup(unsafe.Pointer(&tuple.Cookie), unsafe.Pointer(stats))
 	return true
 }
 

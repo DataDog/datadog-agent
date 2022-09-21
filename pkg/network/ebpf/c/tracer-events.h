@@ -24,13 +24,11 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup) {
 
     // TCP stats don't have the PID
     if (is_tcp) {
-        conn.tup.pid = 0;
-        tcp_stats_t *tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
+        tcp_stats_t *tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup.cookie));
         if (tst) {
             conn.tcp_stats = *tst;
-            bpf_map_delete_elem(&tcp_stats, &(conn.tup));
+            bpf_map_delete_elem(&tcp_stats, &(conn.tup.cookie));
         }
-        conn.tup.pid = tup->pid;
 
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
     }
