@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -26,12 +27,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "remove-service",
 		Short: "Removes the agent from the service control manager",
 		Long:  ``,
-		RunE:  removeService,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(removeService)
+		},
 	}
 	return []*cobra.Command{cmd}
 }
 
-func removeService(cmd *cobra.Command, args []string) error {
+func removeService() error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
