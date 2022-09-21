@@ -409,6 +409,16 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 		}
 	}
 
+	// The Helm values stored in "Config" and "Chart.Values" are needed only for
+	// the "helm values as tags" option. We've already generated the tags that
+	// we need, so we don't need to store the Helm values. This is important
+	// because the Helm values might need a lot of memory on clusters with many
+	// helm charts and configuration options.
+	decodedRelease.Config = nil
+	if decodedRelease.Chart != nil {
+		decodedRelease.Chart.Values = nil
+	}
+
 	hc.store.add(decodedRelease, storageDriver, genericTags, tagsMetricsAndEvents)
 }
 
