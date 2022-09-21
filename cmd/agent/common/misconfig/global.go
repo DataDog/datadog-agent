@@ -31,9 +31,9 @@ type check struct {
 }
 
 const (
-	// CoreAgent is an enum to denote AgentType
-	CoreAgent = iota
-	// ProcessAgent is an enum to denote AgentType
+	// CoreAgent represents the checks compatible with the core agent
+	CoreAgent AgentType = iota
+	// ProcessAgent represents the checks compatible with the process-agent
 	ProcessAgent
 )
 

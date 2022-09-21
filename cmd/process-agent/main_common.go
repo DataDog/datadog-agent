@@ -164,7 +164,7 @@ func runAgent(exit chan struct{}) {
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
-	// Only logging when process agent is running
+	// Log any potential misconfigs that are related to the process agent
 	misconfig.ToLog(misconfig.ProcessAgent)
 
 	// Start workload metadata store before tagger (used for containerCollection)
