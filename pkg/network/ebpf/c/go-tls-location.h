@@ -62,48 +62,20 @@ static __always_inline int read_register(struct pt_regs* ctx, int64_t regnum, vo
             default:
                 return 1;
         }
-    #elif defined(__aarch64__)
+    // TODO Support ARM
+    /*#elif defined(__aarch64__)
         if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
             // Verifier won't allow direct access to regs array if the index is not const
             switch (regnum) {
                 case 0:
                     __builtin_memcpy(dest, &ctx->regs[0], sizeof(ctx->regs[0]));
-                case 1:
-                    __builtin_memcpy(dest, &ctx->regs[1], sizeof(ctx->regs[1]));
-                case 2:
-                    __builtin_memcpy(dest, &ctx->regs[2], sizeof(ctx->regs[2]));
-                case 3:
-                    __builtin_memcpy(dest, &ctx->regs[3], sizeof(ctx->regs[3]));
-                case 4:
-                    __builtin_memcpy(dest, &ctx->regs[4], sizeof(ctx->regs[4]));
-                case 5:
-                    __builtin_memcpy(dest, &ctx->regs[5], sizeof(ctx->regs[5]));
-                case 6:
-                    __builtin_memcpy(dest, &ctx->regs[6], sizeof(ctx->regs[6]));
-                case 7:
-                    __builtin_memcpy(dest, &ctx->regs[7], sizeof(ctx->regs[7]));
-                case 8:
-                    __builtin_memcpy(dest, &ctx->regs[8], sizeof(ctx->regs[8]));
-                case 9:
-                    __builtin_memcpy(dest, &ctx->regs[9], sizeof(ctx->regs[9]));
-                case 10:
-                    __builtin_memcpy(dest, &ctx->regs[10], sizeof(ctx->regs[10]));
-                case 11:
-                    __builtin_memcpy(dest, &ctx->regs[11], sizeof(ctx->regs[11]));
-                case 12:
-                    __builtin_memcpy(dest, &ctx->regs[12], sizeof(ctx->regs[12]));
-                case 13:
-                    __builtin_memcpy(dest, &ctx->regs[13], sizeof(ctx->regs[13]));
-                case 14:
-                    __builtin_memcpy(dest, &ctx->regs[14], sizeof(ctx->regs[14]));
-                case 15:
-                    __builtin_memcpy(dest, &ctx->regs[15], sizeof(ctx->regs[15]));
                 default:
                     return 1;
             }
             return 0;
         }
         return 1;
+    */
     #else
         #error "Unsupported platform"
     #endif
@@ -150,47 +122,19 @@ static __always_inline void* read_register_indirect(struct pt_regs* ctx, int64_t
             default:
                 return NULL;
         }
-    #elif defined(__aarch64__)
+    // TODO Support ARM
+    /*#elif defined(__aarch64__)
         if (regnum >= 0 && regnum < sizeof(ctx->regs)) {
             // Verifier won't allow direct access to regs array if the index is not const
             switch (regnum) {
                 case 0:
                     return &ctx->regs[0];
-                case 1:
-                    return &ctx->regs[1];
-                case 2:
-                    return &ctx->regs[2];
-                case 3:
-                    return &ctx->regs[3];
-                case 4:
-                    return &ctx->regs[4];
-                case 5:
-                    return &ctx->regs[5];
-                case 6:
-                    return &ctx->regs[6];
-                case 7:
-                    return &ctx->regs[7];
-                case 8:
-                    return &ctx->regs[8];
-                case 9:
-                    return &ctx->regs[9];
-                case 10:
-                    return &ctx->regs[10];
-                case 11:
-                    return &ctx->regs[11];
-                case 12:
-                    return &ctx->regs[12];
-                case 13:
-                    return &ctx->regs[13];
-                case 14:
-                    return &ctx->regs[14];
-                case 15:
-                    return &ctx->regs[15];
                 default:
                     return NULL;
             }
         }
         return NULL;
+        */
     #else
         #error "Unsupported platform"
     #endif
