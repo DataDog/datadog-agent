@@ -587,7 +587,16 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    // TODO handle error value
+    uint64_t err = 0;
+    if (read_location(ctx, &pd->write_return_error, sizeof(err), &err)) {
+        log_debug("[go-tls-write-return] failed reading write return error location for pid %d\n", pid);
+        return 1;
+    }
+
+    if (err != 0) {
+        log_debug("[go-tls-write-return] error in write for pid %d: data will be ignored\n", pid);
+        return 1;
+    }
 
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-write-return] failed reading reading go routine id for pid %d\n", pid);
@@ -670,6 +679,12 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     if (bytes_read <= 0) {
         log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        return 1;
+    }
+
+    uint64_t err = 0;
+    if (read_location(ctx, &pd->read_return_error, sizeof(err), &err)) {
+        log_debug("[go-tls-read-return] failed reading read return error location for pid %d\n", pid);
         return 1;
     }
 

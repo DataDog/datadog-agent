@@ -193,7 +193,7 @@ func getReturnError(result *bininspect.Result, funcName string) (ebpf.Location, 
 			return ebpf.Location{
 				Exists:      boolToBinary(true),
 				In_register: boolToBinary(true),
-				X_register:  int64(1), // RBX
+				X_register:  int64(3), // RBX
 			}, nil
 		case bininspect.GoArchARM64:
 			// TODO implement for ARM
