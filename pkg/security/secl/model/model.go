@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	FilelessExecutionFilename = regexp.MustCompile("^/memfd:")
+	FilelessExecutionPathname = regexp.MustCompile("^/memfd:")
 )
 
 // Model describes the data model for the runtime security agent events
@@ -336,7 +336,7 @@ func (p *Process) GetPathResolutionError() string {
 
 // HasInterpreter returns whether the process uses an interpreter
 func (p *Process) HasInterpreter() bool {
-	return p.LinuxBinprm.FileEvent.Inode != 0 && !(FilelessExecutionFilename.Match([]byte(p.LinuxBinprm.FileEvent.PathnameStr)) || p.LinuxBinprm.FileEvent.MountID == 0)
+	return p.LinuxBinprm.FileEvent.Inode != 0 && !(FilelessExecutionPathname.Match([]byte(p.LinuxBinprm.FileEvent.PathnameStr)) || p.LinuxBinprm.FileEvent.MountID == 0)
 }
 
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
