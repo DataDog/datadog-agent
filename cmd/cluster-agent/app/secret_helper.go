@@ -9,9 +9,11 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/secrets"
+	"github.com/DataDog/datadog-agent/cmd/secrethelper"
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(secrets.SecretHelperCmd)
+	for _, cmd := range secrethelper.Commands() {
+		ClusterAgentCmd.AddCommand(cmd)
+	}
 }
