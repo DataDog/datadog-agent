@@ -1,4 +1,4 @@
 ---
 enhancements:
   - The `disable_file_logging` setting is now respected in the process-agent.
-  - `process-agent check [check-name]` no longer outputs to the configured log file.
+  - The `process-agent check [check-name]` command no longer outputs to the configured log file to reduce noise in the log file.
