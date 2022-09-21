@@ -457,7 +457,7 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
-	traceID := in.TraceID().Bytes()
+	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
 		SpanID:   spanIDToUint64(in.SpanID()),
