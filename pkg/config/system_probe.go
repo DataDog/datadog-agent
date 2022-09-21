@@ -138,7 +138,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// network_config namespace only
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
-	cfg.BindEnv(join(netNS, "enable_http_https_monitoring_via_etw"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_HTTPS_MONITORING_VIA_ETW")
+
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	httpRules := join(netNS, "http_replace_rules")
@@ -152,7 +152,7 @@ func InitSystemProbeConfig(cfg Config) {
 	})
 	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
-	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 40)
+	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
