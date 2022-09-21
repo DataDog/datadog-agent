@@ -6,9 +6,14 @@
 package processor
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/hex"
+	"strconv"
 	"sync"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -26,6 +31,7 @@ type Processor struct {
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
+	traceIDRule               bool
 	mu                        sync.Mutex
 }
 
@@ -37,6 +43,7 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		processingRules:           processingRules,
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
+		traceIDRule:               coreconfig.Datadog.IsSet(coreconfig.OTLPSection),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 	}
 }
@@ -123,5 +130,63 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 		}
 	}
+	if p.traceIDRule {
+		// OTLP Ingest is in use, so we may be receiving logs with
+		// 128-bit trace_id fields embedded. Convert these to 64-bit
+		// valid Datadog IDs.
+		content = replaceTraceID(content)
+	}
 	return true, content
+}
+
+var traceIDPrefix = []byte(" trace_id=")
+
+func replaceTraceID(content []byte) []byte {
+	n := bytes.Index(content, traceIDPrefix)
+	if n < 0 {
+		// does not contain the trace_id field
+		return content
+	}
+	if len(content)-n-len(traceIDPrefix) < 32 {
+		// we need at least 32 characters more for an OpenTelemetry
+		// 128-bit trace ID to fit
+		return content
+	}
+	idstart := n + len(traceIDPrefix) // index of ID start
+	var i int
+	// check that the ID is a valid 16 byte hex number
+	for i = idstart; i < len(content); i++ {
+		ch := content[i]
+		if ch == ' ' {
+			// we've reached the end
+			break
+		}
+		if (ch < 'a' || ch > 'f') && (ch < '0' || ch > '9') {
+			// invalid character for a hex number
+			return content
+		}
+	}
+	if i-n-len(traceIDPrefix) != 32 {
+		// the hex ID needs to be exactly 32 characters long
+		return content
+	}
+	// convert the hex to a byte array and take the lower 8 bytes
+	// this matches the conversion algorithm of APM
+	hexid := content[idstart:i]
+	id := make([]byte, 16)
+	_, err := hex.Decode(id, hexid)
+	if err != nil {
+		// can not convert hex number
+		return content
+	}
+	newid := binary.BigEndian.Uint64(id[len(id)-8:])
+	newidstr := []byte(strconv.FormatUint(newid, 10))
+	// Replace the old ID with the new ID.
+	//
+	// We can use the same byte slice when replacing because the uint64
+	// string is always going to be shorter than 32 bytes because
+	// math.MaxUint64 is 20 bytes long as a string
+	x := copy(content[idstart:], newidstr)
+	x += copy(content[idstart+x:], content[idstart+32:])
+	return content[:idstart+x]
 }

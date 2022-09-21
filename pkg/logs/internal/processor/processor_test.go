@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -36,6 +37,37 @@ func TestExclusion(t *testing.T) {
 	source = newSource("exclude_at_match", "", "$world")
 	shouldProcess, _ = p.applyRedactingRules(newMessage([]byte("a brand new world"), &source, ""))
 	assert.Equal(t, true, shouldProcess)
+}
+
+func TestReplaceTraceID(t *testing.T) {
+	for _, tt := range []struct {
+		in, out string
+	}{
+		{
+			in:  "aslkdjasdldjas trace_id=1b8c31d6d2fa97a97d0763ab555c1d19",
+			out: "aslkdjasdldjas trace_id=9009279167100624153",
+		},
+		{
+			in:  "aslkdjasdldjas trace_id=1b8c31d6d2fa97a97d0763ab555c1d19 other_attr=2",
+			out: "aslkdjasdldjas trace_id=9009279167100624153 other_attr=2",
+		},
+		{in: "aslkdjasdldjas trace_id=b8c31d6d2fa97a97d0763ab555c1d19 xyz"},   // too short
+		{in: "aslkdjasdldjas trace_id=11b8c31d6d2fa97a97d0763ab555c1d19 xyz"}, // too long
+		{in: "aslkdjasdldjas trace_id=b8c31d6d2fa97a97d0763ab555c1d19"},
+		{in: "aslkdjasdldjas trace_id=11b8c31d6d2fa97a97d0763ab555c1d19"},
+		{in: "aslkdjasdldjas trace_id="},
+		{in: "aslkdjasdldjas trace_id= "},
+		{in: "aslkdjasdldjas trace_id= xyz"},
+		{in: "aslkdjasdldjas trace_id=1"},
+		{in: "aslkdjasdldjas trace_id=1g8c31d6d2fa97a97d0763ab555c1d19"},
+	} {
+		out := tt.in
+		if tt.out != "" {
+			out = tt.out
+		}
+		got := string(replaceTraceID([]byte(tt.in)))
+		require.Equal(t, out, got)
+	}
 }
 
 func TestInclusion(t *testing.T) {
