@@ -73,7 +73,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 	if !supportedArch(runtime.GOARCH) {
-		log.Errorf("System arch %q is not supported", runtime.GOARCH)
+		log.Errorf("System arch %q is not supported for goTLS", runtime.GOARCH)
 		return nil
 	}
 	return &GoTLSProgram{}
