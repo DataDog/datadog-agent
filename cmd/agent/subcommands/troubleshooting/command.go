@@ -11,26 +11,49 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
 	metadataEndpoint = "/agent/metadata/"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	// payloadName is the name of the payload to display
+	payloadName string
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 	payloadV5Cmd := &cobra.Command{
 		Use:   "metadata_v5",
 		Short: "Print the metadata payload for the agent.",
 		Long: `
 This command print the V5 metadata payload for the Agent. This payload is used to populate the infra list and host map in Datadog. It's called 'V5' because it's the same payload sent since Agent V5. This payload is mandatory in order to create a new host in Datadog.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return printPayload(globalParams, "v5")
+			cliParams.payloadName = "v5"
+			return fxutil.OneShot(printPayload,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "off", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -40,7 +63,15 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 		Long: `
 This command print the last Inventory metadata payload sent by the Agent. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return printPayload(globalParams, "inventory")
+			cliParams.payloadName = "inventory"
+			return fxutil.OneShot(printPayload,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "off", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -61,30 +92,19 @@ This command offers a list of helpers to troubleshoot the Datadog Agent.`,
 	return []*cobra.Command{troubleshootingCmd}
 }
 
-func printPayload(globalParams *command.GlobalParams, payloadName string) error {
-	err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
-	if err != nil {
-		fmt.Printf("unable to set up global agent configuration: %v\n", err)
-		return nil
-	}
-
-	err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-	if err != nil {
-		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-		return err
-	}
-
+func printPayload(log log.Component, config config.Component, cliParams *cliParams) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)
 		return nil
 	}
 
 	c := util.GetClient(false)
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s", ipcAddress, config.Datadog.GetInt("cmd_port"), metadataEndpoint, payloadName)
+	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
+		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, cliParams.payloadName)
 
 	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
 	if err != nil {
