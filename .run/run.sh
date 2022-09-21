@@ -12,7 +12,7 @@ AGENT_ROOT_DIRECTORY=$(git rev-parse --show-toplevel)
 pushd "${AGENT_ROOT_DIRECTORY}"
 BINARY_TO_RUN=${BINARY_TO_RUN:-"./bin/agent/agent"}
 
-echo "Running the following binary using dlv: ${BINARY_TO_RUN}"
+echo "Running the following command using dlv: ${BINARY_TO_RUN} ${BINARY_ARGUMENTS}"
 DLV_PORT_TO_BIND=${DLV_PORT_TO_BIND:-2345}
 BINARY_ARGUMENTS=${BINARY_ARGUMENTS:-"run -c ./bin/agent/dist/datadog.yaml"}
 DLV_BINARY_PATH=$(which dlv)
