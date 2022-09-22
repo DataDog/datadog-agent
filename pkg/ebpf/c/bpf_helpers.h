@@ -75,7 +75,6 @@ static int (*bpf_probe_write_user)(void *dst, const void *src, int size) = (void
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || RHEL_MAJOR == 7
 static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
-static u64 (*bpf_get_socket_cookie)(void *ctx) = (void *) BPF_FUNC_get_socket_cookie;
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)

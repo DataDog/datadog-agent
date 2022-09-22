@@ -84,8 +84,8 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.PidFDBySockMap)},
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
-			{Name: string(probes.TcpSendMsgArgsMap)},
-			{Name: string(probes.IpMakeSkbArgsMap)},
+			{Name: string(probes.TCPSendMsgArgsMap)},
+			{Name: string(probes.IPMakeSkbArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{

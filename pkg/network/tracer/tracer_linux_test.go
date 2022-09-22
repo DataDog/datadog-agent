@@ -214,7 +214,6 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	allConnections := getConnections(t, tr)
 	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
 	require.Len(t, conns, numProcesses)
-	t.Logf("%+v", conns)
 
 	totalSent := 0
 	for _, c := range conns {
@@ -1643,17 +1642,4 @@ func TestShortWrite(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
 
 	assert.Equal(t, sent, conn.MonotonicSum().SentBytes)
-}
-
-func TestHttpConnectionCookieSet(t *testing.T) {
-	if !httpSupported(t) {
-		t.Skip("HTTP monitoring feature not available")
-	}
-
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	tr, err := NewTracer(cfg)
-	require.NoError(t, err)
-	defer tr.Stop()
-
 }
