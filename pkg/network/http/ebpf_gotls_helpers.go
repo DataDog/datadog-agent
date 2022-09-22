@@ -34,10 +34,6 @@ func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsOffsetsData
 	if err != nil {
 		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
 	}
-	readReturnError, err := getReturnError(result, bininspect.ReadGoTLSFunc)
-	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return error from inspection result: %w", err)
-	}
 	writeConnPointer, err := getConnPointer(result, bininspect.WriteGoTLSFunc)
 	if err != nil {
 		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting write conn pointer from inspection result: %w", err)
@@ -72,7 +68,6 @@ func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsOffsetsData
 		Read_conn_pointer:  readConnPointer,
 		Read_buffer:        readBufferLocation,
 		Read_return_bytes:  readReturnBytes,
-		Read_return_error:  readReturnError,
 		Write_conn_pointer: writeConnPointer,
 		Write_buffer:       writeBufferLocation,
 		Write_return_bytes: writeReturnBytes,
@@ -181,7 +176,7 @@ func getReturnBytes(result *bininspect.Result, funcName string) (ebpf.Location, 
 			Stack_offset: endOfParametersOffset,
 		}, nil
 	default:
-		return ebpf.Location{}, fmt.Errorf("unknoen abi %q", result.ABI)
+		return ebpf.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
 	}
 }
 
@@ -216,7 +211,7 @@ func getReturnError(result *bininspect.Result, funcName string) (ebpf.Location, 
 			Stack_offset: endOfParametersOffset + int64(unsafe.Sizeof(integer)),
 		}, nil
 	default:
-		return ebpf.Location{}, fmt.Errorf("unknoen abi %q", result.ABI)
+		return ebpf.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
 	}
 }
 

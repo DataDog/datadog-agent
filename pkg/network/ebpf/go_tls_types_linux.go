@@ -36,7 +36,6 @@ type TlsOffsetsData struct {
 	Read_conn_pointer  Location
 	Read_buffer        SliceLocation
 	Read_return_bytes  Location
-	Read_return_error  Location
 	Write_conn_pointer Location
 	Write_buffer       SliceLocation
 	Write_return_bytes Location

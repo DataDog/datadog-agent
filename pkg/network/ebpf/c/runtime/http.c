@@ -537,7 +537,7 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
         return 1;
     }
 
-    // Read the TGID and goroutine ID to make the partial call key
+    // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
@@ -578,7 +578,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    // Read the TGID and goroutine ID to make the partial call key
+    // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
@@ -593,19 +593,20 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    uint64_t err = 0;
-    if (read_location(ctx, &pd->write_return_error, sizeof(err), &err)) {
+    uint64_t err_ptr = 0;
+    if (read_location(ctx, &pd->write_return_error, sizeof(err_ptr), &err_ptr)) {
         log_debug("[go-tls-write-return] failed reading write return error location for pid %d\n", pid);
         return 1;
     }
 
-    if (err != 0) {
+    // check if err != nil
+    if (err_ptr != 0) {
         log_debug("[go-tls-write-return] error in write for pid %d: data will be ignored\n", pid);
         return 1;
     }
 
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-write-return] failed reading reading go routine id for pid %d\n", pid);
+        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
         return 1;
     }
 
@@ -638,7 +639,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
         return 1;
     }
 
-    // Read the TGID and goroutine ID to make the partial call key
+    // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
@@ -673,13 +674,13 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    // Read the TGID and goroutine ID to make the partial call key
+    // Read the PID and goroutine ID to make the partial call key
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
 
     uint64_t bytes_read = 0;
     if (read_location(ctx, &pd->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading read return bytes location for pid %d\n", pid);
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
         return 1;
     }
 
@@ -694,7 +695,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     // and make sure it's greater than zero.
 
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-read-return] failed reading reading go routine id for pid %d\n", pid);
+        log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
         return 1;
     }
 

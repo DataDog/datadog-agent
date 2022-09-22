@@ -211,6 +211,9 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) er
 	uid := getUID(binPath)
 
 	for function, uprobes := range functionToProbes {
+		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo == nil {
+			return fmt.Errorf("function %q configured to include return locations but no return uprobes found in config", function)
+		}
 		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo != nil {
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
@@ -226,7 +229,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) er
 					UprobeOffset: offset,
 				})
 				if err != nil {
-					return fmt.Errorf("could not add hook to read return in offset %d due to: %w", offset, err)
+					return fmt.Errorf("could not add return hook tp function %q in offset %d due to: %w", function, offset, err)
 				}
 				p.probeIDs = append(p.probeIDs, returnProbeID)
 			}

@@ -47,7 +47,6 @@ typedef struct {
     location_t read_conn_pointer;
     slice_location_t read_buffer;
     location_t read_return_bytes;
-    location_t read_return_error;
 
     // func (c *Conn) Write(b []byte) (int, error)
     location_t write_conn_pointer;
