@@ -1869,13 +1869,12 @@ func TestProcessFilelessExecution(t *testing.T) {
 			name: "fileless",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless",
-				Expression: `exec.file.path == "/memfd:" && process.file.name == "memfd:" && process.ancestors.file.name == "syscall_tester"`,
+				Expression: `exec.file.name == "memfd:" && exec.file.mount_id == 0 && process.file.name == "memfd:" && process.ancestors.file.name == "syscall_tester"`,
 			},
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.file.path", "/memfd:")
-				assertFieldEqual(t, event, "process.file.name", "memfd:")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"})
 			},
 		},
@@ -1883,13 +1882,12 @@ func TestProcessFilelessExecution(t *testing.T) {
 			name: "fileless with script name",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless_with_interpreter",
-				Expression: `exec.file.path == "/memfd:script" && exec.interpreter.file.name == "bash"`,
+				Expression: `exec.file.name == "memfd:script" && exec.file.mount_id == 0 && exec.interpreter.file.name == "bash"`,
 			},
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.file.path", "/memfd:script")
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "bash")
 			},
 		},
 	}
