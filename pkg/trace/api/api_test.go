@@ -533,7 +533,7 @@ func TestDecodeV05(t *testing.T) {
 			LangVersion:   "3.8.1",
 			TracerVersion: "1.2.3",
 		},
-	})
+	}, NewIDProvider(""))
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",

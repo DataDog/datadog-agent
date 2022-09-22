@@ -22,7 +22,8 @@ import (
 )
 
 func TestWithAttributeMap(t *testing.T) {
-	attributes := pcommon.NewMapFromRaw(map[string]interface{}{
+	attributes := pcommon.NewMap()
+	attributes.FromRaw(map[string]interface{}{
 		"key1": "val1",
 		"key2": "val2",
 		"key3": "",
@@ -107,12 +108,14 @@ func TestAllFieldsAreCopied(t *testing.T) {
 		originID: "origin_id",
 	}
 
+	attributes := pcommon.NewMap()
+	attributes.FromRaw(map[string]interface{}{
+		"tagFour": "d",
+	})
 	newDims := dims.
 		AddTags("tagThree:c").
 		WithSuffix("suffix").
-		WithAttributeMap(pcommon.NewMapFromRaw(map[string]interface{}{
-			"tagFour": "d",
-		}))
+		WithAttributeMap(attributes)
 
 	assert.Equal(t, "example.name.suffix", newDims.Name())
 	assert.Equal(t, "hostname", newDims.Host())

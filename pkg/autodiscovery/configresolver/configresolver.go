@@ -39,6 +39,20 @@ var templateVariables = map[string]variableGetter{
 	"kube":     getAdditionalTplVariables,
 }
 
+type NoServiceError struct {
+	message string
+}
+
+func (n *NoServiceError) Error() string {
+	return n.message
+}
+
+func NewNoServiceError(message string) *NoServiceError {
+	return &NoServiceError{
+		message: message,
+	}
+}
+
 // SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
 // variables in the config init, instances, and logs config.
 // When there is an error, it continues replacing. When there are multiple
@@ -487,7 +501,7 @@ func tagsAdder(tags []string) func(interface{}) error {
 
 func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%host%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%host%%%% is not allowed")
 	}
 
 	hosts, err := svc.GetHosts(ctx)
@@ -515,9 +529,9 @@ func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string,
 
 // getFallbackHost implements the fallback strategy to get a service's IP address
 // the current strategy is:
-// 		- if there's only one network we use its IP
-// 		- otherwise we look for the bridge net and return its IP address
-// 		- if we can't find it we fail because we shouldn't try and guess the IP address
+//   - if there's only one network we use its IP
+//   - otherwise we look for the bridge net and return its IP address
+//   - if we can't find it we fail because we shouldn't try and guess the IP address
 func getFallbackHost(hosts map[string]string) (string, error) {
 	if len(hosts) == 1 {
 		for _, host := range hosts {
@@ -536,7 +550,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 // getPort returns ports of the service
 func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%port%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%port%%%% is not allowed")
 	}
 
 	ports, err := svc.GetPorts(ctx)
@@ -569,7 +583,7 @@ func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string,
 // getPid returns the process identifier of the service
 func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%pid%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%pid%%%% is not allowed")
 	}
 
 	pid, err := svc.GetPid(ctx)
@@ -583,7 +597,7 @@ func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error
 // when the IP is unavailable or erroneous
 func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%hostname%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%hostname%%%% is not allowed")
 	}
 
 	name, err := svc.GetHostname(ctx)
@@ -600,7 +614,7 @@ func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, 
 // the AD listener and what the template variable represents.
 func getAdditionalTplVariables(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
+		return "", NewNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
 
 	value, err := svc.GetExtraConfig(tplVar)

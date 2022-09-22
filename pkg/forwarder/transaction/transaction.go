@@ -173,7 +173,7 @@ type HTTPTransaction struct {
 	// Headers are the HTTP headers used by the HTTPTransaction.
 	Headers http.Header
 	// Payload is the content delivered to the backend.
-	Payload *[]byte
+	Payload *BytesPayload
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
 	ErrorCount int
 
@@ -207,6 +207,7 @@ type Transaction interface {
 	GetPriority() Priority
 	GetEndpointName() string
 	GetPayloadSize() int
+	GetPointCount() int
 
 	// This method serializes the transaction to `TransactionsSerializer`.
 	// It forces a new implementation of `Transaction` to define how to
@@ -258,9 +259,17 @@ func (t *HTTPTransaction) GetEndpointName() string {
 // GetPayloadSize returns the size of the payload.
 func (t *HTTPTransaction) GetPayloadSize() int {
 	if t.Payload != nil {
-		return len(*t.Payload)
+		return t.Payload.Len()
 	}
 
+	return 0
+}
+
+// GetPointCount gets the number of points in the payload of this transaction.
+func (t *HTTPTransaction) GetPointCount() int {
+	if t.Payload != nil {
+		return t.Payload.GetPointCount()
+	}
 	return 0
 }
 
@@ -286,7 +295,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
-	reader := bytes.NewReader(*t.Payload)
+	reader := bytes.NewReader(t.Payload.GetContent())
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged

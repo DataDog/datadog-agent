@@ -29,6 +29,7 @@ include:
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
   # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
@@ -79,6 +80,7 @@ stages:
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - internal_kubernetes_deploy
   - notify
 
 variables:
@@ -135,16 +137,17 @@ variables:
   USE_S3_CACHING: --omnibus-s3-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+  S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v9622621-2b420ab
-  DATADOG_AGENT_BUILDERS: v9531714-74df2d8
-  DATADOG_AGENT_WINBUILDIMAGES: v9622621-2b420ab
-  DATADOG_AGENT_ARMBUILDIMAGES: v9622621-2b420ab
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v9622621-2b420ab
-  DATADOG_AGENT_NIKOS_BUILDIMAGES:  v9622621-2b420ab
+  DATADOG_AGENT_BUILDIMAGES: v9910873-5790982
+  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
+  DATADOG_AGENT_WINBUILDIMAGES: v9910873-5790982
+  DATADOG_AGENT_ARMBUILDIMAGES: v9910873-5790982
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v9910873-5790982
+  DATADOG_AGENT_NIKOS_BUILDIMAGES:  v9910873-5790982
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -166,6 +169,7 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   USE_CACHING_PROXY_RUBY: "true"
+  CLANG_LLVM_VER: 14.0.6
 
 #
 # Condition mixins for simplification of rules
@@ -725,7 +729,6 @@ variables:
       - test/kitchen/test/integration/security-agent-stress/**/*
       - .gitlab/functional_test/security_agent.yml
     when: on_success
-    allow_failure: true
   - when: manual
     allow_failure: true
 

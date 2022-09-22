@@ -131,6 +131,7 @@ shoud_send_event:
         // send an event now
         struct syscall_monitor_event_t event = {
             .syscalls = *entry,
+            .event.is_activity_dump_sample = 1, // syscall events are used only by activity dumps
         };
         struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
         fill_container_context(proc_cache_entry, &event.container);
@@ -140,7 +141,7 @@ shoud_send_event:
         entry->dirty = 0;
 
         // remove last_sent and dirty from the event size, we don't care about these fields
-        send_event_with_size(args, EVENT_SYSCALLS, event, offsetof(struct syscall_monitor_event_t, syscalls) + SYSCALL_ENCODING_TABLE_SIZE);
+        send_event_with_size_ptr(args, EVENT_SYSCALLS, &event, offsetof(struct syscall_monitor_event_t, syscalls) + SYSCALL_ENCODING_TABLE_SIZE);
     }
 
     key.syscall_key = EXECVE_SYSCALL_KEY;

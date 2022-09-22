@@ -53,10 +53,10 @@ func TestDentryResolutionERPC(t *testing.T) {
 	test.probe.SendStats()
 
 	key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
-	assert.NotEmpty(t, test.statsdClient.counts[key])
+	assert.NotEmpty(t, test.statsdClient.Counts[key])
 
 	key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
-	assert.Empty(t, test.statsdClient.counts[key])
+	assert.Empty(t, test.statsdClient.Counts[key])
 }
 
 func TestDentryResolutionMap(t *testing.T) {
@@ -89,10 +89,10 @@ func TestDentryResolutionMap(t *testing.T) {
 	test.probe.SendStats()
 
 	key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
-	assert.NotEmpty(t, test.statsdClient.counts[key])
+	assert.NotEmpty(t, test.statsdClient.Counts[key])
 
 	key = metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
-	assert.Empty(t, test.statsdClient.counts[key])
+	assert.Empty(t, test.statsdClient.Counts[key])
 }
 
 func BenchmarkERPCDentryResolutionSegment(b *testing.B) {

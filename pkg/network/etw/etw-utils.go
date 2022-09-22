@@ -261,7 +261,7 @@ func parseUnicodeString(data []byte, offset int) (val string, nextOffset int, va
 		// wasn't null terminated.  Assume it's still a valid string though
 		lenString = len(data) - offset
 	} else {
-		lenString = termZeroIdx - offset
+		lenString = termZeroIdx
 		skip = 2
 	}
 	val = convertWindowsString(data[offset : offset+lenString])

@@ -9,6 +9,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/binary"
 	//"encoding/hex"
 	"errors"
@@ -16,13 +17,11 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/etw"
-	"golang.org/x/sys/windows"
 )
-
-const HTTPBufferSize = driver.HttpBufferSize
-const HTTPBatchSize = driver.HttpBatchSize
 
 type etwHttpTX struct {
 	//	httpTX
@@ -160,27 +159,28 @@ func (tx *FullHttpTransaction) Incomplete() bool {
 }
 
 func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
-	b := tx.RequestFragment
-
-	// b might contain a null terminator in the middle
-	bLen := strlen(b[:])
-
-	var i, j int
-	for i = 0; i < bLen && b[i] != ' '; i++ {
+	bLen := bytes.IndexByte(tx.RequestFragment, 0)
+	if bLen == -1 {
+		bLen = len(tx.RequestFragment)
 	}
-
+	// trim null byte + after
+	b := tx.RequestFragment[:bLen]
+	// find first space after request method
+	i := bytes.IndexByte(b, ' ')
 	i++
-
-	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+	// ensure we found a space, it isn't at the end, and the next chars are '/' or '*'
+	if i == 0 || i == len(b) || (b[i] != '/' && b[i] != '*') {
 		return nil, false
 	}
-
-	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
+	// trim to start of path
+	b = b[i:]
+	// capture until we find the slice end, a space, or a question mark (we ignore the query parameters)
+	var j int
+	for j = 0; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
 	}
-
-	// no bound check necessary here as we know we at least have '/' character
-	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	n := copy(buffer, b[:j])
+	// indicate if we knowingly captured the entire path
+	fullPath := n < len(b)
 	return buffer[:n], fullPath
 
 }
@@ -273,7 +273,11 @@ func (tx *etwHttpTX) StaticTags() uint64 {
 
 // Dynamic Tags are  part of windows http transactions
 func (tx *etwHttpTX) DynamicTags() []string {
-	return []string{fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool)}
+	return []string{
+		fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
+		fmt.Sprintf("http.iis.site:%v", tx.SiteID),
+		fmt.Sprintf("service:%v", tx.AppPool),
+	}
 }
 
 func (tx *etwHttpTX) String() string {
@@ -292,29 +296,29 @@ func (tx *etwHttpTX) Incomplete() bool {
 }
 
 func (tx *etwHttpTX) Path(buffer []byte) ([]byte, bool) {
-	b := tx.RequestFragment
-
-	// b might contain a null terminator in the middle
-	bLen := strlen(b[:])
-
-	var i, j int
-	for i = 0; i < bLen && b[i] != ' '; i++ {
+	bLen := bytes.IndexByte(tx.RequestFragment, 0)
+	if bLen == -1 {
+		bLen = len(tx.RequestFragment)
 	}
-
+	// trim null byte + after
+	b := tx.RequestFragment[:bLen]
+	// find first space after request method
+	i := bytes.IndexByte(b, ' ')
 	i++
-
-	if i >= bLen || (b[i] != '/' && b[i] != '*') {
+	// ensure we found a space, it isn't at the end, and the next chars are '/' or '*'
+	if i == 0 || i == len(b) || (b[i] != '/' && b[i] != '*') {
 		return nil, false
 	}
-
-	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
+	// trim to start of path
+	b = b[i:]
+	// capture until we find the slice end, a space, or a question mark (we ignore the query parameters)
+	var j int
+	for j = 0; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
 	}
-
-	// no bound check necessary here as we know we at least have '/' character
-	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
+	n := copy(buffer, b[:j])
+	// indicate if we knowingly captured the entire path
+	fullPath := n < len(b)
 	return buffer[:n], fullPath
-
 }
 
 func (tx *etwHttpTX) SetStatusCode(code uint16) {
