@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -102,6 +103,10 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	if !c.EnableHTTPSMonitoring {
 		return nil
 	}
+	if !supportedArch(runtime.GOARCH) {
+		log.Errorf("System arch %q is not supported for goTLS", runtime.GOARCH)
+		return nil
+	}
 	return &GoTLSProgram{}
 }
 
@@ -134,8 +139,8 @@ func (p *GoTLSProgram) Start() {
 	}
 }
 
-func supportedArch(arch bininspect.GoArch) bool {
-	return arch == bininspect.GoArchX86_64
+func supportedArch(arch string) bool {
+	return arch == string(bininspect.GoArchX86_64)
 }
 
 func (p *GoTLSProgram) handleNewBinary(binPath string) {
@@ -154,11 +159,6 @@ func (p *GoTLSProgram) handleNewBinary(binPath string) {
 	result, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 	if err != nil {
 		log.Errorf("Failed inspecting binary %q: %w", binPath, err)
-		return
-	}
-
-	if !supportedArch(result.Arch) {
-		log.Errorf("Got unsupported arch %q for binary %q", result.Arch, binPath)
 		return
 	}
 
