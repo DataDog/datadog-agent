@@ -367,6 +367,8 @@ type Container struct {
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would impossible to compute later on
 	CollectorTags []string
+
+	SecurityContext *ContainerSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -425,6 +427,27 @@ func (c Container) String(verbose bool) string {
 }
 
 var _ Entity = &Container{}
+
+// ContainerSecurityContext is the Security Context of a Container
+type ContainerSecurityContext struct {
+	Privileged     bool
+	SeccompProfile *SeccompProfile
+}
+
+// SeccompProfileType is the type of seccomp profile used
+type SeccompProfileType string
+
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfile struct {
+	Type             SeccompProfileType
+	LocalhostProfile string
+}
 
 // ContainerFilterFunc is a function used to filter containers.
 type ContainerFilterFunc func(container *Container) bool

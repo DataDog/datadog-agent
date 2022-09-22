@@ -244,11 +244,44 @@ func (c *collector) parsePodContainers(
 				Ports:   ports,
 				Runtime: workloadmeta.ContainerRuntime(runtime),
 				State:   containerState,
+
+				SecurityContext: extractContainerSecurityContext(containerSpec),
 			},
 		})
 	}
 
 	return podContainers, events
+}
+
+func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.ContainerSecurityContext {
+	if spec.SecurityContext == nil {
+		return nil
+	}
+
+	privileged := false
+	if spec.SecurityContext.Privileged != nil {
+		privileged = *spec.SecurityContext.Privileged
+	}
+
+	var seccompProfile *workloadmeta.SeccompProfile
+	if spec.SecurityContext.SeccompProfile != nil {
+		localhostProfile := ""
+		if spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
+			localhostProfile = *spec.SecurityContext.SeccompProfile.LocalhostProfile
+		}
+
+		spType := workloadmeta.SeccompProfileType(spec.SecurityContext.SeccompProfile.Type)
+
+		seccompProfile = &workloadmeta.SeccompProfile{
+			Type:             spType,
+			LocalhostProfile: localhostProfile,
+		}
+	}
+
+	return &workloadmeta.ContainerSecurityContext{
+		Privileged:     privileged,
+		SeccompProfile: seccompProfile,
+	}
 }
 
 func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
