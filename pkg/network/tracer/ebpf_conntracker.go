@@ -149,24 +149,6 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 	return e, nil
 }
 
-func getAllMapsNames(mgr *manager.Manager) []string {
-	var names []string
-	for _, m := range mgr.Maps {
-		names = append(names, m.Name)
-	}
-
-	return names
-}
-
-func getAllProbesNames(mgr *manager.Manager) []string {
-	var names []string
-	for _, p := range mgr.Probes {
-		names = append(names, p.EBPFFuncName)
-	}
-
-	return names
-}
-
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
 	var err error
 	e.consumer, err = netlink.NewConsumer(cfg)
