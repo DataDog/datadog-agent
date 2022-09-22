@@ -173,6 +173,7 @@ func (c *collector) parsePodContainers(
 
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
+		var securityContext *workloadmeta.ContainerSecurityContext
 
 		image, err := workloadmeta.NewContainerImage(container.Image)
 		if err != nil {
@@ -206,6 +207,8 @@ func (c *collector) parsePodContainers(
 					Protocol: port.Protocol,
 				})
 			}
+
+			securityContext = extractContainerSecurityContext(containerSpec)
 		} else {
 			log.Debugf("cannot find spec for container %q", container.Name)
 		}
@@ -245,7 +248,7 @@ func (c *collector) parsePodContainers(
 				Runtime: workloadmeta.ContainerRuntime(runtime),
 				State:   containerState,
 
-				SecurityContext: extractContainerSecurityContext(containerSpec),
+				SecurityContext: securityContext,
 			},
 		})
 	}
