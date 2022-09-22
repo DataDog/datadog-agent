@@ -18,9 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 // SyncInformers should be called after the instantiation of new informers.
@@ -56,8 +57,8 @@ func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutos
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
-// UnstructuredFromWPA converts a WPA object into an Unstructured
-func UnstructuredFromWPA(structIn *v1alpha1.WatermarkPodAutoscaler, unstructOut *unstructured.Unstructured) error {
+// UnstructuredFromAutoscaler converts a WPA object into an Unstructured
+func UnstructuredFromAutoscaler(structIn runtime.Object, unstructOut *unstructured.Unstructured) error {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {
 		return fmt.Errorf("Unable to convert WatermarkPodAutoscaler %v: %w", structIn, err)

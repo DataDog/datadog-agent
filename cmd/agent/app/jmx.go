@@ -20,6 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -106,7 +108,7 @@ var (
 func init() {
 	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "", "set the log level (default 'debug') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	jmxCmd.PersistentFlags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
-	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
+	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	jmxCmd.PersistentFlags().UintVarP(&discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 
 	// attach list and collect commands to jmx command
@@ -180,17 +182,23 @@ func runJmxCommandConsole(command string) error {
 	}
 
 	common.LoadComponents(context.Background(), config.Datadog.GetString("confd_path"))
+	common.AC.LoadAndRun(context.Background())
 
-	if discoveryRetryInterval > discoveryTimeout {
-		fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
-		fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
-		discoveryRetryInterval = discoveryTimeout
+	// Create the CheckScheduler, but do not attach it to
+	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
+	collector.InitCheckScheduler(common.Coll)
+
+	// if cliSelectedChecks is empty, then we want to fetch all check configs;
+	// otherwise, we fetch only the matching cehck configs.
+	waitCtx, cancelTimeout := context.WithTimeout(
+		context.Background(), time.Duration(discoveryTimeout)*time.Second)
+	var allConfigs []integration.Config
+	if len(cliSelectedChecks) == 0 {
+		allConfigs = common.WaitForAllConfigsFromAD(waitCtx)
+	} else {
+		allConfigs = common.WaitForConfigsFromAD(waitCtx, cliSelectedChecks, int(discoveryMinInstances))
 	}
-
-	// Note: when no checks are selected, cliSelectedChecks will be the empty slice and thus common.SelectedCheckMatcherBuilder
-	//       will return false, leading WaitForConfigs to timeout before returning all AD configs.
-	allConfigs := common.WaitForConfigs(time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second,
-		common.SelectedCheckMatcherBuilder(cliSelectedChecks, discoveryMinInstances))
+	cancelTimeout()
 
 	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel, allConfigs)
 

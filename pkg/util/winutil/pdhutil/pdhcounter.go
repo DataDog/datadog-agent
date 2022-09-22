@@ -59,6 +59,9 @@ type PdhMultiInstanceCounterSet struct {
 // Initialize initializes a counter set object
 func (p *PdhCounterSet) Initialize(className string) error {
 
+	// refresh PDH object cache (refresh will only occur periodically)
+	tryRefreshPdhObjectCache()
+
 	// the counter index list may be > 1, but for class name, only take the first
 	// one.  If not present at all, try the english counter name
 	ndxlist, err := getCounterIndexList(className)
@@ -90,6 +93,12 @@ func (p *PdhCounterSet) Initialize(className string) error {
 
 // GetUnlocalizedCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
 func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
+	// TODO (WA-52): Restructure GetUnlocalizedCounter / GetSingleInstanceCounter / GetMultiInstanceCounter
+	//               to make code more clear and deduplicate here and Initialize()
+
+	// refresh PDH object cache (refresh will only occur periodically)
+	tryRefreshPdhObjectCache()
+
 	var p PdhSingleInstanceCounterSet
 	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
 	if ERROR_SUCCESS != winerror {
@@ -97,7 +106,7 @@ func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleIn
 	}
 	path, err := pfnPdhMakeCounterPath("", className, instance, counterName)
 	if err != nil {
-		return p, fmt.Errorf("Failed tomake counter path %s: %v", counterName, err)
+		return p, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
 	}
 	winerror = pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.singleCounter)
 	if ERROR_SUCCESS != winerror {
@@ -118,13 +127,16 @@ func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstance
 		return nil, err
 	}
 	// check to make sure this is really a single instance counter
-	allcounters, instances, _ := pfnPdhEnumObjectItems(p.className)
+	allcounters, instances, err := pfnPdhEnumObjectItems(p.className)
+	if err != nil {
+		return nil, err
+	}
 	if len(instances) > 0 {
 		return nil, fmt.Errorf("Requested counter is not single-instance: %s", p.className)
 	}
 	path, err := p.MakeCounterPath("", counterName, "", allcounters)
 	if err != nil {
-		log.Warnf("Failed pdhEnumObjectItems %v", err)
+		log.Warnf("Failed to make counter path %v", err)
 		return nil, err
 	}
 	winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
@@ -148,8 +160,11 @@ func GetMultiInstanceCounter(className, counterName string, requestedInstances *
 	p.verifyfn = verifyfn
 	p.requestedCounterName = counterName
 
-	// check to make sure this is really a single instance counter
-	_, instances, _ := pfnPdhEnumObjectItems(p.className)
+	// check to make sure this is really a multi instance counter
+	_, instances, err := pfnPdhEnumObjectItems(p.className)
+	if err != nil {
+		return nil, err
+	}
 	if len(instances) <= 0 {
 		return nil, fmt.Errorf("Requested counter is a single-instance: %s", p.className)
 	}
@@ -207,7 +222,7 @@ func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
 		}
 		path, err := p.MakeCounterPath("", p.requestedCounterName, inst, allcounters)
 		if err != nil {
-			log.Debugf("Failed tomake counter path %s %s", p.counterName, inst)
+			log.Debugf("Failed to make counter path %s %s", p.counterName, inst)
 			continue
 		}
 		var hc PDH_HCOUNTER

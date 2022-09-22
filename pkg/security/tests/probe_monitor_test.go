@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -39,13 +40,13 @@ func TestRulesetLoaded(t *testing.T) {
 	test.probe.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
-	assert.NotEmpty(t, test.statsdClient.counts[key])
-	assert.NotZero(t, test.statsdClient.counts[key])
+	assert.NotEmpty(t, test.statsdClient.Counts[key])
+	assert.NotZero(t, test.statsdClient.Counts[key])
 
 	test.statsdClient.Flush()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		count := test.statsdClient.counts[key]
+		count := test.statsdClient.Counts[key]
 		assert.Zero(t, count)
 
 		if err := test.reloadConfiguration(); err != nil {
@@ -54,7 +55,7 @@ func TestRulesetLoaded(t *testing.T) {
 
 		test.probe.SendStats()
 
-		assert.Equal(t, count+1, test.statsdClient.counts[key])
+		assert.Equal(t, count+1, test.statsdClient.Counts[key])
 	})
 }
 
@@ -86,7 +87,9 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			t.Fatal(err)
 		}
 
-		defer os.Remove(truncatedParentsFile)
+		// By default, the `t.TempDir` cleanup has a bit of a hard time cleaning up such a deep file
+		// let's help it by cleaning up most of the directories
+		defer cleanupABottomUp(truncatedParentsFile)
 
 		err = test.GetProbeCustomEvent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
@@ -124,6 +127,13 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			}
 		})
 	})
+}
+
+func cleanupABottomUp(path string) {
+	for filepath.Base(path) == "a" {
+		os.RemoveAll(path)
+		path = filepath.Dir(path)
+	}
 }
 
 func TestTruncatedParentsMap(t *testing.T) {

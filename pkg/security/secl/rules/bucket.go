@@ -6,9 +6,8 @@
 package rules
 
 import (
+	"errors"
 	"sort"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )

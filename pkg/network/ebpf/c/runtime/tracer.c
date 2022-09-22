@@ -36,8 +36,8 @@
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, u8 state) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;
-    bpf_probe_read(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
-    bpf_probe_read(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     if (state > 0) {
@@ -47,8 +47,8 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, 
 }
 
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
-    bpf_probe_read(packets_out, sizeof(*packets_out), &tcp_sk(skp)->segs_out);
-    bpf_probe_read(packets_in, sizeof(*packets_in), &tcp_sk(skp)->segs_in);
+    bpf_probe_read_kernel(packets_out, sizeof(*packets_out), &tcp_sk(skp)->segs_out);
+    bpf_probe_read_kernel(packets_in, sizeof(*packets_in), &tcp_sk(skp)->segs_in);
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -74,6 +74,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
+    struct sock *skp = *skpp;
     bpf_map_delete_elem(&tcp_sendmsg_args, &pid_tgid);
 
     int sent = PT_REGS_RC(ctx);
@@ -81,7 +82,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    struct sock *skp = *skpp;
     if (!skp) {
         return 0;
     }
@@ -98,7 +98,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
     __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
@@ -113,15 +113,15 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
-    bpf_probe_read(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
-    bpf_probe_read(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
+    bpf_probe_read_kernel(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
+    bpf_probe_read_kernel(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
     handle_tcp_stats(&t, sk, 0);
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
 
 SEC("kprobe/tcp_close")
@@ -130,6 +130,9 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
+
+    // Should actually delete something only if the connection never got established
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
 
     clear_sockfd_maps(sk);
 
@@ -154,19 +157,47 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
 SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
+    size_t len = (size_t)PT_REGS_PARM4(ctx);
+    // commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+    // changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+#else
+    struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+#endif
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel(&args.fl6, sizeof(args.fl6), &fl6);
+    bpf_map_update_elem(&ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/ip6_make_skb")
+int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+
+    struct sock* sk = args->sk;
+    struct flowi6* fl6 = args->fl6;
+    size_t size = args->len;
+    bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void*) PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
+
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
-// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
-#else
-        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
-#endif
         read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
         read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
 
@@ -192,8 +223,8 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
             t.metadata |= CONN_V6;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
-        bpf_probe_read(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
 
         if (t.sport == 0 || t.dport == 0) {
             log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
@@ -206,7 +237,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -217,24 +248,51 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 SEC("kprobe/ip_make_skb")
 int kprobe__ip_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    size_t size = (size_t)PT_REGS_PARM5(ctx);
+    size_t len = (size_t)PT_REGS_PARM5(ctx);
+    struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel(&args.fl4, sizeof(args.fl4), &fl4);
+    bpf_map_update_elem(&ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/ip_make_skb")
+int kretprobe__ip_make_skb(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t *args = bpf_map_lookup_elem(&ip_make_skb_args, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+
+    struct sock* sk = args->sk;
+    struct flowi4* fl4 = args->fl4;
+    size_t size = args->len;
+    bpf_map_delete_elem(&ip_make_skb_args, &pid_tgid);
+
+    void *rc = (void*) PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rc)) {
+        return 0;
+    }
 
     size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-        bpf_probe_read(&t.saddr_l, sizeof(__be32), &fl4->saddr);
-        bpf_probe_read(&t.daddr_l, sizeof(__be32), &fl4->daddr);
+        bpf_probe_read_kernel(&t.saddr_l, sizeof(__be32), &fl4->saddr);
+        bpf_probe_read_kernel(&t.daddr_l, sizeof(__be32), &fl4->daddr);
         if (!t.saddr_l || !t.daddr_l) {
             log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t.saddr_l, t.daddr_l);
             increment_telemetry_count(udp_send_missed);
             return 0;
         }
 
-        bpf_probe_read(&t.sport, sizeof(t.sport), &fl4->fl4_sport);
-        bpf_probe_read(&t.dport, sizeof(t.dport), &fl4->fl4_dport);
+        bpf_probe_read_kernel(&t.sport, sizeof(t.sport), &fl4->fl4_sport);
+        bpf_probe_read_kernel(&t.dport, sizeof(t.dport), &fl4->fl4_dport);
         t.sport = bpf_ntohs(t.sport);
         t.dport = bpf_ntohs(t.dport);
         if (t.sport == 0 || t.dport == 0) {
@@ -245,7 +303,7 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -270,7 +328,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
     u64 pid_tgid = bpf_get_current_pid_tgid();
     t.pid = pid_tgid >> 32;
     t.netns = get_netns(&sk->sk_net);
-    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT);
+    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }
 
 static __always_inline int handle_udp_recvmsg(struct pt_regs* ctx) {
@@ -401,6 +459,42 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kprobe/tcp_connect")
+int kprobe__tcp_connect(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+
+    bpf_map_update_elem(&tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kprobe/tcp_finish_connect")
+int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp);
+    if (!pid_tgid_p) {
+        return 0;
+    }
+
+    u64 pid_tgid = *pid_tgid_p;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
+    log_debug("kprobe/tcp_finish_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
+    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
+
+    log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+
+    return 0;
+}
+
 SEC("kretprobe/inet_csk_accept")
 int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
 
@@ -417,7 +511,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
         return 0;
     }
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE);
+    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
 
     port_binding_t pb = {};
     pb.netns = t.netns;
@@ -488,7 +582,7 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
     __u64 tid = bpf_get_current_pid_tgid();
 
     __u16 type = 0;
-    bpf_probe_read(&type, sizeof(__u16), &sock->type);
+    bpf_probe_read_kernel(&type, sizeof(__u16), &sock->type);
     if ((type & SOCK_DGRAM) == 0) {
         return 0;
     }
@@ -500,11 +594,11 @@ static __always_inline int sys_enter_bind(struct socket* sock, struct sockaddr* 
 
     u16 sin_port = 0;
     sa_family_t family = 0;
-    bpf_probe_read(&family, sizeof(sa_family_t), &addr->sa_family);
+    bpf_probe_read_kernel(&family, sizeof(sa_family_t), &addr->sa_family);
     if (family == AF_INET) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in*)addr)->sin_port));
     } else if (family == AF_INET6) {
-        bpf_probe_read(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
+        bpf_probe_read_kernel(&sin_port, sizeof(u16), &(((struct sockaddr_in6*)addr)->sin6_port));
     }
 
     sin_port = bpf_ntohs(sin_port);
@@ -556,14 +650,13 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
         return 0;
     }
-
+    __u16 sin_port = args->port;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
         return 0;
     }
 
-    __u16 sin_port = args->port;
     port_binding_t pb = {};
     pb.netns = 0; // don't have net ns info in this context
     pb.port = sin_port;
@@ -623,23 +716,23 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     // For now let's only store information for TCP sockets
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
+    bpf_probe_read_kernel(&sock_type, sizeof(short), &socket->type);
 
     struct proto_ops *proto_ops = NULL;
-    bpf_probe_read(&proto_ops, sizeof(proto_ops), &socket->ops);
+    bpf_probe_read_kernel(&proto_ops, sizeof(proto_ops), &socket->ops);
     if (!proto_ops) {
         goto cleanup;
     }
 
     int family = 0;
-    bpf_probe_read(&family, sizeof(family), &proto_ops->family);
+    bpf_probe_read_kernel(&family, sizeof(family), &proto_ops->family);
     if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
         goto cleanup;
     }
 
     // Retrieve struct sock* pointer from struct socket*
     struct sock *sock = NULL;
-    bpf_probe_read(&sock, sizeof(sock), &socket->sk);
+    bpf_probe_read_kernel(&sock, sizeof(sock), &socket->sk);
 
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,
@@ -691,7 +784,7 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         __u32 packets_in = 0;
         __u32 packets_out = 0;
         get_tcp_segment_counts(*sock, &packets_in, &packets_out);
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
+        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, *sock);
     }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);

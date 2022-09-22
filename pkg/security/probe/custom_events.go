@@ -14,11 +14,12 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+	"github.com/mailru/easyjson"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/hashicorp/go-multierror"
-	"github.com/mailru/easyjson"
 )
 
 const (
@@ -156,24 +157,25 @@ type PoliciesIgnored struct {
 	Errors *multierror.Error
 }
 
+type policiesIgnoredReason struct {
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
+}
+
 // MarshalJSON custom marshaller
 func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
 	if r.Errors == nil {
 		return nil, nil
 	}
 
-	var errs []interface{}
+	var errs []policiesIgnoredReason
 
 	for _, err := range r.Errors.Errors {
 		if perr, ok := err.(*rules.ErrPolicyLoad); ok {
-			errs = append(errs,
-				struct {
-					Name   string `json:"name"`
-					Reason string `json:"reason"`
-				}{
-					Name:   perr.Name,
-					Reason: perr.Err.Error(),
-				})
+			errs = append(errs, policiesIgnoredReason{
+				Name:   perr.Name,
+				Reason: perr.Err.Error(),
+			})
 		}
 	}
 
@@ -197,6 +199,7 @@ type RuleLoaded struct {
 // easyjson:json
 type PolicyLoaded struct {
 	Version      string
+	Source       string
 	RulesLoaded  []*RuleLoaded  `json:"rules_loaded"`
 	RulesIgnored []*RuleIgnored `json:"rules_ignored,omitempty"`
 }
@@ -222,7 +225,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policyName := rule.Definition.Policy.Name
 
 		if policy, exists = mp[policyName]; !exists {
-			policy = &PolicyLoaded{Version: rule.Definition.Policy.Version}
+			policy = &PolicyLoaded{Version: rule.Definition.Policy.Version, Source: rule.Definition.Policy.Source}
 			mp[policyName] = policy
 		}
 		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{

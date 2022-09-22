@@ -6,21 +6,24 @@
 package debugging
 
 import (
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client   Address
-	Server   Address
-	DNS      string
-	Path     string
-	Method   string
-	ByStatus map[int]Stats
+	Client      Address
+	Server      Address
+	DNS         string
+	Path        string
+	Method      string
+	ByStatus    map[int]Stats
+	StaticTags  uint64
+	DynamicTags []string
 }
 
 // Address represents represents a IP:Port
@@ -63,6 +66,8 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 				continue
 			}
 			stat := v.Stats(status)
+			debug.StaticTags = stat.StaticTags
+			debug.DynamicTags = stat.DynamicTags
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,
@@ -101,6 +106,6 @@ func getSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
 		return 0.0
 	}
 
-	val, _ := sketch.GetValueAtQuantile(0.5)
+	val, _ := sketch.GetValueAtQuantile(percentile)
 	return val
 }

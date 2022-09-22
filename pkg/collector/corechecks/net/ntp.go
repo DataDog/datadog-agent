@@ -150,7 +150,7 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data,
 	c.BuildID(data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(data, source)
+	err = c.CommonConfigure(initConfig, data, source)
 	if err != nil {
 		return err
 	}

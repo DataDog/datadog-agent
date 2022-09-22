@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
 )
 
 var originalConfig = config.Datadog
@@ -74,6 +74,33 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
 		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+}
+
+func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -144,10 +171,10 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 }
 
 func TestEnablingDNSStatsCollection(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -156,6 +183,9 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		defer os.Unsetenv("DD_COLLECT_DNS_STATS")
 
 		os.Setenv("DD_COLLECT_DNS_STATS", "false")
@@ -176,10 +206,10 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 }
 
 func TestDisablingDNSDomainCollection(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -188,6 +218,9 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		defer os.Unsetenv("DD_COLLECT_DNS_DOMAINS")
 
 		os.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
@@ -208,10 +241,10 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 }
 
 func TestSettingMaxDNSStats(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -220,6 +253,9 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		newConfig()
 		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
 		_, err := sysconfig.New("")
@@ -302,12 +338,12 @@ func TestHTTPReplaceRules(t *testing.T) {
 }
 
 func TestMaxClosedConnectionsBuffered(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	maxTrackedConnections := New().MaxTrackedConnections
 
 	t.Run("value set", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		v := os.Getenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED")
 		defer func() {
 			os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", v)
@@ -321,7 +357,100 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	})
 
 	t.Run("value not set", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		cfg := New()
 		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
 	})
+}
+
+func TestMaxHTTPStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		newConfig()
+		t.Cleanup(restoreGlobalConfig)
+
+		v := os.Getenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+		defer func() {
+			os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", v)
+		}()
+
+		err := os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
+		require.NoError(t, err)
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		newConfig()
+		t.Cleanup(restoreGlobalConfig)
+
+		cfg := configurationFromYAML(t, `
+network_config:
+  max_http_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
+	})
+}
+
+func TestNetworkConfigEnabled(t *testing.T) {
+	ys := true
+
+	for i, tc := range []struct {
+		sysIn, npmIn, usmIn    *bool
+		npmEnabled, usmEnabled bool
+	}{
+		{sysIn: nil, npmIn: nil, usmIn: nil, npmEnabled: false, usmEnabled: false},
+		{sysIn: nil, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
+		{sysIn: nil, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
+		{sysIn: nil, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
+		{sysIn: &ys, npmIn: nil, usmIn: nil, npmEnabled: true, usmEnabled: false},
+		// only set NPM enabled flag is sysprobe enabled and !USM
+		{sysIn: &ys, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
+		{sysIn: &ys, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
+		{sysIn: &ys, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			if tc.sysIn != nil {
+				os.Setenv("DD_SYSTEM_PROBE_ENABLED", strconv.FormatBool(*tc.sysIn))
+			}
+			if tc.npmIn != nil {
+				os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(*tc.npmIn))
+			}
+			if tc.usmIn != nil {
+				os.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
+			}
+
+			defer os.Unsetenv("DD_SYSTEM_PROBE_ENABLED")
+			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+			defer os.Unsetenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+
+			newConfig()
+			t.Cleanup(restoreGlobalConfig)
+
+			_, err := sysconfig.New("")
+			require.NoError(t, err)
+			cfg := New()
+			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")
+			assert.Equal(t, tc.usmEnabled, cfg.ServiceMonitoringEnabled, "usm state")
+		})
+	}
+}
+
+func configurationFromYAML(t *testing.T, yaml string) *Config {
+	f, err := os.CreateTemp("", "system-probe.*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	b := []byte(yaml)
+	n, err := f.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, len(b), n)
+	f.Sync()
+
+	_, err = sysconfig.New(f.Name())
+	require.NoError(t, err)
+	return New()
 }

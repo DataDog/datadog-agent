@@ -9,6 +9,8 @@
 package journald
 
 import (
+	"github.com/coreos/go-systemd/sdjournal"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
@@ -17,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/coreos/go-systemd/sdjournal"
 )
 
 // Launcher is in charge of starting and stopping new journald tailers
@@ -25,14 +26,14 @@ type Launcher struct {
 	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
-	tailers          map[string]*tailer.Tailer
+	tailers          []*tailer.Tailer
 	stop             chan struct{}
 }
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
 	return &Launcher{
-		tailers: make(map[string]*tailer.Tailer),
+		tailers: []*tailer.Tailer{},
 		stop:    make(chan struct{}),
 	}
 }
@@ -50,16 +51,11 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			identifier := source.Config.Path
-			if _, exists := l.tailers[identifier]; exists {
-				// set up only one tailer per journal
-				continue
-			}
 			tailer, err := l.setupTailer(source)
 			if err != nil {
 				log.Warn("Could not set up journald tailer: ", err)
 			} else {
-				l.tailers[identifier] = tailer
+				l.tailers = append(l.tailers, tailer)
 			}
 		case <-l.stop:
 			return
@@ -71,10 +67,10 @@ func (l *Launcher) run() {
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
 	stopper := startstop.NewParallelStopper()
-	for identifier, tailer := range l.tailers {
+	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
-		delete(l.tailers, identifier)
 	}
+	l.tailers = []*tailer.Tailer{}
 	stopper.Stop()
 }
 

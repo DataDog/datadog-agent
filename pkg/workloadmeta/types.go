@@ -636,6 +636,11 @@ const (
 	// come first.
 	TaggerPriority SubscriberPriority = iota
 
+	// ConfigProviderPriority is the priority for the AD Config Provider.
+	// This should come before other subscribers so that config provided by
+	// entities is available to those other subscribers.
+	ConfigProviderPriority SubscriberPriority = iota
+
 	// NormalPriority should be used by subscribers on which other components
 	// do not depend.
 	NormalPriority SubscriberPriority = iota

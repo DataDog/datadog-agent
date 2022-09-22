@@ -10,6 +10,7 @@ package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -83,6 +84,15 @@ type Processor struct {
 	h Handlers
 }
 
+// ProcessResult contains the processing result of metadata and manifest
+// MetadataMessages is a list of payload, each payload contains a list of k8s resources metadata and manifest
+// ManifestMessages is a list of payload, each payload contains a list of k8s resources manifest.
+// ManifestMessages is a copy of part of MetadataMessages
+type ProcessResult struct {
+	MetadataMessages []model.MessageBody
+	ManifestMessages []model.MessageBody
+}
+
 // NewProcessor creates a new processor for a resource type.
 func NewProcessor(h Handlers) *Processor {
 	return &Processor{
@@ -91,7 +101,7 @@ func NewProcessor(h Handlers) *Processor {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages []model.MessageBody, processed int) {
+func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -99,30 +109,31 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 	defer RecoverOnPanic()
 
 	resourceList := p.h.ResourceList(ctx, list)
-	resourceModels := make([]interface{}, 0, len(resourceList))
+	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
+	resourceManifestModels := make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
 		// Scrub before extraction.
 		p.h.ScrubBeforeExtraction(ctx, resource)
 
 		// Extract the message model from the resource.
-		resourceModel := p.h.ExtractResource(ctx, resource)
+		resourceMetadataModel := p.h.ExtractResource(ctx, resource)
 
 		// Execute code before cache check.
-		if skip := p.h.BeforeCacheCheck(ctx, resource, resourceModel); skip {
+		if skip := p.h.BeforeCacheCheck(ctx, resource, resourceMetadataModel); skip {
 			continue
 		}
 
 		// Cache check
-		resourceUID := p.h.ResourceUID(ctx, resource, resourceModel)
-		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceModel)
+		resourceUID := p.h.ResourceUID(ctx, resource, resourceMetadataModel)
+		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
 		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
 			continue
 		}
 
 		// Execute code before marshalling.
-		if skip := p.h.BeforeMarshalling(ctx, resource, resourceModel); skip {
+		if skip := p.h.BeforeMarshalling(ctx, resource, resourceMetadataModel); skip {
 			continue
 		}
 
@@ -137,34 +148,61 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (messages [
 		}
 
 		// Execute code after marshalling.
-		if skip := p.h.AfterMarshalling(ctx, resource, resourceModel, yaml); skip {
+		if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
 			continue
 		}
 
-		resourceModels = append(resourceModels, resourceModel)
+		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
+
+		// Add resource manifest
+		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
+			Type:            int32(ctx.NodeType),
+			Uid:             string(resourceUID),
+			ResourceVersion: resourceVersion,
+			Content:         yaml,
+			Version:         "v1",
+			ContentType:     "json",
+		})
 	}
 
-	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceModels), ctx.Cfg.MaxPerMessage)
-	chunks := chunkResources(resourceModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk metadata messages and use resourceManifestModels as weight indicator
+	metadataChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, metadataChunker)
+	// Chunk manifest messages and use itself as weight indicator
+	manifestChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, manifestChunker)
 
-	messages = make([]model.MessageBody, 0, chunkCount)
+	chunkCount := len(metadataChunker.collectorOrchestratorList)
+	metadataMessages := make([]model.MessageBody, 0, len(metadataChunker.collectorOrchestratorList))
+	manifestMessages := make([]model.MessageBody, 0, len(manifestChunker.collectorOrchestratorList))
+
 	for i := 0; i < chunkCount; i++ {
-		messages = append(messages, p.h.BuildMessageBody(ctx, chunks[i], chunkCount))
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunker.collectorOrchestratorList[i], chunkCount))
+		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunker.collectorOrchestratorList[i], chunkCount))
 	}
 
-	return messages, len(resourceModels)
+	processResult = ProcessResult{
+		MetadataMessages: metadataMessages,
+		ManifestMessages: manifestMessages,
+	}
+
+	return processResult, len(resourceMetadataModels)
 }
 
-// chunkResources splits messages into groups of messages called chunks, knowing
-// the expected chunk count and size.
-func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]interface{} {
-	chunks := make([][]interface{}, 0, chunkCount)
+// build orchestrator manifest message
+func buildManifestMessageBody(kubeClusterName, clusterID string, msgGroupID int32, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 
-	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.ChunkRange(len(resources), chunkCount, chunkSize, counter)
-		chunks = append(chunks, resources[chunkStart:chunkEnd])
+	for _, m := range resourceManifests {
+		manifests = append(manifests, m.(*model.Manifest))
 	}
 
-	return chunks
+	return &model.CollectorManifest{
+		ClusterName: kubeClusterName,
+		ClusterId:   clusterID,
+		Manifests:   manifests,
+		GroupId:     msgGroupID,
+		GroupSize:   int32(groupSize),
+	}
 }

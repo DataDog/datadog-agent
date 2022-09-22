@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -66,7 +66,7 @@ func (c *CRIConfig) Parse(data []byte) error {
 // Configure parses the check configuration and init the check
 func (c *CRICheck) Configure(config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(config, source); err != nil {
+	if err = c.CommonConfigure(initConfig, config, source); err != nil {
 		return err
 	}
 

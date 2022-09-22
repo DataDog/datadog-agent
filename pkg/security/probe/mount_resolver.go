@@ -10,6 +10,8 @@ package probe
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/moby/sys/mountinfo"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -41,9 +42,8 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
 		for _, field := range strings.Split(mnt.Optional, " ") {
-			optionSplit := strings.SplitN(field, ":", 2)
-			if len(optionSplit) == 2 {
-				target, value := optionSplit[0], optionSplit[1]
+			target, value, found := strings.Cut(field, ":")
+			if found {
 				if target == "shared" || target == "master" {
 					groupID, err := strconv.ParseUint(value, 10, 32)
 					return uint32(groupID), err
@@ -113,9 +113,6 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 			continue
 		}
 		mr.insert(*e)
-
-		// init discarder revisions
-		mr.probe.inodeDiscarders.initRevision(e)
 	}
 
 	return nil
@@ -215,13 +212,11 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 
 	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
 		// do not insert an invalid value
-		return errors.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
+		return fmt.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
 	}
 
 	mr.insert(e)
 
-	// init discarder revisions
-	mr.probe.inodeDiscarders.initRevision(&e)
 	return nil
 }
 

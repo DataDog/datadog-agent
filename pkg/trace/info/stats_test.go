@@ -8,17 +8,18 @@ package info
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"go.uber.org/atomic"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTracesDropped(t *testing.T) {

@@ -55,6 +55,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
 	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
 	autogenNamespace := common.GetResourcesNamespace()
+	autogenEnabled := config.Datadog.GetBool("external_metrics_provider.enable_datadogmetric_autogen")
 
 	provider := &datadogMetricProvider{
 		apiCl:            apiCl,
@@ -76,7 +77,17 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	// Start AutoscalerWatcher, only leader will flag DatadogMetrics as Active/Inactive
 	// WPAInformerFactory is nil when WPA is not used. AutoscalerWatcher will check value itself.
-	autoscalerWatcher, err := NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours, autogenNamespace, apiCl.InformerFactory, apiCl.WPAInformerFactory, le.IsLeader, &provider.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(
+		refreshPeriod,
+		autogenEnabled,
+		autogenExpirationPeriodHours,
+		autogenNamespace,
+		apiCl.Cl,
+		apiCl.InformerFactory,
+		apiCl.WPAInformerFactory,
+		le.IsLeader,
+		&provider.store,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %v", err)
 	}

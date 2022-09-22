@@ -9,15 +9,17 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/zap"
+
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 var _ config.Exporter = (*exporterConfig)(nil)
@@ -59,12 +61,12 @@ type sourceProviderFunc func(context.Context) (string, error)
 
 // Source calls f and wraps in a source struct.
 func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
-	hostname, err := f(ctx)
+	hostnameIdentifier, err := f(ctx)
 	if err != nil {
 		return source.Source{}, err
 	}
 
-	return source.Source{Kind: source.HostnameKind, Identifier: hostname}, nil
+	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
 }
 
 // exporter translate OTLP metrics into the Datadog format and sends
@@ -87,7 +89,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	options := []translator.Option{
-		translator.WithFallbackSourceProvider(sourceProviderFunc(util.GetHostname)),
+		translator.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
 		translator.WithHistogramMode(histogramMode),
 		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
@@ -135,7 +137,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +158,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 	return &exporter{
 		tr:          tr,
 		s:           s,
-		hostname:    hostname,
+		hostname:    hname,
 		extraTags:   extraTags,
 		cardinality: cardinality,
 	}, nil

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerutilpkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -211,7 +212,7 @@ func (l *Launcher) run(sourceProvider launchers.SourceProvider, pipelineProvider
 
 // overrideSource create a new source with the image short name if the source is ContainerCollectAll
 func (l *Launcher) overrideSource(container *Container, source *sources.LogSource) *sources.LogSource {
-	standardService := l.serviceNameFunc(container.container.Name, dockerutilpkg.ContainerIDToTaggerEntityName(container.container.ID))
+	standardService := l.serviceNameFunc(container.container.Name, containers.BuildTaggerEntityName(container.container.ID))
 	if source.Name != config.ContainerCollectAll {
 		if source.Config.Service == "" && standardService != "" {
 			source.Config.Service = standardService
@@ -255,7 +256,7 @@ func (l *Launcher) getFileSource(container *Container, source *sources.LogSource
 		source.RegisterInfo(sourceInfo)
 	}
 
-	standardService := l.serviceNameFunc(container.container.Name, dockerutilpkg.ContainerIDToTaggerEntityName(containerID))
+	standardService := l.serviceNameFunc(container.container.Name, containers.BuildTaggerEntityName(containerID))
 	shortName, err := container.getShortImageName(context.TODO())
 	if err != nil {
 		log.Warnf("Could not get short image name for container %v: %v", dockerutilpkg.ShortContainerID(containerID), err)

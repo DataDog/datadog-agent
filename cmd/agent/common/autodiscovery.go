@@ -7,7 +7,8 @@ package common
 
 import (
 	"context"
-	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -99,11 +100,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 
 			pollInterval := providers.GetPollInterval(cp)
-			if cp.Polling {
-				log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
-			} else {
-				log.Infof("Registering %s config provider", cp.Name)
-			}
 			ad.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 		} else {
 			log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
@@ -183,33 +179,99 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	return ad
 }
 
-// WaitForConfigs retries the collection of Autodiscovery configs until the checkMatcher function (which
-// defines whether the list of integration configs collected is sufficient) returns true or the timeout is reached.
-// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
-// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
-// This function improves the resiliency of the check command.
-// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
-func WaitForConfigs(retryInterval, timeout time.Duration, checkMatcher func([]integration.Config) bool) []integration.Config {
-	allConfigs := AC.GetAllConfigs()
-	if checkMatcher(allConfigs) {
-		return allConfigs
-	}
+// schedulerFunc is a type alias to allow a function to be used as an AD scheduler
+type schedulerFunc func([]integration.Config)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+// Schedule implements scheduler.Scheduler#Schedule.
+func (sf schedulerFunc) Schedule(configs []integration.Config) {
+	sf(configs)
+}
 
-	retryTicker := time.NewTicker(retryInterval)
-	defer retryTicker.Stop()
+// Unschedule implements scheduler.Scheduler#Unschedule.
+func (sf schedulerFunc) Unschedule(configs []integration.Config) {
+	// (do nothing)
+}
 
-	for {
+// Stop implements scheduler.Scheduler#Stop.
+func (sf schedulerFunc) Stop() {
+}
+
+// WaitForConfigsFromAD waits until a count of discoveryMinInstances configs
+// with names in checkNames are scheduled by AD, and returns the matches.
+//
+// If the context is cancelled, then any accumulated, matching changes are
+// returned, even if that is fewer than discoveryMinInstances.
+func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
+	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances)
+}
+
+// WaitForAllConfigsFromAD waits until its context expires, and then returns
+// the full set of checks scheduled by AD.
+func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config) {
+	return waitForConfigsFromAD(ctx, true, []string{}, 0)
+}
+
+// waitForConfigsFromAD waits for configs from the AD scheduler and returns them.
+//
+// AD scheduling is asynchronous, so this is a time-based process.
+//
+// If wildcard is false, this waits until at least discoveryMinInstances
+// configs with names in checkNames are scheduled by AD, and returns the
+// matches.  If the context is cancelled before that occurs, then any
+// accumulated configs are returned, even if that is fewer than
+// discoveryMinInstances.
+//
+// If wildcard is true, this gathers all configs scheduled before the context
+// is cancelled, and then returns.  It will not return before the context is
+// cancelled.
+func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
+	configChan := make(chan integration.Config)
+
+	// signal to the scheduler when we are no longer waiting, so we do not continue
+	// to push items to configChan
+	waiting := atomic.NewBool(true)
+	defer func() {
+		waiting.Store(false)
+		// ..and drain any message currently pending in the channel
 		select {
-		case <-ctx.Done():
-			return allConfigs
-		case <-retryTicker.C:
-			allConfigs = AC.GetAllConfigs()
-			if checkMatcher(allConfigs) {
-				return allConfigs
+		case <-configChan:
+		default:
+		}
+	}()
+
+	var match func(cfg integration.Config) bool
+	if wildcard {
+		// match all configs
+		match = func(integration.Config) bool { return true }
+	} else {
+		// match configs with names in checkNames
+		match = func(cfg integration.Config) bool {
+			for _, checkName := range checkNames {
+				if cfg.Name == checkName {
+					return true
+				}
 			}
+			return false
 		}
 	}
+
+	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
+	// placing items in configChan
+	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+		for _, cfg := range configs {
+			if match(cfg) && waiting.Load() {
+				configChan <- cfg
+			}
+		}
+	}), true)
+
+	for wildcard || len(configs) < discoveryMinInstances {
+		select {
+		case cfg := <-configChan:
+			configs = append(configs, cfg)
+		case <-ctx.Done():
+			return
+		}
+	}
+	return
 }

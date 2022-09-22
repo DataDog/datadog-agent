@@ -9,14 +9,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
+	payload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
@@ -25,11 +28,13 @@ import (
 )
 
 var (
-	pullInterval time.Duration
+	pullInterval     time.Duration
+	eventsOutputJSON bool
 )
 
 const (
-	defaultPullInterval = time.Duration(5) * time.Second
+	defaultPullInterval     = time.Duration(5) * time.Second
+	defaultEventsOutputJSON = false
 )
 
 // EventsCmd is a command to interact with process lifecycle events
@@ -57,6 +62,8 @@ var EventsPullCmd = &cobra.Command{
 
 func init() {
 	EventsCmd.AddCommand(EventsListenCmd, EventsPullCmd)
+	EventsListenCmd.Flags().BoolVar(&eventsOutputJSON, "json", defaultEventsOutputJSON, "Output events as JSON")
+	EventsPullCmd.Flags().BoolVar(&eventsOutputJSON, "json", defaultEventsOutputJSON, "Output events as JSON")
 	EventsPullCmd.Flags().DurationVarP(&pullInterval, "tick", "t", defaultPullInterval, "The period between 2 consecutive pulls to fetch process events")
 }
 
@@ -88,12 +95,32 @@ func bootstrapEventsCmd(cmd *cobra.Command) error {
 	return nil
 }
 
-func printEvent(e *model.ProcessEvent) {
-	b, err := json.MarshalIndent(e, "", "  ")
-	if err != nil {
-		log.Errorf("Error while marshalling process event: %v", err)
+func printEvents(events ...*model.ProcessEvent) error {
+	// Return early to avoid printing new lines without any event
+	if len(events) == 0 {
+		return nil
 	}
-	fmt.Println(string(b))
+
+	if eventsOutputJSON {
+		return printEventsJSON(events)
+	}
+
+	fmtEvents := checks.FmtProcessEvents(events)
+	procCollector := &payload.CollectorProcEvent{Events: fmtEvents}
+	msgs := []payload.MessageBody{procCollector}
+	return checks.HumanFormatProcessEvents(msgs, os.Stdout, false)
+}
+
+func printEventsJSON(events []*model.ProcessEvent) error {
+	for _, e := range events {
+		b, err := json.MarshalIndent(e, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal error: %s", err)
+		}
+		fmt.Println(string(b))
+	}
+
+	return nil
 }
 
 func runEventListener(cmd *cobra.Command, args []string) error {
@@ -104,7 +131,10 @@ func runEventListener(cmd *cobra.Command, args []string) error {
 
 	// Create a handler to print the collected event to stdout
 	handler := func(e *model.ProcessEvent) {
-		printEvent(e)
+		err = printEvents(e)
+		if err != nil {
+			log.Error(err)
+		}
 	}
 
 	l, err := events.NewListener(handler)
@@ -160,8 +190,9 @@ func runEventStore(cmd *cobra.Command, args []string) error {
 					continue
 				}
 
-				for _, e := range events {
-					printEvent(e)
+				err = printEvents(events...)
+				if err != nil {
+					log.Error(err)
 				}
 			case <-exit:
 				return

@@ -10,8 +10,9 @@ package dns
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,8 +67,8 @@ type dnsStatKeeper struct {
 	numStats         int
 	maxStats         int
 	droppedStats     int
-	lastNumStats     int32
-	lastDroppedStats int32
+	lastNumStats     *atomic.Int32
+	lastDroppedStats *atomic.Int32
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
@@ -78,6 +79,8 @@ func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 		exit:             make(chan struct{}),
 		maxSize:          maxStateMapSize,
 		maxStats:         maxStats,
+		lastNumStats:     atomic.NewInt32(0),
+		lastDroppedStats: atomic.NewInt32(0),
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -166,8 +169,8 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 }
 
 func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
-	numStats := atomic.LoadInt32(&d.lastNumStats)
-	droppedStats := atomic.LoadInt32(&d.lastDroppedStats)
+	numStats := d.lastNumStats.Load()
+	droppedStats := d.lastDroppedStats.Load()
 	return numStats, droppedStats
 }
 
@@ -177,8 +180,8 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
-	atomic.StoreInt32(&d.lastNumStats, int32(d.numStats))
-	atomic.StoreInt32(&d.lastDroppedStats, int32(d.droppedStats))
+	d.lastNumStats.Store(int32(d.numStats))
+	d.lastDroppedStats.Store(int32(d.droppedStats))
 	d.numStats = 0
 	d.droppedStats = 0
 	return ret

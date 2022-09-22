@@ -12,17 +12,50 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// EventType represents the type of the process lifecycle event
+type EventType int32
+
 const (
-	Exec = "exec"
-	Fork = "fork"
-	Exit = "exit"
+	// Fork represents a process fork event
+	Fork EventType = iota
+	// Exec represents a process exec event
+	Exec
+	// Exit represents a process exit event
+	Exit
 )
+
+// String returns the string representation of an EventType
+func (e EventType) String() string {
+	switch e {
+	case Fork:
+		return "fork"
+	case Exec:
+		return "exec"
+	case Exit:
+		return "exit"
+	}
+	return "unknown"
+}
+
+// NewEventType returns the EventType associated with a string
+func NewEventType(eventType string) EventType {
+	switch eventType {
+	case Fork.String():
+		return Fork
+	case Exec.String():
+		return Exec
+	case Exit.String():
+		return Exit
+	}
+	return -1
+}
 
 // ProcessEvent is a common interface for collected process events shared across multiple event listener implementations
 type ProcessEvent struct {
-	EventType      string    `json:"event_type"`
+	EventType      EventType `json:"event_type"`
 	CollectionTime time.Time `json:"collection_time"`
 	Pid            uint32    `json:"pid"`
+	ContainerID    string    `json:"container_id"`
 	Ppid           uint32    `json:"ppid"`
 	UID            uint32    `json:"uid"`
 	GID            uint32    `json:"gid"`
@@ -33,24 +66,16 @@ type ProcessEvent struct {
 	ForkTime       time.Time `json:"fork_time,omitempty"`
 	ExecTime       time.Time `json:"exec_time,omitempty"`
 	ExitTime       time.Time `json:"exit_time,omitempty"`
+	ExitCode       uint32    `json:"exit_code,omitempty"`
 }
 
-// NewMockedProcessEvent creates a mocked ProcessEvent for tests
-func NewMockedProcessEvent(evtType string, ts time.Time, pid uint32, exe string, args []string) *ProcessEvent {
-	var forkTime, execTime, exitTime time.Time
-	switch evtType {
-	case Fork:
-		forkTime = ts
-	case Exec:
-		execTime = ts
-	case Exit:
-		exitTime = ts
-	}
-
+// NewMockedForkEvent creates a mocked Fork event for tests
+func NewMockedForkEvent(ts time.Time, pid uint32, exe string, args []string) *ProcessEvent {
 	return &ProcessEvent{
-		EventType:      evtType,
+		EventType:      Fork,
 		CollectionTime: time.Now(),
 		Pid:            pid,
+		ContainerID:    "01234567890abcedf",
 		Ppid:           1,
 		UID:            100,
 		GID:            100,
@@ -58,9 +83,47 @@ func NewMockedProcessEvent(evtType string, ts time.Time, pid uint32, exe string,
 		Group:          "dd-agent",
 		Exe:            exe,
 		Cmdline:        args,
-		ForkTime:       forkTime,
-		ExecTime:       execTime,
-		ExitTime:       exitTime,
+		ForkTime:       ts,
+	}
+}
+
+// NewMockedExecEvent creates a mocked Exec event for tests
+func NewMockedExecEvent(ts time.Time, pid uint32, exe string, args []string) *ProcessEvent {
+	return &ProcessEvent{
+		EventType:      Exec,
+		CollectionTime: time.Now(),
+		Pid:            pid,
+		ContainerID:    "01234567890abcedf",
+		Ppid:           1,
+		UID:            100,
+		GID:            100,
+		Username:       "dog",
+		Group:          "dd-agent",
+		Exe:            exe,
+		Cmdline:        args,
+		ForkTime:       ts,
+		ExecTime:       ts,
+	}
+}
+
+// NewMockedExitEvent creates a mocked Exit event for tests
+func NewMockedExitEvent(ts time.Time, pid uint32, exe string, args []string, code uint32) *ProcessEvent {
+	return &ProcessEvent{
+		EventType:      Exit,
+		CollectionTime: time.Now(),
+		Pid:            pid,
+		ContainerID:    "01234567890abcedf",
+		Ppid:           1,
+		UID:            100,
+		GID:            100,
+		Username:       "dog",
+		Group:          "dd-agent",
+		Exe:            exe,
+		Cmdline:        args,
+		ForkTime:       ts.Add(-10 * time.Second),
+		ExecTime:       ts.Add(-10 * time.Second),
+		ExitTime:       ts,
+		ExitCode:       code,
 	}
 }
 
@@ -72,6 +135,7 @@ func AssertProcessEvents(t *testing.T, expected, actual *ProcessEvent) {
 	assert.Equal(t, expected.EventType, actual.EventType)
 	assert.WithinDuration(t, expected.CollectionTime, actual.CollectionTime, 0)
 	assert.Equal(t, expected.Pid, actual.Pid)
+	assert.Equal(t, expected.ContainerID, actual.ContainerID)
 	assert.Equal(t, expected.Ppid, actual.Ppid)
 	assert.Equal(t, expected.UID, actual.UID)
 	assert.Equal(t, expected.GID, actual.GID)
@@ -82,4 +146,5 @@ func AssertProcessEvents(t *testing.T, expected, actual *ProcessEvent) {
 	assert.WithinDuration(t, expected.ForkTime, actual.ForkTime, 0)
 	assert.WithinDuration(t, expected.ExecTime, actual.ExecTime, 0)
 	assert.WithinDuration(t, expected.ExitTime, actual.ExitTime, 0)
+	assert.Equal(t, expected.ExitCode, actual.ExitCode)
 }

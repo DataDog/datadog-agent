@@ -31,7 +31,7 @@ var (
 
 	// mmapFlagConstants are the supported flags for the mmap syscall on amd64
 	// generate_constants:MMap flags,MMap flags are the supported flags for the mmap syscall.
-	mmapFlagArchConstants = map[string]int{
+	mmapFlagArchConstants = map[string]uint64{
 		"MAP_32BIT": unix.MAP_32BIT, /* only give out 32bit addresses */
 	}
 )

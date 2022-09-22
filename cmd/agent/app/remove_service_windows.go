@@ -8,10 +8,11 @@ package app
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func init() {

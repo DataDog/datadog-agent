@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
@@ -119,6 +118,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	containerID := req.Header.Get(headerContainerID)
 	contentType := req.Header.Get("Content-Type")
 	userAgent := req.Header.Get("User-Agent")
+	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
@@ -135,11 +135,15 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
+	if needsAppKey && t.conf.EVPProxy.ApplicationKey == "" {
+		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
+	}
+
 	// We don't want to forward arbitrary headers, clear them
 	req.Header = http.Header{}
 
 	// Set standard headers
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -151,6 +155,10 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
+	req.Header.Set(headerContainerID, containerID)
+	if needsAppKey {
+		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
+	}
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"

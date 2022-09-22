@@ -9,11 +9,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/stretchr/testify/mock"
-	assert "github.com/stretchr/testify/require"
 )
 
 type regoInputFixture struct {
@@ -37,7 +38,7 @@ func (f *regoInputFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, nil, &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 

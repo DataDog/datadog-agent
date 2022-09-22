@@ -56,7 +56,7 @@ func (ad *ActivityDump) generateDNSRule(dns *DNSNode, activityNode *ProcessActiv
 	var rules []ProfileRule
 
 	if dns != nil {
-		for _, req := range dns.requests {
+		for _, req := range dns.Requests {
 			rule := NewProfileRule(fmt.Sprintf(
 				"dns.question.name == \"%s\" && dns.question.type == \"%s\"",
 				req.Name,
@@ -69,6 +69,40 @@ func (ad *ActivityDump) generateDNSRule(dns *DNSNode, activityNode *ProcessActiv
 			}
 			rules = append(rules, rule)
 		}
+	}
+
+	return rules
+}
+
+func (ad *ActivityDump) generateBindRule(sock *SocketNode, activityNode *ProcessActivityNode,
+	ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
+	var rules []ProfileRule
+
+	if sock != nil {
+		var socketRules []ProfileRule
+		if len(sock.Bind) > 0 {
+			for _, bindNode := range sock.Bind {
+				socketRules = append(socketRules, NewProfileRule(fmt.Sprintf(
+					"bind.addr.family == %s && bind.addr.ip in %s/32 && bind.addr.port == %d",
+					sock.Family, bindNode.IP, bindNode.Port),
+					ruleIDPrefix,
+				))
+			}
+		} else {
+			socketRules = []ProfileRule{NewProfileRule(fmt.Sprintf("bind.addr.family == %s", sock.Family),
+				ruleIDPrefix,
+			)}
+		}
+
+		for i := range socketRules {
+			socketRules[i].Expression += fmt.Sprintf(" && process.file.path == \"%s\"",
+				activityNode.Process.FileEvent.PathnameStr)
+			for _, parent := range ancestors {
+				socketRules[i].Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"",
+					parent.Process.FileEvent.PathnameStr)
+			}
+		}
+		rules = append(rules, socketRules...)
 	}
 
 	return rules
@@ -133,6 +167,12 @@ func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*Pr
 	for _, dns := range node.DNSNames {
 		dnsRules := ad.generateDNSRule(dns, node, ancestors, ruleIDPrefix)
 		rules = append(rules, dnsRules...)
+	}
+
+	// add Bind rules
+	for _, sock := range node.Sockets {
+		bindRules := ad.generateBindRule(sock, node, ancestors, ruleIDPrefix)
+		rules = append(rules, bindRules...)
 	}
 
 	// add children rules recursively

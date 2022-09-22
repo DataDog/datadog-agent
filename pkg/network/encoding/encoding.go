@@ -9,11 +9,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gogo/protobuf/jsonpb"
+
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gogo/protobuf/jsonpb"
 )
 
 var (

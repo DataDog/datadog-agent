@@ -1343,6 +1343,37 @@ func TestOpOverridePartials(t *testing.T) {
 	}
 }
 
+func TestFieldValues(t *testing.T) {
+	tests := []struct {
+		Expr     string
+		Field    string
+		Expected FieldValue
+	}{
+		{Expr: `process.name == "/proc/1/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/maps", Type: ScalarValueType}},
+		{Expr: `process.name =~ "/proc/1/*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/*", Type: GlobValueType}},
+		{Expr: `process.name =~ r"/proc/1/.*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/.*", Type: RegexpValueType}},
+		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/${pid}/maps", Type: VariableValueType}},
+		{Expr: `open.filename =~ "/proc/1/*"`, Field: "open.filename", Expected: FieldValue{Value: "/proc/1/*", Type: PatternValueType}},
+	}
+
+	for _, test := range tests {
+		model := &testModel{}
+
+		replCtx := newReplCtxWithParams(testConstants, nil)
+		rule, err := parseRule(test.Expr, model, replCtx)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		values := rule.GetFieldValues(test.Field)
+		if len(values) != 1 {
+			t.Fatalf("expected field value not found: %+v", test.Expected)
+		}
+		if values[0].Type != test.Expected.Type || values[0].Value != test.Expected.Value {
+			t.Errorf("field values differ %+v != %+v", test.Expected, values[0])
+		}
+	}
+}
+
 func BenchmarkArray(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{

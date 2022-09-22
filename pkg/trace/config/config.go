@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -266,6 +266,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string
+	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
+	ApplicationKey string
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -288,6 +290,7 @@ type DebuggerProxyConfig struct {
 type AgentConfig struct {
 	Enabled      bool
 	AgentVersion string
+	GitCommit    string
 	Site         string // the intake site to use (e.g. "datadoghq.com")
 
 	// FargateOrchestrator specifies the name of the Fargate orchestrator. e.g. "ECS", "EKS", "Unknown"
@@ -309,12 +312,17 @@ type AgentConfig struct {
 	ExtraAggregators []string
 
 	// Sampler configuration
-	ExtraSampleRate    float64
-	TargetTPS          float64
-	ErrorTPS           float64
-	DisableRareSampler bool
-	MaxEPS             float64
-	MaxRemoteTPS       float64
+	ExtraSampleRate float64
+	TargetTPS       float64
+	ErrorTPS        float64
+	MaxEPS          float64
+	MaxRemoteTPS    float64
+
+	// Rare Sampler configuation
+	RareSamplerDisabled       bool
+	RareSamplerTPS            int
+	RareSamplerCooldownPeriod time.Duration
+	RareSamplerCardinality    int
 
 	// Receiver
 	ReceiverHost    string
@@ -337,6 +345,7 @@ type AgentConfig struct {
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
+	StatsdEnabled  bool
 	StatsdHost     string
 	StatsdPort     int
 	StatsdPipeName string // for Windows Pipes
@@ -407,23 +416,22 @@ type AgentConfig struct {
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
-	// RemoteSamplingClient ...
+	// RemoteSamplingClient retrieves sampling updates from the remote config backend
 	RemoteSamplingClient RemoteClient
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+
+	// ContainerProcRoot is the root dir for `proc` info
+	ContainerProcRoot string
 }
 
-// RemoteClient client is used to APM Sampling Updates from a remote source. Within the Datadog Agent
-// the implementation is (cmd/trace-agent.remoteClient).
+// RemoteClient client is used to APM Sampling Updates from a remote source.
+// This is an interface around the client provided by pkg/config/remote to allow for easier testing.
 type RemoteClient interface {
-	SamplingUpdates() <-chan SamplingUpdate
 	Close()
-}
-
-// SamplingUpdate ...
-type SamplingUpdate struct {
-	Configs map[string]client.ConfigAPMSamling
+	Start()
+	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
 }
 
 // Tag represents a key/value pair.
@@ -449,6 +457,11 @@ func New() *AgentConfig {
 		MaxEPS:          200,
 		MaxRemoteTPS:    100,
 
+		RareSamplerDisabled:       false,
+		RareSamplerTPS:            5,
+		RareSamplerCooldownPeriod: 5 * time.Minute,
+		RareSamplerCardinality:    200,
+
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
 		MaxRequestBytes:        50 * 1024 * 1024, // 50MB
@@ -460,8 +473,9 @@ func New() *AgentConfig {
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
 
-		StatsdHost: "localhost",
-		StatsdPort: 8125,
+		StatsdHost:    "localhost",
+		StatsdPort:    8125,
+		StatsdEnabled: true,
 
 		LogThrottling: true,
 

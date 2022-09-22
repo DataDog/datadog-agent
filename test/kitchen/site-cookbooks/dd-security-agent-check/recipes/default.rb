@@ -8,8 +8,11 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  directory wrk_dir do
-    recursive true
+  remote_directory "#{wrk_dir}/ebpf_bytecode" do
+    source 'ebpf_bytecode'
+    sensitive true
+    files_owner 'root'
+    owner 'root'
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
@@ -68,6 +71,11 @@ if node['platform_family'] != 'windows'
     action :load
   end
 
+  # Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
+  # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
+  package 'python3'
+  package 'perl'
+
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     if ['ubuntu', 'debian'].include?(node[:platform])
       apt_update
@@ -106,19 +114,19 @@ if node['platform_family'] != 'windows'
       end
     end
 
+    # Please see https://github.com/paulcacheux/cws-buildimages/blob/main/Dockerfile
+    # for the definition of this base image.
+    # If this successfully helps in reducing the amount of rate limits, this should be moved
+    # to DataDog/datadog-agent-buildimages.
     file "#{wrk_dir}/Dockerfile" do
       content <<-EOF
-      FROM centos:7
-
-      ENV DOCKER_DD_AGENT=yes
+      FROM ghcr.io/paulcacheux/cws-centos7@sha256:4fc1aac178b5c1690ce71c37f22b8a23cedfb969c7056702c21be50e848e554f
 
       ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
 
-      RUN mkdir -p /opt/datadog-agent/embedded/bin
       COPY clang-bpf /opt/datadog-agent/embedded/bin/
       COPY llc-bpf /opt/datadog-agent/embedded/bin/
 
-      RUN yum -y install xfsprogs e2fsprogs iproute
       CMD sleep 7200
       EOF
       action :create
@@ -180,5 +188,18 @@ if node['platform_family'] != 'windows'
       action :create_if_missing
       content "integrity"
     end
+  end
+
+  # system-probe common
+
+  system_probe_tests_folder = '/tmp/system-probe-tests'
+
+  directory system_probe_tests_folder do
+    recursive true
+  end
+
+  file "#{system_probe_tests_folder}/color_idx" do
+    content node[:color_idx].to_s
+    mode 644
   end
 end
