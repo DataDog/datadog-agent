@@ -38,9 +38,7 @@ var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_
 type EBPFTelemetry struct {
 	MapErrMap    *ebpf.Map
 	HelperErrMap *ebpf.Map
-	maps         []string
 	mapKeys      map[string]uint64
-	probes       []string
 	probeKeys    map[string]uint64
 }
 
@@ -52,24 +50,20 @@ func NewEBPFTelemetry() *EBPFTelemetry {
 	}
 }
 
-// RegisterMaps registers a ebpf map entry in the map error telemetry map,
-// to have failing operation telemetry recorded.
-func (b *EBPFTelemetry) RegisterMaps(maps []string) error {
+// RegisterEBPFTelemetry initializes the maps for holding telemetry info
+func (b *EBPFTelemetry) RegisterEBPFTelemetry(m *manager.Manager) error {
 	if b == nil {
 		return nil
 	}
-	b.maps = append(b.maps, maps...)
-	return b.initializeMapErrTelemetryMap()
-}
 
-// RegisterProbes registers a ebpf map entry in the helper error telemetry map,
-// to have failing helper operation telemetry recorded.
-func (b *EBPFTelemetry) RegisterProbes(probes []string) error {
-	if b == nil {
-		return nil
+	if err := b.initializeMapErrTelemetryMap(m.Maps); err != nil {
+		return err
 	}
-	b.probes = append(b.probes, probes...)
-	return b.initializeHelperErrTelemetryMap()
+	if err := b.initializeHelperErrTelemetryMap(m.Probes); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
@@ -200,39 +194,39 @@ func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor 
 	return keys
 }
 
-func (b *EBPFTelemetry) initializeMapErrTelemetryMap() error {
+func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
 	z := new(MapErrTelemetry)
 	h := fnv.New64a()
 
-	for _, m := range b.maps {
-		h.Write([]byte(m))
+	for _, m := range maps {
+		h.Write([]byte(m.Name))
 		key := h.Sum64()
 		err := b.MapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
 		if err != nil {
-			return fmt.Errorf("failed to initialize telemetry struct for map %s", m)
+			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
 		h.Reset()
 
-		b.mapKeys[m] = key
+		b.mapKeys[m.Name] = key
 	}
 
 	return nil
 }
 
-func (b *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
+func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe) error {
 	z := new(HelperErrTelemetry)
 	h := fnv.New64a()
 
-	for _, p := range b.probes {
-		h.Write([]byte(p))
+	for _, p := range probes {
+		h.Write([]byte(p.EBPFFuncName))
 		key := h.Sum64()
 		err := b.HelperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
 		if err != nil {
-			return fmt.Errorf("failed to initialize telemetry struct for map %s", p)
+			return fmt.Errorf("failed to initialize telemetry struct for map %s", p.EBPFFuncName)
 		}
 		h.Reset()
 
-		b.probeKeys[p] = key
+		b.probeKeys[p.EBPFFuncName] = key
 	}
 
 	return nil

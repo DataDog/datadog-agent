@@ -52,7 +52,7 @@ const (
 )
 
 type ebpfProgram struct {
-	*manager.Manager
+	Manager     *manager.Manager
 	cfg         *config.Config
 	bytecode    bytecode.AssetReader
 	offsets     []manager.ConstantEditor
@@ -240,7 +240,7 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err = e.InitWithOptions(e.bytecode, options)
+	err = e.Manager.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -274,7 +274,7 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
-	httpMap, _, _ := e.GetMap(httpInFlightMap)
+	httpMap, _, _ := e.Manager.GetMap(httpInFlightMap)
 	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)

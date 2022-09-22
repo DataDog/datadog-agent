@@ -71,7 +71,7 @@ func newTelemetry() telemetry {
 }
 
 // New creates a new tracer
-func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
+func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -191,6 +191,15 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
+	}
+
+	if bpfTelemetry != nil {
+		bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
+		bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
+	}
+
+	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
 
 	return tr, nil
@@ -402,27 +411,6 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 	return t.m.DumpMaps(maps...)
-}
-
-// GetAllMapsNames returns the names of the maps managed by the manager
-func (t *kprobeTracer) GetAllMapsNames() []string {
-	var names []string
-
-	for _, m := range t.m.Maps {
-		names = append(names, m.Name)
-	}
-
-	return names
-}
-
-// GetAllProbesNames returns the names of the probes managed by the manager
-func (t *kprobeTracer) GetAllProbesNames() []string {
-	var names []string
-	for _, p := range t.m.Probes {
-		names = append(names, p.EBPFFuncName)
-	}
-
-	return names
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {

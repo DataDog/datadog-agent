@@ -19,6 +19,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 // MonitorStats is used for holding two kinds of stats:
@@ -53,7 +54,12 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, errMap, helperErrMap *ebpf.Map) (*Monitor, error) {
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	var errMap, helperErrMap *ebpf.Map
+	if bpfTelemetry != nil {
+		errMap = bpfTelemetry.MapErrMap
+		helperErrMap = bpfTelemetry.HelperErrMap
+	}
 	mgr, err := newEBPFProgram(c, offsets, sockFD, errMap, helperErrMap)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
@@ -63,7 +69,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID})
+	filter, _ := mgr.Manager.GetProbe(manager.ProbeIdentificationPair{EBPFSection: httpSocketFilterStub, EBPFFuncName: "socket__http_filter_entry", UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -73,12 +79,12 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	batchMap, _, err := mgr.GetMap(httpBatchesMap)
+	batchMap, _, err := mgr.Manager.GetMap(httpBatchesMap)
 	if err != nil {
 		return nil, err
 	}
 
-	batchEventsMap, _, _ := mgr.GetMap(httpBatchEvents)
+	batchEventsMap, _, _ := mgr.Manager.GetMap(httpBatchEvents)
 	numCPUs := int(batchEventsMap.MaxEntries())
 
 	telemetry, err := newTelemetry()
@@ -96,6 +102,10 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	batchManager, err := newBatchManager(batchMap, numCPUs)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
+	}
+
+	if err := bpfTelemetry.RegisterEBPFTelemetry(mgr.Manager); err != nil {
+		return nil, fmt.Errorf("could not register ebpf telemetry: %v", err)
 	}
 
 	return &Monitor{
@@ -236,22 +246,4 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.Manager.DumpMaps(maps...)
-}
-
-func (m *Monitor) GetAllMapsNames() []string {
-	var names []string
-	for _, m := range m.ebpfProgram.Maps {
-		names = append(names, m.Name)
-	}
-
-	return names
-}
-
-func (m *Monitor) GetAllProbesNames() []string {
-	var names []string
-	for _, p := range m.ebpfProgram.Probes {
-		names = append(names, p.EBPFFuncName)
-	}
-
-	return names
 }

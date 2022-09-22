@@ -144,23 +144,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	ebpfTracer, err := kprobe.New(config, constantEditors)
-	if err != nil {
-		return nil, err
-	}
-
 	var bpfTelemetry *errtelemetry.EBPFTelemetry
 	if usmSupported {
 		bpfTelemetry = errtelemetry.NewEBPFTelemetry()
-		bpfTelemetry.MapErrMap = ebpfTracer.GetMap(string(probes.MapErrTelemetryMap))
-		bpfTelemetry.HelperErrMap = ebpfTracer.GetMap(string(probes.HelperErrTelemetryMap))
 	}
-
-	if err := bpfTelemetry.RegisterMaps(ebpfTracer.GetAllMapsNames()); err != nil {
-		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
-	}
-	if err := bpfTelemetry.RegisterProbes(ebpfTracer.GetAllProbesNames()); err != nil {
-		return nil, fmt.Errorf("error registering maps telemetry: %v", err)
+	ebpfTracer, err := kprobe.New(config, constantEditors, bpfTelemetry)
+	if err != nil {
+		return nil, err
 	}
 
 	conntracker, err := newConntracker(config, bpfTelemetry)
@@ -811,23 +801,9 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *er
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
 
-	var mapErr *ebpf.Map
-	var helperErr *ebpf.Map
-	if bpfTelemetry != nil {
-		mapErr = bpfTelemetry.MapErrMap
-		helperErr = bpfTelemetry.HelperErrMap
-	}
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, mapErr, helperErr)
+	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
-		return nil
-	}
-	if err := bpfTelemetry.RegisterMaps(monitor.GetAllMapsNames()); err != nil {
-		log.Errorf("could not register maps for telemetry: %v", err)
-		return nil
-	}
-	if err := bpfTelemetry.RegisterProbes(monitor.GetAllProbesNames()); err != nil {
-		log.Errorf("could not register maps for telemetry: %v", err)
 		return nil
 	}
 

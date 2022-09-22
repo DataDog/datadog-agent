@@ -98,11 +98,8 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		return nil, err
 	}
 	if bpfTelemetry != nil {
-		if err := bpfTelemetry.RegisterMaps(getAllMapsNames(m)); err != nil {
-			return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
-		}
-		if err := bpfTelemetry.RegisterProbes(getAllProbesNames(m)); err != nil {
-			return nil, fmt.Errorf("could not register maps for telemetry: %v", err)
+		if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+			return nil, fmt.Errorf("could not register ebpf telemetry: %v", err)
 		}
 	}
 
