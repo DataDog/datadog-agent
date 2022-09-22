@@ -99,7 +99,6 @@ func (lo *lambdaOrchestrator) WaitForExtensionLifecycle() {
 		}
 		if lo.hasHitFlushRoute.Load() || lo.hasHitEndInvocation.Load() {
 			log.Debug("[orchestrator] WaitForExtensionLifecycle unblocked")
-			lo.Reset()
 			return
 		}
 	}
@@ -107,7 +106,7 @@ func (lo *lambdaOrchestrator) WaitForExtensionLifecycle() {
 
 // IsFlushPossible tells whether or not a flush can be performed
 func (lo *lambdaOrchestrator) IsFlushPossible() bool {
-	return lo.hasReceivedRuntimeDone.Load()
+	return lo.hasReceivedRuntimeDone.Load() || lo.hasHitFlushRoute.Load() || lo.hasHitEndInvocation.Load()
 }
 
 // CanAcceptTraces is blocking. Wait for an Invoke event

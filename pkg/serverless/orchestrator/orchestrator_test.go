@@ -190,9 +190,21 @@ func TestIsFlushPossibleFalse(t *testing.T) {
 	assert.False(t, orchestrator.IsFlushPossible())
 }
 
-func TestIsFlushPossibleTrue(t *testing.T) {
+func TestIsFlushPossibleTrueWithRuntimeDone(t *testing.T) {
 	orchestrator := NewLambdaOrchestrator()
 	orchestrator.RuntimeDoneReceived()
+	assert.True(t, orchestrator.IsFlushPossible())
+}
+
+func TestIsFlushPossibleTrueWithFlushRoute(t *testing.T) {
+	orchestrator := NewLambdaOrchestrator()
+	orchestrator.HitFlushRoute()
+	assert.True(t, orchestrator.IsFlushPossible())
+}
+
+func TestIsFlushPossibleTrueWithHitEndInvocation(t *testing.T) {
+	orchestrator := NewLambdaOrchestrator()
+	orchestrator.HitEndInvocation()
 	assert.True(t, orchestrator.IsFlushPossible())
 }
 

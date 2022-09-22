@@ -237,6 +237,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 			daemon.TriggerFlush(false)
 		}
 	}
+	daemon.Orchestrator.Reset()
 	doneChannel <- true
 }
 
