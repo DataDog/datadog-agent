@@ -26,14 +26,14 @@ type Launcher struct {
 	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
-	tailers          []*tailer.Tailer
+	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
 }
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
 	return &Launcher{
-		tailers: []*tailer.Tailer{},
+		tailers: make(map[string]*tailer.Tailer),
 		stop:    make(chan struct{}),
 	}
 }
@@ -51,11 +51,16 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
+			identifier := source.Config.Path
+			if _, exists := l.tailers[identifier]; exists {
+				// set up only one tailer per journal
+				continue
+			}
 			tailer, err := l.setupTailer(source)
 			if err != nil {
 				log.Warn("Could not set up journald tailer: ", err)
 			} else {
-				l.tailers = append(l.tailers, tailer)
+				l.tailers[identifier] = tailer
 			}
 		case <-l.stop:
 			return
@@ -67,10 +72,10 @@ func (l *Launcher) run() {
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
 	stopper := startstop.NewParallelStopper()
-	for _, tailer := range l.tailers {
+	for identifier, tailer := range l.tailers {
 		stopper.Add(tailer)
+		delete(l.tailers, identifier)
 	}
-	l.tailers = []*tailer.Tailer{}
 	stopper.Stop()
 }
 
