@@ -16,13 +16,11 @@ func TestAtTheEnd(t *testing.T) {
 	assert := assert.New(t)
 
 	s := &AtTheEnd{}
-	assert.False(s.ShouldFlush(Starting, time.Now(), 0), "it should not flush because it's the start of the invocation")
-	assert.True(s.ShouldFlush(Stopping, time.Now(), 0), "it should flush because it's the end of the function invocation")
-	assert.True(s.ShouldFlush(Stopping, time.Now(), 0), "it shouldn't have memory and should flush again")
-	assert.False(s.ShouldFlush(Starting, time.Now().Add(time.Second), 0), "it should not flush because it's the start of the invocation")
-	assert.True(s.ShouldFlush(Stopping, time.Now().Add(time.Second), 0), "it shouldn't have memory and should flush again")
-	assert.True(s.ShouldFlush(Starting, time.Now(), 1000), "it should flush because there are too many spans")
-	assert.True(s.ShouldFlush(Stopping, time.Now(), 1000), "it should flush because there are too many spans")
+	assert.False(s.ShouldFlush(Starting, time.Now()), "it should not flush because it's the start of the invocation")
+	assert.True(s.ShouldFlush(Stopping, time.Now()), "it should flush because it's the end of the function invocation")
+	assert.True(s.ShouldFlush(Stopping, time.Now()), "it shouldn't have memory and should flush again")
+	assert.False(s.ShouldFlush(Starting, time.Now().Add(time.Second)), "it should not flush because it's the start of the invocation")
+	assert.True(s.ShouldFlush(Stopping, time.Now().Add(time.Second)), "it shouldn't have memory and should flush again")
 }
 
 func TestPeriodically(t *testing.T) {
@@ -32,13 +30,13 @@ func TestPeriodically(t *testing.T) {
 	s := &Periodically{interval: 2 * time.Second}
 	s.lastFlush = time.Now().Add(-time.Second * 10)
 
-	assert.True(s.ShouldFlush(Starting, time.Now(), 0), "it should flush because last flush was 10 seconds ago")
+	assert.True(s.ShouldFlush(Starting, time.Now()), "it should flush because last flush was 10 seconds ago")
 
 	s.lastFlush = time.Now().Add(-time.Second * 60)
-	assert.True(s.ShouldFlush(Starting, time.Now(), 0), "it should flush because last flush was 1 minute ago")
+	assert.True(s.ShouldFlush(Starting, time.Now()), "it should flush because last flush was 1 minute ago")
 
 	s.lastFlush = time.Now().Add(-time.Second)
-	assert.False(s.ShouldFlush(Starting, time.Now(), 0), "it should not flush because last flush was less than 2 second ago")
+	assert.False(s.ShouldFlush(Starting, time.Now()), "it should not flush because last flush was less than 2 second ago")
 }
 
 func TestStrategyFromString(t *testing.T) {

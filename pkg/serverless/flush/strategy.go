@@ -15,7 +15,7 @@ import (
 // Strategy is deciding whether the data should be flushed or not at the given moment.
 type Strategy interface {
 	String() string
-	ShouldFlush(moment Moment, t time.Time, spanCount int32) bool
+	ShouldFlush(moment Moment, t time.Time) bool
 }
 
 // Moment represents at which moment we're asking the flush strategy if we
@@ -31,8 +31,6 @@ const (
 	// Stopping is used to represent the moment right after the function has finished
 	// its execution.
 	Stopping Moment = "stopping"
-
-	maxSpanCount = 100
 )
 
 // StrategyFromString returns a flush strategy from the given string.
@@ -69,10 +67,7 @@ type AtTheEnd struct{}
 func (s *AtTheEnd) String() string { return "end" }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time, spanCount int32) bool {
-	if spanCount > maxSpanCount {
-		return true
-	}
+func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 	return moment == Stopping
 }
 
@@ -93,10 +88,7 @@ func (s *Periodically) String() string {
 }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *Periodically) ShouldFlush(moment Moment, t time.Time, spanCount int32) bool {
-	if spanCount > maxSpanCount {
-		return true
-	}
+func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 	if moment == Starting {
 		now := time.Now()
 		if s.lastFlush.Add(s.interval).Before(now) {

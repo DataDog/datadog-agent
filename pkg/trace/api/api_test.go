@@ -751,7 +751,7 @@ func TestHandleTracesBlocked(t *testing.T) {
 	receiver := newTestReceiverFromConfig(conf)
 
 	// set a blocking prehook func
-	receiver.PreHookFunc = func() {
+	receiver.OnHandleTraces = func() {
 		time.Sleep(5 * time.Second)
 	}
 

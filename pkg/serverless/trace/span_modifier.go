@@ -9,13 +9,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/atomic"
 )
 
 type spanModifier struct {
-	tags  map[string]string
-	count *atomic.Int32
+	tags map[string]string
 }
 
 // Process applies extra logic to the given span
@@ -34,16 +31,4 @@ func (s *spanModifier) ModifySpan(span *pb.Span) {
 			span.Meta = spanMetadataTags
 		}
 	}
-	if s.count != nil {
-		s.count.Inc()
-	}
-
-}
-
-func (s *spanModifier) Reset() {
-	s.count.Store(0)
-}
-
-func (s *spanModifier) GetSpanCount() int32 {
-	return s.count.Load()
 }

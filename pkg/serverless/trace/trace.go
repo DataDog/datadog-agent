@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -71,10 +70,8 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, orchestrator
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
-			s.ta.Receiver.PreHookFunc = orchestrator.CanAcceptTraces
-			s.spanModifier = &spanModifier{
-				count: atomic.NewInt32(0),
-			}
+			s.ta.Receiver.OnHandleTraces = orchestrator.CanAcceptTraces
+			s.spanModifier = &spanModifier{}
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel
@@ -138,19 +135,4 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 		return true
 	}
 	return false
-}
-
-// GetSpanCount increments the span count if defined
-func (s *ServerlessTraceAgent) GetSpanCount() int32 {
-	if s.spanModifier != nil {
-		return s.spanModifier.GetSpanCount()
-	}
-	return 0
-}
-
-// ResetSpanCount resets the span count if defined
-func (s *ServerlessTraceAgent) ResetSpanCount() {
-	if s.spanModifier != nil {
-		s.spanModifier.Reset()
-	}
 }

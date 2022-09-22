@@ -116,7 +116,7 @@ func StartDaemon(addr string) *Daemon {
 
 // ShouldFlush indicated whether or a flush is needed
 func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
-	return d.flushStrategy.ShouldFlush(moment, t, d.TraceAgent.GetSpanCount())
+	return d.flushStrategy.ShouldFlush(moment, t)
 }
 
 // GetFlushStrategy returns the flush stategy
@@ -180,7 +180,6 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 	} else {
 		log.Debug("Finished flushing")
 	}
-	d.TraceAgent.ResetSpanCount()
 	cancel()
 
 	if !isLastFlushBeforeShutdown {
