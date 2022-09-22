@@ -35,7 +35,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define map_update_with_telemetry(fn, map, args...)                                 \
     do {                                                                            \
-        int errno_ret, errno_slot;                                                  \
+        long errno_ret, errno_slot;                                                  \
         errno_ret = fn(&map, args);                                                 \
         if (errno_ret < 0) {                                                        \
             unsigned long err_telemetry_key;                                        \
@@ -46,10 +46,10 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 errno_slot = errno_ret * -1;                                        \
                 if (errno_slot >= T_MAX_ERRNO) {                                    \
                     errno_slot = T_MAX_ERRNO - 1;                                   \
-                    errno_slot &= (T_MAX_ERRNO - 1);                                    \
+                    errno_slot &= (T_MAX_ERRNO - 1);                                \
                 }                                                                   \
                 errno_slot &= (T_MAX_ERRNO - 1);                                    \
-                int *target = &entry->err_count[errno_slot];                        \
+                long *target = &entry->err_count[errno_slot];                       \
                 unsigned long add = 1;                                              \
                 /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
                  * This patch point is placed here because the above instruction
@@ -70,40 +70,40 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define FN_INDX_bpf_probe_read_user read_user_indx
 #define FN_INDX_bpf_probe_read_user_str read_user_indx
 
-#define helper_with_telemetry(fn, dst, sz, src)                                                \
-    ({                                                                                         \
-        int helper_indx = -1;                                                                  \
-        int errno_slot;                                                                        \
-        int errno_ret = fn(dst, sz, src);                                                      \
-        if (errno_ret < 0) {                                                                   \
-            unsigned long telemetry_program_id;                                                \
-            LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                   \
-            helper_err_telemetry_t *entry =                                                    \
-                bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);         \
-            if (entry) {                                                                       \
-                helper_indx = MK_FN_INDX(fn);                                                  \
-                errno_slot = errno_ret * -1;                                                   \
-                if (errno_slot >= T_MAX_ERRNO) {                                               \
-                    errno_slot = T_MAX_ERRNO - 1;                                              \
+#define helper_with_telemetry(fn, dst, sz, src)                                                 \
+    ({                                                                                          \
+        int helper_indx = -1;                                                                   \
+        long errno_slot;                                                                        \
+        long errno_ret = fn(dst, sz, src);                                                      \
+        if (errno_ret < 0) {                                                                    \
+            unsigned long telemetry_program_id;                                                 \
+            LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                    \
+            helper_err_telemetry_t *entry =                                                     \
+                bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);          \
+            if (entry) {                                                                        \
+                helper_indx = MK_FN_INDX(fn);                                                   \
+                errno_slot = errno_ret * -1;                                                    \
+                if (errno_slot >= T_MAX_ERRNO) {                                                \
+                    errno_slot = T_MAX_ERRNO - 1;                                               \
                     /* This is duplicated below because on clang 14.0.6 the compiler
                      * concludes that this if-check will always force errno_slot in range
                      * (0, T_MAX_ERRNO-1], and removes the bounds check, causing the verifier
-                     * to trip. Duplicating this check forces clang not to omit the check */    \
-                    errno_slot &= (T_MAX_ERRNO - 1);                                               \
-                }                                                                              \
-                errno_slot &= (T_MAX_ERRNO - 1);                                               \
-                if (helper_indx >= 0) {                                                        \
-                    int *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
-                    unsigned long add = 1;                                                     \
+                     * to trip. Duplicating this check forces clang not to omit the check */            \
+                    errno_slot &= (T_MAX_ERRNO - 1);                                            \
+                }                                                                               \
+                errno_slot &= (T_MAX_ERRNO - 1);                                                \
+                if (helper_indx >= 0) {                                                         \
+                    long *target = &entry->err_count[(helper_indx * T_MAX_ERRNO) + errno_slot]; \
+                    unsigned long add = 1;                                                      \
                     /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1); 
                      * This patch point is placed here because the above instruction
                      * fails on the 4.4 verifier. On 4.4 this instruction is replaced
-                     * with a nop: r1 = r1 */        \
-                    bpf_telemetry_update_patch((unsigned long)target, add);                    \
-                }                                                                              \
-            }                                                                                  \
-        }                                                                                      \
-        errno_ret;                                                                             \
+                     * with a nop: r1 = r1 */         \
+                    bpf_telemetry_update_patch((unsigned long)target, add);                     \
+                }                                                                               \
+            }                                                                                   \
+        }                                                                                       \
+        errno_ret;                                                                              \
     })
 
 #define bpf_map_update_with_telemetry(map, key, val, flags) \

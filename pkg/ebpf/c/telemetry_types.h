@@ -8,7 +8,7 @@
 #define T_MAX_ERRNO 64
 
 typedef struct {
-    unsigned int err_count[T_MAX_ERRNO];
+    unsigned long err_count[T_MAX_ERRNO];
 } map_err_telemetry_t;
 
 #define read_indx 0
@@ -16,7 +16,7 @@ typedef struct {
 #define read_kernel_indx 2
 #define MAX_TELEMETRY_INDX 3
 typedef struct {
-    unsigned int err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
+    unsigned long err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
 } helper_err_telemetry_t;
 
 #endif
