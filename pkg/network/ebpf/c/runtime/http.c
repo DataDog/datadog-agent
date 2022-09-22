@@ -688,17 +688,10 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 1;
     }
 
-    uint64_t err = 0;
-    if (read_location(ctx, &pd->read_return_error, sizeof(err), &err)) {
-        log_debug("[go-tls-read-return] failed reading read return error location for pid %d\n", pid);
-        return 1;
-    }
-
-    // The error return value of Read isn't useful here
-    // unless we can determine whether it is equal to io.EOF
-    // (and if so, treat it like there's no error at all),
-    // and I didn't find a straightforward way of doing this.
-    // TODO handle error value
+    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
+    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
+    // For now for success validation we chose to check only the amount of bytes read
+    // and make sure it's greater than zero.
 
     if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading reading go routine id for pid %d\n", pid);

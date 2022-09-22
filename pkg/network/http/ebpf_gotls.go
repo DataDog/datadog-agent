@@ -127,7 +127,8 @@ func (p *GoTLSProgram) Start() {
 	}
 	// In the future Start() should just initiate the new processes listener
 	// and this implementation should be done for each new process found.
-	binPath := os.Getenv("GO_TLS_TEST")
+	//binPath := os.Getenv("GO_TLS_TEST")
+	binPath := "/proc/102879/exe"
 	if binPath != "" {
 		p.handleNewBinary(binPath)
 	}
