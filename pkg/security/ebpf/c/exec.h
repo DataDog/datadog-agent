@@ -497,7 +497,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     u32 parent_pid = 0;
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
         u32 child_netns_entry = *netns;
