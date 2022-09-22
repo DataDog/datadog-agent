@@ -70,7 +70,9 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, orchestrator
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
-			s.ta.Receiver.OnHandleTraces = orchestrator.CanAcceptTraces
+			if orchestrator != nil {
+				s.ta.Receiver.OnHandleTraces = orchestrator.CanAcceptTraces
+			}
 			s.spanModifier = &spanModifier{}
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
