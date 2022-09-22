@@ -746,11 +746,17 @@ func TestHandleTraces(t *testing.T) {
 }
 
 func TestHandleTracesBlocked(t *testing.T) {
+	assert := assert.New(t)
+
+	// prepare the msgpack payload
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(err)
+
 	// prepare the receiver
 	conf := newTestReceiverConfig()
 	receiver := newTestReceiverFromConfig(conf)
 
-	// set a blocking prehook func
+	// set a blocking OnHandleTraces func
 	receiver.OnHandleTraces = func() {
 		time.Sleep(5 * time.Second)
 	}
@@ -758,21 +764,22 @@ func TestHandleTracesBlocked(t *testing.T) {
 	// response recorder
 	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 
-	// forge the request
 	rr := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/v0.4/traces", nil)
+	req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
 
-	waitChan := make(chan bool)
+	timeout := time.After(100 * time.Millisecond)
+	completed := make(chan bool)
+
 	go func() {
 		handler.ServeHTTP(rr, req)
-		waitChan <- true
+		completed <- true
 	}()
-	timeout := time.After(100 * time.Millisecond)
+
 	select {
+	case <-completed:
+		t.Fatal("should not complete")
 	case <-timeout:
-		// ok
-	case <-waitChan:
-		t.Fatal("Should wait more than 100 millisecond")
+		return
 	}
 }
 
