@@ -4,7 +4,7 @@ default_version "2.7.3"
 dependency "pip3"
 
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "80d9a43ff29dfbcdc5d40d52c469db1ae47eff8b276e60b63deee674676bea74",
+       :sha256 => "b5ca1e9957321b5c5422c2333d7d155e2412e63ea583065d56d3371305ef8116",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"
