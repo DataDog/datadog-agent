@@ -234,9 +234,17 @@ func getProxyMeta() *ProxyMeta {
 	httputils.NoProxyMapMutex.Lock()
 	defer httputils.NoProxyMapMutex.Unlock()
 
+	NoProxyNonexactMatchExplicitlySetState := false
+	NoProxyNonexactMatch := false
+	if config.Datadog.IsSet("no_proxy_nonexact_match") {
+		NoProxyNonexactMatchExplicitlySetState = true
+		NoProxyNonexactMatch = config.Datadog.GetBool("no_proxy_nonexact_match")
+	}
+
 	return &ProxyMeta{
-		NoProxyNonexactMatch: config.Datadog.GetBool("no_proxy_nonexact_match"),
-		ProxyBehaviorChanged: len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
+		NoProxyNonexactMatch:              NoProxyNonexactMatch,
+		ProxyBehaviorChanged:              len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
+		NoProxyNonexactMatchExplicitlySet: NoProxyNonexactMatchExplicitlySetState,
 	}
 }
 
