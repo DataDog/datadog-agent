@@ -142,7 +142,7 @@ func TestWaitForExtensionLifecycleTimeout(t *testing.T) {
 func TestWaitForExtensionLifecycleHitFlush(t *testing.T) {
 	timeout := time.After(100 * time.Millisecond)
 	orchestrator := NewLambdaOrchestrator()
-	lambdaOrchestrator, ok := orchestrator.(*lambdaOrchestrator)
+	_, ok := orchestrator.(*lambdaOrchestrator)
 	if !ok {
 		t.Fatal("should be a lambdaOrchestrator")
 	}
@@ -158,14 +158,12 @@ func TestWaitForExtensionLifecycleHitFlush(t *testing.T) {
 	case <-waitChan:
 		// nothing to do here
 	}
-	// test reset
-	assert.False(t, lambdaOrchestrator.hasHitFlushRoute.Load())
 }
 
 func TestWaitForExtensionLifecycleHitEndInvocation(t *testing.T) {
 	timeout := time.After(100 * time.Millisecond)
 	orchestrator := NewLambdaOrchestrator()
-	lambdaOrchestrator, ok := orchestrator.(*lambdaOrchestrator)
+	_, ok := orchestrator.(*lambdaOrchestrator)
 	if !ok {
 		t.Fatal("should be a lambdaOrchestrator")
 	}
@@ -181,8 +179,6 @@ func TestWaitForExtensionLifecycleHitEndInvocation(t *testing.T) {
 	case <-waitChan:
 		// nothing to do here
 	}
-	// test reset
-	assert.False(t, lambdaOrchestrator.hasHitEndInvocation.Load())
 }
 
 func TestIsFlushPossibleFalse(t *testing.T) {
