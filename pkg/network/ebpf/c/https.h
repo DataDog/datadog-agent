@@ -70,6 +70,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
     // so this is isn't a problem.
     t.netns = 0;
     t.pid = 0;
+    t.cookie = 0;
 
     __builtin_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
 
@@ -99,6 +100,7 @@ static __always_inline void init_ssl_sock_from_do_handshake(struct sock *skp) {
     }
     ssl_sock.tup.netns = 0;
     ssl_sock.tup.pid = 0;
+    ssl_sock.tup.cookie = 0;
     normalize_tuple(&ssl_sock.tup);
 
     // copy map value to stack. required for older kernels

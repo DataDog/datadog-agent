@@ -29,7 +29,7 @@ const (
 	DNSResponseCodeNoError = 0
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 41
+	ConnectionByteKeyMaxLen = 49
 )
 
 // State takes care of handling the logic for:
