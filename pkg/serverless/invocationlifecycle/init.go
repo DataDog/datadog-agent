@@ -7,10 +7,9 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
-
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"

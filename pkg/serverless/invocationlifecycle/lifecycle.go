@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/aws/aws-lambda-go/events"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -32,6 +33,7 @@ type LifecycleProcessor struct {
 	InferredSpansEnabled bool
 
 	requestHandler *RequestHandler
+	AppSec         *appsec.AppSec
 }
 
 // RequestHandler is the struct that stores information about the trace,
@@ -73,26 +75,61 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
 	}
 
+	// Map associating the values of the addresses used in the appsec rules
+	var (
+		appsecValues map[string]interface{}
+		headers      map[string][]string
+	)
+
 	switch eventType {
 	case trigger.APIGatewayEvent:
 		var event events.APIGatewayProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromAPIGatewayEvent(event, region)
 		}
+		appsecValues = map[string]interface{}{
+			"server.request.headers.no_cookies": event.Headers,
+			"server.request.query":              event.QueryStringParameters,
+			"server.request.path_params":        event.PathParameters,
+			"server.request.body":               event.Body,
+		}
+		headers = copyHeaders(event.Headers, event.MultiValueHeaders)
+
 	case trigger.APIGatewayV2Event:
 		var event events.APIGatewayV2HTTPRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromAPIGatewayV2Event(event, region)
+		}
+		appsecValues = map[string]interface{}{
+			"server.request.uri.raw":            event.RawPath,
+			"server.request.headers.no_cookies": event.Headers,
+			"server.request.cookies":            event.Cookies,
+			"server.request.query":              event.QueryStringParameters,
+			"server.request.path_params":        event.PathParameters,
+			"server.request.body":               event.Body,
 		}
 	case trigger.APIGatewayWebsocketEvent:
 		var event events.APIGatewayWebsocketProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromAPIGatewayWebsocketEvent(event, region)
 		}
+		appsecValues = map[string]interface{}{
+			"server.request.uri.raw":            event.Path,
+			"server.request.headers.no_cookies": event.Headers,
+			"server.request.query":              event.QueryStringParameters,
+			"server.request.path_params":        event.PathParameters,
+			"server.request.body":               event.Body,
+		}
 	case trigger.ALBEvent:
 		var event events.ALBTargetGroupRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromALBEvent(event)
+		}
+		appsecValues = map[string]interface{}{
+			"server.request.uri.raw":            event.Path,
+			"server.request.headers.no_cookies": event.Headers,
+			"server.request.query":              event.QueryStringParameters,
+			"server.request.body":               event.Body,
 		}
 	case trigger.CloudWatchEvent:
 		var event events.CloudWatchEvent
@@ -139,13 +176,47 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
 			lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 		}
+		appsecValues = map[string]interface{}{
+			"server.request.uri.raw":            event.RawPath,
+			"server.request.headers.no_cookies": event.Headers,
+			"server.request.cookies":            event.Cookies,
+			"server.request.query":              event.QueryStringParameters,
+			"server.request.body":               event.Body,
+		}
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
+	}
+
+	if lp.AppSec != nil && len(appsecValues) > 0 {
+		sp := (*appsec.Span)(lp.GetInferredSpan().Span)
+		appsec.SetAppSecTags(sp)
+		matches, err := lp.AppSec.RunWAF(appsecValues)
+		if err != nil {
+			log.Errorf("[lifecycle] AppSec execution error: %v", err)
+		} else if len(matches) > 0 {
+			appsec.SetSecurityEventTags(sp, []json.RawMessage{matches}, headers, nil)
+		}
 	}
 
 	if !lp.DetectLambdaLibrary() {
 		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), lambdaPayloadString, startDetails, lp.InferredSpansEnabled)
 	}
+}
+
+func copyHeaders(headers map[string]string, multiHeaders map[string][]string) map[string][]string {
+	if len(headers) == 0 && len(multiHeaders) == 0 {
+		return nil
+	}
+	m := make(map[string][]string, len(headers)+len(multiHeaders))
+	for k, v := range headers {
+		m[k] = []string{v}
+	}
+	for k, v := range multiHeaders {
+		values := make([]string, len(v))
+		copy(values, v)
+		m[k] = values
+	}
+	return m
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended

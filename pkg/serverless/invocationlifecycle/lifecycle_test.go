@@ -12,13 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
@@ -864,6 +865,31 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "eventbridge",
 	}, testProcessor.GetTags())
+}
+
+func TestAppSec(t *testing.T) {
+	t.Run("API Gateway", func(t *testing.T) {
+		startDetails := &InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway-attack.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		}
+
+		appsec, err := appsec.New()
+		require.NoError(t, err)
+
+		testProcessor := &LifecycleProcessor{
+			DetectLambdaLibrary:  func() bool { return false },
+			InferredSpansEnabled: true,
+			AppSec:               appsec,
+		}
+
+		testProcessor.OnInvokeStart(startDetails)
+		sp := testProcessor.GetInferredSpan().Span
+		events, ok := sp.Meta["_dd.appsec.json"]
+		require.True(t, ok)
+		assert.Contains(t, events, "crs-942-100")
+		assert.Contains(t, events, "crs-913-120")
+	})
 }
 
 // Helper function for reading test file
