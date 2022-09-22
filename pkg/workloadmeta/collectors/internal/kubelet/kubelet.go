@@ -261,6 +261,14 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 		return nil
 	}
 
+	var caps *workloadmeta.Capabilities
+	if spec.SecurityContext.Capabilities != nil {
+		caps = &workloadmeta.Capabilities{
+			Add:  spec.SecurityContext.Capabilities.Add,
+			Drop: spec.SecurityContext.Capabilities.Drop,
+		}
+	}
+
 	privileged := false
 	if spec.SecurityContext.Privileged != nil {
 		privileged = *spec.SecurityContext.Privileged
@@ -282,6 +290,7 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 	}
 
 	return &workloadmeta.ContainerSecurityContext{
+		Capabilities:   caps,
 		Privileged:     privileged,
 		SeccompProfile: seccompProfile,
 	}

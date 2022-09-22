@@ -72,8 +72,15 @@ type ContainerPortSpec struct {
 
 // SecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
 type SecurityContextSpec struct {
+	Capabilities   *CapabilitiesSpec   `json:"capabilities,omitempty"`
 	Privileged     *bool               `json:"privileged,omitempty"`
 	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+}
+
+// CapabilitiesSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.Capabilities
+type CapabilitiesSpec struct {
+	Add  []string `json:"add,omitempty"`
+	Drop []string `json:"drop,omitempty"`
 }
 
 // SeccompProfileType is used for unmarshalling Pod.Spec.Containers.SecurityContext.SeccompProfile.Type

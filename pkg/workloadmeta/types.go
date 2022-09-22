@@ -425,6 +425,12 @@ func (c Container) String(verbose bool) string {
 
 	if c.SecurityContext != nil {
 		_, _ = fmt.Println(&sb, "----------- Security Context -----------")
+		if c.SecurityContext.Capabilities != nil {
+			_, _ = fmt.Println(&sb, "----------- Capabilities -----------")
+			_, _ = fmt.Println(&sb, "Add:", c.SecurityContext.Capabilities.Add)
+			_, _ = fmt.Println(&sb, "Drop:", c.SecurityContext.Capabilities.Drop)
+		}
+
 		_, _ = fmt.Println(&sb, "Privileged:", c.SecurityContext.Privileged)
 		if c.SecurityContext.SeccompProfile != nil {
 			_, _ = fmt.Println(&sb, "----------- Seccomp Profile -----------")
@@ -442,8 +448,14 @@ var _ Entity = &Container{}
 
 // ContainerSecurityContext is the Security Context of a Container
 type ContainerSecurityContext struct {
+	*Capabilities
 	Privileged     bool
 	SeccompProfile *SeccompProfile
+}
+
+type Capabilities struct {
+	Add  []string
+	Drop []string
 }
 
 // SeccompProfileType is the type of seccomp profile used
