@@ -423,6 +423,18 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
+	if c.SecurityContext != nil {
+		_, _ = fmt.Println(&sb, "----------- Security Context -----------")
+		_, _ = fmt.Println(&sb, "Privileged:", c.SecurityContext.Privileged)
+		if c.SecurityContext.SeccompProfile != nil {
+			_, _ = fmt.Println(&sb, "----------- Seccomp Profile -----------")
+			_, _ = fmt.Println(&sb, "Type:", c.SecurityContext.SeccompProfile.Type)
+			if c.SecurityContext.SeccompProfile.Type == SeccompProfileTypeLocalhost {
+				_, _ = fmt.Println(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
+			}
+		}
+	}
+
 	return sb.String()
 }
 
