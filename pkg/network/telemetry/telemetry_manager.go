@@ -32,17 +32,7 @@ func (m *ManagerWithTelemetry) InitManagerWithTelemetry(bytecode io.ReaderAt, op
 	telemetryMapKeys := BuildTelemetryKeys(m.Manager)
 	opts.ConstantEditors = append(opts.ConstantEditors, telemetryMapKeys...)
 
-	if (m.bpfTelemetry.MapErrMap != nil) || (m.bpfTelemetry.HelperErrMap != nil) {
-		if opts.MapEditors == nil {
-			opts.MapEditors = make(map[string]*ebpf.Map)
-		}
-	}
-	if m.bpfTelemetry.MapErrMap != nil {
-		opts.MapEditors[string(probes.MapErrTelemetryMap)] = m.bpfTelemetry.MapErrMap
-	}
-	if m.bpfTelemetry.HelperErrMap != nil {
-		opts.MapEditors[string(probes.HelperErrTelemetryMap)] = m.bpfTelemetry.HelperErrMap
-	}
+	initializeMaps(m.bpfTelemetry, &opts)
 
 	if err := m.InitWithOptions(bytecode, opts); err != nil {
 		return err
@@ -53,4 +43,23 @@ func (m *ManagerWithTelemetry) InitManagerWithTelemetry(bytecode io.ReaderAt, op
 	}
 
 	return nil
+}
+
+func initializeMaps(bpfTelemetry *EBPFTelemetry, opts *manager.Options) {
+	if bpfTelemetry == nil {
+		return
+	}
+
+	if (bpfTelemetry.MapErrMap != nil) || (bpfTelemetry.HelperErrMap != nil) {
+		if opts.MapEditors == nil {
+			opts.MapEditors = make(map[string]*ebpf.Map)
+		}
+	}
+	if bpfTelemetry.MapErrMap != nil {
+		opts.MapEditors[string(probes.MapErrTelemetryMap)] = bpfTelemetry.MapErrMap
+	}
+	if bpfTelemetry.HelperErrMap != nil {
+		opts.MapEditors[string(probes.HelperErrTelemetryMap)] = bpfTelemetry.HelperErrMap
+	}
+
 }
