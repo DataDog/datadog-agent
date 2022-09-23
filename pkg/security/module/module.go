@@ -112,7 +112,9 @@ func (m *Module) Init() error {
 	m.apiServer.Start(m.ctx)
 
 	// monitor policies
-	m.policyMonitor.Start(m.ctx)
+	if m.config.PolicyMonitorEnabled {
+		m.policyMonitor.Start(m.ctx)
+	}
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 	m.probe.AddActivityDumpHandler(m)
