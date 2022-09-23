@@ -455,6 +455,9 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 	now := time.Now()
 	agentVersion, _ := version.Agent()
 
+	requestID, err := c.getRequestID(now, 0)
+	assert.NoError(t, err)
+
 	tests := []struct {
 		name          string
 		message       model.MessageBody
@@ -473,6 +476,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.RequestIDHeader:      requestID,
 			},
 		},
 		{
@@ -561,4 +565,40 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_getRequestID(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	cfg.HostName = "host"
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
+	id1, err := c.getRequestID(fixedDate1, 1)
+	assert.NoError(t, err)
+	id2, err := c.getRequestID(fixedDate1, 1)
+	assert.NoError(t, err)
+	// The calculation should be deterministic, so making sure the parameters generates the same id.
+	assert.Equal(t, id1, id2)
+	fixedDate2 := time.Date(2022, 9, 1, 0, 0, 2, 0, time.Local)
+	id3, err := c.getRequestID(fixedDate2, 1)
+	assert.NoError(t, err)
+
+	// The request id is based on time, so if the difference it only the time, then the new ID should be greater.
+	id1Num, _ := strconv.ParseUint(id1, 10, 64)
+	id3Num, _ := strconv.ParseUint(id3, 10, 64)
+	assert.Greater(t, id3Num, id1Num)
+
+	// Increasing the chunk index should increase the id.
+	id4, err := c.getRequestID(fixedDate2, 3)
+	assert.NoError(t, err)
+	id4Num, _ := strconv.ParseUint(id4, 10, 64)
+	assert.Equal(t, id3Num+2, id4Num)
+
+	// Changing the host -> changing the hash.
+	cfg.HostName = "host2"
+	id5, err := c.getRequestID(fixedDate1, 1)
+	assert.NoError(t, err)
+	assert.NotEqual(t, id1, id5)
 }
