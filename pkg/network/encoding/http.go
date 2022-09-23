@@ -46,16 +46,20 @@ func (a *aggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTTPAggr
 		return nil
 	}
 
+	sport, dport := c.SPort, c.DPort
+	if c.IPTranslation != nil {
+		sport, dport = c.IPTranslation.ReplDstPort, c.IPTranslation.ReplSrcPort
+	}
+
 	if a.sport == 0 && a.dport == 0 {
 		// This is the first time a ConnectionStats claim this aggregation. In
 		// this case we return the value and save the source and destination
 		// ports
-		a.sport = c.SPort
-		a.dport = c.DPort
+		a.sport, a.dport = sport, dport
 		return a.HTTPAggregations
 	}
 
-	if c.SPort == a.dport && c.DPort == a.sport {
+	if sport == a.dport && dport == a.sport {
 		// We have have a collision with another `ConnectionStats`, but this is a
 		// legit scenario where we're dealing with the opposite ends of the
 		// same connection, which means both server and client are in the same host.
@@ -110,7 +114,7 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 	keyTuples := network.HTTPKeyTuplesFromConn(c)
 	for _, key := range keyTuples {
 		if aggregation := e.aggregations[key]; aggregation != nil {
-			return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
+			return aggregation.ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
 		}
 	}
 	return nil, 0, nil
