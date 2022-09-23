@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
-using System.Linq;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -18,9 +15,9 @@ namespace WixSetup.Datadog
         // Product
         private const string ProductFullName = "Datadog Agent";
         private const string ProductDescription = "Datadog helps you monitor your infrastructure and application";
-        private const string ProductComments = "My application comment";
         private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
         private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
+        private const string ProductComment = @"Copyright 2015 - Present [CompanyName]";
         private const string ProductContact = @"https://www.datadoghq.com/about/contact/";
 
         // same value for all versions; must not be changed
@@ -95,7 +92,6 @@ namespace WixSetup.Datadog
                         }
                     )
                     .SetProjectInfo(
-                        // unique for this project; same value for all versions; must not be changed between versions.
                         upgradeCode: ProductUpgradeCode,
                         name: ProductFullName,
                         description: ProductDescription,
@@ -108,7 +104,7 @@ namespace WixSetup.Datadog
                         name: ProductFullName,
                         manufacturer: CompanyFullName,
                         readme: ProductHelpUrl,
-                        comment: ProductComments,
+                        comment: ProductComment,
                         contact: ProductContact,
                         helpUrl: new Uri(ProductHelpUrl),
                         aboutUrl: new Uri(ProductAboutUrl),
