@@ -43,8 +43,8 @@ func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
 	return path, unsafe.Pointer(filenamePtr), nil
 }
 
-func newTestDrive(tb testing.TB, fsType string, mountOpts []string) (*testDrive, error) {
-	return newTestDriveWithMountPoint(tb, fsType, mountOpts, "")
+func newTestDrive(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(tb, fsType, mountOpts, mountPoint)
 }
 
 func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
