@@ -125,7 +125,10 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 				EBPFSection:  kprobe + "/" + probeSysOpen.section,
 				EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 				UID:          probeUID,
-			}, KProbeMaxActive: maxActive},
+			},
+				KProbeMaxActive:    maxActive,
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
+			},
 		)
 	}
 }

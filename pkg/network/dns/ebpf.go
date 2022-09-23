@@ -37,11 +37,14 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  string(probes.SocketDNSFilter),
-				EBPFFuncName: funcName,
-				UID:          probeUID,
-			}},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFFuncName: funcName,
+					UID:          probeUID,
+				},
+				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
+			},
 		},
 	}
 
