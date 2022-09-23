@@ -18,18 +18,19 @@ namespace WixSetup.Datadog
         {
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
-            ReadConfig = new CustomAction<ConfigUserActions>(
+            ReadConfig = new CustomAction<ConfigCustomActions>(
                     new Id("ReadConfigCustomAction"),
-                    ConfigUserActions.ReadConfig
+                    ConfigCustomActions.ReadConfig
                 )
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            WriteConfig = new CustomAction<ConfigUserActions>(
+            WriteConfig = new CustomAction<ConfigCustomActions>(
                     new Id("WriteConfigCustomAction"),
-                    ConfigUserActions.WriteConfig
+                    ConfigCustomActions.WriteConfig
                 )
                 .SetProperties(
                     "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                    "PROJECTLOCATION=[PROJECTLOCATION], " +
                     "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
                     "ADDLOCAL=[ADDLOCAL], " +
                     "APIKEY=[APIKEY], " +
