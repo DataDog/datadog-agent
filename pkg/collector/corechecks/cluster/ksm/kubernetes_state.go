@@ -332,7 +332,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory) []customresource.RegistryFactory {
 	if c.DiscoveryCl == nil {
-		log.Warnf("kubernetes discovery client has not been properly initialized")
+		log.Warn("Kubernetes discovery client has not been properly initialized")
 		return factories
 	}
 
