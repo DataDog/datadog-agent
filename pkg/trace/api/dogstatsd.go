@@ -26,11 +26,11 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		var network, address string
-		if r.conf.StatsdSocket != "" {
-			network, address = "unix", r.conf.StatsdSocket
-		} else {
-			network, address = "udp", fmt.Sprintf("%s:%d", r.conf.StatsdHost, r.conf.StatsdPort)
+		if r.conf.StatsdPort == 0 {
+			http.Error(w, "Agent dogstatsd UDP port not configured, but required for dogstatsd proxy.", http.StatusServiceUnavailable)
+			return
 		}
+		network, address = "udp", fmt.Sprintf("%s:%d", r.conf.StatsdHost, r.conf.StatsdPort)
 		conn, err := net.Dial(network, address)
 		if err != nil {
 			log.Errorf("Error connecting to %s endpoint at %q: %v", network, address, err)
