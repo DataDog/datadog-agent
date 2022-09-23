@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
@@ -275,32 +276,13 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
 
-	factories := []customresource.RegistryFactory{
-		customresources.NewJobFactory(),
-		customresources.NewCronJobFactory(),
-		customresources.NewPodDisruptionBudgetFactory(),
-	}
-
-	clients := make(map[string]interface{}, len(factories))
-	for _, f := range factories {
-		clients[f.Name()] = c.Cl
-	}
-
-	builder.WithCustomResourceStoreFactories(factories...)
-	builder.WithCustomResourceClients(clients)
+	// configure custom resources required for extended features and
+	// compatibility across deprecated/removed versions of APIs
+	cr := k.discoverCustomResources(c, collectors)
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
-
-	// automatically add extended collectors if their standard ones are
-	// enabled
-	for _, c := range collectors {
-		if extended, ok := extendedCollectors[c]; ok {
-			collectors = append(collectors, extended)
-		}
-	}
-
-	// must call WithEnabledResources after custom resources have been
-	// registered, otherwise they will fail with "resource does not exist"
-	if err := builder.WithEnabledResources(collectors); err != nil {
+	builder.WithCustomResourceStoreFactories(cr.factories...)
+	builder.WithCustomResourceClients(cr.clients)
+	if err := builder.WithEnabledResources(cr.collectors); err != nil {
 		return err
 	}
 
@@ -312,6 +294,89 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
+}
+
+type customResources struct {
+	collectors []string
+	factories  []customresource.RegistryFactory
+	clients    map[string]interface{}
+}
+
+func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []string) customResources {
+	// automatically add extended collectors if their standard ones are
+	// enabled
+	for _, c := range collectors {
+		if extended, ok := extendedCollectors[c]; ok {
+			collectors = append(collectors, extended)
+		}
+	}
+
+	// extended resource collectors always have a factory registered
+	factories := []customresource.RegistryFactory{
+		customresources.NewExtendedJobFactory(),
+	}
+
+	_, resources, err := c.DiscoveryCl.ServerGroupsAndResources()
+	if err != nil {
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			log.Warnf("unable to perform resource discovery: %s", err)
+		} else {
+			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
+			}
+		}
+	}
+
+	// backwards/forwards compatibility resource factories are only
+	// registered if they're needed, otherwise they'd overwrite the default
+	// ones that ship with ksm
+	resourceReplacements := map[string]map[string]func() customresource.RegistryFactory{
+		// support for older k8s versions where the resources are no
+		// longer supported in KSM
+		"batch/v1": {
+			"CronJob": customresources.NewCronJobV1Beta1Factory,
+		},
+		"policy/v1": {
+			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
+		},
+
+		// support for newer k8s versions where the newer resources are
+		// not yet supported by KSM
+		"autoscaling/v2beta2": {
+			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Factory,
+		},
+	}
+
+	for gv, resourceReplacement := range resourceReplacements {
+		for _, resource := range resources {
+			if resource.GroupVersion != gv {
+				continue
+			}
+
+			for _, apiResource := range resource.APIResources {
+				if _, ok := resourceReplacement[apiResource.Kind]; ok {
+					delete(resourceReplacement, apiResource.Kind)
+				}
+			}
+		}
+	}
+
+	for _, resourceReplacement := range resourceReplacements {
+		for _, factory := range resourceReplacement {
+			factories = append(factories, factory())
+		}
+	}
+
+	clients := make(map[string]interface{}, len(factories))
+	for _, f := range factories {
+		clients[f.Name()] = c.Cl
+	}
+
+	return customResources{
+		collectors: collectors,
+		clients:    clients,
+		factories:  factories,
+	}
 }
 
 // Run runs the KSM check

@@ -64,17 +64,15 @@ func waitForCalledSignal(calledSignal chan interface{}) bool {
 }
 
 func TestRemoveCheckMetadata(t *testing.T) {
-	ctx := context.Background()
 	defer func() { clearMetadata() }()
 
 	SetCheckMetadata("check1", "check_provided_key1", 123)
 	SetCheckMetadata("check2", "check_provided_key1", 123)
+
 	RemoveCheckMetadata("check1")
 
-	p := GetPayload(ctx, "testHostname", nil, true)
-	checks := *p.CheckMetadata
-	assert.Len(t, checks, 1)
-	assert.Len(t, checks["check2"], 1)
+	assert.Len(t, checkMetadata, 1)
+	assert.Contains(t, checkMetadata, "check2")
 }
 
 type mockCollector struct {
@@ -159,9 +157,10 @@ func TestGetPayload(t *testing.T) {
 	}}
 
 	SetAgentMetadata("test", true)
+
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 123)
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
-	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
+	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
 
 	p := GetPayload(ctx, "testHostname", coll, true)
 
@@ -172,7 +171,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
-	assert.Len(t, checkMeta, 3)
+	assert.Len(t, checkMeta, 2)           // 'non_running_checkid' should have been cleaned
 	assert.Len(t, checkMeta["check1"], 2) // check1 has two instances
 
 	check1Instance1 := *checkMeta["check1"][0]
@@ -219,7 +218,7 @@ func TestGetPayload(t *testing.T) {
 	delete(agentMetadata, "full_configuration")
 
 	checkMeta = *p.CheckMetadata
-	assert.Len(t, checkMeta, 3)
+	assert.Len(t, checkMeta, 2)
 	check1Instance1 = *checkMeta["check1"][0]
 	assert.Equal(t, "check1_instance1", check1Instance1["config.hash"])
 	assert.Equal(t, "provider1", check1Instance1["config.provider"])
@@ -266,16 +265,6 @@ func TestGetPayload(t *testing.T) {
 					"config.provider": "provider2",
 					"init_config": "",
 					"instance_config": "{}"
-				}
-			],
-			"non_running_checkid":
-			[
-				{
-					"check_provided_key1": "this_should_be_kept",
-					"config.hash": "non_running_checkid",
-					"config.provider": "",
-					"init_config": "",
-					"instance_config": ""
 				}
 			]
 		},

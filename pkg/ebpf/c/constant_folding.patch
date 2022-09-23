@@ -1,6 +1,6 @@
 --- lib/Analysis/ConstantFolding.cpp	2020-12-18 19:57:38.000000000 +0000
 +++ lib/Analysis/ConstantFolding.cpp	2022-02-09 22:09:26.145370000 +0000
-@@ -56,6 +56,85 @@
+@@ -60,6 +60,68 @@
  #include <cstddef>
  #include <cstdint>
 
@@ -27,15 +27,6 @@
 +  return __ ## func ## _prior_glibc(x);                         \
 +}
 +
-+#define symver_wrap_d2(func)                                    \
-+double __ ## func ## _prior_glibc(double x, double y);          \
-+                                                                \
-+asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);  \
-+                                                                \
-+double __wrap_ ## func (double x, double y) {                   \
-+  return __ ## func ## _prior_glibc(x, y);                      \
-+}
-+
 +#define symver_wrap_f1(func)                                    \
 +float __ ## func ## _prior_glibc(float x);                      \
 +                                                                \
@@ -56,13 +47,6 @@
 +  return func(x);                                               \
 +}
 +
-+#define symver_wrap_d2(func)                                    \
-+double func(double x, double y);                                \
-+                                                                \
-+double __wrap_ ## func (double x, double y) {                   \
-+  return func(x, y);                                            \
-+}
-+
 +#define symver_wrap_f1(func)                                    \
 +float func(float x);                                            \
 +                                                                \
@@ -75,7 +59,6 @@
 +
 +symver_wrap_d1(exp)
 +symver_wrap_d1(log)
-+symver_wrap_d2(pow)
 +symver_wrap_d1(log2)
 +symver_wrap_f1(log2f)
 +

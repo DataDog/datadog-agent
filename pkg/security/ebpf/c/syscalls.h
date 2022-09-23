@@ -26,7 +26,8 @@ struct dentry_resolver_input_t {
     int callback;
     int ret;
     int iteration;
-    u8 saved_by_ad;
+    u32 ad_state; // defines if an activity dump is running
+    u32 saved_by_ad; // defines if the dentry should have been discarded, but was saved because of an activity dump
 };
 
 union selinux_write_payload_t {
@@ -308,18 +309,27 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         return 0;
     }
 
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    u64 now = bpf_ktime_get_ns();
-    u64 timeout = lookup_or_delete_traced_pid_timeout(tgid, now);
-    if (timeout > 0) {
-        // return immediately
-        return 0;
-    }
-
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
     if (syscall->policy.mode == DENY) {
         pass_to_userspace = check_approvers(syscall);
+    }
+
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u32 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
+    if (cookie != NULL) {
+        u64 now = bpf_ktime_get_ns();
+        struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
+        if (config != NULL) {
+            // is this event type traced ?
+            if (mask_has_event(config->event_mask, syscall->type)
+                && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+                if (!pass_to_userspace) {
+                    syscall->resolver.saved_by_ad = true;
+                }
+                return 0;
+            }
+        }
     }
 
     return !pass_to_userspace;
