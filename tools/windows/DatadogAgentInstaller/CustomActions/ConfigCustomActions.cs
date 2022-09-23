@@ -1,11 +1,13 @@
+using System;
 using System.IO;
+using Datadog.CustomActions.Extensions;
 using Microsoft.Deployment.WindowsInstaller;
 using YamlDotNet.Serialization.NamingConventions;
 using YamlDotNet.Serialization;
 
 namespace Datadog.CustomActions
 {
-    public class ConfigUserActions
+    public class ConfigCustomActions
     {
         class DatadogConfig
         {
@@ -16,7 +18,7 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult ReadConfig(Session session)
         {
-            var configFolder = session["APPLICATIONDATADIRECTORY"];
+            var configFolder = session.Property("APPLICATIONDATADIRECTORY");
 
             try
             {
@@ -40,11 +42,10 @@ namespace Datadog.CustomActions
                     }
                 }
             }
-            catch
+            catch (Exception e)
             {
-                // ignored
+                session.Log($"{nameof(ReadConfig)}: User config could not be read: ", e);
             }
-
 
             return ActionResult.Success;
         }

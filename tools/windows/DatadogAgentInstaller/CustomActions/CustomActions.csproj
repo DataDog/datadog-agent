@@ -36,7 +36,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="ConfigUserActions.cs" />
+    <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="DecompressCustomActions.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="UserCustomActions.cs" />
