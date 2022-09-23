@@ -40,4 +40,11 @@
   <String Id ="SiteDialogTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Title_White}[ShortCompanyName] Region </String>
   <String Id ="SiteDialogKeyLabel" Overridable="yes" Localizable="yes">Which [ShortCompanyName] region do you want the Agent to send data to?</String>
   <String Id ="SiteSampleKey" Overridable="yes" Localizable="yes"></String>
+
+  <String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
+  <String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
+  <String Id="MsiRMFilesInUseBannerBitmap" Overridable="yes">WixUI_Bmp_Banner</String>
+  <String Id="MsiRMFilesInUseText" Overridable="yes">The following applications are using files that need to be updated by this setup. Close these applications and then click &amp;Retry to continue setup or Exit to exit it.</String>
+  <String Id="MsiRMFilesInUseDescription" Overridable="yes">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
+  <String Id="MsiRMFilesInUseTitle" Overridable="yes">{\WixUI_Font_Title_White}Files in Use</String>
 </WixLocalization>
