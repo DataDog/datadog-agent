@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix tokenization of negative numeric values in SQL obfuscator to remove extra characters prepended to the byte array
+    Fix tokenization of negative numeric values in the SQL obfuscator to remove extra characters prepended to the byte array.
