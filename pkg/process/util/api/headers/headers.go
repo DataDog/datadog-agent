@@ -28,4 +28,6 @@ const (
 	ContentEncodingHeader = "Content-Encoding"
 	// ZSTDContentEncoding contains that the encoding type is zstd
 	ZSTDContentEncoding = "zstd"
+	// RequestIDHeader contains a unique identifier per payloads being sent to the intake servers
+	RequestIDHeader = "X-DD-Request-ID"
 )

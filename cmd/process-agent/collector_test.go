@@ -7,6 +7,7 @@ package main
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -561,4 +562,39 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_getRequestID(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	cfg.HostName = "host"
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	fixedDate1 := time.Date(2022, 9, 1, 1, 0, 0, 0, time.Local)
+	id1, err := c.getRequestID(fixedDate1, 1)
+	assert.NoError(t, err)
+	id2, err := c.getRequestID(fixedDate1, 1)
+	assert.NoError(t, err)
+	// The calculation should be deterministic, so making sure the parameters generates the same id.
+	assert.Equal(t, id1, id2)
+	fixedDate2 := time.Date(2022, 9, 1, 0, 1, 0, 0, time.Local)
+	id3, err := c.getRequestID(fixedDate2, 1)
+	assert.NoError(t, err)
+
+	// The request id is based on time, so if the difference it only the time, then the new ID should be greater.
+	assert.Positive(t, strings.Compare(id3, id1))
+
+	// Increasing the chunk index should increase the id.
+	id4, err := c.getRequestID(fixedDate2, 3)
+	assert.NoError(t, err)
+	id3Num, _ := strconv.ParseInt(id3, 10, 64)
+	id4Num, _ := strconv.ParseInt(id4, 10, 64)
+	assert.Equal(t, id3Num+2, id4Num)
+
+	// Changing the host -> changing the hash.
+	cfg.HostName = "host2"
+	id5, err := c.getRequestID(fixedDate1, 1)
+	assert.NoError(t, err)
+	assert.NotEqual(t, id1, id5)
 }
