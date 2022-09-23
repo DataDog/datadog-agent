@@ -11,6 +11,9 @@ namespace WixSetup.Datadog
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
+
+        public ManagedAction DecompressPythonDistributions { get; }
+
         public AgentCustomActions()
         {
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
@@ -62,6 +65,16 @@ namespace WixSetup.Datadog
                 )
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
                 .HideTarget(true);
+
+            DecompressPythonDistributions = new CustomAction<DecompressCustomActions>(
+                new Id("DecompressPythonDistributions"),
+                DecompressCustomActions.DecompressPythonDistributions,
+                Return.check,
+                When.After,
+                Step.InstallFinalize,
+                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                )
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
         }
     }
 }

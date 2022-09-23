@@ -64,6 +64,7 @@ namespace WixSetup.Datadog
                         _agentCustomActions.ReadConfig,
                         _agentCustomActions.WriteConfig,
                         _agentCustomActions.ProcessDdAgentUserCredentials,
+                        _agentCustomActions.DecompressPythonDistributions,
                         new Property("APIKEY")
                         {
                             AttributesDefinition = "Hidden=yes;Secure=yes"
@@ -166,7 +167,7 @@ namespace WixSetup.Datadog
                     WixSourceGenerated(document);
                 }
                 document.Select("Wix/Product")
-                    .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=mszip; EmbedCab=yes; MaximumUncompressedMediaSize=2");
+                    .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -182,15 +183,22 @@ namespace WixSetup.Datadog
         private Dir CreateProgramFilesFolder()
         {
             var targetBinFolder = CreateBinFolder();
-            var binFolder = new Dir(new Id("APPLICATIONROOTDIRECTORY"), @"%ProgramFiles%\Datadog",
-                new Dir(new Id("PROJECTLOCATION"), "Datadog Agent", targetBinFolder),
-                new Dir("LICENSES",
-                    new Files($@"{InstallerSource}\LICENSES\*")
-                ),
-                new DirFiles($@"{InstallerSource}\*.json"),
-                new DirFiles($@"{InstallerSource}\*.txt"),
-                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
-            );
+            var binFolder =
+                new Dir(new Id("APPLICATIONROOTDIRECTORY"), @"%ProgramFiles%\Datadog",
+                    new Dir(new Id("PROJECTLOCATION"), "Datadog Agent",
+                        targetBinFolder,
+                        new Dir("LICENSES",
+                            new Files($@"{InstallerSource}\LICENSES\*")
+                            ),
+                        new DirFiles($@"{InstallerSource}\*.json"),
+                        new DirFiles($@"{InstallerSource}\*.txt"),
+                        new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
+                        )
+                    );
+            if (_agentPython.IncludePython2)
+            {
+                binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded3"));
+            }
             return binFolder;
         }
 
