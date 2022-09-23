@@ -2,6 +2,35 @@
 Release Notes
 =============
 
+.. _Release Notes_7.39.1:
+
+7.39.1 / 6.39.1
+======
+
+.. _Release Notes_7.39.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-09-26
+
+
+.. _Release Notes_7.39.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump ``github.com/open-policy-agent/opa`` to `v0.43.1 <https://github.com/open-policy-agent/opa/releases/tag/v0.43.1>`_ to patch CVE-2022-36085.
+
+
+.. _Release Notes_7.39.1_Other Notes:
+
+Other Notes
+-----------
+
+- Bump embedded Python3 to `3.8.14`.
+
+
 .. _Release Notes_7.39.0:
 
 7.39.0 / 6.39.0
