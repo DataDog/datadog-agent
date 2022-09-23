@@ -52,7 +52,7 @@ const (
 )
 
 type ebpfProgram struct {
-	Manager     *manager.Manager
+	*errtelemetry.ManagerWithTelemetry
 	cfg         *config.Config
 	bytecode    bytecode.AssetReader
 	offsets     []manager.ConstantEditor
@@ -60,8 +60,6 @@ type ebpfProgram struct {
 	mapCleaner  *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
-	mapErrTelemetryMap     *ebpf.Map
-	helperErrTelemetryMap  *ebpf.Map
 }
 
 type subprogram interface {
@@ -83,7 +81,7 @@ var tailCalls []manager.TailCallRoute = []manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD, errMap, helperErrMap *ebpf.Map) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -142,14 +140,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD, 
 
 	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
-		Manager:                mgr,
+		ManagerWithTelemetry:   errtelemetry.NewManagerWithTelemetry(mgr, bpfTelemetry),
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
 		subprograms:            []subprogram{sslProgram},
-		mapErrTelemetryMap:     errMap,
-		helperErrTelemetryMap:  helperErrMap,
 	}
 
 	return program, nil
@@ -167,8 +163,8 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 
-	e.Manager.DumpHandler = dumpMapsHandler
-	e.Manager.InstructionPatcher = func(m *manager.Manager) error {
+	e.DumpHandler = dumpMapsHandler
+	e.InstructionPatcher = func(m *manager.Manager) error {
 		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
 	for _, s := range e.subprograms {
@@ -180,7 +176,6 @@ func (e *ebpfProgram) Init() error {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
 
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(e.Manager)
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -222,25 +217,14 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: append(e.offsets, telemetryMapKeys...),
-	}
-
-	if (e.mapErrTelemetryMap != nil) || (e.helperErrTelemetryMap != nil) {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
-	if e.mapErrTelemetryMap != nil {
-		options.MapEditors[string(probes.MapErrTelemetryMap)] = e.mapErrTelemetryMap
-	}
-	if e.helperErrTelemetryMap != nil {
-		options.MapEditors[string(probes.HelperErrTelemetryMap)] = e.helperErrTelemetryMap
+		ConstantEditors: e.offsets,
 	}
 
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
 	}
 
-	err = e.Manager.InitWithOptions(e.bytecode, options)
+	err = e.InitManagerWithTelemetry(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -265,7 +249,7 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
-	err := e.Manager.Stop(manager.CleanAll)
+	err := e.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
@@ -274,7 +258,7 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
-	httpMap, _, _ := e.Manager.GetMap(httpInFlightMap)
+	httpMap, _, _ := e.GetMap(httpInFlightMap)
 	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)

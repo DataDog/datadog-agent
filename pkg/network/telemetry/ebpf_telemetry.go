@@ -120,8 +120,8 @@ func getHelperTelemetry(v *HelperErrTelemetry) map[string]interface{} {
 	return helper
 }
 
-func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint32 {
-	errCount := make(map[string]uint32)
+func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint64 {
+	errCount := make(map[string]uint64)
 	for i := 0; i < maxErrno; i++ {
 		count := v.Count[(maxErrno*indx)+i]
 		if count != 0 {
@@ -137,8 +137,8 @@ func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint32 {
 	return errCount
 }
 
-func getMapErrCount(v *MapErrTelemetry) map[string]uint32 {
-	errCount := make(map[string]uint32)
+func getMapErrCount(v *MapErrTelemetry) map[string]uint64 {
+	errCount := make(map[string]uint64)
 
 	for i, count := range v.Count {
 		if count == 0 {
