@@ -17,7 +17,6 @@ type httpConnTuple struct {
 }
 type httpBatchState struct {
 	Idx      uint64
-	Pos      uint8
 	To_flush uint64
 }
 type sslSock struct {

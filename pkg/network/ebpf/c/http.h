@@ -31,11 +31,17 @@ static __always_inline void http_flush_batch(struct pt_regs *ctx) {
 
     bpf_perf_event_output(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
     log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
+    batch->pos = 0;
     batch_state->idx_to_flush++;
 }
 
 static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
+}
+
+
+static __always_inline bool http_batch_full(http_batch_t *batch) {
+    return batch && batch->pos == HTTP_BATCH_SIZE;
 }
 
 static __always_inline void http_enqueue(http_transaction_t *http) {
@@ -53,24 +59,28 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         return;
     }
 
-    if (!(batch_state->pos >= 0 && batch_state->pos < HTTP_BATCH_SIZE)) {
+    if (http_batch_full(batch)) {
+        // this scenario should never happen and indicates a bug
+        // TODO: turn this into telemetry for release 7.41
+        log_debug("http_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
         return;
     }
 
-    __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
-    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
-    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch_state->pos);
-    batch_state->pos++;
+    // Bounds check to make verifier happy
+    if (batch->pos < 0 || batch->pos >= HTTP_BATCH_SIZE) {
+        return;
+    }
 
-    // Copy batch state information for user-space
+    __builtin_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
+    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
+    batch->pos++;
     batch->idx = batch_state->idx;
-    batch->pos = batch_state->pos;
 
     // If we have filled the batch we move to the next one
     // Notice that we don't flush it directly because we can't do so from socket filter programs.
-    if (batch_state->pos == HTTP_BATCH_SIZE) {
+    if (http_batch_full(batch)) {
         batch_state->idx++;
-        batch_state->pos = 0;
     }
 }
 
