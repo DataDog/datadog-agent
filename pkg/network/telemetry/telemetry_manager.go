@@ -33,7 +33,7 @@ func (m *ManagerWithTelemetry) InitManagerWithTelemetry(bytecode io.ReaderAt, op
 	opts.ConstantEditors = append(opts.ConstantEditors, telemetryMapKeys...)
 
 	if (m.bpfTelemetry.MapErrMap != nil) || (m.bpfTelemetry.HelperErrMap != nil) {
-		if opts.MapEditors != nil {
+		if opts.MapEditors == nil {
 			opts.MapEditors = make(map[string]*ebpf.Map)
 		}
 	}
