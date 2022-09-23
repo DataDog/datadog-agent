@@ -59,7 +59,7 @@ namespace WixSetup.Datadog
                             Password = "[DDAGENTUSER_PASSWORD]",
                             PasswordNeverExpires = true,
                             RemoveOnUninstall = true,
-                            //ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
+                            ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
                         },
                         _agentCustomActions.ReadConfig,
                         _agentCustomActions.WriteConfig,
