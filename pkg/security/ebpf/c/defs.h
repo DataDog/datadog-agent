@@ -174,11 +174,11 @@
 #define MAX_XATTR_NAME_LEN 200
 
 #define bpf_printk(fmt, ...)                       \
-	({                                             \
-		char ____fmt[] = fmt;                      \
-		bpf_trace_printk(____fmt, sizeof(____fmt), \
-						 ##__VA_ARGS__);           \
-	})
+    ({                                             \
+        char ____fmt[] = fmt;                      \
+        bpf_trace_printk(____fmt, sizeof(____fmt), \
+                         ##__VA_ARGS__);           \
+    })
 
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
@@ -510,7 +510,6 @@ static __attribute__((always_inline)) u32 ord(u8 c) {
 
 static __attribute__((always_inline)) u32 atoi(char *buff) {
     u32 res = 0;
-    int base_multiplier = 1;
     u8 c = 0;
     char buffer[CHAR_TO_UINT32_BASE_10_MAX_LEN];
 
@@ -518,18 +517,15 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
     if (size <= 1) {
         return 0;
     }
-    u32 cursor = size - 2;
 
 #pragma unroll
-    for (int i = 1; i < CHAR_TO_UINT32_BASE_10_MAX_LEN; i++)
+    for (int i = 0; i < CHAR_TO_UINT32_BASE_10_MAX_LEN; i++)
     {
-        if (cursor < 0) {
-            return res;
+        bpf_probe_read(&c, sizeof(c), buffer + i);
+        if (c == 0 || c == '\n') {
+            break;
         }
-        bpf_probe_read(&c, sizeof(c), buffer + cursor);
-        res += ord(c) * base_multiplier;
-        base_multiplier = base_multiplier * 10;
-        cursor--;
+        res = res * 10 + ord(c);
     }
 
     return res;
