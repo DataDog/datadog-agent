@@ -37,6 +37,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ConfigUserActions.cs" />
+    <Compile Include="DecompressCustomActions.cs" />
+    <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="UserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -45,11 +47,18 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
-    <Folder Include="Extensions\" />
-  </ItemGroup>
-  <ItemGroup>
+    <Reference Include="Cave.Compression, Version=2.1.0.0, Culture=neutral, PublicKeyToken=81fb9a2cd82ecf81, processorArchitecture=MSIL">
+      <HintPath>..\packages\Cave.Compression.2.1.0\lib\net35\Cave.Compression.dll</HintPath>
+    </Reference>
+    <Reference Include="Cave.Extensions, Version=2.1.4.0, Culture=neutral, PublicKeyToken=65480c9a544d67e6, processorArchitecture=MSIL">
+      <HintPath>..\packages\Cave.Extensions.2.1.4\lib\net35\Cave.Extensions.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.Deployment.WindowsInstaller, Version=3.0.0.0, Culture=neutral, PublicKeyToken=ce35f76fcda82bad, processorArchitecture=MSIL" />
+    <Reference Include="SevenZip, Version=19.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\LZMA-SDK.19.0.0\lib\net20\SevenZip.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.DirectoryServices" />
