@@ -31,11 +31,13 @@ namespace Datadog.CustomActions
                 if (userFound)
                 {
                     session["DDAGENTUSER_FOUND"] = "true";
+                    session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Found {userName} in {domain} as {nameUse}");
                     NativeMethods.NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
                 }
                 else
                 {
                     session["DDAGENTUSER_FOUND"] = "false";
+                    session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Did not find {userName} in {domain}");
                     NativeMethods.ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
@@ -47,7 +49,7 @@ namespace Datadog.CustomActions
                 if (userFound && string.IsNullOrEmpty(ddAgentUserPassword) && !isServiceAccount)
                 {
                     // Impossible to use an existing user that is not a service account without a password
-                    session.Log($"Provide a password for the user {ddAgentUserName}");
+                    session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Provide a password for the user {ddAgentUserName}");
                     return ActionResult.Failure;
                 }
 
@@ -65,7 +67,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"Error processing ddAgentUser credentials: {e}");
+                session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Error processing ddAgentUser credentials: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
