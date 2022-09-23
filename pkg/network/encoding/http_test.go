@@ -8,16 +8,16 @@ package encoding
 import (
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 )
 
 func TestFormatHTTPStats(t *testing.T) {
@@ -186,6 +186,7 @@ func TestIDCollisionRegression(t *testing.T) {
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    1,
+			Cookie: 1,
 		},
 		{
 			Source: util.AddressFromString("1.1.1.1"),
@@ -193,6 +194,7 @@ func TestIDCollisionRegression(t *testing.T) {
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    2,
+			Cookie: 2,
 		},
 	}
 
@@ -222,15 +224,15 @@ func TestIDCollisionRegression(t *testing.T) {
 	// asssert that the first connection matching the the HTTP data will get
 	// back a non-nil result
 	aggregations, _, _ := httpEncoder.GetHTTPAggregationsAndTags(connections[0])
-	assert.NotNil(aggregations)
-	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByResponseStatus[0].Count)
+	assert.Nil(aggregations)
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the HTTP stats
 	// object
 	aggregations, _, _ = httpEncoder.GetHTTPAggregationsAndTags(connections[1])
-	assert.Nil(aggregations)
+	require.NotNil(t, aggregations)
+	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByResponseStatus[0].Count)
 }
 
 func TestLocalhostScenario(t *testing.T) {

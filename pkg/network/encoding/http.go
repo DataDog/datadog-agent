@@ -36,45 +36,14 @@ type httpEncoder struct {
 type aggregationWrapper struct {
 	*model.HTTPAggregations
 
-	// we keep track of the source and destination ports of the first
-	// `ConnectionStats` to claim this `HTTPAggregations` object
-	sport, dport uint16
+	cookie uint64
 }
 
 func (a *aggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTTPAggregations {
-	if a == nil {
-		return nil
-	}
-
-	sport, dport := c.SPort, c.DPort
-	if c.IPTranslation != nil {
-		sport, dport = c.IPTranslation.ReplDstPort, c.IPTranslation.ReplSrcPort
-	}
-
-	if a.sport == 0 && a.dport == 0 {
-		// This is the first time a ConnectionStats claim this aggregation. In
-		// this case we return the value and save the source and destination
-		// ports
-		a.sport, a.dport = sport, dport
+	if a.cookie == c.Cookie {
 		return a.HTTPAggregations
 	}
 
-	if sport == a.dport && dport == a.sport {
-		// We have have a collision with another `ConnectionStats`, but this is a
-		// legit scenario where we're dealing with the opposite ends of the
-		// same connection, which means both server and client are in the same host.
-		// In this particular case it is correct to have both connections
-		// (client:server and server:client) referencing the same HTTP data.
-		return a.HTTPAggregations
-	}
-
-	// Return nil otherwise. This is to prevent multiple `ConnectionStats` with
-	// exactly the same source and destination addresses but different PIDs to
-	// "bind" to the same HTTPAggregations object, which would result in a
-	// overcount problem. (Note that this is due to the fact that
-	// `http.KeyTuple` doesn't have a PID field.) This happens mostly in the
-	// context of pre-fork web servers, where multiple worker proceses share the
-	// same socket
 	return nil
 }
 
@@ -98,7 +67,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
-			encoder.aggregations[key] = nil
+			encoder.aggregations[key] = &aggregationWrapper{cookie: conn.Cookie}
 		}
 	}
 
@@ -113,7 +82,7 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 
 	keyTuples := network.HTTPKeyTuplesFromConn(c)
 	for _, key := range keyTuples {
-		if aggregation := e.aggregations[key]; aggregation != nil {
+		if aggregation := e.aggregations[key]; aggregation.HTTPAggregations != nil {
 			return aggregation.ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
 		}
 	}
@@ -134,13 +103,10 @@ func (e *httpEncoder) buildAggregations(payload *network.Connections) {
 			continue
 		}
 
-		if aggregation == nil {
-			aggregation = &aggregationWrapper{
-				HTTPAggregations: &model.HTTPAggregations{
-					EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.KeyTuple]),
-				},
+		if aggregation.HTTPAggregations == nil {
+			aggregation.HTTPAggregations = &model.HTTPAggregations{
+				EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.KeyTuple]),
 			}
-			e.aggregations[key.KeyTuple] = aggregation
 		}
 
 		ms := &model.HTTPStats{
