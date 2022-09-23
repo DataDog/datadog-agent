@@ -4,9 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using Cave.Compression.Tar;
-using Datadog.CustomActions;
 using SevenZip;
-using WixSharp;
 using File = System.IO.File;
 
 namespace WixSetup
@@ -16,7 +14,7 @@ namespace WixSetup
         private readonly string _sourceDir;
 
         public CompressedDir(IWixProjectEvents wixProjectEvents, string targetPath, string sourceDir)
-            : base($"{targetPath}.COMPRESSED", new ManagedAction(UserCustomActions.ProcessDdAgentUserCredentials))
+            : base($"{targetPath}.COMPRESSED")
         {
             wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             _sourceDir = sourceDir;
