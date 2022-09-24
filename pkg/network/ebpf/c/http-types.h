@@ -100,6 +100,18 @@ typedef struct {
 } ssl_write_args_t;
 
 typedef struct {
+    void *ctx;
+    void *buf;
+    size_t *size_out_param;
+} ssl_read_ex_args_t;
+
+typedef struct {
+    void *ctx;
+    void *buf;
+    size_t *size_out_param;
+} ssl_write_ex_args_t;
+
+typedef struct {
     conn_tuple_t tup;
     __u32 fd;
 } ssl_sock_t;

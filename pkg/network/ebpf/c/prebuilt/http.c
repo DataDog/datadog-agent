@@ -225,6 +225,107 @@ cleanup:
     return 0;
 }
 
+SEC("uprobe/SSL_read_ex")
+int uprobe__SSL_read_ex(struct pt_regs* ctx) {
+    ssl_read_ex_args_t args = {0};
+    args.ctx = (void *)PT_REGS_PARM1(ctx);
+    args.buf = (void *)PT_REGS_PARM2(ctx);
+    args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
+    bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_read_ex")
+int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    int return_code = (int)PT_REGS_RC(ctx);
+    if (return_code <= 0) {
+        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx ret=%d\n", pid_tgid, return_code);
+        goto cleanup;
+    }
+
+    log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx\n", pid_tgid);
+    ssl_read_ex_args_t *args = bpf_map_lookup_elem(&ssl_read_ex_args, &pid_tgid);
+    if (args == NULL) {
+        return 0;
+    }
+
+    if (args->size_out_param == NULL) {
+        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx buffer size out param is null\n", pid_tgid);
+        goto cleanup;
+    }
+
+    size_t bytes_count = 0;
+    bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
+    if ( bytes_count <= 0) {
+        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx len=%d\n", pid_tgid, bytes_count);
+        goto cleanup;
+    }
+
+    void *ssl_ctx = args->ctx;
+    conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
+        goto cleanup;
+    }
+
+    https_process(t, args->buf, bytes_count, LIBSSL);
+cleanup:
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    return 0;
+}
+
+SEC("uprobe/SSL_write_ex")
+int uprobe__SSL_write_ex(struct pt_regs* ctx) {
+    ssl_write_ex_args_t args = {0};
+    args.ctx = (void *)PT_REGS_PARM1(ctx);
+    args.buf = (void *)PT_REGS_PARM2(ctx);
+    args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
+    bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_write_ex")
+int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    int return_code = (int)PT_REGS_RC(ctx);
+    log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx len=%d\n", pid_tgid, return_code);
+    if (return_code <= 0) {
+        goto cleanup;
+    }
+
+    ssl_write_ex_args_t *args = bpf_map_lookup_elem(&ssl_write_ex_args, &pid_tgid);
+    if (args == NULL) {
+        return 0;
+    }
+
+    if (args->size_out_param == NULL) {
+        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx buffer size out param is null\n", pid_tgid);
+        goto cleanup;
+    }
+
+    size_t bytes_count = 0;
+    bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
+    if ( bytes_count <= 0) {
+        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx len=%d\n", pid_tgid, bytes_count);
+        goto cleanup;
+    }
+
+    conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
+    if (t == NULL) {
+        goto cleanup;
+    }
+
+    https_process(t, args->buf, bytes_count, LIBSSL);
+cleanup:
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    return 0;
+}
+
 SEC("uprobe/SSL_shutdown")
 int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
