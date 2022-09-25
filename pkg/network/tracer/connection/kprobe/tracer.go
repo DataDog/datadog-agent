@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -38,6 +39,10 @@ const (
 	defaultClosedChannelSize = 500
 
 	probeUID = "net"
+)
+
+var (
+	classificationMinimumKernel = kernel.VersionCode(4, 5, 0)
 )
 
 type kprobeTracer struct {
@@ -54,6 +59,11 @@ type kprobeTracer struct {
 	removeTuple   *netebpf.ConnTuple
 
 	telemetry telemetry
+
+	// A method to run during the "Stop" action of the tracer to close the socket filter we've created for the protocol
+	// classification feature.
+	// If classification feature is disabled, then the value will be nil.
+	closeProtocolClassifierSocketFilterFn func()
 }
 
 type telemetry struct {
@@ -68,6 +78,18 @@ func newTelemetry() telemetry {
 		tcpConns6: atomic.NewInt64(0),
 		udpConns6: atomic.NewInt64(0),
 	}
+}
+
+// ClassificationSupported returns true if the current kernel version supports the classification feature.
+// The kernel has to be newer than 4.5.0 since we are using bpf_skb_load_bytes method to read from the socket filter.
+func ClassificationSupported() bool {
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
+		return false
+	}
+
+	return currentKernelVersion >= classificationMinimumKernel
 }
 
 // New creates a new tracer
@@ -132,6 +154,23 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	m := newManager(config, perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
+	var closeProtocolClassifierSocketFilterFn func()
+	if ClassificationSupported() {
+		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
+			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
+			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+			UID:          probeUID,
+		})
+		if socketFilerProbe == nil {
+			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
+		}
+
+		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
+		if err != nil {
+			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
+		}
+	}
+
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, errors.New("failed to detect kernel version")
@@ -173,12 +212,13 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	}
 
 	tr := &kprobeTracer{
-		m:             m,
-		config:        config,
-		closeConsumer: closeConsumer,
-		pidCollisions: atomic.NewInt64(0),
-		removeTuple:   &netebpf.ConnTuple{},
-		telemetry:     newTelemetry(),
+		m:                                     m,
+		config:                                config,
+		closeConsumer:                         closeConsumer,
+		pidCollisions:                         atomic.NewInt64(0),
+		removeTuple:                           &netebpf.ConnTuple{},
+		telemetry:                             newTelemetry(),
+		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -232,6 +272,9 @@ func (t *kprobeTracer) FlushPending() {
 func (t *kprobeTracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	t.closeConsumer.Stop()
+	if t.closeProtocolClassifierSocketFilterFn != nil {
+		t.closeProtocolClassifierSocketFilterFn()
+	}
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
@@ -505,6 +548,12 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Monotonic:        make(network.StatCountersByCookie, 0, 3),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
+	}
+
+	if s.Protocol < uint16(network.MaxProtocols) {
+		stats.Protocol = network.ProtocolType(s.Protocol)
+	} else {
+		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
 	}
 
 	stats.Monotonic.Put(s.Cookie, network.StatCounters{

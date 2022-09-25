@@ -27,6 +27,16 @@ const (
 	// TCPv6ConnectReturn traces the return value for the v6 connect() system call
 	TCPv6ConnectReturn ProbeName = "kretprobe/tcp_v6_connect"
 
+	// TCPRecvMsg traces the tcp_recvmsg() system call
+	TCPRecvMsg ProbeName = "kprobe/tcp_recvmsg"
+
+	// TCPRecvMsgPre410 traces the tcp_recvmsg() system call on kernels prior to 4.1.0. This is created because
+	// we need to load a different kprobe implementation
+	TCPRecvMsgPre410 ProbeName = "kprobe/tcp_recvmsg/pre_4_1_0"
+
+	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filer
+	ProtocolClassifierSocketFilter ProbeName = "socket/classifier"
+
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeName = "kprobe/tcp_sendmsg"
 

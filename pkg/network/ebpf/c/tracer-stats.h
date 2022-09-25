@@ -51,6 +51,28 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
+    protocol_t local_protocol = PROTOCOL_UNCLASSIFIED;
+    conn_tuple_t t2 = *t;
+    // The classifier is a socket filter and there we are not accessible for pid and netns.
+    // The key is based of the source & dest addresses and ports, and the metadata.
+    t2.netns = 0;
+    t2.pid = 0;
+
+    protocol_t *protocol = bpf_map_lookup_elem(&connection_protocol, &t2);
+    if (protocol != NULL) {
+        local_protocol = *protocol;
+    }
+
+    // We update the protocol if the new protocol is known, and we don't already have a known protocol.
+    if (local_protocol != PROTOCOL_UNCLASSIFIED && val->protocol == PROTOCOL_UNCLASSIFIED) {
+        log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", local_protocol);
+        val->protocol = local_protocol;
+    } else if (local_protocol != PROTOCOL_UNCLASSIFIED && val->protocol != PROTOCOL_UNKNOWN && val->protocol != local_protocol) {
+        // If the new protocol was classified, the current protocol is classified and it is known, then there is a possible error.
+        // If the current protocol is "unknown" and we managed to classify it to another protocol -> that's a reasonable and expected scenario.
+        log_debug("[update_conn_stats]: A classified connection (%d) has been re-classified with protocol %d\n", val->protocol, local_protocol);
+    }
+
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);
     if (sent_bytes) {
@@ -96,7 +118,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     __u32 pid = t->pid;
     t->pid = 0;
 
-    // initialize-if-no-exist the connetion state, and load it
+    // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
     bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST);
 

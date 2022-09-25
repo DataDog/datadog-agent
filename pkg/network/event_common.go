@@ -18,6 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+type ProtocolType uint16
+
+const (
+	ProtocolUnclassified ProtocolType = iota
+	ProtocolUnknown
+	ProtocolHTTP
+	ProtocolHTTP2
+	ProtocolTLS
+	MaxProtocols
+)
+
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
 
@@ -290,6 +301,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	Protocol  ProtocolType
 }
 
 // Via has info about the routing decision for a flow

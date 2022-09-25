@@ -2,6 +2,7 @@
 #include "bpf_telemetry.h"
 #include "tracer.h"
 
+#include "protocol-classification-helpers.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -44,6 +45,13 @@ static __always_inline void get_tcp_segment_counts(struct sock *skp, __u32 *pack
     // fields in the tcp_sk: packets_in & packets_out (respectively)
     *packets_in = 0;
     *packets_out = 0;
+}
+
+// The entrypoint for all packets.
+SEC("socket/classifier")
+int socket__classifier(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint(skb);
+    return 0;
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -101,6 +109,42 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+}
+
+SEC("kprobe/tcp_recvmsg")
+int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_recvmsg: pid_tgid: %d\n", pid_tgid);
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+
+    if (!skp) {
+        return 0;
+    }
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    return handle_message(&t, 0, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_ABSOLUTE, skp);
+}
+
+SEC("kprobe/tcp_recvmsg/pre_4_1_0")
+int kprobe__tcp_recvmsg__pre_4_1_0(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_recvmsg: pid_tgid: %d\n", pid_tgid);
+    struct sock *skp = (struct sock *)PT_REGS_PARM2(ctx);
+
+    if (!skp) {
+        return 0;
+    }
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    return handle_message(&t, 0, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_ABSOLUTE, skp);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")

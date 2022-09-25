@@ -42,7 +42,11 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	}
 
 	if c.CollectTCPConns {
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre410, kv410))
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
+		if ClassificationSupported() {
+			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
+		}
 		enableProbe(enabled, probes.TCPSendMsgReturn)
 		enableProbe(enabled, probes.TCPCleanupRBuf)
 		enableProbe(enabled, probes.TCPClose)

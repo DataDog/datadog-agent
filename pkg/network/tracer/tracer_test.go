@@ -278,6 +278,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
+	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
@@ -331,6 +332,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
+	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
@@ -387,6 +389,7 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
+	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
 	assert.True(t, conn.IntraHost)
 
 	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
@@ -537,11 +540,15 @@ func TestTCPConnsReported(t *testing.T) {
 	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 	// Server-side
-	_, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	srvConn, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	require.True(t, ok)
+	// No data was sent, so unclassified.
+	assertConnectionProtocol(t, network.ProtocolUnclassified, srvConn.Protocol)
 	// Client-side
-	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	clientConn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
+	// No data was sent, so unclassified.
+	assertConnectionProtocol(t, network.ProtocolUnclassified, clientConn.Protocol)
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -590,6 +597,8 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	if assert.True(t, ok, "unable to find incoming connection") {
 		assert.Equal(t, network.INCOMING, incoming.Direction)
+		// UDP traffic is not classified.
+		assertConnectionProtocol(t, network.ProtocolUnclassified, incoming.Protocol)
 
 		// make sure the inverse values are seen for the other message
 		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSum().SentBytes), "incoming sent")
@@ -600,6 +609,8 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	if assert.True(t, ok, "unable to find outgoing connection") {
 		assert.Equal(t, network.OUTGOING, outgoing.Direction)
+		// UDP traffic is not classified.
+		assertConnectionProtocol(t, network.ProtocolUnclassified, outgoing.Protocol)
 
 		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSum().SentBytes), "outgoing sent")
 		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicSum().RecvBytes), "outgoing recv")
@@ -1300,6 +1311,8 @@ func TestTCPEstablished(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, uint32(1), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
+	// Raw protocol, classified as unknown.
+	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
 
 	c.Close()
 	// Wait for the connection to be sent from the perf buffer
@@ -1308,6 +1321,8 @@ func TestTCPEstablished(t *testing.T) {
 	connections = getConnections(t, tr)
 	conn, ok = findConnection(laddr, raddr, connections)
 	require.True(t, ok)
+	// Raw protocol, classified as unknown.
+	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
 	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
 }
@@ -1344,6 +1359,8 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	conn, ok := findConnection(laddr, raddr, connections)
 
 	require.True(t, ok)
+	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+
 	m := conn.MonotonicSum()
 	assert.Equal(t, uint32(0), m.TCPEstablished)
 	assert.Equal(t, uint32(1), m.TCPClosed)
@@ -1372,6 +1389,8 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	})
 
 	require.Len(t, outgoing, 1)
+	// UDP traffic is not classified
+	assertConnectionProtocol(t, network.ProtocolUnclassified, outgoing[0].Protocol)
 	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSum().SentBytes))
 }
 
@@ -1570,8 +1589,11 @@ func TestTCPDirection(t *testing.T) {
 	// Verify connection directions
 	conn := outgoingConns[0]
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
+	assertConnectionProtocol(t, network.ProtocolHTTP, conn.Protocol)
+
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+	assertConnectionProtocol(t, network.ProtocolHTTP, conn.Protocol)
 }
 
 func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
@@ -1646,6 +1668,33 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	defer tr.Stop()
 }
 
+func findConnectionForHTTPRequest(httpKey http.Key, serverPort int, conns *network.Connections) *network.ConnectionStats {
+	dstAddress := &net.TCPAddr{
+		IP:   net.ParseIP(util.FromLowHigh(httpKey.DstIPLow, httpKey.DstIPHigh).String()),
+		Port: int(httpKey.DstPort),
+	}
+	srcAddress := &net.TCPAddr{
+		IP:   net.ParseIP(util.FromLowHigh(httpKey.SrcIPLow, httpKey.SrcIPHigh).String()),
+		Port: int(httpKey.SrcPort),
+	}
+
+	local := srcAddress
+	remote := dstAddress
+	if int(httpKey.DstPort) != serverPort {
+		local = dstAddress
+		remote = srcAddress
+	}
+	httpConn, _ := findConnection(local, remote, conns)
+
+	return httpConn
+}
+
+func assertConnectionProtocol(t *testing.T, expectedProtocol network.ProtocolType, protocol network.ProtocolType) {
+	if classificationSupported() {
+		require.Equal(t, expectedProtocol, protocol)
+	}
+}
+
 func TestHTTPStats(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTP monitoring feature not available")
@@ -1688,15 +1737,14 @@ func TestHTTPStats(t *testing.T) {
 
 	// Iterate through active connections until we find connection created above
 	var httpReqStats *http.RequestStats
+	var httpConn *network.ConnectionStats
 	require.Eventuallyf(t, func() bool {
-		payload, err := tr.GetActiveConnections("1")
-		if err != nil {
-			t.Fatal(err)
-		}
+		conns := getConnections(t, tr)
 
-		for key, stats := range payload.HTTP {
+		for key, stats := range conns.HTTP {
 			if key.Path.Content == "/test" {
 				httpReqStats = stats
+				httpConn = findConnectionForHTTPRequest(key, 8080, conns)
 				return true
 			}
 		}
@@ -1705,12 +1753,14 @@ func TestHTTPStats(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
+	require.NotNil(t, httpConn)
 	require.NotNil(t, httpReqStats)
 	assert.Nil(t, httpReqStats.Stats(100), "100s")            // number of requests with response status 100
 	assert.Equal(t, 1, httpReqStats.Stats(200).Count, "200s") // 200
 	assert.Nil(t, httpReqStats.Stats(300), "300s")            // 300
 	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
 	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
+	assertConnectionProtocol(t, network.ProtocolHTTP, httpConn.Protocol)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -1806,12 +1856,9 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
 
 	require.Eventuallyf(t, func() bool {
-		payload, err := tr.GetActiveConnections("1")
-		if err != nil {
-			t.Fatal(err)
-		}
+		conns := getConnections(t, tr)
 
-		for key, stats := range payload.HTTP {
+		for key, stats := range conns.HTTP {
 			if !stats.HasStats(200) {
 				continue
 			}
@@ -1823,12 +1870,16 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			if key.Path.Content == "/200/foobar" && (statsTags == tagGnuTLS || statsTags == tagOpenSSL) {
 				foundPathAndHTTPTag = true
 				t.Logf("found tag 0x%x %s", statsTags, staticTags[statsTags])
+				httpConn := findConnectionForHTTPRequest(key, 443, conns)
+				require.NotNil(t, httpConn)
+				// Traffic is encrypted, thus we cannot know it is http.
+				assertConnectionProtocol(t, network.ProtocolUnknown, httpConn.Protocol)
 			}
 			if foundPathAndHTTPTag {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
-			for _, c := range payload.Conns {
+			for _, c := range conns.Conns {
 				possibleKeyTuples := network.HTTPKeyTuplesFromConn(c)
 				t.Logf("conn sport %d dport %d tags %x connKey [%v] or [%v]\n", c.SPort, c.DPort, c.Tags, possibleKeyTuples[0], possibleKeyTuples[1])
 			}
