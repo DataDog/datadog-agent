@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
+	_ "github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types" // This is required to init `PrometheusScrapeChecksTransformer`
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
