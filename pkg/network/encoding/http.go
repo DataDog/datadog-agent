@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpEncoder struct {
@@ -67,6 +68,9 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
+			if wrapper := encoder.aggregations[key]; wrapper != nil && wrapper.cookie == conn.Cookie {
+				log.Debugf("duplicate cookie for connection tuple: key=%+v conn=%v", key, conn)
+			}
 			encoder.aggregations[key] = &aggregationWrapper{cookie: conn.Cookie}
 		}
 	}
