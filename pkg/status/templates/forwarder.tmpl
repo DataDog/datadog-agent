@@ -80,12 +80,3 @@ Forwarder
   {{- end }}
 {{- end}}
 
-{{- if .APIKeyFailure }}
-
-  API Keys status
-  ===============
-  {{- range $key, $value := .APIKeyFailure }}
-    {{yellowText $key}}{{yellowText ":"}} {{yellowText $value}}
-  {{- end }}
-{{- end}}
-
