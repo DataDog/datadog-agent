@@ -28,13 +28,13 @@ func NewManagerWithTelemetry(mgr *manager.Manager, bt *EBPFTelemetry) *ManagerWi
 	}
 }
 
-func (m *ManagerWithTelemetry) InitManagerWithTelemetry(bytecode io.ReaderAt, opts manager.Options) error {
+func (m *ManagerWithTelemetry) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
 	telemetryMapKeys := BuildTelemetryKeys(m.Manager)
 	opts.ConstantEditors = append(opts.ConstantEditors, telemetryMapKeys...)
 
 	initializeMaps(m.bpfTelemetry, &opts)
 
-	if err := m.InitWithOptions(bytecode, opts); err != nil {
+	if err := m.Manager.InitWithOptions(bytecode, opts); err != nil {
 		return err
 	}
 

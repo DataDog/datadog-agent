@@ -224,7 +224,7 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err = e.InitManagerWithTelemetry(e.bytecode, options)
+	err = e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
