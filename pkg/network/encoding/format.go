@@ -104,6 +104,7 @@ func FormatFailedConnection(failedConn network.FailedConnStats, ipc ipCache) *mo
 	fc.Pid = int32(failedConn.Pid)
 	fc.NetNS = failedConn.NetNS
 	fc.Type = formatType(failedConn.Type)
+	fc.IsLocalPortEphemeral = formatEphemeralType(failedConn.SPortIsEphemeral)
 	fc.Family = formatFamily(failedConn.Family)
 	fc.Direction = formatDirection(failedConn.Direction)
 	fc.FailureCount = failedConn.FailureCount

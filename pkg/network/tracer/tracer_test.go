@@ -583,15 +583,16 @@ func testTCPFailedConnsTimeout(t *testing.T) {
 
 	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
 	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
-		Source:       destIP,
-		Dest:         destIP,
-		SPort:        srcPort,
-		DPort:        DestPort,
-		Pid:          uint32(os.Getpid()),
-		NetNS:        ns,
-		Direction:    network.OUTGOING,
-		FailureCount: 1,
-		LastErrno:    int32(syscall.ETIMEDOUT),
+		Source:           destIP,
+		Dest:             destIP,
+		SPort:            srcPort,
+		DPort:            DestPort,
+		Pid:              uint32(os.Getpid()),
+		NetNS:            ns,
+		Direction:        network.OUTGOING,
+		SPortIsEphemeral: 1,
+		FailureCount:     1,
+		LastErrno:        int32(syscall.ETIMEDOUT),
 	})
 }
 func testTCPFailedConnsClosedDest(t *testing.T) {
@@ -620,15 +621,16 @@ func testTCPFailedConnsClosedDest(t *testing.T) {
 
 	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
 	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
-		Source:       srcAddr,
-		Dest:         destAddr,
-		SPort:        srcPort,
-		DPort:        destPort,
-		Pid:          uint32(os.Getpid()),
-		NetNS:        ns,
-		Direction:    network.OUTGOING,
-		FailureCount: 1,
-		LastErrno:    int32(syscall.ECONNREFUSED),
+		Source:           srcAddr,
+		Dest:             destAddr,
+		SPort:            srcPort,
+		DPort:            destPort,
+		Pid:              uint32(os.Getpid()),
+		NetNS:            ns,
+		Direction:        network.OUTGOING,
+		SPortIsEphemeral: 1,
+		FailureCount:     1,
+		LastErrno:        int32(syscall.ECONNREFUSED),
 	})
 }
 

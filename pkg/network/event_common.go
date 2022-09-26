@@ -302,9 +302,10 @@ type FailedConnStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	Type      ConnectionType
-	Family    ConnectionFamily
-	Direction ConnectionDirection
+	Type             ConnectionType
+	Family           ConnectionFamily
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
 
 	FailureCount uint64
 	LastErrno    int32
