@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
 	"github.com/stretchr/testify/assert"
@@ -450,8 +449,7 @@ func TestConfigsForPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("prometheus_scrape.version", tt.version)
-			tt.check.Init()
+			tt.check.Init(tt.version)
 			assert.ElementsMatch(t, tt.want, ConfigsForPod(tt.check, tt.pod))
 		})
 	}

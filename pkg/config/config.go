@@ -19,13 +19,14 @@ import (
 	"strings"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -115,10 +116,15 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
-
-	// PrometheusScrapeChecksTransformer decodes the `prometheus_scrape.checks` parameter
-	PrometheusScrapeChecksTransformer func(string) interface{}
 )
+
+func PrometheusScrapeChecksTransformer(in string) interface{} {
+	var promChecks []*types.PrometheusCheck
+	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+	}
+	return promChecks
+}
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -206,21 +212,6 @@ const (
 	// Logs type covers all outgoing logs
 	Logs DataType = "logs"
 )
-
-// prometheusScrapeChecksTransformer is a trampoline function that delays the
-// resolution of `PrometheusScrapeChecksTransformer` from `InitConfig` (invoked
-// from an `init()` function to `cobra.(*Command).Execute` (invoked from `main.main`)
-//
-// Without it, the issue is that `config.PrometheusScrapeChecksTransformer` would be:
-// * written from an `init` function from `pkg/autodiscovery/common/types` and
-// * read from an `init` function here.
-// This would result in an undefined behaviour
-//
-// With this intermediate function, it’s read from `cobra.(*Command).Execute`
-// which is called from `main.main` which is guaranteed to be called after all `init`.
-func prometheusScrapeChecksTransformer(s string) interface{} {
-	return PrometheusScrapeChecksTransformer(s)
-}
 
 func init() {
 	osinit()
@@ -639,7 +630,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", prometheusScrapeChecksTransformer)
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Network Devices Monitoring
