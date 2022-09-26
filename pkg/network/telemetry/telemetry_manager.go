@@ -16,19 +16,19 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type ManagerWithTelemetry struct {
+type Manager struct {
 	*manager.Manager
 	bpfTelemetry *EBPFTelemetry
 }
 
-func NewManagerWithTelemetry(mgr *manager.Manager, bt *EBPFTelemetry) *ManagerWithTelemetry {
-	return &ManagerWithTelemetry{
+func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
+	return &Manager{
 		Manager:      mgr,
 		bpfTelemetry: bt,
 	}
 }
 
-func (m *ManagerWithTelemetry) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
+func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
 	telemetryMapKeys := BuildTelemetryKeys(m.Manager)
 	opts.ConstantEditors = append(opts.ConstantEditors, telemetryMapKeys...)
 

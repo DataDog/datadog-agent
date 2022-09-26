@@ -52,7 +52,7 @@ const (
 )
 
 type ebpfProgram struct {
-	*errtelemetry.ManagerWithTelemetry
+	*errtelemetry.Manager
 	cfg         *config.Config
 	bytecode    bytecode.AssetReader
 	offsets     []manager.ConstantEditor
@@ -63,7 +63,7 @@ type ebpfProgram struct {
 }
 
 type subprogram interface {
-	ConfigureManager(*manager.Manager)
+	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 	Start()
@@ -140,7 +140,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
-		ManagerWithTelemetry:   errtelemetry.NewManagerWithTelemetry(mgr, bpfTelemetry),
+		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
