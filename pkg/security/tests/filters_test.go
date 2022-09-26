@@ -10,9 +10,7 @@ package tests
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
@@ -594,70 +592,6 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		return syscall.Close(fd)
 	}, testFile); err == nil {
 		t.Fatal("shouldn't get an event")
-	}
-}
-
-func TestFilterOpenProcessPidDiscarder(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/test-oba-1" && process.file.path == "/bin/aaa"`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("test-oba-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	args := []string{"open", testFile, ";", "getchar", ";", "open", testFile}
-
-	cmd := exec.Command(syscallTester, args...)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stdin.Close()
-
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := cmd.Wait(); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	if err := test.GetEventDiscarder(t, func() error {
-		time.Sleep(probe.DiscardRetention)
-		_, err := io.WriteString(stdin, "\n")
-		return err
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
-			return false
-		}
-		v, _ := e.GetFieldValue("open.file.path")
-		return v == testFile
-	}); err != nil {
-		t.Error(err)
-	}
-
-	if err := waitForOpenProbeEvent(test, func() error {
-		_, err := io.WriteString(stdin, "\n")
-		return err
-	}, testFile); err == nil {
-		t.Fatalf("shouldn't get an event")
 	}
 }
 
