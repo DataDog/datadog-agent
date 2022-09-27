@@ -673,8 +673,12 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+	return newTestModuleWithProfile(t, macroDefs, ruleDefs, opts, withProfile)
+}
+
+func newTestModuleWithProfile(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts, cpuProfile bool) (*testModule, error) {
 	var proFile *os.File
-	if withProfile {
+	if cpuProfile {
 		var err error
 		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
 		if err != nil {
@@ -1284,7 +1288,7 @@ func (tm *testModule) Close() {
 	}
 
 	if useReload {
-		if _, err := newTestModule(tm.t, nil, nil, tm.opts); err != nil {
+		if _, err := newTestModuleWithProfile(tm.t, nil, nil, tm.opts, false); err != nil {
 			tm.t.Errorf("couldn't reload module with an empty policy: %v", err)
 		}
 	} else {
