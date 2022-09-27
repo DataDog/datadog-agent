@@ -23,13 +23,16 @@ func buildTags(tagCount int) []string {
 var tags []string
 
 func BenchmarkExtractTagsMetadata(b *testing.B) {
+	conf := enrichConfig{
+		defaultHostname: "hostname",
+	}
 	for i := 20; i <= 200; i += 20 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(sb *testing.B) {
 			baseTags := append([]string{hostTagPrefix + "foo", entityIDTagPrefix + "bar"}, buildTags(i/10)...)
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _, _ = extractTagsMetadata(baseTags, "hostname", "", []byte{}, false)
+				tags, _, _, _, _ = extractTagsMetadata(baseTags, "", []byte{}, conf)
 			}
 		})
 	}
