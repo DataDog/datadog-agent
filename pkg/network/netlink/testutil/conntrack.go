@@ -167,8 +167,20 @@ func teardownVeth6Pair(t *testing.T, ns string) {
 }
 
 // SetupCrossNsDNAT sets up a network namespace, a veth pair, and a NAT
-// rule in the specified network namespace
+// rule in the specified network namespace. Redirecting port 80 to 8080
+// within the namespace.
 func SetupCrossNsDNAT(t *testing.T) (ns string) {
+	return setupCrossNsDNAT(t, 80, 8080)
+}
+
+// SetupCrossNsDNATWithPorts sets up a network namespace, a veth pair, and a NAT
+// rule in the specified network namespace. Redirecting `dport` to `redirPort`
+// within the namespace.
+func SetupCrossNsDNATWithPorts(t *testing.T, dport int, redirPort int) (ns string) {
+	return setupCrossNsDNAT(t, dport, redirPort)
+}
+
+func setupCrossNsDNAT(t *testing.T, dport int, redirPort int) (ns string) {
 	t.Cleanup(func() {
 		teardownCrossNsDNAT(t)
 	})
@@ -180,8 +192,8 @@ func SetupCrossNsDNAT(t *testing.T) (ns string) {
 		//rule that uses connection tracking
 		"iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
 
-		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080", ns),
-		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p udp --dport 80 -j REDIRECT --to-port 8080", ns),
+		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p tcp --dport %d -j REDIRECT --to-port %d", ns, dport, redirPort),
+		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p udp --dport %d -j REDIRECT --to-port %d", ns, dport, redirPort),
 	}
 	nettestutil.RunCommands(t, cmds, false)
 	return
