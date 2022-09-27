@@ -143,6 +143,9 @@ type Config struct {
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
 
+	// ConntrackRateLimitInterval specifies the interval at which the rate limiter is updated
+	ConntrackRateLimitInterval time.Duration
+
 	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
 	ConntrackInitTimeout time.Duration
 
@@ -238,6 +241,7 @@ func New() *Config {
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
 		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:   3 * time.Second,
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
