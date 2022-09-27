@@ -39,6 +39,8 @@ type Config struct {
 	PoliciesDir string
 	// WatchPoliciesDir activate policy dir inotify
 	WatchPoliciesDir bool
+	// PolicyMonitorEnabled enable policy monitoring
+	PolicyMonitorEnabled bool
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
 	EnableKernelFilters bool
 	// EnableApprovers defines if in-kernel approvers should be activated or not
@@ -198,8 +200,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		EnableDiscarders:                   coreconfig.Datadog.GetBool("runtime_security_config.enable_discarders"),
 		FlushDiscarderWindow:               coreconfig.Datadog.GetInt("runtime_security_config.flush_discarder_window"),
 		SocketPath:                         coreconfig.Datadog.GetString("runtime_security_config.socket"),
-		PoliciesDir:                        coreconfig.Datadog.GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:                   coreconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
 		EventServerBurst:                   coreconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    coreconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention:               coreconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
@@ -227,6 +227,11 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		EventStreamUseRingBuffer:           coreconfig.Datadog.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              coreconfig.Datadog.GetInt("runtime_security_config.event_stream.buffer_size"),
 		EnvsWithValue:                      coreconfig.Datadog.GetStringSlice("runtime_security_config.envs_with_value"),
+
+		// policy & ruleset
+		PoliciesDir:          coreconfig.Datadog.GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:     coreconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
+		PolicyMonitorEnabled: coreconfig.Datadog.GetBool("runtime_security_config.policies.monitor.enabled"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),
