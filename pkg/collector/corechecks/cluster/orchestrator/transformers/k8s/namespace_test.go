@@ -9,9 +9,10 @@
 package k8s
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
