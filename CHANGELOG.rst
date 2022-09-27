@@ -30,6 +30,8 @@ Other Notes
 
 - Bump embedded Python3 to `3.8.14`.
 
+- Deactivated support of HTTP/2 in all non localhost endpoint used by Datadog Agent and Cluster Agent. (except endpoints)
+
 
 .. _Release Notes_7.39.0:
 
