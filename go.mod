@@ -101,7 +101,7 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-delve/delve v1.9.0
+	github.com/go-delve/delve v1.9.1
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/gobwas/glob v0.2.3
