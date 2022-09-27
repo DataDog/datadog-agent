@@ -15,7 +15,10 @@ class KernelOut
 
   def self.format(text, tag="")
     tag = "[#{tag}]" if tag != ""
-    RSpec::Core::Formatters::ConsoleCodes.wrap("[#{@@release}]#{tag} #{text}", @@color)
+    content = "[#{@@release}]#{tag} #{text}"
+    content.lines.map { |line|
+      RSpec::Core::Formatters::ConsoleCodes.wrap(line, @@color)
+    }.join("\n")
   end
 end
 
