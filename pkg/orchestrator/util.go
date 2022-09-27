@@ -54,6 +54,8 @@ const (
 	K8sServiceAccount
 	// K8sIngress represents a Kubernetes Ingress
 	K8sIngress
+	// K8sNamespace represents a Kubernetes Namespace
+	K8sNamespace
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
