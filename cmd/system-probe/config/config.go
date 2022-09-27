@@ -176,12 +176,6 @@ func load(configPath string) (*Config, error) {
 		ProfilingSettings: profSettings,
 	}
 
-	if err := ValidateSocketAddress(c.SocketAddress); err != nil {
-		log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
-		c.SocketAddress = defaultSystemProbeAddress
-		cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
-	}
-
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
 		log.Warn("Overriding the configured connections count per message limit because it exceeds maximum")
 		c.MaxConnsPerMessage = defaultConnsMessageBatchSize
@@ -229,8 +223,16 @@ func load(configPath string) (*Config, error) {
 
 	if len(c.EnabledModules) > 0 {
 		c.Enabled = true
-		cfg.Set(key(spNS, "enabled"), c.Enabled)
+		if err := ValidateSocketAddress(c.SocketAddress); err != nil {
+			log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
+			c.SocketAddress = defaultSystemProbeAddress
+		}
+	} else {
+		c.Enabled = false
+		c.SocketAddress = ""
 	}
+	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
+	cfg.Set(key(spNS, "enabled"), c.Enabled)
 
 	return c, nil
 }

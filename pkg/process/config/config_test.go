@@ -313,9 +313,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	if runtime.GOOS != "windows" {
-		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	}
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml")

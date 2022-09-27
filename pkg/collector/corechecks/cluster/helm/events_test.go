@@ -37,7 +37,7 @@ func TestAddEventForNewRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
-	events.addEventForNewRelease(&rel, k8sSecrets)
+	events.addEventForNewRelease(&rel, testTags())
 
 	// Test new release with revision 1.
 	storedEvent := events.events[0]
@@ -52,14 +52,14 @@ func TestAddEventForNewRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
+			Tags:           testTags(),
 		},
 		storedEvent,
 	)
 
 	// Test release with upgraded revision (Notice that the text of the events is different).
 	rel.Version = 2
-	events.addEventForNewRelease(&rel, k8sSecrets)
+	events.addEventForNewRelease(&rel, testTags())
 	storedEvent = events.events[1]
 	storedEvent.Ts = 0 // Can't control it, so don't check.
 	assert.Equal(
@@ -72,7 +72,7 @@ func TestAddEventForNewRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
+			Tags:           testTags(),
 		},
 		storedEvent,
 	)
@@ -97,7 +97,7 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
-	events.addEventForDeletedRelease(&rel, k8sSecrets)
+	events.addEventForDeletedRelease(&rel, testTags())
 
 	storedEvent := events.events[0]
 	storedEvent.Ts = 0 // Can't control it, so don't check.
@@ -111,7 +111,7 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, false),
+			Tags:           testTags(),
 		},
 		storedEvent,
 	)
@@ -182,7 +182,7 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 				SourceTypeName: "helm",
 				EventType:      "helm",
 				AggregationKey: "helm_release:default/my_datadog",
-				Tags:           tagsForMetricsAndEvents(&exampleReleaseWithFailedStatus, k8sSecrets, true),
+				Tags:           testTags(),
 			},
 		},
 		{
@@ -209,7 +209,7 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			events := eventsManager{}
 
-			events.addEventForUpdatedRelease(test.oldRelease, test.updatedRelease, k8sSecrets)
+			events.addEventForUpdatedRelease(test.oldRelease, test.updatedRelease, testTags())
 
 			if test.expectedEvent == nil {
 				assert.Empty(t, events.events)
@@ -241,7 +241,7 @@ func TestSendEvents(t *testing.T) {
 		Namespace: "default",
 	}
 
-	events.addEventForNewRelease(&rel, k8sSecrets)
+	events.addEventForNewRelease(&rel, testTags())
 
 	sender := mocksender.NewMockSender("1")
 	sender.SetupAcceptAll()
@@ -257,8 +257,12 @@ func TestSendEvents(t *testing.T) {
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
-			Tags:           tagsForMetricsAndEvents(&rel, k8sSecrets, true),
+			Tags:           testTags(),
 		},
 		10*time.Second,
 	)
+}
+
+func testTags() []string {
+	return []string{"helm_release:my_datadog"}
 }

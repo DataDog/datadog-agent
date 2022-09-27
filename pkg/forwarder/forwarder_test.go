@@ -137,7 +137,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
-	payloads := Payloads{&p1, &p2}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1, &p2})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
@@ -157,10 +157,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
 	assert.Equal(t, "", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
-	assert.Equal(t, p1, *(transactions[0].Payload))
-	assert.Equal(t, p1, *(transactions[1].Payload))
-	assert.Equal(t, p2, *(transactions[2].Payload))
-	assert.Equal(t, p2, *(transactions[3].Payload))
+	assert.Equal(t, p1, transactions[0].Payload.GetContent())
+	assert.Equal(t, p1, transactions[1].Payload.GetContent())
+	assert.Equal(t, p2, transactions[2].Payload.GetContent())
+	assert.Equal(t, p2, transactions[3].Payload.GetContent())
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
@@ -174,7 +174,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysWithMultipleDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
@@ -212,7 +212,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolvers))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
@@ -255,7 +255,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "no_diverted"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
@@ -283,7 +283,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
-	transactions := forwarder.createHTTPTransactions(endpoint, Payloads{&payload}, false, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), false, headers)
 	require.True(t, len(transactions) > 0)
 	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
@@ -292,7 +292,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
-	payloads := Payloads{&p1}
+	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
 	tr := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
 
@@ -321,7 +321,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	defer func() { df.highPrio = bk }()
 
 	p := []byte("test")
-	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header)))
+	assert.Nil(t, forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p}), make(http.Header)))
 
 	select {
 	case tr := <-df.highPrio:
@@ -362,7 +362,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 
 	data1 := []byte("data payload 1")
 	data2 := []byte("data payload 2")
-	payload := Payloads{&data1, &data2}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data1, &data2})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
@@ -420,7 +420,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
@@ -478,7 +478,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
@@ -532,7 +532,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
@@ -591,7 +591,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("data payload 1")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	headers := http.Header{}
 	headers.Set("key", "value")
 
@@ -648,14 +648,14 @@ func TestHighPriorityTransaction(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	assert.Nil(t, f.SubmitMetadata(Payloads{&data1}, headers))
+	assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data1}), headers))
 	// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
 	time.Sleep(10 * time.Millisecond)
 
 	// SubmitHostMetadata send the transactions as TransactionPriorityHigh
-	assert.Nil(t, f.SubmitHostMetadata(Payloads{&dataHighPrio}, headers))
+	assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&dataHighPrio}), headers))
 	time.Sleep(10 * time.Millisecond)
-	assert.Nil(t, f.SubmitMetadata(Payloads{&data2}, headers))
+	assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data2}), headers))
 
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
@@ -694,7 +694,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	defer f.Stop()
 
 	data := []byte("payload_data")
-	payload := Payloads{&data}
+	payload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data})
 	assert.Nil(t, f.SubmitV1Series(payload, http.Header{}))
 
 	// And finally let's ensure the handler gets called

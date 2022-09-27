@@ -121,15 +121,15 @@ func TestRetryTransactions(t *testing.T) {
 	// Default value should be 0
 	assert.Equal(t, int64(0), transaction.TransactionsDropped.Value())
 
-	payload := []byte{1}
+	payload := transaction.NewBytesPayloadWithoutMetaData([]byte{1})
 	t1 := transaction.NewHTTPTransaction()
 	t1.Domain = "domain/"
 	t1.Endpoint.Route = "test1"
-	t1.Payload = &payload
+	t1.Payload = payload
 	t2 := transaction.NewHTTPTransaction()
 	t2.Domain = "domain/"
 	t2.Endpoint.Route = "test2"
-	t2.Payload = &payload
+	t2.Payload = payload
 
 	// Create blocks
 	forwarder.blockedList.recover(t1.GetTarget())

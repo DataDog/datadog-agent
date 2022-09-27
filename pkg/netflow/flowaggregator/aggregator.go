@@ -23,31 +23,32 @@ const flowAggregatorFlushInterval = 10 * time.Second
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn            chan *common.Flow
-	flushInterval     time.Duration
-	flowAcc           *flowAccumulator
-	sender            aggregator.Sender
-	stopChan          chan struct{}
-	logPayload        bool
-	receivedFlowCount *atomic.Uint64
-	flushedFlowCount  *atomic.Uint64
-	hostname          string
+	flowIn                       chan *common.Flow
+	flushInterval                time.Duration
+	rollupTrackerRefreshInterval time.Duration
+	flowAcc                      *flowAccumulator
+	sender                       aggregator.Sender
+	stopChan                     chan struct{}
+	receivedFlowCount            *atomic.Uint64
+	flushedFlowCount             *atomic.Uint64
+	hostname                     string
 }
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
+	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
-		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:           newFlowAccumulator(flushInterval, flowContextTTL),
-		flushInterval:     flowAggregatorFlushInterval,
-		sender:            sender,
-		stopChan:          make(chan struct{}),
-		logPayload:        config.LogPayloads,
-		receivedFlowCount: atomic.NewUint64(0),
-		flushedFlowCount:  atomic.NewUint64(0),
-		hostname:          hostname,
+		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold),
+		flushInterval:                flowAggregatorFlushInterval,
+		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
+		sender:                       sender,
+		stopChan:                     make(chan struct{}),
+		receivedFlowCount:            atomic.NewUint64(0),
+		flushedFlowCount:             atomic.NewUint64(0),
+		hostname:                     hostname,
 	}
 }
 
@@ -89,12 +90,10 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			log.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
-		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
 
-		// For debug purposes print out all flows
-		if agg.logPayload {
-			log.Debugf("flushed flow: %s", string(payloadBytes))
-		}
+		payloadStr := string(payloadBytes)
+		log.Tracef("flushed flow: %s", payloadStr)
+		agg.sender.EventPlatformEvent(payloadStr, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
 }
 
@@ -107,6 +106,8 @@ func (agg *FlowAggregator) flushLoop() {
 		log.Debug("flushInterval set to 0: will never flush automatically")
 	}
 
+	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
+
 	for {
 		select {
 		// stop sequence
@@ -115,6 +116,9 @@ func (agg *FlowAggregator) flushLoop() {
 		// automatic flush sequence
 		case <-flushTicker:
 			agg.flush()
+		// refresh rollup trackers
+		case <-rollupTrackersRefresh:
+			agg.rollupTrackersRefresh()
 		}
 	}
 }
@@ -136,4 +140,9 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
 
 	return len(flowsToFlush)
+}
+
+func (agg *FlowAggregator) rollupTrackersRefresh() {
+	log.Debugf("Rollup tracker refresh: use new store as current store")
+	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
 }
