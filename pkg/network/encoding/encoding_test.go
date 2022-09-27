@@ -91,7 +91,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 					ReplDstPort: int32(80),
 				},
 
-				Type:      model.ConnectionType_udp,
+				Type:      model.ConnectionType_tcp,
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 
@@ -174,7 +174,7 @@ func TestSerialization(t *testing.T) {
 						ReplDstPort: 80,
 					},
 
-					Type:      network.UDP,
+					Type:      network.TCP,
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Via: &network.Via{
@@ -182,6 +182,7 @@ func TestSerialization(t *testing.T) {
 							Alias: "subnet-foo",
 						},
 					},
+					Cookie: 1,
 				},
 				{
 					Source:    util.AddressFromString("10.1.1.1"),
@@ -192,6 +193,7 @@ func TestSerialization(t *testing.T) {
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Tags:      uint64(1),
+					Cookie:    2,
 				},
 			},
 		},
@@ -452,12 +454,14 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
+					Cookie: 1,
 				},
 				{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  serverPort,
 					DPort:  clientPort,
+					Cookie: 2,
 				},
 			},
 		},
@@ -547,6 +551,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 					SPort:  uint16(60000),
 					Dest:   util.AddressFromString("172.217.10.45"),
 					DPort:  uint16(8080),
+					Cookie: 1,
 				},
 			},
 		},

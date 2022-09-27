@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 type httpEncoder struct {
@@ -36,31 +37,47 @@ type httpEncoder struct {
 type aggregationWrapper struct {
 	*model.HTTPAggregations
 
-	// we keep track of the source and destination ports of the first
+	// we keep track of some attributes of the first
 	// `ConnectionStats` to claim this `HTTPAggregations` object
+	source, dest util.Address
 	sport, dport uint16
+	netNS        uint32
+	cookies      struct {
+		forward, reverse uint64
+	}
 }
 
 func (a *aggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTTPAggregations {
-	if a == nil {
+	if a == nil || c.Cookie == 0 {
 		return nil
 	}
 
-	if a.sport == 0 && a.dport == 0 {
+	source, sport := network.GetNATLocalAddress(c)
+	dest, dport := network.GetNATRemoteAddress(c)
+	if a.cookies.forward == 0 {
 		// This is the first time a ConnectionStats claim this aggregation. In
 		// this case we return the value and save the source and destination
 		// ports
-		a.sport = c.SPort
-		a.dport = c.DPort
+		a.source, a.sport, a.dest, a.dport = source, sport, dest, dport
+		a.netNS = c.NetNS
+		if !a.source.IsLoopback() || !a.dest.IsLoopback() {
+			a.netNS = 0
+		}
+		a.cookies.forward = c.Cookie
+
 		return a.HTTPAggregations
 	}
 
-	if c.SPort == a.dport && c.DPort == a.sport {
+	if a.cookies.reverse == 0 &&
+		sport == a.dport && dport == a.sport &&
+		source == a.dest && dest == a.source &&
+		(!source.IsLoopback() || !dest.IsLoopback() || a.netNS == c.NetNS) {
 		// We have have a collision with another `ConnectionStats`, but this is a
 		// legit scenario where we're dealing with the opposite ends of the
 		// same connection, which means both server and client are in the same host.
 		// In this particular case it is correct to have both connections
 		// (client:server and server:client) referencing the same HTTP data.
+		a.cookies.reverse = c.Cookie
 		return a.HTTPAggregations
 	}
 

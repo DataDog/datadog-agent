@@ -8,12 +8,13 @@ package encoding
 import (
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
@@ -59,6 +60,7 @@ func TestFormatHTTPStats(t *testing.T) {
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
+					Cookie: 1,
 				},
 			},
 		},
@@ -141,6 +143,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
+					Cookie: 1,
 				},
 			},
 		},
@@ -186,6 +189,7 @@ func TestIDCollisionRegression(t *testing.T) {
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    1,
+			Cookie: 1,
 		},
 		{
 			Source: util.AddressFromString("1.1.1.1"),
@@ -193,6 +197,7 @@ func TestIDCollisionRegression(t *testing.T) {
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    2,
+			Cookie: 2,
 		},
 	}
 
@@ -242,6 +247,7 @@ func TestLocalhostScenario(t *testing.T) {
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  80,
 			Pid:    1,
+			Cookie: 1,
 		},
 		{
 			Source: util.AddressFromString("127.0.0.1"),
@@ -249,6 +255,7 @@ func TestLocalhostScenario(t *testing.T) {
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  60000,
 			Pid:    2,
+			Cookie: 2,
 		},
 	}
 

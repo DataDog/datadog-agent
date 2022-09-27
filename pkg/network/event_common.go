@@ -328,30 +328,15 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
-	laddr, sport := c.Source, c.SPort
-	raddr, dport := c.Dest, c.DPort
+	return generateConnectionKey(c, buf, false)
+}
 
-	n := 0
-	// Byte-packing to improve creation speed
-	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
-	binary.LittleEndian.PutUint64(buf[0:], p0)
-	n += 8
-
-	// Family (4 bits) + Type (4 bits) = 8 bits
-	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
-	n++
-
-	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
-
-	// cookie
-	if c.Cookie > 0 {
-		binary.LittleEndian.PutUint64(buf[n:], c.Cookie)
-		n += 8
-	}
-
-	return buf[:n]
+// ByteKeyNAT returns a unique key for this connection represented as a byte slice.
+// The format is similar to the one emitted by `ByteKey` with the sole difference
+// that the addresses used are translated.
+// Currently this key is used only for the aggregation of ephemeral connections.
+func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
+	return generateConnectionKey(c, buf, true)
 }
 
 // IsShortLived returns true when a connection went through its whole lifecycle
@@ -378,6 +363,36 @@ func (c ConnectionStats) clone() ConnectionStats {
 	}
 
 	return cl
+}
+
+func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
+	laddr, sport := c.Source, c.SPort
+	raddr, dport := c.Dest, c.DPort
+	if useNAT {
+		laddr, sport = GetNATLocalAddress(c)
+		raddr, dport = GetNATRemoteAddress(c)
+	}
+
+	n := 0
+	// Byte-packing to improve creation speed
+	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
+	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
+	binary.LittleEndian.PutUint64(buf[0:], p0)
+	n += 8
+
+	// Family (4 bits) + Type (4 bits) = 8 bits
+	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	n++
+
+	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+
+	if c.Cookie > 0 {
+		binary.LittleEndian.PutUint64(buf[n:], c.Cookie)
+		n += 8
+	}
+
+	return buf[:n]
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d|c:%d"
