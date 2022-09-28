@@ -162,7 +162,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("could not create tcpCloseConsumer: %s", err)
 	}
 
-	failedConsumer, err := newTCPFailedConnConsumer(perfHandlerFailedConn)
+	failedConsumer, err := newTCPFailedConnConsumer(perfHandlerFailedConn, config.EnableRuntimeCompiler)
 	if err != nil {
 		return nil, fmt.Errorf("could not create tcpFailedConnConsumer: %w", err)
 	}

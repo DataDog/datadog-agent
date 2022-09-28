@@ -1989,6 +1989,7 @@ func setupTCPTracer(t *testing.T) *Tracer {
 
 	config := testConfig()
 	config.CollectTCPConns = true
+	config.EnableRuntimeCompiler = true
 
 	tr, err := NewTracer(config)
 	require.NoError(t, err)

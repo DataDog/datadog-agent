@@ -28,13 +28,15 @@ type tcpFailedConnConsumer struct {
 	perfHandler *ddebpf.PerfHandler
 	failedConns failedConnMap
 
-	mutex sync.Mutex
+	mutex             sync.Mutex
+	isRuntimeCompiled bool
 }
 
-func newTCPFailedConnConsumer(perfHandler *ddebpf.PerfHandler) (*tcpFailedConnConsumer, error) {
+func newTCPFailedConnConsumer(perfHandler *ddebpf.PerfHandler, isRuntimeCompiled bool) (*tcpFailedConnConsumer, error) {
 	return &tcpFailedConnConsumer{
-		perfHandler: perfHandler,
-		failedConns: make(failedConnMap),
+		perfHandler:       perfHandler,
+		failedConns:       make(failedConnMap),
+		isRuntimeCompiled: isRuntimeCompiled,
 	}, nil
 }
 
@@ -86,7 +88,12 @@ func (c *tcpFailedConnConsumer) addFailedConn(s *netebpf.FailedConnStats) {
 	stats := c.failedConns[(*s).Ct]
 	stats.failureCount += 1
 	stats.direction = netebpf.ConnDirection((*s).Dir)
-	stats.lastErrno = (*s).Errno
+
+	if c.isRuntimeCompiled {
+		stats.lastErrno = (*s).Errno
+	} else {
+		stats.lastErrno = 0
+	}
 
 	c.failedConns[(*s).Ct] = stats
 }
