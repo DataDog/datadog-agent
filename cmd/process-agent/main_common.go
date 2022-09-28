@@ -15,11 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-<<<<<<< HEAD
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-=======
->>>>>>> main
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
