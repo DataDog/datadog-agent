@@ -104,7 +104,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if remote_docker:
         exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
+    go_cmd = f'go test -p 1 -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
