@@ -99,10 +99,10 @@
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/integrations     @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
-/cmd/agent/subcommands/snmp             @DataDog/infrastructure-integrations
+/cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
-/cmd/agent/dist/conf.d/snmp.d/          @DataDog/infrastructure-integrations
+/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -149,7 +149,7 @@
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations @DataDog/software-integrity-and-trust
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
-/omnibus/config/software/snmp-traps.rb                    @DataDog/infrastructure-integrations
+/omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
 /pkg/                                   @DataDog/agent-shared-components
@@ -171,7 +171,7 @@
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
-/pkg/autodiscovery/listeners/snmp*.go   @DataDog/infrastructure-integrations
+/pkg/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring
 /pkg/autodiscovery/providers/           @DataDog/container-integrations
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
@@ -190,7 +190,7 @@
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
-/pkg/collector/corechecks/snmp/         @DataDog/infrastructure-integrations
+/pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
@@ -234,8 +234,6 @@
 /pkg/util/intern/                       @DataDog/agent-network
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/logs/                              @DataDog/agent-metrics-logs
-/pkg/logs/internal/launchers/traps/     @DataDog/infrastructure-integrations @DataDog/agent-metrics-logs
-/pkg/logs/internal/tailers/traps/       @DataDog/infrastructure-integrations @DataDog/agent-metrics-logs
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/agent-network
 /pkg/process/util/netns*.go             @DataDog/agent-network
@@ -252,8 +250,8 @@
 /pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
-/pkg/netflow/                           @DataDog/infrastructure-integrations
-/pkg/snmp/                              @DataDog/infrastructure-integrations
+/pkg/netflow/                           @DataDog/network-device-monitoring
+/pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
