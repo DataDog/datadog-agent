@@ -36,16 +36,6 @@ BPF_LRU_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
 
 BPF_LRU_MAP(open_at_args, __u64, lib_path_t, 1024)
 
-BPF_HASH_MAP(ssl_read_args, u64, ssl_read_args_t, 1024)
-
-BPF_HASH_MAP(bio_new_socket_args, __u64, __u32, 1024)
-
-BPF_HASH_MAP(fd_by_ssl_bio, __u32, void *, 1024)
-
-BPF_HASH_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
-
-BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 1024)
-
 // offsets_data map contains the information about the locations of structs in the inspected binary, mapped by the pid.
 BPF_HASH_MAP(offsets_data, __u32, tls_offsets_data_t, 1024)
 
