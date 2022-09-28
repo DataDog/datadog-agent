@@ -229,7 +229,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) er
 					UprobeOffset: offset,
 				})
 				if err != nil {
-					return fmt.Errorf("could not add return hook tp function %q in offset %d due to: %w", function, offset, err)
+					return fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 				}
 				p.probeIDs = append(p.probeIDs, returnProbeID)
 			}
