@@ -322,19 +322,3 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 
 	return nil
 }
-
-var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true}
-
-// IsStringPrintable returns true if the provided byte array is only composed of printable characeters
-func IsStringPrintable(bytesValue []byte) bool {
-	for _, bit := range bytesValue {
-		if bit < 32 || bit > 126 {
-			// The char is not a printable ASCII char but it might be a character that
-			// can be stripped like `\n`
-			if _, ok := strippableSpecialChars[bit]; !ok {
-				return false
-			}
-		}
-	}
-	return true
-}
