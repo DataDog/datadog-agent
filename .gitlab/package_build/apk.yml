@@ -12,7 +12,6 @@ agent_android_apk:
   before_script:
     - inv -e install-tools
     - inv -e deps-vendored
-    - cd $SRC_PATH
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
