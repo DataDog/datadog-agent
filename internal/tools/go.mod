@@ -7,7 +7,7 @@ require (
 	github.com/go-enry/go-license-detector/v4 v4.3.0
 	github.com/golangci/golangci-lint v1.47.3
 	github.com/goware/modvendor v0.5.0
-	github.com/mgechev/revive v1.2.3
+	github.com/mgechev/revive v1.2.4
 	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
 	github.com/vektra/mockery/v2 v2.12.3
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
