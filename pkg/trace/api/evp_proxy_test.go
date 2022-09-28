@@ -63,8 +63,8 @@ func TestEVPProxyForwarder(t *testing.T) {
 	rand.Read(randBodyBuf)
 
 	stats := &testutil.TestStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	defer func(old metrics.StatsClient) { metrics.SetClient(old) }(metrics.Client())
+	metrics.SetClient(stats)
 
 	t.Run("ok", func(t *testing.T) {
 		stats.Reset()

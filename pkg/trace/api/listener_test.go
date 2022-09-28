@@ -117,8 +117,8 @@ func TestMockListener(t *testing.T) {
 func TestMeasuredListener(t *testing.T) {
 	assert := assert.New(t)
 	stats := &testutil.TestStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	defer func(old metrics.StatsClient) { metrics.SetClient(old) }(metrics.Client())
+	metrics.SetClient(stats)
 
 	var mockln mockListener
 	ln := NewMeasuredListener(&mockln, "test-metric").(*measuredListener)

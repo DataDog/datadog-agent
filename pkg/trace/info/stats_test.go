@@ -190,8 +190,8 @@ func (ts *testStatsClient) Flush() error { return nil }
 
 func TestReceiverStats(t *testing.T) {
 	statsclient := &testStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = statsclient }(metrics.Client)
-	metrics.Client = statsclient
+	defer func(old metrics.StatsClient) { metrics.SetClient(statsclient) }(metrics.Client())
+	metrics.SetClient(statsclient)
 
 	tags := Tags{
 		Lang:            "go",

@@ -409,8 +409,8 @@ func TestRoundTripper(t *testing.T) {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				stats := &testutil.TestStatsClient{}
-				defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-				metrics.Client = stats
+				defer func(old metrics.StatsClient) { metrics.SetClient(old) }(metrics.Client())
+				metrics.SetClient(stats)
 
 				// Wrap a test round-tripper with metrics
 				rt := withMetrics(roundTripperFunc(func(req *http.Request) (*http.Response, error) {

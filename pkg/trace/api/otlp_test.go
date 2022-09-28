@@ -92,8 +92,8 @@ func TestOTLPMetrics(t *testing.T) {
 	stats := &testutil.TestStatsClient{}
 	cfg := config.New()
 
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	defer func(old metrics.StatsClient) { metrics.SetClient(old) }(metrics.Client())
+	metrics.SetClient(stats)
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
