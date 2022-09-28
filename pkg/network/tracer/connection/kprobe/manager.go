@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
@@ -67,7 +68,7 @@ var altProbes = map[probes.ProbeName]string{
 	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
-func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -103,6 +104,10 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 		},
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if config.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	for probeName, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -110,6 +115,7 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
+			KprobeAttachMethod: kprobeAttachMethod,
 		}
 		if strings.HasPrefix(funcName, "kretprobe") {
 			p.KProbeMaxActive = maxActive
@@ -119,20 +125,20 @@ func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 
 	if runtimeTracer {
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.SKBFreeDatagramLocked], UID: probeUID}, KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UnderscoredSKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.UnderscoredSKBFreeDatagramLocked], UID: probeUID}, KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBConsumeUDP), EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}, KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.SKBFreeDatagramLocked], UID: probeUID}, KprobeAttachMethod: kprobeAttachMethod},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UnderscoredSKBFreeDatagramLocked), EBPFFuncName: altProbes[probes.UnderscoredSKBFreeDatagramLocked], UID: probeUID}, KprobeAttachMethod: kprobeAttachMethod},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.SKBConsumeUDP), EBPFFuncName: altProbes[probes.SKBConsumeUDP], UID: probeUID}, KprobeAttachMethod: kprobeAttachMethod},
 		)
 	} else {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 		// tracer.
 		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRetransmitPre470), EBPFFuncName: altProbes[probes.TCPRetransmitPre470], UID: probeUID}, MatchFuncName: "^tcp_retransmit_skb$", KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.IP6MakeSkbPre470), EBPFFuncName: altProbes[probes.IP6MakeSkbPre470], UID: probeUID}, MatchFuncName: "^ip6_make_skb$", KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPRecvMsgPre410), EBPFFuncName: altProbes[probes.UDPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^udp_recvmsg$", KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$", KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$", KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRetransmitPre470), EBPFFuncName: altProbes[probes.TCPRetransmitPre470], UID: probeUID}, MatchFuncName: "^tcp_retransmit_skb$", KprobeAttachMethod: kprobeAttachMethod},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.IP6MakeSkbPre470), EBPFFuncName: altProbes[probes.IP6MakeSkbPre470], UID: probeUID}, MatchFuncName: "^ip6_make_skb$", KprobeAttachMethod: kprobeAttachMethod},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPRecvMsgPre410), EBPFFuncName: altProbes[probes.UDPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^udp_recvmsg$", KprobeAttachMethod: kprobeAttachMethod},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$", KprobeAttachMethod: kprobeAttachMethod},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$", KprobeAttachMethod: kprobeAttachMethod},
 		)
 	}
 

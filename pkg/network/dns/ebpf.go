@@ -35,6 +35,10 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		return nil, err
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if c.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
 			{
@@ -43,7 +47,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 					EBPFFuncName: funcName,
 					UID:          probeUID,
 				},
-				KprobeAttachMethod: manager.AttachKprobeWithKprobeEvents,
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
