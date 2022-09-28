@@ -47,11 +47,12 @@ typedef struct {
     location_t read_conn_pointer;
     slice_location_t read_buffer;
     location_t read_return_bytes;
-    // error return is ignored
 
     // func (c *Conn) Write(b []byte) (int, error)
     location_t write_conn_pointer;
     slice_location_t write_buffer;
+    location_t write_return_bytes;
+    location_t write_return_error;
 
     // func (c *Conn) Close() error
     location_t close_conn_pointer;
@@ -60,11 +61,17 @@ typedef struct {
 typedef struct {
     __u32 pid;
     __s64 goroutine_id;
-} go_tls_read_args_key_t;
+} go_tls_function_args_key_t;
 
 typedef struct {
     __u64 conn_pointer;
     __u64 b_data;
 } go_tls_read_args_data_t;
+
+typedef struct {
+    __u64 conn_pointer;
+    __u64 b_data;
+    __u64 b_len;
+} go_tls_write_args_data_t;
 
 #endif //__GO_TLS_TYPES_H

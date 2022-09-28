@@ -14,35 +14,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"reflect"
+	"unsafe"
 )
 
-func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsProbeData, error) {
-	readConnPointer, err := getConnPointer(result, bininspect.ReadGoTLSFunc)
-	if err != nil {
-		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting read conn pointer from inspection result: %w", err)
-	}
-	writeConnPointer, err := getConnPointer(result, bininspect.WriteGoTLSFunc)
-	if err != nil {
-		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting write conn pointer from inspection result: %w", err)
-	}
+func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsOffsetsData, error) {
 	closeConnPointer, err := getConnPointer(result, bininspect.CloseGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting close conn pointer from inspection result: %w", err)
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting close conn pointer from inspection result: %w", err)
+	}
+	readConnPointer, err := getConnPointer(result, bininspect.ReadGoTLSFunc)
+	if err != nil {
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read conn pointer from inspection result: %w", err)
 	}
 	readBufferLocation, err := getReadBufferLocation(result)
 	if err != nil {
-		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting read buffer location from inspection result: %w", err)
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read buffer location from inspection result: %w", err)
+	}
+	readReturnBytes, err := getReturnBytes(result, bininspect.ReadGoTLSFunc)
+	if err != nil {
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
+	}
+	writeConnPointer, err := getConnPointer(result, bininspect.WriteGoTLSFunc)
+	if err != nil {
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting write conn pointer from inspection result: %w", err)
 	}
 	writeBufferLocation, err := getWriteBufferLocation(result)
 	if err != nil {
-		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting write buffer location from inspection result: %w", err)
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting write buffer location from inspection result: %w", err)
 	}
-	readReturnBytes, err := getReadReturnBytes(result)
+	writeReturnBytes, err := getReturnBytes(result, bininspect.WriteGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsProbeData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
+	}
+	writeReturnError, err := getReturnError(result, bininspect.WriteGoTLSFunc)
+	if err != nil {
+		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return error from inspection result: %w", err)
 	}
 
-	return ebpf.TlsProbeData{
+	return ebpf.TlsOffsetsData{
 		Goroutine_id: ebpf.GoroutineIDMetadata{
 			Runtime_g_tls_addr_offset: result.GoroutineIDMetadata.RuntimeGTLSAddrOffset,
 			Goroutine_id_offset:       result.GoroutineIDMetadata.GoroutineIDOffset,
@@ -61,6 +70,8 @@ func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsProbeData, 
 		Read_return_bytes:  readReturnBytes,
 		Write_conn_pointer: writeConnPointer,
 		Write_buffer:       writeBufferLocation,
+		Write_return_bytes: writeReturnBytes,
+		Write_return_error: writeReturnError,
 		Close_conn_pointer: closeConnPointer,
 	}, nil
 }
@@ -110,7 +121,7 @@ func getWriteBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, erro
 	return sliceLocation(bufferParam, result.Arch)
 }
 
-func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
+func getReturnBytes(result *bininspect.Result, funcName string) (ebpf.Location, error) {
 	// Manually re-consturct the location of the first return parameter (bytes read).
 	// Unpack the first return parameter (bytes read).
 	// The error return value isn't useful in eBPF
@@ -140,7 +151,7 @@ func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
 				X_register:  int64(0), // RAX
 			}, nil
 		case bininspect.GoArchARM64:
-			// TODO implement
+			// TODO implement for ARM
 			return ebpf.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
 		default:
 			return ebpf.Location{}, bininspect.ErrUnsupportedArch
@@ -154,7 +165,7 @@ func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
 		// - https://go.googlesource.com/proposal/+/refs/changes/78/248178/1/design/40724-register-calling.md#go_s-current-stack_based-abi
 		// - https://dr-knz.net/go-calling-convention-x86-64-2020.html
 		var endOfParametersOffset int64
-		for _, param := range result.Functions[bininspect.ReadGoTLSFunc].Parameters {
+		for _, param := range result.Functions[funcName].Parameters {
 			// This code assumes pointer alignment of each param
 			endOfParametersOffset += param.TotalSize
 		}
@@ -165,7 +176,42 @@ func getReadReturnBytes(result *bininspect.Result) (ebpf.Location, error) {
 			Stack_offset: endOfParametersOffset,
 		}, nil
 	default:
-		return ebpf.Location{}, fmt.Errorf("unknoen abi %q", result.ABI)
+		return ebpf.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
+	}
+}
+
+func getReturnError(result *bininspect.Result, funcName string) (ebpf.Location, error) {
+	switch result.ABI {
+	case bininspect.GoABIRegister:
+		switch result.Arch {
+		case bininspect.GoArchX86_64:
+			return ebpf.Location{
+				Exists:      boolToBinary(true),
+				In_register: boolToBinary(true),
+				X_register:  int64(3), // RBX
+			}, nil
+		case bininspect.GoArchARM64:
+			// TODO implement for ARM
+			return ebpf.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
+		default:
+			return ebpf.Location{}, bininspect.ErrUnsupportedArch
+		}
+	case bininspect.GoABIStack:
+		var integer int
+		var endOfParametersOffset int64
+		for _, param := range result.Functions[funcName].Parameters {
+			// This code assumes pointer alignment of each param
+			endOfParametersOffset += param.TotalSize
+		}
+		return ebpf.Location{
+			Exists:      boolToBinary(true),
+			In_register: boolToBinary(false),
+			// Take the offset of the first return value (an int representing the amount of bytes that were
+			// read / written) and add the size of int to get the beginning of the next parameter (the error).
+			Stack_offset: endOfParametersOffset + int64(unsafe.Sizeof(integer)),
+		}, nil
+	default:
+		return ebpf.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
 	}
 }
 
