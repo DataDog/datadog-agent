@@ -145,31 +145,31 @@ func supportedArch(arch string) bool {
 func (p *GoTLSProgram) handleNewBinary(binPath string) {
 	f, err := os.Open(binPath)
 	if err != nil {
-		log.Errorf("Could not open file %q due to %w", binPath, err)
+		log.Errorf("Could not open file %q due to %s", binPath, err)
 		return
 	}
 	defer f.Close()
 	elfFile, err := elf.NewFile(f)
 	if err != nil {
-		log.Errorf("File %q could not be parsed as elf: %w", binPath, err)
+		log.Errorf("File %q could not be parsed as elf: %s", binPath, err)
 		return
 	}
 
 	result, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 	if err != nil {
-		log.Errorf("Failed inspecting binary %q: %w", binPath, err)
+		log.Errorf("Failed inspecting binary %q: %s", binPath, err)
 		return
 	}
 
 	// result and bin path are being passed as parameters as a preparation for the future when we will have a process
 	// watcher, so we will run on more than one binary in one goTLSProgram.
 	if err := p.addInspectionResultToMap(result, binPath); err != nil {
-		log.Errorf("error in adding inspection result to map: %w", err)
+		log.Errorf("error in adding inspection result to map: %s", err)
 		return
 	}
 
 	if err := p.attachHooks(result, binPath); err != nil {
-		log.Errorf("error while attaching hooks: %w", err)
+		log.Errorf("error while attaching hooks: %s", err)
 		p.detachHooks()
 	}
 }
@@ -261,7 +261,7 @@ func (p *GoTLSProgram) detachHooks() {
 	for _, probeID := range p.probeIDs {
 		err := p.manager.DetachHook(probeID)
 		if err != nil {
-			log.Errorf("failed detaching hook %s: %w", probeID.UID, err)
+			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
 	}
 }
