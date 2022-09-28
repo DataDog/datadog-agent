@@ -28,6 +28,12 @@ import (
 // LoggerName specifies the name of an instantiated logger.
 type LoggerName string
 
+// Constant values for LoggerName.
+const (
+	CoreLoggerName LoggerName = "CORE"
+	JMXLoggerName  LoggerName = "JMXFETCH"
+)
+
 type contextFormat uint8
 
 const (
@@ -106,7 +112,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
@@ -114,7 +120,7 @@ func SetupJMXLogger(loggerName LoggerName, logFile, syslogURI string, syslogRFC,
 	if err != nil {
 		return err
 	}
-	jmxSeelogConfig, err = buildLoggerConfig(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
+	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat)
 	if err != nil {
 		return err
 	}

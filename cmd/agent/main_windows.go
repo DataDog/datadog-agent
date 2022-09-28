@@ -16,8 +16,9 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,8 +41,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	// Invoke the Agent
-	if err := app.AgentCmd.Execute(); err != nil {
+	if err := command.MakeCommand(subcommands.AgentSubcommands()).Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
 	}
