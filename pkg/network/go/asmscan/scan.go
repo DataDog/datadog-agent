@@ -8,7 +8,6 @@ package asmscan
 import (
 	"debug/elf"
 	"fmt"
-
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 )

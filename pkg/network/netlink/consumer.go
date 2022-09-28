@@ -135,7 +135,7 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		procRoot:            cfg.ProcRoot,
 		pool:                newBufferPool(),
 		targetRateLimit:     cfg.ConntrackRateLimit,
-		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit)),
+		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
 		enobufs:             atomic.NewInt64(0),

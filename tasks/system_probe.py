@@ -855,13 +855,13 @@ def run_ninja(
 
 def setup_runtime_clang(ctx):
     # check if correct version is already present
-    res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
+    sudo = "sudo" if not is_root() else ""
+    res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
     if res.ok:
         version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
         if version_str == CLANG_VERSION:
             return
 
-    sudo = "sudo" if not is_root() else ""
     if not os.path.exists("/opt/datadog-agent/embedded/bin"):
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
 

@@ -44,16 +44,15 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.29
-	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/quantile v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20220916102325-8091ed929797
@@ -83,7 +82,7 @@ require (
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.9.1
+	github.com/cilium/ebpf v0.9.2
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.4
@@ -102,7 +101,7 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-delve/delve v1.9.0
+	github.com/go-delve/delve v1.9.1
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/gobwas/glob v0.2.3

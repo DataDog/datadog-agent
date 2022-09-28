@@ -67,6 +67,7 @@ type HelmCheck struct {
 	informerFactory   informers.SharedInformerFactory
 	startTS           time.Time
 	once              sync.Once
+	informersStopCh   chan struct{}
 }
 
 type checkConfig struct {
@@ -119,6 +120,8 @@ func (hc *HelmCheck) Configure(config, initConfig integration.Data, source strin
 	hc.setSharedInformerFactory(apiClient)
 	hc.startTS = time.Now()
 
+	hc.informersStopCh = make(chan struct{})
+
 	return nil
 }
 
@@ -166,16 +169,19 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
-func (hc *HelmCheck) setupInformers() error {
-	stopCh := make(chan struct{})
+func (hc *HelmCheck) Cancel() {
+	close(hc.informersStopCh)
+	hc.CommonCancel()
+}
 
+func (hc *HelmCheck) setupInformers() error {
 	secretInformer := hc.informerFactory.Core().V1().Secrets()
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
 	})
-	go secretInformer.Informer().Run(stopCh)
+	go secretInformer.Informer().Run(hc.informersStopCh)
 
 	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
 	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -183,7 +189,7 @@ func (hc *HelmCheck) setupInformers() error {
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
 	})
-	go configmapInformer.Informer().Run(stopCh)
+	go configmapInformer.Informer().Run(hc.informersStopCh)
 
 	return apiserver.SyncInformers(
 		map[apiserver.InformerName]cache.SharedInformer{
@@ -407,6 +413,16 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 		} else {
 			hc.eventsManager.addEventForNewRelease(decodedRelease, allTags)
 		}
+	}
+
+	// The Helm values stored in "Config" and "Chart.Values" are needed only for
+	// the "helm values as tags" option. We've already generated the tags that
+	// we need, so we don't need to store the Helm values. This is important
+	// because the Helm values might need a lot of memory on clusters with many
+	// helm charts and configuration options.
+	decodedRelease.Config = nil
+	if decodedRelease.Chart != nil {
+		decodedRelease.Chart.Values = nil
 	}
 
 	hc.store.add(decodedRelease, storageDriver, genericTags, tagsMetricsAndEvents)
