@@ -79,7 +79,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 	oconf := conf.Obfuscation.Export()
 	if oconf.Statsd == nil {
-		oconf.Statsd = metrics.Client
+		oconf.Statsd = metrics.Client()
 	}
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),

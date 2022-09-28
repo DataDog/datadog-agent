@@ -46,6 +46,6 @@ func Configure(conf *config.AgentConfig, tags []string) error {
 	if err != nil {
 		return err
 	}
-	Client = client
+	SetClient(client)
 	return nil
 }

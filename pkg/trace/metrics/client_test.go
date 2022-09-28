@@ -44,8 +44,8 @@ func (ts *testStatsClient) Flush() error {
 
 func TestForwarding(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		defer func(old StatsClient) { Client = old }(Client)
-		Client = nil
+		defer func(old StatsClient) { SetClient(old) }(Client())
+		SetClient(nil)
 		assert.NoError(t, Gauge("stat", 1, nil, 1))
 		assert.NoError(t, Count("stat", 1, nil, 1))
 		assert.NoError(t, Histogram("stat", 1, nil, 1))
@@ -54,9 +54,9 @@ func TestForwarding(t *testing.T) {
 	})
 
 	t.Run("valid", func(t *testing.T) {
-		defer func(old StatsClient) { Client = old }(Client)
+		defer func(old StatsClient) { SetClient(old) }(Client())
 		var testclient testStatsClient
-		Client = &testclient
+		SetClient(&testclient)
 		assert.NoError(t, Gauge("stat", 1, nil, 1))
 		assert.NoError(t, Count("stat", 1, nil, 1))
 		assert.NoError(t, Histogram("stat", 1, nil, 1))

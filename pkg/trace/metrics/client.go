@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,44 +23,62 @@ type StatsClient interface {
 
 // Client is a global Statsd client. When a client is configured via Configure,
 // that becomes the new global Statsd client in the package.
-var Client StatsClient = (*statsd.Client)(nil)
+var client StatsClient = (*statsd.Client)(nil)
+var cl sync.RWMutex
+
+func Client() StatsClient {
+	cl.RLock()
+	defer cl.RUnlock()
+	return client
+}
+
+func SetClient(c StatsClient) {
+	cl.Lock()
+	defer cl.Unlock()
+	client = c
+}
 
 // Gauge calls Gauge on the global Client, if set.
 func Gauge(name string, value float64, tags []string, rate float64) error {
-	if Client == nil {
+	c := Client()
+	if c == nil {
 		return nil // no-op
 	}
-	return Client.Gauge(name, value, tags, rate)
+	return c.Gauge(name, value, tags, rate)
 }
 
 // Count calls Count on the global Client, if set.
 func Count(name string, value int64, tags []string, rate float64) error {
-	if Client == nil {
+	c := Client()
+	if c == nil {
 		return nil // no-op
 	}
-	return Client.Count(name, value, tags, rate)
+	return c.Count(name, value, tags, rate)
 }
 
 // Histogram calls Histogram on the global Client, if set.
 func Histogram(name string, value float64, tags []string, rate float64) error {
-	if Client == nil {
+	c := Client()
+	if c == nil {
 		return nil // no-op
 	}
-	return Client.Histogram(name, value, tags, rate)
+	return c.Histogram(name, value, tags, rate)
 }
 
 // Timing calls Timing on the global Client, if set.
 func Timing(name string, value time.Duration, tags []string, rate float64) error {
-	if Client == nil {
+	c := Client()
+	if c == nil {
 		return nil // no-op
 	}
-	return Client.Timing(name, value, tags, rate)
+	return c.Timing(name, value, tags, rate)
 }
 
 // Flush flushes any pending metrics to the agent.
 func Flush() error {
-	if Client == nil {
+	c := Client()
+	if c == nil {
 		return nil // no-op
 	}
-	return Client.Flush()
+	return c.Flush()
 }
