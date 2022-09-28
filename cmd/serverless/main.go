@@ -54,7 +54,7 @@ const (
 	// to calls from the client libraries and to logs from the AWS environment.
 	httpServerAddr = ":8124"
 
-	logsAPIRegistrationRoute   = "/2020-08-15/logs"
+	logsAPIRegistrationRoute   = "/2022-07-01/telemetry"
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
