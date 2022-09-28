@@ -144,6 +144,9 @@ func replyWithVersion(hash string, version string, h http.Handler) http.Handler 
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	// Somewhere in here, start a go routine that checks whether there is room
+	// on r.out for more payloads. If there is, it will try to pop off the overflow
+	// queue.
 	if r.conf.ReceiverPort == 0 {
 		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
 		return
@@ -593,25 +596,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 
+	// Try to pop off the queue here. If there's something here, then this should
+	// take precedence since it reached the receiver first. If there's nothing, continue
+
 	select {
 	case r.out <- payload:
 		// ok
 	default:
-		// channel blocked, add a goroutine to ensure we never drop
-		r.wg.Add(1)
-		count := r.outOfCPUCounter.Inc()
-		if (count-1)%outOfCPULogThreshold == 0 {
-			// Log a warning on the first occurrence and every n+outOfCPULogThreshold occurrences.
-			log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
-		}
-		go func() {
-			metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
-			defer func() {
-				r.wg.Done()
-				watchdog.LogOnPanic()
-			}()
-			r.out <- payload
-		}()
+		// Push the payload onto the overflow queue
 	}
 }
 
