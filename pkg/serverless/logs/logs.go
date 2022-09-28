@@ -78,8 +78,6 @@ const (
 
 	// logTypePlatformStart is used for the log message about the platform starting
 	logTypePlatformStart = "platform.start"
-	// logTypePlatformEnd is used for the log message about the platform shutting down
-	logTypePlatformEnd = "platform.end"
 	// logTypePlatformReport is used for the log messages containing a report of the last invocation.
 	logTypePlatformReport = "platform.report"
 	// logTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
@@ -134,7 +132,7 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 	case logTypeFunction, logTypeExtension:
 		l.logType = typ
 		l.stringRecord = j["record"].(string)
-	case logTypePlatformStart, logTypePlatformEnd, logTypePlatformReport, logTypePlatformRuntimeDone:
+	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone:
 		l.logType = typ
 		if objectRecord, ok := j["record"].(map[string]interface{}); ok {
 			// all of these have the requestId
@@ -150,10 +148,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				l.stringRecord = fmt.Sprintf("START RequestId: %s Version: %s",
 					l.objectRecord.requestID,
 					l.objectRecord.startLogItem.version,
-				)
-			case logTypePlatformEnd:
-				l.stringRecord = fmt.Sprintf("END RequestId: %s",
-					l.objectRecord.requestID,
 				)
 			case logTypePlatformReport:
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
@@ -177,6 +171,9 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
 			case logTypePlatformRuntimeDone:
+				l.stringRecord = fmt.Sprintf("END RequestId: %s",
+					l.objectRecord.requestID,
+				)
 				if status, ok := objectRecord["status"].(string); ok {
 					l.objectRecord.runtimeDoneItem.status = status
 				} else {
