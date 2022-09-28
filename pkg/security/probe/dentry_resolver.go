@@ -655,6 +655,12 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	for i < dr.erpcSegmentSize-17 {
 		depth++
 
+		// parse the path_key_t structure
+		cacheKey := PathKey{
+			Inode:   model.ByteOrder.Uint64(dr.erpcSegment[i : i+8]),
+			MountID: model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12]),
+		}
+
 		// check challenge
 		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
 			if depth >= model.MaxPathDepth {
@@ -683,12 +689,6 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 			i += len(segment) + 1
 		} else {
 			break
-		}
-
-		// parse the path_key_t structure
-		cacheKey := PathKey{
-			Inode:   model.ByteOrder.Uint64(dr.erpcSegment[i : i+8]),
-			MountID: model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12]),
 		}
 
 		if !IsFakeInode(cacheKey.Inode) && cache {

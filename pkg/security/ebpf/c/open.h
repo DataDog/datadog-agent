@@ -378,6 +378,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
         .syscall.retval = retval,
         .event.async = syscall->async,
         .event.saved_by_ad = syscall->resolver.saved_by_ad,
+        .event.is_activity_dump_sample = syscall->resolver.ad_state == ACTIVITY_DUMP_RUNNING,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

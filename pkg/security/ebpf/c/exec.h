@@ -66,9 +66,15 @@ struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
     .namespace = "",
 };
 
-__attribute__((always_inline)) struct exec_event_t *get_exec_event() {
+__attribute__((always_inline)) struct exec_event_t *new_exec_event() {
     u32 key = 0;
     struct exec_event_t *evt = bpf_map_lookup_elem(&exec_event_gen, &key);
+
+    if (evt) {
+        __builtin_memset(evt, 0, sizeof(*evt));
+        evt->event.is_activity_dump_sample = 1;
+    }
+
     return evt;
 }
 
@@ -491,7 +497,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     u32 parent_pid = 0;
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
         u32 child_netns_entry = *netns;
@@ -507,7 +513,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     u64 ts = bpf_ktime_get_ns();
-    struct exec_event_t *event = get_exec_event();
+    struct exec_event_t *event = new_exec_event();
     if (event == NULL) {
         return 0;
     }
@@ -554,11 +560,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    char on_stack_comm[TASK_COMM_LEN];
-    bpf_probe_read_str(on_stack_comm, sizeof(on_stack_comm), event->proc_entry.comm);
-    char on_stack_cgroup[CONTAINER_ID_LEN];
-    bpf_probe_read_str(on_stack_cgroup, sizeof(on_stack_cgroup), event->container.container_id);
-    inherit_traced_state(args, ppid, pid, on_stack_cgroup, on_stack_comm);
+    inherit_traced_state(args, ppid, pid, event->container.container_id, event->proc_entry.comm);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -730,7 +732,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct l
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (pc) {
-            struct exec_event_t *event = get_exec_event();
+            struct exec_event_t *event = new_exec_event();
             if (event == NULL) {
                 return 0;
             }
@@ -751,11 +753,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct l
             fill_args_envs(event, syscall);
 
             // [activity_dump] check if this process should be traced
-            char on_stack_comm[TASK_COMM_LEN];
-            bpf_probe_read_str(on_stack_comm, sizeof(on_stack_comm), event->proc_entry.comm);
-            char on_stack_cgroup[CONTAINER_ID_LEN];
-            bpf_probe_read_str(on_stack_cgroup, sizeof(on_stack_cgroup), event->container.container_id);
-            should_trace_new_process(ctx, now, tgid, on_stack_cgroup, on_stack_comm);
+            should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
 
             // add interpreter path info
             event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;

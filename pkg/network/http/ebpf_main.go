@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -24,21 +23,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap          = "http_in_flight"
-	httpBatchesMap           = "http_batches"
-	httpBatchStateMap        = "http_batch_state"
-	httpNotificationsPerfMap = "http_notifications"
+	httpInFlightMap   = "http_in_flight"
+	httpBatchesMap    = "http_batches"
+	httpBatchStateMap = "http_batch_state"
+	httpBatchEvents   = "http_batch_events"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
 	httpSocketFilterStub = "socket/http_filter_entry"
 	httpSocketFilter     = "socket/http_filter"
-	HTTP_PROG            = 0
 	httpProgsMap         = "http_progs"
 
 	// maxActive configures the maximum number of instances of the
@@ -51,8 +48,6 @@ const (
 	batchNotificationsChanSize = 100
 
 	probeUID = "http"
-
-	maxRequestLinger = 30 * time.Second
 )
 
 type ebpfProgram struct {
@@ -74,23 +69,9 @@ type subprogram interface {
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
-	var bytecode bytecode.AssetReader
-	var err error
-	if enableRuntimeCompilation(c) {
-		bytecode, err = getRuntimeCompiledHTTP(c)
-		if err != nil {
-			if !c.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
-			}
-			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
-		}
-	}
-
-	if bytecode == nil {
-		bytecode, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
+	bc, err := getBytecode(c)
+	if err != nil {
+		return nil, err
 	}
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
@@ -108,9 +89,9 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
-				Map: manager.Map{Name: httpNotificationsPerfMap},
+				Map: manager.Map{Name: httpBatchEvents},
 				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
+					PerfRingBufferSize: 256 * os.Getpagesize(),
 					Watermark:          1,
 					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
@@ -129,11 +110,10 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
+					EBPFSection:  "tracepoint/net/netif_receive_skb",
+					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
-				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -156,7 +136,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 	program := &ebpfProgram{
 		Manager:                mgr,
-		bytecode:               bytecode,
+		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
@@ -199,7 +179,7 @@ func (e *ebpfProgram) Init() error {
 		TailCallRouter: []manager.TailCallRoute{
 			{
 				ProgArrayName: httpProgsMap,
-				Key:           HTTP_PROG,
+				Key:           httpProg,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  httpSocketFilter,
 					EBPFFuncName: "socket__http_filter",
@@ -223,8 +203,8 @@ func (e *ebpfProgram) Init() error {
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "kretprobe/security_sock_rcv_skb",
-					EBPFFuncName: "kretprobe__security_sock_rcv_skb",
+					EBPFSection:  "tracepoint/net/netif_receive_skb",
+					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
 			},
@@ -271,7 +251,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(httpTX))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -279,34 +259,39 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTX, ok := val.(*httpTX)
+		httpTxn, ok := val.(*ebpfHttpTx)
 		if !ok {
 			return false
 		}
 
-		if updated := int64(httpTX.response_last_seen); updated > 0 {
+		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTX.request_started)
+		started := int64(httpTxn.RequestStarted())
 		return started > 0 && (now-started) > ttl
 	})
 
 	e.mapCleaner = httpMapCleaner
 }
 
-func enableRuntimeCompilation(c *config.Config) bool {
-	if !c.EnableRuntimeCompiler {
-		return false
+func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
+	if c.EnableRuntimeCompiler {
+		bc, err = getRuntimeCompiledHTTP(c)
+		if err != nil {
+			if !c.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network http tracer: %w", err)
+			}
+			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
+		}
 	}
 
-	// The runtime-compiled version of HTTP monitoring requires Kernel 4.5
-	// because we use the `bpf_skb_load_bytes` helper.
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. falling back to pre-compiled program.")
-		return false
+	if bc == nil {
+		bc, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
 	}
 
-	return kversion >= kernel.VersionCode(4, 5, 0)
+	return
 }

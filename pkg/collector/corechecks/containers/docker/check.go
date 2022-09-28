@@ -40,17 +40,23 @@ const (
 	cacheValidity   = 2 * time.Second
 )
 
+type eventTransformer interface {
+	Transform([]*docker.ContainerEvent) ([]coreMetrics.Event, []error)
+}
+
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
 	core.CheckBase
 	instance                    *DockerConfig
 	processor                   generic.Processor
 	networkProcessorExtension   *dockerNetworkExtension
-	lastEventTime               time.Time
 	dockerHostname              string
 	containerFilter             *containers.Filter
 	okExitCodes                 map[int]struct{}
 	collectContainerSizeCounter uint64
+
+	lastEventTime    time.Time
+	eventTransformer eventTransformer
 }
 
 func init() {
@@ -74,21 +80,28 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 
 	d.instance.Parse(config) //nolint:errcheck
 
-	if len(d.instance.FilteredEventType) == 0 {
-		d.instance.FilteredEventType = []string{
-			"top",
-			"exec_create",
-			"exec_start",
-			"exec_die",
-		}
-	}
-
 	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
 	// are attached to Docker events from this host. The hostname from the docker api may be
 	// different than the agent hostname depending on the environment (like EC2 or GCE).
 	d.dockerHostname, err = hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Can't get hostname from docker, events will not have it: %v", err)
+	}
+
+	if d.instance.UnbundleEvents {
+		d.eventTransformer = newUnbundledTransformer(d.dockerHostname, d.instance.CollectedEventTypes)
+	} else {
+		filteredEventTypes := d.instance.FilteredEventType
+		if len(filteredEventTypes) == 0 {
+			filteredEventTypes = []string{
+				"top",
+				"exec_create",
+				"exec_start",
+				"exec_die",
+			}
+		}
+
+		d.eventTransformer = newBundledTransformer(d.dockerHostname, filteredEventTypes)
 	}
 
 	d.containerFilter, err = containers.GetSharedMetricFilter()
@@ -313,16 +326,18 @@ func (d *DockerCheck) collectEvents(sender aggregator.Sender, du docker.Client) 
 		events, err := d.retrieveEvents(du)
 		if err != nil {
 			d.Warnf("Error collecting events: %s", err) //nolint:errcheck
-		} else {
-			if d.instance.CollectEvent {
-				err = d.reportEvents(events, sender)
-				if err != nil {
-					log.Warn(err.Error())
-				}
+			return
+		}
+
+		if d.instance.CollectEvent {
+			err = d.reportEvents(events, sender)
+			if err != nil {
+				log.Warn(err.Error())
 			}
-			if d.instance.CollectExitCodes {
-				d.reportExitCodes(events, sender)
-			}
+		}
+
+		if d.instance.CollectExitCodes {
+			d.reportExitCodes(events, sender)
 		}
 	}
 }

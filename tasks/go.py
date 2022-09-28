@@ -19,7 +19,7 @@ from .utils import get_build_flags
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
@@ -31,7 +31,10 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    if not isinstance(tags, list):
+        tags = [tags]
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:

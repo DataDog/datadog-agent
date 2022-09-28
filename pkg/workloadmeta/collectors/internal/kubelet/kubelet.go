@@ -176,7 +176,7 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(container.Image)
 		if err != nil {
-			log.Warnf("cannot split image name %q: %s", container.Image, err)
+			log.Debugf("cannot split image name %q: %s", container.Image, err)
 		}
 
 		image.ID = container.ImageID

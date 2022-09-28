@@ -79,14 +79,13 @@ func FormatConnection(
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
-
-	httpStats, tags := httpEncoder.GetHTTPAggregationsAndTags(conn)
+	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
 	if httpStats != nil {
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	conn.Tags |= tags
-	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn)
+	conn.Tags |= staticTags
+	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
 	return c
 }
@@ -236,7 +235,7 @@ func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
 }
 
-func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []uint32, checksum uint32) {
+func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
 	mm := murmur3.New32()
 	for _, tag := range network.GetStaticTags(c.Tags) {
 		mm.Reset()
@@ -244,6 +243,15 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats) (tagsIdx []
 		checksum ^= mm.Sum32()
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
+
+	// Dynamic tags
+	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
 	return
 }
 

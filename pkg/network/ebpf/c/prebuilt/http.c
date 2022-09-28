@@ -15,62 +15,7 @@
 #include "go-tls-location.h"
 #include "go-tls-conn.h"
 
-#define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
-
-static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff* skb, skb_info_t *info) {
-    u64 offset = (u64)info->data_off;
-
-#define BLK_SIZE (4)
-    const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
-    const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
-
-    unsigned i = 0;
-
-#pragma unroll(HTTP_BUFFER_SIZE / BLK_SIZE)
-    for (; i < iter; i++) {
-        if (offset + BLK_SIZE - 1 >= len) { break; }
-
-        // There was a bug in the bpf translatter that was incorrectly clobbering r2 register,
-        // which led to erasing r1 value in that case:
-        //      0:  r6 = r1
-        //      1:  r1 = 12
-        //      2:  r0 = *(u16 *)skb[r1]
-        // https://github.com/torvalds/linux/commit/e6a18d36118bea3bf497c9df4d9988b6df120689
-        //
-        // To prevent the compiler from using the r1 register in the `load_*` functions, we need
-        // to fake using it, so that it increases the chance for the compiler not using it.
-        asm volatile("":::"r1");
-        *(u32 *)buffer = __builtin_bswap32(load_word(skb, offset));
-        asm volatile("":::"r1");
-
-        offset += BLK_SIZE;
-        buffer += BLK_SIZE;
-    }
-
-    // This part is very hard to write in a loop and unroll it.
-    // Indeed, mostly because of 4.4 verifier, we want to make sure the offset into the buffer is not
-    // stored on the stack, so that the verifier is able to verify that we're not doing out-of-bound on
-    // the stack.
-    // Basically, we should get a register from the code block above containing an fp relative address. As
-    // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
-    // and thus the verifier is able to ensure that we are in-bound.
-    if (offset + 2 < len) {
-        asm volatile("":::"r1");
-        *(u16 *)(&buffer[0]) = __builtin_bswap16(load_half(skb, offset));
-        asm volatile("":::"r1");
-        *(&buffer[2]) = load_byte(skb, offset + 2);
-        asm volatile("":::"r1");
-    } else if (offset + 1 < len) {
-        asm volatile("":::"r1");
-        *(u16 *)(&buffer[0]) = __builtin_bswap16(load_half(skb, offset));
-        asm volatile("":::"r1");
-    } else if (offset < len) {
-        asm volatile("":::"r1");
-        *(&buffer[0]) = load_byte(skb, offset);
-        asm volatile("":::"r1");
-    }
-}
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
@@ -79,7 +24,6 @@ int socket__http_filter_entry(struct __sk_buff *skb) {
     bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
     return 0;
 }
-
 
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
@@ -91,14 +35,7 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    // If the socket is for https and it is finishing,
-    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
-    // Otherwise, don't bother to inspect packet contents
-    // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
-    if (!(http.tup.metadata&CONN_TYPE_TCP)) {
-        return 0;
-    }
-    if ((http.tup.sport == HTTPS_PORT || http.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
+    if (!http_allow_packet(&http, skb, &skb_info)) {
         return 0;
     }
 
@@ -114,16 +51,18 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
+    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
     // map connection tuple during SSL_do_handshake(ctx)
     init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
     return 0;
 }
 
-SEC("kretprobe/security_sock_rcv_skb")
-int kretprobe__security_sock_rcv_skb(struct pt_regs* ctx) {
-    // send batch completion notification to userspace
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
+    log_debug("tracepoint/net/netif_receive_skb\n");
+    // flush batch to userspace
     // because perf events can't be sent from socket filter programs
-    http_notify_batch(ctx);
+    http_flush_batch(ctx);
     return 0;
 }
 
@@ -132,6 +71,7 @@ SEC("uprobe/SSL_do_handshake")
 int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
@@ -139,6 +79,7 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_do_handshake")
 int uretprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/SSL_do_handshake: pid_tgid=%llx\n", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
@@ -147,6 +88,7 @@ SEC("uprobe/SSL_connect")
 int uprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
     bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
@@ -154,6 +96,7 @@ int uprobe__SSL_connect(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_connect")
 int uretprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/SSL_connect: pid_tgid=%llx\n", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
@@ -163,6 +106,7 @@ SEC("uprobe/SSL_set_fd")
 int uprobe__SSL_set_fd(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u32 socket_fd = (u32)PT_REGS_PARM2(ctx);
+    log_debug("uprobe/SSL_set_fd: ctx=%llx fd=%d\n", ssl_ctx, socket_fd);
     init_ssl_sock(ssl_ctx, socket_fd);
     return 0;
 }
@@ -171,6 +115,7 @@ SEC("uprobe/BIO_new_socket")
 int uprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
+    log_debug("uprobe/BIO_new_socket: pid_tgid=%llx fd=%d\n", pid_tgid, socket_fd);
     bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
     return 0;
 }
@@ -178,6 +123,7 @@ int uprobe__BIO_new_socket(struct pt_regs* ctx) {
 SEC("uretprobe/BIO_new_socket")
 int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uretprobe/BIO_new_socket: pid_tgid=%llx\n", pid_tgid);
     u32 *socket_fd = bpf_map_lookup_elem(&bio_new_socket_args, &pid_tgid);
     if (socket_fd == NULL) {
         return 0;
@@ -198,8 +144,9 @@ SEC("uprobe/SSL_set_bio")
 int uprobe__SSL_set_bio(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     void *bio = (void *)PT_REGS_PARM2(ctx);
+    log_debug("uprobe/SSL_set_bio: ctx=%llx bio=%llx\n", ssl_ctx, bio);
     u32 *socket_fd = bpf_map_lookup_elem(&fd_by_ssl_bio, &bio);
-    if (socket_fd == NULL)  {
+    if (socket_fd == NULL) {
         return 0;
     }
     init_ssl_sock(ssl_ctx, *socket_fd);
@@ -213,6 +160,7 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -220,6 +168,13 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_read")
 int uretprobe__SSL_read(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    int len = (int)PT_REGS_RC(ctx);
+    if (len <= 0) {
+        log_debug("uretprobe/SSL_read: pid_tgid=%llx ret=%d\n", pid_tgid, len);
+        goto cleanup;
+    }
+
+    log_debug("uretprobe/SSL_read: pid_tgid=%llx\n", pid_tgid);
     ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
     if (args == NULL) {
         return 0;
@@ -228,10 +183,10 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     void *ssl_ctx = args->ctx;
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
+        log_debug("uretprobe/SSL_read: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
         goto cleanup;
     }
 
-    u32 len = (u32)PT_REGS_RC(ctx);
     https_process(t, args->buf, len, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
@@ -240,16 +195,37 @@ cleanup:
 
 SEC("uprobe/SSL_write")
 int uprobe__SSL_write(struct pt_regs* ctx) {
-    void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
+    ssl_write_args_t args = {0};
+    args.ctx = (void *)PT_REGS_PARM1(ctx);
+    args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
-    if (t == NULL) {
+    log_debug("uprobe/SSL_write: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
+    bpf_map_update_elem(&ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_write")
+int uretprobe__SSL_write(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    int write_len = (int)PT_REGS_RC(ctx);
+    log_debug("uretprobe/SSL_write: pid_tgid=%llx len=%d\n", pid_tgid, write_len);
+    if (write_len <= 0) {
+        goto cleanup;
+    }
+
+    ssl_write_args_t *args = bpf_map_lookup_elem(&ssl_write_args, &pid_tgid);
+    if (args == NULL) {
         return 0;
     }
 
-    void *ssl_buffer = (void *)PT_REGS_PARM2(ctx);
-    size_t len = (size_t)PT_REGS_PARM3(ctx);
-    https_process(t, ssl_buffer, len, LIBSSL);
+    conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
+    if (t == NULL) {
+        goto cleanup;
+    }
+
+    https_process(t, args->buf, write_len, LIBSSL);
+cleanup:
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
 }
 
@@ -257,6 +233,7 @@ SEC("uprobe/SSL_shutdown")
 int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%llx\n", pid_tgid, ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
         return 0;
@@ -347,9 +324,12 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
 // ssize_t gnutls_record_recv (gnutls_session_t session, void * data, size_t data_size)
 SEC("uretprobe/gnutls_record_recv")
 int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
-    ssize_t read_len = (ssize_t)PT_REGS_RC(ctx);
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    ssize_t read_len = (ssize_t)PT_REGS_RC(ctx);
+    if (read_len <= 0) {
+        goto cleanup;
+    }
+
     // Re-use the map for SSL_read
     ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
     if (args == NULL) {
@@ -372,18 +352,37 @@ cleanup:
 // ssize_t gnutls_record_send (gnutls_session_t session, const void * data, size_t data_size)
 SEC("uprobe/gnutls_record_send")
 int uprobe__gnutls_record_send(struct pt_regs *ctx) {
-    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
-    void *data = (void *)PT_REGS_PARM2(ctx);
-    size_t data_size = (size_t)PT_REGS_PARM3(ctx);
-
+    ssl_write_args_t args = {0};
+    args.ctx = (void *)PT_REGS_PARM1(ctx);
+    args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
-    conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
-    if (t == NULL) {
+    log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, args.ctx);
+    bpf_map_update_elem(&ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/gnutls_record_send")
+int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ssize_t write_len = (ssize_t)PT_REGS_RC(ctx);
+    log_debug("uretprobe/gnutls_record_send: pid=%llu len=%d\n", pid_tgid, write_len);
+    if (write_len <= 0) {
+        goto cleanup;
+    }
+
+    ssl_write_args_t *args = bpf_map_lookup_elem(&ssl_write_args, &pid_tgid);
+    if (args == NULL) {
         return 0;
     }
 
-    https_process(t, data, data_size, LIBGNUTLS);
+    conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
+    if (t == NULL) {
+        goto cleanup;
+    }
+
+    https_process(t, args->buf, write_len, LIBGNUTLS);
+cleanup:
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
 }
 

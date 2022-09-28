@@ -75,19 +75,3 @@ deploy_staging_suse_rpm-6:
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$BUCKET_BRANCH/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm
 
     - $S3_CP_CMD --recursive --exclude "*" --include "*-6.*x86_64.rpm" $OMNIBUS_PACKAGE_DIR_SUSE $S3_RELEASE_ARTIFACTS_URI/suse_rpm/x86_64/ || true
-
-# Deploy MacOS dmg builds
-deploy_staging_dmg-a6:
-  allow_failure: true
-  rules:
-    !reference [.on_deploy_a6]
-  stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
-  dependencies: ["agent_dmg-x64-a6"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.dmg" $OMNIBUS_PACKAGE_DIR s3://$MACOS_S3_BUCKET/$BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.dmg" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/dmg/x86_64/ || true

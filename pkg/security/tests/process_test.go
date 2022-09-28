@@ -1850,7 +1850,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Fatalf("not able to resolve the entry")
 		}
 
-		equals(t, cacheEntry, procEntry)
+		equals(t, mapsEntry, procEntry)
 
 		io.WriteString(stdin, "\n")
 	})

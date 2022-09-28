@@ -33,11 +33,11 @@ func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
 	return component.NewExporterFactory(
 		TypeStr,
 		newDefaultConfig,
-		component.WithMetricsExporterAndStabilityLevel(f.createMetricExporter, stability),
+		component.WithMetricsExporter(f.createMetricExporter, stability),
 	)
 }
 
-func (f *factory) createMetricExporter(_ context.Context, params component.ExporterCreateSettings, c config.Exporter) (component.MetricsExporter, error) {
+func (f *factory) createMetricExporter(ctx context.Context, params component.ExporterCreateSettings, c config.Exporter) (component.MetricsExporter, error) {
 	cfg := c.(*exporterConfig)
 
 	exp, err := newExporter(params.Logger, f.s, cfg)
@@ -45,7 +45,7 @@ func (f *factory) createMetricExporter(_ context.Context, params component.Expor
 		return nil, err
 	}
 
-	exporter, err := exporterhelper.NewMetricsExporter(cfg, params, exp.ConsumeMetrics,
+	exporter, err := exporterhelper.NewMetricsExporter(ctx, params, cfg, exp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithTimeout(cfg.TimeoutSettings),
 	)

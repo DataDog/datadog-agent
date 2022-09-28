@@ -116,6 +116,10 @@ func Refresh() {
 
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -128,6 +132,10 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 
 // SetHostMetadata updates the host metadata value in the cache
 func SetHostMetadata(name AgentMetadataName, value interface{}) {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -140,7 +148,7 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 func SetCheckMetadata(checkID, key string, value interface{}) {
-	if checkID == "" {
+	if checkID == "" || !config.Datadog.GetBool("inventories_enabled") {
 		return
 	}
 
@@ -166,6 +174,10 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 // RemoveCheckMetadata removes metadata for a check a trigger a new payload. This need to be called when a check is
 // unscheduled.
 func RemoveCheckMetadata(checkID string) {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -248,14 +260,11 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		})
 	}
 
-	// if metadata were added for a check not in the collector we still need
-	// to add them to the payloadCheckMeta (this happens when using the
-	// 'check' command)
+	// if metadata were added for a check not in the collector we clear the cache. This can happen when a check
+	// submit metadata after being unscheduled but before exiting its last run.
 	for id := range checkMetadata {
 		if _, found := foundInCollector[id]; !found {
-			// id should be "check_name:check_hash"
-			parts := strings.SplitN(id, ":", 2)
-			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, "", "", "", withConfigs))
+			delete(checkMetadata, id)
 		}
 	}
 
@@ -283,8 +292,34 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 	}
 }
 
+// GetCheckMetadata returns metadata for a check instance
+func GetCheckMetadata(c check.Check) *CheckInstanceMetadata {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return nil
+	}
+
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
+	checkID := string(c.ID())
+	if _, found := checkMetadata[checkID]; found {
+		return createCheckInstanceMetadata(
+			checkID,
+			strings.Split(c.ConfigSource(), ":")[0],
+			c.InitConfig(),
+			c.InstanceConfig(),
+			false,
+		)
+	}
+	return nil
+}
+
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
 func GetPayload(ctx context.Context, hostname string, coll CollectorInterface, withConfigs bool) *Payload {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return nil
+	}
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -310,6 +345,10 @@ func GetLastPayload() ([]byte, error) {
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC
 // signal to run the collector out of its regular interval.
 func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.Duration) error {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return nil
+	}
+
 	go func() {
 		for {
 			<-metadataUpdatedC
@@ -328,6 +367,10 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 
 // InitializeData inits the inventories payload with basic and static information (agent version, flavor name, ...)
 func InitializeData() {
+	if !config.Datadog.GetBool("inventories_enabled") {
+		return
+	}
+
 	SetAgentMetadata(AgentVersion, version.AgentVersion)
 	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
 
