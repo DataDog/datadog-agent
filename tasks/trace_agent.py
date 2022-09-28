@@ -85,7 +85,7 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""
 
-    go_cmd = f'go test -p 1 -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'
+    go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'
     ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
 
 
