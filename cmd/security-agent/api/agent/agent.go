@@ -56,7 +56,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 }
 
 func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
-	signals.Stopper <- true
+	signals.Stop(nil)
 	w.Header().Set("Content-Type", "application/json")
 	j, err := json.Marshal("")
 	if err != nil {

@@ -19,3 +19,8 @@ component temporarily wraps pkg/config.
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
+
+### [comp/core/stopper](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/stopper)
+
+Package stopper implements a component that will shutdown a running Fx App
+on receipt of SIGINT or SIGTERM or of an explicit stop signal.

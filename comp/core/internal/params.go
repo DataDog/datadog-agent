@@ -85,6 +85,15 @@ type BundleParams struct {
 	// LogFormatJSONFn returns a boolean determining whether logs should be
 	// written in JSON format.
 	LogFormatJSONFn func(configGetter) bool
+
+	// StopOnSignals determines whether the Fx app should be stopped (via
+	// fx.Shutdowner) on SIGINT or SIGTERM, via the comp/core/stopper component.
+	StopOnSignals bool
+
+	// StopErrorP points to an error value.  When comp/core/stopper stops the
+	// app, if this pointer is not nil then its referent will be set with the
+	// reason for the stop.
+	StopErrorP *error
 }
 
 // configGetter is a subset of the comp/core/config component, able to get

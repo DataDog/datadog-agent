@@ -86,7 +86,7 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
-	signals.Stopper <- true
+	signals.Stop(nil)
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
 	w.Write(j)

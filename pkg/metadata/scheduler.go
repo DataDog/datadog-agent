@@ -149,8 +149,7 @@ func (c *Scheduler) TriggerAndResetCollectorTimer(name string, delay time.Durati
 func (c *Scheduler) firstRun() error {
 	p, found := catalog["host"]
 	if !found {
-		log.Error("Unable to find 'host' metadata collector in the catalog!")
-		signals.ErrorStopper <- true
+		signals.Stop(log.Error("Unable to find 'host' metadata collector in the catalog!"))
 	}
 	return p.Send(context.TODO(), c.demux.Serializer())
 }

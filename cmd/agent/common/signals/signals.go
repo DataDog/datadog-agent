@@ -5,7 +5,12 @@
 
 package signals
 
+import "github.com/DataDog/datadog-agent/comp/core/stopper"
+
 // This is a new package in order to avoid cyclical imports
+
+// TODO: once everything is using comp/core/stopper, remove this entire
+// package.
 
 var (
 	// Stopper is the channel used by other packages to ask for stopping the agent
@@ -14,3 +19,21 @@ var (
 	// ErrorStopper is the channel used by other packages to ask for stopping the agent because of an error
 	ErrorStopper = make(chan bool)
 )
+
+// Stop stops the running agent, optionally with an error.  For an expected
+// stop, use Stop(nil).
+//
+// This function returns immediately, and shutdown begins in other goroutines.
+func Stop(err error) {
+	// if there's a stopper component active, then use that
+	if stopper.RunningInstance != nil {
+		stopper.RunningInstance.Stop(err)
+		return
+	}
+
+	if err != nil {
+		ErrorStopper <- true
+	} else {
+		Stopper <- true
+	}
+}

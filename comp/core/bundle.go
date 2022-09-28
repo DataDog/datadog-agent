@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/stopper"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,10 +29,12 @@ type BundleParams = internal.BundleParams
 var Bundle = fxutil.Bundle(
 	config.Module,
 	log.Module,
+	stopper.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
 	log.Module,
+	stopper.Module,
 )
