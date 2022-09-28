@@ -16,7 +16,6 @@
       <env name="BINARY_TO_RUN" value="./bin/system-probe/system-probe" />
       <env name="DLV_PORT_TO_BIND" value="2345" />
       <env name="BINARY_ARGUMENTS" value="-c ./bin/agent/dist/datadog.yaml" />
-      <env name="GO_TLS_TEST" value="/proc/776348/exe" />
     </envs>
     <method v="2" />
   </configuration>
