@@ -7,6 +7,8 @@ package common
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -35,7 +37,11 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 	containers := c.MetadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 
 	for _, container := range containers {
-		c.Sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
+		tags := []string{
+			"container_id:" + container.ID,
+			dogstatsd.CardinalityTagPrefix + collectors.LowCardinalityString,
+		}
+		c.Sender.Gauge(metricName, 1.0, "", tags)
 	}
 
 	c.Sender.Commit()

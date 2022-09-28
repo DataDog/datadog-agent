@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -567,7 +569,10 @@ func (m *Module) metricsSender() {
 				seclog.Debugf("failed to send api server stats: %s", err)
 			}
 		case <-heartbeatTicker.C:
-			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+			tags := []string{
+				fmt.Sprintf("version:%s", version.AgentVersion),
+				dogstatsd.CardinalityTagPrefix + collectors.LowCardinalityString,
+			}
 
 			m.RLock()
 			for _, version := range m.policiesVersions {
