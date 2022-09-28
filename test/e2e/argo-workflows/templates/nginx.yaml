@@ -112,7 +112,7 @@ spec:
       resource:
         action: apply
         manifest: |
-          apiVersion: autoscaling/v2beta1
+          apiVersion: autoscaling/v2
           kind: HorizontalPodAutoscaler
           metadata:
             name: nginxext
@@ -127,11 +127,14 @@ spec:
             metrics:
             - type: External
               external:
-                metricName: nginx.net.request_per_s
-                metricSelector:
-                  matchLabels:
-                      kube_container_name: nginx
-                targetAverageValue: 9
+                metric:
+                  name: nginx.net.request_per_s
+                  selector:
+                    matchLabels:
+                        kube_container_name: nginx
+                target:
+                  type: AverageValue
+                  averageValue: 9
 
     - name: delete-service
       inputs:
@@ -179,7 +182,7 @@ spec:
       resource:
         action: delete
         manifest: |
-          apiVersion: autoscaling/v2beta1
+          apiVersion: autoscaling/v2
           kind: HorizontalPodAutoscaler
           metadata:
             name: nginxext

@@ -83,7 +83,8 @@ func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultipl
 		UseNoopEventPlatformForwarder:  false,
 		UseNoopOrchestratorForwarder:   false,
 		UseContainerLifecycleForwarder: false,
-		EnableNoAggregationPipeline:    config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline"),
+		// the different agents/binaries enable it on a per-need basis
+		EnableNoAggregationPipeline: false,
 	}
 }
 

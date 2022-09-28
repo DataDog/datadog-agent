@@ -212,14 +212,13 @@ func (bc *BBSCache) readData() {
 	var errActual, errDesired error
 
 	wg.Add(2)
-
 	go func() {
+		defer wg.Done()
 		actualLRPsByProcessGUID, actualLRPsByCellID, errActual = bc.readActualLRPs()
-		wg.Done()
 	}()
 	go func() {
+		defer wg.Done()
 		desiredLRPs, errDesired = bc.readDesiredLRPs()
-		wg.Done()
 	}()
 	wg.Wait()
 	if errActual != nil {

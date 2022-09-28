@@ -179,6 +179,7 @@
   <ItemGroup>
     <ClCompile Include="..\cal\caninstall.cpp" />
     <ClCompile Include="..\cal\customactiondata.cpp" />
+    <ClCompile Include="..\cal\PropertyView.cpp" />
     <ClCompile Include="..\cal\ddreg.cpp" />
     <ClCompile Include="..\cal\Error.cpp" />
     <ClCompile Include="..\cal\Logoncli.cpp" />

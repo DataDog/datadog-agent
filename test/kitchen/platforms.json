@@ -28,13 +28,13 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20211011.792",
-                "debian-11": "urn,Debian:debian-11:11:0.20220328.962"
+                "debian-10": "urn,Debian:debian-10:10:0.20220911.1135",
+                "debian-11": "urn,Debian:debian-11:11:0.20220911.1135"
             }
         },
         "ec2": {
             "arm64": {
-                "debian-10": "ami-005c63ab415954283",
+                "debian-10": "ami-018ce69d4b9c9e3ec",
                 "debian-11": "ami-0d53a3ba77632d713"
             }
         }

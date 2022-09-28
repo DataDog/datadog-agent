@@ -8,11 +8,10 @@ package split
 import (
 	"expvar"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,9 +72,9 @@ func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshal
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (forwarder.Payloads, error) {
+func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (transaction.BytesPayloads, error) {
 	marshallers := []marshaler.AbstractMarshaler{m}
-	smallEnoughPayloads := forwarder.Payloads{}
+	smallEnoughPayloads := transaction.BytesPayloads{}
 	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct)
 	if err != nil {
 		return smallEnoughPayloads, err
@@ -85,7 +84,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 		log.Debug("The payload was not too big, returning the full payload")
 		splitterNotTooBig.Add(1)
 		tlmSplitterNotTooBig.Inc()
-		smallEnoughPayloads = append(smallEnoughPayloads, &compressedPayload)
+		smallEnoughPayloads = append(smallEnoughPayloads, transaction.NewBytesPayloadWithoutMetaData(compressedPayload))
 		return smallEnoughPayloads, nil
 	}
 	splitterTooBig.Add(1)
@@ -132,7 +131,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 				}
 				if !tooBigChunk {
 					// if the payload is small enough, return it straight away
-					smallEnoughPayloads = append(smallEnoughPayloads, &compressedPayload)
+					smallEnoughPayloads = append(smallEnoughPayloads, transaction.NewBytesPayloadWithoutMetaData(compressedPayload))
 					log.Debugf("chunk was small enough: %v, smallEnoughPayloads are of length: %v", len(compressedPayload), len(smallEnoughPayloads))
 				} else {
 					// if it is not small enough, append it to the list of payloads

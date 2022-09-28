@@ -246,7 +246,7 @@ typedef enum discard_check_state {
 discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
     if (!inode_params) {
         return NOT_DISCARDED;
     }
@@ -257,7 +257,7 @@ discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct 
     }
 
     // should we ignore the discarder check because of an activity dump ?
-    if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
+    if (params->ad_state == ACTIVITY_DUMP_RUNNING) {
         // do not discard this event
         return SAVED_BY_AD;
     }

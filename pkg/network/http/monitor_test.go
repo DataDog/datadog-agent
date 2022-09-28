@@ -43,8 +43,8 @@ var (
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	if currKernelVersion < kernel.VersionCode(4, 14, 0) {
-		t.Skip("HTTP feature not available on pre 4.14.0 kernels")
+	if currKernelVersion < MinimumKernelVersion {
+		t.Skip(fmt.Sprintf("HTTP feature not available on pre %s kernels", MinimumKernelVersion.String()))
 	}
 }
 

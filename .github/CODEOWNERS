@@ -41,7 +41,7 @@
 
 /.gitlab/                                            @DataDog/agent-platform
 
-/.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
+/.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-platform
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-platform
 /.gitlab/binary_build/system_probe.yml               @DataDog/agent-network @DataDog/agent-platform
@@ -50,10 +50,10 @@
 /.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_6/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
 
-/.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
+/.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/platform-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
+/.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/platform-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
@@ -97,10 +97,10 @@
 
 /cmd/                                   @DataDog/agent-shared-components
 /cmd/trace-agent/                       @DataDog/agent-apm
-/cmd/agent/app/integrations*.go         @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
-/cmd/agent/app/remote_config.go         @Datadog/remote-config
-/cmd/agent/app/snmp.go                  @DataDog/infrastructure-integrations
-/cmd/agent/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
+/cmd/agent/subcommands/integrations     @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
+/cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
+/cmd/agent/subcommands/snmp             @DataDog/infrastructure-integrations
+/cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/infrastructure-integrations
 /cmd/agent/*.manifest                   @DataDog/agent-platform
@@ -110,9 +110,9 @@
 /cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
-/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integrations-tools-and-libraries
-/cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
-/cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
+/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
+/cmd/cluster-agent-cloudfoundry/        @DataDog/platform-integrations
+/cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
@@ -170,12 +170,13 @@
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
-/pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
+/pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
 /pkg/autodiscovery/listeners/snmp*.go   @DataDog/infrastructure-integrations
 /pkg/autodiscovery/providers/           @DataDog/container-integrations
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
-/pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/integrations-tools-and-libraries
+/pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
+/pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/collector/                         @DataDog/agent-metrics-logs
@@ -217,11 +218,11 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
-/pkg/util/cloudproviders/cloudfoundry/  @DataDog/integrations-tools-and-libraries
+/pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containerd/                   @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
-/pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
+/pkg/util/containers/collectors/cloudfoundry.go              @DataDog/platform-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/kernel/                       @DataDog/agent-network
@@ -256,7 +257,7 @@
 /pkg/trace/appsec/                      @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
-/pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/integrations-tools-and-libraries
+/pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 
 /pkg-config/                            @DataDog/agent-platform
 
@@ -268,7 +269,7 @@
 
 /tasks/                                 @DataDog/agent-platform
 /tasks/agent.py                         @DataDog/agent-shared-components
-/tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
+/tasks/cluster_agent_cloudfoundry.py    @DataDog/platform-integrations
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/agent-network
 /tasks/trace_agent.py                   @DataDog/agent-apm

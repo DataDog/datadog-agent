@@ -40,13 +40,13 @@ func TestRulesetLoaded(t *testing.T) {
 	test.probe.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
-	assert.NotEmpty(t, test.statsdClient.counts[key])
-	assert.NotZero(t, test.statsdClient.counts[key])
+	assert.NotEmpty(t, test.statsdClient.Counts[key])
+	assert.NotZero(t, test.statsdClient.Counts[key])
 
 	test.statsdClient.Flush()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		count := test.statsdClient.counts[key]
+		count := test.statsdClient.Counts[key]
 		assert.Zero(t, count)
 
 		if err := test.reloadConfiguration(); err != nil {
@@ -55,7 +55,7 @@ func TestRulesetLoaded(t *testing.T) {
 
 		test.probe.SendStats()
 
-		assert.Equal(t, count+1, test.statsdClient.counts[key])
+		assert.Equal(t, count+1, test.statsdClient.Counts[key])
 	})
 }
 
