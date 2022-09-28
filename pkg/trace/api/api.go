@@ -597,7 +597,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	// Try to pop off the queue here. If there's something here, then this should
-	// take precedence since it reached the receiver first. If there's nothing, continue
+	// take precedence since it reached the receiver first. If there's nothing, continue.
 
 	select {
 	case r.out <- payload:
