@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -62,8 +61,8 @@ func newHistogramMetric(p pmetric.HistogramDataPoint) pmetric.Metrics {
 	np := dps.AppendEmpty()
 	np.SetCount(p.Count())
 	np.SetSum(p.Sum())
-	np.SetBucketCounts(p.BucketCounts())
-	np.SetExplicitBounds(p.ExplicitBounds())
+	p.BucketCounts().CopyTo(np.BucketCounts())
+	p.ExplicitBounds().CopyTo(np.ExplicitBounds())
 	np.SetTimestamp(p.Timestamp())
 
 	return md
@@ -92,12 +91,8 @@ func TestHistogramSketches(t *testing.T) {
 		}
 		bounds[N] = float64(N)
 		buckets[N+1] = 0
-		boundSlice := pcommon.NewFloat64Slice()
-		boundSlice.FromRaw(bounds)
-		p.SetExplicitBounds(boundSlice)
-		bucketSlice := pcommon.NewUInt64Slice()
-		bucketSlice.FromRaw(buckets)
-		p.SetBucketCounts(bucketSlice)
+		p.ExplicitBounds().FromRaw(bounds)
+		p.BucketCounts().FromRaw(buckets)
 		p.SetCount(count)
 		return newHistogramMetric(p)
 	}
@@ -215,13 +210,9 @@ func TestExactSumCount(t *testing.T) {
 				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 				dp := m.Histogram().DataPoints()
 				p := dp.AppendEmpty()
-				boundSlice := pcommon.NewFloat64Slice()
-				boundSlice.FromRaw([]float64{0, 5_000, 10_000, 15_000, 20_000})
-				p.SetExplicitBounds(boundSlice)
+				p.ExplicitBounds().FromRaw([]float64{0, 5_000, 10_000, 15_000, 20_000})
 				// Points from contrib issue 6129: 0, 5_000, 10_000, 15_000, 20_000
-				bucketCountSlice := pcommon.NewUInt64Slice()
-				bucketCountSlice.FromRaw([]uint64{0, 1, 1, 1, 1, 1})
-				p.SetBucketCounts(bucketCountSlice)
+				p.BucketCounts().FromRaw([]uint64{0, 1, 1, 1, 1, 1})
 				p.SetCount(5)
 				p.SetSum(50_000)
 				return md
@@ -250,15 +241,12 @@ func TestExactSumCount(t *testing.T) {
 				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 				dp := m.Histogram().DataPoints()
 				// Points from contrib issue 6129: 0, 5_000, 10_000, 15_000, 20_000 repeated.
-				bounds := pcommon.NewFloat64Slice()
-				bounds.FromRaw([]float64{0, 5_000, 10_000, 15_000, 20_000})
+				bounds := []float64{0, 5_000, 10_000, 15_000, 20_000}
 				for i := 1; i <= 2; i++ {
 					p := dp.AppendEmpty()
-					p.SetExplicitBounds(bounds)
+					p.ExplicitBounds().FromRaw(bounds)
 					cnt := uint64(i)
-					bucketCountSlice := pcommon.NewUInt64Slice()
-					bucketCountSlice.FromRaw([]uint64{0, cnt, cnt, cnt, cnt, cnt})
-					p.SetBucketCounts(bucketCountSlice)
+					p.BucketCounts().FromRaw([]uint64{0, cnt, cnt, cnt, cnt, cnt})
 					p.SetCount(uint64(5 * i))
 					p.SetSum(float64(50_000 * i))
 				}
@@ -291,19 +279,16 @@ func TestExactSumCount(t *testing.T) {
 				m.SetName("test")
 
 				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
-				bounds := pcommon.NewFloat64Slice()
-				bounds.FromRaw([]float64{1_000, 10_000, 100_000})
+				bounds := []float64{1_000, 10_000, 100_000}
 
 				dp := m.Histogram().DataPoints()
 				for i := 0; i < 2; i++ {
 					p := dp.AppendEmpty()
-					p.SetExplicitBounds(bounds)
+					p.ExplicitBounds().FromRaw(bounds)
 					counts := []uint64{0, 0, 0, 0}
 					counts[pos] = uint64(i)
 					t.Logf("pos: %d, val: %f, counts: %v", pos, val, counts)
-					bucketCountSlice := pcommon.NewUInt64Slice()
-					bucketCountSlice.FromRaw(counts)
-					p.SetBucketCounts(bucketCountSlice)
+					p.BucketCounts().FromRaw(counts)
 					p.SetCount(uint64(i))
 					p.SetSum(val * float64(i))
 				}
@@ -341,10 +326,8 @@ func TestInfiniteBounds(t *testing.T) {
 			name: "(-inf, inf): 100",
 			getHist: func() pmetric.Metrics {
 				p := pmetric.NewHistogramDataPoint()
-				p.SetExplicitBounds(pcommon.NewFloat64Slice())
-				bucketCountSlice := pcommon.NewUInt64Slice()
-				bucketCountSlice.FromRaw([]uint64{100})
-				p.SetBucketCounts(bucketCountSlice)
+				p.ExplicitBounds().FromRaw([]float64{})
+				p.BucketCounts().FromRaw([]uint64{100})
 				p.SetCount(100)
 				p.SetSum(0)
 				return newHistogramMetric(p)
@@ -353,13 +336,9 @@ func TestInfiniteBounds(t *testing.T) {
 		{
 			name: "(-inf, 0]: 100, (0, +inf]: 100",
 			getHist: func() pmetric.Metrics {
-				bounds := pcommon.NewFloat64Slice()
-				bounds.FromRaw([]float64{0})
 				p := pmetric.NewHistogramDataPoint()
-				p.SetExplicitBounds(bounds)
-				bucketCountSlice := pcommon.NewUInt64Slice()
-				bucketCountSlice.FromRaw([]uint64{100, 100})
-				p.SetBucketCounts(bucketCountSlice)
+				p.ExplicitBounds().FromRaw([]float64{0})
+				p.BucketCounts().FromRaw([]uint64{100, 100})
 				p.SetCount(200)
 				p.SetSum(0)
 				return newHistogramMetric(p)
@@ -368,13 +347,9 @@ func TestInfiniteBounds(t *testing.T) {
 		{
 			name: "(-inf, -1]: 100, (-1, 1]: 10,  (1, +inf]: 100",
 			getHist: func() pmetric.Metrics {
-				bounds := pcommon.NewFloat64Slice()
-				bounds.FromRaw([]float64{-1, 1})
 				p := pmetric.NewHistogramDataPoint()
-				p.SetExplicitBounds(bounds)
-				bucketCountSlice := pcommon.NewUInt64Slice()
-				bucketCountSlice.FromRaw([]uint64{100, 10, 100})
-				p.SetBucketCounts(bucketCountSlice)
+				p.ExplicitBounds().FromRaw([]float64{-1, 1})
+				p.BucketCounts().FromRaw([]uint64{100, 10, 100})
 				p.SetCount(210)
 				p.SetSum(0)
 				return newHistogramMetric(p)
