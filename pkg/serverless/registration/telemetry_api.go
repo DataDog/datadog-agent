@@ -20,33 +20,38 @@ const (
 	headerContentType string = "Content-Type"
 )
 
-// EnableLogsCollection enables logs collections via AWS Logs API
-func EnableLogsCollection(
-	id ID,
-	registrationURL string,
-	registrationTimeout time.Duration,
-	logsType string,
-	port int,
-	collectionRoute string,
-	timeout int,
-	maxBytes int,
-	maxItems int) error {
-
-	callBackURI := buildCallbackURI(port, collectionRoute)
-	payload := buildLogRegistrationPayload(callBackURI, logsType, timeout, maxBytes, maxItems)
-	return subscribeLogs(id, registrationURL, registrationTimeout, payload)
+// EnableTelemetryCollectionArgs is the set of arguments used to call
+// EnableTelemetryCollection
+type EnableTelemetryCollectionArgs struct {
+	ID                  ID
+	RegistrationURL     string
+	RegistrationTimeout time.Duration
+	LogsType            string
+	Port                int
+	CollectionRoute     string
+	Timeout             int
+	MaxBytes            int
+	MaxItems            int
 }
 
-func subscribeLogs(id ID, url string, timeout time.Duration, payload json.Marshaler) error {
+// EnableTelemetryCollection enables telemetry collections via AWS Telemetry API
+func EnableTelemetryCollection(args EnableTelemetryCollectionArgs) error {
+	callBackURI := buildCallbackURI(args.Port, args.CollectionRoute)
+	payload := buildLogRegistrationPayload(callBackURI, args.LogsType,
+		args.Timeout, args.MaxBytes, args.MaxItems)
+	return subscribeTelemetry(args.ID, args.RegistrationURL, args.RegistrationTimeout, payload)
+}
+
+func subscribeTelemetry(id ID, url string, timeout time.Duration, payload json.Marshaler) error {
 
 	jsonBytes, err := payload.MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("SubscribeLogs: can't marshal subscribe JSON %v", err)
+		return fmt.Errorf("SubscribeTelemetry: can't marshal subscribe JSON %v", err)
 	}
 
 	request, err := buildLogRegistrationRequest(url, HeaderExtID, headerContentType, id, jsonBytes)
 	if err != nil {
-		return fmt.Errorf("SubscribeLogs: can't create the PUT request: %v", err)
+		return fmt.Errorf("SubscribeTelemetry: can't create the PUT request: %v", err)
 	}
 
 	response, err := sendLogRegistrationRequest(&http.Client{
@@ -54,20 +59,20 @@ func subscribeLogs(id ID, url string, timeout time.Duration, payload json.Marsha
 		Timeout:   timeout,
 	}, request)
 	if err != nil {
-		return fmt.Errorf("SubscribeLogs: while PUT subscribe request: %s", err)
+		return fmt.Errorf("SubscribeTelemetry: while PUT subscribe request: %s", err)
 	}
 
 	defer response.Body.Close()
 	if !isValidHTTPCode(response.StatusCode) {
-		return fmt.Errorf("SubscribeLogs: received an HTTP %s", response.Status)
+		return fmt.Errorf("SubscribeTelemetry: received an HTTP %s", response.Status)
 	}
 
 	return nil
 }
 
-func buildLogRegistrationPayload(callBackURI string, logsType string, timeoutMs int, maxBytes int, maxItems int) *LogSubscriptionPayload {
+func buildLogRegistrationPayload(callBackURI string, logsType string, timeoutMs int, maxBytes int, maxItems int) *TelemetrySubscriptionPayload {
 	logsTypeArray := getLogTypesToSubscribe(logsType)
-	log.Debug("Subscribing to Logs for types:", logsTypeArray)
+	log.Debug("Subscribing to Telemetry for types:", logsTypeArray)
 	destination := &destination{
 		URI:      callBackURI,
 		Protocol: "HTTP",
@@ -78,7 +83,7 @@ func buildLogRegistrationPayload(callBackURI string, logsType string, timeoutMs 
 		MaxItems:  maxItems,
 	}
 	schemaVersion := "2022-07-01"
-	payload := &LogSubscriptionPayload{
+	payload := &TelemetrySubscriptionPayload{
 		Destination:   *destination,
 		Types:         logsTypeArray,
 		Buffering:     *buffering,
@@ -119,7 +124,7 @@ func getLogTypesToSubscribe(envLogsType string) []string {
 			case "function", "platform", "extension":
 				logsType = append(logsType, part)
 			default:
-				log.Warn("While subscribing to logs, unknown log type", part)
+				log.Warn("While subscribing to telemetry, unknown log type", part)
 			}
 		}
 		return logsType
