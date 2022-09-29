@@ -709,9 +709,12 @@ def go_generate_check(ctx):
 
 @task
 def kitchen_prepare(ctx):
+    ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
+
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
-    cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
+    cookbook_files_dir = os.path.join(
+        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
+    )
 
     testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
     build_functional_tests(
@@ -728,8 +731,7 @@ def kitchen_prepare(ctx):
 
     ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    src_path = os.environ.get("SRC_PATH", ".")
-    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+    bytecode_build_dir = os.path.join(ci_project_dir, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
