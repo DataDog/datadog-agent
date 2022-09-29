@@ -233,8 +233,8 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Equal(t, 1*time.Second, refreshInterval)
 }
 
-func customMeta(tracerPredicates []*pbgo.TracerPredicateV1) *json.RawMessage {
-	data, err := json.Marshal(DirectorTargetsCustomMetadata{Predicates: &pbgo.TracerPredicates{TracerPredicatesV1: tracerPredicates}})
+func customMeta(tracerPredicates []*pbgo.TracerPredicateV1, expiration int64) *json.RawMessage {
+	data, err := json.Marshal(ConfigFileMetaCustom{Predicates: &pbgo.TracerPredicates{TracerPredicatesV1: tracerPredicates}, Expires: expiration})
 	if err != nil {
 		panic(err)
 	}
@@ -477,23 +477,23 @@ func TestServiceClientPredicates(t *testing.T) {
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{})}},
+		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)}},
 		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeID,
 			},
-		})}},
+		}, 0)}},
 		// must not be delivered
 		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeIDFail,
 			},
-		})}},
+		}, 0)}},
 		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				Service: wrongServiceName,
 			},
-		})}},
+		}, 0)}},
 	},
 		nil,
 	)
@@ -713,4 +713,85 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	uptaneClient.AssertExpectations(t)
 	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
 	assert.False(t, service.refreshIntervalOverrideAllowed)
+}
+
+// TestConfigExpiration tests that the agent properly filters expired configuration ID's
+// when processing a request from a downstream client.
+func TestConfigExpiration(t *testing.T) {
+	clientID := "client-id"
+	runtimeID := "runtime-id"
+
+	assert := assert.New(t)
+	clock := clock.NewMock()
+	lastConfigResponse := &pbgo.LatestConfigsResponse{
+		TargetFiles: []*pbgo.File{{Path: "test"}},
+	}
+	uptaneClient := &mockUptane{}
+	api := &mockAPI{}
+
+	service := newTestService(t, api, uptaneClient, clock)
+
+	client := &pbgo.Client{
+		Id: clientID,
+		State: &pbgo.ClientState{
+			RootVersion: 2,
+		},
+		Products: []string{
+			string(rdata.ProductAPMSampling),
+		},
+		IsTracer: true,
+		ClientTracer: &pbgo.ClientTracer{
+			RuntimeId:  runtimeID,
+			Language:   "php",
+			Env:        "staging",
+			AppVersion: "1",
+		},
+	}
+	uptaneClient.On("TargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
+	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
+	uptaneClient.On("Targets").Return(data.TargetFiles{
+		// must be delivered
+		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta(nil, 0)}},
+		// must not be delivered - expiration date is 9/21/2022
+		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta(nil, 1663732800)}},
+	},
+		nil,
+	)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+		DirectorRoot:    1,
+		DirectorTargets: 5,
+	}, nil)
+	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/1").Return([]byte(``), nil)
+	uptaneClient.On("TargetFile", "datadog/2/APM_SAMPLING/id/2").Return([]byte(``), nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigRootVersion:     0,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts: []string{
+			string(rdata.ProductAPMSampling),
+		},
+		ActiveClients:      []*pbgo.Client{client},
+		BackendClientState: []byte(`test_state`),
+		HasError:           false,
+		Error:              "",
+	}).Return(lastConfigResponse, nil)
+
+	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
+	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(err)
+	assert.ElementsMatch(
+		configResponse.ClientConfigs,
+		[]string{
+			"datadog/2/APM_SAMPLING/id/1",
+		},
+	)
+	err = service.refresh()
+	assert.NoError(err)
+
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
 }
