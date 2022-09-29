@@ -222,7 +222,13 @@ func (c *collector) parsePods(
 		seen[entityID] = struct{}{}
 
 		entity := &workloadmeta.KubernetesPod{
-			EntityID:        entityID,
+			EntityID: entityID,
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        pod.Metadata.Name,
+				Namespace:   pod.Metadata.Namespace,
+				Annotations: pod.Metadata.Annotations,
+				Labels:      pod.Metadata.Labels,
+			},
 			KubeServices:    services,
 			NamespaceLabels: nsLabels,
 		}
