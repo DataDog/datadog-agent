@@ -674,7 +674,7 @@ func TestUnmarshalJSONMalformed(t *testing.T) {
 }
 
 func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
-	// platform.logsSubscription events are not processed by the extension
+	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_log.json")
 	if errReadFile != nil {
@@ -689,6 +689,18 @@ func TestUnmarshalJSONLogTypePlatformFault(t *testing.T) {
 	// platform.fault events are not processed by the extension
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_fault.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
+	// with the telemetry api, these events should not exist
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_telemetry.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
