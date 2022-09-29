@@ -722,6 +722,7 @@ func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
 }
 
 func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
+	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_end.json")
 	if errReadFile != nil {
@@ -729,8 +730,8 @@ func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-	assert.Equal(t, "platform.end", logMessage.logType)
-	assert.Equal(t, "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9", logMessage.stringRecord)
+	assert.Equal(t, "", logMessage.logType)
+	assert.Equal(t, "", logMessage.stringRecord)
 }
 
 func TestUnmarshalJSONLogTypeIncorrectReportNotFatalMetrics(t *testing.T) {
@@ -763,8 +764,9 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 	expectedTime := time.Date(2021, 05, 19, 18, 11, 22, 478000000, time.UTC)
 
 	expectedLogMessage := logMessage{
-		logType: logTypePlatformRuntimeDone,
-		time:    expectedTime,
+		logType:      logTypePlatformRuntimeDone,
+		time:         expectedTime,
+		stringRecord: "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9",
 		objectRecord: platformObjectRecord{
 			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
 		},
