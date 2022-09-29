@@ -18,11 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/internal/computil"
 )
 
 // team: agent-shared-components
 
-const componentName = "comp/core"
+var componentName = computil.GetComponentName()
 
 // BundleParams defines the parameters for this bundle.
 type BundleParams = internal.BundleParams

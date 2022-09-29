@@ -17,6 +17,7 @@ The package must have the following defined in `bundle.go`:
    This is used to generate CODEOWNERS information.
 
  * `componentName` -- the Go path of the component, relative to the repository root, e.g., `comp/core/health`.
+   This is set with the `computil.GetComponentName` utility.
 
  * `BundleParams` -- the type of the bundle's parameters (see below).
    This item should have a formulaic doc string like `// BundleParams defines the parameters for this bundle.`

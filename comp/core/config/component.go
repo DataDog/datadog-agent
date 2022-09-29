@@ -20,6 +20,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/internal/computil"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -120,7 +121,7 @@ type Mock interface {
 	Set(key string, value interface{})
 }
 
-const componentName = "comp/core/config"
+var componentName = computil.GetComponentName()
 
 // Module defines the fx options for this component.
 var Module = fx.Module(

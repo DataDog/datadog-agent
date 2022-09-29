@@ -16,11 +16,11 @@ package log
 
 import (
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/internal/computil"
 )
 
 // team: agent-shared-components
-
-const componentName = "comp/core/log"
 
 // Component is the component type.
 type Component interface {
@@ -67,6 +67,8 @@ type Mock interface {
 
 	// no further methods are defined.
 }
+
+var componentName = computil.GetComponentName()
 
 // Module defines the fx options for this component.
 var Module fx.Option = fx.Module(

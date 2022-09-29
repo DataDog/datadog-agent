@@ -1,6 +1,6 @@
 # Defining Components
 
-A component is defined in a dedicated package named `comp/<bundleName>/<componentName>`, where `<bundleName>` names the bundle that contains the component.
+A component is defined in a dedicated package named `comp/<bundleName>/<component>`, where `<bundleName>` names the bundle that contains the component.
 The package must have the following defined in `component.go`:
 
  * Extensive package-level documentation.
@@ -11,6 +11,7 @@ The package must have the following defined in `component.go`:
    This is used to generate CODEOWNERS information.
 
  * `componentName` -- the Go path of the component, relative to the repository root, e.g., `comp/core/health`.
+   This is set with the `computil.GetComponentName` utility.
 
  * `Component` -- the interface type implemented by the component.
    This is the type by which other components will require this one via `fx`.
@@ -34,13 +35,13 @@ package config
 
 // team: some-team-name
 
-const componentName = "comp/foo"
-
 // Component is the component type.
 type Component interface {
 	// Foo is ... (detailed doc comment)
 	Foo(key string) string
 }
+
+const componentName = computil.GetComponentName()
 
 // Module defines the fx options for this component.
 var Module = fx.Module(
