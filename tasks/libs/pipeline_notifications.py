@@ -4,10 +4,26 @@ import subprocess
 from collections import defaultdict
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobReason, Test
+from .types import FailedJobReason, FailedJobType, Test
 
 
 def get_failed_jobs(project_name, pipeline_id):
+    """
+    Retrieves the list of failed jobs for a given pipeline id in a given project.
+    Additionally, returns a dictionary containing statistics on the reasons why these
+    jobs failed.
+    """
+
+    # Prepare hash of stats for job failure reasons (to publish stats to the Datadog backend)
+    # Format:
+    # job_failure_stats: {
+    #   "job_failure_type_1": {
+    #     "job_failure_reason_1": 3,
+    #     ...
+    #   }
+    # }
+    job_failure_stats = defaultdict(dict)
+
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
     # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
@@ -24,7 +40,6 @@ def get_failed_jobs(project_name, pipeline_id):
 
     # There, we now have the following map:
     # job name -> list of jobs with that name, including at least one failed job
-
     final_failed_jobs = []
     for job_name, jobs in failed_jobs.items():
         # We sort each list per creation date
@@ -33,6 +48,7 @@ def get_failed_jobs(project_name, pipeline_id):
         job_name = truncate_job_name(job_name)
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
+        failure_type, failure_reason = get_job_failure_context(gitlab.job_log(jobs[-1]["id"]))
         final_status = {
             "name": job_name,
             "id": jobs[-1]["id"],
@@ -41,35 +57,50 @@ def get_failed_jobs(project_name, pipeline_id):
             "allow_failure": jobs[-1]["allow_failure"],
             "url": jobs[-1]["web_url"],
             "retry_summary": [job["status"] for job in jobs],
-            "failure_type": get_job_failure_reason(gitlab.job_log(jobs[-1]["id"])),
+            "failure_type": failure_type,
         }
 
         # Also exclude jobs allowed to fail
         if final_status["status"] == "failed" and not final_status["allow_failure"]:
             final_failed_jobs.append(final_status)
+            job_failure_stats[failure_type][failure_reason] = job_failure_stats[failure_type].get(failure_reason, 0) + 1
 
-    return final_failed_jobs
+    return final_failed_jobs, job_failure_stats
 
 
-def get_job_failure_reason(job_log):
+def get_job_failure_context(job_log):
+    """
+    Parses job logs (provided as a string), and returns the type of failure (infra or job) as well
+    as the precise reason why the job failed.
+    """
+
     infra_failure_logs = [
-        # Gitlab errors while pulling image
-        "no basic auth credentials (manager.go:203:0s)",
-        "net/http: TLS handshake timeout (manager.go:203:10s)",
-        "Failed to pull image with policy \"always\": error pulling image configuration",
+        # Gitlab errors while pulling image on legacy runners
+        ("no basic auth credentials (manager.go:203:0s)", FailedJobReason.MAIN_RUNNER),
+        ("net/http: TLS handshake timeout (manager.go:203:10s)", FailedJobReason.MAIN_RUNNER),
+        ("Failed to pull image with policy \"always\": error pulling image configuration", FailedJobReason.MAIN_RUNNER),
         # docker / docker-arm runner init failures
-        "Docker runner job start script failed",
-        "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",
+        ("Docker runner job start script failed", FailedJobReason.DOCKER_RUNNER),
+        (
+            "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",
+            FailedJobReason.DOCKER_RUNNER,
+        ),
         # k8s Gitlab runner init failures
-        "Job failed (system failure): prepare environment: waiting for pod running: timed out waiting for pod to start",
+        (
+            "Job failed (system failure): prepare environment: waiting for pod running: timed out waiting for pod to start",
+            FailedJobReason.K8S_RUNNER,
+        ),
         # kitchen tests Azure VM allocation failures
-        "Allocation failed. We do not have sufficient capacity for the requested VM size in this region.",
+        (
+            "Allocation failed. We do not have sufficient capacity for the requested VM size in this region.",
+            FailedJobReason.KITCHEN_AZURE,
+        ),
     ]
 
-    for log in infra_failure_logs:
+    for log, type in infra_failure_logs:
         if log in job_log:
-            return FailedJobReason.INFRA_FAILURE
-    return FailedJobReason.JOB_FAILURE
+            return FailedJobType.INFRA_FAILURE, type
+    return FailedJobType.JOB_FAILURE, FailedJobReason.FAILED_JOB_SCRIPT
 
 
 def truncate_job_name(job_name, max_char_per_job=48):
@@ -122,7 +153,7 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
 
     for job in failed_jobs:
         # Exclude jobs that failed due to infrastructure failures
-        if job["failure_type"] == FailedJobReason.INFRA_FAILURE:
+        if job["failure_type"] == FailedJobType.INFRA_FAILURE:
             continue
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
@@ -135,8 +166,8 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     return owners_to_notify
 
 
-def base_message(header):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
+def base_message(header, state):
+    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
         header=header,
         pipeline_url=os.getenv("CI_PIPELINE_URL"),
@@ -148,6 +179,7 @@ def base_message(header):
         ),
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
         author=get_git_author(),
+        state=state,
     )
 
 
