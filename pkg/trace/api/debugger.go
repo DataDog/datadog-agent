@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -21,7 +23,7 @@ import (
 
 const (
 	// logsIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
-	logsIntakeURLTemplate = "https://http-intake.logs.%s/v1/input"
+	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
 )
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
@@ -75,6 +77,8 @@ func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tag
 		newTarget := *target
 		newTarget.RawQuery = q.Encode()
 		req.Header.Set("DD-API-KEY", key)
+		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
+		req.Header.Set("DD-EVP-ORIGIN", "agent-debugger")
 		req.URL = &newTarget
 		req.Host = target.Host
 	}
