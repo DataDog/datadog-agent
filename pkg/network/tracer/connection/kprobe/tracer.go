@@ -48,8 +48,8 @@ type kprobeTracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 
-	pidCollisions *atomic.Int64
-	removeTuple   *netebpf.ConnTuple
+	cookieCollisions *atomic.Int64
+	removeTuple      *netebpf.ConnTuple
 
 	telemetry telemetry
 }
@@ -158,12 +158,12 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 
 	tr := &kprobeTracer{
-		m:             m,
-		config:        config,
-		closeConsumer: closeConsumer,
-		pidCollisions: atomic.NewInt64(0),
-		removeTuple:   &netebpf.ConnTuple{},
-		telemetry:     newTelemetry(),
+		m:                m,
+		config:           config,
+		closeConsumer:    closeConsumer,
+		cookieCollisions: atomic.NewInt64(0),
+		removeTuple:      &netebpf.ConnTuple{},
+		telemetry:        newTelemetry(),
 	}
 
 	defer func() {
@@ -225,6 +225,7 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
+	seen := make(map[uint64]struct{})
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -240,7 +241,7 @@ func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter f
 		if filter != nil && !filter(conn) {
 			continue
 		}
-		if t.getTCPStats(tcp, key) {
+		if t.getTCPStats(tcp, key, seen) {
 			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 
@@ -357,12 +358,12 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	}
 
 	closeStats := t.closeConsumer.GetStats()
-	pidCollisions := t.pidCollisions.Load()
+	cookieCollisions := t.cookieCollisions.Load()
 
 	stats := map[string]int64{
 		"closed_conn_polling_lost":     closeStats[perfLostStat],
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
-		"pid_collisions":               pidCollisions,
+		"cookie_collisions":            cookieCollisions,
 
 		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),
 		"missed_tcp_close":           int64(telemetry.Missed_tcp_close),
@@ -439,13 +440,24 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple) bool {
+func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[uint64]struct{}) bool {
 	if tuple.Type() != netebpf.TCP {
 		return false
 	}
 
 	*stats = netebpf.TCPStats{}
-	_ = t.tcpStats.Lookup(unsafe.Pointer(&tuple.Cookie), unsafe.Pointer(stats))
+	err := t.tcpStats.Lookup(unsafe.Pointer(&tuple.Cookie), unsafe.Pointer(stats))
+	if err == nil {
+		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
+		if _, reported := seen[tuple.Cookie]; reported {
+			t.cookieCollisions.Inc()
+			stats.Retransmits = 0
+			stats.State_transitions = 0
+		} else {
+			seen[tuple.Cookie] = struct{}{}
+		}
+	}
+
 	return true
 }
 
