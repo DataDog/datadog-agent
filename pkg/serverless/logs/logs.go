@@ -82,8 +82,8 @@ const (
 	logTypePlatformReport = "platform.report"
 	// logTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
 	logTypePlatformLogsDropped = "platform.logsDropped"
-	// logTypePlatformLogsSubscription is used for the log messages about Logs API registration
-	logTypePlatformLogsSubscription = "platform.logsSubscription"
+	// logTypePlatformTelemetrySubscription is used for the log messages about Logs API registration
+	logTypePlatformTelemetrySubscription = "platform.telemetrySubscription"
 	// logTypePlatformExtension is used for the log messages about Extension API registration
 	logTypePlatformExtension = "platform.extension"
 	// logTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
@@ -127,7 +127,7 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 	// the rest
 
 	switch typ {
-	case logTypePlatformLogsSubscription, logTypePlatformExtension:
+	case logTypePlatformTelemetrySubscription, logTypePlatformExtension:
 		l.logType = typ
 	case logTypeFunction, logTypeExtension:
 		l.logType = typ
@@ -197,7 +197,7 @@ func shouldProcessLog(ecs *executioncontext.State, message *logMessage) bool {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
-	if message.logType == logTypePlatformExtension || message.logType == logTypePlatformLogsSubscription {
+	if message.logType == logTypePlatformExtension || message.logType == logTypePlatformTelemetrySubscription {
 		return false
 	}
 	// Making sure that empty logs are not uselessly sent

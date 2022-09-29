@@ -51,7 +51,7 @@ func TestShouldProcessLog(t *testing.T) {
 	}
 
 	invalidLog0 := &logMessage{
-		logType: logTypePlatformLogsSubscription,
+		logType: logTypePlatformTelemetrySubscription,
 	}
 
 	invalidLog1 := &logMessage{
@@ -633,6 +633,7 @@ func TestUnmarshalJSONMalformed(t *testing.T) {
 }
 
 func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
+	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_log.json")
 	if errReadFile != nil {
@@ -640,7 +641,19 @@ func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-	assert.Equal(t, "platform.logsSubscription", logMessage.logType)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
+	// with the telemetry api, these events should not exist
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_telemetry.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "platform.telemetrySubscription", logMessage.logType)
 }
 
 func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
