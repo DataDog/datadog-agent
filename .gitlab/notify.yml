@@ -44,8 +44,7 @@ send_pipeline_stats:
   # Using the buildimages image and not slack-notifier because we need Python 3.7+
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules:
-    !reference [.on_a7]
+  when: always
   dependencies: []
   script:
     - source /root/.bashrc && conda activate ddpy3
