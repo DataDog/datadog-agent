@@ -18,7 +18,7 @@ notify-on-tagged-success:
 notify:
   extends: .slack-notifier-base
   rules:
-    !reference [.on_main_or_release_branch_or_deploy]
+    !reference [.on_a7]
   dependencies: []
   script:
     - set +x
