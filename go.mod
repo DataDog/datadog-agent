@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20220916102325-8091ed929797
+	github.com/DataDog/ebpf-manager v0.0.0-20220930134125-543d4eb8046c
 	github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec
 	github.com/DataDog/gopsutil v1.2.1
 	github.com/DataDog/nikos v1.8.0
@@ -429,5 +429,3 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // so we created a fork that removed the dependency entirely. This can be
 // removed once k8s.io uses opentelemetry 1.0 or newer
 replace k8s.io/apiserver => github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5
-
-replace github.com/DataDog/ebpf-manager => github.com/DataDog/ebpf-manager v0.0.0-20220927043312-bbb2de3b8dfc

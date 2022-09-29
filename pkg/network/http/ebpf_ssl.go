@@ -386,7 +386,6 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 					ProbeIdentificationPair: identifier,
 					BinaryPath:              libPath,
 				}
-
 				_ = m.AddHook("", newProbe)
 			}
 			if err := probes[i].RunValidator(m); err != nil {

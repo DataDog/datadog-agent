@@ -142,8 +142,8 @@ github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5Tl
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f h1:A7WPfKHAeZB+yD83KtY8Y4mZKFAbZgBziulshnpErK4=
 github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f/go.mod h1:KAQEFctpgWNlJ2/ef9PRKqy79UAa/URSOWZzgaCrwug=
-github.com/DataDog/ebpf-manager v0.0.0-20220927043312-bbb2de3b8dfc h1:vR0HGi6mhGTjDXMZWcnpIeOcqyw1RGMp0oaW3t5rknY=
-github.com/DataDog/ebpf-manager v0.0.0-20220927043312-bbb2de3b8dfc/go.mod h1:aIvd8RIXEG4jxwfBbjNehLOmljPLpPH5R0E1cYV6j3Y=
+github.com/DataDog/ebpf-manager v0.0.0-20220930134125-543d4eb8046c h1:uaQ5Ke3V9kjJaDLkDifSz9Vt7Jl3zXYyKX94QLRsTzk=
+github.com/DataDog/ebpf-manager v0.0.0-20220930134125-543d4eb8046c/go.mod h1:aIvd8RIXEG4jxwfBbjNehLOmljPLpPH5R0E1cYV6j3Y=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 h1:XDD6SEIEpe5CAa7esIWlgdXLQgLKN4hvPw+Wd8pJQFU=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6/go.mod h1:YxkO6rhI37nstfxBAdk4fVi5kheKJRMk9AtqDdl/mSQ=
 github.com/DataDog/go-tuf v0.3.0--fix-localmeta h1:lM/fRQNIaJpsnLU7edjV3jYHylCym0Ah+kvoJWRTzsk=
