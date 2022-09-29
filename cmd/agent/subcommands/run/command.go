@@ -272,6 +272,11 @@ func StartAgent(globalArgs *command.GlobalArgs) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	if v := config.Datadog.GetBool("internal_profiling.capture_all_allocations"); v {
+		runtime.MemProfileRate = 1
+		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
+	}
+
 	// init settings that can be changed at runtime
 	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
@@ -478,7 +483,7 @@ func StartAgent(globalArgs *command.GlobalArgs) error {
 	common.AC.LoadAndRun(common.MainCtx)
 
 	// check for common misconfigurations and report them to log
-	misconfig.ToLog()
+	misconfig.ToLog(misconfig.CoreAgent)
 
 	// setup the metadata collector
 	common.MetadataScheduler = metadata.NewScheduler(demux)
