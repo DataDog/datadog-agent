@@ -138,6 +138,8 @@ func (agg *FlowAggregator) flush() int {
 	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.port_rollup_cur_store_len", float64(agg.flowAcc.portRollup.GetCurStoreLen()), "", nil)
 
 	return len(flowsToFlush)
 }

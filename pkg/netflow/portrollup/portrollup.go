@@ -140,6 +140,14 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
 	prs.newStore = make(map[string]*portRollupTracker)
 }
 
+// GetCurStoreLen TODO
+func (prs *EndpointPairPortRollupStore) GetCurStoreLen() int {
+	prs.mu.Lock()
+	defer prs.mu.Unlock()
+
+	return len(prs.curStore)
+}
+
 func buildStoreKey(sourceAddr []byte, destAddr []byte) string {
 	return string(sourceAddr) + "|" + string(destAddr)
 }
