@@ -7,10 +7,6 @@
     !reference [.manual]
   stage: deps_build
   before_script:
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
-    - cd $SRC_PATH
     # HACK: empty the build directory cache (that can come from previous runs)
     #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
     # TODO: remove this once we switch to k8s runners, they won't have this problem
@@ -33,8 +29,8 @@
     # https://github.com/llvm/llvm-project/issues/53281
     - cp ../llvm/Modules/* ../llvm/cmake/modules || echo "LLVM common cmake utils not found in directory 'Modules'"
     # patch references to glibc >= 2.18
-    - patch -ruN ../llvm/CMakeLists.txt < $SRC_PATH/pkg/ebpf/c/cmakelists.patch
-    - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $SRC_PATH/pkg/ebpf/c/constant_folding.patch
+    - patch -ruN ../llvm/CMakeLists.txt < $CI_PROJECT_DIR/pkg/ebpf/c/cmakelists.patch
+    - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $CI_PROJECT_DIR/pkg/ebpf/c/constant_folding.patch
     - |
       cmake -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
@@ -58,9 +54,9 @@
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     # fail if clang or llc targets anything other than bpf
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} -print-targets > clang_targets.txt
-    - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt clang_targets.txt
+    - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
-    - diff $SRC_PATH/pkg/ebpf/c/expected_targets.txt llc_targets.txt
+    - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt llc_targets.txt
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
     - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
