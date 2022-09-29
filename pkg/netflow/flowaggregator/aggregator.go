@@ -32,6 +32,7 @@ type FlowAggregator struct {
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
+	portRollupDisable            bool
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -41,7 +42,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisable),
 		flushInterval:                flowAggregatorFlushInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
