@@ -10,6 +10,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -230,6 +231,11 @@ func parseBody(r *http.Request) (Payload, error) {
 	e = json.Unmarshal(body, &p)
 	if e != nil {
 		return p, e
+	}
+
+	// perform some validation of the input
+	if _, err := strconv.ParseInt(p.CaseID, 10, 0); err != nil {
+		return Payload{}, errors.New("Invalid CaseID (must be a number)")
 	}
 
 	return p, nil
