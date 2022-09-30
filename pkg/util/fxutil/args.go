@@ -33,7 +33,7 @@ func newDelayedFxInvocation(fn interface{}) *delayedFxInvocation {
 	}
 
 	// verify it returns error
-	if ftype.NumOut() == 0 || (ftype.NumOut() == 1 && !ftype.Out(0).Implements(errorInterface)) {
+	if ftype.NumOut() > 1 || (ftype.NumOut() == 1 && !ftype.Out(0).Implements(errorInterface)) {
 		panic("delayedFxInvocation function must return error or nothing")
 	}
 
