@@ -156,9 +156,11 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 
 	flowB1a := flowB1
 	acc.add(&flowB1a)
-	flowB1b := flowB1
+	flowB1b := flowB1 // send flowB1 twice to test that it's not counted twice by portRollup tracker
 	acc.add(&flowB1b)
 	assert.Equal(t, uint16(1), acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80))
+	assert.Equal(t, uint16(1), acc.portRollup.GetDestToSourcePortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 2001))
+
 	flowB2 := flowB1
 	flowB2.DstPort = 2002
 	acc.add(&flowB2)
