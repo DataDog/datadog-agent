@@ -64,7 +64,7 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 	} else {
 		span.SetSpanID(pcommon.SpanID(s.SpanID))
 	}
-	span.SetTraceState(ptrace.TraceState(s.TraceState))
+	span.TraceState().FromRaw(s.TraceState)
 	span.SetParentSpanID(pcommon.SpanID(s.ParentID))
 	span.SetName(s.Name)
 	span.SetKind(s.Kind)
