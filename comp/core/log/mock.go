@@ -25,7 +25,7 @@ type tbWriter struct {
 // Write implements Writer#Write.
 func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 	// this assumes that seelog always writes one log entry in one Write call
-	msg := strings.TrimSpace(string(p))
+	msg := strings.TrimSuffix(string(p), "\n")
 	tbw.t.Log(msg)
 	return len(p), nil
 }
