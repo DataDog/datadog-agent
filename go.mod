@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20220908095420-06cb5a54ec92
+	github.com/DataDog/ebpf-manager v0.0.0-20221003133413-0e997fad91c4
 	github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec
 	github.com/DataDog/gopsutil v1.2.1
 	github.com/DataDog/nikos v1.8.0
@@ -412,6 +412,7 @@ require (
 require golang.org/x/exp v0.0.0-20221002003631-540bb7301a08
 
 require (
+	github.com/avast/retry-go/v4 v4.1.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
