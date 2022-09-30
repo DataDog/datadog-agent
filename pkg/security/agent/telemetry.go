@@ -27,7 +27,7 @@ func newTelemetry() (*telemetry, error) {
 		return nil, err
 	}
 
-	containersTelemetry, err := common.NewContainersTelemetry()
+	containersTelemetry, err := common.NewContainersTelemetry(true)
 	if err != nil {
 		return nil, err
 	}

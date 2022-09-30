@@ -23,7 +23,7 @@ type telemetry struct {
 }
 
 func newTelemetry() (*telemetry, error) {
-	containersTelemetry, err := common.NewContainersTelemetry()
+	containersTelemetry, err := common.NewContainersTelemetry(false)
 	if err != nil {
 		return nil, err
 	}
