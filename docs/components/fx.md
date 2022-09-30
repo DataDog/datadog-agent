@@ -179,18 +179,6 @@ func newScrubber(deps dependencies) (provides, error) { // can return an fx.Out 
 In and Out provide a nice way to summarize and document requirements and provided types, and also allow annotations via Go struct tags.
 Note that annotations are also possible with [`fx.Annotate`](https://pkg.go.dev/go.uber.org/fx#Annotate), but it is much less readable and its use is discouraged.
 
-### Optional Inputs
-
-A requirement [can be annotated as optional](https://pkg.go.dev/go.uber.org/fx#hdr-Optional_Dependencies), in which case it will be set to its zero value if no provider is defined.
-For example, a component may take a "Params" struct which the app can optionally provide with `fx.Supply(Params{..})`:
-
-```go
-type dependencies struct {
-    fx.In
-    Params Params `optional:"true"`
-}
-```
-
 ### Value Groups
 
 [Value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) allow a requirement to be satisfied with a slice of values from different providers.
