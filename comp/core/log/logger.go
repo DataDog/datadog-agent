@@ -77,3 +77,8 @@ func (*logger) Critical(v ...interface{}) error { return log.Critical(v...) }
 func (*logger) Criticalf(format string, params ...interface{}) error {
 	return log.Criticalf(format, params...)
 }
+
+// Flush implements Component#Flush.
+func (*logger) Flush() {
+	log.Flush()
+}

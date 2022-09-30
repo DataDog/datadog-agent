@@ -59,6 +59,9 @@ type Component interface {
 	// Criticalf logs the given formatted arguments at the critical level, and returns
 	// an error containing the message.
 	Criticalf(format string, params ...interface{}) error
+
+	// Flush will flush the contents of the logs to the sinks
+	Flush()
 }
 
 // Mock is the mocked component type.
