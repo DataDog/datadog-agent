@@ -536,3 +536,181 @@ func TestServiceClientPredicates(t *testing.T) {
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 }
+
+func TestServiceGetRefreshIntervalNone(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	// For this test we'll just send an empty update to save us some work mocking everything.
+	// What matters is the data reported by the uptane module for the top targets custom
+	// value.
+	lastConfigResponse := &pbgo.LatestConfigsResponse{}
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		BackendClientState:           []byte("test_state"),
+	}).Return(lastConfigResponse, nil)
+
+	// No explicit refresh interval is provided by the backend
+	testTargetsCustomNoOverride := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return(testTargetsCustomNoOverride, nil)
+
+	err := service.refresh()
+	assert.NoError(t, err)
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
+	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
+	assert.True(t, service.refreshIntervalOverrideAllowed)
+}
+
+func TestServiceGetRefreshIntervalValid(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	// For this test we'll just send an empty update to save us some work mocking everything.
+	// What matters is the data reported by the uptane module for the top targets custom
+	// value.
+	lastConfigResponse := &pbgo.LatestConfigsResponse{}
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		BackendClientState:           []byte("test_state"),
+	}).Return(lastConfigResponse, nil)
+
+	// An acceptable refresh interval is provided by the backend
+	testTargetsCustomOk := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": 42}`)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOk, nil)
+
+	err := service.refresh()
+	assert.NoError(t, err)
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
+	assert.Equal(t, service.defaultRefreshInterval, time.Second*42)
+	assert.True(t, service.refreshIntervalOverrideAllowed)
+}
+
+func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	// For this test we'll just send an empty update to save us some work mocking everything.
+	// What matters is the data reported by the uptane module for the top targets custom
+	// value.
+	lastConfigResponse := &pbgo.LatestConfigsResponse{}
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		BackendClientState:           []byte("test_state"),
+	}).Return(lastConfigResponse, nil)
+
+	// A too small refresh interval is provided by the backend (the refresh interval should not change)
+	testTargetsCustomOverrideOutOfRangeSmall := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": -1}`)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOverrideOutOfRangeSmall, nil)
+
+	err := service.refresh()
+	assert.NoError(t, err)
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
+	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
+	assert.True(t, service.refreshIntervalOverrideAllowed)
+}
+
+func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	// For this test we'll just send an empty update to save us some work mocking everything.
+	// What matters is the data reported by the uptane module for the top targets custom
+	// value.
+	lastConfigResponse := &pbgo.LatestConfigsResponse{}
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		BackendClientState:           []byte("test_state"),
+	}).Return(lastConfigResponse, nil)
+
+	// A too large refresh interval is provided by the backend (the refresh interval should not change)
+	testTargetsCustomOverrideOutOfRangeBig := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": 500}`)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOverrideOutOfRangeBig, nil)
+
+	err := service.refresh()
+	assert.NoError(t, err)
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
+	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
+	assert.True(t, service.refreshIntervalOverrideAllowed)
+}
+
+func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	// Mock that customers set the value, making overrides not allowed
+	service.refreshIntervalOverrideAllowed = false
+
+	// For this test we'll just send an empty update to save us some work mocking everything.
+	// What matters is the data reported by the uptane module for the top targets custom
+	// value and how that interacts with the fact we mocked a customer provided override
+	lastConfigResponse := &pbgo.LatestConfigsResponse{}
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		AgentVersion:                 version.AgentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		BackendClientState:           []byte("test_state"),
+	}).Return(lastConfigResponse, nil)
+
+	// An interval is provided, but it should not be applied
+	testTargetsCustomOk := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ==", "agent_refresh_interval": 42}`)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return(testTargetsCustomOk, nil)
+
+	err := service.refresh()
+	assert.NoError(t, err)
+	api.AssertExpectations(t)
+	uptaneClient.AssertExpectations(t)
+	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
+	assert.False(t, service.refreshIntervalOverrideAllowed)
+}
