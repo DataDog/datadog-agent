@@ -339,6 +339,10 @@ GITHUB_SLACK_MAP = {
     "@DataDog/serverless": "#serverless-agent",
     "@DataDog/remote-config": "#remote-config-monitoring",
     "@DataDog/agent-all": "#datadog-agent-pipelines",
+    "@DataDog/ebpf-platform": "#ebpf-platform",
+    "@DataDog/Networks": "#networks",
+    "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
+    "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
 }
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
