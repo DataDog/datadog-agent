@@ -22,11 +22,11 @@ func Test_portRollupTracker_add_ephemeralDestination(t *testing.T) {
 	tracker.add(80, 2004, portRollupThreshold)
 
 	assert.Equal(t, uint16(3), tracker.getSourcePortCount(80))
-	assert.Equal(t, map[uint16]bool{uint16(2001): true, uint16(2002): true, uint16(2003): true}, tracker.sourcePorts[80])
+	assert.Equal(t, uint8(3), tracker.sourcePorts[80])
 
 	for _, destPort := range []uint16{2001, 2002, 2003} {
 		assert.Equal(t, uint16(1), tracker.getDestPortCount(destPort))
-		assert.Equal(t, map[uint16]bool{uint16(80): true}, tracker.destPorts[destPort])
+		assert.Equal(t, uint8(1), tracker.destPorts[destPort])
 	}
 
 	// make sure no entry is created for port 2004 in `destPorts` since the threshold is already reached
@@ -47,11 +47,11 @@ func Test_portRollupTracker_add_ephemeralSource(t *testing.T) {
 	tracker.add(2004, 80, portRollupThreshold)
 
 	assert.Equal(t, uint16(3), tracker.getDestPortCount(80))
-	assert.Equal(t, map[uint16]bool{uint16(2001): true, uint16(2002): true, uint16(2003): true}, tracker.destPorts[80])
+	assert.Equal(t, uint8(3), tracker.destPorts[80])
 
 	for _, sourcePort := range []uint16{2001, 2002, 2003} {
 		assert.Equal(t, uint16(1), tracker.getSourcePortCount(sourcePort))
-		assert.Equal(t, map[uint16]bool{uint16(80): true}, tracker.sourcePorts[sourcePort])
+		assert.Equal(t, uint8(1), tracker.sourcePorts[sourcePort])
 	}
 
 	// make sure no entry is created for port 2004 in `destPorts` since the threshold is already reached

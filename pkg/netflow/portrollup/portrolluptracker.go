@@ -7,25 +7,26 @@ package portrollup
 
 type portRollupTracker struct {
 	// represent: map[<SOURCE_PORT>]map[<DEST_PORT>]true
-	sourcePorts map[uint16]map[uint16]bool
+	sourcePorts map[uint16]uint8
 
 	// represent: map[<DEST_PORT>]map[<SOURCE_PORT>]true
-	destPorts map[uint16]map[uint16]bool
+	destPorts map[uint16]uint8
 }
 
 func newPortRollupTracker() *portRollupTracker {
 	return &portRollupTracker{
-		sourcePorts: make(map[uint16]map[uint16]bool),
-		destPorts:   make(map[uint16]map[uint16]bool),
+		sourcePorts: make(map[uint16]uint8),
+		destPorts:   make(map[uint16]uint8),
 	}
 }
 
 func (pr *portRollupTracker) getSourcePortCount(port uint16) uint16 {
-	return uint16(len(pr.sourcePorts[port]))
+	// TODO: update to uint8?
+	return uint16(pr.sourcePorts[port])
 }
 
 func (pr *portRollupTracker) getDestPortCount(port uint16) uint16 {
-	return uint16(len(pr.destPorts[port]))
+	return uint16(pr.destPorts[port])
 }
 
 func (pr *portRollupTracker) add(sourcePort uint16, destPort uint16, portRollupThreshold int) {
@@ -33,22 +34,12 @@ func (pr *portRollupTracker) add(sourcePort uint16, destPort uint16, portRollupT
 	// if portRollupThreshold is already reached, there is no value to track more ports
 	// since we already know we need to rollup
 
-	sourceToDestPorts := len(pr.sourcePorts[sourcePort])
-	destToSourcePorts := len(pr.destPorts[destPort])
+	sourceToDestPorts := int(pr.sourcePorts[sourcePort])
+	destToSourcePorts := int(pr.destPorts[destPort])
 	if sourceToDestPorts >= portRollupThreshold || destToSourcePorts >= portRollupThreshold {
 		return
 	}
 
-	addPort(pr.sourcePorts, sourcePort, destPort, portRollupThreshold)
-	addPort(pr.destPorts, destPort, sourcePort, portRollupThreshold)
-}
-
-func addPort(ports map[uint16]map[uint16]bool, port uint16, ephemeralPort uint16, portRollupThreshold int) {
-	if _, ok := ports[port]; !ok {
-		ports[port] = make(map[uint16]bool)
-	}
-
-	if !ports[port][ephemeralPort] {
-		ports[port][ephemeralPort] = true
-	}
+	pr.sourcePorts[sourcePort]++
+	pr.destPorts[destPort]++
 }

@@ -154,7 +154,11 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	acc.add(flowA1)
 	acc.add(flowA2)
 
-	acc.add(&flowB1)
+	flowB1a := flowB1
+	acc.add(&flowB1a)
+	flowB1b := flowB1
+	acc.add(&flowB1b)
+	assert.Equal(t, uint16(1), acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80))
 	flowB2 := flowB1
 	flowB2.DstPort = 2002
 	acc.add(&flowB2)
@@ -174,9 +178,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	flowBwithPortRollup := flowB1
 	flowBwithPortRollup.DstPort = portrollup.EphemeralPort
 
-	sourcePortCount := acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80)
-
-	assert.Equal(t, uint16(3), sourcePortCount)
+	assert.Equal(t, uint16(3), acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80))
 
 	// Then
 	assert.Equal(t, 4, len(acc.flows))
@@ -190,7 +192,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
 
-	assert.Equal(t, uint64(10), acc.flows[flowB1.AggregationHash()].flow.Packets)
+	assert.Equal(t, uint64(20), acc.flows[flowB1.AggregationHash()].flow.Packets)
 	assert.Equal(t, int32(2001), acc.flows[flowB1.AggregationHash()].flow.DstPort)
 	assert.Equal(t, uint64(10), acc.flows[flowB2.AggregationHash()].flow.Packets)
 	assert.Equal(t, int32(2002), acc.flows[flowB2.AggregationHash()].flow.DstPort)
