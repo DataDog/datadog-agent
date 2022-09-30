@@ -151,7 +151,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
-		entries, err := readDirPtr(path)
+		entries, err := ioutil.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -331,7 +331,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := readFilePtr(fpath)
+	yamlFile, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return conf, err
 	}

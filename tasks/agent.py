@@ -174,7 +174,7 @@ def build(
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,

@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (netbsd || openbsd || solaris || dragonfly || linux) && !android
+//go:build netbsd || openbsd || solaris || dragonfly || linux
 // +build netbsd openbsd solaris dragonfly linux
-// +build !android
 
 package common
 

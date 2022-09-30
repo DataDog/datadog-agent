@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix) && !android
+//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix
 // +build linux freebsd netbsd openbsd solaris dragonfly aix
-// +build !android
 
 package config
 
@@ -31,6 +30,3 @@ const (
 // in time
 func osinit() {
 }
-
-// NewAssetFs  Should never be called on non-android
-func setAssetFs(config Config) {}

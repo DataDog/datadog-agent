@@ -11,7 +11,7 @@ from .flavor import AgentFlavor
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
+BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 

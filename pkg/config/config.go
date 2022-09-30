@@ -1159,7 +1159,6 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 
-	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
 	SetupOTLP(config)

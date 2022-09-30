@@ -40,13 +40,10 @@ def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
-def bin_name(name, android=False):
+def bin_name(name):
     """
     Generate platform dependent names for binaries
     """
-    if android:
-        return f"{name}.aar"
-
     if sys.platform == 'win32':
         return f"{name}.exe"
     return name
