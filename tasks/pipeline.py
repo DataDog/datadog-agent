@@ -508,7 +508,7 @@ def send_stats(_, print_to_stdout=False):
         traceback.print_exc(limit=-1)
         raise Exit(code=1)
 
-    if not os.environ.get("DD_API_KEY"):
+    if not (print_to_stdout or os.environ.get("DD_API_KEY")):
         print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
         raise Exit(code=1)
 
