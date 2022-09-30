@@ -1,3 +1,5 @@
+import re
+
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobReason, FailedJobType
 
@@ -51,37 +53,37 @@ def get_failed_jobs(project_name, pipeline_id):
     return final_failed_jobs
 
 
+infra_failure_logs = [
+    # Gitlab errors while pulling image on legacy runners
+    (re.compile("no basic auth credentials \(.*\)"), FailedJobReason.MAIN_RUNNER),
+    (re.compile("net/http: TLS handshake timeout \(.*\)"), FailedJobReason.MAIN_RUNNER),
+    (re.compile("Failed to pull image with policy \"always\": error pulling image configuration"), FailedJobReason.MAIN_RUNNER),
+    # docker / docker-arm runner init failures
+    (re.compile("Docker runner job start script failed"), FailedJobReason.DOCKER_RUNNER),
+    (
+        re.compile("A disposable runner accepted this job, while it shouldn't have\. Runners are meant to run just one job and be terminated\."),
+        FailedJobReason.DOCKER_RUNNER,
+    ),
+    # k8s Gitlab runner init failures
+    (
+        re.compile("Job failed \(system failure\): prepare environment: waiting for pod running: timed out waiting for pod to start"),
+        FailedJobReason.K8S_RUNNER,
+    ),
+    # kitchen tests Azure VM allocation failures
+    (
+        re.compile("Allocation failed\. We do not have sufficient capacity for the requested VM size in this region\."),
+        FailedJobReason.KITCHEN_AZURE,
+    ),
+]
+
 def get_job_failure_context(job_log):
     """
     Parses job logs (provided as a string), and returns the type of failure (infra or job) as well
     as the precise reason why the job failed.
     """
 
-    infra_failure_logs = [
-        # Gitlab errors while pulling image on legacy runners
-        ("no basic auth credentials (manager.go:203:0s)", FailedJobReason.MAIN_RUNNER),
-        ("net/http: TLS handshake timeout (manager.go:203:10s)", FailedJobReason.MAIN_RUNNER),
-        ("Failed to pull image with policy \"always\": error pulling image configuration", FailedJobReason.MAIN_RUNNER),
-        # docker / docker-arm runner init failures
-        ("Docker runner job start script failed", FailedJobReason.DOCKER_RUNNER),
-        (
-            "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",
-            FailedJobReason.DOCKER_RUNNER,
-        ),
-        # k8s Gitlab runner init failures
-        (
-            "Job failed (system failure): prepare environment: waiting for pod running: timed out waiting for pod to start",
-            FailedJobReason.K8S_RUNNER,
-        ),
-        # kitchen tests Azure VM allocation failures
-        (
-            "Allocation failed. We do not have sufficient capacity for the requested VM size in this region.",
-            FailedJobReason.KITCHEN_AZURE,
-        ),
-    ]
-
-    for log, type in infra_failure_logs:
-        if log in job_log:
+    for regex, type in infra_failure_logs:
+        if regex.search(job_log):
             return FailedJobType.INFRA_FAILURE, type
     return FailedJobType.JOB_FAILURE, FailedJobReason.FAILED_JOB_SCRIPT
 
