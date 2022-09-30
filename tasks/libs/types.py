@@ -62,7 +62,7 @@ class SlackMessage:
         self.base_message = base
         self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.JOB_FAILURE]
         self.infra_failed_jobs = (
-            [job for job in jobs if job["failure_type"] == FailedJobType.INFRA_FAILURE] if jobs else []
+            [job for job in jobs if job["failure_type"] == FailedJobType.INFRA_FAILURE]
         )
         self.failed_tests = defaultdict(list)
         self.coda = ""
