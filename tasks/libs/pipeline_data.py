@@ -55,26 +55,36 @@ def get_failed_jobs(project_name, pipeline_id):
 
 infra_failure_logs = [
     # Gitlab errors while pulling image on legacy runners
-    (re.compile("no basic auth credentials \(.*\)"), FailedJobReason.MAIN_RUNNER),
-    (re.compile("net/http: TLS handshake timeout \(.*\)"), FailedJobReason.MAIN_RUNNER),
-    (re.compile("Failed to pull image with policy \"always\": error pulling image configuration"), FailedJobReason.MAIN_RUNNER),
-    # docker / docker-arm runner init failures
-    (re.compile("Docker runner job start script failed"), FailedJobReason.DOCKER_RUNNER),
+    (re.compile(r'no basic auth credentials \(.*\)'), FailedJobReason.MAIN_RUNNER),
+    (re.compile(r'net/http: TLS handshake timeout \(.*\)'), FailedJobReason.MAIN_RUNNER),
     (
-        re.compile("A disposable runner accepted this job, while it shouldn't have\. Runners are meant to run just one job and be terminated\."),
+        re.compile(r'Failed to pull image with policy "always": error pulling image configuration'),
+        FailedJobReason.MAIN_RUNNER,
+    ),
+    # docker / docker-arm runner init failures
+    (re.compile(r'Docker runner job start script failed'), FailedJobReason.DOCKER_RUNNER),
+    (
+        re.compile(
+            r'A disposable runner accepted this job, while it shouldn\'t have\. Runners are meant to run just one job and be terminated\.'
+        ),
         FailedJobReason.DOCKER_RUNNER,
     ),
     # k8s Gitlab runner init failures
     (
-        re.compile("Job failed \(system failure\): prepare environment: waiting for pod running: timed out waiting for pod to start"),
+        re.compile(
+            r'Job failed \(system failure\): prepare environment: waiting for pod running: timed out waiting for pod to start'
+        ),
         FailedJobReason.K8S_RUNNER,
     ),
     # kitchen tests Azure VM allocation failures
     (
-        re.compile("Allocation failed\. We do not have sufficient capacity for the requested VM size in this region\."),
+        re.compile(
+            r'Allocation failed\. We do not have sufficient capacity for the requested VM size in this region\.'
+        ),
         FailedJobReason.KITCHEN_AZURE,
     ),
 ]
+
 
 def get_job_failure_context(job_log):
     """
