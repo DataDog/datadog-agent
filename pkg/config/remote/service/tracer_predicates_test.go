@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
-func TestClientPredicateBadTracerVersion(t *testing.T) {
+func TestTracerPredicateBadTracerVersion(t *testing.T) {
 	assert := assert.New(t)
 
 	configs, err := executePredicate(
@@ -45,7 +45,7 @@ func testPredicate(client *pbgo.Client, assert *assert.Assertions) func(bool, []
 	}
 }
 
-func TestClientPredicates(t *testing.T) {
+func TestTracerPredicates(t *testing.T) {
 	assert := assert.New(t)
 
 	client := &pbgo.Client{
