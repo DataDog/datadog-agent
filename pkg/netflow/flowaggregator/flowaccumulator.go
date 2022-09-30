@@ -97,8 +97,12 @@ func (f *flowAccumulator) flush() []*common.Flow {
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	log.Tracef("Add new flow: %+v", flowToAdd)
+
+	f.flowsMutex.Lock()
+	// TODO: better mutex structure
 	aggHash := flowToAdd.AggregationHash()
 	_, flowExist := f.flows[aggHash]
+	defer f.flowsMutex.Unlock()
 
 	if !f.portRollupDisable {
 		// Handle port rollup
