@@ -533,7 +533,12 @@ def send_stats(_, print_to_stdout=False):
                     metric_name="datadog.ci.job_failures",
                     timestamp=timestamp,
                     value=count,
-                    tags=["repository:datadog-agent", f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}", f"type:{failure_type.name}", f"reason:{failure_reason.name}"],
+                    tags=[
+                        "repository:datadog-agent",
+                        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                        f"type:{failure_type.name}",
+                        f"reason:{failure_reason.name}",
+                    ],
                 )
             )
 
@@ -542,7 +547,11 @@ def send_stats(_, print_to_stdout=False):
     else:
         pipeline_state = "succeeded"
 
-    pipeline_tags = ["repository:datadog-agent", f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}", f"status:{pipeline_state}"]
+    pipeline_tags = [
+        "repository:datadog-agent",
+        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+        f"status:{pipeline_state}",
+    ]
     if global_failure_reason:  # Only set the reason if the pipeline fails
         pipeline_tags.append(f"reason:{global_failure_reason}")
 
