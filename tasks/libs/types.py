@@ -58,8 +58,9 @@ class SlackMessage:
     MAX_JOBS_PER_TEST = 2
 
     def __init__(self, base="", jobs=None):
+        jobs = jobs if jobs else []
         self.base_message = base
-        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.JOB_FAILURE] if jobs else []
+        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.JOB_FAILURE]
         self.infra_failed_jobs = (
             [job for job in jobs if job["failure_type"] == FailedJobType.INFRA_FAILURE] if jobs else []
         )

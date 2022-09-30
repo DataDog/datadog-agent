@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from .pipeline_data import get_failed_jobs
 
@@ -17,13 +17,11 @@ def get_failed_jobs_stats(project_name, pipeline_id):
     #     ...
     #   }
     # }
-    job_failure_stats = defaultdict(dict)
+    job_failure_stats = defaultdict(Counter)
 
     failed_jobs = get_failed_jobs(project_name, pipeline_id)
 
     for job in failed_jobs:
-        job_failure_stats[job["failure_type"]][job["failure_reason"]] = (
-            job_failure_stats[job["failure_type"]].get(job["failure_reason"], 0) + 1
-        )
+        job_failure_stats[job["failure_type"]][job["failure_reason"]] += 1
 
     return job_failure_stats

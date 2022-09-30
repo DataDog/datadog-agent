@@ -348,7 +348,7 @@ def generate_failure_messages(project_name, failed_jobs):
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team
-    messages_to_send = defaultdict(lambda: TeamMessage())
+    messages_to_send = defaultdict(TeamMessage)
     messages_to_send[all_teams] = SlackMessage(jobs=failed_jobs)
 
     failed_job_owners = find_job_owners(failed_jobs)
