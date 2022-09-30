@@ -23,7 +23,6 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd_0"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -422,14 +421,13 @@ func testPodMessageManifest(t *testing.T, clusterID string, cfg *config.AgentCon
 	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
 	assert.Equal(t, headers.ZSTDContentEncoding, req.headers.Get(headers.ContentEncodingHeader))
 
-	d, err := zstd_0.Decompress(nil, req.body)
+	reqBody, err := process.DecodeMessage(req.body)
 	require.NoError(t, err)
 
-	x := &process.CollectorManifest{}
-	err = proto.Unmarshal(d, x)
-	require.NoError(t, err)
+	cm, ok := reqBody.Body.(*process.CollectorManifest)
+	require.True(t, ok)
 
-	assert.Equal(t, clusterID, x.ClusterId)
+	assert.Equal(t, clusterID, cm.ClusterId)
 }
 
 func TestQueueSpaceNotAvailable(t *testing.T) {

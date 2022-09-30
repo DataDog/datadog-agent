@@ -92,8 +92,8 @@ func (oc *OrchestratorConfig) Load() error {
 
 	// The maximum number of resources per message and the maximum message size.
 	// Note: Only change if the defaults are causing issues.
-	hanlePositiveIntValueWithMax(key(orchestratorNS, "max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
-	hanlePositiveIntValueWithMax(key(orchestratorNS, "max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
+	setBoundedConfigIntValue(key(orchestratorNS, "max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
+	setBoundedConfigIntValue(key(orchestratorNS, "max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
 	if k := key(processNS, "pod_queue_bytes"); config.Datadog.IsSet(k) {
 		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
@@ -179,7 +179,7 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
 }
 
-func hanlePositiveIntValueWithMax(configKey string, maxValue int, setter func(v int)) {
+func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
 	if !config.Datadog.IsSet(configKey) {
 		return
 	}
@@ -187,11 +187,11 @@ func hanlePositiveIntValueWithMax(configKey string, maxValue int, setter func(v 
 	val := config.Datadog.GetInt(configKey)
 
 	if val <= 0 {
-		log.Warn("Ignoring invalid value for setting %s (<=0)", configKey)
+		log.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
 		return
 	}
-	if val > maxValue {
-		log.Warn("Ignoring invalid value for setting %s (exceeds maximum allowed value)", configKey)
+	if val > upperBound {
+		log.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
 		return
 	}
 
