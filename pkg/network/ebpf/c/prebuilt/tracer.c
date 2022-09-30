@@ -169,7 +169,6 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         return 0;
     }
     stats.dir = CONN_DIRECTION_OUTGOING;
-    bpf_probe_read_kernel(&stats.errno, sizeof(stats.errno), &sk->sk_err);
 
     __u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &failed_conn_events, cpu, &stats, sizeof(stats));
