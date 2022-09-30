@@ -134,7 +134,7 @@ func TestGetStats(t *testing.T) {
         "conn_stats_max_entries_hit": 0,
         "missed_tcp_close": 0,
         "missed_udp_close": 0,
-        "pid_collisions": 0,
+        "cookie_collisions": 0,
         "tcp_conns4": 1,
         "tcp_conns6": 0,
         "tcp_sent_miscounts": 0,
