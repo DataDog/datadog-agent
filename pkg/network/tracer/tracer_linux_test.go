@@ -26,22 +26,19 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -395,8 +392,8 @@ func TestConnectionExpirationRegression(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	setupDNAT(t)
-	defer teardownDNAT(t)
+	state := setupDNAT(t)
+	t.Cleanup(func() { teardownDNAT(t, state) })
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -452,8 +449,8 @@ func TestConntrackExpiration(t *testing.T) {
 // This test ensures that conntrack lookups are retried for short-lived
 // connections when the first lookup fails
 func TestConntrackDelays(t *testing.T) {
-	setupDNAT(t)
-	defer teardownDNAT(t)
+	state := setupDNAT(t)
+	t.Cleanup(func() { teardownDNAT(t, state) })
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -494,8 +491,8 @@ func TestConntrackDelays(t *testing.T) {
 }
 
 func TestTranslationBindingRegression(t *testing.T) {
-	setupDNAT(t)
-	defer teardownDNAT(t)
+	state := setupDNAT(t)
+	t.Cleanup(func() { teardownDNAT(t, state) })
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -731,7 +728,9 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	defer tr.Stop()
 
 	require.NotNil(t, tr.gwLookup)
+
 	// setup two network namespaces
+	state := testutil.IptablesSave(t)
 	cmds := []string{
 		"ip link add br0 type bridge",
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
@@ -757,18 +756,17 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
-	defer func() {
+	t.Cleanup(func() {
+		testutil.IptablesRestore(t, state)
 		testutil.RunCommands(t, []string{
-			"iptables -D FORWARD -o br0 -j ACCEPT",
-			"iptables -D FORWARD -i br0 -j ACCEPT",
-			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 			"ip link del veth1",
 			"ip link del veth3",
 			"ip link del br0",
 			"ip netns del test1",
 			"ip netns del test2",
 		}, true)
-	}()
+	})
+
 	testutil.RunCommands(t, cmds, false)
 
 	ifs, err := net.Interfaces()
@@ -973,8 +971,8 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 
 func TestDNATIntraHostIntegration(t *testing.T) {
 	t.SkipNow()
-	setupDNAT(t)
-	defer teardownDNAT(t)
+	state := setupDNAT(t)
+	t.Cleanup(func() { teardownDNAT(t, state) })
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -1347,14 +1345,14 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 }
 
 func TestDNSStatsWithNAT(t *testing.T) {
+	state := testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-	nettestutil.RunCommands(t, cmds, true)
+	testutil.RunCommands(t, cmds, true)
 
-	defer func() {
-		cmds = []string{"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-		nettestutil.RunCommands(t, cmds, true)
-	}()
+	t.Cleanup(func() {
+		testutil.IptablesRestore(t, state)
+	})
 
 	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
 }
@@ -1366,8 +1364,8 @@ func iptablesWrapper(t *testing.T, f func()) {
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
 	create := strings.Fields(fmt.Sprintf("-I %s", rule))
-	remove := strings.Fields(fmt.Sprintf("-D %s", rule))
 
+	state := testutil.IptablesSave(t)
 	createCmd := exec.Command(iptables, create...)
 	err = createCmd.Start()
 	assert.Nil(t, err)
@@ -1375,23 +1373,19 @@ func iptablesWrapper(t *testing.T, f func()) {
 	assert.Nil(t, err)
 
 	defer func() {
-		// Remove the iptable rule
-		removeCmd := exec.Command(iptables, remove...)
-		err = removeCmd.Start()
-		assert.Nil(t, err)
-		err = removeCmd.Wait()
-		assert.Nil(t, err)
+		testutil.IptablesRestore(t, state)
 	}()
 
 	f()
 }
 
-func setupDNAT(t *testing.T) {
+func setupDNAT(t *testing.T) string {
 	if _, err := exec.LookPath("conntrack"); err != nil {
 		t.Errorf("conntrack not found in PATH: %s", err)
-		return
+		return ""
 	}
 
+	state := testutil.IptablesSave(t)
 	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
 	cmds := []string{
 		"ip link add dummy1 type dummy",
@@ -1400,13 +1394,18 @@ func setupDNAT(t *testing.T) {
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
 	testutil.RunCommands(t, cmds, false)
+
+	return state
 }
 
-func teardownDNAT(t *testing.T) {
+func teardownDNAT(t *testing.T, state string) {
+	if state != "" {
+		testutil.IptablesRestore(t, state)
+	}
+
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
 		"ip link del dummy1",
-		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 		// clear out the conntrack table
 		"conntrack -F",
 	}
