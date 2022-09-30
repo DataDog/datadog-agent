@@ -97,13 +97,9 @@ func TestConntrackExists6(t *testing.T) {
 
 func TestConntrackExistsRootDNAT(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT(t)
+	state := nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
-		nettestutil.RunCommands(t, []string{
-			"iptables --table nat --delete CLUSTERIPS --destination 10.10.1.1 --protocol tcp --match tcp --dport 80 --jump DNAT --to-destination 2.2.2.4:80",
-			"iptables --table nat --delete PREROUTING --jump CLUSTERIPS",
-			"iptables --table nat --delete OUTPUT --jump CLUSTERIPS",
-			"iptables --table nat --delete-chain CLUSTERIPS",
-		}, true)
+		nettestutil.IptablesRestore(t, state)
 	})
 	nettestutil.RunCommands(t, []string{
 		"iptables --table nat --new-chain CLUSTERIPS",
