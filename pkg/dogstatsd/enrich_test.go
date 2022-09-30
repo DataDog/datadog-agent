@@ -1272,6 +1272,39 @@ func TestEnrichTags(t *testing.T) {
 			wantedOrigin:    "originID",
 			wantedK8sOrigin: "container_id://container-id",
 		},
+
+		{
+			name: "opt-out, no entity id, uds origin present",
+			args: args{
+				tags:          []string{"env:prod", "dd.internal.card:none"},
+				originFromUDS: "originID",
+				originFromMsg: []byte("none"),
+				conf: enrichConfig{
+					defaultHostname:     "foo",
+					originOptOutEnabled: true,
+				},
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "foo",
+			wantedOrigin:    "",
+			wantedK8sOrigin: "",
+		},
+		{
+			name: "opt-out, entity id present, uds origin present",
+			args: args{
+				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:"},
+				originFromUDS: "originID",
+				originFromMsg: []byte("none"),
+				conf: enrichConfig{
+					defaultHostname:     "foo",
+					originOptOutEnabled: true,
+				},
+			},
+			wantedTags:      []string{"env:prod"},
+			wantedHost:      "",
+			wantedOrigin:    "",
+			wantedK8sOrigin: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1282,5 +1315,19 @@ func TestEnrichTags(t *testing.T) {
 			assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
 			assert.Equal(t, tt.wantedCardinality, cardinality)
 		})
+
+		if !tt.args.conf.originOptOutEnabled {
+			// All cases that work without the optout should still work with
+			conf := tt.args.conf
+			conf.originOptOutEnabled = true
+			t.Run(tt.name, func(t *testing.T) {
+				tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, conf)
+				assert.Equal(t, tt.wantedTags, tags)
+				assert.Equal(t, tt.wantedHost, host)
+				assert.Equal(t, tt.wantedOrigin, origin)
+				assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
+				assert.Equal(t, tt.wantedCardinality, cardinality)
+			})
+		}
 	}
 }

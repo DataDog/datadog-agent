@@ -368,6 +368,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
+			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
 

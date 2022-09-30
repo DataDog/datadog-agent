@@ -31,6 +31,7 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
+	originOptOutEnabled       bool
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
@@ -99,6 +100,12 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		// originFromMsg is the container id sent by the newer clients.
 		// Opt-in is handled when parsing.
 		originFromClient = containers.BuildTaggerEntityName(string(originFromMsg))
+	}
+
+	if conf.originOptOutEnabled && cardinality == "none" {
+		udsOrigin = ""
+		originFromClient = ""
+		cardinality = ""
 	}
 
 	return tags, host, udsOrigin, originFromClient, cardinality
