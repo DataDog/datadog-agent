@@ -1,5 +1,5 @@
 ---
-title: Cloud Workload Security (CWS) Events
+title: Cloud Workload Security (CWS) Events Formats
 kind: documentation
 description: JSON schema documentation of the CWS backend event
 disable_edit: true
