@@ -69,7 +69,7 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 		dpsInt := met.Gauge().DataPoints()
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetTimestamp(seconds(0))
-		dpInt.SetIntVal(1)
+		dpInt.SetIntValue(1)
 	}
 
 	return md
@@ -148,7 +148,7 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 		dpsDouble := met.Sum().DataPoints()
 		dpDouble := dpsDouble.AppendEmpty()
 		dpDouble.SetTimestamp(seconds(0))
-		dpDouble.SetDoubleVal(math.E)
+		dpDouble.SetDoubleValue(math.E)
 	}
 
 	return md

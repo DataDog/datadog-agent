@@ -74,7 +74,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				h.SetSum(0)
 
 				n := pmetric.NewNumberDataPoint()
-				n.SetIntVal(777)
+				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
@@ -93,7 +93,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				hAttrs.PutString("histogram_3_id", "value3")
 
 				n := pmetric.NewNumberDataPoint()
-				n.SetIntVal(777)
+				n.SetIntValue(777)
 				nAttrs := n.Attributes()
 				nAttrs.PutString("gauge_1_id", "value1")
 				nAttrs.PutString("gauge_2_id", "value2")
@@ -202,7 +202,7 @@ func newMetrics(
 	gdps := met.Gauge().DataPoints()
 	gdp := gdps.AppendEmpty()
 	gdp.SetTimestamp(numberDataPoint.Timestamp())
-	gdp.SetIntVal(numberDataPoint.IntVal())
+	gdp.SetIntValue(numberDataPoint.IntValue())
 	gdpAttrs := gdp.Attributes()
 	numberDataPoint.Attributes().CopyTo(gdpAttrs)
 
