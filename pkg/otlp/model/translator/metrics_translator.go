@@ -82,8 +82,8 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 
 // isCumulativeMonotonic checks if a metric is a cumulative monotonic metric
 func isCumulativeMonotonic(md pmetric.Metric) bool {
-	switch md.DataType() {
-	case pmetric.MetricDataTypeSum:
+	switch md.Type() {
+	case pmetric.MetricTypeSum:
 		return md.Sum().AggregationTemporality() == pmetric.MetricAggregationTemporalityCumulative &&
 			md.Sum().IsMonotonic()
 	}
@@ -115,9 +115,9 @@ func (t *Translator) mapNumberMetrics(
 		var val float64
 		switch p.ValueType() {
 		case pmetric.NumberDataPointValueTypeDouble:
-			val = p.DoubleVal()
+			val = p.DoubleValue()
 		case pmetric.NumberDataPointValueTypeInt:
-			val = float64(p.IntVal())
+			val = float64(p.IntValue())
 		}
 
 		if t.isSkippable(pointDims.name, val) {
@@ -144,9 +144,9 @@ func (t *Translator) mapNumberMonotonicMetrics(
 		var val float64
 		switch p.ValueType() {
 		case pmetric.NumberDataPointValueTypeDouble:
-			val = p.DoubleVal()
+			val = p.DoubleValue()
 		case pmetric.NumberDataPointValueTypeInt:
-			val = float64(p.IntVal())
+			val = float64(p.IntValue())
 		}
 
 		if t.isSkippable(pointDims.name, val) {
@@ -267,9 +267,9 @@ func (t *Translator) getLegacyBuckets(
 // - The count of values in the population
 // - The sum of values in the population
 // - A number of buckets, each of them having
-//    - the bounds that define the bucket
-//    - the count of the number of items in that bucket
-//    - a sample value from each bucket
+//   - the bounds that define the bucket
+//   - the count of the number of items in that bucket
+//   - a sample value from each bucket
 //
 // We follow a similar approach to our OpenMetrics check:
 // we report sum and count by default; buckets count can also
@@ -453,10 +453,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					host:     host,
 					originID: attributes.OriginIDFromAttributes(rm.Resource().Attributes()),
 				}
-				switch md.DataType() {
-				case pmetric.MetricDataTypeGauge:
+				switch md.Type() {
+				case pmetric.MetricTypeGauge:
 					t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
-				case pmetric.MetricDataTypeSum:
+				case pmetric.MetricTypeSum:
 					switch md.Sum().AggregationTemporality() {
 					case pmetric.MetricAggregationTemporalityCumulative:
 						if t.cfg.SendMonotonic && isCumulativeMonotonic(md) {
@@ -473,7 +473,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 						)
 						continue
 					}
-				case pmetric.MetricDataTypeHistogram:
+				case pmetric.MetricTypeHistogram:
 					switch md.Histogram().AggregationTemporality() {
 					case pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityDelta:
 						delta := md.Histogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
@@ -485,7 +485,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 						)
 						continue
 					}
-				case pmetric.MetricDataTypeExponentialHistogram:
+				case pmetric.MetricTypeExponentialHistogram:
 					switch md.ExponentialHistogram().AggregationTemporality() {
 					case pmetric.MetricAggregationTemporalityDelta:
 						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
@@ -497,10 +497,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 						)
 						continue
 					}
-				case pmetric.MetricDataTypeSummary:
+				case pmetric.MetricTypeSummary:
 					t.mapSummaryMetrics(ctx, consumer, baseDims, md.Summary().DataPoints())
 				default: // pmetric.MetricDataTypeNone or any other not supported type
-					t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.DataType()))
+					t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.Type()))
 					continue
 				}
 			}
