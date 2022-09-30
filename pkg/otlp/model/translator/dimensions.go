@@ -84,7 +84,29 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 
 // WithAttributeMap creates a new metricDimensions struct with additional tags from attributes.
 func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
-	return d.AddTags(getTags(labels)...)
+	d2 := &Dimensions{
+		name:     d.name,
+		tags:     make([]string, 0, labels.Len()+len(d.tags)),
+		host:     d.host,
+		originID: d.originID,
+	}
+
+	collisionCheck := map[string]string{}
+	labels.Range(func(k string, v pcommon.Value) bool {
+		collisionCheck[k] = v.AsString()
+		d2.tags = append(d2.tags, utils.FormatKeyValueTag(k, v.AsString()))
+		return true
+	})
+
+	for _, tag := range d.tags {
+		sp := strings.Split(tag, ":")
+		if v, ok := collisionCheck[sp[0]]; ok && v != strings.Join(sp[1:], ":") {
+			d2.tags = append(d2.tags, "resource."+tag)
+			continue
+		}
+		d2.tags = append(d2.tags, tag)
+	}
+	return d2
 }
 
 // WithSuffix creates a new dimensions struct with an extra name suffix.

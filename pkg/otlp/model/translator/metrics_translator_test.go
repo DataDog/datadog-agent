@@ -993,6 +993,7 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	dpInt := dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(0))
 	dpInt.SetIntVal(1)
+	dpInt.Attributes().UpsertString("env", "test")
 
 	// DoubleGauge
 	met = metricsArray.AppendEmpty()
@@ -1186,6 +1187,16 @@ func TestMapMetrics(t *testing.T) {
 		fmt.Sprintf("instrumentation_scope_version:%s", instrumentationVersion),
 	}
 
+	modifyTags := func(tags []string) []string {
+		tags = append([]string{"env:test"}, tags...)
+		for i, tag := range tags {
+			if tag == "env:dev" {
+				tags[i] = "resource.env:dev"
+			}
+		}
+		return tags
+	}
+
 	tests := []struct {
 		resourceAttributesAsTags                  bool
 		instrumentationLibraryMetadataAsTags      bool
@@ -1202,7 +1213,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, attrTags),
+				newGaugeWithHostname("int.gauge", 1, modifyTags(attrTags)),
 				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
 				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
 				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
@@ -1233,7 +1244,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, attrTags),
+				newGaugeWithHostname("int.gauge", 1, modifyTags(attrTags)),
 				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
 				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
 				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
@@ -1264,7 +1275,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   true,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, isTags...)),
+				newGaugeWithHostname("int.gauge", 1, append(modifyTags(attrTags), isTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, isTags...)),
 				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, isTags...)),
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, isTags...)),
@@ -1295,7 +1306,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, attrTags),
+				newGaugeWithHostname("int.gauge", 1, modifyTags(attrTags)),
 				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
 				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
 				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
@@ -1328,7 +1339,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.gauge", 1, append(modifyTags(attrTags), ilTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
 				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
@@ -1359,7 +1370,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.gauge", 1, append(modifyTags(attrTags), ilTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
 				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
@@ -1392,7 +1403,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         false,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.gauge", 1, append(modifyTags(attrTags), ilTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
 				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
@@ -1423,7 +1434,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   false,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
+				newGaugeWithHostname("int.gauge", 1, append(modifyTags(attrTags), ilTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
 				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
@@ -1456,7 +1467,7 @@ func TestMapMetrics(t *testing.T) {
 			instrumentationScopeMetadataAsTags:   true,
 			withCountSum:                         true,
 			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, isTags...)),
+				newGaugeWithHostname("int.gauge", 1, append(modifyTags(attrTags), isTags...)),
 				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, isTags...)),
 				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, isTags...)),
 				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, isTags...)),
