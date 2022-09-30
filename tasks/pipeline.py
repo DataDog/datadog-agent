@@ -504,6 +504,7 @@ def send_stats(_, print_to_stdout=False):
         job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
     except Exception as e:
         print("Found exception when generating statistics:")
+        print(e)
         traceback.print_exc(limit=-1)
         raise Exit(code=1)
 
