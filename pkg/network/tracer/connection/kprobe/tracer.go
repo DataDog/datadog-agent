@@ -453,6 +453,8 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 			t.cookieCollisions.Inc()
 			stats.Retransmits = 0
 			stats.State_transitions = 0
+			stats.Rtt = 0
+			stats.Rtt_var = 0
 		} else {
 			seen[tuple.Cookie] = struct{}{}
 		}
