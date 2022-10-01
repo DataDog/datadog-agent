@@ -102,6 +102,17 @@ if node['platform_family'] != 'windows'
       service 'docker' do
         action [ :enable, :start ]
       end
+    elsif ['amazon'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker'
+        package_options %q|-y|
+      end
+
+      service 'docker' do
+        action [ :enable, :start ]
+      end
     elsif ['ubuntu'].include?(node[:platform])
       docker_installation_package 'default' do
         action :create
