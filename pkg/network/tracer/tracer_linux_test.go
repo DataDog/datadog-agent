@@ -218,13 +218,21 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	}
 	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
 
+	// Since the socket is shared, and we cannot identify the PID when recording
+	// retransmits for a connection, we have opted report the total number of
+	// retransmits for *one* of the connections sharing the same socket
 	connsWithRetransmits := 0
 	for _, c := range conns {
 		if c.MonotonicSum().Retransmits > 0 {
 			connsWithRetransmits++
 		}
 	}
-	assert.Equal(t, numProcesses, connsWithRetransmits)
+	assert.Equal(t, 1, connsWithRetransmits)
+
+	telemetry := tr.ebpfTracer.GetTelemetry()
+	// Test if telemetry measuring cookie collisions is correct
+	// >= because there can be other connections going on during CI that increase cookie collisions
+	assert.GreaterOrEqual(t, telemetry["cookie_collisions"], int64(numProcesses-1))
 }
 
 func TestTCPRTT(t *testing.T) {
