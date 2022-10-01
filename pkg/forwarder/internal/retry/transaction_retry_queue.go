@@ -110,7 +110,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 				diskErr = multierror.Append(diskErr, err)
 				// Assuming all payloads failed during serialization
 				for _, payload := range payloads {
-					tc.telemetry.addTransactionsDroppedCount(payload.GetPointCount())
+					tc.telemetry.addPointDroppedCount(payload.GetPointCount())
 				}
 			}
 		}

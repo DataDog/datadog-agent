@@ -10,11 +10,11 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
@@ -26,8 +26,8 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v0.60.0
-	go.opentelemetry.io/collector/semconv v0.60.0
+	go.opentelemetry.io/collector/pdata v0.61.0
+	go.opentelemetry.io/collector/semconv v0.61.0
 	go.uber.org/atomic v1.10.0
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
@@ -36,7 +36,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect

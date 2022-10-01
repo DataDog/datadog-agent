@@ -38,10 +38,14 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	} else if msgType == model.TypeCollectorManifest {
 		encoded, err = encodeManifestPayload(m)
 	} else {
+		encoding := model.MessageEncodingZstdPB
+		if msgType == model.TypeCollectorConnections {
+			encoding = model.MessageEncodingZstd1xPB
+		}
 		encoded, err = model.EncodeMessage(model.Message{
 			Header: model.MessageHeader{
 				Version:  model.MessageV3,
-				Encoding: model.MessageEncodingZstdPB,
+				Encoding: encoding,
 				Type:     msgType,
 			}, Body: m})
 	}

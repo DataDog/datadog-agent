@@ -284,7 +284,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			}
 
 			for _, check := range test.checks {
-				check.Init()
+				check.Init(2)
 			}
 
 			p := newPromServicesProvider(test.checks, api, test.collectEndpoints)
@@ -328,7 +328,7 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
 	for _, check := range checks {
-		check.Init()
+		check.Init(0)
 	}
 
 	tests := []struct {
@@ -452,7 +452,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
 	for _, check := range checks {
-		check.Init()
+		check.Init(0)
 	}
 
 	node := "node1"

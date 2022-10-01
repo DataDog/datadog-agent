@@ -71,6 +71,8 @@ _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submi
 set +e
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
 EXIT_CODE=$?
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/24-argo-to-ci-setup.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/25-argo-to-ci.sh
 set -e
 export MACHINE
 ./04-send-dd-event.sh $EXIT_CODE

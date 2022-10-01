@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x12
+#define DD_NPMDRIVER_VERSION       0x13
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -153,6 +153,7 @@ typedef struct _http_handle_stats {
     volatile LONG64       txns_captured;
     volatile LONG64       txns_skipped_max_exceeded;
     volatile LONG64       ndis_buffer_non_contiguous;
+    volatile LONG64       flows_ignored_as_etw;
 
 } HTTP_STATS;
 
@@ -352,5 +353,6 @@ typedef struct _HttpConfigurationSettings {
     uint64_t    maxTransactions;        // max list of transactions we'll keep
     uint64_t    notificationThreshold; // when to signal to retrieve transactions
     uint16_t    maxRequestFragment;     // max length of request fragment
+    uint16_t    enableAutoETWExclusion; // turns on automatic ETW exclusion if enabled.
 } HTTP_CONFIGURATION_SETTINGS;
 #pragma pack()
