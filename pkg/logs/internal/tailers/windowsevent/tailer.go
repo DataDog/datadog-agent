@@ -170,9 +170,9 @@ func normalizeEventID(mv mxj.Map) error {
 		if foundText && foundQualifier {
 			// Remove Qualifiers attribute from EventID by
 			// overwriting the path with just the text value
-			mv.SetValueForPath(text, eventIDPath)
+			_ = mv.SetValueForPath(text, eventIDPath)
 			// Add qualifier value to a new path
-			mv.SetValueForPath(qualifier, eventIDQualifierPath)
+			_ = mv.SetValueForPath(qualifier, eventIDQualifierPath)
 		}
 	}
 	return nil
