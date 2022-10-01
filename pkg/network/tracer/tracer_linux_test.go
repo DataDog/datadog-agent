@@ -176,6 +176,8 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
+	_ = getConnections(t, tr)
+
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(ioutil.Discard, c)
@@ -204,13 +206,38 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	})
-	_ = socketFile.Close()
-	c.Close()
+
+	defer func() {
+		_ = socketFile.Close()
+		c.Close()
+	}()
 
 	// Fetch all connections matching source and target address
 	allConnections := getConnections(t, tr)
 	conns := searchConnections(allConnections, byAddress(c.LocalAddr(), c.RemoteAddr()))
-	require.Len(t, conns, numProcesses)
+	// since we share the socket between 11 processes total, we may report
+	// up to 11 connections here, but at least 10. In the case where we
+	// report 11 connections, there will be a connection with 0B sent and
+	// received; this is because the kprobe/ for tcp_finish_connect gets
+	// called randomly one one of the 11 pids in question here, and if it
+	// gets called for parent pid, it will insert a conn stats object with
+	// 0B sent and received
+	assert.GreaterOrEqual(t, len(conns), numProcesses)
+	assert.LessOrEqual(t, len(conns), numProcesses+1)
+	if len(conns) == numProcesses+1 {
+		pid := os.Getpid()
+		found := false
+		for i := range conns {
+			if conns[i].Pid == uint32(pid) {
+				found = true
+				assert.Zero(t, conns[i].Last.SentBytes, 0)
+				assert.Zero(t, conns[i].Last.RecvBytes, 0)
+				break
+			}
+		}
+
+		assert.True(t, found)
+	}
 
 	totalSent := 0
 	for _, c := range conns {
@@ -232,7 +259,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	telemetry := tr.ebpfTracer.GetTelemetry()
 	// Test if telemetry measuring cookie collisions is correct
 	// >= because there can be other connections going on during CI that increase cookie collisions
-	assert.GreaterOrEqual(t, telemetry["cookie_collisions"], int64(numProcesses-1))
+	assert.GreaterOrEqual(t, telemetry["cookie_collisions"], int64(len(conns)-1))
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -1372,9 +1399,9 @@ func iptablesWrapper(t *testing.T, f func()) {
 	err = createCmd.Wait()
 	assert.Nil(t, err)
 
-	t.Cleanup(func() {
+	defer func() {
 		testutil.IptablesRestore(t, state)
-	})
+	}()
 
 	f()
 }
