@@ -2025,6 +2025,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) func() *nethttp
 func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
 	for i := 0; i < numberOfIterations; i++ {
+		// Giving the kernel some time to flush entries from the kernel to the user mode.
 		time.Sleep(50 * time.Millisecond)
 		conns := getConnections(t, tracer)
 

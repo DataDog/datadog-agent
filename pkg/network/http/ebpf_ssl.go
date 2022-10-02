@@ -362,14 +362,14 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 	return func(libPath string) error {
 		uid := getUID(libPath)
 
-		for i := range probes {
-			for _, selector := range probes[i].GetProbesIdentificationPairList() {
+		for _, singleProbe := range probes {
+			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
 					EBPFSection:  selector.EBPFSection,
 					EBPFFuncName: selector.EBPFFuncName,
 					UID:          uid,
 				}
-				probes[i].EditProbeIdentificationPair(selector, identifier)
+				singleProbe.EditProbeIdentificationPair(selector, identifier)
 				probe, found := m.GetProbe(identifier)
 				if found {
 					if !probe.IsRunning() {
@@ -388,7 +388,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 				}
 				_ = m.AddHook("", newProbe)
 			}
-			if err := probes[i].RunValidator(m); err != nil {
+			if err := singleProbe.RunValidator(m); err != nil {
 				return err
 			}
 		}
@@ -400,8 +400,8 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
-		for i := range probes {
-			for _, selector := range probes[i].GetProbesIdentificationPairList() {
+		for _, singleProbe := range probes {
+			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
 					EBPFSection:  selector.EBPFSection,
 					EBPFFuncName: selector.EBPFFuncName,

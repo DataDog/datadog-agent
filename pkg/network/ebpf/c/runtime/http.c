@@ -317,7 +317,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
 
     conn_tuple_t *conn_tuple = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (conn_tuple == NULL) {
-        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
+        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx: no conn tuple\n", pid_tgid);
         goto cleanup;
     }
 
