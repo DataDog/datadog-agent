@@ -2021,8 +2021,8 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) func() *nethttp
 
 func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
-	for i := 0; i < 10; i++ {
-		time.Sleep(10 * time.Millisecond)
+	for i := 0; i < 100; i++ {
+		time.Sleep(50 * time.Millisecond)
 		conns, err := tracer.GetActiveConnections("1")
 		require.NoError(t, err)
 
