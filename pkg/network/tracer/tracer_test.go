@@ -1888,40 +1888,10 @@ var (
 	disableTLSVerification = sync.Once{}
 )
 
-func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := ioutil.TempFile("", pattern)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(content); err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
-
-func rawConnect(ctx context.Context, t *testing.T, host string, port string) {
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatalf("failed connecting to port %s:%s", host, port)
-		default:
-			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), time.Second)
-			if err != nil {
-				continue
-			}
-			if conn != nil {
-				conn.Close()
-				return
-			}
-		}
-	}
-
-}
-
-const pythonSSLServerFormat = `import http.server, ssl
+const (
+	numberOfRequests      = 100
+	numberOfIterations    = 100
+	pythonSSLServerFormat = `import http.server, ssl
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
@@ -1941,8 +1911,10 @@ httpd.socket = ssl.wrap_socket(httpd.socket,
                                ssl_version=ssl.PROTOCOL_TLS)
 httpd.serve_forever()
 `
+)
 
-func TestOpenSSLVersions_python_matrix(t *testing.T) {
+// TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
+func TestOpenSSLVersions(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
 	}
@@ -1974,11 +1946,9 @@ func TestOpenSSLVersions_python_matrix(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	err = tr.RegisterClient("1")
-	require.NoError(t, err)
+	initTracerState(t, tr)
 	defer tr.Stop()
 
 	// Waiting for the server to be ready
@@ -1988,11 +1958,44 @@ func TestOpenSSLVersions_python_matrix(t *testing.T) {
 
 	requestFn := simpleGetRequestsGenerator(t, "127.0.0.1:8001")
 	var requests []*nethttp.Request
-	for i := 0; i < 100; i++ {
+	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
 
 	assertAllRequestsExists(t, tr, requests)
+}
+
+func writeTempFile(pattern string, content string) (*os.File, error) {
+	f, err := ioutil.TempFile("", pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(content); err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func rawConnect(ctx context.Context, t *testing.T, host string, port string) {
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("failed connecting to %s:%s", host, port)
+		default:
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), time.Second)
+			if err != nil {
+				continue
+			}
+			if conn != nil {
+				conn.Close()
+				return
+			}
+		}
+	}
+
 }
 
 var (
@@ -2021,10 +2024,9 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) func() *nethttp
 
 func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
-	for i := 0; i < 100; i++ {
+	for i := 0; i < numberOfIterations; i++ {
 		time.Sleep(50 * time.Millisecond)
-		conns, err := tracer.GetActiveConnections("1")
-		require.NoError(t, err)
+		conns := getConnections(t, tracer)
 
 		if len(conns.HTTP) == 0 {
 			continue
@@ -2032,8 +2034,22 @@ func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.R
 		for reqIndex, req := range requests {
 			requestsExist[reqIndex] = requestsExist[reqIndex] || isRequestIncluded(conns.HTTP, req)
 		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		allExists := true
+		for _, exists := range requestsExist {
+			if !exists {
+				allExists = false
+				break
+			}
+		}
+		if allExists {
+			return
+		}
 	}
 
+	// If we reach here, it means that at least one req is missing, so we want to tell who is missing.
 	for reqIndex, exists := range requestsExist {
 		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
 	}

@@ -231,7 +231,7 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    const u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
@@ -239,14 +239,13 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_read_ex")
 int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    int return_code = (int)PT_REGS_RC(ctx);
-    if (return_code <= 0) {
-        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx ret=%d\n", pid_tgid, return_code);
+    const u64 pid_tgid = bpf_get_current_pid_tgid();
+    const int return_code = (int)PT_REGS_RC(ctx);
+    if (return_code != 1) {
+        log_debug("uretprobe/SSL_read_ex: failed pid_tgid=%llx ret=%d\n", pid_tgid, return_code);
         goto cleanup;
     }
 
-    log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx\n", pid_tgid);
     ssl_read_ex_args_t *args = bpf_map_lookup_elem(&ssl_read_ex_args, &pid_tgid);
     if (args == NULL) {
         return 0;
@@ -260,18 +259,18 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     size_t bytes_count = 0;
     bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
     if ( bytes_count <= 0) {
-        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx len=%d\n", pid_tgid, bytes_count);
+        log_debug("uretprobe/SSL_read_ex: read non positive number of bytes (pid_tgid=%llx len=%d)\n", pid_tgid, bytes_count);
         goto cleanup;
     }
 
     void *ssl_ctx = args->ctx;
-    conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
-    if (t == NULL) {
+    conn_tuple_t *conn_tuple = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
+    if (conn_tuple == NULL) {
         log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
         goto cleanup;
     }
 
-    https_process(t, args->buf, bytes_count, LIBSSL);
+    https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -283,7 +282,7 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    const u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
@@ -291,15 +290,16 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_write_ex")
 int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    int return_code = (int)PT_REGS_RC(ctx);
-    log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx len=%d\n", pid_tgid, return_code);
-    if (return_code <= 0) {
+    const u64 pid_tgid = bpf_get_current_pid_tgid();
+    const int return_code = (int)PT_REGS_RC(ctx);
+    if (return_code != 1) {
+        log_debug("uretprobe/SSL_write_ex: failed pid_tgid=%llx len=%d\n", pid_tgid, return_code);
         goto cleanup;
     }
 
     ssl_write_ex_args_t *args = bpf_map_lookup_elem(&ssl_write_ex_args, &pid_tgid);
     if (args == NULL) {
+        log_debug("uretprobe/SSL_write_ex: no args pid_tgid=%llx\n", pid_tgid);
         return 0;
     }
 
@@ -311,16 +311,17 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     size_t bytes_count = 0;
     bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
     if ( bytes_count <= 0) {
-        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx len=%d\n", pid_tgid, bytes_count);
+        log_debug("uretprobe/SSL_write_ex: wrote non positive number of bytes (pid_tgid=%llx len=%d)\n", pid_tgid, bytes_count);
         goto cleanup;
     }
 
-    conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
-    if (t == NULL) {
+    conn_tuple_t *conn_tuple = tup_from_ssl_ctx(args->ctx, pid_tgid);
+    if (conn_tuple == NULL) {
+        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
         goto cleanup;
     }
 
-    https_process(t, args->buf, bytes_count, LIBSSL);
+    https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;

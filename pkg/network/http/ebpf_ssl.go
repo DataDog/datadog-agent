@@ -370,10 +370,10 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 					UID:          uid,
 				}
 				probes[i].EditProbeIdentificationPair(selector, identifier)
-				p, found := m.GetProbe(identifier)
+				probe, found := m.GetProbe(identifier)
 				if found {
-					if !p.IsRunning() {
-						err := p.Attach()
+					if !probe.IsRunning() {
+						err := probe.Attach()
 						if err != nil {
 							return err
 						}
@@ -407,12 +407,12 @@ func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(strin
 					EBPFFuncName: selector.EBPFFuncName,
 					UID:          uid,
 				}
-				p, found := m.GetProbe(identifier)
+				probe, found := m.GetProbe(identifier)
 				if !found {
 					continue
 				}
 
-				program := p.Program()
+				program := probe.Program()
 				err := m.DetachHook(identifier)
 				if err != nil {
 					log.Debugf("detach hook %s/%s/%s : %s", selector.EBPFSection, selector.EBPFFuncName, uid, err)
