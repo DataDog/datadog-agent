@@ -135,6 +135,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	} else if payload.Email == "" || payload.CaseID == "" {
 		w.Write([]byte("Error creating flare: missing information"))
 		return
+	} else if _, err := strconv.ParseInt(payload.CaseID, 10, 0); err != nil {
+		w.Write([]byte("Invalid CaseID (must be a number)"))
+		return
 	}
 
 	logFile := config.Datadog.GetString("log_file")
