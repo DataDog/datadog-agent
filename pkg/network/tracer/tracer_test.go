@@ -1919,6 +1919,10 @@ func TestOpenSSLVersions(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
 	}
 
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
 	disableTLSVerification.Do(func() {
 		nethttp.DefaultTransport.(*nethttp.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	})
