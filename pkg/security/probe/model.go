@@ -116,6 +116,11 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 		}
 		f.SetPathnameStr(path)
 	}
+
+	if strings.HasPrefix(f.PathnameStr, model.FilelessExecutionFilenamePrefix) {
+		return ""
+	}
+
 	return f.PathnameStr
 }
 
