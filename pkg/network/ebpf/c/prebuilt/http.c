@@ -231,7 +231,7 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
-    const u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
@@ -239,7 +239,7 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_read_ex")
 int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
-    const u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
         log_debug("uretprobe/SSL_read_ex: failed pid_tgid=%llx ret=%d\n", pid_tgid, return_code);
@@ -283,7 +283,7 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
-    const u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
@@ -291,7 +291,7 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_write_ex")
 int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
-    const u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
         log_debug("uretprobe/SSL_write_ex: failed pid_tgid=%llx len=%d\n", pid_tgid, return_code);
