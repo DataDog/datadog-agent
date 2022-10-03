@@ -53,7 +53,6 @@
 /.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/platform-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/platform-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
@@ -74,8 +73,11 @@
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/agent-network @DataDog/agent-platform
 
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/dev_container_deploy/docker_windows.yml     @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
 
