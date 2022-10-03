@@ -235,18 +235,27 @@ func TestSortedMarshal(t *testing.T) {
 			},
 		},
 	}
-	yaml, err := json.Marshal(p)
+	json, err := json.Marshal(p)
 	assert.NoError(t, err)
 
-	/*	Expected order should be :
-			"1ab-annotation": "test",
-		    "a-annotation":   "test",
-			"ab-annotation":  "test",
-			"ac-annotation":  "test",
-			"b-annotation":   "test",
-			"ba-annotation":  "test",
-	*/
-	expectedYaml := `{"metadata":{"name":"test-pod","creationTimestamp":null,"annotations":{"1ab-annotation":"test","a-annotation":"test","ab-annotation":"test","ac-annotation":"test","b-annotation":"test","ba-annotation":"test"}},"spec":{"containers":null},"status":{}}`
-	actualYaml := string(yaml)
-	assert.Equal(t, expectedYaml, actualYaml)
+	expectedJson := `{
+						"metadata":{
+							"name":"test-pod",
+							"creationTimestamp":null,
+							"annotations":{
+								"1ab-annotation":"test",
+								"a-annotation":"test",
+								"ab-annotation":"test",
+								"ac-annotation":"test",
+								"b-annotation":"test",
+								"ba-annotation":"test"
+							}
+						},
+						"spec":{
+							"containers":null
+						},
+						"status":{}
+					}`
+	actualJson := string(json)
+	assert.JSONEq(t, expectedJson, actualJson)
 }
