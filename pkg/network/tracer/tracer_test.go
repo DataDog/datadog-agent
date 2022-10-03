@@ -1900,6 +1900,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         status_code = int(self.path.split("/")[1])
         self.send_response(status_code)
+        self.send_header('Connection', 'close')
         self.end_headers()
 
 server_address = ('127.0.0.1', 8001)
@@ -1935,12 +1936,7 @@ func TestOpenSSLVersions(t *testing.T) {
 	defer scriptFile.Close()
 
 	cmd := exec.Command("python3", scriptFile.Name())
-	go func() {
-		err := cmd.Start()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
+	go require.NoError(t, cmd.Start())
 	defer func() {
 		if cmd.Process != nil {
 			cmd.Process.Kill()
