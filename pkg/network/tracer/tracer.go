@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -47,12 +48,13 @@ const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config      *config.Config
-	state       network.State
-	conntracker netlink.Conntracker
-	reverseDNS  dns.ReverseDNS
-	httpMonitor *http.Monitor
-	ebpfTracer  connection.Tracer
+	config       *config.Config
+	state        network.State
+	conntracker  netlink.Conntracker
+	reverseDNS   dns.ReverseDNS
+	httpMonitor  *http.Monitor
+	ebpfTracer   connection.Tracer
+	bpfTelemetry *errtelemetry.EBPFTelemetry
 
 	// Telemetry
 	skippedConns *atomic.Int64 `stats:""`
@@ -142,12 +144,16 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	ebpfTracer, err := kprobe.New(config, constantEditors)
+	var bpfTelemetry *errtelemetry.EBPFTelemetry
+	if usmSupported {
+		bpfTelemetry = errtelemetry.NewEBPFTelemetry()
+	}
+	ebpfTracer, err := kprobe.New(config, constantEditors, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(config)
+	conntracker, err := newConntracker(config, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +175,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
-		httpMonitor:                newHTTPMonitor(config, ebpfTracer, constantEditors),
+		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -185,6 +191,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedConns:      atomic.NewInt64(0),
 		connStatsMapSize: atomic.NewInt64(0),
 		lastCheck:        atomic.NewInt64(0),
+		bpfTelemetry:     bpfTelemetry,
 	}
 
 	err = ebpfTracer.Start(tr.storeClosedConnections)
@@ -200,7 +207,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -208,7 +215,7 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	var c netlink.Conntracker
 	var err error
 	if cfg.EnableRuntimeCompiler {
-		c, err = NewEBPFConntracker(cfg)
+		c, err = NewEBPFConntracker(cfg, bpfTelemetry)
 		if err == nil {
 			return c, nil
 		}
@@ -592,6 +599,8 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	bpfMapStats
+	bpfHelperStats
 )
 
 var allStats = []statsComp{
@@ -603,6 +612,8 @@ var allStats = []statsComp{
 	kprobesStats,
 	stateStats,
 	tracerStats,
+	bpfHelperStats,
+	bpfMapStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -635,6 +646,10 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case bpfMapStats:
+			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
+		case bpfHelperStats:
+			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		}
 	}
 
@@ -778,14 +793,15 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *errtelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
 
 	// Shared with the HTTP program
 	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap)
+
+	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return nil
