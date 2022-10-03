@@ -13,6 +13,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/fsuid.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -452,35 +453,25 @@ int test_bind(int argc, char** argv) {
 }
 
 int test_forkexec(int argc, char **argv) {
-    if (argc == 3) {
+    if (argc == 2) {
         char *subcmd = argv[1];
-        char *open_trigger_filename = argv[2];
         if (strcmp(subcmd, "exec") == 0) {
             int child = fork();
             if (child == 0) {
-                char *const args[] = {"syscall_tester", "fork", "open", open_trigger_filename, NULL};
+                char *const args[] = {"syscall_tester", "fork", "mmap", NULL};
                 execv("/proc/self/exe", args);
             } else if (child > 0) {
                 wait(NULL);
             }
             return EXIT_SUCCESS;
-        } else if (strcmp(subcmd, "open") == 0) {
-            int fd = open(open_trigger_filename, O_RDONLY|O_CREAT, 0444);
-            if (fd >= 0) {
-                close(fd);
-                unlink(open_trigger_filename);
-            }
+        } else if (strcmp(subcmd, "mmap") == 0) {
+            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
             return EXIT_SUCCESS;
         }
-    } else if (argc == 2) {
-        char *open_trigger_filename = argv[1];
+    } else if (argc == 1) {
         int child = fork();
         if (child == 0) {
-            int fd = open(open_trigger_filename, O_RDONLY|O_CREAT, 0444);
-            if (fd >= 0) {
-                close(fd);
-                unlink(open_trigger_filename);
-            }
+            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
             return EXIT_SUCCESS;
         } else if (child > 0) {
             wait(NULL);
