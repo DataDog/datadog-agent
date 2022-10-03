@@ -672,7 +672,6 @@ func InitConfig(config Config) {
 	config.SetKnown("network_devices.netflow.aggregator_flush_interval")
 	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")
 	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")
-	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval")
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 

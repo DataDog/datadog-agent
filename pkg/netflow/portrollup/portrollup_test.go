@@ -6,7 +6,6 @@
 package portrollup
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -49,35 +48,35 @@ func Test_endpointPairPortRollupStore_Add(t *testing.T) {
 
 }
 
-func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
-	// Arrange
-	IP1 := []byte{10, 10, 10, 10}
-	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(common.DefaultAggregatorPortRollupThreshold)
-
-	// 1/ Add
-	store.Add(IP1, IP2, 80, 2000)
-	store.Add(IP1, IP2, 80, 2001)
-	store.Add(IP1, IP2, 80, 2002)
-	store.Add(IP1, IP2, 3000, 443)
-	store.Add(IP1, IP2, 3001, 443)
-	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
-
-	// 2/ After UseNewStoreAsCurrentStore, thanks to the double write, we should be still able to query ports tracked previously
-	store.UseNewStoreAsCurrentStore()
-	store.Add(IP1, IP2, 3000, 22)
-	store.Add(IP1, IP2, 3001, 22)
-	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
-	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
-
-	// 3/ After a second UseNewStoreAsCurrentStore, the ports added in 1/ are not present anymore in the tracker, and only port added in 2/ are available
-	store.UseNewStoreAsCurrentStore()
-	assert.Equal(t, uint16(0), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 443))
-	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
-}
+//func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
+//	// Arrange
+//	IP1 := []byte{10, 10, 10, 10}
+//	IP2 := []byte{10, 10, 10, 11}
+//	store := NewEndpointPairPortRollupStore(common.DefaultAggregatorPortRollupThreshold)
+//
+//	// 1/ Add
+//	store.Add(IP1, IP2, 80, 2000)
+//	store.Add(IP1, IP2, 80, 2001)
+//	store.Add(IP1, IP2, 80, 2002)
+//	store.Add(IP1, IP2, 3000, 443)
+//	store.Add(IP1, IP2, 3001, 443)
+//	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
+//	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
+//
+//	// 2/ After UseNewStoreAsCurrentStore, thanks to the double write, we should be still able to query ports tracked previously
+//	store.UseNewStoreAsCurrentStore()
+//	store.Add(IP1, IP2, 3000, 22)
+//	store.Add(IP1, IP2, 3001, 22)
+//	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
+//	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
+//	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
+//
+//	// 3/ After a second UseNewStoreAsCurrentStore, the ports added in 1/ are not present anymore in the tracker, and only port added in 2/ are available
+//	store.UseNewStoreAsCurrentStore()
+//	assert.Equal(t, uint16(0), store.GetSourceToDestPortCount(IP1, IP2, 80))
+//	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 443))
+//	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
+//}
 
 func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralSourcePort(t *testing.T) {
 	// Arrange
