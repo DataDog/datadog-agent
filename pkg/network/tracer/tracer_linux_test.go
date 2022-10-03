@@ -1379,10 +1379,10 @@ func iptablesWrapper(t *testing.T, f func()) {
 	f()
 }
 
-func setupDNAT(t *testing.T) string {
+func setupDNAT(t *testing.T) []byte {
 	if _, err := exec.LookPath("conntrack"); err != nil {
 		t.Errorf("conntrack not found in PATH: %s", err)
-		return ""
+		return nil
 	}
 
 	state := testutil.IptablesSave(t)
@@ -1398,8 +1398,8 @@ func setupDNAT(t *testing.T) string {
 	return state
 }
 
-func teardownDNAT(t *testing.T, state string) {
-	if state != "" {
+func teardownDNAT(t *testing.T, state []byte) {
+	if len(state) > 0 {
 		testutil.IptablesRestore(t, state)
 	}
 

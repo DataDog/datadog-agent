@@ -9,7 +9,7 @@
 package testutil
 
 import (
-	"os"
+	"bytes"
 	"os/exec"
 	"testing"
 
@@ -19,50 +19,52 @@ import (
 
 // IptablesSave saves the current iptables state to a file
 // and returns its path
-func IptablesSave(t *testing.T) string {
+func IptablesSave(t *testing.T) []byte {
 	cmd := exec.Command("iptables-save")
-	f, err := os.CreateTemp(t.TempDir(), "iptables-save-")
-	require.NoError(t, err)
-	cmd.Stdout = f
-	err = cmd.Run()
+	state, err := cmd.Output()
 	require.NoError(t, err)
 
-	return f.Name()
+	// make sure the nat table is saved,
+	// on some machines on startup, with the
+	// nat table empty, iptables-save will not
+	// include the nat table, so that restoring
+	// from this state will not remove any nat
+	// rules added by tests
+	cmd = exec.Command("iptables-save", "-t", "nat")
+	natState, err := cmd.Output()
+	require.NoError(t, err)
+	return append(state, natState...)
 }
 
 // IptablesRestore restores iptables state from a file
-func IptablesRestore(t *testing.T, path string) {
-	cmd := exec.Command("iptables-restore")
-	f, err := os.Open(path)
-	assert.NoError(t, err)
-	if err != nil {
-		return
-	}
-	cmd.Stdin = f
+func IptablesRestore(t *testing.T, state []byte) {
+	cmd := exec.Command("iptables-restore", "--counters")
+	cmd.Stdin = bytes.NewReader(state)
 	assert.NoError(t, cmd.Run())
 }
 
 // Ip6tablesSave saves the current iptables state to a file
 // and returns its path
-func Ip6tablesSave(t *testing.T) string {
+func Ip6tablesSave(t *testing.T) []byte {
 	cmd := exec.Command("ip6tables-save")
-	f, err := os.CreateTemp(t.TempDir(), "iptables-save-")
-	require.NoError(t, err)
-	cmd.Stdout = f
-	err = cmd.Run()
+	state, err := cmd.Output()
 	require.NoError(t, err)
 
-	return f.Name()
+	// make sure the nat table is saved,
+	// on some machines on startup, with the
+	// nat table empty, iptables-save will not
+	// include the nat table, so that restoring
+	// from this state will not remove any nat
+	// rules added by tests
+	cmd = exec.Command("ip6tables-save", "-t", "nat")
+	natState, err := cmd.Output()
+	require.NoError(t, err)
+	return append(state, natState...)
 }
 
 // Ip6tablesRestore restores iptables state from a file
-func Ip6tablesRestore(t *testing.T, path string) {
-	cmd := exec.Command("ip6tables-restore")
-	f, err := os.Open(path)
-	assert.NoError(t, err)
-	if err != nil {
-		return
-	}
-	cmd.Stdin = f
+func Ip6tablesRestore(t *testing.T, state []byte) {
+	cmd := exec.Command("ip6tables-restore", "--counters")
+	cmd.Stdin = bytes.NewReader(state)
 	assert.NoError(t, cmd.Run())
 }
