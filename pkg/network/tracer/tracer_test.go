@@ -1943,7 +1943,7 @@ func TestOpenSSLVersions(t *testing.T) {
 		}
 	}()
 
-	cfg := config.New()
+	cfg := testConfig()
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
