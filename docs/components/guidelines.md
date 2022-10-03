@@ -13,3 +13,4 @@ If a situation arises that contradicts the guidelines, then we can update the gu
 * [Defining Apps](./defining-apps.md)
 * [Registrations](./registrations.md)
 * [Subscriptions](./subscriptions.md)
+* [Actors](./actors.md)
