@@ -6,16 +6,16 @@
 //go:build !windows
 // +build !windows
 
-package subcommands
+// Package installsvc implements 'agent installservice'.
+package installsvc
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	cmdstop "github.com/DataDog/datadog-agent/cmd/agent/subcommands/stop"
 )
 
-// windowsSubcommands returns SubcommandFactories for subcommands dependent on the `windows` build tag.
-func windowsSubcommands() []command.SubcommandFactory {
-	return []command.SubcommandFactory{
-		cmdstop.Commands,
-	}
+// Commands returns nil on Unix.
+func Commands(_ *command.GlobalParams) []*cobra.Command {
+	return nil
 }
