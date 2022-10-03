@@ -108,7 +108,7 @@ func FormatFailedConnection(failedConn network.FailedConnStats, ipc ipCache) *mo
 	fc.Family = formatFamily(failedConn.Family)
 	fc.Direction = formatDirection(failedConn.Direction)
 	fc.FailureCount = failedConn.FailureCount
-	fc.LastErrno = failedConn.LastErrno
+	fc.LastError = formatError(failedConn.LastErrno)
 
 	return fc
 }

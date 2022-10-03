@@ -124,7 +124,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Family:       model.ConnectionFamily_v4,
 				Direction:    model.ConnectionDirection_outgoing,
 				FailureCount: 3,
-				LastErrno:    110,
+				LastError:    model.FailedConnectionReason_timedOut,
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
@@ -147,6 +147,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
 		out.Conns[1].TagsChecksum = uint32(3241915907)
+	} else if runtime.GOOS == "windows" {
+		out.FailedConns[0].LastError = 0
 	}
 	return out
 }
@@ -221,7 +223,7 @@ func TestSerialization(t *testing.T) {
 					Direction: network.OUTGOING,
 
 					FailureCount: 3,
-					LastErrno:    110,
+					LastErrno:    110, // ETIMEDOUT
 				},
 			},
 		},
