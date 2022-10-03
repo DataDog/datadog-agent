@@ -53,7 +53,6 @@
 /.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/platform-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
