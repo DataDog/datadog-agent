@@ -17,7 +17,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/sketches-go v1.4.1
-	github.com/Microsoft/go-winio v0.5.2
+	github.com/Microsoft/go-winio v0.6.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/gofuzz v1.2.0
@@ -29,7 +29,7 @@ require (
 	go.opentelemetry.io/collector/pdata v0.61.0
 	go.opentelemetry.io/collector/semconv v0.61.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.49.0
 	k8s.io/apimachinery v0.23.8
@@ -66,8 +66,10 @@ require (
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
 	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220519153652-3a47de7e79bd // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
