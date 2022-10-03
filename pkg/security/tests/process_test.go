@@ -1876,6 +1876,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.file.path", "")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"})
+				assertFieldEqual(t, event, "open.file.name", "memfd:")
+				assertFieldEqual(t, event, "open.file.path", "")
 			},
 		},
 		{
@@ -1888,6 +1890,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "exec.file.path", "")
+				assertFieldEqual(t, event, "open.file.name", "memfd:script")
+				assertFieldEqual(t, event, "open.file.path", "")
 			},
 		},
 	}
