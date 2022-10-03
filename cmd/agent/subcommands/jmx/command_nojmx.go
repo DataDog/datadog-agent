@@ -6,11 +6,15 @@
 //go:build !jmx
 // +build !jmx
 
-package subcommands
+package jmx
 
-import "github.com/DataDog/datadog-agent/cmd/agent/command"
+import (
+	"github.com/spf13/cobra"
 
-// jmxSubcommands returns SubcommandFactories for subcommands dependent on the `jmx` build tag.
-func jmxSubcommands() []command.SubcommandFactory {
-	return []command.SubcommandFactory{}
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+)
+
+// Commands returns nil when compiling without the jmx build flag
+func Commands(*command.GlobalParams) []*cobra.Command {
+	return nil
 }
