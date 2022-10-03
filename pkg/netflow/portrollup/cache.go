@@ -42,6 +42,6 @@ func (c *PortCache) ItemCount() int {
 func (c *PortCache) RefreshExpiration(key string) {
 	value, ok := c.cache.Get(key)
 	if ok {
-		c.cache.Set(key, value, cache.DefaultExpiration)
+		c.cache.SetDefault(key, value)
 	}
 }
