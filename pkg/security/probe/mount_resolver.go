@@ -39,7 +39,8 @@ var (
 )
 
 const (
-	deleteDelayTime = 5 * time.Second
+	deleteDelayTime       = 5 * time.Second
+	mountResolveCacheSize = 8192
 )
 
 func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
@@ -87,7 +88,7 @@ type deleteRequest struct {
 type MountResolver struct {
 	statsdClient     statsd.ClientInterface
 	lock             sync.RWMutex
-	mounts           map[uint32]*model.MountEvent
+	mounts           *simplelru.LRU
 	devices          map[uint32]map[uint32]*model.MountEvent
 	deleteQueue      []deleteRequest
 	overlayPathCache *simplelru.LRU
@@ -119,7 +120,7 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 	}
 
 	for _, mnt := range mnts {
-		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
+		if _, exists := mr.mounts.Get(uint32(mnt.ID)); exists {
 			continue
 		}
 
@@ -135,10 +136,13 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 }
 
 func (mr *MountResolver) deleteChildren(parent *model.MountEvent) {
-	for _, mount := range mr.mounts {
-		if mount.ParentMountID == parent.MountID {
-			if _, exists := mr.mounts[mount.MountID]; exists {
-				mr.delete(mount)
+	for _, mountID := range mr.mounts.Keys() {
+		if mount, found := mr.mounts.Get(mountID); found {
+			mount := mount.(*model.MountEvent)
+			if mount.ParentMountID == parent.MountID {
+				if _, exists := mr.mounts.Get(mount.MountID); exists {
+					mr.mounts.Remove(mount)
+				}
 			}
 		}
 	}
@@ -152,14 +156,13 @@ func (mr *MountResolver) deleteDevice(mount *model.MountEvent) {
 
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID {
-			mr.delete(deviceMount)
+			mr.mounts.Remove(deviceMount)
 		}
 	}
 }
 
 func (mr *MountResolver) delete(mount *model.MountEvent) {
 	mr.clearCacheForMountID(mount.MountID)
-	delete(mr.mounts, mount.MountID)
 
 	mounts, exists := mr.devices[mount.Device]
 	if exists {
@@ -177,12 +180,12 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 
 	mr.clearCacheForMountID(mountID)
 
-	mount, exists := mr.mounts[mountID]
+	mount, exists := mr.mounts.Get(mountID)
 	if !exists {
 		return ErrMountNotFound
 	}
 
-	mr.deleteQueue = append(mr.deleteQueue, deleteRequest{mount: mount, timeoutAt: time.Now().Add(deleteDelayTime)})
+	mr.deleteQueue = append(mr.deleteQueue, deleteRequest{mount: mount.(*model.MountEvent), timeoutAt: time.Now().Add(deleteDelayTime)})
 
 	return nil
 }
@@ -220,14 +223,14 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 
 func (mr *MountResolver) insert(e model.MountEvent) {
 	// umount the previous one if exists
-	if prev, ok := mr.mounts[e.MountID]; ok {
-		mr.delete(prev)
+	if prev, ok := mr.mounts.Get(e.MountID); ok {
+		mr.mounts.Remove(prev.(*model.MountEvent))
 	}
 
 	// Retrieve the parent paths and strip it from the event
-	p, ok := mr.mounts[e.ParentMountID]
+	p, ok := mr.mounts.Get(e.ParentMountID)
 	if ok {
-		prefix, err := mr.getParentPath(p.MountID)
+		prefix, err := mr.getParentPath(p.(*model.MountEvent).MountID)
 		if err != nil {
 			// do not log error here. it will be report during the next path resolution
 			return
@@ -244,14 +247,15 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 	}
 	deviceMounts[e.MountID] = &e
 
-	mr.mounts[e.MountID] = &e
+	mr.mounts.Add(e.MountID, &e)
 }
 
 func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) (string, error) {
-	mount, exists := mr.mounts[mountID]
+	value, exists := mr.mounts.Get(mountID)
 	if !exists {
 		return "", ErrMountNotFound
 	}
+	mount := value.(*model.MountEvent)
 
 	mountPointStr := mount.MountPointStr
 	if mountPointStr == "/" {
@@ -297,10 +301,11 @@ func (mr *MountResolver) _getAncestor(mount *model.MountEvent, cache map[uint32]
 	}
 	cache[mount.MountID] = true
 
-	parent, ok := mr.mounts[mount.ParentMountID]
+	value, ok := mr.mounts.Get(mount.ParentMountID)
 	if !ok {
 		return nil
 	}
+	parent := value.(*model.MountEvent)
 
 	if grandParent := mr._getAncestor(parent, cache); grandParent != nil {
 		return grandParent
@@ -353,8 +358,8 @@ func (mr *MountResolver) dequeue(now time.Time) {
 		}
 
 		// check if not already replaced
-		if prev := mr.mounts[req.mount.MountID]; prev == req.mount {
-			mr.delete(req.mount)
+		if prev, _ := mr.mounts.Get(req.mount.MountID); prev == req.mount {
+			mr.mounts.Remove(req.mount)
 		}
 
 		// clear cache anyway
@@ -399,16 +404,15 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, e
 		return nil, ErrMountUndefined
 	}
 
-	mount, ok := mr.mounts[mountID]
-
+	mount, ok := mr.mounts.Get(mountID)
 	if !ok {
 		mr.cacheMissStats.Inc()
 		if pid != 0 {
 			if err := mr.syncCache(pid); err != nil {
 				return nil, err
 			}
-			mount = mr.mounts[mountID]
-			if mount != nil {
+			mount, ok = mr.mounts.Get(mountID)
+			if ok {
 				mr.procHitsStats.Inc()
 			} else {
 				mr.procMissStats.Inc()
@@ -423,7 +427,7 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, e
 		return nil, ErrMountNotFound
 	}
 
-	return mount, nil
+	return mount.(*model.MountEvent), nil
 }
 
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
@@ -544,7 +548,11 @@ func (mr *MountResolver) SendStats() error {
 		return err
 	}
 
-	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
+	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64((mr.mounts.Len())), []string{}, 1.0)
+}
+
+func (mr *MountResolver) evictMount(key, value interface{}) {
+	mr.delete(value.(*model.MountEvent))
 }
 
 // NewMountResolver instantiates a new mount resolver
@@ -559,16 +567,23 @@ func NewMountResolver(statsdClient statsd.ClientInterface) (*MountResolver, erro
 		return nil, err
 	}
 
-	return &MountResolver{
+	resolver := &MountResolver{
 		statsdClient:     statsdClient,
 		lock:             sync.RWMutex{},
 		devices:          make(map[uint32]map[uint32]*model.MountEvent),
-		mounts:           make(map[uint32]*model.MountEvent),
 		overlayPathCache: overlayPathCache,
 		parentPathCache:  parentPathCache,
 		cacheHitsStats:   atomic.NewInt64(0),
 		procHitsStats:    atomic.NewInt64(0),
 		cacheMissStats:   atomic.NewInt64(0),
 		procMissStats:    atomic.NewInt64(0),
-	}, nil
+	}
+
+	lru, err := simplelru.NewLRU(mountResolveCacheSize, resolver.evictMount)
+	if err != nil {
+		return nil, err
+	}
+
+	resolver.mounts = lru
+	return resolver, nil
 }
