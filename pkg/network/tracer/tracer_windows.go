@@ -134,9 +134,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	var delta network.Delta
 	if t.httpMonitor != nil {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, nil, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	} else {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, nil, t.reverseDNS.GetDNSStats(), nil)
 	}
 
 	t.activeBuffer.Reset()

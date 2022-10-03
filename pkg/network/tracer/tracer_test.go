@@ -27,7 +27,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -41,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
-	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -546,97 +543,6 @@ func TestTCPConnsReported(t *testing.T) {
 	// Client-side
 	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-}
-
-func testTCPFailedConnsTimeout(t *testing.T) {
-	destIP := util.AddressFromString("127.0.0.1")
-	const DestPort = 8500
-
-	tr := setupTCPTracer(t)
-
-	cmd := fmt.Sprintf("iptables -A OUTPUT -p tcp -d %v --dport %v -j DROP", destIP, DestPort)
-	nettestutil.RunCommand(cmd)
-	t.Cleanup(func() {
-		cmd := fmt.Sprintf("iptables -D OUTPUT -p tcp -d %v --dport %v -j DROP", destIP, DestPort)
-		nettestutil.RunCommand(cmd)
-	})
-
-	sock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
-	require.NoError(t, err, "could not create socket")
-
-	// Do not retry to transmit SYNs
-	err = syscall.SetsockoptInt(sock, syscall.SOL_TCP, syscall.TCP_SYNCNT, 1)
-	require.NoError(t, err)
-
-	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: DestPort, Addr: destIP.As4()})
-	require.ErrorIs(t, err, syscall.ETIMEDOUT) // Check it timedout
-
-	_, srcPort := getAddrInfo4(t, sock)
-	ns, _ := util.GetCurrentIno()
-
-	// Wait for the connection to be reported
-	time.Sleep(1 * time.Second)
-
-	// Test
-	initTracerState(t, tr)
-	connections := getConnections(t, tr)
-
-	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
-	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
-		Source:           destIP,
-		Dest:             destIP,
-		SPort:            srcPort,
-		DPort:            DestPort,
-		Pid:              uint32(os.Getpid()),
-		NetNS:            ns,
-		Direction:        network.OUTGOING,
-		SPortIsEphemeral: 1,
-		FailureCount:     1,
-		LastErrno:        int32(syscall.ETIMEDOUT),
-	})
-}
-func testTCPFailedConnsClosedDest(t *testing.T) {
-	const destPort = 8000
-	var srcAddr = util.AddressFromString("2.2.2.3")
-	var destAddr = util.AddressFromString("2.2.2.4")
-
-	tr := setupTCPTracer(t)
-	netlinktestutil.SetupVethPair(t)
-
-	sock, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
-	require.NoError(t, err, "could not create socket")
-
-	err = syscall.Connect(sock, &syscall.SockaddrInet4{Port: destPort, Addr: destAddr.As4()})
-	require.ErrorIs(t, err, syscall.ECONNREFUSED)
-
-	_, srcPort := getAddrInfo4(t, sock)
-	ns, _ := util.GetCurrentIno()
-
-	// Wait for the connection to be reported
-	time.Sleep(1 * time.Second)
-
-	// Test
-	initTracerState(t, tr)
-	connections := getConnections(t, tr)
-
-	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
-	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
-		Source:           srcAddr,
-		Dest:             destAddr,
-		SPort:            srcPort,
-		DPort:            destPort,
-		Pid:              uint32(os.Getpid()),
-		NetNS:            ns,
-		Direction:        network.OUTGOING,
-		SPortIsEphemeral: 1,
-		FailureCount:     1,
-		LastErrno:        int32(syscall.ECONNREFUSED),
-	})
-}
-
-func TestTCPFailedConnsReporting(t *testing.T) {
-	t.Run("Client - Timeout", testTCPFailedConnsTimeout)
-	t.Run("Client - Closed dest port", testTCPFailedConnsClosedDest)
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -1974,26 +1880,4 @@ func skipIfWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test unavailable on windows")
 	}
-}
-
-func getAddrInfo4(t *testing.T, sock int) (util.Address, uint16) {
-	sn, err := syscall.Getsockname(sock)
-	require.NoError(t, err)
-
-	local, _ := sn.(*syscall.SockaddrInet4)
-	return util.V4AddressFromBytes(local.Addr[:]), uint16(local.Port)
-}
-
-func setupTCPTracer(t *testing.T) *Tracer {
-	t.Helper()
-
-	config := testConfig()
-	config.CollectTCPConns = true
-	config.EnableRuntimeCompiler = true
-
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	t.Cleanup(tr.Stop)
-
-	return tr
 }
