@@ -137,6 +137,68 @@ func TestRegoCheck(t *testing.T) {
 			},
 		},
 		{
+			name: "status normalization",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				process_data(p) = d {
+					d := {
+						"process.name": p.name,
+						"process.exe": p.exe,
+						"process.cmdLine": p.cmdLine,
+					}
+				}
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					p.flags["--path"] == "foo"
+					f := {
+						"status": "pass",
+						"resource_type": "process",
+						"resource_id": "42",
+						"data": process_data(p),
+					}
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+			},
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"process.name":    "proc1",
+						"process.exe":     "",
+						"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
+					Evaluator: "rego",
+				},
+			},
+		},
+		{
 			name: "failing case",
 			inputs: []compliance.RegoInput{
 				{
