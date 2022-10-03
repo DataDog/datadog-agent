@@ -14,7 +14,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    build_object_files,
+    build_cws_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -322,7 +322,7 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
 ):
-    build_object_files(
+    build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
@@ -697,7 +697,7 @@ def go_generate_check(ctx):
         sys.stderr.flush()
         dirty_files = get_git_dirty_files()
         if dirty_files:
-            failing_tasks.append(FailingTask(task.name, dirty_files))
+            failing_tasks.append(FailingTask(task.__name__, dirty_files))
 
     if failing_tasks:
         for ft in failing_tasks:
@@ -709,9 +709,12 @@ def go_generate_check(ctx):
 
 @task
 def kitchen_prepare(ctx):
+    ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
+
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
-    cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
+    cookbook_files_dir = os.path.join(
+        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
+    )
 
     testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
     build_functional_tests(
@@ -728,8 +731,7 @@ def kitchen_prepare(ctx):
 
     ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    src_path = os.environ.get("SRC_PATH", ".")
-    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+    bytecode_build_dir = os.path.join(ci_project_dir, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")

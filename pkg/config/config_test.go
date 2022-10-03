@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1155,4 +1157,16 @@ network_devices:
 `
 	config = setupConfFromYAML(datadogYaml)
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
+}
+
+func TestPrometheusScrapeChecksTransformer(t *testing.T) {
+	input := `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`
+	expected := []*types.PrometheusCheck{
+		{
+			Instances: []*types.OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
+			AD:        &types.ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &types.InclExcl{Incl: map[string]string{"custom_label": "true"}}},
+		},
+	}
+
+	assert.EqualValues(t, PrometheusScrapeChecksTransformer(input), expected)
 }

@@ -491,7 +491,7 @@ func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
+func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu net.SysProbeUtil) {
 	pStats, err := pu.GetProcStats(pids)
 	if err == nil {
 		for pid, proc := range procs {

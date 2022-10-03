@@ -36,7 +36,8 @@ func TestTagsFromAttributes(t *testing.T) {
 		conventions.AttributeAWSECSClusterARN:      "cluster_arn",
 		"tags.datadoghq.com/service":               "service_name",
 	}
-	attrs := pcommon.NewMapFromRaw(attributeMap)
+	attrs := pcommon.NewMap()
+	attrs.FromRaw(attributeMap)
 
 	assert.ElementsMatch(t, []string{
 		fmt.Sprintf("%s:%s", conventions.AttributeProcessExecutableName, "otelcol"),
@@ -90,24 +91,36 @@ func TestOriginIDFromAttributes(t *testing.T) {
 	}{
 		{
 			name: "pod UID and container ID",
-			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
-				conventions.AttributeContainerID: "container_id_goes_here",
-				conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
-			}),
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerID: "container_id_goes_here",
+					conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
+				})
+				return attributes
+			}(),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only container ID",
-			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
-				conventions.AttributeContainerID: "container_id_goes_here",
-			}),
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerID: "container_id_goes_here",
+				})
+				return attributes
+			}(),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only pod UID",
-			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
-				conventions.AttributeK8SPodUID: "k8s_pod_uid_goes_here",
-			}),
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeK8SPodUID: "k8s_pod_uid_goes_here",
+				})
+				return attributes
+			}(),
 			originID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
 		},
 		{

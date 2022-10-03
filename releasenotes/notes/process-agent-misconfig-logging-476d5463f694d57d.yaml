@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Logs a warning when the process agent cannot read other processes due to misconfiguration.

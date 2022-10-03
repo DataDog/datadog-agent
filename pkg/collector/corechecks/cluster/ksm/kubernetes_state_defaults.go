@@ -105,14 +105,16 @@ func defaultLabelsMapper() map[string]string {
 		"container":                           "kube_container_name",
 		"container_id":                        "container_id",
 		"image":                               "image_name",
-		"label_tags_datadoghq_com_env":        "env",
-		"label_tags_datadoghq_com_service":    "service",
-		"label_tags_datadoghq_com_version":    "version",
 		"label_topology_kubernetes_io_region": "kube_region",
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
 		"ingress": "kube_ingress",
+
+		// Standard Datadog labels
+		"label_tags_datadoghq_com_env":     "env",
+		"label_tags_datadoghq_com_service": "service",
+		"label_tags_datadoghq_com_version": "version",
 
 		// Standard Kubernetes labels
 		"label_app_kubernetes_io_name":       "kube_app_name",
@@ -121,22 +123,30 @@ func defaultLabelsMapper() map[string]string {
 		"label_app_kubernetes_io_component":  "kube_app_component",
 		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
 		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart": "helm_chart",
 	}
 }
 
 // defaultLabelJoins returns a map that contains the default label joins configuration
 func defaultLabelJoins() map[string]*JoinsConfig {
 	defaultStandardLabels := []string{
+		// Standard Datadog labels
 		"label_tags_datadoghq_com_env",
 		"label_tags_datadoghq_com_service",
 		"label_tags_datadoghq_com_version",
 
+		// Standard Kubernetes labels
 		"label_app_kubernetes_io_name",
 		"label_app_kubernetes_io_instance",
 		"label_app_kubernetes_io_version",
 		"label_app_kubernetes_io_component",
 		"label_app_kubernetes_io_part_of",
 		"label_app_kubernetes_io_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart",
 	}
 
 	return map[string]*JoinsConfig{

@@ -213,7 +213,7 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 		},
 	}
 
-	if err := UnstructuredFromWPA(wpa, obj); err != nil {
+	if err := UnstructuredFromAutoscaler(wpa, obj); err != nil {
 		panic("Failed to construct unstructured WPA")
 	}
 

@@ -18,6 +18,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -32,7 +33,12 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		return err
 	}
 
-	co, err := du.InspectSelf(context.TODO())
+	selfContainerID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		return fmt.Errorf("Unable to determine self container id, err: %w", err)
+	}
+
+	co, err := du.Inspect(context.TODO(), selfContainerID, false)
 	if err != nil {
 		return err
 	}

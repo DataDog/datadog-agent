@@ -8,7 +8,6 @@ package asmscan
 import (
 	"debug/elf"
 	"fmt"
-
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 )
@@ -36,12 +35,14 @@ import (
 // - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
 //   (which describes how this approach works as a workaround)
 // - https://github.com/golang/go/issues/22008
-func ScanFunction(textSection *elf.Section, lowPC, highPC uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
+func ScanFunction(textSection *elf.Section, sym elf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
 	// Determine the offset in the section that the function starts at
-	offset := int64(lowPC - textSection.Addr)
+	lowPC := sym.Value
+	highPC := lowPC + sym.Size
+	offset := lowPC - textSection.Addr
 	buf := make([]byte, int(highPC-lowPC))
 
-	readBytes, err := textSection.ReadAt(buf, offset)
+	readBytes, err := textSection.ReadAt(buf, int64(offset))
 	if err != nil {
 		return nil, fmt.Errorf("could not read text section: %w", err)
 	}
@@ -56,7 +57,7 @@ func ScanFunction(textSection *elf.Section, lowPC, highPC uint64, scanInstructio
 	// Add the function lowPC to each index to obtain the actual locations
 	adjustedLocations := make([]uint64, len(instructionIndices))
 	for i, instructionIndex := range instructionIndices {
-		adjustedLocations[i] = instructionIndex + lowPC
+		adjustedLocations[i] = instructionIndex + functionOffset
 	}
 
 	return adjustedLocations, nil

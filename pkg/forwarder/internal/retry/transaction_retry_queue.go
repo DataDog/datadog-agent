@@ -108,6 +108,10 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 		for _, payloads := range payloadsGroupToFlush {
 			if err := tc.optionalSerializer.Serialize(payloads); err != nil {
 				diskErr = multierror.Append(diskErr, err)
+				// Assuming all payloads failed during serialization
+				for _, payload := range payloads {
+					tc.telemetry.addPointDroppedCount(payload.GetPointCount())
+				}
 			}
 		}
 		if diskErr != nil {
@@ -121,6 +125,9 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	inMemTransactionDroppedCount := 0
 	if payloadSizeInBytesToDrop > 0 {
 		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
+		for _, tr := range transactions {
+			tc.telemetry.addPointDroppedCount(tr.GetPointCount())
+		}
 		inMemTransactionDroppedCount = len(transactions)
 		tc.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
 	}

@@ -295,12 +295,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	discarderRevisionsMap, err := p.Map("discarder_revisions")
-	if err != nil {
-		return err
-	}
-
-	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver)
+	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, p.erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -987,8 +982,13 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	activatedProbes = append(activatedProbes, p.selectTCProbes())
 
 	// Add syscall monitor probes
-	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1397,7 +1397,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		erpcRequest:          &ERPCRequest{},
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second), 100),
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		flushingDiscarders:   atomic.NewBool(false),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
@@ -1432,7 +1432,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.config.ActivityDumpCgroupWaitListSize,
+		p.config.ActivityDumpTracedCgroupsCount,
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.config.EventStreamBufferSize),
@@ -1442,9 +1442,14 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
-		// Add syscall monitor probes
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				// Add syscall monitor probes
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
 	}
 
 	p.constantOffsets, err = p.GetOffsetConstants()
@@ -1670,5 +1675,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructProcInum, "struct net", "proc_inum", "net/net_namespace.h")
 	} else {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetStructNS, "struct net", "ns", "net/net_namespace.h")
+	}
+
+	// iouring
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
 }

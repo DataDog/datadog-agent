@@ -170,8 +170,11 @@ var (
 	// Tags: -
 	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
-	// Tags: -
+	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
+	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
+	// Tags: dump_index
+	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
 	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
 	// be sent because they are too big
 	// Tags: format, compression
@@ -200,6 +203,9 @@ var (
 	// MetricPolicy is the name of the metric used to report policy versions
 	// Tags: -
 	MetricPolicy = newRuntimeMetric(".policy")
+	// MetricRuleStatus is the name of the metric used to report the rule status
+	// Tags: -
+	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
 	// Others
 

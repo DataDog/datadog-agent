@@ -96,10 +96,9 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 	}
 
 	var (
-		processes    = map[int32]*model.Process{}
-		containers   = map[string]*model.Container{}
-		pids         []int
-		containerIDs []string
+		processes  = map[int32]*model.Process{}
+		containers = map[string]*model.Container{}
+		pids       []int
 	)
 
 	for _, m := range msgs {
@@ -120,18 +119,21 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 		}
 	}
 
+	containerIDs := make([]string, 0, len(containers))
 	for cid := range containers {
 		containerIDs = append(containerIDs, cid)
 	}
 
 	pidsSorted := sort.IntSlice(pids)
 	pidsSorted.Sort()
+	data.Processes = make([]*model.Process, 0, len(pidsSorted))
 	for _, pid := range pidsSorted {
 		data.Processes = append(data.Processes, processes[int32(pid)])
 	}
 
 	containerIDsSorted := sort.StringSlice(containerIDs)
 	containerIDsSorted.Sort()
+	data.Containers = make([]*model.Container, 0, len(containerIDsSorted))
 	for _, cid := range containerIDsSorted {
 		data.Containers = append(data.Containers, containers[cid])
 	}

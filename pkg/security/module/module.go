@@ -112,7 +112,9 @@ func (m *Module) Init() error {
 	m.apiServer.Start(m.ctx)
 
 	// monitor policies
-	m.policyMonitor.Start(m.ctx)
+	if m.config.PolicyMonitorEnabled {
+		m.policyMonitor.Start(m.ctx)
+	}
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 	m.probe.AddActivityDumpHandler(m)
@@ -306,6 +308,45 @@ func (m *Module) ReloadPolicies() error {
 	return m.LoadPolicies(m.policyProviders, true)
 }
 
+func (m *Module) newRuleOpts() (opts rules.Opts) {
+	opts.
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(m.getEventTypeEnabled()).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLogger(seclog.DefaultLogger)
+	return
+}
+
+func (m *Module) newEvalOpts() (evalOpts eval.Opts) {
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithLegacyFields(model.SECLLegacyFields)
+	return evalOpts
+}
+
+func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*rules.RuleSet, *multierror.Error) {
+	evalOpts := m.newEvalOpts()
+	evalOpts.WithVariables(model.SECLVariables)
+
+	opts := m.newRuleOpts()
+	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+		"process": func() rules.VariableProvider {
+			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+				return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+			}, nil)
+		},
+	})
+
+	// approver ruleset
+	model := &model.Model{}
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	// load policies
+	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+
+	return approverRuleSet, loadApproversErrs
+}
+
 // LoadPolicies loads the policies
 func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
@@ -318,60 +359,40 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	probeVariables := make(map[string]eval.VariableValue, len(model.SECLVariables))
-	for name, value := range model.SECLVariables {
-		probeVariables[name] = value
-	}
-
-	var evalOpts eval.Opts
-	evalOpts.
-		WithConstants(model.SECLConstants).
-		WithVariables(probeVariables).
-		WithLegacyFields(model.SECLLegacyFields)
-
-	var opts rules.Opts
-	opts.
-		WithSupportedDiscarders(sprobe.SupportedDiscarders).
-		WithEventTypeEnabled(m.getEventTypeEnabled()).
-		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-			"process": func() rules.VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
-				}, nil)
-			},
-		}).
-		WithLogger(seclog.DefaultLogger)
-
-	// approver ruleset
-	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
-
-	// switch SECLVariables to use the real Event structure and not the mock model.Event one
-	evalOpts.WithVariables(sprobe.SECLVariables)
-	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
-		"process": m.probe.GetResolvers().ProcessResolver.NewProcessVariables,
-	})
-
-	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
-
 	// load policies
 	m.policyLoader.SetProviders(policyProviders)
 
-	loadErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-	loadApproversErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
-
+	approverRuleSet, loadApproversErrs := m.getApproverRuleset(policyProviders)
 	// non fatal error, just log
-	if loadErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies: %+v", loadErrs)
-	} else if loadApproversErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies for Approvers: %+v", loadApproversErrs)
+	if loadApproversErrs != nil {
+		logLoadingErrors("error while loading policies for approvers: %+v", loadApproversErrs)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
 	if err != nil {
 		return err
+	}
+
+	opts := m.newRuleOpts()
+	opts.
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				scoper := func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer((*sprobe.Event)(ctx.Object).ProcessCacheEntry)
+				}
+				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
+			},
+		})
+
+	evalOpts := m.newEvalOpts()
+	evalOpts.WithVariables(model.SECLVariables)
+
+	// standard ruleset
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
+
+	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
+	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
+		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
 
 	// update current policies related module attributes
@@ -381,7 +402,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	// notify listeners
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet, loadErrs)
+		m.rulesLoaded(ruleSet, loadApproversErrs)
 	}
 
 	// add module as listener for ruleset events
@@ -406,10 +427,10 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if sendLoadedReport {
 		// report that a new policy was loaded
 		monitor := m.probe.GetMonitor()
-		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErrs)
+		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadApproversErrs)
 		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies())
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
 	}
 
 	return nil

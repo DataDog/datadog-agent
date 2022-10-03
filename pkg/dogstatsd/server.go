@@ -157,11 +157,13 @@ type Server struct {
 	// disableVerboseLogs is a feature flag to disable the logs capable
 	// of flooding the logger output (e.g. parsing messages error).
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
-	// package (pkg/trace/logutils) for a possible throttler implemetation.
+	// package (pkg/trace/log/throttled.go) for a possible throttler implementation.
 	disableVerboseLogs bool
 
-	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
-	// to avoid escaping these in the heap in this hot path.
+	// cachedTlmLock must be held when accessing cachedTlmOriginIds and cachedOrder
+	cachedTlmLock sync.Mutex
+	// cachedTlmOriginIds stores per-origin metric parse stats
+	// (when dogstatsd debugging is enabled)
 	cachedTlmOriginIds map[string]cachedTagsOriginMap
 	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
@@ -618,8 +620,17 @@ func (s *Server) errLog(format string, params ...interface{}) {
 }
 
 // createOriginTagMaps  keeps these in a cache to avoid a lot of heap escape
-// that we can't avoid in this hot path
-func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
+// that we can't avoid in this hot path.
+//
+// Returned values are thread safe.
+func (s *Server) createOriginTagMaps(origin string) (okCnt telemetry.SimpleCounter, errorCnt telemetry.SimpleCounter) {
+	s.cachedTlmLock.Lock()
+	defer s.cachedTlmLock.Unlock()
+
+	if maps, ok := s.cachedTlmOriginIds[origin]; ok {
+		return maps.okCnt, maps.errCnt
+	}
+
 	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
 	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
 	okMap["origin"] = origin
@@ -645,7 +656,7 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 		tlmProcessed.DeleteWithTags(pop.err)
 	}
 
-	return maps
+	return maps.okCnt, maps.errCnt
 }
 
 // NOTE(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
@@ -657,13 +668,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && telemetry {
-		var maps cachedTagsOriginMap // errorMap and okMap for this origin
-		var exists bool
-		if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
-			maps = s.createOriginTagMaps(origin)
-		}
-		okCnt = maps.okCnt
-		errorCnt = maps.errCnt
+		okCnt, errorCnt = s.createOriginTagMaps(origin)
 	}
 
 	sample, err := parser.parseMetricSample(message)

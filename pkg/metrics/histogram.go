@@ -163,7 +163,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	}
 
 	// Compute percentiles
-	var target []int64
+	target := make([]int64, 0, len(h.percentiles))
 	for _, percentile := range h.percentiles {
 		target = append(target, (int64(percentile)*h.count-1)/100)
 	}

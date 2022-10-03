@@ -358,13 +358,11 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				}
 				fallthrough
 			case isDigit(tkn.lastChar):
-				kind, tokenBytes := tkn.scanNumber(false)
-				return kind, append([]byte{'-'}, tokenBytes...)
+				return tkn.scanNumber(false)
 			case tkn.lastChar == '.':
 				tkn.advance()
 				if isDigit(tkn.lastChar) {
-					kind, tokenBytes := tkn.scanNumber(true)
-					return kind, append([]byte{'-', '.'}, tokenBytes...)
+					return tkn.scanNumber(true)
 				}
 				tkn.lastChar = '.'
 				tkn.pos--

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -90,10 +90,9 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
-		} else {
-			normalize(policy)
-			policies = append(policies, policy)
 		}
+		normalize(policy)
+		policies = append(policies, policy)
 	}
 
 	return policies, errs

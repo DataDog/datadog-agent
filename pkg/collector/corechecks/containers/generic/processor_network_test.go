@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -34,7 +34,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	// container3 has no namespace information (should report with high tags)
 	// container4 is standalone is a namespace (should report with high tags)
 	// container5 is using host network (should not report at all)
-	container1 := createContainerMeta("docker", "1")
+	container1 := CreateContainerMeta("docker", "1")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container1.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container1"}, nil)
 	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
@@ -55,7 +55,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 		},
 	})
 
-	container2 := createContainerMeta("docker", "2")
+	container2 := CreateContainerMeta("docker", "2")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container2.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container2"}, nil)
 	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
@@ -76,7 +76,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 		},
 	})
 
-	container3 := createContainerMeta("docker", "3")
+	container3 := CreateContainerMeta("docker", "3")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container3.ID), "foo", []string{"low:common"}, []string{"orch:standalone3"}, []string{"id:container3"}, nil)
 	mockCollector.SetContainerEntry(container3.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
@@ -95,7 +95,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 		},
 	})
 
-	container4 := createContainerMeta("docker", "4")
+	container4 := CreateContainerMeta("docker", "4")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container4.ID), "foo", []string{"low:common"}, []string{"orch:standalone4"}, []string{"id:container4"}, nil)
 	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
@@ -116,7 +116,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 		},
 	})
 
-	container5 := createContainerMeta("docker", "5")
+	container5 := CreateContainerMeta("docker", "5")
 	fakeTagger.SetTags(containers.BuildTaggerEntityName(container5.ID), "foo", []string{"low:common"}, []string{"orch:standalone5"}, []string{"id:container5"}, nil)
 	mockCollector.SetContainerEntry(container5.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
