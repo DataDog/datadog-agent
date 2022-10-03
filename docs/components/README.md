@@ -7,3 +7,4 @@
    * [Using Components](./using.md)
    * [Defining Bundles](./defining-bundles.md)
    * [Defining Apps and Binaries](./defining-apps.md)
+   * [Registrations & Subscriptions](./registrations.md)
