@@ -7,13 +7,15 @@ import (
 
 // PortCache TODO
 type PortCache struct {
-	cache *cache.Cache
+	cache             *cache.Cache
+	defaultExpiration time.Duration
 }
 
 // NewCache returns a new instance of evalCache
 func NewCache(defaultExpiration, cleanupInterval time.Duration) *PortCache {
 	return &PortCache{
-		cache: cache.New(defaultExpiration, cleanupInterval),
+		cache:             cache.New(defaultExpiration, cleanupInterval),
+		defaultExpiration: defaultExpiration,
 	}
 }
 
@@ -35,4 +37,11 @@ func (c *PortCache) Get(key string) int8 {
 
 func (c *PortCache) ItemCount() int {
 	return c.cache.ItemCount()
+}
+
+func (c *PortCache) RefreshExpiration(key string) {
+	value, ok := c.cache.Get(key)
+	if ok {
+		c.cache.Set(key, value, cache.DefaultExpiration)
+	}
 }

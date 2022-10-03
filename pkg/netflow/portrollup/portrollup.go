@@ -87,11 +87,14 @@ func (prs *EndpointPairPortRollupStore) AddToStore(sourceAddr []byte, destAddr [
 	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
 	sourceToDestPorts := int(prs.portRollupCache.Get(srcToDestKey))
 	destToSourcePorts := int(prs.portRollupCache.Get(destToSrcKey))
-	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
-		return
+	if sourceToDestPorts >= prs.portRollupThreshold {
+		prs.portRollupCache.RefreshExpiration(srcToDestKey)
+	} else if destToSourcePorts >= prs.portRollupThreshold {
+		prs.portRollupCache.RefreshExpiration(destToSrcKey)
+	} else {
+		prs.portRollupCache.Increment(srcToDestKey)
+		prs.portRollupCache.Increment(destToSrcKey)
 	}
-	prs.portRollupCache.Increment(srcToDestKey)
-	prs.portRollupCache.Increment(destToSrcKey)
 }
 
 // GetPortCount returns max port count and indicate whether the source or destination is ephemeral (isEphemeralSource)
