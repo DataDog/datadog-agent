@@ -102,7 +102,11 @@
 /cmd/agent/subcommands/integrations     @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
+/cmd/agent/subcommands/installsvc       @DataDog/windows-agent
+/cmd/agent/subcommands/removesvc        @DataDog/windows-agent
+/cmd/agent/subcommands/controlsvc       @DataDog/windows-agent
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
+/cmd/agent/windows                      @DataDog/windows-agent
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/*.manifest                   @DataDog/agent-platform
