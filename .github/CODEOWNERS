@@ -154,6 +154,7 @@
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
 # components
+/comp                                   @DataDog/agent-shared-components
 /comp/core/                             @DataDog/agent-shared-components
 
 # pkg
