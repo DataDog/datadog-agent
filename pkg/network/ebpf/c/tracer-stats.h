@@ -99,7 +99,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // initialize-if-no-exist the connetion state, and load it
     tcp_stats_t empty = {};
-    bpf_map_update_elem(&tcp_stats, &(t->cookie), &empty, BPF_NOEXIST);
+    if (bpf_map_update_elem(&tcp_stats, &(t->cookie), &empty, BPF_NOEXIST) == -E2BIG) {
+        increment_telemetry_count(tcp_stats_max_entries_hit);
+    }
 
     tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, &(t->cookie));
     if (val == NULL) {
