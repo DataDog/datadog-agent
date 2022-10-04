@@ -22,6 +22,14 @@ namespace WixSetup
 
         public void OnWixSourceGenerated(XDocument document)
         {
+#if DEBUG
+            // In debug mode, skip generating the file if it
+            // already exists. Delete the file to regenerate it.
+            if (File.Exists(Name))
+            {
+                return;
+            }
+#endif
             var tar = $"{Name}.tar";
 
             using (var outStream = File.Create(tar))

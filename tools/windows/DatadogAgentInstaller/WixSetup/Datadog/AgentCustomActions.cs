@@ -11,8 +11,9 @@ namespace WixSetup.Datadog
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
-
         public ManagedAction DecompressPythonDistributions { get; }
+
+        public ManagedAction ConfigureUser { get; }
 
         public AgentCustomActions()
         {
@@ -76,6 +77,19 @@ namespace WixSetup.Datadog
                 Condition.NOT_Installed & Condition.NOT_BeingRemoved
                 )
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+
+            ConfigureUser = new CustomAction<UserCustomActions>(
+                new Id("ConfigureUser"),
+                UserCustomActions.ConfigureUser,
+                Return.check,
+                When.Before,
+                Step.StartServices,
+                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                )
+                {
+                    Execute = Execute.deferred
+                }
+                .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_DOMAIN=[DDAGENTUSER_DOMAIN], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
         }
     }
 }
