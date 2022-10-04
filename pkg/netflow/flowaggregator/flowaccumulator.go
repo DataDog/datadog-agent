@@ -29,7 +29,7 @@ type flowAccumulator struct {
 	flows map[uint64]flowContext
 	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
 	// are called by different routines.
-	flowsMutex sync.Mutex
+	flowsMutex sync.RWMutex
 
 	flowFlushInterval time.Duration
 	flowContextTTL    time.Duration
@@ -100,9 +100,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	// TODO: better mutex structure
 	aggHash := flowToAdd.AggregationHash()
-	f.flowsMutex.Lock()
+	f.flowsMutex.RLock()
 	_, flowExist := f.flows[aggHash]
-	f.flowsMutex.Unlock()
+	f.flowsMutex.RUnlock()
 
 	if !f.portRollupDisable {
 		// Handle port rollup
@@ -141,8 +141,8 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 }
 
 func (f *flowAccumulator) getFlowContextCount() int {
-	f.flowsMutex.Lock()
-	defer f.flowsMutex.Unlock()
+	f.flowsMutex.RLock()
+	defer f.flowsMutex.RUnlock()
 
 	return len(f.flows)
 }
