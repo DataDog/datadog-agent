@@ -185,6 +185,7 @@ type testOpts struct {
 	disableERPCDentryResolution  bool
 	disableMapDentryResolution   bool
 	envsWithValue                []string
+	disableAbnormalPathCheck     bool
 }
 
 func (s *stringSlice) String() string {
@@ -1277,7 +1278,19 @@ func (tm *testModule) cleanup() {
 	tm.module.Close()
 }
 
+func (tm *testModule) validateAbnormalPaths() {
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
+}
+
 func (tm *testModule) Close() {
+	tm.module.SendStats()
+
+	if !tm.opts.disableAbnormalPathCheck {
+		tm.validateAbnormalPaths()
+	}
+
+	tm.statsdClient.Flush()
+
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
 	}
