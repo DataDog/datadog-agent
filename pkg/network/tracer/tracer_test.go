@@ -131,7 +131,6 @@ func TestGetStats(t *testing.T) {
       "ebpf": {
         "closed_conn_polling_lost": 0,
         "closed_conn_polling_received": 0,
-        "conn_stats_max_entries_hit": 0,
         "missed_tcp_close": 0,
         "missed_udp_close": 0,
         "pid_collisions": 0,
