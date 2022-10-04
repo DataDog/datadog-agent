@@ -6,6 +6,7 @@
 package portrollup
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -105,6 +106,9 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralDestPort(t *testing.
 }
 
 func Test_buildStoreKey(t *testing.T) {
-	assert.Equal(t, "\n\n\n\n\n\n\n\v\x00P", buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 80))
-	assert.Equal(t, "\x01\x02\x03\x04\x05\x06\a\b\x01\xd0", buildStoreKey([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, isDestinationEndpoint, 2000))
+	assert.Equal(t, "\n\n\n\n\n\n\n\v\x00\x00P", buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 80))
+	assert.Equal(t, "\x01\x02\x03\x04\x05\x06\a\b\x01\a\xd0", buildStoreKey([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, isDestinationEndpoint, 2000))
+
+	key := buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 65535)
+	assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 11111111 11111111]", fmt.Sprintf("%08b", []byte(key)))
 }

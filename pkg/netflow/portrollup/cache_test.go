@@ -54,13 +54,30 @@ func TestPortCache_Scenario(t *testing.T) {
 	assert.Equal(t, uint8(2), cache.Get("entry1"))
 	assert.Equal(t, uint8(6), cache.items["entry1"].ExpirationMinFromLastCheck)
 
-	//// cleanup at t4
-	//timeNow = func() time.Time {
-	//	return MockTimeNow().Add(4 * time.Minute)
-	//}
-	//cache.Increment("entry1")
-	//assert.Equal(t, uint8(2), cache.Get("entry1"))
-	//assert.Equal(t, uint8(6), cache.items["entry1"].ExpirationMinFromLastCheck)
+	// nothing to delete at t4
+	timeNow = func() time.Time {
+		return MockTimeNow().Add(4 * time.Minute)
+	}
+	cache.DeleteAllExpired()
+	assert.Equal(t, 2, cache.ItemCount())
+
+	// delete entry2 at t5
+	timeNow = func() time.Time {
+		return MockTimeNow().Add(5 * time.Minute)
+	}
+	cache.DeleteAllExpired()
+	assert.Equal(t, 1, cache.ItemCount())
+	assert.Equal(t, uint8(2), cache.Get("entry1"))
+	assert.Equal(t, uint8(6), cache.items["entry1"].ExpirationMinFromLastCheck)
+	assert.Equal(t, uint8(0), cache.Get("entry2"))
+
+	// delete entry1 at t6
+	timeNow = func() time.Time {
+		return MockTimeNow().Add(6 * time.Minute)
+	}
+	cache.DeleteAllExpired()
+	assert.Equal(t, 0, cache.ItemCount())
+	assert.Equal(t, uint8(0), cache.Get("entry2"))
 
 }
 

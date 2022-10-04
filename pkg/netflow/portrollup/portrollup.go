@@ -87,8 +87,10 @@ func (prs *EndpointPairPortRollupStore) AddToStore(sourceAddr []byte, destAddr [
 	sourceToDestPorts := int(prs.portRollupCache.Get(srcToDestKey))
 	destToSourcePorts := int(prs.portRollupCache.Get(destToSrcKey))
 	if sourceToDestPorts >= prs.portRollupThreshold {
+		// TODO: TESTME
 		prs.portRollupCache.RefreshExpiration(srcToDestKey)
 	} else if destToSourcePorts >= prs.portRollupThreshold {
+		// TODO: TESTME
 		prs.portRollupCache.RefreshExpiration(destToSrcKey)
 	} else {
 		prs.portRollupCache.Increment(srcToDestKey)
@@ -150,10 +152,10 @@ func (prs *EndpointPairPortRollupStore) GetCurStoreLen() int {
 }
 
 func (prs *EndpointPairPortRollupStore) CleanExpired() {
-
+	prs.portRollupCache.DeleteAllExpired()
 }
 
 func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {
-	// TODO: encode endpointT and port into a single byte
-	return string(sourceAddr) + string(destAddr) + string([]byte{byte(int(endpointT))}) + string([]byte{byte(int(port))})
+	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
+	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1}) + string([]byte{portPart2})
 }
