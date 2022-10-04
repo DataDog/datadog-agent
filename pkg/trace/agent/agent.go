@@ -31,6 +31,12 @@ const (
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
+
+	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
+	manualSampling = "-4"
+
+	// tagDecisionMaker specifies the sampling decision maker
+	tagDecisionMaker = "_dd.p.dm"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -436,6 +442,17 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
+func isManualUserDrop(priority sampler.SamplingPriority, pt traceutil.ProcessedTrace) bool {
+	if priority != sampler.PriorityUserDrop {
+		return false
+	}
+	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
+	if !hasDm {
+		return false
+	}
+	return dm == manualSampling
+}
+
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
@@ -446,7 +463,7 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 		ts.TracesPriorityNone.Inc()
 	}
 
-	if priority < 0 {
+	if isManualUserDrop(priority, pt) {
 		return 0, false, nil
 	}
 

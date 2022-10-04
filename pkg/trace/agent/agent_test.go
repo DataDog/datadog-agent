@@ -940,6 +940,58 @@ func TestSampling(t *testing.T) {
 	}
 }
 
+func TestSample(t *testing.T) {
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10}
+	a := &Agent{
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		EventProcessor:    newEventProcessor(cfg),
+		conf:              cfg,
+	}
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority) traceutil.ProcessedTrace {
+		root := &pb.Span{
+			Service:  "serv1",
+			Start:    time.Now().UnixNano(),
+			Duration: (100 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_top_level": 1},
+			Error:    1,
+			Meta:     map[string]string{},
+		}
+		if decisionMaker != "" {
+			root.Meta["_dd.p.dm"] = decisionMaker
+		}
+		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt.TraceChunk.Priority = int32(priority)
+		return pt
+	}
+	type samplingTestCase struct {
+		trace       traceutil.ProcessedTrace
+		wantSampled bool
+	}
+	for name, tt := range map[string]samplingTestCase{
+		"userdrop-error-no-dm-sampled": {
+			trace:       genSpan("", sampler.PriorityUserDrop),
+			wantSampled: true,
+		},
+		"userdrop-error-manual-dm-unsampled": {
+			trace:       genSpan("-4", sampler.PriorityUserDrop),
+			wantSampled: false,
+		},
+		"userdrop-error-agent-dm-unsampled": {
+			trace:       genSpan("-1", sampler.PriorityUserDrop),
+			wantSampled: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
+			assert.Equal(t, tt.wantSampled, keep)
+		})
+
+	}
+}
+
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
