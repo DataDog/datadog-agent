@@ -1912,7 +1912,7 @@ func TestOpenSSLVersions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer closer()
-	
+
 	client, requestFn := simpleGetRequestsGenerator(t, addr)
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
