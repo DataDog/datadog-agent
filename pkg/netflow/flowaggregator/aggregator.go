@@ -149,7 +149,7 @@ func (agg *FlowAggregator) rollupTrackersRefresh() {
 	lenBefore := agg.flowAcc.portRollup.GetRollupTrackerCacheSize()
 	//agg.sender.Gauge("datadog.netflow.rollup.refresh", 1, "", nil)
 	start := time.Now()
-	agg.flowAcc.portRollup.CleanExpired()
+	agg.flowAcc.portRollup.DeleteAllExpired()
 	durationMs := time.Since(start).Milliseconds()
 
 	lenAfter := agg.flowAcc.portRollup.GetRollupTrackerCacheSize()

@@ -12,8 +12,8 @@ import (
 // EphemeralPort port number is represented by `-1` internally
 const EphemeralPort int32 = -1
 
-// defaultPortRollupCacheEntryExpirationMin default expiration for rollup cache entry in minute
-const defaultPortRollupCacheEntryExpirationMin uint8 = 5
+// defaultPortRollupCacheEntryExpiration default expiration for rollup cache entry in minute
+const defaultPortRollupCacheEntryExpiration int = 300
 
 // IsEphemeralStatus enum type
 type IsEphemeralStatus int32
@@ -46,7 +46,7 @@ type EndpointPairPortRollupStore struct {
 // NewEndpointPairPortRollupStore create a new *EndpointPairPortRollupStore
 func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRollupStore {
 	return &EndpointPairPortRollupStore{
-		portRollupCache:     NewCache(defaultPortRollupCacheEntryExpirationMin),
+		portRollupCache:     NewCache(defaultPortRollupCacheEntryExpiration),
 		portRollupThreshold: portRollupThreshold,
 	}
 }
@@ -122,8 +122,8 @@ func (prs *EndpointPairPortRollupStore) GetRollupTrackerCacheSize() int {
 	return prs.portRollupCache.ItemCount()
 }
 
-// CleanExpired clean expired cache entries
-func (prs *EndpointPairPortRollupStore) CleanExpired() {
+// DeleteAllExpired clean expired cache entries
+func (prs *EndpointPairPortRollupStore) DeleteAllExpired() {
 	prs.portRollupCache.DeleteAllExpired()
 }
 
