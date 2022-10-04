@@ -530,12 +530,12 @@ ENV DOCKER_DD_AGENT=yes
 RUN dpkg --add-architecture i386
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
+RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"
