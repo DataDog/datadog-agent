@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
@@ -276,9 +277,6 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
-	if p.config.AgentMonitoringEvents {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
-	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -955,11 +953,11 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
+func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) || p.isNeededForActivityDump(eventType) {
+		if eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -1014,7 +1012,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}
 
 	enabledEvents := uint64(0)
-	for _, eventName := range rs.GetEventTypes() {
+	for _, eventName := range eventTypes {
 		if eventName != "*" {
 			eventType := model.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
