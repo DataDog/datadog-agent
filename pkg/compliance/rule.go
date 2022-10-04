@@ -25,11 +25,12 @@ type RuleCommon struct {
 
 // RegoRule defines a rule in a compliance config
 type RegoRule struct {
-	RuleCommon `yaml:",inline"`
-	Inputs     []RegoInput `yaml:"input,omitempty"`
-	Module     string      `yaml:"module,omitempty"`
-	Imports    []string    `yaml:"imports,omitempty"`
-	Findings   string      `yaml:"findings,omitempty"`
+	RuleCommon     `yaml:",inline"`
+	Inputs         []RegoInput `yaml:"input,omitempty"`
+	Module         string      `yaml:"module,omitempty"`
+	Imports        []string    `yaml:"imports,omitempty"`
+	Findings       string      `yaml:"findings,omitempty"`
+	SyntaxRevision int         `yaml:"revision"`
 }
 
 // ResourceCount returns the count of resources
