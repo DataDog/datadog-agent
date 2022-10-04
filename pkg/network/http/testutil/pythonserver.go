@@ -34,7 +34,6 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         status_code = int(self.path.split("/")[1])
         self.send_response(status_code)
-        self.send_header('Connection', '%s')
         self.send_header('Content-type', 'application/octet-stream')
         self.send_header('Content-Length', '0')
         self.end_headers()
@@ -70,14 +69,10 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error
 		})
 	}
 
-	connectionHeaderValue := "close"
-	if options.EnableKeepAlives {
-		connectionHeaderValue = "keep-alive"
-	}
 	curDir, _ := CurDir()
 	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 	keyPath := filepath.Join(curDir, "testdata/server.key")
-	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, connectionHeaderValue, host, port, crtPath, keyPath)
+	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, host, port, crtPath, keyPath)
 	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
 	defer scriptFile.Close()
