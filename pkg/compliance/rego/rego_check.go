@@ -128,12 +128,31 @@ func importRuleModules(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([
 	return options, nil
 }
 
+func computeRuleQuery(rule *compliance.RegoRule, modPackagePath string) string {
+	if rule.Findings != "" {
+		return rule.Findings
+	}
+
+	var findingsName string
+	if rule.SyntaxRevision >= 2 {
+		findingsName = "results"
+	} else {
+		findingsName = "findings"
+	}
+
+	if modPackagePath == "" {
+		modPackagePath = "data.datadog"
+	}
+
+	return fmt.Sprintf("%s.%s", modPackagePath, findingsName)
+}
+
 func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), string, error) {
 	var options []func(*rego.Rego)
 
 	options = append(options, rego.Module("datadog_helpers.rego", helpers))
 
-	query := rule.Findings
+	var modPackagePath string
 
 	if rule.Module != "" {
 		mod, err := ast.ParseModule(fmt.Sprintf("__gen__rule_%s.rego", rule.ID), rule.Module)
@@ -143,15 +162,11 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 
 		options = append(options, rego.ParsedModule(mod))
 
-		if query == "" {
-			query = fmt.Sprintf("%v.findings", mod.Package.Path)
-		}
+		modPackagePath = fmt.Sprintf("%v.findings", mod.Package.Path)
 	}
 
-	if query == "" {
-		query = "data.datadog.findings"
-		log.Infof("defaulting rego query to `%s`", query)
-	}
+	query := computeRuleQuery(rule, modPackagePath)
+	log.Infof("rego query set to `%s`", query)
 
 	ruleModules, err := importRuleModules(rule, meta)
 	if err != nil {
@@ -169,7 +184,7 @@ func computeRuleTransform(rule *compliance.RegoRule, res compliance.RegoInput, m
 	input := res.Transform
 	if !strings.HasSuffix(input, "package ") {
 		input = `package datadog
-				
+
 		import data.datadog as dd
 		import data.helpers as h
 		import future.keywords.if
