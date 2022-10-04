@@ -1890,7 +1890,7 @@ var (
 
 const (
 	numberOfRequests      = 100
-	numberOfIterations    = 100
+	numberOfIterations    = 200
 	pythonSSLServerFormat = `import http.server, ssl
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
@@ -1900,7 +1900,8 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         status_code = int(self.path.split("/")[1])
         self.send_response(status_code)
-        self.send_header('Connection', 'close')
+        self.send_header('Content-type', 'application/octet-stream')
+        self.send_header('Content-Length', '0')
         self.end_headers()
 
 server_address = ('127.0.0.1', 8001)
@@ -1910,7 +1911,10 @@ httpd.socket = ssl.wrap_socket(httpd.socket,
                                certfile='%s',
                                keyfile='%s',
                                ssl_version=ssl.PROTOCOL_TLS)
-httpd.serve_forever()
+try:
+    httpd.serve_forever()
+finally:
+    httpd.shutdown()
 `
 )
 
@@ -1956,12 +1960,13 @@ func TestOpenSSLVersions(t *testing.T) {
 	rawConnect(portCtx, t, "127.0.0.1", "8001")
 	cancelPortCtx()
 
-	requestFn := simpleGetRequestsGenerator(t, "127.0.0.1:8001")
+	client, requestFn := simpleGetRequestsGenerator(t, "127.0.0.1:8001")
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
 
+	client.CloseIdleConnections()
 	assertAllRequestsExists(t, tr, requests)
 }
 
@@ -2002,18 +2007,19 @@ var (
 	statusCodes = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
 
-func simpleGetRequestsGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
+func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Client, func() *nethttp.Request) {
 	var (
 		random = rand.New(rand.NewSource(time.Now().Unix()))
 		idx    = 0
-		client = new(nethttp.Client)
+		client = &nethttp.Client{}
 	)
 
-	return func() *nethttp.Request {
+	return client, func() *nethttp.Request {
 		idx++
 		status := statusCodes[random.Intn(len(statusCodes))]
 		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", targetAddr, status, idx), nil)
 		require.NoError(t, err)
+
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, status, resp.StatusCode)
@@ -2026,14 +2032,17 @@ func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.R
 	requestsExist := make([]bool, len(requests))
 	for i := 0; i < numberOfIterations; i++ {
 		// Giving the kernel some time to flush entries from the kernel to the user mode.
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 		conns := getConnections(t, tracer)
 
 		if len(conns.HTTP) == 0 {
 			continue
 		}
+
 		for reqIndex, req := range requests {
-			requestsExist[reqIndex] = requestsExist[reqIndex] || isRequestIncluded(conns.HTTP, req)
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
 		}
 
 		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
