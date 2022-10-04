@@ -392,8 +392,7 @@ func TestConnectionExpirationRegression(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	state := setupDNAT(t)
-	t.Cleanup(func() { teardownDNAT(t, state) })
+	setupDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -449,8 +448,7 @@ func TestConntrackExpiration(t *testing.T) {
 // This test ensures that conntrack lookups are retried for short-lived
 // connections when the first lookup fails
 func TestConntrackDelays(t *testing.T) {
-	state := setupDNAT(t)
-	t.Cleanup(func() { teardownDNAT(t, state) })
+	setupDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -491,8 +489,7 @@ func TestConntrackDelays(t *testing.T) {
 }
 
 func TestTranslationBindingRegression(t *testing.T) {
-	state := setupDNAT(t)
-	t.Cleanup(func() { teardownDNAT(t, state) })
+	setupDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -971,8 +968,8 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 
 func TestDNATIntraHostIntegration(t *testing.T) {
 	t.SkipNow()
-	state := setupDNAT(t)
-	t.Cleanup(func() { teardownDNAT(t, state) })
+
+	setupDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -1379,13 +1376,14 @@ func iptablesWrapper(t *testing.T, f func()) {
 	f()
 }
 
-func setupDNAT(t *testing.T) []byte {
+func setupDNAT(t *testing.T) {
 	if _, err := exec.LookPath("conntrack"); err != nil {
 		t.Errorf("conntrack not found in PATH: %s", err)
-		return nil
+		return
 	}
 
 	state := testutil.IptablesSave(t)
+	t.Cleanup(func() { teardownDNAT(t, state) })
 	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
 	cmds := []string{
 		"ip link add dummy1 type dummy",
@@ -1394,8 +1392,6 @@ func setupDNAT(t *testing.T) []byte {
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
 	testutil.RunCommands(t, cmds, false)
-
-	return state
 }
 
 func teardownDNAT(t *testing.T, state []byte) {
