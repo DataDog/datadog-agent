@@ -7,7 +7,7 @@ For example, the `comp/core/health` component monitors the health of many other 
 
 The convention in the Agent codebase is to use [value groups](./fx.md#value-groups) to accomplish this.
 The _collecting_ component requires a slice of some _collected type_, and the _providing_ components provide values of that type.
-Consider a simple case of an HTTP server component to which endpoints can be attached.
+Consider an example case of an HTTP server component to which endpoints can be attached.
 The server is the collecting component, requiring a slice of type `[]*endpoint`, where `*endpoint` is the collected type.
 Providing components provide values of type `*endpoint`.
 
@@ -132,7 +132,7 @@ func (l *listener) run() {
 }
 ```
 
-If a receiving component decides it does not want to subscribe after all (such as, if it is not started), it can return the zero value, `subscriptions.Subscription[Event]{}`, from its constructor.
-If a component returns a non-nil subscriber, though, then it _must_ consume messages from the receiver or risk blocking the transmitter.
+If a receiving component does not subscribe (for example, if it is not started), it can return the zero value, `subscriptions.Subscription[Event]{}`, from its constructor.
+If a component returns a non-nil subscriber, it _must_ consume messages from the receiver or risk blocking the transmitter.
 
 See the `pkg/util/subscriptions` documentation for more details.
