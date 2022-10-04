@@ -501,6 +501,7 @@ def kitchen_functional_tests(
 def docker_functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
@@ -518,6 +519,7 @@ def docker_functional_tests(
         bundle_ebpf=bundle_ebpf,
         static=True,
         skip_linters=skip_linters,
+        race=race,
         kernel_release=kernel_release,
     )
 
