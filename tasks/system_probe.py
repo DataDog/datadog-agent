@@ -575,7 +575,7 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 @task
 def kitchen_genconfig(
-        ctx, platform, osversions, ssh_key=None, image_size=None, provider="azure", arch=None, azure_sub_id=None
+    ctx, platform, osversions, ssh_key=None, image_size=None, provider="azure", arch=None, azure_sub_id=None
 ):
     if not arch:
         arch = CURRENT_ARCH
