@@ -171,10 +171,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
