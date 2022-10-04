@@ -377,7 +377,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
+	matchedClientConfigs, err := executeTracerPredicates(request.Client, directorTargets)
 	if err != nil {
 		return nil, err
 	}

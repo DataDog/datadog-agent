@@ -597,12 +597,11 @@ func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = ByteOrder.Uint32(data[0:4])
-	e.DiscarderRevision = ByteOrder.Uint32(data[4:8])
 
 	return 8, nil
 }

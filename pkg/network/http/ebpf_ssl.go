@@ -21,6 +21,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -239,7 +240,7 @@ type sslProgram struct {
 	sockFDMap   *ebpf.Map
 	perfHandler *ddebpf.PerfHandler
 	watcher     *soWatcher
-	manager     *manager.Manager
+	manager     *errtelemetry.Manager
 }
 
 var _ subprogram = &sslProgram{}
@@ -256,7 +257,7 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
 	}, nil
 }
 
-func (o *sslProgram) ConfigureManager(m *manager.Manager) {
+func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	if o == nil {
 		return
 	}
@@ -358,7 +359,7 @@ func (o *sslProgram) Stop() {
 	o.perfHandler.Stop()
 }
 
-func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) error {
+func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
 
@@ -388,7 +389,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 				}
 				_ = m.AddHook("", newProbe)
 			}
-			if err := singleProbe.RunValidator(m); err != nil {
+			if err := singleProbe.RunValidator(m.Manager); err != nil {
 				return err
 			}
 		}
@@ -397,7 +398,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) 
 	}
 }
 
-func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(string) error {
+func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
 		for _, singleProbe := range probes {
@@ -435,4 +436,30 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
+}
+
+func (o *sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	var probeList []manager.ProbeIdentificationPair
+
+	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
+		for _, singleProbe := range sslProbeList {
+			for _, identifier := range singleProbe.GetProbesIdentificationPairList() {
+				probeList = append(probeList, manager.ProbeIdentificationPair{
+					EBPFSection:  identifier.EBPFSection,
+					EBPFFuncName: identifier.EBPFFuncName,
+				})
+			}
+		}
+	}
+
+	for _, hook := range []ebpfSectionFunction{doSysOpen, doSysOpenAt2} {
+		for _, kprobe := range kprobeKretprobePrefix {
+			probeList = append(probeList, manager.ProbeIdentificationPair{
+				EBPFSection:  kprobe + "/" + hook.section,
+				EBPFFuncName: kprobe + "__" + hook.function,
+			})
+		}
+	}
+
+	return probeList
 }

@@ -9,6 +9,7 @@
 package testutil
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -54,7 +55,11 @@ func StartServerTCP(t *testing.T, ip net.IP, port int) io.Closer {
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				return
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
+				t.Logf("accept error: %s", err)
+				continue
 			}
 
 			_, _ = conn.Write([]byte("hello"))
