@@ -11,9 +11,9 @@
 
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
-    bpf_probe_read_kernel(&sport, sizeof(sport), &skp->sk_num);
+    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), &skp->sk_num);
     if (sport == 0) {
-        bpf_probe_read_kernel(&sport, sizeof(sport), &inet_sk(skp)->inet_sport);
+        bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), &inet_sk(skp)->inet_sport);
         sport = bpf_ntohs(sport);
     }
     return sport;
@@ -31,16 +31,16 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     // sends
     t->netns = get_netns(&skp->sk_net);
     u16 family = 0;
-    bpf_probe_read_kernel(&family, sizeof(family), &skp->sk_family);
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), &skp->sk_family);
 
     // Retrieve addresses
     if (family == AF_INET) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
-            bpf_probe_read_kernel(&t->saddr_l, sizeof(__be32), &skp->sk_rcv_saddr);
+            bpf_probe_read_kernel_with_telemetry(&t->saddr_l, sizeof(__be32), &skp->sk_rcv_saddr);
         }
         if (t->daddr_l == 0) {
-            bpf_probe_read_kernel(&t->daddr_l, sizeof(__be32), &skp->sk_daddr);
+            bpf_probe_read_kernel_with_telemetry(&t->daddr_l, sizeof(__be32), &skp->sk_daddr);
         }
 
         if (!t->saddr_l || !t->daddr_l) {
@@ -90,7 +90,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         t->sport = read_sport(skp);
     }
     if (t->dport == 0) {
-        bpf_probe_read_kernel(&t->dport, sizeof(t->dport), &skp->sk_dport);
+        bpf_probe_read_kernel_with_telemetry(&t->dport, sizeof(t->dport), &skp->sk_dport);
         t->dport = bpf_ntohs(t->dport);
     }
 
