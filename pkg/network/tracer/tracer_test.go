@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,7 +22,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -1884,38 +1882,9 @@ func skipIfWindows(t *testing.T) {
 	}
 }
 
-var (
-	disableTLSVerification = sync.Once{}
-)
-
 const (
-	numberOfRequests      = 100
-	numberOfIterations    = 200
-	pythonSSLServerFormat = `import http.server, ssl
-
-class RequestHandler(http.server.BaseHTTPRequestHandler):
-    protocol_version = 'HTTP/1.1'
-    daemon_threads = True
-
-    def do_GET(self):
-        status_code = int(self.path.split("/")[1])
-        self.send_response(status_code)
-        self.send_header('Content-type', 'application/octet-stream')
-        self.send_header('Content-Length', '0')
-        self.end_headers()
-
-server_address = ('127.0.0.1', 8001)
-httpd = http.server.HTTPServer(server_address, RequestHandler)
-httpd.socket = ssl.wrap_socket(httpd.socket,
-                               server_side=True,
-                               certfile='%s',
-                               keyfile='%s',
-                               ssl_version=ssl.PROTOCOL_TLS)
-try:
-    httpd.serve_forever()
-finally:
-    httpd.shutdown()
-`
+	numberOfRequests   = 100
+	numberOfIterations = 200
 )
 
 // TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
@@ -1928,24 +1897,12 @@ func TestOpenSSLVersions(t *testing.T) {
 		t.Skip("HTTPS feature not available supported for this setup")
 	}
 
-	disableTLSVerification.Do(func() {
-		nethttp.DefaultTransport.(*nethttp.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	addr := "127.0.0.1:8001"
+	closer, err := testutil.HTTPPythonServer(t, addr, testutil.Options{
+		EnableTLS: true,
 	})
-	curDir, _ := testutil.CurDir()
-	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
-	keyPath := filepath.Join(curDir, "testdata/server.key")
-	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, crtPath, keyPath)
-	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
-	defer scriptFile.Close()
-
-	cmd := exec.Command("python3", scriptFile.Name())
-	go require.NoError(t, cmd.Start())
-	defer func() {
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-	}()
+	defer closer()
 
 	cfg := testConfig()
 	cfg.EnableHTTPSMonitoring = true
@@ -1955,12 +1912,7 @@ func TestOpenSSLVersions(t *testing.T) {
 	initTracerState(t, tr)
 	defer tr.Stop()
 
-	// Waiting for the server to be ready
-	portCtx, cancelPortCtx := context.WithDeadline(context.Background(), time.Now().Add(time.Second*5))
-	rawConnect(portCtx, t, "127.0.0.1", "8001")
-	cancelPortCtx()
-
-	client, requestFn := simpleGetRequestsGenerator(t, "127.0.0.1:8001")
+	client, requestFn := simpleGetRequestsGenerator(t, addr)
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
@@ -1968,39 +1920,6 @@ func TestOpenSSLVersions(t *testing.T) {
 
 	client.CloseIdleConnections()
 	assertAllRequestsExists(t, tr, requests)
-}
-
-func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := ioutil.TempFile("", pattern)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(content); err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
-
-func rawConnect(ctx context.Context, t *testing.T, host string, port string) {
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatalf("failed connecting to %s:%s", host, port)
-		default:
-			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), time.Second)
-			if err != nil {
-				continue
-			}
-			if conn != nil {
-				conn.Close()
-				return
-			}
-		}
-	}
-
 }
 
 var (
@@ -2061,7 +1980,7 @@ func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.R
 
 	// If we reach here, it means that at least one req is missing, so we want to tell who is missing.
 	for reqIndex, exists := range requestsExist {
-		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex, requests[reqIndex])
+		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
 	}
 }
 
