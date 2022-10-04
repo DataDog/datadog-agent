@@ -9,6 +9,7 @@
 enum erpc_op {
     UNKNOWN_OP,
     DISCARD_INODE_OP,
+    DISCARD_PARENT_INODE_OP,
     DISCARD_PID_OP,
     RESOLVE_SEGMENT_OP,
     RESOLVE_PATH_OP,
@@ -16,18 +17,6 @@ enum erpc_op {
     REGISTER_SPAN_TLS_OP, // can be used outside of the CWS, do not change the value
     EXPIRE_INODE_DISCARDER_OP,
     EXPIRE_PID_DISCARDER_OP
-};
-
-struct discard_request_t {
-    u64 event_type;
-    u64 timeout;
-};
-
-struct discard_inode_t {
-    struct discard_request_t req;
-    u64 inode;
-    u32 mount_id;
-    u32 is_leaf;
 };
 
 struct expire_inode_discarder_t {
@@ -55,8 +44,17 @@ int __attribute__((always_inline)) handle_discard_inode(void *data) {
 
     struct discard_inode_t discarder;
     bpf_probe_read(&discarder, sizeof(discarder), data);
+    return discard_inode(&discarder);
+}
 
-    return discard_inode(discarder.req.event_type, discarder.mount_id, discarder.inode, discarder.req.timeout, discarder.is_leaf);
+int __attribute__((always_inline)) handle_discard_parent_inode(void *data) {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    struct discard_inode_t discarder;
+    bpf_probe_read(&discarder, sizeof(discarder), data);
+    return discard_parent_inode(&discarder);
 }
 
 int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
@@ -131,6 +129,8 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
         switch (op) {
             case DISCARD_INODE_OP:
                 return handle_discard_inode(data);
+            case DISCARD_PARENT_INODE_OP:
+                return handle_discard_parent_inode(data);
             case DISCARD_PID_OP:
                 return handle_discard_pid(data);
         }

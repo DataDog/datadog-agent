@@ -176,6 +176,15 @@ struct inode_discarder_params_t {
     u32 revision;
 };
 
+struct bpf_map_def SEC("maps/inode_parent_discarders") inode_parent_discarders = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(struct inode_discarder_t),
+    .value_size = sizeof(struct inode_discarder_params_t),
+    .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct inode_discarder_t),
@@ -185,24 +194,24 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .namespace = "",
 };
 
-int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
-    if (!mount_id || !inode) {
+int __attribute__((always_inline)) discard_inode_map(struct bpf_map_def* map, struct discard_inode_t* discarder) {
+    if (!discarder || !discarder->mount_id || !discarder->inode) {
         return 0;
     }
 
     struct inode_discarder_t key = {
         .path_key = {
-            .ino = inode,
-            .mount_id = mount_id,
+            .ino = discarder->inode,
+            .mount_id = discarder->mount_id,
         },
-        .is_leaf = is_leaf,
+        .is_leaf = discarder->is_leaf,
     };
 
     u64 *discarder_timestamp;
-    u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
-    int revision = get_inode_discarder_revision(mount_id);
+    u64 timestamp = discarder->req.timeout ? bpf_ktime_get_ns() + discarder->req.timeout : 0;
+    int revision = get_inode_discarder_revision(discarder->mount_id);
 
-    struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
+    struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(map, &key);
     if (inode_params) {
         u64 tm = bpf_ktime_get_ns();
         if (inode_params->params.is_retained && inode_params->params.expire_at < tm) {
@@ -214,9 +223,9 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
                 inode_params->params.event_mask = 0;
                 inode_params->revision = revision;
             }
-            add_event_to_mask(&inode_params->params.event_mask, event_type);
+            add_event_to_mask(&inode_params->params.event_mask, discarder->req.event_type);
 
-            if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
+            if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, discarder->req.event_type)) != NULL) {
                 *discarder_timestamp = timestamp;
             }
         }
@@ -224,17 +233,25 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
         struct inode_discarder_params_t new_inode_params = {
             .revision = revision,
         };
-        add_event_to_mask(&new_inode_params.params.event_mask, event_type);
+        add_event_to_mask(&new_inode_params.params.event_mask, discarder->req.event_type);
 
-        if ((discarder_timestamp = get_discarder_timestamp(&new_inode_params.params, event_type)) != NULL) {
+        if ((discarder_timestamp = get_discarder_timestamp(&new_inode_params.params, discarder->req.event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
-        bpf_map_update_elem(&inode_discarders, &key, &new_inode_params, BPF_NOEXIST);
+        bpf_map_update_elem(map, &key, &new_inode_params, BPF_NOEXIST);
     }
 
-    monitor_discarder_added(event_type);
+    monitor_discarder_added(discarder->req.event_type);
 
     return 0;
+}
+
+int __attribute__((always_inline)) discard_inode(struct discard_inode_t* discarder) {
+    return discard_inode_map(&inode_discarders, discarder);
+}
+
+int __attribute__((always_inline)) discard_parent_inode(struct discard_inode_t* discarder) {
+    return discard_inode_map(&inode_parent_discarders, discarder);
 }
 
 typedef enum discard_check_state {
@@ -243,10 +260,10 @@ typedef enum discard_check_state {
     SAVED_BY_AD,
 } discard_check_state;
 
-discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+discard_check_state __attribute__((always_inline)) is_discarded_by_inode_map(struct bpf_map_def *discarder_map, struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(discarder_map, &key, params->discarder_type, params->now);
     if (!inode_params) {
         return NOT_DISCARDED;
     }
@@ -262,6 +279,12 @@ discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct 
         return SAVED_BY_AD;
     }
     return DISCARDED;
+}
+
+discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+    if (params->discarder.is_leaf)
+        return is_discarded_by_inode_map(&inode_discarders, params);
+    return is_discarded_by_inode_map(&inode_parent_discarders, params);
 }
 
 void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
@@ -294,6 +317,15 @@ void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 in
         key.is_leaf = i;
 
         struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
+        if (inode_params) {
+            inode_params->params.is_retained = 1;
+            inode_params->params.expire_at = expire_at;
+        } else {
+            // add a retention anyway
+            bpf_map_update_elem(&inode_discarders, &key, &new_inode_params, BPF_NOEXIST);
+        }
+        /* do the same for parent discarders */
+        inode_params = bpf_map_lookup_elem(&inode_parent_discarders, &key);
         if (inode_params) {
             inode_params->params.is_retained = 1;
             inode_params->params.expire_at = expire_at;

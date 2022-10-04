@@ -661,4 +661,21 @@ struct namespaced_flow_t {
     u32 netns;
 };
 
+/* ERPC SECTION */
+
+struct discard_request_t {
+    u64 event_type;
+    u64 timeout;
+};
+
+struct discard_inode_t {
+    struct discard_request_t req;
+    u64 inode;
+    u32 mount_id;
+    u32 is_leaf;
+};
+
+/* /ERPC SECTION */
+
+
 #endif

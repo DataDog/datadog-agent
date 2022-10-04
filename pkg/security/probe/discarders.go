@@ -228,18 +228,28 @@ func (id *inodeDiscarders) recentlyAdded(mountID uint32, inode uint64, timestamp
 	entry.Timestamp = timestamp
 }
 
-func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
+func prepareDiscardInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) {
 	var isLeafInt uint32
 	if isLeaf {
 		isLeafInt = 1
 	}
 
-	req.OP = DiscardInodeOp
-
 	offset := marshalDiscardHeader(req, eventType, 0)
 	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
 	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+}
+
+func (id *inodeDiscarders) pushDiscardInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64) error {
+	prepareDiscardInode(req, eventType, mountID, inode, true)
+	req.OP = DiscardInodeOp
+
+	return id.erpc.Request(req)
+}
+
+func (id *inodeDiscarders) pushDiscardParentInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64) error {
+	prepareDiscardInode(req, eventType, mountID, inode, false)
+	req.OP = DiscardParentInodeOp
 
 	return id.erpc.Request(req)
 }
@@ -467,7 +477,7 @@ func (id *inodeDiscarders) discardParentInode(req *ERPCRequest, rs *rules.RuleSe
 		return false, 0, 0, nil
 	}
 
-	if err := id.discardInode(req, eventType, mountID, inode, false); err != nil {
+	if err := id.pushDiscardParentInode(req, eventType, mountID, inode); err != nil {
 		return false, 0, 0, err
 	}
 
@@ -510,7 +520,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
 						// not able to discard the parent then only discard the filename
-						_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
+						_ = probe.inodeDiscarders.pushDiscardInode(probe.erpcRequest, eventType, mountID, inode)
 					}
 				}
 			} else if !isDeleted {

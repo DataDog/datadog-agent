@@ -24,6 +24,8 @@ const (
 const (
 	// DiscardInodeOp discards an inode
 	DiscardInodeOp = iota + 1
+	// DiscardParentInodeOp discards a parent inode
+	DiscardParentInodeOp
 	// DiscardPidOp discards a pid
 	DiscardPidOp
 	// ResolveSegmentOp resolves the requested segment

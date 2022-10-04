@@ -22,7 +22,7 @@
 #include <linux/un.h>
 
 #define RPC_CMD 0xdeadc001
-#define REGISTER_SPAN_TLS_OP 6
+#define REGISTER_SPAN_TLS_OP 7
 
 #ifndef SYS_gettid
 #error "SYS_gettid unavailable on this system"
