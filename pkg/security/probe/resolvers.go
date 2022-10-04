@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 // Resolvers holds the list of the event attribute resolvers
@@ -251,7 +251,7 @@ func (r *Resolvers) Snapshot() error {
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
 func (r *Resolvers) snapshot() error {
 	// List all processes, to trigger the process and mount snapshots
-	processes, err := utils.GetProcesses()
+	processes, err := process.Processes()
 	if err != nil {
 		return err
 	}

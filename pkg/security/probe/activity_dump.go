@@ -28,9 +28,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/procfs"
+	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"

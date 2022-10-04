@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -174,30 +174,22 @@ func PidTTY(pid int32) string {
 	return ""
 }
 
-// GetProcesses returns list of active processes
-func GetProcesses() ([]*process.Process, error) {
-	pids, err := process.Pids()
-	if err != nil {
-		return nil, err
-	}
+type FilledProcess struct {
+	Pid  int32
+	Ppid int32
 
-	var processes []*process.Process
-	for _, pid := range pids {
-		var proc *process.Process
-		proc, err = process.NewProcess(pid)
-		if err != nil {
-			// the process does not exist anymore, continue
-			continue
-		}
-		processes = append(processes, proc)
-	}
+	Cmdline    []string
+	CreateTime int64
 
-	return processes, nil
+	Name string
+	Uids []int32
+	Gids []int32
+
+	MemInfo *process.MemoryInfoStat
 }
 
 // GetFilledProcess returns a FilledProcess from a Process input
-// TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
-func GetFilledProcess(p *process.Process) *process.FilledProcess {
+func GetFilledProcess(p *process.Process) *FilledProcess {
 	ppid, err := p.Ppid()
 	if err != nil {
 		return nil
@@ -233,7 +225,7 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
-	return &process.FilledProcess{
+	return &FilledProcess{
 		Pid:        p.Pid,
 		Ppid:       ppid,
 		CreateTime: createTime,
