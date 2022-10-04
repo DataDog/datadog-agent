@@ -12,6 +12,9 @@ import (
 // EphemeralPort port number is represented by `-1` internally
 const EphemeralPort int32 = -1
 
+// defaultPortRollupCacheEntryExpirationMin default expiration for rollup cache entry in minute
+const defaultPortRollupCacheEntryExpirationMin uint8 = 5
+
 // IsEphemeralStatus enum type
 type IsEphemeralStatus int32
 
@@ -34,42 +37,19 @@ const (
 
 // EndpointPairPortRollupStore contains port rollup states.
 // It tracks ports that have been seen so far and help decide whether a port should be rolled up or not.
-// We use two stores (curStore, newStore) to be able to clean old tracked ports when they are not seen anymore.
-// Adding a port will double write to curStore and newStore. This means a port is tracked for `2 * portRollupThreshold` seconds.
 // When IsEphemeral is called, only curStore is used.
-// UseNewStoreAsCurrentStore is meant to be called externally to use new store as current store and empty the new store.
 type EndpointPairPortRollupStore struct {
 	portRollupThreshold int
-	//curStore            map[string]uint8
-	//newStore            map[string]uint8
-
-	portRollupCache *PortCache
+	portRollupCache     *PortCache
 }
 
 // NewEndpointPairPortRollupStore create a new *EndpointPairPortRollupStore
 func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRollupStore {
 	return &EndpointPairPortRollupStore{
-		// curStore and newStore map key is composed of `<SOURCE_IP>|<DESTINATION_IP>`
-		// SOURCE_IP and SOURCE_IP are converted from []byte to string.
-		// string is used as map key since we can't use []byte as map key.
-		//curStore: make(map[string]uint8),
-		//newStore: make(map[string]uint8),
-
-		portRollupCache:     NewCache(4), // 4 minutes
+		portRollupCache:     NewCache(defaultPortRollupCacheEntryExpirationMin),
 		portRollupThreshold: portRollupThreshold,
 	}
 }
-
-//func (prs *EndpointPairPortRollupStore) getOrCreate(sourceAddr []byte, destAddr []byte) (*portRollupTracker, *portRollupTracker) {
-//	key := buildStoreKey(sourceAddr, destAddr)
-//	if _, ok := prs.curStore[key]; !ok {
-//		prs.curStore[key] = newPortRollupTracker()
-//	}
-//	if _, ok := prs.newStore[key]; !ok {
-//		prs.newStore[key] = newPortRollupTracker()
-//	}
-//	return prs.curStore[key], prs.newStore[key]
-//}
 
 func (prs *EndpointPairPortRollupStore) getPortCount(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) uint8 {
 	return prs.portRollupCache.Get(buildStoreKey(sourceAddr, destAddr, endpointT, port))
@@ -137,20 +117,12 @@ func (prs *EndpointPairPortRollupStore) GetDestToSourcePortCount(sourceAddr []by
 	return uint16(prs.getPortCount(sourceAddr, destAddr, isDestinationEndpoint, destPort))
 }
 
-//// UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore
-//func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
-//	prs.mu.Lock()
-//	defer prs.mu.Unlock()
-//
-//	prs.curStore = prs.newStore
-//	prs.newStore = make(map[string]uint8)
-//}
-
-// GetCurStoreLen TODO
-func (prs *EndpointPairPortRollupStore) GetCurStoreLen() int {
+// GetRollupTrackerCacheSize get rollup tracker cache size
+func (prs *EndpointPairPortRollupStore) GetRollupTrackerCacheSize() int {
 	return prs.portRollupCache.ItemCount()
 }
 
+// CleanExpired clean expired cache entries
 func (prs *EndpointPairPortRollupStore) CleanExpired() {
 	prs.portRollupCache.DeleteAllExpired()
 }

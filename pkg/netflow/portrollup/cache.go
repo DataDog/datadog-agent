@@ -45,19 +45,13 @@ func (c *PortCache) Increment(key string) {
 
 func (c *PortCache) getExpirationMinFromLastCheck() uint8 {
 	minSinceLastCheck := int(timeNow().Sub(c.LastClean).Minutes())
-	//var expMinFromLastCheck uint8
-	//if minSinceLastCheck > int(c.defaultExpiration) {
-	//	expMinFromLastCheck = 0
-	//} else {
-	//	expMinFromLastCheck = c.defaultExpiration + uint8(minSinceLastCheck)
-	//}
 	return c.defaultExpiration + uint8(minSinceLastCheck)
 }
 
 func (c *PortCache) Get(key string) uint8 {
-	c.mu.Lock()
+	c.mu.RLock()
 	content, found := c.items[key]
-	c.mu.Unlock()
+	c.mu.RUnlock()
 	if !found {
 		return 0
 	}
@@ -65,9 +59,9 @@ func (c *PortCache) Get(key string) uint8 {
 }
 
 func (c *PortCache) ItemCount() int {
-	c.mu.Lock()
+	c.mu.RLock()
 	count := len(c.items)
-	c.mu.Unlock()
+	c.mu.RUnlock()
 	return count
 }
 

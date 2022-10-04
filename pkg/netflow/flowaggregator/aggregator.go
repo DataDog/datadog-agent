@@ -140,13 +140,18 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
-	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup_cur_store_len", float64(agg.flowAcc.portRollup.GetCurStoreLen()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup_cur_store_len", float64(agg.flowAcc.portRollup.GetRollupTrackerCacheSize()), "", nil)
 
 	return len(flowsToFlush)
 }
 
 func (agg *FlowAggregator) rollupTrackersRefresh() {
-	log.Debugf("Rollup tracker refresh: use new store as current store")
+	lenBefore := agg.flowAcc.portRollup.GetRollupTrackerCacheSize()
 	//agg.sender.Gauge("datadog.netflow.rollup.refresh", 1, "", nil)
+	start := time.Now()
 	agg.flowAcc.portRollup.CleanExpired()
+	durationMs := time.Since(start).Milliseconds()
+
+	lenAfter := agg.flowAcc.portRollup.GetRollupTrackerCacheSize()
+	log.Debugf("Rollup tracker cleanup expired in %s ms, store len before %d, after %d", durationMs, lenBefore, lenAfter)
 }
