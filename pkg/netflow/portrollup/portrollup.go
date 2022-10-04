@@ -7,7 +7,6 @@ package portrollup
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"time"
 )
 
 // EphemeralPort port number is represented by `-1` internally
@@ -56,7 +55,7 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 		//curStore: make(map[string]uint8),
 		//newStore: make(map[string]uint8),
 
-		portRollupCache:     NewCache(4*time.Minute, 10*time.Minute),
+		portRollupCache:     NewCache(4), // 4 minutes
 		portRollupThreshold: portRollupThreshold,
 	}
 }
@@ -72,7 +71,7 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 //	return prs.curStore[key], prs.newStore[key]
 //}
 
-func (prs *EndpointPairPortRollupStore) getPortCount(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) int8 {
+func (prs *EndpointPairPortRollupStore) getPortCount(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) uint8 {
 	return prs.portRollupCache.Get(buildStoreKey(sourceAddr, destAddr, endpointT, port))
 }
 
@@ -148,6 +147,10 @@ func (prs *EndpointPairPortRollupStore) GetDestToSourcePortCount(sourceAddr []by
 // GetCurStoreLen TODO
 func (prs *EndpointPairPortRollupStore) GetCurStoreLen() int {
 	return prs.portRollupCache.ItemCount()
+}
+
+func (prs *EndpointPairPortRollupStore) CleanExpired() {
+
 }
 
 func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {

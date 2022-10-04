@@ -148,5 +148,5 @@ func (agg *FlowAggregator) flush() int {
 func (agg *FlowAggregator) rollupTrackersRefresh() {
 	log.Debugf("Rollup tracker refresh: use new store as current store")
 	//agg.sender.Gauge("datadog.netflow.rollup.refresh", 1, "", nil)
-	//agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
+	agg.flowAcc.portRollup.CleanExpired()
 }
