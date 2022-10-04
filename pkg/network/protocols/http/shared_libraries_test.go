@@ -9,6 +9,7 @@
 package http
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
@@ -33,22 +34,28 @@ import (
 
 func TestSharedLibraryDetection(t *testing.T) {
 	perfHandler, doneFn := initEBPFProgram(t)
-	fpath := filepath.Join(t.TempDir(), "foo.so")
 	t.Cleanup(doneFn)
+	fpath := filepath.Join(t.TempDir(), "foo.so")
+
+	// touch the file, as the file must exist when the process Exec
+	// for the file identifier stat()
+	f, err := os.Create(fpath)
+	require.NoError(t, err)
+	f.Close()
 
 	var (
 		mux          sync.Mutex
 		pathDetected string
 	)
 
-	callback := func(path string) error {
+	callback := func(id pathIdentifier, root string, path string) error {
 		mux.Lock()
 		defer mux.Unlock()
 		pathDetected = path
 		return nil
 	}
 
-	watcher := newSOWatcher("/proc", perfHandler,
+	watcher := newSOWatcher(perfHandler,
 		soRule{
 			re:         regexp.MustCompile(`foo.so`),
 			registerCB: callback,
@@ -64,11 +71,63 @@ func TestSharedLibraryDetection(t *testing.T) {
 	assert.Equal(t, fpath, pathDetected)
 }
 
+func TestSharedLibraryDetectionWithRoot(t *testing.T) {
+	tdir := t.TempDir()
+	root := filepath.Join(tdir, "root")
+	err := os.MkdirAll(root, 0755)
+	require.NoError(t, err)
+
+	libpath := "/fooroot.so"
+
+	simulateOpenAt(root + libpath)
+	exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
+	exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
+
+	perfHandler, doneFn := initEBPFProgram(t)
+	t.Cleanup(doneFn)
+
+	var (
+		mux          sync.Mutex
+		pathDetected string
+	)
+
+	callback := func(id pathIdentifier, root string, path string) error {
+		mux.Lock()
+		defer mux.Unlock()
+		pathDetected = path
+		return nil
+	}
+
+	watcher := newSOWatcher(perfHandler,
+		soRule{
+			re:         regexp.MustCompile(`fooroot.so`),
+			registerCB: callback,
+		},
+	)
+	watcher.Start()
+
+	time.Sleep(10 * time.Millisecond)
+	//	simulateOpenAt(fpath)
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	t.Log(string(o))
+	assert.NoError(t, err)
+
+	//	exec.Command("docker", "run", "ubuntu", "bash", "-c", fmt.Sprintf("touch /a ; mv /a %s ; touch %s", libpath, libpath)).Run()
+	time.Sleep(10 * time.Millisecond)
+
+	// assert that soWatcher detected foo.so being opened and triggered the callback
+	assert.Equal(t, libpath, pathDetected)
+
+	// must failed on the host
+	_, err = os.Stat(libpath)
+	assert.Error(t, err)
+}
+
 func TestSameInodeRegression(t *testing.T) {
 	perfHandler, doneFn := initEBPFProgram(t)
+	t.Cleanup(doneFn)
 	fpath1 := filepath.Join(t.TempDir(), "a-foo.so")
 	fpath2 := filepath.Join(t.TempDir(), "b-foo.so")
-	t.Cleanup(doneFn)
 
 	f, err := os.Create(fpath1)
 	require.NoError(t, err)
@@ -79,12 +138,12 @@ func TestSameInodeRegression(t *testing.T) {
 	require.NoError(t, err)
 
 	registers := atomic.NewInt64(0)
-	callback := func(string) error {
+	callback := func(id pathIdentifier, root string, path string) error {
 		registers.Add(1)
 		return nil
 	}
 
-	watcher := newSOWatcher("/proc", perfHandler,
+	watcher := newSOWatcher(perfHandler,
 		soRule{
 			re:         regexp.MustCompile(`foo.so`),
 			registerCB: callback,
