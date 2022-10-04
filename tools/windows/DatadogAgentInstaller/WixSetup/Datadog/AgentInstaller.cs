@@ -17,7 +17,7 @@ namespace WixSetup.Datadog
         private const string ProductDescription = "Datadog helps you monitor your infrastructure and application";
         private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
         private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
-        private const string ProductComment = @"Copyright 2015 - Present [CompanyName]";
+        private const string ProductComment = @"Copyright 2015 - Present Datadog";
         private const string ProductContact = @"https://www.datadoghq.com/about/contact/";
 
         // same value for all versions; must not be changed
@@ -50,99 +50,119 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new Project("Datadog Agent",
-                        new User(new Id("ddagentuser"), "[DDAGENTUSER_NAME]")
-                        {
-                            Domain = "[DDAGENTUSER_DOMAIN]",
-                            Password = "[DDAGENTUSER_PASSWORD]",
-                            PasswordNeverExpires = true,
-                            RemoveOnUninstall = true,
-                            ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
-                        },
-                        _agentCustomActions.ReadConfig,
-                        _agentCustomActions.WriteConfig,
-                        _agentCustomActions.ProcessDdAgentUserCredentials,
-                        _agentCustomActions.DecompressPythonDistributions,
-                        new Property("APIKEY")
-                        {
-                            AttributesDefinition = "Hidden=yes;Secure=yes"
-                        },
-                        new Property("DDAGENTUSER_NAME", "ddagentuser"),
-                        new Property("DDAGENTUSER_PASSWORD")
-                        {
-                            AttributesDefinition = "Hidden=yes;Secure=yes"
-                        },
-                        new Property("PROJECTLOCATION",
-                            new RegistrySearch(RegistryHive.LocalMachine, "SOFTWARE\\Datadog\\Datadog Agent",
-                                "InstallPath", RegistrySearchType.raw)
-                        )
-                        {
-                            AttributesDefinition = "Secure=yes"
-                        },
-                        new Property("APPLICATIONDATADIRECTORY",
-                            new RegistrySearch(RegistryHive.LocalMachine, "SOFTWARE\\Datadog\\Datadog Agent",
-                                "ConfigRoot", RegistrySearchType.raw)
-                        )
-                        {
-                            AttributesDefinition = "Secure=yes"
-                        },
-                        new CloseApplication(new Id("CloseTrayApp"), Path.GetFileName(_agentBinaries.Tray), closeMessage: true,
-                            rebootPrompt: false)
-                        {
-                            Timeout = 1
-                        }
+                new User(new Id("ddagentuser"), "[DDAGENTUSER_NAME]")
+                {
+                    Domain = "[DDAGENTUSER_DOMAIN]",
+                    Password = "[DDAGENTUSER_PASSWORD]",
+                    PasswordNeverExpires = true,
+                    RemoveOnUninstall = true,
+                    //ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
+                },
+                _agentCustomActions.ReadConfig,
+                _agentCustomActions.WriteConfig,
+                _agentCustomActions.ProcessDdAgentUserCredentials,
+                _agentCustomActions.DecompressPythonDistributions,
+                _agentCustomActions.ConfigureUser,
+                new Property("APIKEY")
+                {
+                    AttributesDefinition = "Hidden=yes;Secure=yes"
+                },
+                //new Property("DDAGENTUSER_NAME", "ddagentuser"),
+                new Property("DDAGENTUSER_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes;Secure=yes"
+                },
+                new Property("PROJECTLOCATION",
+                    new RegistrySearch(
+                        RegistryHive.LocalMachine,
+                        "SOFTWARE\\Datadog\\Datadog Agent",
+                        "InstallPath", RegistrySearchType.raw)
+                )
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("APPLICATIONDATADIRECTORY",
+                    new RegistrySearch(
+                        RegistryHive.LocalMachine,
+                        "SOFTWARE\\Datadog\\Datadog Agent",
+                        "ConfigRoot",
+                        RegistrySearchType.raw)
+                )
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new CloseApplication(new Id("CloseTrayApp"),
+                    Path.GetFileName(_agentBinaries.Tray),
+                    closeMessage: true,
+                    rebootPrompt: false
+                )
+                {
+                    Timeout = 1
+                },
+                new RegKey(
+                    _agentFeatures.MainApplication,
+                    RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
+                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", GenericAll = true } } },
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", GenericAll = true } } }
+                )
+                {
+                    Win64 = true
+                },
+                new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
+            )
+            .SetProjectInfo(
+                upgradeCode: ProductUpgradeCode,
+                name: ProductFullName,
+                description: ProductDescription,
+                // SetProjectInfo throws an Exception is Revision is != 0
+                // we use Revision = 2 for the next gen installer while it's still a prototype
+                version: new Version(_agentVersion.Version.Major, _agentVersion.Version.Minor,
+                    _agentVersion.Version.Build, 0)
+            )
+            .SetControlPanelInfo(
+                name: ProductFullName,
+                manufacturer: CompanyFullName,
+                readme: ProductHelpUrl,
+                comment: ProductComment,
+                contact: ProductContact,
+                helpUrl: new Uri(ProductHelpUrl),
+                aboutUrl: new Uri(ProductAboutUrl),
+                productIconFilePath: new FileInfo(ProductIconFilePath)
+            )
+            .DisableDowngradeToPreviousVersion()
+            .SetMinimalUI(
+                backgroundImage: new FileInfo(InstallerBackgroundImagePath),
+                bannerImage: new FileInfo(InstallerBannerImagePath),
+                // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
+                licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
+            )
+            .AddDirectories(
+                CreateProgramFilesFolder(),
+                new Dir(new Id("APPLICATIONDATADIRECTORY"), @"%CommonAppData%\Datadog",
+                    new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All),
+                    new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All),
+                    new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.All),
+                    new DirPermission("[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", GenericPermission.Read | GenericPermission.Execute),
+                    new DirFiles($@"{EtcSource}\*.yaml.example"),
+                    new Dir("checks.d"),
+                    new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
+                        new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                     )
-                    .SetProjectInfo(
-                        upgradeCode: ProductUpgradeCode,
-                        name: ProductFullName,
-                        description: ProductDescription,
-                        // SetProjectInfo throws an Exception is Revision is != 0
-                        // we use Revision = 2 for the next gen installer while it's still a prototype
-                        version: new Version(_agentVersion.Version.Major, _agentVersion.Version.Minor,
-                            _agentVersion.Version.Build, 0)
-                    )
-                    .SetControlPanelInfo(
-                        name: ProductFullName,
-                        manufacturer: CompanyFullName,
-                        readme: ProductHelpUrl,
-                        comment: ProductComment,
-                        contact: ProductContact,
-                        helpUrl: new Uri(ProductHelpUrl),
-                        aboutUrl: new Uri(ProductAboutUrl),
-                        productIconFilePath: new FileInfo(ProductIconFilePath)
-                    )
-                    .DisableDowngradeToPreviousVersion()
-                    .SetMinimalUI(
-                        backgroundImage: new FileInfo(InstallerBackgroundImagePath),
-                        bannerImage: new FileInfo(InstallerBannerImagePath),
-                        // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
-                        licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
-                    )
-                    .AddDirectories(
-                        CreateProgramFilesFolder(),
-                        new Dir(new Id("APPLICATIONDATADIRECTORY"), @"%CommonAppData%\Datadog",
-                            new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All),
-                            new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All),
-                            new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.All),
-                            new DirFiles($@"{EtcSource}\*.yaml.example"),
-                            new Dir("checks.d"),
-                            new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                                new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
-                            )
-                        ),
-                        new Dir(@"%ProgramMenu%\Datadog",
-                            new ExeFileShortcut
-                            {
-                                Name = "Datadog Agent Manager",
-                                Target = "[AGENT]ddtray.exe",
-                                Arguments = "&quot;-launch-gui&quot;",
-                                WorkingDirectory = "AGENT",
-                            }
-                        ),
-                        new Dir("logs")
-                    )
-                // enable the ability to repair the installation even when the original MSI is no longer available.
-                //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
-                ;
+                ),
+                new Dir(@"%ProgramMenu%\Datadog",
+                    new ExeFileShortcut
+                    {
+                        Name = "Datadog Agent Manager",
+                        Target = "[AGENT]ddtray.exe",
+                        Arguments = "&quot;-launch-gui&quot;",
+                        WorkingDirectory = "AGENT",
+                    }
+                ),
+                new Dir("logs")
+            )
+            // enable the ability to repair the installation even when the original MSI is no longer available.
+            //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
+            ;
 
             project.Platform = Platform.x64;
             // MSI 4.0+ required
