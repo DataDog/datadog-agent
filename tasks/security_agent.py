@@ -521,12 +521,16 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    dockerfile = """
-FROM debian:bullseye
+    add_arch_line = ""
+    if arch == "x86":
+        add_arch_line = "RUN dpkg --add-architecture i386"
+
+    dockerfile = f"""
+FROM ubuntu:22.04
 
 ENV DOCKER_DD_AGENT=yes
 
-RUN dpkg --add-architecture i386
+{add_arch_line}
 
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
