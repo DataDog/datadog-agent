@@ -13,7 +13,6 @@ enum telemetry_counter
     udp_send_processed,
     udp_send_missed,
     conn_stats_max_entries_hit,
-    tcp_stats_max_entries_hit,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -40,8 +39,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     case conn_stats_max_entries_hit:
         __sync_fetch_and_add(&val->conn_stats_max_entries_hit, 1);
         break;
-    case tcp_stats_max_entries_hit:
-        __sync_fetch_and_add(&val->tcp_stats_max_entries_hit, 1);
     }
 }
 
