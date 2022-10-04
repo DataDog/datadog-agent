@@ -92,7 +92,7 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error
 
 	return func() {
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 	}, nil
 }
