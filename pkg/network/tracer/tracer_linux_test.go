@@ -1403,10 +1403,10 @@ func iptablesWrapper(t *testing.T, f func()) {
 	f()
 }
 
-func setupDNAT(t *testing.T) string {
+func setupDNAT(t *testing.T) {
 	if _, err := exec.LookPath("conntrack"); err != nil {
 		t.Errorf("conntrack not found in PATH: %s", err)
-		return ""
+		return
 	}
 
 	state := testutil.IptablesSave(t)
@@ -1419,8 +1419,6 @@ func setupDNAT(t *testing.T) string {
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
 	testutil.RunCommands(t, cmds, false)
-
-	return state
 }
 
 func teardownDNAT(t *testing.T, state []byte) {
