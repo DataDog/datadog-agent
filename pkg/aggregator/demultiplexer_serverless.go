@@ -128,8 +128,8 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 		})
 }
 
-// AddTimeSample send a MetricSample to the TimeSampler.
-func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AggregateSample send a MetricSample to the TimeSampler.
+func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	batch := d.GetMetricSamplePool().GetBatch()
@@ -137,18 +137,18 @@ func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	d.statsdWorker.samplesChan <- batch[:1]
 }
 
-// AddTimeSampleBatch send a MetricSampleBatch to the TimeSampler.
+// AggregateSamples send a MetricSampleBatch to the TimeSampler.
 // The ServerlessDemultiplexer is not using sharding in its DogStatsD pipeline,
 // the `shard` parameter is ignored.
-// In the Serverless Agent, consider using `AddTimeSample` instead.
-func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// In the Serverless Agent, consider using `AggregateSample` instead.
+func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	d.statsdWorker.samplesChan <- samples
 }
 
-// AddLateMetrics is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) AddLateMetrics(samples metrics.MetricSampleBatch) {
+// SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

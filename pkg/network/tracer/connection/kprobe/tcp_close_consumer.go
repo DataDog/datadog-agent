@@ -118,11 +118,11 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
-			case lostCount, ok := <-c.perfHandler.LostChannel:
+			case lc, ok := <-c.perfHandler.LostChannel:
 				if !ok {
 					return
 				}
-				c.perfLost.Add(int64(lostCount))
+				c.perfLost.Add(int64(lc))
 				lostCount += netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {

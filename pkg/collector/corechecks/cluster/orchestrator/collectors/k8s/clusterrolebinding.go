@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewClusterRoleBindingCollectorVersions builds the group of collector versions.
+func NewClusterRoleBindingCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewClusterRoleBindingCollector(),
+	)
+}
+
 // ClusterRoleBindingCollector is a collector for Kubernetes ClusterRoleBindings.
 type ClusterRoleBindingCollector struct {
 	informer  rbacv1Informers.ClusterRoleBindingInformer
@@ -33,9 +40,11 @@ type ClusterRoleBindingCollector struct {
 func NewClusterRoleBindingCollector() *ClusterRoleBindingCollector {
 	return &ClusterRoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "clusterrolebindings",
-			NodeType: orchestrator.K8sClusterRoleBinding,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "clusterrolebindings",
+			NodeType:         orchestrator.K8sClusterRoleBinding,
+			Version:          "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleBindingHandlers)),
 	}

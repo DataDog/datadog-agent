@@ -6,8 +6,8 @@
 //go:build linux
 // +build linux
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url https://raw.githubusercontent.com/torvalds/linux/v5.17/arch/x86/entry/syscalls/syscall_64.tbl -output syscalls_linux_amd64.go -output-string syscalls_string_linux_amd64.go -abis common,64
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url https://raw.githubusercontent.com/torvalds/linux/v5.17/include/uapi/asm-generic/unistd.h -output syscalls_linux_arm64.go -output-string syscalls_string_linux_arm64.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url https://raw.githubusercontent.com/torvalds/linux/v5.19/arch/x86/entry/syscalls/syscall_64.tbl -output syscalls_linux_amd64.go -output-string syscalls_string_linux_amd64.go -abis common,64
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url https://raw.githubusercontent.com/torvalds/linux/v5.19/include/uapi/asm-generic/unistd.h -output syscalls_linux_arm64.go -output-string syscalls_string_linux_arm64.go
 
 package model
 

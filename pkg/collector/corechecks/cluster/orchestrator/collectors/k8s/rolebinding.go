@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewRoleBindingCollectorVersions builds the group of collector versions.
+func NewRoleBindingCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewRoleBindingCollector(),
+	)
+}
+
 // RoleBindingCollector is a collector for Kubernetes RoleBindings.
 type RoleBindingCollector struct {
 	informer  rbacv1Informers.RoleBindingInformer
@@ -33,9 +40,11 @@ type RoleBindingCollector struct {
 func NewRoleBindingCollector() *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "rolebindings",
-			NodeType: orchestrator.K8sRoleBinding,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "rolebindings",
+			NodeType:         orchestrator.K8sRoleBinding,
+			Version:          "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}

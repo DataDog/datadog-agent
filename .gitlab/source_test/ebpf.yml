@@ -2,8 +2,8 @@
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/bin
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-11.0.1.$ARCH /tmp/clang-bpf
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-11.0.1.$ARCH /tmp/llc-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH /tmp/clang-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH /tmp/llc-bpf
   # Retrieve nikos from S3
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz /tmp/nikos.tar.gz
   - mkdir -p $NIKOS_EMBEDDED_PATH
@@ -12,30 +12,43 @@
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
   - inv -e system-probe.kitchen-prepare
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
-  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tcp-queue-length.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $CI_PROJECT_DIR/.tmp/binary-ebpf/http.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tcp-queue-length.c
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/.tmp/binary-ebpf
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
+    - !reference [.retrieve_sysprobe_deps]
+  script:
+    - inv -e install-tools
+    - invoke -e golangci-lint --build system-probe ./pkg
+    - !reference [.build_sysprobe_artifacts]
+    - invoke -e security-agent.kitchen-prepare
+    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -55,66 +68,15 @@ tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: amd64
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
-    - cd $SRC_PATH
-    - !reference [.retrieve_sysprobe_deps]
-  script:
-    - !reference [.build_sysprobe_artifacts]
-    - inv -e install-tools
-    - export PATH=$PATH:$GOPATH/bin
-    - invoke -e security-agent.build-embed-syscall-tester
-    - invoke -e security-agent.build-embed-latency-tools
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --no-bundle-ebpf --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --race --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Copy nikos archive to be extracted in kitchen tests
-    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-     # Copy files needed for runtime compilation
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: arm64
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH
-    - !reference [.retrieve_sysprobe_deps]
-  script:
-    - !reference [.build_sysprobe_artifacts]
-    - inv -e install-tools
-    - export PATH=$PATH:$GOPATH/bin
-    - invoke -e security-agent.build-embed-syscall-tester --arch arm64
-    - invoke -e security-agent.build-embed-latency-tools
-    # Compile runtime security functional tests to be executed in kitchen tests
-    - inv -e security-agent.build-functional-tests --no-bundle-ebpf --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --race --nikos-embedded-path=$NIKOS_EMBEDDED_PATH
-    # Compile runtime security stress tests to be executed in kitchen tests
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
-    # Copy nikos archive to be extracted in kitchen tests
-    - cp /tmp/nikos.tar.gz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/nikos.tar.gz
-    # Copy files needed for runtime compilation
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe

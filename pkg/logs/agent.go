@@ -75,7 +75,8 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
 		filelauncher.DefaultSleepDuration,
 		coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id"),
-		time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))))
+		time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
+		coreConfig.Datadog.GetString("logs_config.file_wildcard_selection_mode")))
 	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher())
 	lnchrs.AddLauncher(windowsevent.NewLauncher())

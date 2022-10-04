@@ -21,8 +21,8 @@ import (
 	"github.com/hashicorp/golang-lru/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 type dumpFiles struct {

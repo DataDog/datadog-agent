@@ -64,21 +64,21 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, er
 	}, nil
 }
 
-// Extract from the given batch all connections that haven't been processed yet.
+// ExtractBatchInto extracts from the given batch all connections that haven't been processed yet.
 func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
 	if cpu >= len(p.stateByCPU) {
 		return
 	}
 
-	batchId := b.Id
+	batchID := b.Id
 	cpuState := &p.stateByCPU[cpu]
 	start := uint16(0)
-	if bState, ok := cpuState.processed[batchId]; ok {
+	if bState, ok := cpuState.processed[batchID]; ok {
 		start = bState.offset
 	}
 
 	p.extractBatchInto(buffer, b, start, netebpf.BatchSize)
-	delete(cpuState.processed, batchId)
+	delete(cpuState.processed, batchID)
 }
 
 // GetPendingConns return all connections that are in batches that are not yet full.
@@ -101,14 +101,14 @@ func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 
 		// have we already processed these messages?
 		start := uint16(0)
-		batchId := b.Id
-		if bState, ok := cpuState.processed[batchId]; ok {
+		batchID := b.Id
+		if bState, ok := cpuState.processed[batchID]; ok {
 			start = bState.offset
 		}
 
 		p.extractBatchInto(buffer, b, start, batchLen)
 		// update timestamp regardless since this partial batch still exists
-		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
+		cpuState.processed[batchID] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
 	p.cleanupExpiredState(time.Now())

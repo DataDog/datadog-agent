@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/service"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -62,6 +63,9 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 }
 
 func TestStartPipeline(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	pcfg := PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5003,
@@ -73,6 +77,9 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
 	if runtime.GOOS == "windows" {
 		t.Skip("Skip on Windows, see AP-1723 for details")

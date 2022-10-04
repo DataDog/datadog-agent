@@ -11,9 +11,6 @@ package common
 
 import (
 	"path/filepath"
-
-	// Init packages
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 const (
@@ -23,7 +20,7 @@ const (
 	DefaultLogFile = "/var/log/datadog/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
-	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
+	// DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
 	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
 	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"

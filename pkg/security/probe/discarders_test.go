@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
@@ -37,14 +37,15 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
 	var evalOpts eval.Opts
 	evalOpts.
 		WithConstants(model.SECLConstants).
-		WithLegacyFields(model.SECLLegacyFields)
+		WithLegacyFields(model.SECLLegacyFields).
+		WithVariables(model.SECLVariables)
 
 	var opts rules.Opts
 	opts.
@@ -209,10 +210,17 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/etc/conf.d/dir/aaa", 1); is {
 		t.Error("shouldn't be a parent discarder")
 	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
+	addRuleExpr(t, rs, `open.file.path == "/proc/${process.pid}/maps"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/proc/1/maps", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -387,7 +395,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 }
 
 func BenchmarkParentDiscarder(b *testing.B) {
-	id := newInodeDiscarders(nil, nil, nil, nil)
+	id := newInodeDiscarders(nil, nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 

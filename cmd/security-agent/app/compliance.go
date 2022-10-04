@@ -135,6 +135,7 @@ func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
+		checks.WithStatsd(statsdClient),
 	}
 
 	if coreconfig.IsKubernetes() {

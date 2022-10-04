@@ -28,13 +28,13 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20211011.792",
-                "debian-11": "urn,Debian:debian-11:11:0.20220328.962"
+                "debian-10": "urn,Debian:debian-10:10:0.20220911.1135",
+                "debian-11": "urn,Debian:debian-11:11:0.20220911.1135"
             }
         },
         "ec2": {
             "arm64": {
-                "debian-10": "ami-005c63ab415954283",
+                "debian-10": "ami-018ce69d4b9c9e3ec",
                 "debian-11": "ami-0d53a3ba77632d713"
             }
         }
@@ -97,12 +97,12 @@
             "x86_64": {
                 "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
                 "amazonlinux2-5-10": "ami-033b95fb8079dc481",
-                "amazonlinux2022-5-15": "ami-0a0cf2b8bc4634fe1"
+                "amazonlinux2022-5-15": "ami-0309aede310b9cc1f"
             },
             "arm64": {
                 "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
                 "amazonlinux2-5-10": "ami-0e449176cecc3e577",
-                "amazonlinux2022-5-15": "ami-00bca6c8c9d0e6f92"
+                "amazonlinux2022-5-15": "ami-0a8495f6303122235"
             }
         }
     },

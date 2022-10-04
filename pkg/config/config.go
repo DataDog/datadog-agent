@@ -19,13 +19,14 @@ import (
 	"strings"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -115,10 +116,15 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
-
-	// PrometheusScrapeChecksTransformer decodes the `prometheus_scrape.checks` parameter
-	PrometheusScrapeChecksTransformer func(string) interface{}
 )
+
+func PrometheusScrapeChecksTransformer(in string) interface{} {
+	var promChecks []*types.PrometheusCheck
+	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+	}
+	return promChecks
+}
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -207,21 +213,6 @@ const (
 	Logs DataType = "logs"
 )
 
-// prometheusScrapeChecksTransformer is a trampoline function that delays the
-// resolution of `PrometheusScrapeChecksTransformer` from `InitConfig` (invoked
-// from an `init()` function to `cobra.(*Command).Execute` (invoked from `main.main`)
-//
-// Without it, the issue is that `config.PrometheusScrapeChecksTransformer` would be:
-// * written from an `init` function from `pkg/autodiscovery/common/types` and
-// * read from an `init` function here.
-// This would result in an undefined behaviour
-//
-// With this intermediate function, it’s read from `cobra.(*Command).Execute`
-// which is called from `main.main` which is guaranteed to be called after all `init`.
-func prometheusScrapeChecksTransformer(s string) interface{} {
-	return PrometheusScrapeChecksTransformer(s)
-}
-
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -291,7 +282,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.rc_dd_url", "")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
+	config.BindEnv("remote_configuration.refresh_interval")
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
 	// Remote config products
@@ -530,8 +521,9 @@ func InitConfig(config Config) {
 	// Depth of the channel the capture writer reads before persisting to disk.
 	// Default is 0 - blocking channel
 	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
-	// enable the no-aggregation pipeline
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", false)
+	// Enable the no-aggregation pipeline.
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
+	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
@@ -638,7 +630,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", prometheusScrapeChecksTransformer)
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Network Devices Monitoring
@@ -669,7 +661,9 @@ func InitConfig(config Config) {
 	config.SetKnown("network_devices.netflow.stop_timeout")
 	config.SetKnown("network_devices.netflow.aggregator_buffer_size")
 	config.SetKnown("network_devices.netflow.aggregator_flush_interval")
-	config.SetKnown("network_devices.netflow.log_payloads")
+	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")
+	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")
+	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval")
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
@@ -742,6 +736,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
+	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -798,6 +793,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
+
+	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
+
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
@@ -893,8 +891,17 @@ func InitConfig(config Config) {
 	// Time in seconds
 	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
+	// Controls how wildcard file log source are prioritized when there are more files
+	// that match wildcard log configurations than the `logs_config.open_files_limit`
+	//
+	// Choices are 'by_name' and 'by_modification_time'. See config_template.yaml for full details.
+	//
+	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
+	// more disk I/O at the wildcard log paths
+	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+
 	// temporary feature flag until this becomes the only option
-	config.BindEnvAndSetDefault("logs_config.cca_in_ad", false)
+	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -1005,6 +1012,7 @@ func InitConfig(config Config) {
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
+	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
@@ -1060,7 +1068,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", false)
+	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
+	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -1071,6 +1080,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
+	config.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
@@ -1103,13 +1113,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 2)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_max_total_size", 100)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 3)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "bind"})
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 20)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_size", 0)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", 1)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.path_merge.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_dump_timeout", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
+	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", 75)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", "/tmp/activity_dumps/")
@@ -1117,7 +1128,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.formats", []string{"protobuf"})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.remote_storage.compression", true)
-	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", 60)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
@@ -1140,6 +1150,10 @@ func InitConfig(config Config) {
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
+
+	// Windows Performance Counter refresh interval
+	// Controls if and how often Performance Counters need to be refreshed by the agent. This is mainly used in integrations that rely on Performance Counters.
+	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)
@@ -1376,6 +1390,10 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	}()
 
 	if err := config.ReadInConfig(); err != nil {
+		if IsServerless() {
+			log.Debug("No config file detected, using environment variable based configuration only")
+			return &warnings, nil
+		}
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		} else {

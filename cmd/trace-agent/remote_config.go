@@ -24,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	headerContainerID = "Datadog-Container-ID"
-)
-
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -45,6 +41,7 @@ func putBuffer(buffer *bytes.Buffer) {
 }
 
 func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string, cfg *config.AgentConfig) http.Handler {
+	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 		tags := r.TagStats(api.V07, req.Header).AsTags()
@@ -76,7 +73,7 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 			if configsRequest.Client.ClientTracer.Tags == nil {
 				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
 			}
-			for _, tag := range getContainerTags(req, cfg) {
+			for _, tag := range getContainerTags(req, cfg, cidProvider) {
 				configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, tag)
 			}
 		}
@@ -102,11 +99,11 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 	})
 }
 
-func getContainerTags(req *http.Request, cfg *config.AgentConfig) []string {
+func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.IDProvider) []string {
 	if cfg == nil || cfg.ContainerTags == nil {
 		return nil
 	}
-	if cid := req.Header.Get(headerContainerID); cid != "" {
+	if cid := provider.GetContainerID(req.Context(), req.Header); cid != "" {
 		containerTags, err := cfg.ContainerTags(cid)
 		if err != nil {
 			_ = log.Error("Failed getting container tags", err)

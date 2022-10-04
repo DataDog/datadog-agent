@@ -9,30 +9,81 @@
 package cloudfoundry
 
 import (
+	"fmt"
 	"net/url"
 	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
 )
 
+type testCCClientCounter struct {
+	sync.RWMutex
+	hitsByMethod map[string]int
+}
+
+var globalCCClientCounter = testCCClientCounter{}
+
+func (t *testCCClientCounter) UpdateHits(method string) {
+	t.RLock()
+	if t.hitsByMethod == nil {
+		t.RUnlock()
+		t.Lock()
+		t.hitsByMethod = make(map[string]int)
+		t.Unlock()
+	} else {
+		t.RUnlock()
+	}
+
+	t.Lock()
+	defer t.Unlock()
+	t.hitsByMethod[method]++
+}
+
+func (t *testCCClientCounter) GetHits(method string) int {
+	t.RLock()
+	if t.hitsByMethod == nil {
+		t.RUnlock()
+		t.Lock()
+		t.hitsByMethod = make(map[string]int)
+		t.Unlock()
+	} else {
+		t.RUnlock()
+	}
+	return t.hitsByMethod[method]
+}
+
+func (t *testCCClientCounter) Reset() {
+	t.Lock()
+	defer t.Unlock()
+	t.hitsByMethod = make(map[string]int)
+}
+
 func (t testCCClient) ListV3AppsByQuery(_ url.Values) ([]cfclient.V3App, error) {
+	globalCCClientCounter.UpdateHits("ListV3AppsByQuery")
 	return []cfclient.V3App{v3App1, v3App2}, nil
 }
 func (t testCCClient) ListV3OrganizationsByQuery(_ url.Values) ([]cfclient.V3Organization, error) {
+	globalCCClientCounter.UpdateHits("ListV3OrganizationsByQuery")
 	return []cfclient.V3Organization{v3Org1, v3Org2}, nil
 }
 func (t testCCClient) ListV3SpacesByQuery(_ url.Values) ([]cfclient.V3Space, error) {
+	globalCCClientCounter.UpdateHits("ListV3SpacesByQuery")
 	return []cfclient.V3Space{v3Space1, v3Space2}, nil
 }
 func (t testCCClient) ListAllProcessesByQuery(_ url.Values) ([]cfclient.Process, error) {
+	globalCCClientCounter.UpdateHits("ListAllProcessesByQuery")
 	return []cfclient.Process{cfProcess1, cfProcess2}, nil
 }
 func (t testCCClient) ListOrgQuotasByQuery(_ url.Values) ([]cfclient.OrgQuota, error) {
+	globalCCClientCounter.UpdateHits("ListOrgQuotasByQuery")
 	return []cfclient.OrgQuota{cfOrgQuota1, cfOrgQuota2}, nil
 }
 func (t testCCClient) ListSidecarsByApp(_ url.Values, guid string) ([]CFSidecar, error) {
+	globalCCClientCounter.UpdateHits("ListSidecarsByApp")
 	if guid == "random_app_guid" {
 		return []CFSidecar{cfSidecar1}, nil
 	} else if guid == "guid2" {
@@ -41,10 +92,12 @@ func (t testCCClient) ListSidecarsByApp(_ url.Values, guid string) ([]CFSidecar,
 	return nil, nil
 }
 func (t testCCClient) ListIsolationSegmentsByQuery(_ url.Values) ([]cfclient.IsolationSegment, error) {
+	globalCCClientCounter.UpdateHits("ListIsolationSegmentsByQuery")
 	return []cfclient.IsolationSegment{cfIsolationSegment1, cfIsolationSegment2}, nil
 }
 
 func (t testCCClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
+	globalCCClientCounter.UpdateHits("GetIsolationSegmentSpaceGUID")
 	if guid == "isolation_segment_guid_1" {
 		return "space_guid_1", nil
 	} else if guid == "isolation_segment_guid_2" {
@@ -54,12 +107,54 @@ func (t testCCClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) 
 }
 
 func (t testCCClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
+	globalCCClientCounter.UpdateHits("GetIsolationSegmentOrganizationGUID")
 	if guid == "isolation_segment_guid_1" {
 		return "org_guid_1", nil
 	} else if guid == "isolation_segment_guid_2" {
 		return "org_guid_2", nil
 	}
 	return "", nil
+}
+
+func (t testCCClient) GetV3AppByGUID(guid string) (*cfclient.V3App, error) {
+	globalCCClientCounter.UpdateHits("GetV3AppByGUID")
+	switch guid {
+	case v3App1.GUID:
+		return &v3App1, nil
+	case v3App2.GUID:
+		return &v3App2, nil
+	}
+	return nil, fmt.Errorf("could not find V3App with guid %s", guid)
+}
+
+func (t testCCClient) GetV3SpaceByGUID(guid string) (*cfclient.V3Space, error) {
+	globalCCClientCounter.UpdateHits("GetV3SpaceByGUID")
+	switch guid {
+	case v3Space1.GUID:
+		return &v3Space1, nil
+	case v3Space2.GUID:
+		return &v3Space2, nil
+	}
+	return nil, fmt.Errorf("could not find V3Space with guid %s", guid)
+}
+
+func (t testCCClient) GetV3OrganizationByGUID(guid string) (*cfclient.V3Organization, error) {
+	globalCCClientCounter.UpdateHits("GetV3OrganizationByGUID")
+	switch guid {
+	case v3Org1.GUID:
+		return &v3Org1, nil
+	case v3Org2.GUID:
+		return &v3Org2, nil
+	}
+	return nil, fmt.Errorf("could not find V3Organization with guid %s", guid)
+}
+
+func (t testCCClient) ListProcessByAppGUID(query url.Values, guid string) ([]cfclient.Process, error) {
+	globalCCClientCounter.UpdateHits("ListProcessByAppGUID")
+	if guid == v3App1.GUID {
+		return []cfclient.Process{cfProcess1, cfProcess2}, nil
+	}
+	return nil, fmt.Errorf("could not find processes for app with guid %s", guid)
 }
 
 func TestCCCachePolling(t *testing.T) {
@@ -144,4 +239,147 @@ func TestCCCache_GetIsolationSegmentForOrg(t *testing.T) {
 	assert.EqualValues(t, &cfIsolationSegment2, segment2)
 	_, err := cc.GetIsolationSegmentForOrg("invalid_org_guid")
 	assert.NotNil(t, err)
+}
+
+func TestCCCache_GetProcesses(t *testing.T) {
+	cc.readData()
+	processes, err := cc.GetProcesses("random_app_guid")
+	assert.Nil(t, err)
+
+	expected := []cfclient.Process{cfProcess1, cfProcess2}
+	// maps in go do not guarantee order
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].GUID > expected[j].GUID
+	})
+
+	assert.EqualValues(t, &cfProcess1, processes[0])
+	assert.EqualValues(t, &cfProcess2, processes[1])
+
+	_, err = cc.GetProcesses("missing_app_guid")
+	assert.NotNil(t, err)
+}
+
+func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
+	cc.refreshCacheOnMiss = true
+	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
+	globalCCClientCounter.Reset()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := cc.GetProcesses(v3App1.GUID)
+			assert.Nil(t, err)
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
+
+	cc.refreshCacheOnMiss = false
+	cc.readData()
+}
+
+func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
+	cc.refreshCacheOnMiss = true
+	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
+	globalCCClientCounter.Reset()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := cc.GetApp(v3App1.GUID)
+			assert.Nil(t, err)
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3AppByGUID"))
+
+	cc.refreshCacheOnMiss = false
+	cc.readData()
+}
+
+func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
+	cc.refreshCacheOnMiss = true
+	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
+	globalCCClientCounter.Reset()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cc.GetSpace(v3Space1.GUID)
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
+
+	cc.refreshCacheOnMiss = false
+	cc.readData()
+}
+
+func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
+	cc.refreshCacheOnMiss = true
+	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
+	globalCCClientCounter.Reset()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cc.GetOrg(v3Org1.GUID)
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
+
+	cc.refreshCacheOnMiss = false
+	cc.readData()
+}
+
+func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
+	cc.refreshCacheOnMiss = true
+	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
+	globalCCClientCounter.Reset()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := cc.GetCFApplication(cfApp1.GUID)
+			assert.Nil(t, err)
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListV3OrganizationsByQuery"))
+	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListV3SpacesByQuery"))
+	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListV3AppsByQuery"))
+	assert.EqualValues(t, 0, globalCCClientCounter.GetHits("ListAllProcessesByQuery"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3AppByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("GetV3SpaceByGUID"))
+	assert.EqualValues(t, 1, globalCCClientCounter.GetHits("ListProcessByAppGUID"))
+
+	cc.refreshCacheOnMiss = false
+	cc.readData()
 }

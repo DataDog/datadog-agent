@@ -67,6 +67,18 @@ const (
 	kubeNamespaceFilterPrefix = `kube_namespace:`
 )
 
+// FilterType indicates the container filter type
+type FilterType string
+
+const (
+	// GlobalFilter is used to cover both MetricsFilter and LogsFilter filter types
+	GlobalFilter FilterType = "GlobalFilter"
+	// MetricsFilter refers to the Metrics filter type
+	MetricsFilter FilterType = "MetricsFilter"
+	// LogsFilter refers to the Logs filter type
+	LogsFilter FilterType = "LogsFilter"
+)
+
 // Filter holds the state for the container filtering logic
 type Filter struct {
 	Enabled              bool

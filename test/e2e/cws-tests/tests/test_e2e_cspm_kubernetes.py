@@ -213,7 +213,10 @@ class TestE2EKubernetes(unittest.TestCase):
             output = self.kubernetes_helper.exec_command(agent_name, ["bash", "-c", "cat /tmp/reports"])
             # if the output is JSON, it automatically calls json.loads on it. Yeah, I know... I've felt the same too
             findings = eval(output)
-            expect_findings(self, findings, TestE2EKubernetes.expectedFindingsWorkerNode)
+            expected_findings = dict(
+                **TestE2EKubernetes.expectedFindingsMasterEtcdNode, **TestE2EKubernetes.expectedFindingsWorkerNode
+            )
+            expect_findings(self, findings, expected_findings)
 
         with Step(msg="wait for intake (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)

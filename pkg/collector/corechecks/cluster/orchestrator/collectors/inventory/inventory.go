@@ -17,53 +17,70 @@ import (
 
 // CollectorInventory is used to store and retrieve available collectors.
 type CollectorInventory struct {
-	collectors []collectors.Collector
+	collectors []collectors.CollectorVersions
 }
 
 // NewCollectorInventory returns a new inventory containing all known
 // collectors.
 func NewCollectorInventory() *CollectorInventory {
 	return &CollectorInventory{
-		collectors: []collectors.Collector{
-			k8sCollectors.NewClusterCollector(),
-			k8sCollectors.NewClusterRoleCollector(),
-			k8sCollectors.NewClusterRoleBindingCollector(),
-			k8sCollectors.NewCronJobCollector(),
-			k8sCollectors.NewDaemonSetCollector(),
-			k8sCollectors.NewDeploymentCollector(),
-			k8sCollectors.NewIngressCollector(),
-			k8sCollectors.NewJobCollector(),
-			k8sCollectors.NewNodeCollector(),
-			k8sCollectors.NewPersistentVolumeCollector(),
-			k8sCollectors.NewPersistentVolumeClaimCollector(),
-			k8sCollectors.NewReplicaSetCollector(),
-			k8sCollectors.NewRoleCollector(),
-			k8sCollectors.NewRoleBindingCollector(),
-			k8sCollectors.NewServiceCollector(),
-			k8sCollectors.NewServiceAccountCollector(),
-			k8sCollectors.NewStatefulSetCollector(),
-			k8sCollectors.NewUnassignedPodCollector(),
+		collectors: []collectors.CollectorVersions{
+			k8sCollectors.NewClusterCollectorVersions(),
+			k8sCollectors.NewClusterRoleCollectorVersions(),
+			k8sCollectors.NewClusterRoleBindingCollectorVersions(),
+			k8sCollectors.NewCronJobCollectorVersions(),
+			k8sCollectors.NewDaemonSetCollectorVersions(),
+			k8sCollectors.NewDeploymentCollectorVersions(),
+			k8sCollectors.NewIngressCollectorVersions(),
+			k8sCollectors.NewJobCollectorVersions(),
+			k8sCollectors.NewNodeCollectorVersions(),
+			k8sCollectors.NewPersistentVolumeCollectorVersions(),
+			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(),
+			k8sCollectors.NewReplicaSetCollectorVersions(),
+			k8sCollectors.NewRoleCollectorVersions(),
+			k8sCollectors.NewRoleBindingCollectorVersions(),
+			k8sCollectors.NewServiceCollectorVersions(),
+			k8sCollectors.NewServiceAccountCollectorVersions(),
+			k8sCollectors.NewStatefulSetCollectorVersions(),
+			k8sCollectors.NewUnassignedPodCollectorVersions(),
 		},
 	}
 }
 
-// CollectorByName gets a collector given its name. It returns an error if the
+// CollectorForDefaultVersion retrieves a collector given its name. It returns an error if the
 // name is not known.
-func (ci *CollectorInventory) CollectorByName(collectorName string) (collectors.Collector, error) {
-	for _, c := range ci.collectors {
-		if c.Metadata().Name == collectorName {
-			return c, nil
+func (ci *CollectorInventory) CollectorForDefaultVersion(collectorName string) (collectors.Collector, error) {
+	for _, cv := range ci.collectors {
+		for _, c := range cv.Collectors {
+			if c.Metadata().Name == collectorName && c.Metadata().IsDefaultVersion {
+				return c, nil
+			}
 		}
 	}
 	return nil, fmt.Errorf("no collector found for name %s", collectorName)
 }
 
+// CollectorForVersion gets a collector given its name and version. It returns
+// an error if the collector name or version is not known.
+func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorVersion string) (collectors.Collector, error) {
+	for _, cv := range ci.collectors {
+		for _, c := range cv.Collectors {
+			if c.Metadata().Name == collectorName && c.Metadata().Version == collectorVersion {
+				return c, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("no collector found for name %s and version %s", collectorName, collectorVersion)
+}
+
 // StableCollectors get a list of all stable collectors in the inventory.
 func (ci *CollectorInventory) StableCollectors() []collectors.Collector {
 	var stableCollectors []collectors.Collector
-	for _, c := range ci.collectors {
-		if c.Metadata().IsStable {
-			stableCollectors = append(stableCollectors, c)
+	for _, cv := range ci.collectors {
+		for _, c := range cv.Collectors {
+			if c.Metadata().IsStable && c.Metadata().IsDefaultVersion {
+				stableCollectors = append(stableCollectors, c)
+			}
 		}
 	}
 	return stableCollectors

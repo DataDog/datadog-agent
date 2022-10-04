@@ -11,16 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
-	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	providers.Register(providerMocks.FakeContainerImpl{})
-}
 
 func demuxTestOptions() AgentDemultiplexerOptions {
 	opts := DefaultAgentDemultiplexerOptions(nil)

@@ -6,6 +6,7 @@
 package flowaggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
 	"sync"
 	"time"
 
@@ -25,10 +26,16 @@ type flowContext struct {
 
 // flowAccumulator is used to accumulate aggregated flows
 type flowAccumulator struct {
-	flows             map[uint64]flowContext
-	mu                sync.Mutex
+	flows map[uint64]flowContext
+	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
+	// are called by different routines.
+	flowsMutex sync.Mutex
+
 	flowFlushInterval time.Duration
 	flowContextTTL    time.Duration
+
+	portRollup          *portrollup.EndpointPairPortRollupStore
+	portRollupThreshold int
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -39,11 +46,13 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int) *flowAccumulator {
 	return &flowAccumulator{
-		flows:             make(map[uint64]flowContext),
-		flowFlushInterval: aggregatorFlushInterval,
-		flowContextTTL:    aggregatorFlowContextTTL,
+		flows:               make(map[uint64]flowContext),
+		flowFlushInterval:   aggregatorFlushInterval,
+		flowContextTTL:      aggregatorFlowContextTTL,
+		portRollup:          portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
+		portRollupThreshold: portRollupThreshold,
 	}
 }
 
@@ -58,8 +67,8 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 // to be able to flush at regular interval (`flowFlushInterval`).
 // Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
 func (f *flowAccumulator) flush() []*common.Flow {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.flowsMutex.Lock()
+	defer f.flowsMutex.Unlock()
 
 	var flowsToFlush []*common.Flow
 	for key, flowCtx := range f.flows {
@@ -85,15 +94,22 @@ func (f *flowAccumulator) flush() []*common.Flow {
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	log.Tracef("Add new flow: %+v", flowToAdd)
 
-	// TODO: handle port direction (see network-http-logger)
-	// TODO: ignore ephemeral ports
+	// Handle port rollup
+	f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	switch ephemeralStatus {
+	case portrollup.IsEphemeralSourcePort:
+		flowToAdd.SrcPort = portrollup.EphemeralPort
+	case portrollup.IsEphemeralDestPort:
+		flowToAdd.DstPort = portrollup.EphemeralPort
+	}
+
+	f.flowsMutex.Lock()
+	defer f.flowsMutex.Unlock()
 
 	aggHash := flowToAdd.AggregationHash()
-	log.Tracef("New Flow (digest=%d): %+v", aggHash, flowToAdd)
-
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowContext(flowToAdd)
@@ -113,8 +129,8 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 }
 
 func (f *flowAccumulator) getFlowContextCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.flowsMutex.Lock()
+	defer f.flowsMutex.Unlock()
 
 	return len(f.flows)
 }

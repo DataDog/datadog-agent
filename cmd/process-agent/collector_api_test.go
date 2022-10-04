@@ -533,13 +533,13 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
-	var eps []apicfg.Endpoint
+	eps := make([]apicfg.Endpoint, 0, len(apiKeys))
 	for _, key := range apiKeys {
 		eps = append(eps, apicfg.Endpoint{APIKey: key, Endpoint: collectorAddr})
 	}
 	setProcessEndpointsForTest(mockConfig, eps...)
 
-	var eventsEps []apicfg.Endpoint
+	eventsEps := make([]apicfg.Endpoint, 0, len(apiKeys))
 	for _, key := range apiKeys {
 		eventsEps = append(eventsEps, apicfg.Endpoint{APIKey: key, Endpoint: eventsAddr})
 	}

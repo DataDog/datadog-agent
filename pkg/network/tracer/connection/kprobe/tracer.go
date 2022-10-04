@@ -26,9 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,7 +70,8 @@ func newTelemetry() telemetry {
 	}
 }
 
-func New(config *config.Config, constants []manager.ConstantEditor) (connection.Tracer, error) {
+// New creates a new tracer
+func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -82,9 +85,9 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
@@ -129,6 +132,15 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	m := newManager(perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
+	currKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, errors.New("failed to detect kernel version")
+	}
+	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+	m.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+	}
+
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
@@ -146,6 +158,10 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 				},
 			})
 	}
+
+	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+
+	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
@@ -171,10 +187,19 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(string(probes.TcpStatsMap))
+	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
 	if err != nil {
 		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TcpStatsMap, err)
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
+	}
+
+	if bpfTelemetry != nil {
+		bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
+		bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
+	}
+
+	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
 
 	return tr, nil
@@ -212,6 +237,12 @@ func (t *kprobeTracer) Stop() {
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case string(probes.SockByPidFDMap):
+		m, _, _ := t.m.GetMap(name)
+		return m
+	case string(probes.MapErrTelemetryMap):
+		m, _, _ := t.m.GetMap(name)
+		return m
+	case string(probes.HelperErrTelemetryMap):
 		m, _, _ := t.m.GetMap(name)
 		return m
 	default:
@@ -261,16 +292,16 @@ func (t *telemetry) assign(other telemetry) {
 }
 
 func (t *telemetry) addConnection(conn *network.ConnectionStats) {
-	isTcp := conn.Type == network.TCP
+	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
-		if isTcp {
+		if isTCP {
 			t.tcpConns6.Inc()
 		} else {
 			t.udpConns6.Inc()
 		}
 	case network.AFINET:
-		if isTcp {
+		if isTCP {
 			t.tcpConns4.Inc()
 		} else {
 			t.udpConns4.Inc()
@@ -279,16 +310,16 @@ func (t *telemetry) addConnection(conn *network.ConnectionStats) {
 }
 
 func (t *telemetry) removeConnection(conn *network.ConnectionStats) {
-	isTcp := conn.Type == network.TCP
+	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
-		if isTcp {
+		if isTCP {
 			t.tcpConns6.Dec()
 		} else {
 			t.udpConns6.Dec()
 		}
 	case network.AFINET:
-		if isTcp {
+		if isTCP {
 			t.tcpConns4.Dec()
 		} else {
 			t.udpConns4.Dec()
@@ -362,12 +393,11 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
-		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),
-		"missed_tcp_close":           int64(telemetry.Missed_tcp_close),
-		"missed_udp_close":           int64(telemetry.Missed_udp_close),
-		"udp_sends_processed":        int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
-		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
+		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
+		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
+		"missed_udp_close":    int64(telemetry.Missed_udp_close),
+		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
+		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
 	}
 
 	for k, v := range t.telemetry.get() {
@@ -383,38 +413,40 @@ func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true); err != nil {
+	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns, true)
+	if err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
-	} else {
-		tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
-		if err != nil {
-			return fmt.Errorf("failed to get TCP port binding map: %w", err)
-		}
-		for p, count := range tcpPorts {
-			log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
-			pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-			err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
-			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-				return fmt.Errorf("failed to update TCP port binding map: %w", err)
-			}
+	}
+
+	tcpPortMap, _, err := m.GetMap(string(probes.PortBindingsMap))
+	if err != nil {
+		return fmt.Errorf("failed to get TCP port binding map: %w", err)
+	}
+	for p, count := range tcpPorts {
+		log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
+		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
+		err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("failed to update TCP port binding map: %w", err)
 		}
 	}
 
-	if udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false); err != nil {
+	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectIPv6Conns, false)
+	if err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
-	} else {
-		udpPortMap, _, err := m.GetMap(string(probes.UdpPortBindingsMap))
-		if err != nil {
-			return fmt.Errorf("failed to get UDP port binding map: %w", err)
-		}
-		for p, count := range udpPorts {
-			log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
-			// UDP port bindings currently do not have network namespace numbers
-			pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
-			err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
-			if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-				return fmt.Errorf("failed to update UDP port binding map: %w", err)
-			}
+	}
+
+	udpPortMap, _, err := m.GetMap(string(probes.UDPPortBindingsMap))
+	if err != nil {
+		return fmt.Errorf("failed to get UDP port binding map: %w", err)
+	}
+	for p, count := range udpPorts {
+		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
+		// UDP port bindings currently do not have network namespace numbers
+		pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
+		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("failed to update UDP port binding map: %w", err)
 		}
 	}
 	return nil

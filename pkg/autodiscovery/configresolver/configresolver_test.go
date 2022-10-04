@@ -532,101 +532,6 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "unable to add tags for service 'a5901276aed1', err: invalid %%FOO%% tag",
 		},
-		//// check overrides
-		{
-			testName: "same check: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{"redis"},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another config is defined for the check redis",
-		},
-		{
-			testName: "empty check name defined: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{""},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
-		},
-		{
-			testName: "empty check names list defined: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
-		},
-		{
-			testName: "different checks: don't override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{"tcp_check", "http_check"},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			out: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				ServiceID:     "a5901276aed1",
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-		},
-		{
-			testName: "not annotated: don't override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    nil,
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			out: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				ServiceID:     "a5901276aed1",
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-		},
 		{
 			testName: "SNMP testing",
 			svc: &dummyService{
@@ -812,6 +717,25 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "empty key",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n- statictag:TEST\nzemptykey:\n")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("host: 127.0.0.1\ntags:\n- foo:bar\n- statictag:TEST\nzemptykey: null\n")},
 				ServiceID:     "a5901276aed1",
 			},
 		},

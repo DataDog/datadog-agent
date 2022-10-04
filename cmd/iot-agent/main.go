@@ -9,20 +9,20 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func main() {
 	// Set the flavor
 	flavor.SetFlavor(flavor.IotAgent)
 
-	// Invoke the Agent
-	if err := app.AgentCmd.Execute(); err != nil {
-		log.Error(err)
+	if err := command.MakeCommand(subcommands.AgentSubcommands()).Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(-1)
 	}
 }

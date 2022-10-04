@@ -99,7 +99,7 @@ func (h *AutoscalersController) gc() {
 	var err error
 
 	if wpaEnabled {
-		wpaListObj, err := h.wpaLister.ByNamespace(metav1.NamespaceAll).List(labels.Everything())
+		wpaListObj, err := h.wpaLister.List(labels.Everything())
 		if err != nil {
 			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
 			return
@@ -115,10 +115,21 @@ func (h *AutoscalersController) gc() {
 		}
 	}
 
-	hpaList, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	hpaListObj, err := h.autoscalersLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Could not list hpas: %v", err)
 		return
+	}
+
+	hpaList := make([]metav1.Object, 0, len(hpaListObj))
+	for _, obj := range hpaListObj {
+		hpa, ok := obj.(metav1.Object)
+		if !ok {
+			log.Errorf("Unable to cast object from local cache into HPA, got: %+v", obj)
+			continue
+		}
+
+		hpaList = append(hpaList, hpa)
 	}
 
 	emList, err := h.store.ListAllExternalMetricValues()
@@ -126,13 +137,16 @@ func (h *AutoscalersController) gc() {
 		log.Errorf("Could not list external metrics from store: %v", err)
 		return
 	}
+
 	toDelete := &custommetrics.MetricsBundle{}
 	toDelete.External = autoscalers.DiffExternalMetrics(hpaList, wpaList, emList.External)
 	if err = h.store.DeleteExternalMetricValues(toDelete); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
+
 	h.deleteFromLocalStore(toDelete.External)
+
 	log.Infof("Done GC run. Deleted %d metrics", len(toDelete.External))
 }
 

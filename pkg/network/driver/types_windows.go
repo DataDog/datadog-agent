@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000012
+const Signature = 0xddfd00000013
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -81,6 +81,7 @@ type HttpStats struct {
 	Txns_captured              int64
 	Txns_skipped_max_exceeded  int64
 	Ndis_buffer_non_contiguous int64
+	Flows_ignored_as_etw       int64
 }
 type Stats struct {
 	Flow_stats      FlowStats
@@ -88,7 +89,7 @@ type Stats struct {
 	Http_stats      HttpStats
 }
 
-const StatsSize = 0xb0
+const StatsSize = 0xb8
 
 type PerFlowData struct {
 	FlowHandle         uint64
@@ -151,6 +152,12 @@ type HttpTransactionType struct {
 	Pad                [6]uint8
 	RequestFragment    *uint8
 }
+type HttpConfigurationSettings struct {
+	MaxTransactions        uint64
+	NotificationThreshold  uint64
+	MaxRequestFragment     uint16
+	EnableAutoETWExclusion uint16
+}
 type ConnTupleType struct {
 	CliAddr [16]uint8
 	SrvAddr [16]uint8
@@ -162,7 +169,6 @@ type ConnTupleType struct {
 type HttpMethodType uint32
 
 const (
-	HttpBatchSize           = 0xf
-	HttpBufferSize          = 0x19
 	HttpTransactionTypeSize = 0x50
+	HttpSettingsTypeSize    = 0x14
 )

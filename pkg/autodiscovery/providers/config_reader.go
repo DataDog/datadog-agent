@@ -402,8 +402,14 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		return conf, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
 
-	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
-	_ = configresolver.SubstituteTemplateEnvVars(&conf)
+	// Interpolate env vars. Returns an error a variable wasn't substituted, ignore it.
+	e := configresolver.SubstituteTemplateEnvVars(&conf)
+	if e != nil {
+		// Ignore NoServiceError since service is always nil for integration configs from files.
+		if _, ok := e.(*configresolver.NoServiceError); !ok {
+			log.Errorf("Failed to substitute template var %s", e)
+		}
+	}
 
 	conf.Source = "file:" + fpath
 

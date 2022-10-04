@@ -284,22 +284,25 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
+	c.DiscoveryCl, err = getKubeDiscoveryClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver discovery client: %v", err)
+		return err
+	}
+
 	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
 		return err
 	}
 
-	if config.Datadog.GetBool("admission_controller.enabled") || config.Datadog.GetBool("compliance_config.enabled") {
+	if config.Datadog.GetBool("admission_controller.enabled") ||
+		config.Datadog.GetBool("compliance_config.enabled") ||
+		config.Datadog.GetBool("orchestrator_explorer.enabled") ||
+		config.Datadog.GetBool("cluster_checks.enabled") {
 		c.DynamicCl, err = getKubeDynamicClient(time.Duration(c.timeoutSeconds) * time.Second)
 		if err != nil {
 			log.Infof("Could not get apiserver dynamic client: %v", err)
-			return err
-		}
-
-		c.DiscoveryCl, err = getKubeDiscoveryClient(time.Duration(c.timeoutSeconds) * time.Second)
-		if err != nil {
-			log.Infof("Could not get apiserver discovery client: %v", err)
 			return err
 		}
 	}

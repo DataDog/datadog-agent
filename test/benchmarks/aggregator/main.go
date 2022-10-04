@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -76,25 +77,25 @@ type forwarderBenchStub struct{}
 
 func (f *forwarderBenchStub) Start() error { return nil }
 func (f *forwarderBenchStub) Stop()        {}
-func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1Series(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads transaction.BytesPayloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads transaction.BytesPayloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitSeries(payload transaction.BytesPayloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload transaction.BytesPayloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload transaction.BytesPayloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload transaction.BytesPayloads, extraHeaders http.Header, priority forwarder.TransactionPriority) error {
 	return nil
 }
 

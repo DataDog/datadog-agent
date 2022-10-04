@@ -369,6 +369,13 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not export Windows Datadog Registry: %s", err)
 	}
 
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		err = zipRemoteConfigDB(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not export remote-config database: %s", err)
+		}
+	}
+
 	// force a log flush before zipping them
 	log.Flush()
 	for _, logFilePath := range logFilePaths {

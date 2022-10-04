@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
-	// Init packages
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
-
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 )

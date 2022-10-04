@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent

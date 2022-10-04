@@ -42,9 +42,8 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	// Example: shared:2 master:7
 	if len(mnt.Optional) > 0 {
 		for _, field := range strings.Split(mnt.Optional, " ") {
-			optionSplit := strings.SplitN(field, ":", 2)
-			if len(optionSplit) == 2 {
-				target, value := optionSplit[0], optionSplit[1]
+			target, value, found := strings.Cut(field, ":")
+			if found {
 				if target == "shared" || target == "master" {
 					groupID, err := strconv.ParseUint(value, 10, 32)
 					return uint32(groupID), err
@@ -114,9 +113,6 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 			continue
 		}
 		mr.insert(*e)
-
-		// init discarder revisions
-		mr.probe.inodeDiscarders.initRevision(e)
 	}
 
 	return nil
@@ -221,8 +217,6 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 
 	mr.insert(e)
 
-	// init discarder revisions
-	mr.probe.inodeDiscarders.initRevision(&e)
 	return nil
 }
 

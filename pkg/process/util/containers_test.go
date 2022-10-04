@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 

@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -67,6 +68,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getRenameProbes()...)
 	allProbes = append(allProbes, getRmdirProbe()...)
 	allProbes = append(allProbes, sharedProbes...)
+	allProbes = append(allProbes, iouringProbes...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
@@ -115,7 +117,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
-		{Name: "discarder_revisions"},
+		{Name: "inode_discarder_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
@@ -123,7 +125,6 @@ func AllMaps() []*manager.Map {
 		{Name: "exec_file_cache"},
 		// Open tables
 		{Name: "open_flags_approvers"},
-		{Name: "io_uring_req_pid"},
 		// Exec tables
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
@@ -138,11 +139,6 @@ func AllMaps() []*manager.Map {
 	}
 }
 
-const (
-	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
-	MaxTracedCgroupsCount = 128
-)
-
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {
@@ -153,10 +149,7 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
-	if cgroupWaitListSize <= 0 || cgroupWaitListSize > MaxTracedCgroupsCount {
-		cgroupWaitListSize = MaxTracedCgroupsCount
-	}
+func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -170,15 +163,27 @@ func AllMapSpecEditors(numCPU int, cgroupWaitListSize int, supportMmapableMaps, 
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"traced_cgroups": {
-			MaxEntries: MaxTracedCgroupsCount,
+		"activity_dumps_config": {
+			MaxEntries: model.MaxTracedCgroupsCount,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"activity_dump_rate_limiters": {
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"cgroup_wait_list": {
-			MaxEntries: uint32(cgroupWaitListSize),
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+
+	if tracedCgroupSize > 0 {
+		editors["traced_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: uint32(tracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	if supportMmapableMaps {
 		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
 			Flags:      unix.BPF_F_MMAPABLE,

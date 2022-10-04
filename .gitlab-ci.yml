@@ -29,6 +29,7 @@ include:
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
   # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
@@ -79,14 +80,12 @@ stages:
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - internal_kubernetes_deploy
   - notify
 
 variables:
   #Do not change this - must be the repository name for Kubernetes runners to work
   KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
-  # The SRC_PATH is in the GOPATH of the builders which
-  # currently is /go
-  SRC_PATH: /go/src/github.com/DataDog/datadog-agent
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -135,18 +134,18 @@ variables:
   USE_S3_CACHING: --omnibus-s3-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+  S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v9472974-a8f8b46
-  DATADOG_AGENT_BUILDERS: v9531714-74df2d8
-  DATADOG_AGENT_WINBUILDIMAGES: v9472974-a8f8b46
-  DATADOG_AGENT_ARMBUILDIMAGES: v9472974-a8f8b46
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v9472974-a8f8b46
-  DATADOG_AGENT_NIKOS_BUILDIMAGES:  v9472974-a8f8b46
+  DATADOG_AGENT_BUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
+  DATADOG_AGENT_WINBUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_ARMBUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10215382-be21540
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DOCKER_X64_BUILDER: v2718644-9ce6565-18.09.6-py3
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -167,6 +166,7 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   USE_CACHING_PROXY_RUBY: "true"
+  CLANG_LLVM_VER: 14.0.6
 
 #
 # Condition mixins for simplification of rules
@@ -726,7 +726,6 @@ variables:
       - test/kitchen/test/integration/security-agent-stress/**/*
       - .gitlab/functional_test/security_agent.yml
     when: on_success
-    allow_failure: true
   - when: manual
     allow_failure: true
 

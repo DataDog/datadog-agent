@@ -30,9 +30,9 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -159,7 +159,7 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 
 			constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
 			if err != nil {
-				log.Errorf("failed to extract constants from `%s`: %v", path, err)
+				seclog.Errorf("failed to extract constants from `%s`: %v", path, err)
 				return
 			}
 

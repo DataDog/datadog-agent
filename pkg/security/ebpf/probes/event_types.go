@@ -88,12 +88,14 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/bprm_execve", EBPFFuncName: "kprobe_bprm_execve"}},
 						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bprm_check", EBPFFuncName: "kprobe_security_bprm_check"}},
 					}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/setup_new_exec", EBPFFuncName: "kprobe_setup_new_exec"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_open", EBPFFuncName: "kprobe_vfs_open"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_dentry_open", EBPFFuncName: "kprobe_do_dentry_open"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/commit_creds", EBPFFuncName: "kprobe_commit_creds"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/__task_pid_nr_ns", EBPFFuncName: "kretprobe__task_pid_nr_ns"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/alloc_pid", EBPFFuncName: "kretprobe_alloc_pid"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/switch_task_namespaces", EBPFFuncName: "kprobe_switch_task_namespaces"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/do_coredump", EBPFFuncName: "kprobe_do_coredump"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/cgroup_procs_write", EBPFFuncName: "kprobe_cgroup_procs_write"}},
@@ -216,12 +218,22 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "open_by_handle_at"}, EntryAndExit, true),
 				},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__io_openat_prep", EBPFFuncName: "kprobe___io_openat_prep"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat", EBPFFuncName: "kprobe_io_openat"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat2", EBPFFuncName: "kprobe_io_openat2"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_openat2", EBPFFuncName: "kretprobe_io_openat2"}},
 				}},
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filp_close", EBPFFuncName: "kprobe_filp_close"}},
+				}},
+
+				// iouring
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/io_uring/io_uring_create", EBPFFuncName: "io_uring_create"}},
+					&manager.OneOf{Selectors: []manager.ProbesSelector{
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_allocate_scq_urings", EBPFFuncName: "kprobe_io_allocate_scq_urings"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_sq_offload_start", EBPFFuncName: "kprobe_io_sq_offload_start"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_ring_ctx_alloc", EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
+					}},
 				}},
 
 				// Mount probes

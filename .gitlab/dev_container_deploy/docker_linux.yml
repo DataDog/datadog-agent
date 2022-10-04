@@ -215,9 +215,9 @@ dev_nightly_docker_hub-a6:
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA},agent-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}-py2,agent-dev:nightly-${CI_COMMIT_BRANCH}-py2
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py2,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py2
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}-jmx,agent-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}-py2-jmx,agent-dev:nightly-${CI_COMMIT_BRANCH}-py2-jmx
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py2-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py2-jmx
 
 # deploys nightlies to agent-dev
 dev_nightly-a7:
@@ -235,9 +235,9 @@ dev_nightly-a7:
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}-py3,agent-dev:nightly-${CI_COMMIT_BRANCH}-py3
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py3,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py3
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}-py3-jmx,agent-dev:nightly-${CI_COMMIT_BRANCH}-py3-jmx
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py3-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py3-jmx
 
 # deploys nightlies to agent-dev
 dev_nightly-dogstatsd:
@@ -251,4 +251,4 @@ dev_nightly-dogstatsd:
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd-dev:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA},dogstatsd-dev:nightly-${CI_COMMIT_BRANCH}
+    IMG_DESTINATIONS: dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}

@@ -18,19 +18,81 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+const metaBucket = "meta"
+const metaFile = "meta.json"
+
+type AgentMetadata struct {
+	Version string `json:"version"`
+}
+
+func recreate(path string) (*bbolt.DB, error) {
+	log.Infof("Clear remote configuration database")
+	if err := os.Remove(path); err != nil {
+		return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
+	}
+	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
+	if err != nil {
+		return nil, err
+	}
+	return db, addMetadata(db)
+}
+
+func addMetadata(db *bbolt.DB) error {
+	return db.Update(func(tx *bbolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(metaBucket))
+		if err != nil {
+			return err
+		}
+		metaData, err := json.Marshal(AgentMetadata{
+			Version: version.AgentVersion,
+		})
+		if err != nil {
+			return err
+		}
+		return bucket.Put([]byte(metaFile), metaData)
+	})
+}
 
 func openCacheDB(path string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
 	if err != nil {
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
-		}
-		if db, err = bbolt.Open(path, 0600, &bbolt.Options{}); err != nil {
-			return nil, err
-		}
+		return recreate(path)
 	}
+
+	metadata := new(AgentMetadata)
+	err = db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(metaBucket))
+		if bucket == nil {
+			log.Infof("Missing meta bucket")
+			return err
+		}
+		metadataBytes := bucket.Get([]byte(metaFile))
+		if metadataBytes == nil {
+			log.Infof("Missing meta file in meta bucket")
+			return err
+		}
+		err = json.Unmarshal(metadataBytes, metadata)
+		if err != nil {
+			log.Infof("Invalid metadata")
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		_ = db.Close()
+		return recreate(path)
+	}
+
+	if metadata.Version != version.AgentVersion {
+		log.Infof("Different agent version detected")
+		_ = db.Close()
+		return recreate(path)
+	}
+
 	return db, nil
 }
 
@@ -86,10 +148,14 @@ func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, active
 }
 
 type targetsCustom struct {
-	OpaqueBackendState []byte `json:"opaque_backend_state"`
+	OpaqueBackendState   []byte `json:"opaque_backend_state"`
+	AgentRefreshInterval int64  `json:"agent_refresh_interval"`
 }
 
 func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {
+	if len(rawTargetsCustom) == 0 {
+		return targetsCustom{}, nil
+	}
 	var custom targetsCustom
 	err := json.Unmarshal(rawTargetsCustom, &custom)
 	if err != nil {

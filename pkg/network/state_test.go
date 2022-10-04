@@ -1173,11 +1173,12 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 	m := conn.Monotonic[0]
 	m.SentBytes--
 	conn.Monotonic.Put(0, m.StatCounters)
+	conn.Monotonic.Put(1, StatCounters{SentBytes: 1})
 
 	conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
 	require.Len(t, conns, 1)
 	expected := conn
-	expected.Last.SentBytes = 0
+	expected.Last.SentBytes = 1
 	// We expect the LastStats to be 0
 	assert.Equal(t, expected, conns[0])
 }
@@ -1367,6 +1368,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).Conns, 0)
 	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).Conns, 0)
 
+	c.Monotonic.Put(1, StatCounters{SentBytes: 100, RecvBytes: 200})
 	c.LastUpdateEpoch = latestEpochTime()
 
 	delta := state.GetDelta(client1, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)

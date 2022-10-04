@@ -9,21 +9,21 @@
 package netlink
 
 import (
+	"net/netip"
 	"testing"
 
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
 )
 
 func newIPTuple(srcIP, dstIP string, srcPort, dstPort uint16, proto uint8) ConTuple {
-	_s := netaddr.MustParseIP(srcIP)
-	_d := netaddr.MustParseIP(dstIP)
+	_s := netip.MustParseAddr(srcIP)
+	_d := netip.MustParseAddr(dstIP)
 	return ConTuple{
-		Src:   netaddr.IPPortFrom(_s, srcPort),
-		Dst:   netaddr.IPPortFrom(_d, dstPort),
+		Src:   netip.AddrPortFrom(_s, srcPort),
+		Dst:   netip.AddrPortFrom(_d, dstPort),
 		Proto: proto,
 	}
 }

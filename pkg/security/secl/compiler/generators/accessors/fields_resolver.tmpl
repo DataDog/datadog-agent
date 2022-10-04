@@ -14,26 +14,16 @@ import (
 )
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
-func (ev *Event) ResolveFields() {
+func (ev *Event) ResolveFields(forADs bool) {
     {{ $uniqueResolvers := dict }}
     // resolve context fields that are not related to any event type
 {{- range $Key, $Field := .Fields}}
-    {{- if and (eq $Field.Event "*") (ne $Field.Handler "") (not $Field.Iterator) (eq $Field.CachelessResolution false) }}
-        {{- if (eq $Field.Prefix "") }}
-            _ = {{ print "ev." $Field.Handler "(ev)"}}
-        {{- else}}
-            {{$Ptr := "&"}}
-            {{$Parent := index $.AllFields $Field.Prefix}}
-            {{- if $Parent.IsOrigTypePtr}}
-                {{$Ptr = ""}}
-            {{end}}
-
-            {{ $resolver := print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")" }}
-            {{ if not (hasKey $uniqueResolvers $resolver) }}
-            _ = {{ print $resolver }}
-            {{ $_ := set $uniqueResolvers $resolver "" }}
-            {{ end }}
-        {{- end}}
+    {{- if and (eq $Field.Event "*") }}
+        {{ $resolver := $Field | GetFieldResolver $.AllFields }}
+        {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
+        {{ $resolver | FieldADPrint $Field }}
+        {{ $_ := set $uniqueResolvers $resolver "" }}
+        {{ end }}
     {{- end -}}
 {{end}}
 
@@ -44,19 +34,10 @@ func (ev *Event) ResolveFields() {
         case "{{$Name}}":
             {{- range $Key, $FieldName := $EventType.Fields }}
             {{- $Field := index $.Fields $FieldName }}
-                {{- if and (ne $Field.Handler "") (not $Field.Iterator) (eq $Field.CachelessResolution false) }}
-                    {{- if (eq $Field.Prefix "") }}
-                        _ = {{ print "ev." $Field.Handler "(ev)"}}
-                    {{- else}}
-                        {{$Ptr := "&"}}
-                        {{$Parent := index $.AllFields $Field.Prefix}}
-                        {{- if $Parent.IsOrigTypePtr}}
-                            {{$Ptr = ""}}
-                        {{end}}
-
-                        _ = {{ print "ev." $Field.Handler "(" $Ptr "ev." $Field.Prefix ")"}}
-                    {{- end}}
-                {{- end -}}
+                {{ $resolver := $Field | GetFieldResolver $.AllFields }}
+                {{ if and (ne $resolver "") }}
+                {{ $resolver | FieldADPrint $Field }}
+                {{ end }}
             {{end}}
         {{- end}}
     {{end}}

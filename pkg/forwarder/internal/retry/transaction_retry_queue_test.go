@@ -17,6 +17,7 @@ import (
 
 func TestTransactionRetryQueueAdd(t *testing.T) {
 	a := assert.New(t)
+	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
 	q := newOnDiskRetryQueueTest(t, a)
 
 	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"))
@@ -29,6 +30,7 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 	}
 	a.Equal(40+15, container.getCurrentMemSizeInBytes())
 	a.Equal(2, container.GetTransactionCount())
+	a.Equal(pointDropped, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{40, 15})
 
@@ -65,6 +67,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
+	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
 	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"))
 
 	for _, payloadSize := range []int{9, 10, 11} {
@@ -77,6 +80,7 @@ func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	dropCount, err := container.Add(createTransactionWithPayloadSize(30))
 	a.Equal(2, dropCount)
 	a.NoError(err)
+	a.Equal(pointDropped+2, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 
 	a.Equal(11+30, container.getCurrentMemSizeInBytes())
 
@@ -88,22 +92,25 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	q := newOnDiskRetryQueueTest(t, a)
 
 	maxMemSizeInBytes := 0
+	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
 	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"))
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(0, inMemTrDropped)
+	a.Equal(pointDropped, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 
 	// `extractTransactionsForDisk` does not behave the same when there is a existing transaction.
 	inMemTrDropped, err = container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(1, inMemTrDropped)
+	a.Equal(pointDropped+1, transactionContainerPointDroppedCountTelemetry.expvar.Value())
 }
 
 func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransaction {
 	tr := transaction.NewHTTPTransaction()
 	payload := make([]byte, payloadSize)
-	tr.Payload = &payload
+	tr.Payload = transaction.NewBytesPayload(payload, 1)
 	return tr
 }
 

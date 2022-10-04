@@ -89,6 +89,12 @@ func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
 		},
 	}
 
+	spanFromStatsD := pb.Span{
+		Meta: map[string]string{
+			"http.url": "http://127.0.0.1:8125/",
+		},
+	}
+
 	legitimateSpan := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://www.datadoghq.com",
@@ -97,5 +103,6 @@ func TestFilterSpanFromLambdaLibraryOrRuntime(t *testing.T) {
 
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaLibrary))
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromLambdaRuntime))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&spanFromStatsD))
 	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(&legitimateSpan))
 }

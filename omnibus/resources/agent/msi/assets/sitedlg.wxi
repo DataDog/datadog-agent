@@ -15,7 +15,7 @@
     </Control>
     <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes"
              Text="Next">
-      <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Event="NewDialog" Value="DDAgentUserDlg" />
 
     </Control>
     <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"

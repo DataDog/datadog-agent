@@ -77,7 +77,17 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	// Start AutoscalerWatcher, only leader will flag DatadogMetrics as Active/Inactive
 	// WPAInformerFactory is nil when WPA is not used. AutoscalerWatcher will check value itself.
-	autoscalerWatcher, err := NewAutoscalerWatcher(refreshPeriod, autogenEnabled, autogenExpirationPeriodHours, autogenNamespace, apiCl.InformerFactory, apiCl.WPAInformerFactory, le.IsLeader, &provider.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(
+		refreshPeriod,
+		autogenEnabled,
+		autogenExpirationPeriodHours,
+		autogenNamespace,
+		apiCl.Cl,
+		apiCl.InformerFactory,
+		apiCl.WPAInformerFactory,
+		le.IsLeader,
+		&provider.store,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %v", err)
 	}

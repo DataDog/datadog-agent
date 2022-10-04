@@ -4,4 +4,4 @@
 
 package runtime
 
-var TcpQueueLength = NewRuntimeAsset("tcp-queue-length.c", "7367457a07a36f7248270dbbc5a9d7fb8757fb28c5693163a7aa51a1569e5c61")
+var TcpQueueLength = NewAsset("tcp-queue-length.c", "aa298d8b67da8a6b56e7307696ae68114b5411cd6e0ac6f2e1413f095972051d")

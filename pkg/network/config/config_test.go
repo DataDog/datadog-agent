@@ -82,6 +82,33 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
+func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+}
+
 func TestDisableGatewayLookup(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()
@@ -144,10 +171,10 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 }
 
 func TestEnablingDNSStatsCollection(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -156,6 +183,9 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		defer os.Unsetenv("DD_COLLECT_DNS_STATS")
 
 		os.Setenv("DD_COLLECT_DNS_STATS", "false")
@@ -176,10 +206,10 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 }
 
 func TestDisablingDNSDomainCollection(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -188,6 +218,9 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		defer os.Unsetenv("DD_COLLECT_DNS_DOMAINS")
 
 		os.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
@@ -208,10 +241,10 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 }
 
 func TestSettingMaxDNSStats(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -220,6 +253,9 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		newConfig()
 		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
 		_, err := sysconfig.New("")
@@ -302,12 +338,12 @@ func TestHTTPReplaceRules(t *testing.T) {
 }
 
 func TestMaxClosedConnectionsBuffered(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
 	maxTrackedConnections := New().MaxTrackedConnections
 
 	t.Run("value set", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		v := os.Getenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED")
 		defer func() {
 			os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", v)
@@ -321,16 +357,19 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	})
 
 	t.Run("value not set", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		cfg := New()
 		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
 	})
 }
 
 func TestMaxHTTPStatsBuffered(t *testing.T) {
-	newConfig()
-	t.Cleanup(restoreGlobalConfig)
-
 	t.Run("value set through env var", func(t *testing.T) {
+		newConfig()
+		t.Cleanup(restoreGlobalConfig)
+
 		v := os.Getenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 		defer func() {
 			os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", v)
@@ -344,6 +383,9 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 	})
 
 	t.Run("value set through yaml", func(t *testing.T) {
+		newConfig()
+		t.Cleanup(restoreGlobalConfig)
+
 		cfg := configurationFromYAML(t, `
 network_config:
   max_http_stats_buffered: 30000

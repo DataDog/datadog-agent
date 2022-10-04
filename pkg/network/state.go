@@ -36,7 +36,7 @@ const (
 // - closed connections
 // - sent and received bytes per connection
 type State interface {
-	// GetDelta returns the a Delta object for  given client when provided the latest set of active connections
+	// GetDelta returns a Delta object for the given client when provided the latest set of active connections
 	GetDelta(
 		clientID string,
 		latestTime uint64,
@@ -284,7 +284,7 @@ func (ns *networkState) logTelemetry() {
 		dnsPidCollisions:   ns.telemetry.dnsPidCollisions - ns.lastTelemetry.dnsPidCollisions,
 	}
 
-	// Flush log line if any metric is non zero
+	// Flush log line if any metric is non-zero
 	if delta.statsUnderflows > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 ||
 		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 {
 		s := "state telemetry: "
@@ -434,7 +434,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	}
 }
 
-// storeHTTPStats stores latest HTTP stats for all clients
+// storeHTTPStats stores the latest HTTP stats for all clients
 func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
@@ -504,9 +504,12 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		}
 
 		ns.updateConnWithStats(client, key, closedConn)
-	}
 
-	buffer.Append(closed)
+		if closedConn.Last.IsZero() {
+			continue
+		}
+		*buffer.Next() = *closedConn
+	}
 
 	// Active connections
 	for key, c := range active {
@@ -518,6 +521,9 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		ns.createStatsForKey(client, key)
 		ns.updateConnWithStats(client, key, c)
 
+		if c.Last.IsZero() {
+			continue
+		}
 		*buffer.Next() = *c
 	}
 }

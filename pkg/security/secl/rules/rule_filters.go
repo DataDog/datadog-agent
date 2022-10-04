@@ -9,12 +9,17 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 )
 
 // RuleFilter definition of a rule filter
 type RuleFilter interface {
-	IsAccepted(rule *RuleDefinition) (bool, error)
+	IsRuleAccepted(*RuleDefinition) (bool, error)
+}
+
+// MacroFilter definition of a macro filter
+type MacroFilter interface {
+	IsMacroAccepted(*MacroDefinition) (bool, error)
 }
 
 // RuleIDFilter defines a ID based filter
@@ -22,8 +27,8 @@ type RuleIDFilter struct {
 	ID string
 }
 
-// IsAccepted checks whether the rule is accepted
-func (r *RuleIDFilter) IsAccepted(rule *RuleDefinition) (bool, error) {
+// IsRuleAccepted checks whether the rule is accepted
+func (r *RuleIDFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	return r.ID == rule.ID, nil
 }
 
@@ -49,9 +54,19 @@ func NewAgentVersionFilter(version *semver.Version) (*AgentVersionFilter, error)
 	}, nil
 }
 
-// IsAccepted checks whether the rule is accepted
-func (r *AgentVersionFilter) IsAccepted(rule *RuleDefinition) (bool, error) {
+// IsRuleAccepted checks whether the rule is accepted
+func (r *AgentVersionFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	constraint, err := validators.ValidateAgentVersionConstraint(rule.AgentVersionConstraint)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
+	}
+
+	return constraint.Check(r.version), nil
+}
+
+// IsMacroAccepted checks whether the macro is accepted
+func (r *AgentVersionFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
+	constraint, err := validators.ValidateAgentVersionConstraint(macro.AgentVersionConstraint)
 	if err != nil {
 		return false, fmt.Errorf("failed to parse agent version constraint: %v", err)
 	}

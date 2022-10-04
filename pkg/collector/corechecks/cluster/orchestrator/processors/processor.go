@@ -164,37 +164,30 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 			ContentType:     "json",
 		})
 	}
-	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 
-	// chunk orchestrator metadata and manifest
-	metadataChunks := chunkResources(resourceMetadataModels, chunkCount, ctx.Cfg.MaxPerMessage)
-	manifestChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk metadata messages and use resourceManifestModels as weight indicator
+	metadataChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, metadataChunker)
+	// Chunk manifest messages and use itself as weight indicator
+	manifestChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, manifestChunker)
 
-	metadataMessages := make([]model.MessageBody, 0, chunkCount)
-	manifestMessages := make([]model.MessageBody, 0, chunkCount)
+	chunkCount := len(metadataChunker.collectorOrchestratorList)
+	metadataMessages := make([]model.MessageBody, 0, len(metadataChunker.collectorOrchestratorList))
+	manifestMessages := make([]model.MessageBody, 0, len(manifestChunker.collectorOrchestratorList))
+
 	for i := 0; i < chunkCount; i++ {
-		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
-		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunks[i], chunkCount))
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunker.collectorOrchestratorList[i], chunkCount))
+		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunker.collectorOrchestratorList[i], chunkCount))
 	}
+
 	processResult = ProcessResult{
 		MetadataMessages: metadataMessages,
 		ManifestMessages: manifestMessages,
 	}
+
 	return processResult, len(resourceMetadataModels)
-}
-
-// chunkResources splits messages into groups of messages called chunks, knowing
-// the expected chunk count and size.
-func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]interface{} {
-	chunks := make([][]interface{}, 0, chunkCount)
-
-	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.ChunkRange(len(resources), chunkCount, chunkSize, counter)
-		chunks = append(chunks, resources[chunkStart:chunkEnd])
-	}
-
-	return chunks
 }
 
 // build orchestrator manifest message

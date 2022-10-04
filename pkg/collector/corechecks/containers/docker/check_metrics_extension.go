@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -28,7 +28,7 @@ func (dn *dockerCustomMetricsExtension) PreProcess(sender generic.SenderFunc, ag
 	dn.aggSender = aggSender
 }
 
-func (dn *dockerCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
+func (dn *dockerCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	// We only need it for PIDs
 	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)

@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 var secretScriptBuilder sync.Once

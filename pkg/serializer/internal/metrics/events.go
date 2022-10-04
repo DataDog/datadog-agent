@@ -235,7 +235,7 @@ func writeEvent(event *metrics.Event, writer *utiljson.RawObjectWriter) error {
 // is composed of all events for a specific source type name.
 func (events Events) CreateSingleMarshaler() marshaler.StreamJSONMarshaler {
 	eventsBySourceType := events.getEventsBySourceType()
-	var values []eventsSourceType
+	values := make([]eventsSourceType, 0, len(eventsBySourceType))
 	for sourceType, events := range eventsBySourceType {
 		values = append(values, eventsSourceType{sourceType, events})
 	}
@@ -291,14 +291,15 @@ func (e *eventsMarshaler) DescribeItem(i int) string {
 // Each StreamJSONMarshaler is composed of all events for a specific source type name.
 func (events Events) CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler {
 	e := events.getEventsBySourceType()
-	var values []marshaler.StreamJSONMarshaler
-	for k, v := range e {
-		values = append(values, &eventsMarshaler{k, v})
-	}
 
 	// Make sure we return at least one marshaler to have non-empty JSON.
-	if len(values) == 0 {
-		values = append(values, &eventsBySourceTypeMarshaler{events, nil})
+	if len(e) == 0 {
+		return []marshaler.StreamJSONMarshaler{&eventsBySourceTypeMarshaler{events, nil}}
+	}
+
+	values := make([]marshaler.StreamJSONMarshaler, 0, len(e))
+	for k, v := range e {
+		values = append(values, &eventsMarshaler{k, v})
 	}
 	return values
 }

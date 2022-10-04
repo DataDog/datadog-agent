@@ -24,7 +24,7 @@ import (
 )
 
 func init() {
-	registerCheck("proc mount", procMount)
+	registerCheck("proc mount", procMount, map[AgentType]struct{}{CoreAgent: {}, ProcessAgent: {}})
 }
 
 func procMount() error {

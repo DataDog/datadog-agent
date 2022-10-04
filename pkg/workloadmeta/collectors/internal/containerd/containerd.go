@@ -174,9 +174,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	}
 
 	for _, namespace := range namespaces {
-		c.containerdClient.SetCurrentNamespace(namespace)
-
-		nsEvents, err := c.generateInitialEvents(ctx, namespace)
+		nsEvents, err := c.generateInitialEvents(namespace)
 		if err != nil {
 			return err
 		}
@@ -191,10 +189,10 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) generateInitialEvents(ctx context.Context, namespace string) ([]workloadmeta.CollectorEvent, error) {
+func (c *collector) generateInitialEvents(namespace string) ([]workloadmeta.CollectorEvent, error) {
 	var events []workloadmeta.CollectorEvent
 
-	existingContainers, err := c.containerdClient.Containers()
+	existingContainers, err := c.containerdClient.Containers(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +202,7 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 		// regardless.  it might've been because of network errors, so
 		// it's better to keep a container we should've ignored than
 		// ignoring a container we should've kept
-		ignore, err := c.ignoreContainer(container)
+		ignore, err := c.ignoreContainer(namespace, container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
 		} else if ignore {
@@ -224,15 +222,13 @@ func (c *collector) generateInitialEvents(ctx context.Context, namespace string)
 }
 
 func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
-	c.containerdClient.SetCurrentNamespace(containerdEvent.Namespace)
-
 	containerID, container, err := c.extractContainerFromEvent(ctx, containerdEvent)
 	if err != nil {
 		return fmt.Errorf("cannot extract container from event: %w", err)
 	}
 
 	if container != nil {
-		ignore, err := c.ignoreContainer(container)
+		ignore, err := c.ignoreContainer(containerdEvent.Namespace, container)
 		if err != nil {
 			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
 		} else if ignore {
@@ -255,7 +251,7 @@ func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerd
 	return nil
 }
 
-// extractContainerFromEvent extracts a container ID from an envent, and
+// extractContainerFromEvent extracts a container ID from an event, and
 // queries for a containerd.Container object. The Container object will always
 // be missing in a delete event, so that's why we return a separate ID and not
 // just an object.
@@ -284,7 +280,7 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 
 	// ignore NotFound errors, since they happen for every deleted
 	// container, but these events still need to be handled
-	container, err := c.containerdClient.ContainerWithContext(ctx, containerID)
+	container, err := c.containerdClient.ContainerWithContext(ctx, containerdEvent.Namespace, containerID)
 	if err != nil && !agentErrors.IsNotFound(err) {
 		return "", nil, err
 	}
@@ -294,8 +290,8 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 
 // ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
-func (c *collector) ignoreContainer(container containerd.Container) (bool, error) {
-	isSandbox, err := c.containerdClient.IsSandbox(container)
+func (c *collector) ignoreContainer(namespace string, container containerd.Container) (bool, error) {
+	isSandbox, err := c.containerdClient.IsSandbox(namespace, container)
 	if err != nil {
 		return false, err
 	}
@@ -304,7 +300,7 @@ func (c *collector) ignoreContainer(container containerd.Container) (bool, error
 		return true, nil
 	}
 
-	info, err := c.containerdClient.Info(container)
+	info, err := c.containerdClient.Info(namespace, container)
 	if err != nil {
 		return false, err
 	}

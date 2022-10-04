@@ -38,66 +38,70 @@ func (f *FallbackConstantFetcher) String() string {
 func (f *FallbackConstantFetcher) appendRequest(id string) {
 	var value = ErrorSentinel
 	switch id {
-	case "sizeof_inode":
+	case SizeOfInode:
 		value = getSizeOfStructInode(f.kernelVersion)
-	case "sb_magic_offset":
+	case OffsetNameSuperBlockStructSMagic:
 		value = getSuperBlockMagicOffset(f.kernelVersion)
-	case "tty_offset":
+	case OffsetNameSignalStructStructTTY:
 		value = getSignalTTYOffset(f.kernelVersion)
-	case "tty_name_offset":
+	case OffsetNameTTYStructStructName:
 		value = getTTYNameOffset(f.kernelVersion)
-	case "creds_uid_offset":
+	case OffsetNameCredStructUID:
 		value = getCredsUIDOffset(f.kernelVersion)
-	case "bpf_map_id_offset":
+	case OffsetNameBPFMapStructID:
 		value = getBpfMapIDOffset(f.kernelVersion)
-	case "bpf_map_name_offset":
+	case OffsetNameBPFMapStructName:
 		value = getBpfMapNameOffset(f.kernelVersion)
-	case "bpf_map_type_offset":
+	case OffsetNameBPFMapStructMapType:
 		value = getBpfMapTypeOffset(f.kernelVersion)
-	case "bpf_prog_aux_offset":
+	case OffsetNameBPFProgStructAux:
 		value = getBpfProgAuxOffset(f.kernelVersion)
-	case "bpf_prog_tag_offset":
+	case OffsetNameBPFProgStructTag:
 		value = getBpfProgTagOffset(f.kernelVersion)
-	case "bpf_prog_type_offset":
+	case OffsetNameBPFProgStructType:
 		value = getBpfProgTypeOffset(f.kernelVersion)
-	case "bpf_prog_attach_type_offset":
+	case OffsetNameBPFProgStructExpectedAttachType:
 		value = getBpfProgAttachTypeOffset(f.kernelVersion)
-	case "bpf_prog_aux_id_offset":
+	case OffsetNameBPFProgAuxStructID:
 		value = getBpfProgAuxIDOffset(f.kernelVersion)
-	case "bpf_prog_aux_name_offset":
+	case OffsetNameBPFProgAuxStructName:
 		value = getBpfProgAuxNameOffset(f.kernelVersion)
-	case "pid_level_offset":
+	case OffsetNamePIDStructLevel:
 		value = getPIDLevelOffset(f.kernelVersion)
-	case "pid_numbers_offset":
+	case OffsetNamePIDStructNumbers:
 		value = getPIDNumbersOffset(f.kernelVersion)
-	case "sizeof_upid":
+	case SizeOfUPID:
 		value = getSizeOfUpid(f.kernelVersion)
-	case "dentry_sb_offset":
+	case OffsetNameDentryStructDSB:
 		value = getDentrySuperBlockOffset(f.kernelVersion)
-	case "pipe_inode_info_bufs_offset":
+	case OffsetNamePipeInodeInfoStructBufs:
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
-	case "net_device_ifindex_offset":
+	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
-	case "net_ns_offset":
+	case OffsetNameNetStructNS:
 		value = getNetNSOffset(f.kernelVersion)
-	case "net_proc_inum_offset":
+	case OffsetNameNetStructProcInum:
 		value = getNetProcINumOffset(f.kernelVersion)
-	case "sock_common_skc_net_offset":
+	case OffsetNameSockCommonStructSKCNet:
 		value = getSockCommonSKCNetOffset(f.kernelVersion)
-	case "socket_sock_offset":
+	case OffsetNameSocketStructSK:
 		value = getSocketSockOffset(f.kernelVersion)
-	case "nf_conn_ct_net_offset":
+	case OffsetNameNFConnStructCTNet:
 		value = getNFConnCTNetOffset(f.kernelVersion)
-	case "sock_common_skc_family_offset":
+	case OffsetNameSockCommonStructSKCFamily:
 		value = getSockCommonSKCFamilyOffset(f.kernelVersion)
-	case "flowi4_saddr_offset":
+	case OffsetNameFlowI4StructSADDR:
 		value = getFlowi4SAddrOffset(f.kernelVersion)
-	case "flowi6_saddr_offset":
+	case OffsetNameFlowI6StructSADDR:
 		value = getFlowi6SAddrOffset(f.kernelVersion)
-	case "flowi4_uli_offset":
+	case OffsetNameFlowI4StructULI:
 		value = getFlowi4ULIOffset(f.kernelVersion)
-	case "flowi6_uli_offset":
+	case OffsetNameFlowI6StructULI:
 		value = getFlowi6ULIOffset(f.kernelVersion)
+	case OffsetNameLinuxBinprmStructFile:
+		value = getBinPrmFileFieldOffset(f.kernelVersion)
+	case OffsetNameIoKiocbStructCtx:
+		value = getIoKcbCtxOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -675,4 +679,32 @@ func ubuntuAbiVersionCheck(kv *kernel.Version, minAbiPerFlavor map[string]int) b
 	}
 
 	return ukv.Abi >= minAbi
+}
+
+// getBinPrmFileFieldOffset returns the offset of the file field in the linux_binprm struct depending on the kernel version that the system probe is running on. Only used if runtime compilation, btf co-re, btfhub, offset-guesser all fail to yield an offset value.
+func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
+	if kv.IsRH8Kernel() {
+		return 296
+	}
+
+	if kv.IsRH7Kernel() || kv.Code < kernel.Kernel5_0 {
+		return 168
+	}
+
+	if kv.Code >= kernel.Kernel5_0 && kv.Code < kernel.Kernel5_2 {
+		// `unsigned long argmin` is introduced in v5.0-rc1
+		return 176
+	}
+
+	if kv.Code >= kernel.Kernel5_2 && kv.Code < kernel.Kernel5_8 {
+		// `char buf[BINPRM_BUF_SIZE]` is removed in v5.2-rc1
+		return 48
+	}
+
+	// `struct file *executable` and `struct file *interpreter` are introduced in v5.8-rc1
+	return 64
+}
+
+func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
+	return 80
 }

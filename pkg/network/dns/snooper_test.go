@@ -11,7 +11,7 @@ package dns
 import (
 	"math/rand"
 	"net"
-	"sync"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -24,16 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-func skipIfDNSNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
-		t.Skip("dns inspection not supported on this kernel")
-	}
-}
 
 func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dnsMonitor) {
 	destAddr := util.AddressFromString(destIP)
@@ -317,21 +308,10 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	}
 	key1 := getKey(queryIP, queryPort, validDNSServerIP, syscall.IPPROTO_TCP)
 
-	// Set up a local DNS server to return SERVFAIL
-	localServerAddr := &net.UDPAddr{IP: net.ParseIP(localhost), Port: 53}
-	localServer := &mdns.Server{Addr: localServerAddr.String(), Net: "udp"}
-	localServer.Handler = &handler{}
-	waitLock := sync.Mutex{}
-	waitLock.Lock()
-	localServer.NotifyStartedFunc = waitLock.Unlock
-	defer localServer.Shutdown()
+	h := handler{}
+	shutdown := newTestServer(t, localhost, 53, "udp", h.ServeDNS)
+	defer shutdown()
 
-	go func() {
-		if err := localServer.ListenAndServe(); err != nil {
-			t.Fatalf("Failed to set listener %s\n", err.Error())
-		}
-	}()
-	waitLock.Lock()
 	queryIP, queryPort, _ = sendDNSQueries(t, domains, localhost, "udp")
 	var allStats StatsByKeyByNameByType
 
@@ -365,21 +345,10 @@ func TestDNSOverNonPort53(t *testing.T) {
 	domains := []string{
 		"nonexistent.com.net",
 	}
-	// Set up a local DNS server to return SERVFAIL
-	localServerAddr := &net.UDPAddr{IP: net.ParseIP(localhost), Port: 5353}
-	localServer := &mdns.Server{Addr: localServerAddr.String(), Net: "udp"}
-	localServer.Handler = &handler{}
-	waitLock := sync.Mutex{}
-	waitLock.Lock()
-	localServer.NotifyStartedFunc = waitLock.Unlock
-	defer localServer.Shutdown()
+	h := &handler{}
+	shutdown := newTestServer(t, localhost, 5353, "udp", h.ServeDNS)
+	defer shutdown()
 
-	go func() {
-		if err := localServer.ListenAndServe(); err != nil {
-			t.Fatalf("Failed to set listener %s\n", err.Error())
-		}
-	}()
-	waitLock.Lock()
 	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, localhost, "5353", "udp")
 	require.NotNil(t, reps[0])
 
@@ -463,7 +432,7 @@ func TestDNSOverIPv6(t *testing.T) {
 
 	// This DNS server is set up so it always returns a NXDOMAIN answer
 	serverIP := net.IPv6loopback.String()
-	closeFn := newTestServer(t, serverIP, "udp", nxDomainHandler)
+	closeFn := newTestServer(t, serverIP, 53, "udp", nxDomainHandler)
 	defer closeFn()
 
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, serverIP, "udp")
@@ -487,7 +456,7 @@ func TestDNSNestedCNAME(t *testing.T) {
 	statKeeper := reverseDNS.statKeeper
 
 	serverIP := "127.0.0.1"
-	closeFn := newTestServer(t, serverIP, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
+	closeFn := newTestServer(t, serverIP, 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
 		answer := new(dns.Msg)
 		answer.SetReply(r)
 
@@ -526,8 +495,8 @@ func TestDNSNestedCNAME(t *testing.T) {
 	checkSnooping(t, serverIP, "example.com", reverseDNS)
 }
 
-func newTestServer(t *testing.T, ip string, protocol string, handler dns.HandlerFunc) func() {
-	addr := net.JoinHostPort(ip, "53")
+func newTestServer(t *testing.T, ip string, port uint16, protocol string, handler dns.HandlerFunc) func() {
+	addr := net.JoinHostPort(ip, strconv.Itoa(int(port)))
 	srv := &dns.Server{Addr: addr, Net: protocol, Handler: handler}
 
 	initChan := make(chan error, 1)
@@ -546,7 +515,7 @@ func newTestServer(t *testing.T, ip string, protocol string, handler dns.Handler
 	}
 
 	return func() {
-		srv.Shutdown() //nolint:errcheck
+		_ = srv.Shutdown()
 	}
 }
 
@@ -555,7 +524,7 @@ func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
 	answer := new(dns.Msg)
 	answer.SetReply(r)
 	answer.SetRcode(r, dns.RcodeNameError)
-	w.WriteMsg(answer) //nolint:errcheck
+	_ = w.WriteMsg(answer)
 }
 
 func testConfig() *config.Config {

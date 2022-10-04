@@ -1,7 +1,5 @@
 run:
   skip-files:
-    - cmd/agent/app/reloadcheck.go # ignore unused command for now
-    - cmd/agent/app/listchecks.go  # ignore unused command for now
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
     - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
@@ -56,7 +54,6 @@ linters:
   disable-all: true
   enable:
     - deadcode    # Finds unused code
-    - structcheck # Finds unused struct fields
     - unconvert   # Remove unnecessary type conversions
     - unused      # Checks Go code for unused constants, variables, functions and types
     - ineffassign # Detects when assignments to existing variables are not used
@@ -97,3 +94,7 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+  revive:
+    rules:
+      - name: package-comments
+        disabled: true

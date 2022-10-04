@@ -42,11 +42,12 @@ func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSeria
 	payload, err := getPayload(ctx, c.coll, true)
 	if err != nil {
 		return err
+	} else if payload != nil {
+		if err := s.SendMetadata(payload); err != nil {
+			return fmt.Errorf("unable to submit inventories payload, %s", err)
+		}
 	}
 
-	if err := s.SendMetadata(payload); err != nil {
-		return fmt.Errorf("unable to submit inventories payload, %s", err)
-	}
 	return nil
 }
 
@@ -75,28 +76,14 @@ func (c inventoriesCollector) Init() error {
 	return inventories.StartMetadataUpdatedGoroutine(c.sc, getMinInterval())
 }
 
-// SetupInventoriesExpvar init the expvar function for inventories
-func SetupInventoriesExpvar(coll inventories.CollectorInterface) {
-	if !config.Datadog.GetBool("enable_metadata_collection") {
-		log.Debugf("Metadata collection disabled: inventories payload will not be exposed to expvar")
-		return
-	}
-
-	expvar.Publish("inventories", expvar.Func(func() interface{} {
-		log.Debugf("Creating inventory payload for expvar")
-		p, err := getPayload(context.TODO(), coll, false)
-		if err != nil {
-			log.Errorf("Could not create inventory payload for expvar: %s", err)
-			return &inventories.Payload{}
-		}
-		return p
-	}))
-}
-
 // SetupInventories registers the inventories collector into the Scheduler and, if configured, schedules it
 func SetupInventories(sc *Scheduler, coll inventories.CollectorInterface) error {
 	if !config.Datadog.GetBool("enable_metadata_collection") {
 		log.Debugf("Metadata collection disabled: inventories payload will not be collected nor sent")
+		return nil
+	}
+	if !config.Datadog.GetBool("inventories_enabled") {
+		log.Debugf("inventories metadata is disabled: inventories payload will not be collected nor sent")
 		return nil
 	}
 
@@ -110,7 +97,15 @@ func SetupInventories(sc *Scheduler, coll inventories.CollectorInterface) error 
 		return err
 	}
 
-	SetupInventoriesExpvar(coll)
+	expvar.Publish("inventories", expvar.Func(func() interface{} {
+		log.Debugf("Creating inventory payload for expvar")
+		p, err := getPayload(context.TODO(), coll, false)
+		if err != nil {
+			log.Errorf("Could not create inventory payload for expvar: %s", err)
+			return &inventories.Payload{}
+		}
+		return p
+	}))
 
 	return nil
 }

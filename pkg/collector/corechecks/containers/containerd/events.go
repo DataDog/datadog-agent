@@ -21,16 +21,16 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // compute events converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddContainers.Filter) {
+func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -38,32 +38,50 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddCo
 			log.Debugf("Event topic %s does not have the expected format", e.Topic)
 			continue
 		}
+
 		if split[1] == "images" && fil.IsExcluded("", e.ID, "") {
 			continue
 		}
-		output := coreMetrics.Event{
-			Priority:       coreMetrics.EventPriorityNormal,
-			SourceTypeName: containerdCheckName,
-			EventType:      containerdCheckName,
-			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
-		}
-		output.Text = e.Message
+
+		var tags []string
 		if len(e.Extra) > 0 {
 			for k, v := range e.Extra {
-				output.Tags = append(output.Tags, fmt.Sprintf("%s:%s", k, v))
+				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
 			}
 		}
-		output.Ts = e.Timestamp.Unix()
-		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
+
+		alertType := metrics.EventAlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			tags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+e.ID, collectors.HighCardinality)
+			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), collectors.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
 			}
-			output.Tags = append(output.Tags, tags...)
+			tags = append(tags, t...)
+
+			eventType := getEventType(e.Topic)
+			if eventType != "" {
+				tags = append(tags, fmt.Sprintf("event_type:%s", eventType))
+			}
+
+			if split[2] == "oom" {
+				alertType = metrics.EventAlertTypeError
+			}
 		}
+
+		output := metrics.Event{
+			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
+			Priority:       metrics.EventPriorityNormal,
+			SourceTypeName: containerdCheckName,
+			EventType:      containerdCheckName,
+			AlertType:      alertType,
+			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
+			Text:           e.Message,
+			Ts:             e.Timestamp.Unix(),
+			Tags:           tags,
+		}
+
 		sender.Event(output)
 	}
 }
@@ -295,4 +313,30 @@ func (s *subscriber) Flush(timestamp int64) []containerdEvent {
 	log.Debugf("Collecting %d events from Containerd", len(ev))
 	s.Events = nil
 	return ev
+}
+
+var topicsToEventType = map[string]string{
+	"/containers/create": "create",
+	"/containers/delete": "destroy",
+	"/containers/update": "update",
+	"/tasks/create":      "create",
+	"/tasks/delete":      "destroy",
+	"/tasks/exit":        "die",
+	"/tasks/oom":         "oom",
+	"/tasks/paused":      "pause",
+	"/tasks/resumed":     "resume",
+}
+
+// getEventType maps a containerd event topic about a task or container to its
+// closest equivalent docker event type, in order to have tag equivalence
+// between containerd and docker checks.
+// ref: https://docs.docker.com/engine/reference/commandline/events/#object-types
+// ref: https://pkg.go.dev/github.com/containerd/containerd/api/events#pkg-types
+func getEventType(topic string) string {
+	t, ok := topicsToEventType[topic]
+	if !ok {
+		log.Debugf("unsupported container event type: %s ", topic)
+	}
+
+	return t
 }

@@ -6,6 +6,7 @@
 package common
 
 import (
+	"encoding/binary"
 	"hash/fnv"
 )
 
@@ -42,8 +43,9 @@ type Flow struct {
 	TCPFlags uint32 `json:"tcp_flags"`
 
 	// Ports for UDP and TCP
-	SrcPort uint32 // FLOW KEY
-	DstPort uint32 // FLOW KEY
+	// Port number can be zero/positive or `-1` (ephemeral port)
+	SrcPort int32 // FLOW KEY
+	DstPort int32 // FLOW KEY
 
 	// SNMP Interface Index
 	InputInterface  uint32 // FLOW KEY
@@ -66,14 +68,14 @@ type Flow struct {
 // AggregationHash return a hash used as aggregation key
 func (f *Flow) AggregationHash() uint64 {
 	h := fnv.New64()
-	h.Write([]byte(f.Namespace))             //nolint:errcheck
-	h.Write(f.DeviceAddr)                    //nolint:errcheck
-	h.Write(f.SrcAddr)                       //nolint:errcheck
-	h.Write(f.DstAddr)                       //nolint:errcheck
-	h.Write(Uint32ToBytes(f.SrcPort))        //nolint:errcheck
-	h.Write(Uint32ToBytes(f.DstPort))        //nolint:errcheck
-	h.Write(Uint32ToBytes(f.IPProtocol))     //nolint:errcheck
-	h.Write(Uint32ToBytes(f.Tos))            //nolint:errcheck
-	h.Write(Uint32ToBytes(f.InputInterface)) //nolint:errcheck
+	h.Write([]byte(f.Namespace))                           //nolint:errcheck
+	h.Write(f.DeviceAddr)                                  //nolint:errcheck
+	h.Write(f.SrcAddr)                                     //nolint:errcheck
+	h.Write(f.DstAddr)                                     //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.SrcPort)        //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.DstPort)        //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.IPProtocol)     //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.Tos)            //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.InputInterface) //nolint:errcheck
 	return h.Sum64()
 }

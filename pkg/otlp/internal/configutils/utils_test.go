@@ -54,9 +54,11 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 
 	// build default provider from same data
 	settings := service.ConfigProviderSettings{
-		Locations:     []string{fmt.Sprintf("file:%s", testPath)},
-		MapProviders:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
-		MapConverters: []confmap.Converter{expandconverter.New()},
+		ResolverSettings: confmap.ResolverSettings{
+			URIs:       []string{fmt.Sprintf("file:%s", testPath)},
+			Providers:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
+			Converters: []confmap.Converter{expandconverter.New()},
+		},
 	}
 	defaultProvider, err := service.NewConfigProvider(settings)
 	require.NoError(t, err)

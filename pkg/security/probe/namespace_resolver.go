@@ -27,9 +27,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -87,7 +87,7 @@ func NewNetworkNamespace(nsID uint32) *NetworkNamespace {
 }
 
 // NewNetworkNamespaceWithPath returns a new NetworkNamespace instance from a path.
-func NewNetworkNamespaceWithPath(nsID uint32, nsPath string) (*NetworkNamespace, error) {
+func NewNetworkNamespaceWithPath(nsID uint32, nsPath *utils.NetNSPath) (*NetworkNamespace, error) {
 	netns := NewNetworkNamespace(nsID)
 	if err := netns.openHandle(nsPath); err != nil {
 		return nil, err
@@ -96,12 +96,12 @@ func NewNetworkNamespaceWithPath(nsID uint32, nsPath string) (*NetworkNamespace,
 }
 
 // openHandle tries to create a network namespace handle with the provided thread ID
-func (nn *NetworkNamespace) openHandle(nsPath string) error {
+func (nn *NetworkNamespace) openHandle(nsPath *utils.NetNSPath) error {
 	nn.Lock()
 	defer nn.Unlock()
 
 	// check that the handle matches the expected netns ID
-	threadNetnsID, err := utils.GetProcessNetworkNamespace(nsPath)
+	threadNetnsID, err := nsPath.GetProcessNetworkNamespace()
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (nn *NetworkNamespace) openHandle(nsPath string) error {
 		return fmt.Errorf("the provided doesn't match the expected netns ID: got %d, expected %d", threadNetnsID, nn.nsID)
 	}
 
-	handle, err := os.Open(nsPath)
+	handle, err := os.Open(nsPath.GetPath())
 	if err != nil {
 		return err
 	}
@@ -231,8 +231,8 @@ func (nr *NamespaceResolver) GetState() int64 {
 
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
-func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath string) (*NetworkNamespace, bool) {
-	if !nr.probe.config.NetworkEnabled || nsID == 0 || nsPath == "" {
+func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NetNSPath) (*NetworkNamespace, bool) {
+	if !nr.probe.config.NetworkEnabled || nsID == 0 || nsPath == nil {
 		return nil, false
 	}
 
@@ -351,7 +351,7 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 	}
 
 	nsPath := utils.NetNSPathFromPid(uint32(proc.Pid))
-	nsID, err := utils.GetProcessNetworkNamespace(nsPath)
+	nsID, err := nsPath.GetProcessNetworkNamespace()
 	if err != nil {
 		return false
 	}

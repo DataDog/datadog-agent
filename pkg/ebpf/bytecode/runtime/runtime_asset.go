@@ -41,39 +41,41 @@ const (
 	verificationError
 	outputDirErr
 	outputFileErr
-	newCompilerErr
+	newCompilerErr // nolint:deadcode,unused
 	compilationErr
 	resultReadErr
 	headerFetchErr
 	compiledOutputFound
 )
 
+// CompiledOutput represents an output file from compilation
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
 	io.Closer
 }
 
-// RuntimeAsset represents an asset that needs its content integrity checked at runtime
-type RuntimeAsset struct {
+// Asset represents an asset that needs its content integrity checked at runtime
+type Asset struct {
 	filename string
 	hash     string
 
-	runtimeCompiler *RuntimeCompiler
+	runtimeCompiler *Compiler
 }
 
-func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
-	return &RuntimeAsset{
+// NewAsset creates a Asset
+func NewAsset(filename, hash string) *Asset {
+	return &Asset{
 		filename: filename,
 		hash:     hash,
 
-		runtimeCompiler: NewRuntimeCompiler(),
+		runtimeCompiler: NewCompiler(),
 	}
 }
 
 // Verify reads the asset in the provided directory and verifies the content hash matches what is expected.
 // On success, it returns an io.Reader for the contents and the content hash of the asset.
-func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
+func (a *Asset) Verify(dir string) (io.Reader, string, error) {
 	p := filepath.Join(dir, "runtime", a.filename)
 	f, err := os.Open(p)
 	if err != nil {
@@ -95,13 +97,14 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 }
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
-func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+func (a *Asset) Compile(config *ebpf.Config, cflags []string, client statsd.ClientInterface) (CompiledOutput, error) {
 	output, err := a.runtimeCompiler.CompileObjectFile(config, cflags, a.filename, a)
 	a.SubmitTelemetry(client)
 	return output, err
 }
 
-func (a *RuntimeAsset) GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error) {
+// GetInputReader implements CompilationFileProvider.GetInputReader
+func (a *Asset) GetInputReader(config *ebpf.Config, tm *CompilationTelemetry) (io.Reader, error) {
 	inputReader, _, err := a.Verify(config.BPFDir)
 	if err != nil {
 		tm.compilationResult = verificationError
@@ -111,7 +114,8 @@ func (a *RuntimeAsset) GetInputReader(config *ebpf.Config, tm *RuntimeCompilatio
 	return inputReader, nil
 }
 
-func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *RuntimeCompilationTelemetry) (string, error) {
+// GetOutputFilePath implements CompilationFileProvider.GetOutputFilePath
+func (a *Asset) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *CompilationTelemetry) (string, error) {
 	// filename includes kernel version, input file hash, and cflags hash
 	// this ensures we re-compile when either of the input changes
 	baseName := strings.TrimSuffix(a.filename, filepath.Ext(a.filename))
@@ -125,12 +129,14 @@ func (a *RuntimeAsset) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsnam
 	return outputFile, nil
 }
 
-func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
+// GetTelemetry returns telemetry
+func (a *Asset) GetTelemetry() map[string]int64 {
 	telemetry := a.runtimeCompiler.GetRCTelemetry()
-	return telemetry.GetTelemetry()
+	return telemetry.getTelemetry()
 }
 
-func (a *RuntimeAsset) SubmitTelemetry(statsdClient statsd.ClientInterface) {
+// SubmitTelemetry sends telemetry using the provided statsd client
+func (a *Asset) SubmitTelemetry(statsdClient statsd.ClientInterface) {
 	tm := a.runtimeCompiler.GetRCTelemetry()
 
 	if !tm.compilationEnabled {

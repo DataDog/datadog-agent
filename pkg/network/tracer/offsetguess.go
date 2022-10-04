@@ -54,7 +54,7 @@ var stateString = map[netebpf.TracerState]string{
 // These constants should be in sync with the equivalent definitions in the ebpf program.
 const (
 	disabled uint8 = 0
-	enabled        = 1
+	enabled  uint8 = 1
 )
 
 var whatString = map[netebpf.GuessWhat]string{
@@ -84,7 +84,7 @@ var whatString = map[netebpf.GuessWhat]string{
 
 const (
 	tcpGetSockOptKProbeNotCalled uint64 = 0
-	tcpGetSockOptKProbeCalled           = 1
+	tcpGetSockOptKProbeCalled    uint64 = 1
 )
 
 var tcpKprobeCalledString = map[uint64]string{

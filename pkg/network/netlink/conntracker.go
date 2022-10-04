@@ -13,13 +13,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
-	"inet.af/netaddr"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -43,8 +43,8 @@ type Conntracker interface {
 }
 
 type connKey struct {
-	src netaddr.IPPort
-	dst netaddr.IPPort
+	src netip.AddrPort
+	dst netip.AddrPort
 
 	// the transport protocol of the connection, using the same values as specified in the agent payload.
 	transport network.ConnectionType
@@ -161,8 +161,8 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	defer ctr.Unlock()
 
 	k := connKey{
-		src:       netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
-		dst:       netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+		src:       netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
+		dst:       netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
 		transport: c.Type,
 	}
 
@@ -226,8 +226,8 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	defer ctr.Unlock()
 
 	k := connKey{
-		src:       netaddr.IPPortFrom(ipFromAddr(c.Source), c.SPort),
-		dst:       netaddr.IPPortFrom(ipFromAddr(c.Dest), c.DPort),
+		src:       netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
+		dst:       netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
 		transport: c.Type,
 	}
 
@@ -427,8 +427,8 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 // IsNAT returns whether this Con represents a NAT translation
 func IsNAT(c Con) bool {
-	if c.Origin.Src.IsZero() ||
-		c.Reply.Src.IsZero() ||
+	if AddrPortIsZero(c.Origin.Src) ||
+		AddrPortIsZero(c.Reply.Src) ||
 		c.Origin.Proto == 0 ||
 		c.Reply.Proto == 0 ||
 		c.Origin.Src.Port() == 0 ||
@@ -438,23 +438,23 @@ func IsNAT(c Con) bool {
 		return false
 	}
 
-	return c.Origin.Src.IP() != c.Reply.Dst.IP() ||
-		c.Origin.Dst.IP() != c.Reply.Src.IP() ||
+	return c.Origin.Src.Addr() != c.Reply.Dst.Addr() ||
+		c.Origin.Dst.Addr() != c.Reply.Src.Addr() ||
 		c.Origin.Src.Port() != c.Reply.Dst.Port() ||
 		c.Origin.Dst.Port() != c.Reply.Src.Port()
 }
 
 func formatIPTranslation(tuple *ConTuple) *network.IPTranslation {
 	return &network.IPTranslation{
-		ReplSrcIP:   addrFromIP(tuple.Src.IP()),
-		ReplDstIP:   addrFromIP(tuple.Dst.IP()),
+		ReplSrcIP:   addrFromIP(tuple.Src.Addr()),
+		ReplDstIP:   addrFromIP(tuple.Dst.Addr()),
 		ReplSrcPort: tuple.Src.Port(),
 		ReplDstPort: tuple.Dst.Port(),
 	}
 }
 
-func addrFromIP(ip netaddr.IP) util.Address {
-	if ip.Is6() && !ip.Is4in6() {
+func addrFromIP(ip netip.Addr) util.Address {
+	if ip.Is6() && !ip.Is4In6() {
 		b := ip.As16()
 		return util.V6AddressFromBytes(b[:])
 	}
@@ -462,11 +462,11 @@ func addrFromIP(ip netaddr.IP) util.Address {
 	return util.V4AddressFromBytes(b[:])
 }
 
-func ipFromAddr(a util.Address) netaddr.IP {
+func ipFromAddr(a util.Address) netip.Addr {
 	if a.Len() == net.IPv6len {
-		return netaddr.IPFrom16(*(*[16]byte)(a.Bytes()))
+		return netip.AddrFrom16(*(*[16]byte)(a.Bytes()))
 	}
-	return netaddr.IPFrom4(*(*[4]byte)(a.Bytes()))
+	return netip.AddrFrom4(*(*[4]byte)(a.Bytes()))
 }
 
 func formatKey(tuple *ConTuple) (k connKey, ok bool) {

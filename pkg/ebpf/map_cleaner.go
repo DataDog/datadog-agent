@@ -95,6 +95,7 @@ func (mc *MapCleaner) Clean(interval time.Duration, shouldClean func(nowTS int64
 	})
 }
 
+// Stop stops the map cleaner
 func (mc *MapCleaner) Stop() {
 	if mc == nil {
 		return
@@ -107,7 +108,7 @@ func (mc *MapCleaner) Stop() {
 	})
 }
 
-func (mc *MapCleaner) clean(nowTS int64, shouldClean func(nowTS int64, k, v interface{}) bool) error {
+func (mc *MapCleaner) clean(nowTS int64, shouldClean func(nowTS int64, k, v interface{}) bool) {
 	keySize := int(mc.emap.KeySize())
 	keysToDelete := make([][]byte, 0, 128)
 	totalCount, deletedCount := 0, 0
@@ -150,7 +151,6 @@ func (mc *MapCleaner) clean(nowTS int64, shouldClean func(nowTS int64, k, v inte
 		iterationErr,
 		elapsed,
 	)
-	return nil
 }
 
 // marshalBytes converts an arbitrary value into a byte buffer.

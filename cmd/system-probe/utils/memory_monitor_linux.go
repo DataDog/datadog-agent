@@ -85,7 +85,7 @@ func getActionCallback(action string) (func(), string, error) {
 
 // NewMemoryMonitor instantiates a new memory monitor
 func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
-	var memoryMonitors []cgroups.MemoryMonitor
+	memoryMonitors := make([]cgroups.MemoryMonitor, 0, len(pressureLevels)+len(thresholds))
 
 	for pressureLevel, action := range pressureLevels {
 		actionCallback, name, err := getActionCallback(action)

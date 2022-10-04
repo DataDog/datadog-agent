@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
@@ -65,7 +65,7 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 	}
 
 	if err == errLostBatch {
-		t.misses.Add(int64(HTTPBatchSize))
+		t.misses.Add(int64(len(txs)))
 	}
 }
 

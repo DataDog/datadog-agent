@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -89,6 +90,37 @@ func runProcessing(inputFile, outputFile string, dirs []string) error {
 
 	if err := bof.Flush(); err != nil {
 		return fmt.Errorf("error flushing buffer to disk: %s", err)
+	}
+
+	if len(includedFiles) == 0 {
+		return nil
+	}
+
+	root := rootDir(outputFile)
+	depsFile := fmt.Sprintf("%s.d", outputFile)
+	odeps, err := os.Create(depsFile)
+	if err != nil {
+		return fmt.Errorf("error opening output deps file: %s", err)
+	}
+	defer odeps.Close()
+
+	relOut, err := filepath.Rel(root, outputFile)
+	if err != nil {
+		return fmt.Errorf("error getting relative path: %s", err)
+	}
+	odeps.WriteString(fmt.Sprintf("%s: \\\n", relOut))
+	idx := 0
+	for f := range includedFiles {
+		rf, err := filepath.Rel(root, f)
+		if err != nil {
+			return fmt.Errorf("error getting relative path: %s", err)
+		}
+		odeps.WriteString(fmt.Sprintf("  %s", rf))
+		if idx < (len(includedFiles) - 1) {
+			odeps.WriteString(" \\")
+		}
+		odeps.WriteString("\n")
+		idx++
 	}
 	return nil
 }
@@ -177,4 +209,21 @@ func (ps *pathSearcher) findInclude(srcPath string, headerName string) (string, 
 		ps.cache[ce] = computed
 	}
 	return computed, err
+}
+
+// rootDir returns the base repository directory, just before `pkg`.
+// If `pkg` is not found, the dir provided is returned.
+func rootDir(dir string) string {
+	pkgIndex := -1
+	parts := strings.Split(dir, string(filepath.Separator))
+	for i, d := range parts {
+		if d == "pkg" {
+			pkgIndex = i
+			break
+		}
+	}
+	if pkgIndex == -1 {
+		return dir
+	}
+	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
 }

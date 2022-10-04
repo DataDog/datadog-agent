@@ -8,35 +8,20 @@ package generic
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
-
-func createContainerMeta(runtime, cID string) *workloadmeta.Container {
-	return &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   cID,
-		},
-		Runtime: workloadmeta.ContainerRuntime(runtime),
-		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
-		},
-	}
-}
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
-		createContainerMeta("docker", "cID100"),
+		CreateContainerMeta("docker", "cID100"),
 		// Container with no stats (returns nil)
-		createContainerMeta("docker", "cID101"),
+		CreateContainerMeta("docker", "cID101"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
@@ -97,9 +82,9 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 func TestProcessorRunPartialStats(t *testing.T) {
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats
-		createContainerMeta("containerd", "cID201"),
+		CreateContainerMeta("containerd", "cID201"),
 		// Container with explicit error
-		createContainerMeta("containerd", "cID202"),
+		CreateContainerMeta("containerd", "cID202"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
