@@ -11,20 +11,24 @@ Consider an example case of an HTTP server component to which endpoints can be a
 The server is the collecting component, requiring a slice of type `[]*endpoint`, where `*endpoint` is the collected type.
 Providing components provide values of type `*endpoint`.
 
-The convention is to "wrap" the collected type in a struct type which embeds `fx.Out` and has tag `group:"pkgname"`, where `pkgname` is the short package name (Fx requires a group name, and this is as good as any).
+The convention is to "wrap" the collected type in a `Registration` struct type which embeds `fx.Out` and has tag `group:"pkgname"`, where `pkgname` is the short package name (Fx requires a group name, and this is as good as any).
 This helps providing components avoid the common mistake of omitting the tag.
-The collected type can be exported, such as if it has useful methods for providing components to call, but can also be unexported.
+Because it is wrapped in an exported `Registration` type, the collected type can be an unexported type, as in the example below.
 
 The collecting component should define the registration type and a constructor for it.
 
 ```go
-// --- server/component.go ---
+// --- comp/server/component.go --- (the collecting component)
 
 // ...
 // Server endpoints are provided by other components, by providing a server.Registration
 // instance.
 //  ...
 package server
+
+type endpoint struct {  // (the collected type)
+    ...
+}
 
 type Registration struct {
     fx.Out
@@ -36,10 +40,10 @@ type Registration struct {
 func NewRegistration(route string, handler func()) Registration { .. }
 ```
 
-Its implementation then requires a slice of the collected type, again using `group:"server"`:
+Its implementation then requires a slice of the collected type (`endpoint`), again using `group:"server"`:
 
 ```go
-// --- server/server.go ---
+// --- comp/server/server.go ---
 
 // endpoint defines an endpoint on this server.
 type endpoint struct { .. }
@@ -68,7 +72,7 @@ the registration if desired.
 Finally, the providing component (in this case, `foo`) includes a registration in its output as an additional provided type, beyond its `Component` type:
 
 ```go
-// --- foo/foo.go ---
+// --- comp/foo/foo.go ---  (the providing component)
 func newFoo(deps dependencies) (Component, server.Registration) {
     // ..
     return foo, server.NewRegistration("/things/foo", foo.handler)
