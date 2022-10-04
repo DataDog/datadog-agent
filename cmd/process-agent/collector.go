@@ -341,10 +341,10 @@ func (l *Collector) messagesToCheckResult(start time.Time, name string, messages
 		case checks.ProcessEvents.Name():
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		case checks.Connections.Name(), checks.Process.Name():
-			requestID := l.getRequestID(start, messageIndex)
-			log.Debugf("the request id of the current message: %s", requestID)
-			extraHeaders.Set(headers.RequestIDHeader, requestID)
+			//case checks.Connections.Name(), checks.Process.Name():
+			//	requestID := l.getRequestID(start, messageIndex)
+			//	log.Debugf("the request id of the current message: %s", requestID)
+			//	extraHeaders.Set(headers.RequestIDHeader, requestID)
 		}
 
 		payloads = append(payloads, checkPayload{
