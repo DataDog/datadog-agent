@@ -24,7 +24,7 @@ type ConfigFileMetaCustom struct {
 
 // Given the hostname and state will parse predicates and execute them
 // It will return a list
-func executeClientPredicates(
+func executeTracerPredicates(
 	client *pbgo.Client,
 	directorTargets data.TargetFiles,
 ) ([]string, error) {
