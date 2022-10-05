@@ -69,18 +69,19 @@ func (prs *EndpointPairPortRollupStore) Add(sourceAddr []byte, destAddr []byte, 
 
 // AddToStore will add ports to store
 func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
-	prs.mu.Lock()
-	defer prs.mu.Unlock()
-
 	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
 	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
+
+	prs.mu.Lock()
 	sourceToDestPorts := len(store[srcToDestKey])
 	destToSourcePorts := len(store[destToSrcKey])
 	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
+		prs.mu.Unlock()
 		return
 	}
 	store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
 	store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
+	prs.mu.Unlock()
 }
 
 // GetPortCount returns max port count and indicate whether the source or destination is ephemeral (isEphemeralSource)
