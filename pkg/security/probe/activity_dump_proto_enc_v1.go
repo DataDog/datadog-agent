@@ -129,13 +129,15 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 
 		Credentials: credentialsToProto(&p.Credentials),
 
-		Args:          p.ScrubbedArgv,
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
 		Envs:          p.Envs,
 		EnvsTruncated: p.EnvsTruncated,
 	}
+
+	ppi.Args = make([]string, len(p.ScrubbedArgv))
+	copy(ppi.Args, p.ScrubbedArgv)
 
 	return ppi
 }
