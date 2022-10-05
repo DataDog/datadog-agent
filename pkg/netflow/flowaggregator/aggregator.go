@@ -140,13 +140,13 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
-	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup_cur_store_len", float64(agg.flowAcc.portRollup.GetCurStoreLen()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
 
 	return len(flowsToFlush)
 }
 
 func (agg *FlowAggregator) rollupTrackersRefresh() {
 	log.Debugf("Rollup tracker refresh: use new store as current store")
-	agg.sender.Gauge("datadog.netflow.rollup.refresh", 1, "", nil)
 	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
 }

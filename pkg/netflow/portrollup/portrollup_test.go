@@ -30,23 +30,22 @@ func Test_endpointPairPortRollupStore_Add(t *testing.T) {
 	//currentStore, newStore := store.getOrCreate(IP1, IP2)
 
 	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	// should only contain first 3 destPort (2001, 2002, 2003), 2004 is not curStore since the threshold is already reached
-	//assert.Equal(t, uint8(3), store.curStore.sourcePorts[80])
-	//assert.Equal(t, uint8(3), newStore.sourcePorts[80])
 
+	// should only contain first 3 destPort (2001, 2002, 2003), 2004 is not curStore since the threshold is already reached
 	for _, destPort := range []uint16{2001, 2002, 2003} {
 		assert.Equal(t, uint16(1), store.GetDestToSourcePortCount(IP1, IP2, destPort))
 		//assert.Equal(t, uint8(1), currentStore.destPorts[destPort])
 	}
 	// make sure no entry is created for port 2004 in `destPorts`
 	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 2004))
-	//_, exist := store.curStore[2004]
-	//assert.Equal(t, false, exist)
 
 	assert.Equal(t, uint16(3), store.GetDestToSourcePortCount(IP1, IP2, 443))
-	// should only contain first 3 destPort (3001, 3002, 3003), 3004 is not curStore since the threshold is already reached
-	//assert.Equal(t, uint8(3), currentStore.destPorts[443])
-	//assert.Equal(t, uint8(3), newStore.destPorts[443])
+	// should only contain first 3 sourcePort (3001, 3002, 3003), 2004 is not curStore since the threshold is already reached
+	for _, sourcePort := range []uint16{3001, 3002, 3003} {
+		assert.Equal(t, uint16(1), store.GetSourceToDestPortCount(IP1, IP2, sourcePort))
+	}
+	// make sure no entry is created for port 3004 in `sourcePorts`
+	assert.Equal(t, uint16(0), store.GetSourceToDestPortCount(IP1, IP2, 3004))
 
 }
 
