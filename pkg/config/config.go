@@ -1109,6 +1109,8 @@ func InitConfig(config Config) {
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
 	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
