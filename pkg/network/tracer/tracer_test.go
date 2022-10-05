@@ -1915,13 +1915,13 @@ func TestOpenSSLVersions(t *testing.T) {
 
 	// Giving the tracer time to install the hooks
 	time.Sleep(time.Second)
-	client, requestFn := simpleGetRequestsGenerator(t, addr)
+	_, requestFn := simpleGetRequestsGenerator(t, addr)
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
 
-	client.CloseIdleConnections()
+	//client.CloseIdleConnections()
 	assertAllRequestsExists(t, tr, requests)
 }
 
@@ -1945,6 +1945,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, status, resp.StatusCode)
+		io.ReadAll(resp.Body)
 		resp.Body.Close()
 		return req
 	}
