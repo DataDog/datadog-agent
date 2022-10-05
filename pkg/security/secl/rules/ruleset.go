@@ -318,7 +318,7 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	if err := rule.Parse(); err != nil {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("syntax error: %w", err)}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrRuleSyntax{Err: err}}
 	}
 
 	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {

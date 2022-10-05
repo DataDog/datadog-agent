@@ -437,10 +437,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if sendLoadedReport {
 		// report that a new policy was loaded
 		monitor := m.probe.GetMonitor()
-		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadApproversErrs)
-		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+		monitor.ReportRuleSetLoaded(ruleSet, loadApproversErrs)
 
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
 	}
 
 	return nil

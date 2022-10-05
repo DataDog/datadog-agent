@@ -37,16 +37,13 @@ type Policy struct {
 	Version string
 }
 
-// IsIgnored defines an ignored state
-type IsIgnored bool
-
 // PolicyMonitor defines a policy monitor
 type PolicyMonitor struct {
 	sync.RWMutex
 
 	statsdClient statsd.ClientInterface
 	policies     map[string]Policy
-	rules        map[string]IsIgnored
+	rules        map[string]string
 }
 
 // AddPolicies add policies to the monitor
@@ -58,19 +55,15 @@ func (p *PolicyMonitor) AddPolicies(policies []*rules.Policy, mErrs *multierror.
 		p.policies[policy.Name] = Policy{Name: policy.Name, Source: policy.Source, Version: policy.Version}
 
 		for _, rule := range policy.Rules {
-			p.rules[rule.ID] = false
+			p.rules[rule.ID] = "loaded"
 		}
 
 		if mErrs != nil && mErrs.Errors != nil {
 			for _, err := range mErrs.Errors {
 				if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-					p.rules[rerr.Definition.ID] = true
+					p.rules[rerr.Definition.ID] = string(rerr.Type())
 				}
 			}
-		}
-
-		for _, rule := range policy.RuleSkipped {
-			p.rules[rule.ID] = false
 		}
 	}
 }
@@ -78,15 +71,15 @@ func (p *PolicyMonitor) AddPolicies(policies []*rules.Policy, mErrs *multierror.
 // Start the monitor
 func (p *PolicyMonitor) Start(ctx context.Context) {
 	go func() {
-		timer := time.NewTicker(policyMetricRate)
-		defer timer.Stop()
+		timerMetric := time.NewTicker(policyMetricRate)
+		defer timerMetric.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 
-			case <-timer.C:
+			case <-timerMetric.C:
 				p.RLock()
 				for _, policy := range p.policies {
 					tags := []string{
@@ -101,10 +94,10 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 					}
 				}
 
-				for id, isIgnored := range p.rules {
+				for id, status := range p.rules {
 					tags := []string{
 						"rule_id:" + id,
-						fmt.Sprintf("rule_loaded:%v", !isIgnored),
+						fmt.Sprintf("status:%v", status),
 						dogstatsd.CardinalityTagPrefix + collectors.LowCardinalityString,
 					}
 
@@ -123,6 +116,6 @@ func NewPolicyMonitor(statsdClient statsd.ClientInterface) *PolicyMonitor {
 	return &PolicyMonitor{
 		statsdClient: statsdClient,
 		policies:     make(map[string]Policy),
-		rules:        make(map[string]IsIgnored),
+		rules:        make(map[string]string),
 	}
 }
