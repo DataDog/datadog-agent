@@ -98,17 +98,9 @@ func (f *flowAccumulator) flush() []*common.Flow {
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	log.Tracef("Add new flow: %+v", flowToAdd)
 
-	// TODO: better mutex structure
-	aggHash := flowToAdd.AggregationHash()
-	f.flowsMutex.Lock()
-	_, flowExist := f.flows[aggHash]
-	f.flowsMutex.Unlock()
-
 	if !f.portRollupDisable {
 		// Handle port rollup
-		if !flowExist { // this is needed to avoid adding the same flow context multiple time to port rollup tracker
-			f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-		}
+		f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
 		ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
 		switch ephemeralStatus {
 		case portrollup.IsEphemeralSourcePort:
@@ -120,7 +112,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
-	aggHash = flowToAdd.AggregationHash()
+	aggHash := flowToAdd.AggregationHash()
 
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {

@@ -145,7 +145,7 @@ func Test_buildPayload(t *testing.T) {
 			},
 		},
 		{
-			name: "ephemeral source port",
+			name: "ephemeral destination port",
 			flow: common.Flow{
 				Namespace:       "my-namespace",
 				FlowType:        common.TypeNetFlow9,
