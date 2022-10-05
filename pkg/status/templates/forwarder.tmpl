@@ -82,7 +82,7 @@ Forwarder
 
 {{- if .APIKeyFailure }}
 
-  API Keys status
+  API Keys errors
   ===============
   {{- range $key, $value := .APIKeyFailure }}
     {{yellowText $key}}{{yellowText ":"}} {{yellowText $value}}
