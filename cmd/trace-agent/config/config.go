@@ -221,8 +221,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.errors_per_second") {
 		c.ErrorTPS = coreconfig.Datadog.GetFloat64("apm_config.errors_per_second")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.disable_rare_sampler") {
-		c.RareSamplerDisabled = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
+	if coreconfig.Datadog.IsSet("apm_config.enable_rare_sampler") {
+		c.RareSamplerEnabled = coreconfig.Datadog.GetBool("apm_config.enable_rare_sampler")
 	}
 	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.tps") {
 		c.RareSamplerTPS = coreconfig.Datadog.GetInt("apm_config.rare_sampler.tps")

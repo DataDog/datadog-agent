@@ -497,7 +497,7 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	var rare bool
-	if a.conf.RareSamplerDisabled {
+	if !a.conf.RareSamplerEnabled {
 		rare = false
 	} else {
 		// run this early to make sure the signature gets counted by the RareSampler.

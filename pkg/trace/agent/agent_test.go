@@ -333,7 +333,9 @@ func TestProcess(t *testing.T) {
 		span2 := &pb.Span{TraceID: 1, SpanID: 2, Service: "a"}
 		span3 := &pb.Span{TraceID: 1, SpanID: 3, Service: "a"}
 
-		tp := testutil.TracerPayloadWithChunk(spansToChunk(span1, span2, span3))
+		c := spansToChunk(span1, span2, span3)
+		c.Priority = 1
+		tp := testutil.TracerPayloadWithChunk(c)
 
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -595,6 +597,7 @@ func TestConcentratorInput(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
+			cfg.RareSamplerEnabled = true
 			agent := NewAgent(context.TODO(), cfg)
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
@@ -807,8 +810,8 @@ func TestSampling(t *testing.T) {
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
@@ -993,7 +996,7 @@ func TestSample(t *testing.T) {
 }
 
 func TestPartialSamplingFree(t *testing.T) {
-	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
+	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
@@ -1888,7 +1891,7 @@ func TestSpanSampling(t *testing.T) {
 			// priority==0 chunk as rare. Instead, we use the error sampler to
 			// cover the case where non-span samplers decide to keep a priority==0
 			// chunk.
-			cfg.RareSamplerDisabled = true
+			cfg.RareSamplerEnabled = false
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			traceAgent := NewAgent(ctx, cfg)
