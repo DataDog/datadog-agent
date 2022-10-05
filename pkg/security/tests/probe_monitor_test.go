@@ -37,25 +37,25 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.probe.SendStats()
+	test.module.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
-	assert.NotEmpty(t, test.statsdClient.Counts[key])
-	assert.NotZero(t, test.statsdClient.Counts[key])
+	assert.NotEmpty(t, test.statsdClient.Get(key))
+	assert.NotZero(t, test.statsdClient.Get(key))
 
 	test.statsdClient.Flush()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		count := test.statsdClient.Counts[key]
+		count := test.statsdClient.Get(key)
 		assert.Zero(t, count)
 
 		if err := test.reloadConfiguration(); err != nil {
 			t.Errorf("failed to reload configuration: %v", err)
 		}
 
-		test.probe.SendStats()
+		test.module.SendStats()
 
-		assert.Equal(t, count+1, test.statsdClient.Counts[key])
+		assert.Equal(t, count+1, test.statsdClient.Get(key))
 	})
 }
 
@@ -137,11 +137,11 @@ func cleanupABottomUp(path string) {
 }
 
 func TestTruncatedParentsMap(t *testing.T) {
-	truncatedParents(t, testOpts{disableERPCDentryResolution: true})
+	truncatedParents(t, testOpts{disableERPCDentryResolution: true, disableAbnormalPathCheck: true})
 }
 
 func TestTruncatedParentsERPC(t *testing.T) {
-	truncatedParents(t, testOpts{disableMapDentryResolution: true})
+	truncatedParents(t, testOpts{disableMapDentryResolution: true, disableAbnormalPathCheck: true})
 }
 
 func TestNoisyProcess(t *testing.T) {
