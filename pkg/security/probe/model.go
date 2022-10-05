@@ -532,7 +532,7 @@ func bestGuessServiceTag(serviceValues []string) string {
 
 	// first we sort base on len, biggest len first
 	sort.Slice(serviceValues, func(i, j int) bool {
-		return serviceValues[j] < serviceValues[i] // reverse
+		return len(serviceValues[j]) < len(serviceValues[i]) // reverse
 	})
 
 	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]

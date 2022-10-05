@@ -217,6 +217,14 @@ func TestBestGuessServiceValues(t *testing.T) {
 			},
 			expected: "aa",
 		},
+		{
+			name: "divergent-2",
+			values: []string{
+				"bb",
+				"aa",
+			},
+			expected: "bb",
+		},
 	}
 
 	for _, entry := range entries {
