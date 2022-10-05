@@ -419,7 +419,6 @@ func testPodMessageManifest(t *testing.T, clusterID string, cfg *config.AgentCon
 	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
-	assert.Equal(t, headers.ZSTDContentEncoding, req.headers.Get(headers.ContentEncodingHeader))
 
 	reqBody, err := process.DecodeMessage(req.body)
 	require.NoError(t, err)
