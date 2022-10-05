@@ -19,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
+
+	_ "net/http/pprof"
 )
 
 var serverInstance *Server
