@@ -155,7 +155,7 @@ func (prs *EndpointPairPortRollupStore) GetNewStoreSize() int {
 
 func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {
 	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
-	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1}) + string([]byte{portPart2})
+	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1, portPart2})
 
 }
 
