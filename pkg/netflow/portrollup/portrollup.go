@@ -61,21 +61,6 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 	}
 }
 
-//func (prs *EndpointPairPortRollupStore) getOrCreate(sourceAddr []byte, destAddr []byte) (*portRollupTracker, *portRollupTracker) {
-//	key := buildStoreKey(sourceAddr, destAddr)
-//	if _, ok := prs.curStore[key]; !ok {
-//		prs.curStore[key] = newPortRollupTracker()
-//	}
-//	if _, ok := prs.newStore[key]; !ok {
-//		prs.newStore[key] = newPortRollupTracker()
-//	}
-//	return prs.curStore[key], prs.newStore[key]
-//}
-
-func (prs *EndpointPairPortRollupStore) getPortTracker(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) int {
-	return len(prs.curStore[buildStoreKey(sourceAddr, destAddr, endpointT, port)])
-}
-
 // Add will record new sourcePort and destPort for a specific sourceAddr and destAddr
 func (prs *EndpointPairPortRollupStore) Add(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
 	prs.AddToStore(prs.curStore, sourceAddr, destAddr, sourcePort, destPort)
@@ -131,7 +116,7 @@ func (prs *EndpointPairPortRollupStore) GetSourceToDestPortCount(sourceAddr []by
 	prs.mu.Lock()
 	defer prs.mu.Unlock()
 
-	return uint16(prs.getPortTracker(sourceAddr, destAddr, isSourceEndpoint, sourcePort))
+	return uint16(len(prs.curStore[buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)]))
 }
 
 // GetDestToSourcePortCount returns the number of different source port for a specific destination port
@@ -139,7 +124,7 @@ func (prs *EndpointPairPortRollupStore) GetDestToSourcePortCount(sourceAddr []by
 	prs.mu.Lock()
 	defer prs.mu.Unlock()
 
-	return uint16(prs.getPortTracker(sourceAddr, destAddr, isDestinationEndpoint, destPort))
+	return uint16(len(prs.curStore[buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)]))
 }
 
 // UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore

@@ -112,8 +112,8 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
-	aggHash := flowToAdd.AggregationHash()
 
+	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowContext(flowToAdd)
