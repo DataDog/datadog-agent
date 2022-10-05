@@ -42,11 +42,11 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.26
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.39.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.39.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.39.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.39.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.39.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.39.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.39.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.39.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.39.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.39.2-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20220627174516-12adb97b679e
@@ -409,7 +409,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.39.1
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.39.2-rc.1
 	github.com/go-delve/delve v1.9.0
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )
