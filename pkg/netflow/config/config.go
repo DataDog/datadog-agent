@@ -19,7 +19,6 @@ type NetflowConfig struct {
 	AggregatorFlushInterval       int              `mapstructure:"aggregator_flush_interval"`
 	AggregatorFlowContextTTL      int              `mapstructure:"aggregator_flow_context_ttl"`
 	AggregatorPortRollupThreshold int              `mapstructure:"aggregator_port_rollup_threshold"`
-	AggregatorPortRollupDisable   bool             `mapstructure:"aggregator_port_rollup_disable"`
 
 	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
