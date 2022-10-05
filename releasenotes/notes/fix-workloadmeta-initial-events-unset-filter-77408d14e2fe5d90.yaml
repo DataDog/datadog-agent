@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Fixed a bug in the workloadmeta store. Subscribers that specified to receive
-    only `unset` events mistakenly got `set` events on first subscription for
+    Fixed a bug in the workloadmeta store. Subscribers that asked to receive
+    only `unset` events mistakenly got `set` events on the first subscription for
     all the entities present in the store. This only affects the
     `container_lifecycle` check.
