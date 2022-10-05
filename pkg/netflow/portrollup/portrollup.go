@@ -25,6 +25,14 @@ const (
 	IsEphemeralDestPort = IsEphemeralStatus(2)
 )
 
+// endpointType is source or destination
+type endpointType int8
+
+const (
+	isSourceEndpoint      = endpointType(0)
+	isDestinationEndpoint = endpointType(1)
+)
+
 // EndpointPairPortRollupStore contains port rollup states.
 // It tracks ports that have been seen so far and help decide whether a port should be rolled up or not.
 // We use two stores (curStore, newStore) to be able to clean old tracked ports when they are not seen anymore.
@@ -33,8 +41,8 @@ const (
 // UseNewStoreAsCurrentStore is meant to be called externally to use new store as current store and empty the new store.
 type EndpointPairPortRollupStore struct {
 	portRollupThreshold int
-	curStore            map[string]*portRollupTracker
-	newStore            map[string]*portRollupTracker
+	curStore            map[string][]uint16
+	newStore            map[string][]uint16
 
 	// mutex used to protect access to curStore and newStore
 	mu sync.Mutex
@@ -46,37 +54,34 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 		// curStore and newStore map key is composed of `<SOURCE_IP>|<DESTINATION_IP>`
 		// SOURCE_IP and SOURCE_IP are converted from []byte to string.
 		// string is used as map key since we can't use []byte as map key.
-		curStore: make(map[string]*portRollupTracker),
-		newStore: make(map[string]*portRollupTracker),
+		curStore: make(map[string][]uint16),
+		newStore: make(map[string][]uint16),
 
 		portRollupThreshold: portRollupThreshold,
 	}
 }
 
-func (prs *EndpointPairPortRollupStore) getOrCreate(sourceAddr []byte, destAddr []byte) (*portRollupTracker, *portRollupTracker) {
-	key := buildStoreKey(sourceAddr, destAddr)
-	if _, ok := prs.curStore[key]; !ok {
-		prs.curStore[key] = newPortRollupTracker()
-	}
-	if _, ok := prs.newStore[key]; !ok {
-		prs.newStore[key] = newPortRollupTracker()
-	}
-	return prs.curStore[key], prs.newStore[key]
-}
-
-func (prs *EndpointPairPortRollupStore) getPortTracker(sourceAddr []byte, destAddr []byte) *portRollupTracker {
-	return prs.curStore[buildStoreKey(sourceAddr, destAddr)]
-}
-
 // Add will record new sourcePort and destPort for a specific sourceAddr and destAddr
 func (prs *EndpointPairPortRollupStore) Add(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
-	prs.mu.Lock()
-	defer prs.mu.Unlock()
+	prs.AddToStore(prs.curStore, sourceAddr, destAddr, sourcePort, destPort)
+	prs.AddToStore(prs.newStore, sourceAddr, destAddr, sourcePort, destPort)
+}
 
-	// Double write to current port tracker and new port tracker
-	curTracker, newTracker := prs.getOrCreate(sourceAddr, destAddr)
-	curTracker.add(sourcePort, destPort, prs.portRollupThreshold)
-	newTracker.add(sourcePort, destPort, prs.portRollupThreshold)
+// AddToStore will add ports to store
+func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
+	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
+	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
+
+	prs.mu.Lock()
+	sourceToDestPorts := len(store[srcToDestKey])
+	destToSourcePorts := len(store[destToSrcKey])
+	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
+		prs.mu.Unlock()
+		return
+	}
+	store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
+	store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
+	prs.mu.Unlock()
 }
 
 // GetPortCount returns max port count and indicate whether the source or destination is ephemeral (isEphemeralSource)
@@ -112,11 +117,7 @@ func (prs *EndpointPairPortRollupStore) GetSourceToDestPortCount(sourceAddr []by
 	prs.mu.Lock()
 	defer prs.mu.Unlock()
 
-	tracker := prs.getPortTracker(sourceAddr, destAddr)
-	if tracker != nil {
-		return tracker.getSourcePortCount(sourcePort)
-	}
-	return 0
+	return uint16(len(prs.curStore[buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)]))
 }
 
 // GetDestToSourcePortCount returns the number of different source port for a specific destination port
@@ -124,11 +125,7 @@ func (prs *EndpointPairPortRollupStore) GetDestToSourcePortCount(sourceAddr []by
 	prs.mu.Lock()
 	defer prs.mu.Unlock()
 
-	tracker := prs.getPortTracker(sourceAddr, destAddr)
-	if tracker != nil {
-		return tracker.getDestPortCount(destPort)
-	}
-	return 0
+	return uint16(len(prs.curStore[buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)]))
 }
 
 // UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore
@@ -137,9 +134,36 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
 	defer prs.mu.Unlock()
 
 	prs.curStore = prs.newStore
-	prs.newStore = make(map[string]*portRollupTracker)
+	prs.newStore = make(map[string][]uint16)
 }
 
-func buildStoreKey(sourceAddr []byte, destAddr []byte) string {
-	return string(sourceAddr) + "|" + string(destAddr)
+// GetCurrentStoreSize get number of tracked port counters in current store
+func (prs *EndpointPairPortRollupStore) GetCurrentStoreSize() int {
+	prs.mu.Lock()
+	defer prs.mu.Unlock()
+
+	return len(prs.curStore)
+}
+
+// GetNewStoreSize get number of tracked port counters in new store
+func (prs *EndpointPairPortRollupStore) GetNewStoreSize() int {
+	prs.mu.Lock()
+	defer prs.mu.Unlock()
+
+	return len(prs.newStore)
+}
+
+func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {
+	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
+	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1, portPart2})
+
+}
+
+func appendPort(ports []uint16, newPort uint16) []uint16 {
+	for _, port := range ports {
+		if port == newPort {
+			return ports
+		}
+	}
+	return append(ports, newPort)
 }
