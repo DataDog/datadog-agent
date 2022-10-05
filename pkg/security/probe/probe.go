@@ -25,6 +25,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
@@ -1310,6 +1311,8 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
+		newProbe.TCFilterPrio = p.config.NetworkClassifierPriority
+		newProbe.TCFilterHandle = netlink.MakeHandle(0, p.config.NetworkClassifierHandle)
 
 		netnsEditor := []manager.ConstantEditor{
 			{

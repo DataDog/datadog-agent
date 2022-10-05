@@ -156,6 +156,10 @@ type Config struct {
 	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
 	// agent detect when a network namespace should be purged from all caches.
 	NetworkLazyInterfacePrefixes []string
+	// NetworkClassifierPriority defines the priority at which CWS should insert its TC classifiers.
+	NetworkClassifierPriority uint16
+	// NetworkClassifierHandle defines the handle at which CWS should insert its TC classifiers.
+	NetworkClassifierHandle uint16
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
@@ -223,6 +227,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RuntimeMonitor:                     coreconfig.Datadog.GetBool("runtime_security_config.runtime_monitor.enabled"),
 		NetworkEnabled:                     coreconfig.Datadog.GetBool("runtime_security_config.network.enabled"),
 		NetworkLazyInterfacePrefixes:       coreconfig.Datadog.GetStringSlice("runtime_security_config.network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:          uint16(coreconfig.Datadog.GetInt("runtime_security_config.network.classifier_priority")),
+		NetworkClassifierHandle:            uint16(coreconfig.Datadog.GetInt("runtime_security_config.network.classifier_handle")),
 		RemoteConfigurationEnabled:         coreconfig.Datadog.GetBool("runtime_security_config.remote_configuration.enabled"),
 		EventStreamUseRingBuffer:           coreconfig.Datadog.GetBool("runtime_security_config.event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              coreconfig.Datadog.GetInt("runtime_security_config.event_stream.buffer_size"),
