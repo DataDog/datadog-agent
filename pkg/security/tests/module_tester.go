@@ -157,7 +157,6 @@ rules:
 
 var (
 	testEnvironment  string
-	withoutReload    bool
 	logLevelStr      string
 	logPatterns      stringSlice
 	logTags          stringSlice
@@ -730,32 +729,25 @@ func newTestModuleWithProfile(t testing.TB, macroDefs []*rules.MacroDefinition, 
 		}
 	}
 
-	if withoutReload {
-		if testMod != nil {
-			testMod.probeHandler.SetModule(nil)
-			testMod.cleanup()
+	if testMod != nil && opts.Equal(testMod.opts) {
+		testMod.st = st
+		testMod.cmdWrapper = cmdWrapper
+		testMod.t = t
+
+		testMod.probeHandler.reloading.Lock()
+		defer testMod.probeHandler.reloading.Unlock()
+
+		if err = testMod.reloadConfiguration(); err != nil {
+			return testMod, err
 		}
-	} else {
-		if testMod != nil && opts.Equal(testMod.opts) {
-			testMod.st = st
-			testMod.cmdWrapper = cmdWrapper
-			testMod.t = t
 
-			testMod.probeHandler.reloading.Lock()
-			defer testMod.probeHandler.reloading.Unlock()
-
-			if err = testMod.reloadConfiguration(); err != nil {
-				return testMod, err
-			}
-
-			if ruleDefs != nil && logStatusMetrics {
-				t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
-			}
-			return testMod, nil
-		} else if testMod != nil {
-			testMod.probeHandler.SetModule(nil)
-			testMod.cleanup()
+		if ruleDefs != nil && logStatusMetrics {
+			t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
 		}
+		return testMod, nil
+	} else if testMod != nil {
+		testMod.probeHandler.SetModule(nil)
+		testMod.cleanup()
 	}
 
 	t.Log("Instantiating a new security module")
@@ -1477,7 +1469,6 @@ func TestMain(m *testing.M) {
 func init() {
 	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
-	flag.BoolVar(&withoutReload, "without-reload", false, "do not use reload, force stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
