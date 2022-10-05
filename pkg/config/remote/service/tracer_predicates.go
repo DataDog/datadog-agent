@@ -7,6 +7,7 @@ package service
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/Masterminds/semver"
 	"github.com/theupdateframework/go-tuf/data"
@@ -16,13 +17,14 @@ import (
 )
 
 // DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228
-type DirectorTargetsCustomMetadata struct {
+type ConfigFileMetaCustom struct {
 	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
+	Expires    int64                  `json:"expires"`
 }
 
 // Given the hostname and state will parse predicates and execute them
 // It will return a list
-func executeClientPredicates(
+func executeTracerPredicates(
 	client *pbgo.Client,
 	directorTargets data.TargetFiles,
 ) ([]string, error) {
@@ -41,12 +43,16 @@ func executeClientPredicates(
 		if _, productRequested := productsMap[pathMeta.Product]; !productRequested {
 			continue
 		}
-		tracerPredicates, err := parsePredicates(meta.Custom)
+		configMetadata, err := parseFileMetaCustom(meta.Custom)
 		if err != nil {
 			return nil, err
 		}
+		if configExpired(configMetadata.Expires) {
+			continue
+		}
 
-		var matched bool
+		tracerPredicates := configMetadata.Predicates
+		matched := false
 		nullPredicates := tracerPredicates == nil || tracerPredicates.TracerPredicatesV1 == nil
 		if !nullPredicates {
 			matched, err = executePredicate(client, tracerPredicates.TracerPredicatesV1)
@@ -64,16 +70,19 @@ func executeClientPredicates(
 	return configs, nil
 }
 
-func parsePredicates(customJSON *json.RawMessage) (*pbgo.TracerPredicates, error) {
+func parseFileMetaCustom(customJSON *json.RawMessage) (ConfigFileMetaCustom, error) {
+	var metadata ConfigFileMetaCustom
+
 	if customJSON == nil {
-		return nil, nil
+		return metadata, nil
 	}
-	metadata := new(DirectorTargetsCustomMetadata)
-	err := json.Unmarshal(*customJSON, metadata)
+
+	err := json.Unmarshal(*customJSON, &metadata)
 	if err != nil {
-		return nil, err
+		return metadata, err
 	}
-	return metadata.Predicates, nil
+
+	return metadata, nil
 }
 
 func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1) (bool, error) {
@@ -124,4 +133,15 @@ func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1)
 	}
 
 	return false, nil
+}
+
+func configExpired(expiration int64) bool {
+	// A value of 0 means "no expiration"
+	if expiration == 0 {
+		return false
+	}
+
+	expirationTime := time.Unix(expiration, 0)
+
+	return time.Now().After(expirationTime)
 }

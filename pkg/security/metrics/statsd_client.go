@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -15,14 +16,22 @@ var _ statsd.ClientInterface = &StatsdClient{}
 
 // StatsdClient is a statsd client for used for tests
 type StatsdClient struct {
-	Counts map[string]int64
+	sync.RWMutex
+	counts map[string]int64
 }
 
 // NewStatsdClient returns a new StatsdClient
 func NewStatsdClient() *StatsdClient {
 	return &StatsdClient{
-		Counts: make(map[string]int64),
+		counts: make(map[string]int64),
 	}
+}
+
+// Get return the count
+func (s *StatsdClient) Get(key string) int64 {
+	s.RLock()
+	defer s.RUnlock()
+	return s.counts[key]
 }
 
 // Gauge does nothing and returns nil
@@ -32,12 +41,15 @@ func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate flo
 
 // Count does nothing and returns nil
 func (s *StatsdClient) Count(name string, value int64, tags []string, rate float64) error {
+	s.Lock()
+	defer s.Unlock()
+
 	if len(tags) == 0 {
-		s.Counts[name] = value
+		s.counts[name] = value
 	}
 
 	for _, tag := range tags {
-		s.Counts[name+":"+tag] = value
+		s.counts[name+":"+tag] = value
 	}
 	return nil
 }
@@ -104,7 +116,10 @@ func (s *StatsdClient) Close() error {
 
 // Flush does nothing and returns nil
 func (s *StatsdClient) Flush() error {
-	s.Counts = make(map[string]int64)
+	s.Lock()
+	defer s.Unlock()
+
+	s.counts = make(map[string]int64)
 	return nil
 }
 

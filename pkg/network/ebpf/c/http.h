@@ -154,7 +154,7 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
 
     // We detected either a request or a response
     // In this case we initialize (or fetch) state associated to this tuple
-    bpf_map_update_elem(&http_in_flight, &http->tup, http, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(http_in_flight, &http->tup, http, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 }
 
