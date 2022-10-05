@@ -319,7 +319,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
+	config.BindEnv("no_proxy_nonexact_match")
 
 	// Python 3 linter timeout, in seconds
 	// NOTE: linter is notoriously slow, in the absence of a better solution we
