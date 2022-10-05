@@ -88,7 +88,7 @@ network_devices:
 				AggregatorFlushInterval:                300,
 				AggregatorFlowContextTTL:               300,
 				AggregatorPortRollupThreshold:          10,
-				AggregatorRollupTrackerRefreshInterval: 3600,
+				AggregatorRollupTrackerRefreshInterval: 300,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -116,7 +116,7 @@ network_devices:
 				AggregatorFlushInterval:                50,
 				AggregatorFlowContextTTL:               50,
 				AggregatorPortRollupThreshold:          10,
-				AggregatorRollupTrackerRefreshInterval: 3600,
+				AggregatorRollupTrackerRefreshInterval: 300,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
