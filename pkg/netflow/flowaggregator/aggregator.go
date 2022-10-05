@@ -32,7 +32,6 @@ type FlowAggregator struct {
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
-	portRollupDisable            bool
 }
 
 // NewFlowAggregator returns a new FlowAggregator
