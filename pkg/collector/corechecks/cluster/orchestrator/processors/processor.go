@@ -20,6 +20,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// Marshal message to JSON.
+// We need to enforce order consistency on underlying maps as
+// the standard library does.
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // ProcessorContext holds resource processing attributes
