@@ -21,6 +21,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,7 +80,7 @@ type sslProgram struct {
 	sockFDMap   *ebpf.Map
 	perfHandler *ddebpf.PerfHandler
 	watcher     *soWatcher
-	manager     *manager.Manager
+	manager     *errtelemetry.Manager
 }
 
 var _ subprogram = &sslProgram{}
@@ -96,7 +97,7 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
 	}, nil
 }
 
-func (o *sslProgram) ConfigureManager(m *manager.Manager) {
+func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	if o == nil {
 		return
 	}
@@ -198,7 +199,7 @@ func (o *sslProgram) Stop() {
 	o.perfHandler.Stop()
 }
 
-func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
+func addHooks(m *errtelemetry.Manager, probes map[string]string) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
 		for sec, funcName := range probes {
@@ -237,7 +238,7 @@ func addHooks(m *manager.Manager, probes map[string]string) func(string) error {
 	}
 }
 
-func removeHooks(m *manager.Manager, probes map[string]string) func(string) error {
+func removeHooks(m *errtelemetry.Manager, probes map[string]string) func(string) error {
 	return func(libPath string) error {
 		uid := getUID(libPath)
 		for sec, funcName := range probes {
@@ -276,4 +277,40 @@ func getUID(libPath string) string {
 	}
 
 	return libPath
+}
+
+func (o *sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	var probes []manager.ProbeIdentificationPair
+
+	for sec, funcname := range openSSLProbes {
+		probes = append(probes, manager.ProbeIdentificationPair{
+			EBPFSection:  sec,
+			EBPFFuncName: funcname,
+		})
+	}
+
+	for sec, funcname := range cryptoProbes {
+		probes = append(probes, manager.ProbeIdentificationPair{
+			EBPFSection:  sec,
+			EBPFFuncName: funcname,
+		})
+	}
+
+	for sec, funcname := range gnuTLSProbes {
+		probes = append(probes, manager.ProbeIdentificationPair{
+			EBPFSection:  sec,
+			EBPFFuncName: funcname,
+		})
+	}
+
+	for _, hook := range []ebpfSectionFunction{doSysOpen, doSysOpenAt2} {
+		for _, kprobe := range kprobeKretprobePrefix {
+			probes = append(probes, manager.ProbeIdentificationPair{
+				EBPFSection:  kprobe + "/" + hook.section,
+				EBPFFuncName: kprobe + "__" + hook.function,
+			})
+		}
+	}
+
+	return probes
 }

@@ -447,12 +447,15 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(record *perf.Record) (uint64, uint64, error) {
+func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	if len(record.RawSample) < 16 {
-		return 0, 0, model.ErrNotEnoughData
+		return QuickInfo{}, model.ErrNotEnoughData
 	}
 
-	return model.ByteOrder.Uint64(record.RawSample[0:8]), model.ByteOrder.Uint64(record.RawSample[8:16]), nil
+	return QuickInfo{
+		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+	}, nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time

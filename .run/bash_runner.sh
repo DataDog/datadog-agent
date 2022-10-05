@@ -26,10 +26,25 @@ else
   # Exporting all relevant environment variables from current session os it will be available for the script in the SSH session
   # Then change directory to the agent root directory to preserve the behaviour of a local run
 
-  # Getting the default environment variables key names in the remote machine
+  # We don't want to override existing environment variables in the remote machine
+  # So we get all remote environment variables names, and "subtract" them from the local environment variables
+
+  # Getting all environment variables names in the remote machine
   remote_env=$(ssh -tt "vagrant@$REMOTE_MACHINE_IP" env | cut -d "=" -f1)
-  # Here we inject all environment variables that do not exist in the remote machine.
+
+  # We will use grep with the -v flag (inverse mode) to exclude the remote environment variables from the local ones
+  # To do this, we need to transform the remote environment variables into the patterns format which grep expect (`grep -e FIRST_ENV -e SECOND_ENV ...`)
+  remote_env_array=("$remote_env")
+  remote_env_array_as_grep_patterns=()
+  for env in "${remote_env_array[@]}"; do remote_env_array_as_grep_patterns+=(-e "$env"); done
+
+  # Ignore local environment variables that could cause problem in the remote machine
+  ENV_IGNORE_LIST=("TMPDIR" "GOPRIVATE")
+  for env in "${ENV_IGNORE_LIST[@]}"; do remote_env_array_as_grep_patterns+=(-e "$env"); done
+
+  # Finally create the environment variable to inject list in the format that works with sh `ssh` command
+  env_variables_to_inject=$(env | grep -v -w "${remote_env_array_as_grep_patterns[@]}" | tr '\n' ' ')
   # shellcheck disable=SC2002
   cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" \
-   "export $(env | grep -v $remote_env);cd ${DD_AGENT_ROOT_DIR};bash --login"
+  "export $env_variables_to_inject;cd ${DD_AGENT_ROOT_DIR};bash --login"
 fi

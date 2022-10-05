@@ -4,9 +4,9 @@
   needs: ["go_mod_tidy_check"]
   script:
     - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
-    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
-    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
-    - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/security-agent-policies $S3_ARTIFACTS_URI/security-agent-policies --recursive
+    - $S3_CP_CMD $CI_PROJECT_DIR/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
+    - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/security-agent-policies $S3_ARTIFACTS_URI/security-agent-policies --recursive
 
 cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
@@ -33,7 +33,3 @@ cluster_agent-build_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH

@@ -458,6 +458,7 @@ def test(
         "pkgs": packages,
         "run": f"-run {run}" if run else "",
         "failfast": "-failfast" if failfast else "",
+        "go": "go",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -465,7 +466,11 @@ def test(
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
+    go_root = os.getenv("GOROOT")
+    if go_root:
+        args["go"] = os.path.join(go_root, "bin", "go")
+
+    cmd = '{go} test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
@@ -855,13 +860,13 @@ def run_ninja(
 
 def setup_runtime_clang(ctx):
     # check if correct version is already present
-    res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
+    sudo = "sudo" if not is_root() else ""
+    res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
     if res.ok:
         version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
         if version_str == CLANG_VERSION:
             return
 
-    sudo = "sudo" if not is_root() else ""
     if not os.path.exists("/opt/datadog-agent/embedded/bin"):
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
 

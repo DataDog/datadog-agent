@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -69,15 +68,13 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		{
 			name: "no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
-				bucketCounts := pcommon.NewUInt64Slice()
-				bucketCounts.FromRaw([]uint64{100})
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts(bucketCounts)
+				h.BucketCounts().FromRaw([]uint64{100})
 				h.SetCount(100)
 				h.SetSum(0)
 
 				n := pmetric.NewNumberDataPoint()
-				n.SetIntVal(777)
+				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
@@ -86,10 +83,8 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		{
 			name: "metric tags and extra tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
-				bucketCounts := pcommon.NewUInt64Slice()
-				bucketCounts.FromRaw([]uint64{100})
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts(bucketCounts)
+				h.BucketCounts().FromRaw([]uint64{100})
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()
@@ -98,7 +93,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				hAttrs.PutString("histogram_3_id", "value3")
 
 				n := pmetric.NewNumberDataPoint()
-				n.SetIntVal(777)
+				n.SetIntValue(777)
 				nAttrs := n.Attributes()
 				nAttrs.PutString("gauge_1_id", "value1")
 				nAttrs.PutString("gauge_2_id", "value2")
@@ -194,8 +189,8 @@ func newMetrics(
 	hdp := hdps.AppendEmpty()
 	hdp.SetCount(histogramDataPoint.Count())
 	hdp.SetSum(histogramDataPoint.Sum())
-	hdp.SetBucketCounts(histogramDataPoint.BucketCounts())
-	hdp.SetExplicitBounds(histogramDataPoint.ExplicitBounds())
+	histogramDataPoint.BucketCounts().CopyTo(hdp.BucketCounts())
+	histogramDataPoint.ExplicitBounds().CopyTo(hdp.ExplicitBounds())
 	hdp.SetTimestamp(histogramDataPoint.Timestamp())
 	hdpAttrs := hdp.Attributes()
 	histogramDataPoint.Attributes().CopyTo(hdpAttrs)
@@ -207,7 +202,7 @@ func newMetrics(
 	gdps := met.Gauge().DataPoints()
 	gdp := gdps.AppendEmpty()
 	gdp.SetTimestamp(numberDataPoint.Timestamp())
-	gdp.SetIntVal(numberDataPoint.IntVal())
+	gdp.SetIntValue(numberDataPoint.IntValue())
 	gdpAttrs := gdp.Attributes()
 	numberDataPoint.Attributes().CopyTo(gdpAttrs)
 

@@ -501,11 +501,11 @@ def kitchen_functional_tests(
 def docker_functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
-    static=False,
     bundle_ebpf=True,
     skip_linters=False,
     kernel_release=None,
@@ -517,25 +517,30 @@ def docker_functional_tests(
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
-        static=static,
+        static=True,
         skip_linters=skip_linters,
+        race=race,
         kernel_release=kernel_release,
     )
 
-    dockerfile = """
-FROM debian:bullseye
+    add_arch_line = ""
+    if arch == "x86":
+        add_arch_line = "RUN dpkg --add-architecture i386"
+
+    dockerfile = f"""
+FROM ubuntu:22.04
 
 ENV DOCKER_DD_AGENT=yes
 
-RUN dpkg --add-architecture i386
+{add_arch_line}
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
+RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"
@@ -709,9 +714,12 @@ def go_generate_check(ctx):
 
 @task
 def kitchen_prepare(ctx):
+    ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
+
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
-    cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
+    cookbook_files_dir = os.path.join(
+        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
+    )
 
     testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
     build_functional_tests(
@@ -728,8 +736,7 @@ def kitchen_prepare(ctx):
 
     ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    src_path = os.environ.get("SRC_PATH", ".")
-    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+    bytecode_build_dir = os.path.join(ci_project_dir, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
