@@ -94,17 +94,8 @@ func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, so
 	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
 		return
 	}
-	store[srcToDestKey] = addPort(store[srcToDestKey], destPort)
-	store[destToSrcKey] = addPort(store[destToSrcKey], sourcePort)
-}
-
-func addPort(ports []uint16, newPort uint16) []uint16 {
-	for _, port := range ports {
-		if port == newPort {
-			return ports
-		}
-	}
-	return append(ports, newPort)
+	store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
+	store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
 }
 
 // GetPortCount returns max port count and indicate whether the source or destination is ephemeral (isEphemeralSource)
@@ -180,4 +171,13 @@ func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, p
 	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
 	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1}) + string([]byte{portPart2})
 
+}
+
+func appendPort(ports []uint16, newPort uint16) []uint16 {
+	for _, port := range ports {
+		if port == newPort {
+			return ports
+		}
+	}
+	return append(ports, newPort)
 }
