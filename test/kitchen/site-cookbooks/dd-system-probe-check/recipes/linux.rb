@@ -52,7 +52,21 @@ package 'socat'
 
 package 'wget'
 
-package 'curl'
+package 'curl' do
+  case node[:platform]
+  when 'amazon'
+    case node[:platform_version]
+    when '2022'
+      package_name 'curl-minimal'
+    else
+      package_name 'curl'
+    end
+  else
+    package_name 'curl'
+  end
+end
+
+package 'iptables'
 
 # Enable IPv6 support
 kernel_module 'ipv6' do

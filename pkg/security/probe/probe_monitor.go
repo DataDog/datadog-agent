@@ -100,7 +100,7 @@ func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 
 // SendStats sends statistics about the probe to Datadog
 func (m *Monitor) SendStats() error {
-	// delay between to send in order to reduce the statsd pool presure
+	// delay between two send in order to reduce the statsd pool presure
 	const delay = time.Second
 	time.Sleep(delay)
 

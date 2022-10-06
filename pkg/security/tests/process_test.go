@@ -27,7 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"

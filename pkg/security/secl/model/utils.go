@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"regexp"
-	"unsafe"
 )
 
 // containerIDPattern is the pattern of a container ID
@@ -22,10 +21,12 @@ func FindContainerID(s string) string {
 }
 
 // SliceToArray copy src bytes to dst. Destination should have enough space
-func SliceToArray(src []byte, dst unsafe.Pointer) {
-	for i := range src {
-		*(*byte)(unsafe.Pointer(uintptr(dst) + uintptr(i))) = src[i]
+func SliceToArray(src []byte, dst []byte) {
+	if len(src) != len(dst) {
+		panic("different len in SliceToArray")
 	}
+
+	copy(dst, src)
 }
 
 // UnmarshalStringArray extract array of string for array of byte
