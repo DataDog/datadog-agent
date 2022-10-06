@@ -1899,14 +1899,13 @@ func TestOpenSSLVersions(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	initTracerState(t, tr)
 	defer tr.Stop()
 
-	addr := "127.0.0.1:8001"
-	closer, err := testutil.HTTPPythonServer(t, addr, testutil.Options{
+	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
 		EnableTLS: true,
 	})
 	require.NoError(t, err)
@@ -1914,7 +1913,7 @@ func TestOpenSSLVersions(t *testing.T) {
 
 	// Giving the tracer time to install the hooks
 	time.Sleep(time.Second)
-	client, requestFn := simpleGetRequestsGenerator(t, addr)
+	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
