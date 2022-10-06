@@ -960,14 +960,31 @@ func TestProcessExec(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
-		cmd := exec.Command("sh", "-c", executable+" /dev/null")
-		return cmd.Run()
-	}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
-		assertFieldEqual(t, event, "exec.file.path", executable)
-		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
-		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
-	}))
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("exec", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command("sh", "-c", executable+" /dev/null")
+			return cmd.Run()
+		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
+			assertFieldEqual(t, event, "exec.file.path", executable)
+			// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
+		}))
+	})
+
+	t.Run("exec-in-pthread", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"exec-in-pthread", executable, "/dev/null"}
+			cmd := exec.Command(syscallTester, args...)
+			return cmd.Run()
+		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
+			assertFieldEqual(t, event, "exec.file.path", executable)
+		}))
+	})
 }
 
 func TestProcessMetadata(t *testing.T) {
