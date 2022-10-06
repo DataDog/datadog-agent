@@ -74,7 +74,7 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 
 	// If certPath is set we enabled TLS
 	if options.EnableTLS {
-		curDir, _ := curDir()
+		curDir, _ := CurDir()
 		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 		keyPath := filepath.Join(curDir, "testdata/server.key")
 		listenFn = func() error {
@@ -104,7 +104,7 @@ func StatusFromPath(path string) (status int) {
 	return
 }
 
-func curDir() (string, error) {
+func CurDir() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		return "", fmt.Errorf("unable to get current file build path")

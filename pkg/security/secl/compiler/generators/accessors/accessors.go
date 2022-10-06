@@ -24,7 +24,7 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/Masterminds/sprig"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
