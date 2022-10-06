@@ -18,9 +18,12 @@ import (
 // IsTest is true if this is a test run.  This will always be false in
 // "real" binaries.
 //
-// This can be used to ensure that undesirable behavior such as reporting
-// metrics or accessing on-disk configuration files does not occur during
-// tests.
+// This can be used to ensure that accidental use of real (non-mock) components
+// in tests does not cause undesirable behavior such as reporting metrics or
+// accessing on-disk configuration files.
+//
+// Use this sparingly, and only to detect situations where a test case should
+// have used a mock component but accidentally used a real component.
 var IsTest bool
 
 // Test runs a test case within an fx.App.
