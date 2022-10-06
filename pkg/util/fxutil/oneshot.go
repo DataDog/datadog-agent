@@ -27,6 +27,11 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 		return oneShotTestOverride(oneShotFunc, opts)
 	}
 
+	// Use a delayed Fx invocation to capture arguments for oneShotFunc during
+	// application setup, but not actually invoke the question until all
+	// lifecycle start hooks have completed.  Order of lifecycle start hooks is
+	// partially ordered by dependencies, but there is no way to guarantee "run
+	// this function last".
 	delayedCall := newDelayedFxInvocation(oneShotFunc)
 
 	opts = append(opts,
