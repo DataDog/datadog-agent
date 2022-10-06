@@ -202,7 +202,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	config.Load()
+	if _, err := config.Load(); err != nil {
+		log.Error("Configuration loading error from datadog.yaml file")
+	}
 	config.LoadProxyFromEnv(config.Datadog)
 	logChannel := make(chan *logConfig.ChannelMessage)
 
