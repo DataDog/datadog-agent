@@ -87,7 +87,7 @@ func newClient(agentName string, doTufVerification bool, agentVersion string, pr
 		repository, err = state.NewUnverifiedRepository()
 	}
 	if err != nil {
-	    close()
+		close()
 		return nil, err
 	}
 
