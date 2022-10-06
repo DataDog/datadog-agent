@@ -36,7 +36,7 @@ network_devices:
     aggregator_port_rollup_threshold: 20
     aggregator_rollup_tracker_refresh_interval: 60
     log_payloads: true
-    aggregator_port_rollup_disable: true
+    aggregator_port_rollup_disabled: true
     listeners:
       - flow_type: netflow9
         bind_host: 127.0.0.1
@@ -56,7 +56,7 @@ network_devices:
 				AggregatorFlowContextTTL:               40,
 				AggregatorPortRollupThreshold:          20,
 				AggregatorRollupTrackerRefreshInterval: 60,
-				AggregatorPortRollupDisable:            true,
+				AggregatorPortRollupDisabled:           true,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,

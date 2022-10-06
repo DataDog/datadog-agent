@@ -36,7 +36,7 @@ type flowAccumulator struct {
 
 	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
-	portRollupDisable   bool
+	portRollupDisabled  bool
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -47,14 +47,14 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisable bool) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool) *flowAccumulator {
 	return &flowAccumulator{
 		flows:               make(map[uint64]flowContext),
 		flowFlushInterval:   aggregatorFlushInterval,
 		flowContextTTL:      aggregatorFlowContextTTL,
 		portRollup:          portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
 		portRollupThreshold: portRollupThreshold,
-		portRollupDisable:   portRollupDisable,
+		portRollupDisabled:  portRollupDisabled,
 	}
 }
 
@@ -98,7 +98,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	log.Tracef("Add new flow: %+v", flowToAdd)
 
-	if !f.portRollupDisable {
+	if !f.portRollupDisabled {
 		// Handle port rollup
 		f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
 		ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
