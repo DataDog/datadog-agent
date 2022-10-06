@@ -143,6 +143,18 @@ network_devices:
 `,
 			expectedError: "the provided flow type `invalidType` is not valid",
 		},
+		{
+			name: "invalid namespace with >100 chars",
+			configYaml: `
+network_devices:
+  namespace: abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefg
+  netflow:
+    enabled: true
+    listeners:
+      - flow_type: netflow9
+`,
+			expectedError: "invalid namespace `abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefg` error: namespace is too long, should contain less than 100 characters",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
