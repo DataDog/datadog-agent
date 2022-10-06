@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - Cloud Workload Security uses a default Traffic Control filter priority of 10.
+  - Traffic Control filters priority and handle can be set from the configuration of Cloud Workload Security in system-probe.yaml.
