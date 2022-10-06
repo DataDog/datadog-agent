@@ -1882,8 +1882,7 @@ func skipIfWindows(t *testing.T) {
 }
 
 const (
-	numberOfRequests   = 100
-	numberOfIterations = 200
+	numberOfRequests = 100
 )
 
 // TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
@@ -1951,13 +1950,12 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 
 func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
-	for i := 0; i < numberOfIterations; i++ {
-		// Giving the kernel some time to flush entries from the kernel to the user mode.
-		time.Sleep(25 * time.Millisecond)
+
+	require.Eventually(t, func() bool {
 		conns := getConnections(t, tracer)
 
 		if len(conns.HTTP) == 0 {
-			continue
+			return false
 		}
 
 		for reqIndex, req := range requests {
@@ -1968,22 +1966,16 @@ func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.R
 
 		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
 		// otherwise, if all present, abort.
-		allExists := true
-		for _, exists := range requestsExist {
+		for reqIndex, exists := range requestsExist {
 			if !exists {
-				allExists = false
-				break
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
 			}
 		}
-		if allExists {
-			return
-		}
-	}
 
-	// If we reach here, it means that at least one req is missing, so we want to tell who is missing.
-	for reqIndex, exists := range requestsExist {
-		require.Truef(t, exists, "request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-	}
+		return true
+	}, 3*time.Second, time.Second, "connection not found")
 }
 
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
