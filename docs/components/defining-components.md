@@ -88,7 +88,7 @@ The constructor may call methods on other components, as long as the called meth
 The documentation (both package-level and method-level) should include everything a user of the component needs to know.
 In particular, any assumptions that might lead to panics if violated by the user should be clearly documented.
 
-Detailed documentation of how to avoiding bugs in using a component is an indicator of excessive complexity and should be treated as a bug.
+Detailed documentation of how to avoid bugs in using a component is an indicator of excessive complexity and should be treated as a bug.
 Simplifying the usage will improve the robustness of the Agent.
 
 Documentation should include:
