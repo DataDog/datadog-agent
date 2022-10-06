@@ -617,18 +617,13 @@ variables:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_deploy:
+.on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
+    when: always
   - <<: *if_main_branch
+    when: always
   - <<: *if_release_branch
-
-.on_main_or_release_branch_or_deploy_failure:
-  - <<: *if_deploy
-    when: on_failure
-  - <<: *if_main_branch
-    when: on_failure
-  - <<: *if_release_branch
-    when: on_failure
+    when: always
 
 .on_all_builds:
   - <<: *if_run_all_builds

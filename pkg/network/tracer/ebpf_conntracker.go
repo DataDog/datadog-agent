@@ -93,7 +93,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		helperErr = bpfTelemetry.HelperErrMap
 	}
 
-	m, err := getManager(buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
+	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +378,12 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -392,6 +397,7 @@ func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErr
 					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
 					UID:          "conntracker",
 				},
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -399,6 +405,7 @@ func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErr
 					EBPFFuncName: "kprobe_ctnetlink_fill_info",
 					UID:          "conntracker",
 				},
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
@@ -425,7 +432,7 @@ func getManager(buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErr
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(maxStateSize), EditorFlag: manager.EditMaxEntries},
+			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: telemetryMapKeys,
 	}

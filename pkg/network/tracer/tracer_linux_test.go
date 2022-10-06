@@ -26,6 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1672,4 +1681,25 @@ func TestShortWrite(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
 
 	assert.Equal(t, sent, conn.MonotonicSum().SentBytes)
+}
+
+func TestKprobeAttachWithKprobeEvents(t *testing.T) {
+	cfg := config.New()
+	cfg.AttachKprobesWithKprobeEventsABI = true
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
+	exec.Command(cmd[0], cmd[1:]...).Run()
+
+	stats := ddebpf.GetProbeStats()
+	require.NotNil(t, stats)
+
+	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]
+	require.True(t, ok)
+	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
+
+	assert.Greater(t, p_tcp_sendmsg, int64(0))
 }

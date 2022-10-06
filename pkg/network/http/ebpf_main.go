@@ -88,6 +88,11 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if c.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
+	}
+
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -120,7 +125,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
-				KProbeMaxActive: maxActive,
+				KProbeMaxActive:    maxActive,
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -135,6 +141,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
+				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}

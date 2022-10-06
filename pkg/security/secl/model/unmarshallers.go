@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -165,7 +164,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 	read += 8
 
 	var ttyRaw [64]byte
-	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
+	SliceToArray(data[read:read+64], ttyRaw[:])
 	ttyName, err := UnmarshalString(ttyRaw[:], 64)
 	if err != nil {
 		return 0, err
@@ -176,7 +175,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 	read += 64
 
 	var commRaw [16]byte
-	SliceToArray(data[read:read+16], unsafe.Pointer(&commRaw))
+	SliceToArray(data[read:read+16], commRaw[:])
 	e.Comm, err = UnmarshalString(commRaw[:], 16)
 	if err != nil {
 		return 0, err
@@ -312,7 +311,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
-	SliceToArray(data[8:MaxArgEnvSize+8], unsafe.Pointer(&e.ValuesRaw))
+	SliceToArray(data[8:MaxArgEnvSize+8], e.ValuesRaw[:])
 
 	return MaxArgEnvSize + 8, nil
 }
@@ -395,7 +394,7 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	// Notes: bytes 36 to 40 are used to pad the structure
 
-	SliceToArray(data[40:56], unsafe.Pointer(&e.FSTypeRaw))
+	SliceToArray(data[40:56], e.FSTypeRaw[:])
 	e.FSType, err = UnmarshalString(e.FSTypeRaw[:], 16)
 	if err != nil {
 		return 0, err
@@ -510,7 +509,7 @@ func (e *SetXAttrEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 200 {
 		return n, ErrNotEnoughData
 	}
-	SliceToArray(data[0:200], unsafe.Pointer(&e.NameRaw))
+	SliceToArray(data[0:200], e.NameRaw[:])
 
 	return n + 200, nil
 }
@@ -898,8 +897,8 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	var srcIP, dstIP [16]byte
-	SliceToArray(data[read:read+16], unsafe.Pointer(&srcIP))
-	SliceToArray(data[read+16:read+32], unsafe.Pointer(&dstIP))
+	SliceToArray(data[read:read+16], srcIP[:])
+	SliceToArray(data[read+16:read+32], dstIP[:])
 	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
 	// padding 4 bytes
@@ -1008,7 +1007,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	var ipRaw [16]byte
-	SliceToArray(data[read:read+16], unsafe.Pointer(&ipRaw))
+	SliceToArray(data[read:read+16], ipRaw[:])
 	e.AddrFamily = ByteOrder.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 
