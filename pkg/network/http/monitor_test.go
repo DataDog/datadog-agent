@@ -354,7 +354,7 @@ func TestRSTPacketRegression(t *testing.T) {
 func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
