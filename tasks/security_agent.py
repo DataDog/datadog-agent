@@ -35,7 +35,7 @@ from .utils import (
 )
 
 BIN_DIR = os.path.join(".", "bin")
-BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
+BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
