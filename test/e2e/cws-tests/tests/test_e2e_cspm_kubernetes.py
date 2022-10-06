@@ -155,6 +155,11 @@ class TestE2EKubernetes(unittest.TestCase):
                 "result": "error",
             }
         ],
+        "cis-kubernetes-1.5.1-4.2.12": [
+            {
+                "result": "error",
+            }
+        ],
     }
     hostname = "k8s-e2e-tests-control-plane"
 
