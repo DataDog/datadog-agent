@@ -959,10 +959,16 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 	}
 
 	matchedProcesses := processes.findProcessesByName(name)
-	for _, mp := range matchedProcesses {
-		flagValues := parseProcessCmdLine(mp.Cmdline)
+	if len(matchedProcesses) != 0 {
+		cmdLine, err := matchedProcesses[0].CmdlineSlice()
+		if err != nil {
+			return "", fmt.Errorf("unable to fetch command line: %w", err)
+		}
+
+		flagValues := parseProcessCmdLine(cmdLine)
 		return flagValues[flag], nil
 	}
+
 	return "", fmt.Errorf("failed to find process: %s", name)
 }
 

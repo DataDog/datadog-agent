@@ -129,7 +129,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
+	m := newManager(config, perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
 	currKernelVersion, err := kernel.HostVersion()
@@ -393,12 +393,11 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
-		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),
-		"missed_tcp_close":           int64(telemetry.Missed_tcp_close),
-		"missed_udp_close":           int64(telemetry.Missed_udp_close),
-		"udp_sends_processed":        int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
-		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
+		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
+		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
+		"missed_udp_close":    int64(telemetry.Missed_udp_close),
+		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
+		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
 	}
 
 	for k, v := range t.telemetry.get() {
