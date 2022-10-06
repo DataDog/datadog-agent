@@ -41,13 +41,23 @@ func TestExtractNamespace(t *testing.T) {
 					Name:            "my-name",
 					Namespace:       "my-namespace",
 					ResourceVersion: "1234",
+					Finalizers:      []string{"final", "izers"},
 					UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
-				},
-				Spec: corev1.NamespaceSpec{
-					Finalizers: []corev1.FinalizerName{"final", "izers"},
 				},
 				Status: corev1.NamespaceStatus{
 					Phase: "a-phase",
+					Conditions: []corev1.NamespaceCondition{
+						{
+							Type:    "NamespaceDeletionContentFailure",
+							Status:  "False",
+							Message: "wrong msg",
+						},
+						{
+							Type:    "NamespaceDeletionDiscoveryFailure",
+							Status:  "False",
+							Message: "right msg",
+						},
+					},
 				},
 			},
 			expected: model.Namespace{
@@ -58,10 +68,11 @@ func TestExtractNamespace(t *testing.T) {
 					Name:              "my-name",
 					Namespace:         "my-namespace",
 					ResourceVersion:   "1234",
+					Finalizers:        []string{"final", "izers"},
 					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 				},
-				Finalizers: []string{"final", "izers"},
-				Status:     "a-phase",
+				Status:           "a-phase",
+				ConditionMessage: "right msg",
 			},
 		},
 		"nil-safety": {
