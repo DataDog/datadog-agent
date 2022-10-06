@@ -86,7 +86,7 @@ network_devices:
 `,
 			expectedConfig: NetflowConfig{
 				StopTimeout:                            5,
-				AggregatorBufferSize:                   100,
+				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                300,
 				AggregatorFlowContextTTL:               300,
 				AggregatorPortRollupThreshold:          10,
@@ -114,7 +114,7 @@ network_devices:
 `,
 			expectedConfig: NetflowConfig{
 				StopTimeout:                            5,
-				AggregatorBufferSize:                   100,
+				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                50,
 				AggregatorFlowContextTTL:               50,
 				AggregatorPortRollupThreshold:          10,
