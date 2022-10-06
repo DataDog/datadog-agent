@@ -47,7 +47,9 @@ network_devices:
         bind_host: 127.0.0.2
         port: 2222
         workers: 15
-        namespace: my-ns2
+        namespace: |
+          my-ns2<abc
+          zz
 `,
 			expectedConfig: NetflowConfig{
 				StopTimeout:                            10,
@@ -70,7 +72,7 @@ network_devices:
 						BindHost:  "127.0.0.2",
 						Port:      uint16(2222),
 						Workers:   15,
-						Namespace: "my-ns2",
+						Namespace: "my-ns2-abczz",
 					},
 				},
 			},
