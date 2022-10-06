@@ -187,7 +187,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	}
 
 	if c.Name() == config.PodCheckName {
-		handlePodChecks(l, start, c.Name(), messages, results)
+		handlePodChecks(l, start, messages, results)
 	} else {
 		l.messagesToResultsQueue(start, c.Name(), messages, results)
 	}
@@ -287,11 +287,6 @@ func (l *Collector) messagesToCheckResult(start time.Time, name string, messages
 			}
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-
-			switch m.(type) {
-			case *model.CollectorManifest:
-				extraHeaders.Set(headers.ContentEncodingHeader, headers.ZSTDContentEncoding)
-			}
 		}
 
 		if name == checks.ProcessEvents.Name() {
@@ -627,16 +622,14 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
+			// Pod check metadata
 			case checks.Pod.Name():
-				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
-				// Pod check contains two parts: metadata and manifest.
-				// The manifest payload header has Content-Encoding:zstd allowing us to decompress payload in the intake
-				if payload.headers.Get(headers.ContentEncodingHeader) == headers.ZSTDContentEncoding {
-					responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
-				} else {
-					responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
-				}
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+			// Pod check manifest data
+			case config.PodCheckManifestName:
+				updateRTStatus = false
+				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				updateRTStatus = false
@@ -792,7 +785,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), checks.ProcessEvents.Name():
+	case checks.Pod.Name(), config.PodCheckManifestName, checks.ProcessEvents.Name():
 		return true
 	default:
 		return false
@@ -802,9 +795,9 @@ func ignoreResponseBody(checkName string) bool {
 // Pod check returns a list of messages can be divided into two parts : pod payloads and manifest payloads
 // By default we only send pod payloads containing pod metadata and pod manifests (yaml)
 // Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
-func handlePodChecks(l *Collector, start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
-	l.messagesToResultsQueue(start, name, messages[:len(messages)/2], results)
+func handlePodChecks(l *Collector, start time.Time, messages []model.MessageBody, results *api.WeightedQueue) {
+	l.messagesToResultsQueue(start, config.PodCheckName, messages[:len(messages)/2], results)
 	if l.cfg.Orchestrator.IsManifestCollectionEnabled {
-		l.messagesToResultsQueue(start, name, messages[len(messages)/2:], results)
+		l.messagesToResultsQueue(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
 	}
 }
