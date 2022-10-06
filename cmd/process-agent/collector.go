@@ -785,7 +785,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), checks.ProcessEvents.Name():
+	case checks.Pod.Name(), config.PodCheckManifestName, checks.ProcessEvents.Name():
 		return true
 	default:
 		return false
