@@ -155,11 +155,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 "result": "error",
             }
         ],
-        "cis-kubernetes-1.5.1-4.2.4": [
-            {
-                "result": "error",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.2.5": [
             {
                 "result": "error",
