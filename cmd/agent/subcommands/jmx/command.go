@@ -40,7 +40,7 @@ type cliParams struct {
 	command string
 
 	cliSelectedChecks     []string
-	logFile               string // calculated in makeCoreBundleParams
+	logFile               string // calculated in runOneShot
 	jmxLogLevel           string
 	saveFlare             bool
 	discoveryTimeout      uint
@@ -64,6 +64,42 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	jmxCmd.PersistentFlags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 
+	// All subcommands use the same provided components, with a different
+	// oneShot callback, and with some complex derivation of the
+	// core.BundleParams value
+	runOneShot := func(callback interface{}) error {
+		cliParams.logFile = ""
+
+		// if saving a flare, write a debug log within a directory that will be
+		// captured in the flare.
+		if cliParams.saveFlare {
+			// Windows cannot accept ":" in file names
+			filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
+			cliParams.logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
+			cliParams.jmxLogLevel = "debug"
+		}
+
+		// default log level to "debug" if not given
+		if cliParams.jmxLogLevel == "" {
+			cliParams.jmxLogLevel = "debug"
+		}
+
+		params := core.BundleParams{
+			ConfFilePath:      globalParams.ConfFilePath,
+			ConfigLoadSecrets: true,
+		}.LogForOneShot("CORE", cliParams.jmxLogLevel, false)
+
+		if cliParams.logFile != "" {
+			params = params.LogToFile(cliParams.logFile)
+		}
+
+		return fxutil.OneShot(callback,
+			fx.Supply(cliParams),
+			fx.Supply(params),
+			core.Bundle,
+		)
+	}
+
 	jmxCollectCmd := &cobra.Command{
 		Use:   "collect",
 		Short: "Start the collection of metrics based on your current configuration and display them in the console.",
@@ -71,11 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "collect"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 	jmxCollectCmd.PersistentFlags().StringSliceVar(&cliParams.cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
@@ -89,11 +121,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_everything"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -104,11 +132,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_matching_attributes"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -119,11 +143,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_with_metrics"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -134,11 +154,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_with_rate_metrics"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -149,11 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_limited_attributes"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -164,11 +176,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_collected_attributes"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -179,11 +187,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.command = "list_not_matching_attributes"
 			disableCmdPort()
-			return fxutil.OneShot(runJmxCommandConsole,
-				fx.Supply(cliParams),
-				fx.Supply(makeCoreBundleParams(globalParams, cliParams)),
-				core.Bundle,
-			)
+			return runOneShot(runJmxCommandConsole)
 		},
 	}
 
@@ -217,38 +221,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // in place for some times.
 func disableCmdPort() {
 	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
-}
-
-// makeCoreBundleParams prepares the core.BundleParams for jmx subcommands.
-//
-// This involves a bit of logic that is needed for each subcommand, and collected here.
-func makeCoreBundleParams(globalParams *command.GlobalParams, cliParams *cliParams) core.BundleParams {
-	cliParams.logFile = ""
-
-	// if saving a flare, write a debug log within a directory that will be
-	// captured in the flare.
-	if cliParams.saveFlare {
-		// Windows cannot accept ":" in file names
-		filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-		cliParams.logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
-		cliParams.jmxLogLevel = "debug"
-	}
-
-	// default log level to "debug" if not given
-	if cliParams.jmxLogLevel == "" {
-		cliParams.jmxLogLevel = "debug"
-	}
-
-	params := core.BundleParams{
-		ConfFilePath:      globalParams.ConfFilePath,
-		ConfigLoadSecrets: true,
-	}.LogForOneShot("CORE", cliParams.jmxLogLevel, false)
-
-	if cliParams.logFile != "" {
-		params = params.LogToFile(cliParams.logFile)
-	}
-
-	return params
 }
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
