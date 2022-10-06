@@ -201,8 +201,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Error("No API key configured, exiting")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
+	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
+	config.Load()
 	config.LoadProxyFromEnv(config.Datadog)
-
 	logChannel := make(chan *logConfig.ChannelMessage)
 
 	metricAgent := &metrics.ServerlessMetricAgent{}
