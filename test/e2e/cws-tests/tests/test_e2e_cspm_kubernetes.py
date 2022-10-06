@@ -75,7 +75,7 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
         "cis-kubernetes-1.5.1-1.3.2": [
             {
-                "result": "error",
+                "result": "failed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.3": [
