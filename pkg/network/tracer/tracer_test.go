@@ -1919,7 +1919,33 @@ func TestOpenSSLVersions(t *testing.T) {
 	}
 
 	client.CloseIdleConnections()
-	assertAllRequestsExists(t, tr, requests)
+	requestsExist := make([]bool, len(requests))
+
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+
+		if len(conns.HTTP) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, time.Second, "connection not found")
 }
 
 var (
@@ -1946,36 +1972,6 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 		resp.Body.Close()
 		return req
 	}
-}
-
-func assertAllRequestsExists(t *testing.T, tracer *Tracer, requests []*nethttp.Request) {
-	requestsExist := make([]bool, len(requests))
-
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tracer)
-
-		if len(conns.HTTP) == 0 {
-			return false
-		}
-
-		for reqIndex, req := range requests {
-			if !requestsExist[reqIndex] {
-				requestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
-			}
-		}
-
-		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
-		// otherwise, if all present, abort.
-		for reqIndex, exists := range requestsExist {
-			if !exists {
-				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-				return false
-			}
-		}
-
-		return true
-	}, 3*time.Second, time.Second, "connection not found")
 }
 
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
