@@ -102,6 +102,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// Power user flags - mark as hidden
 	integrationCmd.PersistentFlags().MarkHidden("use-sys-python") //nolint:errcheck
 
+	// all subcommands use the same provided components, with a different oneShot callback
+	runOneShot := func(callback interface{}) error {
+		return fxutil.OneShot(callback,
+			fx.Supply(cliParams),
+			fx.Supply(core.BundleParams{
+				ConfFilePath:      globalParams.ConfFilePath,
+				ConfigLoadSecrets: false,
+				ConfigMissingOK:   true,
+			}),
+			core.Bundle,
+		)
+	}
+
 	installCmd := &cobra.Command{
 		Use:   "install [package==version]",
 		Short: "Install Datadog integration core/extra packages",
@@ -111,15 +124,7 @@ You must specify a version of the package to install using the syntax: <package>
  - <version> of the form x.y.z`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			return fxutil.OneShot(install,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-					ConfigMissingOK:   true,
-				}),
-				core.Bundle,
-			)
+			return runOneShot(install)
 		},
 	}
 	installCmd.Flags().BoolVarP(
@@ -136,15 +141,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			return fxutil.OneShot(remove,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-					ConfigMissingOK:   true,
-				}),
-				core.Bundle,
-			)
+			return runOneShot(remove)
 		},
 	}
 	integrationCmd.AddCommand(removeCmd)
@@ -155,15 +152,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			return fxutil.OneShot(list,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-					ConfigMissingOK:   true,
-				}),
-				core.Bundle,
-			)
+			return runOneShot(list)
 		},
 	}
 	integrationCmd.AddCommand(freezeCmd)
@@ -175,15 +164,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			return fxutil.OneShot(show,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-					ConfigMissingOK:   true,
-				}),
-				core.Bundle,
-			)
+			return runOneShot(show)
 		},
 	}
 	showCmd.Flags().BoolVarP(&cliParams.versionOnly, "show-version-only", "q", false, "only display version information")
