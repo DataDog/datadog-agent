@@ -83,16 +83,12 @@ func newClient(agentName string, doTufVerification bool, agentVersion string, pr
 
 	if doTufVerification {
 		repository, err = state.NewRepository(meta.RootsDirector().Last())
-		if err != nil {
-			close()
-			return nil, err
-		}
 	} else {
 		repository, err = state.NewUnverifiedRepository()
-		if err != nil {
-			close()
-			return nil, err
-		}
+	}
+	if err != nil {
+	    close()
+		return nil, err
 	}
 
 	// A backoff is calculated as a range from which a random value will be selected. The formula is as follows.
