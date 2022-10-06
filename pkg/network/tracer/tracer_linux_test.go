@@ -26,15 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +33,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
