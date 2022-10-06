@@ -70,7 +70,6 @@ func ReadConfig() (*NetflowConfig, error) {
 			listenerConfig.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 		}
 		listenerConfig.Namespace, err = utils.NormalizeNamespace(listenerConfig.Namespace)
-		// TODO: testme
 		if err != nil {
 			return nil, fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
 		}
