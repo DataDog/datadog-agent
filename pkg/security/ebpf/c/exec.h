@@ -133,12 +133,21 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/task_in_coredump") tasks_in_coredump = {
+struct bpf_map_def SEC("maps/tasks_in_coredump") tasks_in_coredump = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(u8),
     .max_entries = 64,
     .map_flags = BPF_F_NO_COMMON_LRU,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/exec_pid_transfer") exec_pid_transfer = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 512,
     .pinning = 0,
     .namespace = "",
 };
@@ -261,6 +270,18 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
         }
     };
     cache_syscall(&syscall);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+    u32 pid = pid_tgid;
+    // exec is called from a non leader thread:
+    //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
+    //     before sending the event to userspace
+    //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
+    //     the corresponding exit event
+    if (tgid != pid) {
+        bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
+    }
 
     return 0;
 }
@@ -593,7 +614,10 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);
 
-    if (tgid == pid) {
+    u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+
+    // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
+    if (tgid == pid && pid_tgid_execing == NULL) {
         expire_pid_discarder(tgid);
 
         // update exit time
@@ -687,8 +711,52 @@ void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, s
     event->envs_truncated = syscall->exec.envs.truncated;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        u32 pid = pid_tgid;
+        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+        if (!pid_tgid_execing_ptr) {
+            return NULL;
+        }
+        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
+        u32 tgid_execing = pid_tgid_execing >> 32;
+        u32 pid_execing = pid_tgid_execing;
+        if (tgid != tgid_execing || pid == pid_execing) {
+            return NULL;
+        }
+        // the current task is impersonating its thread group leader
+        syscall = peek_task_syscall(pid_tgid_execing, EVENT_EXEC);
+    }
+    return syscall;
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
+    if (!syscall) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        u32 pid = pid_tgid;
+        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+        if (!pid_tgid_execing_ptr) {
+            return NULL;
+        }
+        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
+        u32 tgid_execing = pid_tgid_execing >> 32;
+        u32 pid_execing = pid_tgid_execing;
+        if (tgid != tgid_execing || pid == pid_execing) {
+            return NULL;
+        }
+        // the current task is impersonating its thread group leader
+        syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
+    }
+    return syscall;
+}
+
+int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -717,7 +785,7 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
 }
 
 int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct linux_binprm *bprm) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
+    struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -726,6 +794,8 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx, struct l
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
+
+    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
     if (pid_entry) {
