@@ -80,27 +80,27 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
         "cis-kubernetes-1.5.1-1.3.3": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.4": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.5": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.6": [
             {
-                "result": "error",
+                "result": "failed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.7": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.4.1": [
