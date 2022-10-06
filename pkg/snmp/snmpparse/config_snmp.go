@@ -58,6 +58,7 @@ func ParseConfigSnmp(c integration.Config) DataSNMP {
 		err := yaml.Unmarshal(inst, &instance)
 		if err != nil {
 			fmt.Errorf("unable to get snmp config: %v", err)
+
 		}
 		// add the instance(type SNMPConfig) to the array ws
 		ws = append(ws, instance)
@@ -95,7 +96,7 @@ func GetConfigCheckSnmp(ws DataSNMP) error {
 	if configCheckURLSnmp == "" {
 		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
-	r, err := util.DoGet(c, configCheckURLSnmp, util.LeaveConnectionOpen)
+	r, _ := util.DoGet(c, configCheckURLSnmp, util.LeaveConnectionOpen)
 	cr := response.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
@@ -105,7 +106,9 @@ func GetConfigCheckSnmp(ws DataSNMP) error {
 	//c is of type config while the cr is the config check response including the instances
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
-			ws = ParseConfigSnmp(c)
+			//ws = ParseConfigSnmp(c)
+			ParseConfigSnmp(c)
+
 		}
 	}
 
