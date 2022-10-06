@@ -61,7 +61,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	}
 
 	underlyingTransport := r.conf.NewHTTPTransport()
-	// Fix and documentation taken from pkg/trace/api/profiles.go:121
+	// Fix and documentation taken from pkg/trace/api/profiles.go
 	// The intake's connection timeout is 60 seconds, which is similar to the default heartbeat periodicity of
 	// telemetry clients. When a new heartbeat is simultaneous to the intake closing the connection, Go's ReverseProxy
 	// returns a 502 error to the tracer. Ensuring that the agent closes the connection before the intake solves this
