@@ -16,11 +16,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// isConfigTest is set if a test in this package's test suite is running
-var isConfigTest bool
 
 // cfg implements the Component.
 type cfg struct {
@@ -38,10 +34,6 @@ type dependencies struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	if fxutil.IsTest && !isConfigTest {
-		panic("do not use the real comp/core/config component in tests")
-	}
-
 	warnings, err := setupConfig(
 		deps.Params.ConfFilePath,
 		deps.Params.ConfigName,

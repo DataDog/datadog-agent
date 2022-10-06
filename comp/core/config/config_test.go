@@ -18,16 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// markConfigTests notes that this is a config test, and shouldn't panic over using
-// the real component in tests
-func markConfigTest(t *testing.T) {
-	isConfigTest = true
-	t.Cleanup(func() { isConfigTest = false })
-}
-
 func TestRealConfig(t *testing.T) {
-	markConfigTest(t)
-
 	// point the ConfFilePath to a valid, but empty config file so that it does
 	// not use the config file on the developer's system
 	dir := t.TempDir()
@@ -48,8 +39,6 @@ func TestRealConfig(t *testing.T) {
 }
 
 func TestMockConfig(t *testing.T) {
-	markConfigTest(t)
-
 	os.Setenv("DD_APP_KEY", "abc1234")
 	defer func() { os.Unsetenv("DD_APP_KEY") }()
 
