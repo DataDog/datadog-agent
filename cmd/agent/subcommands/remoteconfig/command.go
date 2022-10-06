@@ -57,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{remoteConfigCmd}
 }
 
-func state(config config.Component, cliParams *cliParams) error {
+func state(cliParams *cliParams, config config.Component) error {
 	if !config.GetBool("remote_configuration.enabled") {
 		return fmt.Errorf("Remote configuration is not enabled")
 	}
