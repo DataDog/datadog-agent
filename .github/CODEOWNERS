@@ -148,6 +148,7 @@
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 
 /docs/                                  @DataDog/documentation @DataDog/agent-platform
+/docs/components/                       @DataDog/documentation @DataDog/agent-shared-components
 /docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
 /docs/components/                       @DataDog/documentation @DataDog/agent-shared-components
 /docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
@@ -263,6 +264,7 @@
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
 /pkg/util/winutil/                      @DataDog/windows-agent
+/pkg/util/actor/                        @DataDog/agent-shared-components
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
