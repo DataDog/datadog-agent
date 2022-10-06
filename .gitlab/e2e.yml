@@ -97,7 +97,7 @@ k8s-e2e-cspm-dev:
   needs: []
   script:
     - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cspm
+    - inv -e e2e-tests --agent-image=datadog/agent:7.39.1-py3 --dca-image=datadog/cluster-agent:7.39.1 --argo-workflow=cspm
 
 k8s-e2e-cspm-main:
   extends: .k8s_e2e_template
