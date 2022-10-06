@@ -183,6 +183,26 @@ class TestE2EKubernetes(unittest.TestCase):
                 "result": "failed",
             }
         ],
+        "cis-kubernetes-1.5.1-4.2.6": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.7": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.8": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.9": [
+            {
+                "result": "failed",
+            }
+        ],
     }
     hostname = "k8s-e2e-tests-control-plane"
 
