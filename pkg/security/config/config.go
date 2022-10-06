@@ -22,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const (
+	// Minimum value for runtime_security_config.activity_dump.max_dump_size
+	MinMaxDumSize = 10
+)
+
 // Policy represents a policy file in the configuration file
 type Policy struct {
 	Name  string   `mapstructure:"name"`
@@ -264,7 +269,11 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
-			return coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 10)
+			mds := coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size")
+			if mds < MinMaxDumSize {
+				mds = MinMaxDumSize
+			}
+			return mds * (1 << 10)
 		},
 	}
 
