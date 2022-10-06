@@ -2073,13 +2073,14 @@ api_key:
 ## @param autoconf_config_files_poll - boolean - optional - default: false
 ## @env DD_AUTOCONF_CONFIG_FILES_POLL - boolean - optional - default: false
 ## Should the we check for new/updated integration configuration files on disk.
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
 #
 # autoconf_config_files_poll: false
 
 ## @param autoconf_config_files_poll_interval - integer - optional - default: 60
 ## @env DD_AUTOCONF_CONFIG_FILES_POLL_INTERVAL - integer - optional - default: 60
-## How frequently should the Agent check for new/updated integration configuration files. WARNING: the configuration
-## provider caches reads from disk for 5 minutes.
+## How frequently should the Agent check for new/updated integration configuration files (in seconds).
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
 #
 # autoconf_config_files_poll_interval: 60
 
