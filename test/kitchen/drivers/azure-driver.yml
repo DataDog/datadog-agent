@@ -155,17 +155,13 @@ platforms:
       <%= key %>: <%= value %>
       <% end %>
     username: <%= vm_username %>
-    <% if vm_password %>
     password: <%= vm_password %>
-    <% end %>
 
   transport:
     <% if windows %>
     name: winrm
     username: <%= vm_username %>
-    <% if vm_password %>
     password: <%= vm_password %>
-    <% end %>
     <% else %>
     connection_retries: 30
     connection_retry_sleep: 2

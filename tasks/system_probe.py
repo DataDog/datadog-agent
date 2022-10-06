@@ -580,7 +580,7 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
 
 @task
 def kitchen_genconfig(
-    ctx, platform, osversions, ssh_key=None, image_size=None, provider="azure", arch=None, azure_sub_id=None
+    ctx, ssh_key, platform, osversions, image_size=None, provider="azure", arch=None, azure_sub_id=None
 ):
     if not arch:
         arch = CURRENT_ARCH
@@ -601,10 +601,9 @@ def kitchen_genconfig(
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
 
-    env = {}
-    if ssh_key:
-        env["KITCHEN_RSA_SSH_KEY_PATH"] = ssh_key
-
+    env = {
+        "KITCHEN_RSA_SSH_KEY_PATH": ssh_key,
+    }
     if azure_sub_id:
         env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
 
