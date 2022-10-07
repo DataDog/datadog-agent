@@ -129,8 +129,11 @@ func (prs *EndpointPairPortRollupStore) IsEphemeral(sourceAddr []byte, destAddr 
 }
 
 func (prs *EndpointPairPortRollupStore) IsEphemeralFromKeys(srcToDestKey string, destToSrcKey string) IsEphemeralStatus {
+	prs.mu.Lock()
 	sourceToDestPortCount := len(prs.curStore[srcToDestKey])
 	destToSourcePortCount := len(prs.curStore[destToSrcKey])
+	prs.mu.Unlock()
+
 	portCount := sourceToDestPortCount
 	if destToSourcePortCount > sourceToDestPortCount {
 		portCount = destToSourcePortCount
