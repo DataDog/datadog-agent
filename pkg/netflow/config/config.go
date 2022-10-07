@@ -7,7 +7,11 @@ package config
 
 import (
 	"fmt"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
+
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
@@ -65,6 +69,11 @@ func ReadConfig() (*NetflowConfig, error) {
 		if listenerConfig.Namespace == "" {
 			listenerConfig.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 		}
+		normalizedNamespace, err := utils.NormalizeNamespace(listenerConfig.Namespace)
+		if err != nil {
+			return nil, fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
+		}
+		listenerConfig.Namespace = normalizedNamespace
 	}
 
 	if mainConfig.StopTimeout == 0 {
