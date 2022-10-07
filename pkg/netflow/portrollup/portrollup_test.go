@@ -7,7 +7,6 @@ package portrollup
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -46,7 +45,7 @@ func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
 	// Arrange
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(common.DefaultAggregatorPortRollupThreshold)
+	store := NewEndpointPairPortRollupStore(3)
 
 	// 1/ Add
 	store.Add(IP1, IP2, 80, 2000)
@@ -54,22 +53,52 @@ func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
 	store.Add(IP1, IP2, 80, 2002)
 	store.Add(IP1, IP2, 3000, 443)
 	store.Add(IP1, IP2, 3001, 443)
-	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
+	expectedStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):       {2000, 2001, 2002},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 443): {3000, 3001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3000):     {443},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3001):     {443},
+	}
+	assert.Equal(t, expectedStore, store.curStore)
+	assert.Equal(t, expectedStore, store.newStore)
 
 	// 2/ After UseNewStoreAsCurrentStore, thanks to the double write, we should be still able to query ports tracked previously
 	store.UseNewStoreAsCurrentStore()
-	store.Add(IP1, IP2, 3000, 22)
-	store.Add(IP1, IP2, 3001, 22)
+	store.Add(IP1, IP2, 4000, 22)
+	store.Add(IP1, IP2, 4001, 22)
 	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
+	expectedCurStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):       {2000, 2001, 2002},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 443): {3000, 3001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3000):     {443},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3001):     {443},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 22):  {4000, 4001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4000):     {22},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4001):     {22},
+	}
+	expectedNewStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 22): {4000, 4001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4000):    {22},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4001):    {22},
+	}
+	assert.Equal(t, expectedCurStore, store.curStore)
+	assert.Equal(t, expectedNewStore, store.newStore)
 
 	// 3/ After a second UseNewStoreAsCurrentStore, the ports added in 1/ are not present anymore in the tracker, and only port added in 2/ are available
 	store.UseNewStoreAsCurrentStore()
 	assert.Equal(t, uint16(0), store.GetSourceToDestPortCount(IP1, IP2, 80))
 	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 443))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
+	expectedCurStore = map[string][]uint16{
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 22): {4000, 4001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4000):    {22},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4001):    {22},
+	}
+	expectedNewStore = map[string][]uint16{}
+	assert.Equal(t, expectedCurStore, store.curStore)
+	assert.Equal(t, expectedNewStore, store.newStore)
 }
 
 func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralSourcePort(t *testing.T) {
