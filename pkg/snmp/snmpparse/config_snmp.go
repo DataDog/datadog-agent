@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 package snmpparse
 
 import (
@@ -57,8 +61,7 @@ func ParseConfigSnmp(c integration.Config) DataSNMP {
 		instance := SNMPConfig{}
 		err := yaml.Unmarshal(inst, &instance)
 		if err != nil {
-			fmt.Errorf("unable to get snmp config: %v", err)
-
+			fmt.Printf("unable to get snmp config: %v", err)
 		}
 		// add the instance(type SNMPConfig) to the array ws
 		ws = append(ws, instance)
