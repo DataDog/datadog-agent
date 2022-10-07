@@ -7,7 +7,11 @@ package netflow
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 
@@ -32,6 +36,10 @@ type Server struct {
 // NewNetflowServer configures and returns a running SNMP traps server.
 func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 	var listeners []*netflowListener
+
+	go func() {
+		fmt.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	mainConfig, err := config.ReadConfig()
 	if err != nil {
