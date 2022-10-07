@@ -25,6 +25,7 @@ func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 
 	sender := mocksender.NewMockSender("")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
@@ -136,6 +137,8 @@ func TestAggregator(t *testing.T) {
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 1, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 2, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 2, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.capacity", 20, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.percent_full", 0, "", nil)
 
 	// Test aggregator Stop
 	assert.False(t, expectStartExisted)

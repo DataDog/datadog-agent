@@ -128,20 +128,10 @@ func (prs *EndpointPairPortRollupStore) GetDestToSourcePortCount(sourceAddr []by
 	return uint16(len(prs.curStore[buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)]))
 }
 
-// UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore
-func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
-	prs.mu.Lock()
-	defer prs.mu.Unlock()
-
-	prs.curStore = prs.newStore
-	prs.newStore = make(map[string][]uint16)
-}
-
 // GetCurrentStoreSize get number of tracked port counters in current store
 func (prs *EndpointPairPortRollupStore) GetCurrentStoreSize() int {
 	prs.mu.Lock()
 	defer prs.mu.Unlock()
-
 	return len(prs.curStore)
 }
 
@@ -149,8 +139,16 @@ func (prs *EndpointPairPortRollupStore) GetCurrentStoreSize() int {
 func (prs *EndpointPairPortRollupStore) GetNewStoreSize() int {
 	prs.mu.Lock()
 	defer prs.mu.Unlock()
-
 	return len(prs.newStore)
+}
+
+// UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore
+func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
+	prs.mu.Lock()
+	defer prs.mu.Unlock()
+
+	prs.curStore = prs.newStore
+	prs.newStore = make(map[string][]uint16)
 }
 
 func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {

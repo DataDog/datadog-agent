@@ -142,7 +142,15 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
-	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer_size", float64(len(agg.flowIn)), "", nil)
+
+	inputBufLength := len(agg.flowIn)
+	inputBufCapacity := cap(agg.flowIn)
+	inputBufPercentFull := 0
+	if inputBufCapacity > 0 {
+		inputBufPercentFull = inputBufLength * 100 / inputBufCapacity
+	}
+	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(inputBufCapacity), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.percent_full", float64(inputBufPercentFull), "", nil)
 
 	return len(flowsToFlush)
 }

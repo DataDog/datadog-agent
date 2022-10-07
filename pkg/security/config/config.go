@@ -148,7 +148,7 @@ type Config struct {
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
 
-	// RuntimeMonitor defines if the runtime monitor should be enabled
+	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
 	RuntimeMonitor bool
 	// NetworkEnabled defines if the network probes should be activated
 	NetworkEnabled bool
@@ -162,7 +162,7 @@ type Config struct {
 	RuntimeCompiledConstantsEnabled bool
 	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
 	RuntimeCompiledConstantsIsSet bool
-	// EventMonitoring enables event monitoring
+	// EventMonitoring enables event monitoring. Send events to external consumer.
 	EventMonitoring bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool

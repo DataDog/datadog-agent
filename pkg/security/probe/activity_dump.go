@@ -647,6 +647,9 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 // FindMatchingNodes return the matching nodes of requested comm
 func (ad *ActivityDump) FindMatchingNodes(comm string) []*ProcessActivityNode {
+	ad.Lock()
+	defer ad.Unlock()
+
 	var res []*ProcessActivityNode
 	for _, node := range ad.ProcessActivityTree {
 		if node.Process.Comm == comm {
@@ -689,6 +692,9 @@ func (ad *ActivityDump) getSelectorStr() string {
 
 // SendStats sends activity dump stats
 func (ad *ActivityDump) SendStats() error {
+	ad.Lock()
+	defer ad.Unlock()
+
 	for evtType, count := range ad.processedCount {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {

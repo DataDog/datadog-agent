@@ -7,8 +7,10 @@ package main
 
 import (
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -87,6 +89,11 @@ type Collector struct {
 
 	// Drop payloads from specified checks
 	dropCheckPayloads []string
+
+	// Used to cache the hash result of the host name and the pid of the process agent. Being used as part of
+	// getRequestID method. Must use pointer, to distinguish between uninitialized value and the theoretical but yet
+	// possible 0 value for the hash result.
+	requestIDCachedHash *uint64
 }
 
 // NewCollector creates a new Collector
@@ -258,6 +265,42 @@ func (l *Collector) messagesToResultsQueue(start time.Time, name string, message
 	updateProcContainerCount(messages)
 }
 
+const (
+	secondsNumberOfBits = 22
+	hashNumberOfBits    = 28
+	chunkNumberOfBits   = 14
+	secondsMask         = 1<<secondsNumberOfBits - 1
+	hashMask            = 1<<hashNumberOfBits - 1
+	chunkMask           = 1<<chunkNumberOfBits - 1
+)
+
+// getRequestID generates a unique identifier (string representation of 64 bits integer) that is composed as follows:
+//	1. 22 bits of the seconds in the current month.
+//	2. 28 bits of hash of the hostname and process agent pid.
+// 	3. 14 bits of the current message in the batch being sent to the server.
+func (l *Collector) getRequestID(start time.Time, chunkIndex int) string {
+	// The epoch is the beginning of the month of the `start` variable.
+	epoch := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
+	// We are taking the seconds in the current month, and representing them under 22 bits.
+	// In a month we have 60 seconds per minute * 60 minutes per hour * 24 hours per day * maximum 31 days a month
+	// which is 2678400, and it can be represented with log2(2678400) = 21.35 bits.
+	seconds := (uint64(start.Sub(epoch).Seconds()) & secondsMask) << (hashNumberOfBits + chunkNumberOfBits)
+
+	// Next, we want 28 bits of hashed hostname & process agent pid.
+	if l.requestIDCachedHash == nil {
+		hash := fnv.New32()
+		hash.Write([]byte(l.cfg.HostName))
+		hash.Write([]byte(strconv.Itoa(os.Getpid())))
+		hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
+		l.requestIDCachedHash = &hostNamePIDHash
+	}
+
+	// Next, we take up to 14 bits to represent the message index in the batch.
+	// It means that we support up to 16384 (2 ^ 14) different messages being sent on the same batch.
+	chunk := uint64(chunkIndex & chunkMask)
+	return fmt.Sprintf("%d", seconds+*l.requestIDCachedHash+chunk)
+}
+
 func (l *Collector) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
 	if len(messages) == 0 {
 		return nil
@@ -266,7 +309,7 @@ func (l *Collector) messagesToCheckResult(start time.Time, name string, messages
 	payloads := make([]checkPayload, 0, len(messages))
 	sizeInBytes := 0
 
-	for _, m := range messages {
+	for messageIndex, m := range messages {
 		body, err := api.EncodePayload(m)
 		if err != nil {
 			log.Errorf("Unable to encode message: %s", err)
@@ -294,9 +337,14 @@ func (l *Collector) messagesToCheckResult(start time.Time, name string, messages
 			}
 		}
 
-		if name == checks.ProcessEvents.Name() {
+		switch name {
+		case checks.ProcessEvents.Name():
 			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+		case checks.Connections.Name(), checks.Process.Name():
+			requestID := l.getRequestID(start, messageIndex)
+			log.Debugf("the request id of the current message: %s", requestID)
+			extraHeaders.Set(headers.RequestIDHeader, requestID)
 		}
 
 		payloads = append(payloads, checkPayload{
