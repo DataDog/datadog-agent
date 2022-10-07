@@ -101,13 +101,9 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	listenPort := 8080
 	ns := testutil.SetupCrossNsDNATWithPorts(t, destPort, listenPort)
 
+	state := nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
-		nettestutil.RunCommands(t, []string{
-			fmt.Sprintf("iptables --table nat --delete CLUSTERIPS --destination %s --protocol tcp --match tcp --dport %d --jump DNAT --to-destination %s:%d", destIP, destPort, listenIP, destPort),
-			"iptables --table nat --delete PREROUTING --jump CLUSTERIPS",
-			"iptables --table nat --delete OUTPUT --jump CLUSTERIPS",
-			"iptables --table nat --delete-chain CLUSTERIPS",
-		}, true)
+		nettestutil.IptablesRestore(t, state)
 	})
 	nettestutil.RunCommands(t, []string{
 		"iptables --table nat --new-chain CLUSTERIPS",
