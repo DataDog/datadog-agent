@@ -53,6 +53,14 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  if node[:platform] == "amazon" and node[:platform_version] == "2022"
+    execute "increase /tmp size" do
+      command "mount -o remount,size=5G /tmp/"
+      live_stream true
+      action :run
+    end
+  end
+
   execute "Extract nikos.tar.gz" do
     command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{wrk_dir}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
     action :run
