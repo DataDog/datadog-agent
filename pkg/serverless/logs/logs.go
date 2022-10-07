@@ -275,8 +275,11 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 				continue
 			}
 			ecs := c.ExecutionContext.GetCurrentState()
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, message.objectRecord.requestID)
-			c.LogChannel <- logMessage
+			if len(message.objectRecord.requestID) == 0 {
+				c.LogChannel <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, ecs.LastLogRequestID)
+			} else {
+				c.LogChannel <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, message.objectRecord.requestID)
+			}
 		}
 	}
 }
