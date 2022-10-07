@@ -49,11 +49,13 @@ func (s *Services) RemoveService(service *Service) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for i, svc := range s.services {
-		if svc.Type == service.Type && svc.Identifier == service.Identifier {
-			s.services = append(s.services[:i], s.services[i+1:]...)
+	remainingServices := s.services[:0]
+	for _, svc := range s.services {
+		if svc.Type != service.Type || svc.Identifier != service.Identifier {
+			remainingServices = append(remainingServices, svc)
 		}
 	}
+	s.services = remainingServices
 
 	removed, _ := s.removedPerType[service.Type]
 	for _, ch := range append(removed, s.allRemoved...) {
