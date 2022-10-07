@@ -129,7 +129,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(perfHandlerTCP, runtimeTracer)
+	m := newManager(config, perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
 	currKernelVersion, err := kernel.HostVersion()
