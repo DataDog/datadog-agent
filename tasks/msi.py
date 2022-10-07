@@ -14,7 +14,6 @@ from invoke.exceptions import Exit
 from tasks.ssm import get_pfx_pass, get_signing_cert
 from tasks.utils import get_version
 
-
 # constants
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
 AGENT_TAG = "datadog/agent:master"
