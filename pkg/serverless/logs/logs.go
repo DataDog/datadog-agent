@@ -275,7 +275,7 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 				continue
 			}
 			ecs := c.ExecutionContext.GetCurrentState()
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, ecs.LastRequestID)
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, message.objectRecord.requestID)
 			c.LogChannel <- logMessage
 		}
 	}
