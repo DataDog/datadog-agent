@@ -136,6 +136,8 @@ func TestAggregator(t *testing.T) {
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 1, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 1, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 1, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.capacity", 20, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.percent_full", 0, "", nil)
 
 	// Test aggregator Stop
 	assert.False(t, expectStartExisted)
