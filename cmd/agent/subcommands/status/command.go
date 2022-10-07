@@ -64,8 +64,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
+					ConfFilePath:       globalParams.ConfFilePath,
+					ConfigLoadSecrets:  false,
+					ConfigLoadSysProbe: true,
 				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
@@ -91,9 +92,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(componentStatusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:       globalParams.ConfFilePath,
-					ConfigLoadSecrets:  false,
-					ConfigLoadSysProbe: true,
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
 				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
