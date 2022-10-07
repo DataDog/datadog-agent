@@ -26,7 +26,7 @@ spec:
         runAsUser: 0
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -94,6 +94,10 @@ spec:
             - name: tmpdir
               mountPath: /tmp
               readOnly: false
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
@@ -131,9 +135,9 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
-          command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
+          command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           resources: {}
           env:
             # Needs to be removed when Agent N-2 is built with Golang 1.17
@@ -177,6 +181,10 @@ spec:
             - name: tmpdir
               mountPath: /tmp
               readOnly: false
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
@@ -197,7 +205,7 @@ spec:
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -207,7 +215,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -257,6 +265,9 @@ spec:
         - hostPath:
             path: /sys/fs/cgroup
           name: cgroups
+        - hostPath:
+            path: /etc/os-release
+          name: os-release-file
         - hostPath:
             path: /var/run/datadog/
             type: DirectoryOrCreate
