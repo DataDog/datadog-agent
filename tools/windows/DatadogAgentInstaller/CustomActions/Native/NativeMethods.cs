@@ -1,12 +1,8 @@
 using System;
 using System.ComponentModel;
-using System.DirectoryServices.ActiveDirectory;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
-using static Datadog.CustomActions.Native.NativeMethods;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Datadog.CustomActions.Native
 {

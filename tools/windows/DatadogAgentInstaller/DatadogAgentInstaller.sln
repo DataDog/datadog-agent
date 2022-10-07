@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WixSetup", "WixSetup\WixSet
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions", "CustomActions\CustomActions.csproj", "{461CE844-4B07-47BA-B2D2-5415ABD36792}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomActions.Tests", "CustomActions.Tests\CustomActions.Tests.csproj", "{848B3918-CCFC-47CA-92EF-763C75EFD16D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{461CE844-4B07-47BA-B2D2-5415ABD36792}.Release|Any CPU.Build.0 = Release|Any CPU
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{848B3918-CCFC-47CA-92EF-763C75EFD16D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

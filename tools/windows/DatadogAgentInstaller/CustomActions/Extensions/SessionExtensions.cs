@@ -1,9 +1,3 @@
-using Microsoft.Deployment.WindowsInstaller;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
 namespace Datadog.CustomActions.Extensions
 {
     /// <summary>
@@ -20,7 +14,7 @@ namespace Datadog.CustomActions.Extensions
         /// </summary>
         /// <param name="session">The session.</param>
         /// <returns></returns>
-        public static bool IsActive(this Session session)
+        public static bool IsActive(this ISession session)
         {
             //if (!session.IsClosed) //unfortunately isClosed is always false even for the deferred actions
             try
@@ -48,7 +42,7 @@ namespace Datadog.CustomActions.Extensions
         /// <param name="session">The session.</param>
         /// <param name="name">The name.</param>
         /// <returns></returns>
-        public static string Property(this Session session, string name)
+        public static string Property(this ISession session, string name)
         {
             if (session.IsActive())
                 return session[name];

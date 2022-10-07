@@ -9,9 +9,35 @@ namespace Datadog.CustomActions
 {
     public class DecompressCustomActions
     {
+        static void Decompress(string compressedFileName)
+        {
+            var decoder = new SevenZip.Compression.LZMA.Decoder();
+            using (var inStream = File.OpenRead(compressedFileName))
+            {
+                using (var outStream = File.Create($"{compressedFileName}.tar"))
+                {
+                    var reader = new BinaryReader(inStream, Encoding.UTF8);
+                    // Properties of the stream are encoded on 5 bytes
+                    var props = reader.ReadBytes(5);
+                    decoder.SetDecoderProperties(props);
+                    var length = reader.ReadInt64();
+                    decoder.Code(inStream, outStream, inStream.Length, length, null);
+                    outStream.Flush();
+                }
+            }
 
-        [CustomAction]
-        public static ActionResult DecompressPythonDistributions(Session session)
+
+            var outputPath = Path.GetDirectoryName(Path.GetFullPath(compressedFileName));
+            using (var inStream = File.OpenRead($"{compressedFileName}.tar"))
+            using (var tarInStream = new TarReader(inStream, false))
+            {
+                tarInStream.UnpackTo(outputPath, null, null);
+            }
+            File.Delete($"{compressedFileName}.tar");
+            File.Delete($"{compressedFileName}");
+        }
+
+        private static ActionResult DecompressPythonDistributions(ISession session)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
 
@@ -55,29 +81,10 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        static void Decompress(string compressedFileName)
+        [CustomAction]
+        public static ActionResult DecompressPythonDistributions(Session session)
         {
-            var decoder = new SevenZip.Compression.LZMA.Decoder();
-            using (var inStream = File.OpenRead(compressedFileName))
-            using (var outStream = File.Create($"{compressedFileName}.tar"))
-            {
-                var reader = new BinaryReader(inStream, Encoding.UTF8);
-                // Properties of the stream are encoded on 5 bytes
-                var props = reader.ReadBytes(5);
-                decoder.SetDecoderProperties(props);
-                var length = reader.ReadInt64();
-                decoder.Code(inStream, outStream, inStream.Length, length, null);
-                outStream.Flush();
-            }
-
-            var outputPath = Path.GetDirectoryName(Path.GetFullPath(compressedFileName));
-            using (var inStream = File.OpenRead($"{compressedFileName}.tar"))
-            using (var tarInStream = new TarReader(inStream, false))
-            {
-                tarInStream.UnpackTo(outputPath, null, null);
-            }
-            File.Delete($"{compressedFileName}.tar");
-            File.Delete($"{compressedFileName}");
+            return DecompressPythonDistributions(new SessionWrapper(session));
         }
     }
 }

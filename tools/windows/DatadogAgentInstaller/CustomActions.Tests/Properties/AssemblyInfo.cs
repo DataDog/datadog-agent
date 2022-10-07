@@ -4,12 +4,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Datadog.Agent.Installer.CustomActions")]
-[assembly: AssemblyDescription("Custom Actions for the Datadog Agent installer")]
+[assembly: AssemblyTitle("CustomActions.Tests")]
+[assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Datadog")]
-[assembly: AssemblyProduct("Datadog Agent")]
-[assembly: AssemblyCopyright("Copyright © Datadog")]
+[assembly: AssemblyCompany("")]
+[assembly: AssemblyProduct("CustomActions.Tests")]
+[assembly: AssemblyCopyright("Copyright ©  2022")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -19,7 +19,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("461ce844-4b07-47ba-b2d2-5415abd36792")]
+[assembly: Guid("848b3918-ccfc-47ca-92ef-763c75efd16d")]
 
 // Version information for an assembly consists of the following four values:
 //
