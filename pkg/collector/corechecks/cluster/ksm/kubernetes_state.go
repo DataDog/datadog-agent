@@ -316,6 +316,26 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedJobFactory(),
 	}
 
+	factories = manageResourcesReplacement(c, factories)
+
+	clients := make(map[string]interface{}, len(factories))
+	for _, f := range factories {
+		clients[f.Name()] = c.Cl
+	}
+
+	return customResources{
+		collectors: collectors,
+		clients:    clients,
+		factories:  factories,
+	}
+}
+
+func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory) []customresource.RegistryFactory {
+	if c.DiscoveryCl == nil {
+		log.Warn("Kubernetes discovery client has not been properly initialized")
+		return factories
+	}
+
 	_, resources, err := c.DiscoveryCl.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
@@ -367,16 +387,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		}
 	}
 
-	clients := make(map[string]interface{}, len(factories))
-	for _, f := range factories {
-		clients[f.Name()] = c.Cl
-	}
-
-	return customResources{
-		collectors: collectors,
-		clients:    clients,
-		factories:  factories,
-	}
+	return factories
 }
 
 // Run runs the KSM check

@@ -73,6 +73,7 @@ type Module struct {
 	policyOpts       rules.PolicyLoaderOpts
 	selfTester       *selftests.SelfTester
 	policyMonitor    *PolicyMonitor
+	sendStatsChan    chan chan bool
 }
 
 // Register the runtime security agent module
@@ -112,7 +113,9 @@ func (m *Module) Init() error {
 	m.apiServer.Start(m.ctx)
 
 	// monitor policies
-	m.policyMonitor.Start(m.ctx)
+	if m.config.PolicyMonitorEnabled {
+		m.policyMonitor.Start(m.ctx)
+	}
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 	m.probe.AddActivityDumpHandler(m)
@@ -153,6 +156,15 @@ func (m *Module) Start() error {
 
 	// runtime security is disabled but might be used by other component like process
 	if !m.config.IsEnabled() {
+		if m.config.EventMonitoring {
+			// Currently select process related event type.
+			// TODO external monitors should be allowed to select the event types
+			return m.probe.SelectProbes([]eval.EventType{
+				model.ForkEventType.String(),
+				model.ExecEventType.String(),
+				model.ExitEventType.String(),
+			})
+		}
 		return nil
 	}
 
@@ -205,7 +217,7 @@ func (m *Module) Start() error {
 	}
 
 	m.wg.Add(1)
-	go m.metricsSender()
+	go m.statsSender()
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
@@ -462,9 +474,10 @@ func (m *Module) Close() {
 		_ = m.selfTester.Close()
 	}
 
-	m.probe.Close()
-
 	m.wg.Wait()
+
+	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
+	m.probe.Close()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
@@ -541,7 +554,26 @@ func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
 	m.apiServer.SendActivityDump(dump)
 }
 
-func (m *Module) metricsSender() {
+// SendStats send stats
+func (m *Module) SendStats() {
+	ackChan := make(chan bool, 1)
+	m.sendStatsChan <- ackChan
+	<-ackChan
+}
+
+func (m *Module) sendStats() {
+	if err := m.probe.SendStats(); err != nil {
+		seclog.Debugf("failed to send probe stats: %s", err)
+	}
+	if err := m.rateLimiter.SendStats(); err != nil {
+		seclog.Debugf("failed to send rate limiter stats: %s", err)
+	}
+	if err := m.apiServer.SendStats(); err != nil {
+		seclog.Debugf("failed to send api server stats: %s", err)
+	}
+}
+
+func (m *Module) statsSender() {
 	defer m.wg.Done()
 
 	statsTicker := time.NewTicker(m.config.StatsPollingInterval)
@@ -552,20 +584,11 @@ func (m *Module) metricsSender() {
 
 	for {
 		select {
+		case ackChan := <-m.sendStatsChan:
+			m.sendStats()
+			ackChan <- true
 		case <-statsTicker.C:
-			if os.Getenv("RUNTIME_SECURITY_TESTSUITE") == "true" {
-				continue
-			}
-
-			if err := m.probe.SendStats(); err != nil {
-				seclog.Debugf("failed to send probe stats: %s", err)
-			}
-			if err := m.rateLimiter.SendStats(); err != nil {
-				seclog.Debugf("failed to send rate limiter stats: %s", err)
-			}
-			if err := m.apiServer.SendStats(); err != nil {
-				seclog.Debugf("failed to send api server stats: %s", err)
-			}
+			m.sendStats()
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
@@ -671,6 +694,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		cancelFnc:      cancelFnc,
 		selfTester:     selfTester,
 		policyMonitor:  NewPolicyMonitor(statsdClient),
+		sendStatsChan:  make(chan chan bool, 1),
 	}
 	m.apiServer.module = m
 

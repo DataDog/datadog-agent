@@ -31,11 +31,17 @@ static __always_inline void http_flush_batch(struct pt_regs *ctx) {
 
     bpf_perf_event_output(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
     log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
+    batch->pos = 0;
     batch_state->idx_to_flush++;
 }
 
 static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
+}
+
+
+static __always_inline bool http_batch_full(http_batch_t *batch) {
+    return batch && batch->pos == HTTP_BATCH_SIZE;
 }
 
 static __always_inline void http_enqueue(http_transaction_t *http) {
@@ -53,30 +59,37 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         return;
     }
 
-    if (!(batch_state->pos >= 0 && batch_state->pos < HTTP_BATCH_SIZE)) {
+    if (http_batch_full(batch)) {
+        // this scenario should never happen and indicates a bug
+        // TODO: turn this into telemetry for release 7.41
+        log_debug("http_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
         return;
     }
 
-    __builtin_memcpy(&batch->txs[batch_state->pos], http, sizeof(http_transaction_t));
-    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
-    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch_state->pos);
-    batch_state->pos++;
+    // Bounds check to make verifier happy
+    if (batch->pos < 0 || batch->pos >= HTTP_BATCH_SIZE) {
+        return;
+    }
 
-    // Copy batch state information for user-space
+    __builtin_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
+    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
+    batch->pos++;
     batch->idx = batch_state->idx;
-    batch->pos = batch_state->pos;
 
     // If we have filled the batch we move to the next one
     // Notice that we don't flush it directly because we can't do so from socket filter programs.
-    if (batch_state->pos == HTTP_BATCH_SIZE) {
+    if (http_batch_full(batch)) {
         batch_state->idx++;
-        batch_state->pos = 0;
     }
 }
 
-static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method) {
+static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
+    http->response_last_seen = 0;
+    http->response_status_code = 0;
+    __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
     log_debug("http_begin_request: htx=%llx method=%d start=%llx\n", http, http->request_method, http->request_started);
 }
 
@@ -144,7 +157,7 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
 
     // We detected either a request or a response
     // In this case we initialize (or fetch) state associated to this tuple
-    bpf_map_update_elem(&http_in_flight, &http->tup, http, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(http_in_flight, &http->tup, http, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 }
 
@@ -188,7 +201,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     log_debug("http_process: type=%d method=%d\n", packet_type, method);
     if (packet_type == HTTP_REQUEST) {
-        http_begin_request(http, method);
+        http_begin_request(http, method, buffer);
         http_update_seen_before(http, skb_info);
     } else if (packet_type == HTTP_RESPONSE) {
         http_begin_response(http, buffer);

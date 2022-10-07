@@ -28,9 +28,9 @@ func TestDogStatsDReverseProxyEndToEndUDS(t *testing.T) {
 	sock := "/tmp/com.datadoghq.datadog-agent.trace-agent.dogstatsd.test.sock"
 
 	cfg := config.New()
-	cfg.StatsdSocket = sock            // this should take precedence
+	cfg.StatsdSocket = sock            // this should get ignored
 	cfg.StatsdHost = "this is invalid" // this should get ignored
-	cfg.StatsdPort = 8080              // this should get ignored
+	cfg.StatsdPort = 0                 // this should trigger 503
 	receiver := newTestReceiverFromConfig(cfg)
 	proxy := receiver.dogstatsdProxyHandler()
 	require.NotNil(t, proxy)
@@ -50,5 +50,5 @@ func TestDogStatsDReverseProxyEndToEndUDS(t *testing.T) {
 	// Test metrics
 	body := ioutil.NopCloser(bytes.NewBufferString("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
-	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }

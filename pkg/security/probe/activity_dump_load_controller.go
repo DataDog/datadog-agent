@@ -145,6 +145,7 @@ func (lc *ActivityDumpLoadController) reduceDumpRate(old, new *ActivityDump) err
 // event types for a given dump
 func (lc *ActivityDumpLoadController) reduceTracedEventTypes(old, new *ActivityDump) error {
 	var evtToRemove model.EventType
+	new.LoadConfig.TracedEventTypes = new.LoadConfig.TracedEventTypes[:0]
 
 reductionOrder:
 	for _, evt := range TracedEventTypesReductionOrder {

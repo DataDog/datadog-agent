@@ -1,19 +1,19 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_clang*                         @DataDog/agent-network
+build_clang*                         @DataDog/ebpf-platform
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
-tests_ebpf                           @DataDog/agent-network
+tests_ebpf                           @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 
 # Golang dependency list generation
 golang_deps_generate                 @DataDog/agent-core
 
 # Binary build
-build_system-probe*                  @DataDog/agent-network
+build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/platform-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 build_serverless*                    @DataDog/serverless
@@ -48,9 +48,9 @@ internal_kubernetes_deploy*           @DataDog/container-integrations
 deploy_containers*                   @DataDog/container-integrations
 
 # Functional test
-kitchen_*_system_probe*                        @DataDog/agent-network
+kitchen_*_system_probe*                        @DataDog/ebpf-platform
 kitchen_*_security_agent*                      @DataDog/agent-security
-cleanup_kitchen_functional_test                @DataDog/agent-network @DataDog/agent-security
+cleanup_kitchen_functional_test                @DataDog/ebpf-platform @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 
 

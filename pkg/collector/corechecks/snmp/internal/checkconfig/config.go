@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // Using high oid batch size might lead to snmp calls timing out.
@@ -415,7 +416,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
 
-	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
 		return nil, err
 	}

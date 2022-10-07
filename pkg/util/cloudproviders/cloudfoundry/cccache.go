@@ -898,4 +898,5 @@ func (ccc *CCCache) reset() {
 	ccc.orgQuotasByGUID = make(map[string]*CFOrgQuota)
 	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
 	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
+	ccc.lastUpdated = time.Time{}
 }

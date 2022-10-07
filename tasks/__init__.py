@@ -7,7 +7,6 @@ from invoke import Collection
 
 from . import (
     agent,
-    android,
     bench,
     cluster_agent,
     cluster_agent_cloudfoundry,
@@ -91,7 +90,6 @@ ns.add_task(fuzz)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
-ns.add_collection(android)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(customaction)

@@ -54,11 +54,11 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 	recent.Unlock()
 }
 
-// Publish updates stats about per-tag stats
-func (rs *ReceiverStats) Publish() {
+// PublishAndReset updates stats about per-tag stats
+func (rs *ReceiverStats) PublishAndReset() {
 	rs.RLock()
 	for _, tagStats := range rs.Stats {
-		tagStats.publish()
+		tagStats.publishAndReset()
 	}
 	rs.RUnlock()
 }
@@ -82,39 +82,26 @@ func (rs *ReceiverStats) Languages() []string {
 	return langs
 }
 
-// Reset resets the ReceiverStats internal data
-func (rs *ReceiverStats) Reset() {
+// LogAndResetStats logs one-line summaries of ReceiverStats and resets internal data. Problematic stats are logged as warnings.
+func (rs *ReceiverStats) LogAndResetStats() {
 	rs.Lock()
-	for key, tagStats := range rs.Stats {
-		// If a tagStats was empty, let's drop it.
-		// That's a way to avoid over-time leaks.
-		if tagStats.isEmpty() {
-			delete(rs.Stats, key)
-		}
-		tagStats.reset()
-	}
-	rs.Unlock()
-}
-
-// LogStats logs one-line summaries of ReceiverStats. Problematic stats are logged as warnings.
-func (rs *ReceiverStats) LogStats() {
-	rs.RLock()
-	defer rs.RUnlock()
+	defer rs.Unlock()
 
 	if len(rs.Stats) == 0 {
 		log.Info("No data received")
 		return
 	}
 
-	for _, ts := range rs.Stats {
+	for k, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
-			log.Infof("%v -> %s", tags, ts.infoString())
+			log.Infof("%v -> %s\n", tags, ts.infoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
-				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
+				log.Warnf("%v -> %s. Enable debug logging for more details.\n", tags, warnString)
 			}
 		}
+		delete(rs.Stats, k)
 	}
 }
 
@@ -133,48 +120,56 @@ func (ts *TagStats) AsTags() []string {
 	return (&ts.Tags).toArray()
 }
 
-func (ts *TagStats) publish() {
-	// Atomically load the stats from ts
-	tracesReceived := ts.TracesReceived.Load()
-	tracesFiltered := ts.TracesFiltered.Load()
-	tracesPriorityNone := ts.TracesPriorityNone.Load()
-	clientDroppedP0Spans := ts.ClientDroppedP0Spans.Load()
-	clientDroppedP0Traces := ts.ClientDroppedP0Traces.Load()
-	tracesBytes := ts.TracesBytes.Load()
-	spansReceived := ts.SpansReceived.Load()
-	spansDropped := ts.SpansDropped.Load()
-	spansFiltered := ts.SpansFiltered.Load()
-	eventsExtracted := ts.EventsExtracted.Load()
-	eventsSampled := ts.EventsSampled.Load()
-	requestsMade := ts.PayloadAccepted.Load()
-	requestsRejected := ts.PayloadRefused.Load()
+func (ts *TagStats) publishAndReset() {
+	// Atomically load and reset any metrics used multiple times from ts
+	tracesReceived := ts.TracesReceived.Swap(0)
 
 	// Publish the stats
 	tags := ts.Tags.toArray()
 
 	metrics.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_accepted", requestsMade, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_refused", requestsRejected, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_spans", clientDroppedP0Spans, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_traces", clientDroppedP0Traces, tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_filtered",
+		ts.TracesFiltered.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+		ts.TracesPriorityNone.Swap(0), append(tags, "priority:none"), 1)
+	metrics.Count("datadog.trace_agent.receiver.traces_bytes",
+		ts.TracesBytes.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_received",
+		ts.SpansReceived.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_dropped",
+		ts.SpansDropped.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.spans_filtered",
+		ts.SpansFiltered.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.events_extracted",
+		ts.EventsExtracted.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.events_sampled",
+		ts.EventsSampled.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_accepted",
+		ts.PayloadAccepted.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.payload_refused",
+		ts.PayloadRefused.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
+		ts.ClientDroppedP0Spans.Swap(0), tags, 1)
+	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
+		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
 
-	for reason, count := range ts.TracesDropped.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
+	for reason, counter := range ts.TracesDropped.tagCounters() {
+		metrics.Count("datadog.trace_agent.normalizer.traces_dropped",
+			counter.Swap(0), append(tags, "reason:"+reason), 1)
 	}
-	for reason, count := range ts.SpansMalformed.tagValues() {
-		metrics.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
+
+	for reason, counter := range ts.SpansMalformed.tagCounters() {
+		metrics.Count("datadog.trace_agent.normalizer.spans_malformed",
+			counter.Swap(0), append(tags, "reason:"+reason), 1)
 	}
-	for priority, count := range ts.TracesPerSamplingPriority.TagValues() {
-		metrics.Count("datadog.trace_agent.receiver.traces_priority", count, append(tags, "priority:"+priority), 1)
+
+	for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {
+		count := counter.Swap(0)
+		if count > 0 {
+			metrics.Count("datadog.trace_agent.receiver.traces_priority",
+				count, append(tags, "priority:"+priority), 1)
+		}
 	}
 }
 
@@ -222,18 +217,26 @@ type TracesDropped struct {
 	EOF atomic.Int64
 }
 
+func (s *TracesDropped) tagCounters() map[string]*atomic.Int64 {
+	return map[string]*atomic.Int64{
+		"payload_too_large": &s.PayloadTooLarge,
+		"decoding_error":    &s.DecodingError,
+		"empty_trace":       &s.EmptyTrace,
+		"trace_id_zero":     &s.TraceIDZero,
+		"span_id_zero":      &s.SpanIDZero,
+		"foreign_span":      &s.ForeignSpan,
+		"timeout":           &s.Timeout,
+		"unexpected_eof":    &s.EOF,
+	}
+}
+
 // tagValues converts TracesDropped into a map representation with keys matching standardized names for all reasons
 func (s *TracesDropped) tagValues() map[string]int64 {
-	return map[string]int64{
-		"payload_too_large": s.PayloadTooLarge.Load(),
-		"decoding_error":    s.DecodingError.Load(),
-		"empty_trace":       s.EmptyTrace.Load(),
-		"trace_id_zero":     s.TraceIDZero.Load(),
-		"span_id_zero":      s.SpanIDZero.Load(),
-		"foreign_span":      s.ForeignSpan.Load(),
-		"timeout":           s.Timeout.Load(),
-		"unexpected_eof":    s.EOF.Load(),
+	v := make(map[string]int64)
+	for tag, counter := range s.tagCounters() {
+		v[tag] = counter.Load()
 	}
+	return v
 }
 
 func (s *TracesDropped) String() string {
@@ -271,22 +274,30 @@ type SpansMalformed struct {
 	InvalidHTTPStatusCode atomic.Int64
 }
 
+func (s *SpansMalformed) tagCounters() map[string]*atomic.Int64 {
+	return map[string]*atomic.Int64{
+		"duplicate_span_id":        &s.DuplicateSpanID,
+		"service_empty":            &s.ServiceEmpty,
+		"service_truncate":         &s.ServiceTruncate,
+		"service_invalid":          &s.ServiceInvalid,
+		"span_name_empty":          &s.SpanNameEmpty,
+		"span_name_truncate":       &s.SpanNameTruncate,
+		"span_name_invalid":        &s.SpanNameInvalid,
+		"resource_empty":           &s.ResourceEmpty,
+		"type_truncate":            &s.TypeTruncate,
+		"invalid_start_date":       &s.InvalidStartDate,
+		"invalid_duration":         &s.InvalidDuration,
+		"invalid_http_status_code": &s.InvalidHTTPStatusCode,
+	}
+}
+
 // tagValues converts SpansMalformed into a map representation with keys matching standardized names for all reasons
 func (s *SpansMalformed) tagValues() map[string]int64 {
-	return map[string]int64{
-		"duplicate_span_id":        s.DuplicateSpanID.Load(),
-		"service_empty":            s.ServiceEmpty.Load(),
-		"service_truncate":         s.ServiceTruncate.Load(),
-		"service_invalid":          s.ServiceInvalid.Load(),
-		"span_name_empty":          s.SpanNameEmpty.Load(),
-		"span_name_truncate":       s.SpanNameTruncate.Load(),
-		"span_name_invalid":        s.SpanNameInvalid.Load(),
-		"resource_empty":           s.ResourceEmpty.Load(),
-		"type_truncate":            s.TypeTruncate.Load(),
-		"invalid_start_date":       s.InvalidStartDate.Load(),
-		"invalid_duration":         s.InvalidDuration.Load(),
-		"invalid_http_status_code": s.InvalidHTTPStatusCode.Load(),
+	v := make(map[string]int64)
+	for reason, counter := range s.tagCounters() {
+		v[reason] = counter.Load()
 	}
+	return v
 }
 
 func (s *SpansMalformed) String() string {
@@ -323,6 +334,14 @@ func (s *samplingPriorityStats) update(recent *samplingPriorityStats) {
 	for i := range s.counts {
 		s.counts[i].Add(recent.counts[i].Load())
 	}
+}
+
+func (s *samplingPriorityStats) tagCounters() map[string]*atomic.Int64 {
+	stats := make(map[string]*atomic.Int64)
+	for i := range s.counts {
+		stats[strconv.Itoa(i-maxAbsPriority)] = &s.counts[i]
+	}
+	return stats
 }
 
 // TagValues returns a map with the number of traces that have been observed for each priority tag
@@ -422,43 +441,6 @@ func (s *Stats) update(recent *Stats) {
 	s.PayloadAccepted.Add(recent.PayloadAccepted.Load())
 	s.PayloadRefused.Add(recent.PayloadRefused.Load())
 	s.TracesPerSamplingPriority.update(&recent.TracesPerSamplingPriority)
-}
-
-func (s *Stats) reset() {
-	s.TracesReceived.Store(0)
-	s.TracesDropped.PayloadTooLarge.Store(0)
-	s.TracesDropped.DecodingError.Store(0)
-	s.TracesDropped.EmptyTrace.Store(0)
-	s.TracesDropped.TraceIDZero.Store(0)
-	s.TracesDropped.SpanIDZero.Store(0)
-	s.TracesDropped.ForeignSpan.Store(0)
-	s.TracesDropped.Timeout.Store(0)
-	s.TracesDropped.EOF.Store(0)
-	s.SpansMalformed.DuplicateSpanID.Store(0)
-	s.SpansMalformed.ServiceEmpty.Store(0)
-	s.SpansMalformed.ServiceTruncate.Store(0)
-	s.SpansMalformed.ServiceInvalid.Store(0)
-	s.SpansMalformed.SpanNameEmpty.Store(0)
-	s.SpansMalformed.SpanNameTruncate.Store(0)
-	s.SpansMalformed.SpanNameInvalid.Store(0)
-	s.SpansMalformed.ResourceEmpty.Store(0)
-	s.SpansMalformed.TypeTruncate.Store(0)
-	s.SpansMalformed.InvalidStartDate.Store(0)
-	s.SpansMalformed.InvalidDuration.Store(0)
-	s.SpansMalformed.InvalidHTTPStatusCode.Store(0)
-	s.TracesFiltered.Store(0)
-	s.TracesPriorityNone.Store(0)
-	s.ClientDroppedP0Traces.Store(0)
-	s.ClientDroppedP0Spans.Store(0)
-	s.TracesBytes.Store(0)
-	s.SpansReceived.Store(0)
-	s.SpansDropped.Store(0)
-	s.SpansFiltered.Store(0)
-	s.EventsExtracted.Store(0)
-	s.EventsSampled.Store(0)
-	s.PayloadAccepted.Store(0)
-	s.PayloadRefused.Store(0)
-	s.TracesPerSamplingPriority.reset()
 }
 
 func (s *Stats) isEmpty() bool {

@@ -46,13 +46,6 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 			},
 			http.StatusInternalServerError,
 		},
-		{
-			"bad statsd socket",
-			func(cfg *config.AgentConfig) {
-				cfg.StatsdSocket = "this is invalid"
-			},
-			http.StatusInternalServerError,
-		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

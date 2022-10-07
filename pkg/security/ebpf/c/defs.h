@@ -174,11 +174,11 @@
 #define MAX_XATTR_NAME_LEN 200
 
 #define bpf_printk(fmt, ...)                       \
-	({                                             \
-		char ____fmt[] = fmt;                      \
-		bpf_trace_printk(____fmt, sizeof(____fmt), \
-						 ##__VA_ARGS__);           \
-	})
+    ({                                             \
+        char ____fmt[] = fmt;                      \
+        bpf_trace_printk(____fmt, sizeof(____fmt), \
+                         ##__VA_ARGS__);           \
+    })
 
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
@@ -426,12 +426,11 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
 })
 
 // implemented in the discarder.h file
-int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id);
+int __attribute__((always_inline)) bump_inode_discarder_revision(u32 mount_id);
 
 struct mount_released_event_t {
     struct kevent_t event;
     u32 mount_id;
-    u32 discarder_revision;
 };
 
 struct mount_ref_t {
@@ -472,9 +471,10 @@ static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u3
         return;
     }
 
+    bump_inode_discarder_revision(mount_id);
+
     struct mount_released_event_t event = {
         .mount_id = mount_id,
-        .discarder_revision = bump_discarder_revision(mount_id),
     };
 
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
@@ -492,10 +492,12 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
         }
     }
 
+    bump_inode_discarder_revision(mount_id);
+
     struct mount_released_event_t event = {
         .mount_id = mount_id,
-        .discarder_revision = bump_discarder_revision(mount_id),
     };
+
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
@@ -510,7 +512,6 @@ static __attribute__((always_inline)) u32 ord(u8 c) {
 
 static __attribute__((always_inline)) u32 atoi(char *buff) {
     u32 res = 0;
-    int base_multiplier = 1;
     u8 c = 0;
     char buffer[CHAR_TO_UINT32_BASE_10_MAX_LEN];
 
@@ -518,18 +519,15 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
     if (size <= 1) {
         return 0;
     }
-    u32 cursor = size - 2;
 
 #pragma unroll
-    for (int i = 1; i < CHAR_TO_UINT32_BASE_10_MAX_LEN; i++)
+    for (int i = 0; i < CHAR_TO_UINT32_BASE_10_MAX_LEN; i++)
     {
-        if (cursor < 0) {
-            return res;
+        bpf_probe_read(&c, sizeof(c), buffer + i);
+        if (c == 0 || c == '\n') {
+            break;
         }
-        bpf_probe_read(&c, sizeof(c), buffer + cursor);
-        res += ord(c) * base_multiplier;
-        base_multiplier = base_multiplier * 10;
-        cursor--;
+        res = res * 10 + ord(c);
     }
 
     return res;
