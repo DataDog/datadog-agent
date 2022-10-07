@@ -201,25 +201,23 @@ func (w *soWatcher) checkProcessDone() (updated bool) {
 	updated = false
 	for libpath, registration := range w.registry.byPath {
 		for pid := range registration.pids {
-			process, err := os.FindProcess(pid)
-			if err != nil {
-				w.registry.unregister(libpath)
-				delete(registration.pids, pid)
-				updated = true
+			/* check if the process is alive */
+			var err error
+			var fi os.FileInfo
+			procPidPath := util.GetProcRoot() + string(os.PathSeparator) + strconv.Itoa(pid)
+			if fi, err = os.Stat(procPidPath); err == nil && fi.IsDir() {
 				continue
 			}
-			/* check if the process is alive */
-			if err := process.Signal(syscall.Signal(0x00)); err != nil {
-				if err != os.ErrProcessDone {
-					log.Errorf("can't send signal to process %d %w", pid, err)
 
-				} else {
-					log.Debugf("process %d doesn't exist anymore, unregister %s", pid, libpath)
-					w.registry.unregister(libpath)
-					delete(registration.pids, pid)
-					updated = true
-				}
+			if _, ok := err.(*os.PathError); ok {
+				log.Debugf("process %s doesn't exist anymore, unregister %s", procPidPath, libpath)
+			} else {
+				log.Errorf("stat process %s error %w", procPidPath, err)
 			}
+
+			w.registry.unregister(libpath)
+			delete(registration.pids, pid)
+			updated = true
 		}
 		w.registry.byPath[libpath] = registration
 	}
