@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -38,6 +39,10 @@ func (l *libPath) Bytes() []byte {
 // this is to ensure that we remove/deregister the shared libraries that are no
 // longer mapped into memory.
 const soSyncInterval = 5 * time.Minute
+
+// check if a process is still alive, if not unregister his hook
+// when attaching a uprobe the kernel modifiy the elf and lock the file, so the filesystem can't be unmounted
+const soCheckProcessAliveInterval = 10 * time.Second
 
 type soRule struct {
 	re           *regexp.Regexp
@@ -86,6 +91,8 @@ func (w *soWatcher) Start() {
 	go func() {
 		ticker := time.NewTicker(soSyncInterval)
 		defer ticker.Stop()
+		tickerProcess := time.NewTicker(soCheckProcessAliveInterval)
+		defer tickerProcess.Stop()
 		thisPID, _ := util.GetRootNSPID()
 
 		for {
@@ -93,6 +100,11 @@ func (w *soWatcher) Start() {
 			case <-ticker.C:
 				seen = make(map[seenKey]struct{})
 				w.sync()
+			case <-tickerProcess.C:
+				if w.checkProcessDone() {
+					/* if we done some cleanup, flush the cache */
+					seen = make(map[seenKey]struct{})
+				}
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
@@ -133,7 +145,7 @@ func (w *soWatcher) Start() {
 					}
 
 					libPath = w.canonicalizePath(libPath)
-					w.registry.register(libPath, r)
+					w.registry.register(libPath, int(lib.Pid), r)
 					break
 				}
 
@@ -167,7 +179,14 @@ func (w *soWatcher) sync() {
 			if r.re.MatchString(path) {
 				// new library detected
 				// register it
-				w.registry.register(path, r)
+				for _, pidPath := range lib.PidsPath {
+					if pidPathArray := strings.Split(pidPath, string(os.PathSeparator)); len(pidPathArray) > 0 {
+						pidStr := pidPathArray[len(pidPathArray)-1]
+						if pid, err := strconv.Atoi(pidStr); err != nil {
+							w.registry.register(path, pid, r)
+						}
+					}
+				}
 				break
 			}
 		}
@@ -176,6 +195,35 @@ func (w *soWatcher) sync() {
 	for path := range toUnregister {
 		w.registry.unregister(path)
 	}
+}
+
+func (w *soWatcher) checkProcessDone() (updated bool) {
+	updated = false
+	for libpath, registration := range w.registry.byPath {
+		for pid := range registration.pids {
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				w.registry.unregister(libpath)
+				delete(registration.pids, pid)
+				updated = true
+				continue
+			}
+			/* check if the process is alive */
+			if err := process.Signal(syscall.Signal(0x00)); err != nil {
+				if err != os.ErrProcessDone {
+					log.Errorf("can't send signal to process %d %w", pid, err)
+
+				} else {
+					log.Debugf("process %d doesn't exist anymore, unregister %s", pid, libpath)
+					w.registry.unregister(libpath)
+					delete(registration.pids, pid)
+					updated = true
+				}
+			}
+		}
+		w.registry.byPath[libpath] = registration
+	}
+	return updated
 }
 
 func (w *soWatcher) canonicalizePath(path string) string {
@@ -187,6 +235,7 @@ func (w *soWatcher) canonicalizePath(path string) string {
 }
 
 type soRegistration struct {
+	pids         map[int]struct{}
 	inode        uint64
 	refcount     int
 	unregisterCB func(string) error
@@ -197,7 +246,7 @@ type soRegistry struct {
 	byInode map[uint64]*soRegistration
 }
 
-func (r *soRegistry) register(libPath string, rule soRule) {
+func (r *soRegistry) register(libPath string, pid int, rule soRule) {
 	if _, ok := r.byPath[libPath]; ok {
 		return
 	}
@@ -209,6 +258,7 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 
 	if registration, ok := r.byInode[inode]; ok {
 		registration.refcount++
+		registration.pids[pid] = struct{}{}
 		r.byPath[libPath] = registration
 		log.Debugf("registering library=%s", libPath)
 		return
@@ -223,14 +273,14 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 
 		// save sentinel value so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
-		registration := newRegistration(inode, nil)
+		registration := newRegistration(pid, inode, nil)
 		r.byPath[libPath] = registration
 		r.byInode[inode] = registration
 		return
 	}
 
 	log.Debugf("registering library=%s", libPath)
-	registration := newRegistration(inode, rule.unregisterCB)
+	registration := newRegistration(pid, inode, rule.unregisterCB)
 	r.byPath[libPath] = registration
 	r.byInode[inode] = registration
 }
@@ -257,12 +307,15 @@ func (r *soRegistry) unregister(libPath string) {
 	}
 }
 
-func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
-	return &soRegistration{
+func newRegistration(pid int, inode uint64, unregisterCB func(string) error) *soRegistration {
+	r := &soRegistration{
+		pids:         make(map[int]struct{}),
 		inode:        inode,
 		unregisterCB: unregisterCB,
 		refcount:     1,
 	}
+	r.pids[pid] = struct{}{}
+	return r
 }
 
 func followSymlink(path string) string {
