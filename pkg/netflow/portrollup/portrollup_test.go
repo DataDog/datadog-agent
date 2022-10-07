@@ -29,23 +29,17 @@ func Test_endpointPairPortRollupStore_Add(t *testing.T) {
 	store.Add(IP1, IP2, 3004, 443)
 
 	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	// should only contain first 3 destPort (2001, 2002, 2003), 2004 is not curStore since the threshold is already reached
-	assert.Equal(t, []uint16{2001, 2002, 2003}, store.curStore[buildStoreKey(IP1, IP2, isSourceEndpoint, 80)])
-	assert.Equal(t, []uint16{2001, 2002, 2003}, store.newStore[buildStoreKey(IP1, IP2, isSourceEndpoint, 80)])
 
-	for _, destPort := range []uint16{2001, 2002, 2003} {
-		assert.Equal(t, uint16(1), store.GetDestToSourcePortCount(IP1, IP2, destPort))
-		assert.Equal(t, []uint16{80}, store.curStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, destPort)])
+	expectedNewStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):       {2001, 2002, 2003},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 443): {3001, 3002, 3003},
 	}
-	// make sure no entry is created for port 2004 in `destPorts`
-	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 2004))
-	_, exist := store.curStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, 2004)]
-	assert.Equal(t, false, exist)
+	assert.Equal(t, expectedNewStore, store.curStore)
+	assert.Equal(t, expectedNewStore, store.newStore)
 
-	assert.Equal(t, uint16(3), store.GetDestToSourcePortCount(IP1, IP2, 443))
-	// should only contain first 3 destPort (3001, 3002, 3003), 3004 is not curStore since the threshold is already reached
-	assert.Equal(t, []uint16{3001, 3002, 3003}, store.curStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, 443)])
-	assert.Equal(t, []uint16{3001, 3002, 3003}, store.newStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, 443)])
+	assert.Equal(t, IsEphemeralDestPort, store.IsEphemeral(IP1, IP2, 80, 2001))
+	assert.Equal(t, IsEphemeralSourcePort, store.IsEphemeral(IP1, IP2, 3001, 443))
+	assert.Equal(t, NoEphemeralPort, store.IsEphemeral(IP1, IP2, 3001, 2001))
 }
 
 func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {

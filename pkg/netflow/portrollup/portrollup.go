@@ -68,24 +68,42 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 
 // Add will record new sourcePort and destPort for a specific sourceAddr and destAddr
 func (prs *EndpointPairPortRollupStore) Add(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
-	prs.AddToStore(prs.curStore, sourceAddr, destAddr, sourcePort, destPort)
-	prs.AddToStore(prs.newStore, sourceAddr, destAddr, sourcePort, destPort)
+	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
+	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
+	prs.AddToStore(prs.curStore, srcToDestKey, destToSrcKey, sourceAddr, destAddr, sourcePort, destPort)
+	prs.AddToStore(prs.newStore, srcToDestKey, destToSrcKey, sourceAddr, destAddr, sourcePort, destPort)
 }
 
 // AddToStore will add ports to store
-func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
-	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
-	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
-
+func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, srcToDestKey string, destToSrcKey string,
+	sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
 	prs.mu.Lock()
 	sourceToDestPorts := len(store[srcToDestKey])
 	destToSourcePorts := len(store[destToSrcKey])
+
+	// either source or dest port is already ephemeral
 	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
 		prs.mu.Unlock()
 		return
 	}
-	store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
-	store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
+	if sourceToDestPorts+1 < prs.portRollupThreshold {
+		store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
+	}
+	// TODO: EXPLAIN
+	if len(store[destToSrcKey]) >= prs.portRollupThreshold {
+		for _, port := range store[destToSrcKey] {
+			delete(store, buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, port))
+		}
+	}
+	if destToSourcePorts+1 < prs.portRollupThreshold {
+		store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
+	}
+	if len(store[srcToDestKey]) >= prs.portRollupThreshold {
+		for _, port := range store[srcToDestKey] {
+			delete(store, buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, port))
+		}
+	}
+
 	prs.mu.Unlock()
 }
 
