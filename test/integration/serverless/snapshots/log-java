@@ -1,6 +1,19 @@
 [
   {
     "message": {
+      "message": "TIMESTAMP UTC | DD_EXTENSION | ERROR | Error happened when loading configuration from datadog.yaml for metric agent.\n",
+      "lambda": {
+        "arn": ""
+      }
+    },
+    "status": "info",
+    "hostname": "",
+    "service": "integration-tests-service",
+    "ddsource": "lambda",
+    "ddtags": ""
+  },
+  {
+    "message": {
       "message": "Picked up JAVA_TOOL_OPTIONS: -javaagent:\"/opt/java/lib/dd-java-agent.jar\" -XX:+TieredCompilation -XX:TieredStopAtLevel=1\n",
       "lambda": {
         "arn": ""
