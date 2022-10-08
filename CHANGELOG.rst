@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.39.2:
+
+7.39.2 / 6.39.2
+======
+
+.. _Release Notes_7.39.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-10-10
+
+
+.. _Release Notes_7.39.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Cloud Workload Security uses a default Traffic Control filter priority of 10.
+
+- Traffic Control filters priority and handle can be set from the configuration of Cloud Workload Security in system-probe.yaml.
+
+
 .. _Release Notes_7.39.1:
 
 7.39.1 / 6.39.1
