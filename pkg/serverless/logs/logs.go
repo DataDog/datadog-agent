@@ -281,12 +281,12 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 			}
 			ecs := c.ExecutionContext.GetCurrentState()
 			if len(message.objectRecord.requestID) > 0 {
-				if message.objectRecord.requestID != ecs.LastLogRequestID {
-					log.Warnf("Mismatched requestID between %s and %s", message.objectRecord.requestID, ecs.LastLogRequestID)
+				if message.objectRecord.requestID != ecs.LastRequestID {
+					log.Warnf("Mismatched requestID between %s and %s", message.objectRecord.requestID, ecs.LastRequestID)
 				}
 				c.LogChannel <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, message.objectRecord.requestID)
 			} else {
-				c.LogChannel <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, ecs.LastLogRequestID)
+				c.LogChannel <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, ecs.ARN, ecs.LastRequestID)
 			}
 		}
 	}
