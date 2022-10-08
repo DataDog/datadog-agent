@@ -6,7 +6,9 @@
 package portrollup
 
 import (
+	"encoding/binary"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"hash/fnv"
 	"sync"
 )
 
@@ -46,8 +48,8 @@ type EndpointPairPortRollupStore struct {
 	// - Empty map is about 128 bytes
 	// - Empty list is about 24 bytes
 	// - It's more costly to search in a list, but the number of expected entry is at most equal to `portRollupThreshold`.
-	curStore map[string][]uint16
-	newStore map[string][]uint16
+	curStore map[[16]byte][]uint16
+	newStore map[[16]byte][]uint16
 
 	// mutex used to protect access to curStore and newStore
 	mu sync.Mutex
@@ -59,8 +61,8 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 		// curStore and newStore map key is composed of `<SOURCE_IP>|<DESTINATION_IP>`
 		// SOURCE_IP and SOURCE_IP are converted from []byte to string.
 		// string is used as map key since we can't use []byte as map key.
-		curStore: make(map[string][]uint16),
-		newStore: make(map[string][]uint16),
+		curStore: make(map[[16]byte][]uint16),
+		newStore: make(map[[16]byte][]uint16),
 
 		portRollupThreshold: portRollupThreshold,
 	}
@@ -73,7 +75,7 @@ func (prs *EndpointPairPortRollupStore) Add(sourceAddr []byte, destAddr []byte, 
 }
 
 // AddToStore will add ports to store
-func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
+func (prs *EndpointPairPortRollupStore) AddToStore(store map[[16]byte][]uint16, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
 	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
 	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
 
@@ -153,13 +155,18 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
 	defer prs.mu.Unlock()
 
 	prs.curStore = prs.newStore
-	prs.newStore = make(map[string][]uint16)
+	prs.newStore = make(map[[16]byte][]uint16)
 }
 
-func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {
-	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
-	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1, portPart2})
-
+func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) [16]byte {
+	h := fnv.New128()
+	h.Write(sourceAddr)                             //nolint:errcheck
+	h.Write(destAddr)                               //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, endpointT) //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, port)      //nolint:errcheck
+	var bytes [16]byte
+	copy(bytes[:16], h.Sum(nil)[:16])
+	return bytes
 }
 
 func appendPort(ports []uint16, newPort uint16) []uint16 {

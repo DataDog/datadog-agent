@@ -105,16 +105,20 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralDestPort(t *testing.
 }
 
 func Test_buildStoreKey(t *testing.T) {
-	assert.Equal(t, "\n\n\n\n\n\n\n\v\x00\x00P", buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 80))
-	assert.Equal(t, "\n\n\n\n\n\n\n\v\x00\xc3P", buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 50000))
-	assert.Equal(t, "\x01\x02\x03\x04\x05\x06\a\b\x01\a\xd0", buildStoreKey([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, isDestinationEndpoint, 2000))
+	key1 := buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 80)
+	key2 := buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 50000)
+	key3 := buildStoreKey([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, isDestinationEndpoint, 2000)
+	assert.Equal(t, "4115abb8381ea64d1bebc1a33164eed4", fmt.Sprintf("%x", key1))
+	assert.Equal(t, "4115abb8381ea64d1bebc1a33164ee17", fmt.Sprintf("%x", key2))
+	assert.Equal(t, "f453633d2d660deed430b56558628ed9", fmt.Sprintf("%x", key3))
+	assert.NotEqual(t, key1, key2)
 
-	key := buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 65535)
-	assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 11111111 11111111]", fmt.Sprintf("%08b", []byte(key)))
-
-	key = buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 80)
-	assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 00000000 01010000]", fmt.Sprintf("%08b", []byte(key)))
-
-	key = buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 32848)
-	assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 10000000 01010000]", fmt.Sprintf("%08b", []byte(key)))
+	//key := buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 65535)
+	//assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 11111111 11111111]", fmt.Sprintf("%08b", key))
+	//
+	//key = buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 80)
+	//assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 00000000 01010000]", fmt.Sprintf("%08b", key))
+	//
+	//key = buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 32848)
+	//assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 10000000 01010000]", fmt.Sprintf("%08b", key))
 }
