@@ -6,6 +6,7 @@
 package portrollup
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/stretchr/testify/assert"
@@ -107,18 +108,30 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralDestPort(t *testing.
 func Test_buildStoreKey(t *testing.T) {
 	key1 := buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 80)
 	key2 := buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isSourceEndpoint, 50000)
-	key3 := buildStoreKey([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, isDestinationEndpoint, 2000)
+	key3 := buildStoreKey([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 80)
+	key4 := buildStoreKey([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, isDestinationEndpoint, 2000)
 	assert.Equal(t, "4115abb8381ea64d1bebc1a33164eed4", fmt.Sprintf("%x", key1))
 	assert.Equal(t, "4115abb8381ea64d1bebc1a33164ee17", fmt.Sprintf("%x", key2))
-	assert.Equal(t, "f453633d2d660deed430b56558628ed9", fmt.Sprintf("%x", key3))
+	assert.Equal(t, "4115abbb2e1ea64d1bebc1a331670fed", fmt.Sprintf("%x", key3))
+	assert.Equal(t, "f453633d2d660deed430b56558628ed9", fmt.Sprintf("%x", key4))
 	assert.NotEqual(t, key1, key2)
+	assert.NotEqual(t, key1, key3)
+}
 
-	//key := buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 65535)
-	//assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 11111111 11111111]", fmt.Sprintf("%08b", key))
-	//
-	//key = buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 80)
-	//assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 00000000 01010000]", fmt.Sprintf("%08b", key))
-	//
-	//key = buildStoreKey([]byte{255, 10, 10, 10}, []byte{10, 10, 10, 11}, isDestinationEndpoint, 32848)
-	//assert.Equal(t, "[11111111 00001010 00001010 00001010 00001010 00001010 00001010 00001011 00000001 10000000 01010000]", fmt.Sprintf("%08b", key))
+func Test_buildStoreKey_naiveCollisionTest(t *testing.T) {
+	keys := make(map[[16]byte]struct{})
+	for i := 0; i < 100; i++ {
+		for j := 0; j < 100; j++ {
+			for k := 0; k < 100; k++ {
+				srcAddr := make([]byte, 4)
+				binary.LittleEndian.PutUint32(srcAddr, uint32(j))
+				dstAddr := make([]byte, 4)
+				binary.LittleEndian.PutUint32(dstAddr, uint32(k))
+				for _, status := range []endpointType{isSourceEndpoint, isDestinationEndpoint} {
+					keys[buildStoreKey(srcAddr, dstAddr, status, uint16(i))] = struct{}{}
+				}
+			}
+		}
+	}
+	assert.Equal(t, 100*100*100*2, len(keys))
 }
