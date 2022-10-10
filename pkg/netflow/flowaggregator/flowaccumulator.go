@@ -123,6 +123,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) (hasHashCollision bool) {
 		aggFlow.flow = flowToAdd
 	} else {
 		if !common.IsEqualFlowContext(*aggFlow.flow, *flowToAdd) {
+			log.Warnf("Hash collision for flows `%v` and `%v`", *aggFlow.flow, *flowToAdd)
 			return true
 		}
 		// accumulate flowToAdd with existing flow(s) with same hash
