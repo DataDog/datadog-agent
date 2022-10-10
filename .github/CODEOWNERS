@@ -201,7 +201,10 @@
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
-/pkg/collector/corechecks/system/       @DataDog/agent-platform
+/pkg/collector/corechecks/system/             @DataDog/agent-platform
+/pkg/collector/corechecks/system/*windows*.go @DataDog/agent-platform @DataDog/windows-agent
+/pkg/collector/corechecks/system/winkmem/     @DataDog/windows-agent
+/pkg/collector/corechecks/system/winproc/     @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/                            @DataDog/agent-shared-components
