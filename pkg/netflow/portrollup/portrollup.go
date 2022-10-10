@@ -68,24 +68,46 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int) *EndpointPairPortRo
 
 // Add will record new sourcePort and destPort for a specific sourceAddr and destAddr
 func (prs *EndpointPairPortRollupStore) Add(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
-	prs.AddToStore(prs.curStore, sourceAddr, destAddr, sourcePort, destPort)
-	prs.AddToStore(prs.newStore, sourceAddr, destAddr, sourcePort, destPort)
-}
-
-// AddToStore will add ports to store
-func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
 	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
 	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
 
+	prs.AddToStore(prs.curStore, srcToDestKey, destToSrcKey, sourceAddr, destAddr, sourcePort, destPort, NoEphemeralPort)
+
+	// We pass isEphemeralStatus here to avoid writing to newStore if a port is known to be ephemeral already in curStore
+	prs.AddToStore(prs.newStore, srcToDestKey, destToSrcKey, sourceAddr, destAddr, sourcePort, destPort, prs.IsEphemeralFromKeys(srcToDestKey, destToSrcKey))
+}
+
+// AddToStore will add ports to store
+func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, srcToDestKey string, destToSrcKey string, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16, curStoreIsEphemeralStatus IsEphemeralStatus) {
 	prs.mu.Lock()
 	sourceToDestPorts := len(store[srcToDestKey])
 	destToSourcePorts := len(store[destToSrcKey])
+
+	// either source or dest port is already ephemeral
 	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
 		prs.mu.Unlock()
 		return
 	}
-	store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
-	store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
+	if destToSourcePorts+1 < prs.portRollupThreshold && curStoreIsEphemeralStatus != IsEphemeralSourcePort {
+		store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
+	}
+	// if the destination port is ephemeral, we can delete the corresponding destToSrc entries
+	if len(store[srcToDestKey]) >= prs.portRollupThreshold {
+		for _, port := range store[srcToDestKey] {
+			delete(store, buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, port))
+		}
+	}
+
+	if sourceToDestPorts+1 < prs.portRollupThreshold && curStoreIsEphemeralStatus != IsEphemeralDestPort {
+		store[destToSrcKey] = appendPort(store[destToSrcKey], sourcePort)
+	}
+	// if the source port is ephemeral, we can delete the corresponding srcToDest entries
+	if len(store[destToSrcKey]) >= prs.portRollupThreshold {
+		for _, port := range store[destToSrcKey] {
+			delete(store, buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, port))
+		}
+	}
+
 	prs.mu.Unlock()
 }
 
@@ -100,11 +122,24 @@ func (prs *EndpointPairPortRollupStore) GetPortCount(sourceAddr []byte, destAddr
 
 // IsEphemeral checks if source port and destination port are ephemeral
 func (prs *EndpointPairPortRollupStore) IsEphemeral(sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) IsEphemeralStatus {
-	sourceToDestPortCount := prs.GetSourceToDestPortCount(sourceAddr, destAddr, sourcePort)
-	destToSourcePortCount := prs.GetDestToSourcePortCount(sourceAddr, destAddr, destPort)
-	portCount := common.MaxUint16(sourceToDestPortCount, destToSourcePortCount)
+	srcToDestKey := buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, sourcePort)
+	destToSrcKey := buildStoreKey(sourceAddr, destAddr, isDestinationEndpoint, destPort)
 
-	if int(portCount) < prs.portRollupThreshold {
+	return prs.IsEphemeralFromKeys(srcToDestKey, destToSrcKey)
+}
+
+func (prs *EndpointPairPortRollupStore) IsEphemeralFromKeys(srcToDestKey string, destToSrcKey string) IsEphemeralStatus {
+	prs.mu.Lock()
+	sourceToDestPortCount := len(prs.curStore[srcToDestKey])
+	destToSourcePortCount := len(prs.curStore[destToSrcKey])
+	prs.mu.Unlock()
+
+	portCount := sourceToDestPortCount
+	if destToSourcePortCount > sourceToDestPortCount {
+		portCount = destToSourcePortCount
+	}
+
+	if portCount < prs.portRollupThreshold {
 		return NoEphemeralPort
 	}
 
@@ -159,7 +194,8 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
 func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, port uint16) string {
 	var portPart1, portPart2 = uint8(port >> 8), uint8(port & 0xff)
 	return string(sourceAddr) + string(destAddr) + string([]byte{byte(endpointT)}) + string([]byte{portPart1, portPart2})
-
+	// FOR DEBUGGING: You can replace above line with the following one for debugging, it makes the key easier to read
+	// return common.IPBytesToString(sourceAddr) + "|" + common.IPBytesToString(destAddr) + "|" + fmt.Sprintf("%d", endpointT) + "|" + fmt.Sprintf("%d", port)
 }
 
 func appendPort(ports []uint16, newPort uint16) []uint16 {
