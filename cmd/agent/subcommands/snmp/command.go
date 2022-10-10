@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 )
 
 const (
@@ -108,7 +109,28 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}
 			} else {
 				deviceIP = address
-				port = defaultPort
+				//if the customer provides only 1 argument : the ip_address
+				//We check the ip address configuration in the agent runtime and we use it for the snmwalk
+				ip_list, _ := parse.GetConfigCheckSnmp()
+				instance := parse.GetIPConfig(deviceIP, ip_list)
+				snmpVersion = instance.SnmpVersion
+				port = instance.SnmpPort
+
+				// v1 & v2c
+				communityString = instance.SnmpCommunityString
+
+				// v3
+				user = instance.SnmpUsername
+				authProt = instance.SnmpAuthProtocol
+				authKey = instance.SnmpAuthKey
+				privProt = instance.SnmpPrivProtocol
+				privKey = instance.SnmpPrivKey
+				snmpContext = instance.SnmpContext
+
+				// communication
+				retries = instance.SnmpRetries
+				timeout = instance.SnmpTimeout
+
 			}
 
 			// Communication options check

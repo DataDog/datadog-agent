@@ -18,7 +18,7 @@ func TestOneInstance(t *testing.T) {
 	type Data = integration.Data
 	input := integration.Config{
 		Name:      "snmp",
-		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"port\":\"161\",\"community_string\":\"password\",\"snmp_version\":\"2\",\"timeout\":\"60\",\"retries\":\"3\"}")},
+		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"port\":161,\"community_string\":\"password\",\"snmp_version\":\"2\",\"timeout\":60,\"retries\":3}")},
 	}
 	//define the output
 	Exoutput := DataSNMP{
@@ -26,9 +26,9 @@ func TestOneInstance(t *testing.T) {
 			SnmpVersion:         "2",
 			SnmpCommunityString: "password",
 			SnmpIPAddress:       "98.6.18.158",
-			SnmpPort:            "161",
-			SnmpTimeout:         "60",
-			SnmpRetries:         "3",
+			SnmpPort:            161,
+			SnmpTimeout:         60,
+			SnmpRetries:         3,
 		},
 	}
 	assertSNMP(t, input, Exoutput)
@@ -38,8 +38,8 @@ func TestSeveralInstances(t *testing.T) {
 	type Data = integration.Data
 	input := integration.Config{
 		Name: "snmp",
-		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"port\":\"161\",\"community_string\":\"password\",\"snmp_version\":\"2\",\"timeout\":\"60\",\"retries\":\"3\"}"),
-			Data("{\"ip_address\":\"98.6.18.159\",\"port\":\"162\",\"community_string\":\"drowssap\",\"snmp_version\":\"2\",\"timeout\":\"30\",\"retries\":\"5\"}")},
+		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"port\":161,\"community_string\":\"password\",\"snmp_version\":\"2\",\"timeout\":60,\"retries\":3}"),
+			Data("{\"ip_address\":\"98.6.18.159\",\"port\":162,\"community_string\":\"drowssap\",\"snmp_version\":\"2\",\"timeout\":30,\"retries\":5}")},
 	}
 	//define the output
 	Exoutput := DataSNMP{
@@ -47,17 +47,17 @@ func TestSeveralInstances(t *testing.T) {
 			SnmpVersion:         "2",
 			SnmpCommunityString: "password",
 			SnmpIPAddress:       "98.6.18.158",
-			SnmpPort:            "161",
-			SnmpTimeout:         "60",
-			SnmpRetries:         "3",
+			SnmpPort:            161,
+			SnmpTimeout:         60,
+			SnmpRetries:         3,
 		},
 		{
 			SnmpVersion:         "2",
 			SnmpCommunityString: "drowssap",
 			SnmpIPAddress:       "98.6.18.159",
-			SnmpPort:            "162",
-			SnmpTimeout:         "30",
-			SnmpRetries:         "5",
+			SnmpPort:            162,
+			SnmpTimeout:         30,
+			SnmpRetries:         5,
 		},
 	}
 	assertSNMP(t, input, Exoutput)
@@ -65,5 +65,50 @@ func TestSeveralInstances(t *testing.T) {
 
 func assertSNMP(t *testing.T, input integration.Config, expectedOutput DataSNMP) {
 	output := ParseConfigSnmp(input)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestGetSNMPConfig(t *testing.T) {
+	IPList := DataSNMP{
+		SNMPConfig{
+			SnmpVersion:         "2",
+			SnmpCommunityString: "password",
+			SnmpIPAddress:       "98.6.18.158",
+			SnmpPort:            161,
+			SnmpTimeout:         60,
+			SnmpRetries:         3,
+		},
+		{
+			SnmpVersion:         "2",
+			SnmpCommunityString: "drowssap",
+			SnmpIPAddress:       "98.6.18.159",
+			SnmpPort:            162,
+			SnmpTimeout:         30,
+			SnmpRetries:         5,
+		},
+		{
+			SnmpVersion:         "3",
+			SnmpCommunityString: "drowssap",
+			SnmpIPAddress:       "98.6.18.160",
+			SnmpPort:            172,
+			SnmpTimeout:         30,
+			SnmpRetries:         5,
+		},
+	}
+	input := "98.6.18.160"
+	Exoutput := SNMPConfig{
+		SnmpVersion:         "3",
+		SnmpCommunityString: "drowssap",
+		SnmpIPAddress:       "98.6.18.160",
+		SnmpPort:            172,
+		SnmpTimeout:         30,
+		SnmpRetries:         5,
+	}
+	assertIP(t, input, IPList, Exoutput)
+
+}
+
+func assertIP(t *testing.T, input string, input_ip_list DataSNMP, expectedOutput SNMPConfig) {
+	output := GetIPConfig(input, input_ip_list)
 	assert.Equal(t, expectedOutput, output)
 }

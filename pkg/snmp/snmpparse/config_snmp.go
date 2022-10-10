@@ -31,10 +31,10 @@ type SNMPConfig struct {
 
 	//General
 	SnmpIPAddress string `yaml:"ip_address"`
-	SnmpPort      string `yaml:"port"`
+	SnmpPort      uint16 `yaml:"port"`
 	SnmpVersion   string `yaml:"snmp_version"`
-	SnmpTimeout   string `yaml:"timeout"`
-	SnmpRetries   string `yaml:"retries"`
+	SnmpTimeout   int    `yaml:"timeout"`
+	SnmpRetries   int    `yaml:"retries"`
 	//v1 &2
 	SnmpCommunityString string `yaml:"community_string"`
 	//v3
@@ -70,30 +70,19 @@ func ParseConfigSnmp(c integration.Config) DataSNMP {
 	return ws
 }
 
-// This function gets the SNMP configuration from the main file
-// Go back to this when we try to implement the feature network address
-func GetMainFileSnmp() error {
-	c, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(c))
-
-	return nil
-}
-
-func GetConfigCheckSnmp(ws DataSNMP) error {
+func GetConfigCheckSnmp() (DataSNMP, error) {
+	ws := DataSNMP{}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
 	err := util.SetAuthToken()
 	if err != nil {
-		return err
+		return ws, err
 	}
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return err
+		return ws, err
 	}
 	//To Do: change the configCheckURLSnmp if the snmp check is a cluster check
 	if configCheckURLSnmp == "" {
@@ -103,18 +92,29 @@ func GetConfigCheckSnmp(ws DataSNMP) error {
 	cr := response.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
-		return err
+		return ws, err
 	}
 	//Store the SNMP config in the DataSNMP array (ws)
 	//c is of type config while the cr is the config check response including the instances
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
-			//ws = ParseConfigSnmp(c)
-			ParseConfigSnmp(c)
+			ws = ParseConfigSnmp(c)
+			//ParseConfigSnmp(c)
 
 		}
 	}
 
-	return nil
+	return ws, nil
 
+}
+func GetIPConfig(ip_address string, ip_list DataSNMP) SNMPConfig {
+	//How to unit test without providing the api key ?
+	//ip_list, _ = GetConfigCheckSnmp()
+	instance := SNMPConfig{}
+	for _, w := range ip_list {
+		if w.SnmpIPAddress == ip_address {
+			instance = w
+		}
+	}
+	return instance
 }
