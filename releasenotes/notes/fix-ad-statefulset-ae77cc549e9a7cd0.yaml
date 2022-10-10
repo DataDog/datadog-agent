@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a bug in Autodiscovery preventing the Agent to correctly schedule checks or logs configurations on newly created PODs during a StatefulSet rollout.
