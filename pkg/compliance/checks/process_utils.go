@@ -50,45 +50,48 @@ func (p *CheckedProcess) Pid() int32 {
 }
 
 // Name returns the name stored in this checked process
-func (p *CheckedProcess) Name() (string, error) {
+func (p *CheckedProcess) Name() string {
 	if p.name != "" || p.inner == nil {
-		return p.name, nil
+		return p.name
 	}
 
 	innerName, err := p.inner.Name()
 	if err != nil {
-		return "", err
+		log.Errorf("failed to fetch process (pid=%d) name: %v", p.pid, err)
+		return ""
 	}
 	p.name = innerName
-	return innerName, nil
+	return innerName
 }
 
 // Exe returns the executable path stored in this checked process
-func (p *CheckedProcess) Exe() (string, error) {
+func (p *CheckedProcess) Exe() string {
 	if p.exe != "" || p.inner == nil {
-		return p.exe, nil
+		return p.exe
 	}
 
 	innerExe, err := p.inner.Exe()
 	if err != nil {
-		return "", err
+		log.Errorf("failed to fetch process (pid=%d) exe: %v", p.pid, err)
+		return ""
 	}
 	p.exe = innerExe
-	return innerExe, nil
+	return innerExe
 }
 
 // CmdlineSlice returns the cmd line slice stored in this checked process
-func (p *CheckedProcess) CmdlineSlice() ([]string, error) {
+func (p *CheckedProcess) CmdlineSlice() []string {
 	if p.cmdLineSlice != nil || p.inner == nil {
-		return p.cmdLineSlice, nil
+		return p.cmdLineSlice
 	}
 
 	innerCmdLine, err := p.inner.CmdlineSlice()
 	if err != nil {
-		return nil, err
+		log.Errorf("failed to fetch process (pid=%d) cmdline: %v", p.pid, err)
+		return nil
 	}
 	p.cmdLineSlice = innerCmdLine
-	return innerCmdLine, nil
+	return innerCmdLine
 }
 
 type processes []*CheckedProcess
@@ -103,11 +106,7 @@ var (
 
 func (p processes) findProcessesByName(name string) []*CheckedProcess {
 	return p.findProcesses(func(p *CheckedProcess) bool {
-		pname, err := p.Name()
-		if err != nil {
-			return false
-		}
-		return pname == name
+		return p.Name() == name
 	})
 }
 
