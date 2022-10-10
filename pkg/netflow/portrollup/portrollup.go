@@ -42,6 +42,16 @@ const (
 type EndpointPairPortRollupStore struct {
 	portRollupThreshold int
 
+	// If there is a need to optimize storage used for ephemeral port rollup, a possible solution is to use
+	// a 64bits or 128bits hash. See benchmark below:
+	// Benchmark/Stats for 20 millions keys
+	// Type of key               | Mem used | % less compared| collision probably
+	//                           |          | to string key  | for 20M keys
+	// ---------------------------------------------------------------
+	// String (current)          | 1883 MB  |                | none
+	// Hash 128bits/16bytes key  | 1633 MB  | -250 MB / -13% | near 0 / ridiculously small
+	// Hash 64bits/8bytes key    | 1450 MB  | -433 MB / -22% | ~0.00001 (1 in 100k)
+
 	// We might also use map[uint16]struct to store ports, but using []uint16 takes less mem.
 	// - Empty map is about 128 bytes
 	// - Empty list is about 24 bytes
