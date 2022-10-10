@@ -70,9 +70,7 @@ infra_failure_logs = [
         FailedJobReason.DOCKER_RUNNER,
     ),
     (
-        re.compile(
-            r'WARNING: Failed to pull image with policy "always":.*:.*\(.*\)'
-        ),
+        re.compile(r'WARNING: Failed to pull image with policy "always":.*:.*\(.*\)'),
         FailedJobReason.DOCKER_RUNNER,
     ),
     # k8s Gitlab runner init failures
