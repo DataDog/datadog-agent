@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"go.uber.org/atomic"
 	"sync"
 	"time"
 
@@ -37,6 +38,8 @@ type flowAccumulator struct {
 	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
 	portRollupDisabled  bool
+
+	hashCollisionFlowCount *atomic.Uint64
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -49,12 +52,13 @@ func newFlowContext(flow *common.Flow) flowContext {
 
 func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool) *flowAccumulator {
 	return &flowAccumulator{
-		flows:               make(map[uint64]flowContext),
-		flowFlushInterval:   aggregatorFlushInterval,
-		flowContextTTL:      aggregatorFlowContextTTL,
-		portRollup:          portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
-		portRollupThreshold: portRollupThreshold,
-		portRollupDisabled:  portRollupDisabled,
+		flows:                  make(map[uint64]flowContext),
+		flowFlushInterval:      aggregatorFlushInterval,
+		flowContextTTL:         aggregatorFlowContextTTL,
+		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
+		portRollupThreshold:    portRollupThreshold,
+		portRollupDisabled:     portRollupDisabled,
+		hashCollisionFlowCount: atomic.NewUint64(0),
 	}
 }
 
@@ -122,10 +126,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) (hasHashCollision bool) {
 	if aggFlow.flow == nil {
 		aggFlow.flow = flowToAdd
 	} else {
-		if !common.IsEqualFlowContext(*aggFlow.flow, *flowToAdd) {
-			log.Warnf("Hash collision for flows `%v` and `%v`", *aggFlow.flow, *flowToAdd)
-			return true
-		}
+		go f.detectHashCollision(*aggFlow.flow, *flowToAdd)
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
@@ -142,4 +143,11 @@ func (f *flowAccumulator) getFlowContextCount() int {
 	defer f.flowsMutex.Unlock()
 
 	return len(f.flows)
+}
+
+func (f *flowAccumulator) detectHashCollision(flowA common.Flow, flowB common.Flow) {
+	if !common.IsEqualFlowContext(flowA, flowB) {
+		log.Warnf("Hash collision for flows `%v` and `%v`", flowA, flowB)
+		f.hashCollisionFlowCount.Inc()
+	}
 }
