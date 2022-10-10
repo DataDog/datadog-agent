@@ -14,55 +14,6 @@
 
 
 // ------------------------------------------------------------------------------
-// <event value="21" symbol="HTTPConnectionTraceTaskConnConnect" version="0" task="HTTPConnectionTraceTask" opcode="ConnConnect" level="win:Informational" keywords="HTTP_KEYWORD_CONNECTION" template="HTTPConnectionTraceTaskConnConnectArgs"/>
-//
-//     <template tid="HTTPConnectionTraceTaskConnConnectArgs">
-//      <data name="ConnectionObj" inType="win:Pointer"/>
-//      <data name="LocalAddrLength" inType="win:UInt32"/>
-//      <data name="LocalAddr" inType="win:Binary" length="LocalAddrLength"/>
-//      <data name="RemoteAddrLength" inType="win:UInt32"/>
-//      <data name="RemoteAddr" inType="win:Binary" length="RemoteAddrLength"/>
-//     </template>
-//
-#define EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn  21
-typedef struct _EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP4
-{
-    uint64_t connectionObj;
-    uint32_t localAddrLength;
-    uint16_t localSinFamily;
-    uint16_t localPort;          // hton
-    uint32_t localIpAddress;
-    uint64_t localZeroPad;
-    uint32_t remoteAddrLength;
-    uint16_t remoteSinFamily;
-    uint16_t remotePort;         // hton
-    uint32_t remoteIpAddress;
-    uint64_t remoteZeroPad;
-} EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP4;
-
-typedef struct _EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP6
-{
-    uint64_t connectionObj;
-    uint32_t localAddrLength;
-    // TBD
-}EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP6;
-
-// ------------------------------------------------------------------------------
-// <event value="23" symbol="HTTPConnectionTraceTaskConnClose" version="0" task="HTTPConnectionTraceTask" opcode="ConnClose" level="win:Informational" keywords="HTTP_KEYWORD_CONNECTION" template="HTTPConnectionTraceTaskConnCloseArgs"/>
-//
-//     <template tid="HTTPConnectionTraceTaskConnCloseArgs">
-//      <data name="ConnectionObj" inType="win:Pointer"/>
-//      <data name="Abortive" inType="win:UInt32"/>
-//     </template>
-//
-#define EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose  23
-typedef struct _EVENT_PARAM_HTTPConnectionTraceTaskConnClose
-{
-    uint64_t connectionObj;
-    uint32_t abortive;
-} EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnClose;
-
-// ------------------------------------------------------------------------------
 // <event value="1" symbol="HTTPRequestTraceTaskRecvReq" version="0" task="HTTPRequestTraceTask" opcode="RecvReq" level="win:Informational" keywords="HTTP_KEYWORD_REQUEST HTTP_KEYWORD_REQUEST_QUEUE" template="HTTPRequestTraceTaskRecvReqArgs"/>
 //
 //     <template tid="HTTPRequestTraceTaskRecvReqArgs">
@@ -186,6 +137,57 @@ typedef struct _EVENT_PARAM_HttpService_HTTPRequestTraceTaskSrvdFrmCache
     uint32_t bytesSent;
 } EVENT_PARAM_HttpService_HTTPRequestTraceTaskSrvdFrmCache;
 
+
+
+// ------------------------------------------------------------------------------
+// <event value="21" symbol="HTTPConnectionTraceTaskConnConnect" version="0" task="HTTPConnectionTraceTask" opcode="ConnConnect" level="win:Informational" keywords="HTTP_KEYWORD_CONNECTION" template="HTTPConnectionTraceTaskConnConnectArgs"/>
+//
+//     <template tid="HTTPConnectionTraceTaskConnConnectArgs">
+//      <data name="ConnectionObj" inType="win:Pointer"/>
+//      <data name="LocalAddrLength" inType="win:UInt32"/>
+//      <data name="LocalAddr" inType="win:Binary" length="LocalAddrLength"/>
+//      <data name="RemoteAddrLength" inType="win:UInt32"/>
+//      <data name="RemoteAddr" inType="win:Binary" length="RemoteAddrLength"/>
+//     </template>
+//
+#define EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn  21
+typedef struct _EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP4
+{
+    uint64_t connectionObj;
+    uint32_t localAddrLength;
+    uint16_t localSinFamily;
+    uint16_t localPort;          // hton
+    uint32_t localIpAddress;
+    uint64_t localZeroPad;
+    uint32_t remoteAddrLength;
+    uint16_t remoteSinFamily;
+    uint16_t remotePort;         // hton
+    uint32_t remoteIpAddress;
+    uint64_t remoteZeroPad;
+} EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP4;
+
+typedef struct _EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP6
+{
+    uint64_t connectionObj;
+    uint32_t localAddrLength;
+    // TBD
+}EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP6;
+
+// ------------------------------------------------------------------------------
+// <event value="23" symbol="HTTPConnectionTraceTaskConnClose" version="0" task="HTTPConnectionTraceTask" opcode="ConnClose" level="win:Informational" keywords="HTTP_KEYWORD_CONNECTION" template="HTTPConnectionTraceTaskConnCloseArgs"/>
+//
+//     <template tid="HTTPConnectionTraceTaskConnCloseArgs">
+//      <data name="ConnectionObj" inType="win:Pointer"/>
+//      <data name="Abortive" inType="win:UInt32"/>
+//     </template>
+//
+#define EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose  23
+typedef struct _EVENT_PARAM_HTTPConnectionTraceTaskConnClose
+{
+    uint64_t connectionObj;
+    uint32_t abortive;
+} EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnClose;
+
 // ------------------------------------------------------------------------------
 // <event value="25" symbol="HTTPCacheTraceTaskAddedCacheEntry" version="0" task="HTTPCacheTraceTask" opcode="AddedCacheEntry" level="win:Informational" keywords="HTTP_KEYWORD_CACHE" template="HTTPCacheTraceTaskAddedCacheEntryArgs"/>
 // <event value="25" symbol="HTTPCacheTraceTaskAddedCacheEntry_V1" version="1" task="HTTPCacheTraceTask" opcode="AddedCacheEntry" level="win:Informational" keywords="HTTP_KEYWORD_CACHE" template="HTTPCacheTraceTaskAddedCacheEntryArgs_V1"/>
@@ -213,7 +215,18 @@ typedef struct _EVENT_PARAM_HttpService_HTTPCacheTraceTaskAddedCacheEntry
 //  uint64_t expirationTime;
 } EVENT_PARAM_HttpService_HTTPCacheTraceTaskAddedCacheEntry;
 
+// ------------------------------------------------------------------------------
+//
+//  <event value="34" symbol="HTTPSSLTraceTaskSslConnEvent" version="0" task="HTTPSSLTraceTask" opcode="SslConnEvent" level="win:Informational" keywords="HTTP_KEYWORD_CONNECTION HTTP_KEYWORD_SSL" template="HTTPConnectionTraceTaskConnCleanupArgs"/>
+//
+//  <template tid="HTTPConnectionTraceTaskConnCleanupArgs">
+//      <data name="ConnectionObj" inType="win:Pointer"/>
+//  </template>
 
+#define EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent    34
+typedef struct _EVENT_PARAM_HttpService_HTTPTraceTaskConnCleanup {
+    uint64_t connectionObj;
+} EVENT_PARAM_HttpService_HTTPTraceTaskConnCleanup;
 #pragma pack(pop)
 
 // Builtin EVENT_TRACE_FLAG_NETWORK_TCPIP {9a280ac0-c8e0-11d1-84e2-00c04fb998a2}

@@ -11,8 +11,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/system-probe/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"

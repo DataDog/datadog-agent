@@ -883,7 +883,7 @@ api_key:
   ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
   ## Refreshes are necessary for the discovery of new counters/countersets and instances for integrations that
   ## rely on performance counters. Checks include active_directory, aspdotnet, dotnetclr, exchange_server, hyperv,
-  ## iis and windows_performance_counters. 
+  ## iis and windows_performance_counters.
   ## Refresh can be disabled by setting the interval to 0.
   #
   # windows_counter_refresh_interval: 60
@@ -1012,6 +1012,27 @@ api_key:
   #
   # open_files_limit: 500
 
+  ## @param file_wildcard_selection_mode - string - optional - default: `by_name`
+  ## @env DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE - string - optional - default: `by_name`
+  ## The strategy used to prioritize wildcard matches if they exceed the open file limit.
+  ##
+  ## Choices are `by_name` and `by_modification_time`.
+  ##
+  ## `by_name` means that each log source is considered and the matching files are ordered
+  ## in reverse name order. While there are less than `logs_config.open_files_limit` files
+  ## being tailed, this process repeats, collecting from each configured source.
+  ##
+  ## `by_modification_time` takes all log sources and first adds any log sources that
+  ## point to a specific file. Next, it finds matches for all wildcard sources.
+  ## This resulting list is ordered by which files have been most recently modified
+  ## and the top `logs_config.open_files_limit` most recently modified files are
+  ## chosen for tailing.
+  ##
+  ## WARNING: `by_modification_time` is less performant than `by_name` and will trigger
+  ## more disk I/O at the configured wildcard log paths.
+  #
+  # file_wildcard_selection_mode: `by_name`
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -1073,7 +1094,7 @@ api_key:
   ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
   ## the received traffic and communicated to tracers. This configures head base sampling.
-  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer 
+  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
   ## disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
   ## value sufficiently high for your traffic pattern.
   #
@@ -3166,6 +3187,44 @@ api_key:
     ## The maximum number of seconds to wait for the trap server to stop when the Agent shuts down.
     #
     # stop_timeout: 5.0
+
+  ## @param netflow - custom object - optional
+  ## This section configures NDM NetFlow (and sFlow, IPFIX) collection.
+  #
+  # netflow:
+
+    ## @param enabled - boolean - optional - default: false
+    ## Set to true to enable collection of NetFlow traffic.
+    #
+    # enabled: false
+
+    ## @param listeners - custom object - optional
+    ## This section configures one or more listeners ports that will receive flow traffic.
+    ## Each listener have the following options:
+    ##  * flow_type    - string - The flow type correspond to the incoming flow protocol.
+    ##                            Choices are: netflow5, netflow9, ipfix, sflow5
+    ##  * port         - string - (Optional) The port used to receive incoming flow traffic.
+    ##                            Default port differ by flow type: netflow5(2055), netflow9(2055), ipfix(4739), sflow5(6343)
+    ##  * bind_host    - string - (Optional) The hostname to listen on for incoming netflow packets.
+    ##                            Binds to 0.0.0.0 by default (accepting all packets).
+    ##  * workers      - string - (Optional) Number of workers to use for this listener.
+    ##                            Defaults to 1.
+    #
+    # listeners:
+    # - flow_type: netflow9
+    #   port: 2055
+    # - flow_type: netflow5
+    #   port: 2056
+    # - flow_type: ipfix
+    #   port: 4739
+    # - flow_type: sflow5
+    #   port: 6343
+
+    ## stop_timeout - integer - optional - default: 5
+    ## The maximum number of seconds to wait for the NetFlow listeners to stop when the Agent shuts down.
+    #
+    # stop_timeout: 5
+
 
 {{end -}}
 {{- if .OTLP }}

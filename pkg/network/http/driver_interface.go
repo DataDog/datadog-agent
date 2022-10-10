@@ -66,9 +66,10 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 	di.driverHTTPHandle = dh
 	// enable HTTP on this handle
 	settings := driver.HttpConfigurationSettings{
-		MaxTransactions:       di.maxTransactions,
-		NotificationThreshold: di.notificationThreshold,
-		MaxRequestFragment:    uint16(di.maxRequestFragment),
+		MaxTransactions:        di.maxTransactions,
+		NotificationThreshold:  di.notificationThreshold,
+		MaxRequestFragment:     uint16(di.maxRequestFragment),
+		EnableAutoETWExclusion: uint16(1),
 	}
 
 	err := dh.DeviceIoControl(
@@ -135,7 +136,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction, error) {
 	var (
 		bytesRead uint32
-		buf       = make([]byte, (driver.HttpTransactionTypeSize+driver.HttpBufferSize)*driver.HttpBatchSize)
+		buf       = make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
 	)
 
 	err := di.driverHTTPHandle.DeviceIoControl(
@@ -161,7 +162,6 @@ func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction,
 		i += driver.HttpTransactionTypeSize
 		copy(tx.RequestFragment, buf[i:i+uint32(tx.Txn.MaxRequestFragment)])
 		i += uint32(tx.Txn.MaxRequestFragment)
-
 		transactionBatch = append(transactionBatch, tx)
 	}
 

@@ -26,11 +26,12 @@ var (
 )
 
 type testArtifacts struct {
-	key            keys.Signer
-	signedBaseRoot []byte
-	root           *data.Root
-	targets        *data.Targets
-	repository     *Repository
+	key                  keys.Signer
+	signedBaseRoot       []byte
+	root                 *data.Root
+	targets              *data.Targets
+	repository           *Repository
+	unverifiedRepository *Repository
 }
 
 func newTestKey() keys.Signer {
@@ -85,6 +86,11 @@ func newTestArtifacts() testArtifacts {
 		panic(err)
 	}
 
+	unverifiedRepository, err := NewUnverifiedRepository()
+	if err != nil {
+		panic(err)
+	}
+
 	state := struct {
 		State []byte `json:"opaque_backend_state"`
 	}{[]byte(testOpaqueBackendStateContents)}
@@ -100,11 +106,12 @@ func newTestArtifacts() testArtifacts {
 	targets.Custom = &rm
 
 	return testArtifacts{
-		key:            key,
-		signedBaseRoot: signedBaseRoot,
-		root:           root,
-		targets:        targets,
-		repository:     repository,
+		key:                  key,
+		signedBaseRoot:       signedBaseRoot,
+		root:                 root,
+		targets:              targets,
+		repository:           repository,
+		unverifiedRepository: unverifiedRepository,
 	}
 }
 

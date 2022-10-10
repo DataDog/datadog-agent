@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.59.0. In particular, this drops support for consuming OTLP/JSON v0.15.0 or below payloads.
+    The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.60.0. In particular, this drops support for consuming OTLP/JSON v0.15.0 or below payloads.

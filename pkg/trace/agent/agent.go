@@ -190,6 +190,17 @@ func (a *Agent) loop() {
 	}
 }
 
+// setRootSpanTags sets up any necessary tags on the root span.
+func (a *Agent) setRootSpanTags(root *pb.Span) {
+	clientSampleRate := sampler.GetGlobalRate(root)
+	sampler.SetClientRate(root, clientSampleRate)
+
+	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+		rate := ratelimiter.RealRate()
+		sampler.SetPreSampleRate(root, rate)
+	}
+}
+
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
@@ -264,16 +275,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 		a.Replacer.Replace(chunk.Spans)
 
-		{
-			// this section sets up any necessary tags on the root:
-			clientSampleRate := sampler.GetGlobalRate(root)
-			sampler.SetClientRate(root, clientSampleRate)
-
-			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-				rate := ratelimiter.RealRate()
-				sampler.SetPreSampleRate(root, rate)
-			}
-		}
+		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
@@ -305,14 +307,18 @@ func (a *Agent) Process(p *api.Payload) {
 
 		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep {
+			keep = sampler.ApplySpanSampling(chunk)
+		}
+		if !keep {
 			if numEvents == 0 {
 				// the trace was dropped and no analyzed span were kept
 				p.RemoveChunk(i)
 				continue
 			}
-			// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
-			// is added to the TracerPayload to be sent to TraceWriter.
-			// The complete chunk is still sent to the stats concentrator.
+			// The sampler step filtered a subset of spans in the chunk. The new
+			// filtered chunk is added to the TracerPayload to be sent to
+			// TraceWriter. The complete chunk is still sent to the stats
+			// concentrator.
 			p.ReplaceChunk(i, filteredChunk)
 		}
 
@@ -523,10 +529,7 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 }
 
 func newEventProcessor(conf *config.AgentConfig) *event.Processor {
-	extractors := []event.Extractor{
-		event.NewMetricBasedExtractor(),
-		event.NewSingleSpanExtractor(),
-	}
+	extractors := []event.Extractor{event.NewMetricBasedExtractor()}
 	if len(conf.AnalyzedSpansByService) > 0 {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
 	} else if len(conf.AnalyzedRateByServiceLegacy) > 0 {

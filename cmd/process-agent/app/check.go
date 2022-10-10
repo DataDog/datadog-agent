@@ -64,6 +64,9 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 		ddconfig.Datadog.Set("log_to_console", false)
 	}
 
+	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
+	ddconfig.Datadog.Set("disable_file_logging", true)
+
 	// We need to load in the system probe environment variables before we load the config, otherwise an
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)

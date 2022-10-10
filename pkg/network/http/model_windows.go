@@ -23,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/etw"
 )
 
-const HTTPBufferSize = driver.HttpBufferSize
-const HTTPBatchSize = driver.HttpBatchSize
-
 type etwHttpTX struct {
 	//	httpTX
 	*etw.Http
@@ -276,7 +273,11 @@ func (tx *etwHttpTX) StaticTags() uint64 {
 
 // Dynamic Tags are  part of windows http transactions
 func (tx *etwHttpTX) DynamicTags() []string {
-	return []string{fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool)}
+	return []string{
+		fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
+		fmt.Sprintf("http.iis.site:%v", tx.SiteID),
+		fmt.Sprintf("service:%v", tx.AppPool),
+	}
 }
 
 func (tx *etwHttpTX) String() string {

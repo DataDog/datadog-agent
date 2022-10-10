@@ -22,15 +22,18 @@ import (
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
-	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	tel, err := newTelemetry()
 	require.NoError(t, err)
 	sk := newHTTPStatkeeper(cfg, tel)
 	txs := make([]httpTX, 100)
 
-	sourceIP := util.AddressFromString("1.1.1.1")
+	srcString := "1.1.1.1"
+	dstString := "2.2.2.2"
+	sourceIP := util.AddressFromString(srcString)
 	sourcePort := 1234
-	destIP := util.AddressFromString("2.2.2.2")
+	destIP := util.AddressFromString(dstString)
 	destPort := 8080
 
 	const numPaths = 10
@@ -100,12 +103,11 @@ func TestPathProcessing(t *testing.T) {
 		statusCode = 200
 		latency    = time.Second
 	)
-
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	setupStatKeeper := func(rules []*config.ReplaceRule) *httpStatKeeper {
-		c := &config.Config{
-			MaxHTTPStatsBuffered: 1000,
-			HTTPReplaceRules:     rules,
-		}
+		c := cfg
+		c.HTTPReplaceRules = rules
 
 		tel, err := newTelemetry()
 		require.NoError(t, err)
@@ -191,7 +193,8 @@ func TestPathProcessing(t *testing.T) {
 
 func TestHTTPCorrectness(t *testing.T) {
 	t.Run("wrong path format", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -214,7 +217,9 @@ func TestHTTPCorrectness(t *testing.T) {
 	})
 
 	t.Run("invalid http verb", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -238,7 +243,9 @@ func TestHTTPCorrectness(t *testing.T) {
 	})
 
 	t.Run("invalid latency", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)

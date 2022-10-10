@@ -102,6 +102,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "yum_repos_dir"), suffixHostEtc(defaultYumReposDirSuffix), "DD_YUM_REPOS_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "attach_kprobes_with_kprobe_events_abi"), false, "DD_ATTACH_KPROBES_WITH_KPROBE_EVENTS_ABI")
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -138,7 +139,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// network_config namespace only
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
-	cfg.BindEnv(join(netNS, "enable_http_https_monitoring_via_etw"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_HTTPS_MONITORING_VIA_ETW")
+
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	httpRules := join(netNS, "http_replace_rules")
@@ -152,7 +153,7 @@ func InitSystemProbeConfig(cfg Config) {
 	})
 	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
-	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 40)
+	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})

@@ -32,7 +32,9 @@ func init() {
 // * 3.3.3.3 to 1.1.1.1 (PREROUTING Chain)
 func SetupDNAT(t *testing.T) {
 	linkName := "dummy" + strconv.Itoa(rand.Intn(98)+1)
+	state := nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
+		nettestutil.IptablesRestore(t, state)
 		teardownDNAT(t, linkName)
 	})
 
@@ -51,9 +53,6 @@ func teardownDNAT(t *testing.T, linkName string) {
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
 		fmt.Sprintf("ip link del %s", linkName),
-		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
-		"iptables -t nat -D PREROUTING -d 3.3.3.3 -j DNAT --to-destination 1.1.1.1",
-
 		// clear out the conntrack table
 		"conntrack -F",
 	}
@@ -79,6 +78,11 @@ func SetupDNAT6(t *testing.T) {
 		teardownDNAT6(t, ifName, linkName)
 	})
 
+	state := nettestutil.Ip6tablesSave(t)
+	t.Cleanup(func() {
+		nettestutil.Ip6tablesRestore(t, state)
+	})
+
 	cmds := []string{
 		fmt.Sprintf("ip link add %s type dummy", linkName),
 		fmt.Sprintf("ip address add fd00::1 dev %s", linkName),
@@ -95,8 +99,6 @@ func teardownDNAT6(t *testing.T, ifName string, linkName string) {
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
 		fmt.Sprintf("ip link del %s", linkName),
-		"ip6tables -t nat -D OUTPUT --dest fd00::2 -j DNAT --to-destination fd00::1",
-
 		"ip -6 r del fd00::2 dev " + ifName,
 
 		// clear out the conntrack table
@@ -167,21 +169,37 @@ func teardownVeth6Pair(t *testing.T, ns string) {
 }
 
 // SetupCrossNsDNAT sets up a network namespace, a veth pair, and a NAT
-// rule in the specified network namespace
+// rule in the specified network namespace. Redirecting port 80 to 8080
+// within the namespace.
 func SetupCrossNsDNAT(t *testing.T) (ns string) {
+	return setupCrossNsDNAT(t, 80, 8080)
+}
+
+// SetupCrossNsDNATWithPorts sets up a network namespace, a veth pair, and a NAT
+// rule in the specified network namespace. Redirecting `dport` to `redirPort`
+// within the namespace.
+func SetupCrossNsDNATWithPorts(t *testing.T, dport int, redirPort int) (ns string) {
+	return setupCrossNsDNAT(t, dport, redirPort)
+}
+
+func setupCrossNsDNAT(t *testing.T, dport int, redirPort int) (ns string) {
 	t.Cleanup(func() {
 		teardownCrossNsDNAT(t)
 	})
 	ns = SetupVethPair(t)
 
+	iptablesState := nettestutil.IptablesSave(t)
+	t.Cleanup(func() {
+		nettestutil.IptablesRestore(t, iptablesState)
+	})
 	cmds := []string{
 		//this is required to enable conntrack in the root net namespace
 		//conntrack won't be enabled unless there is at least one iptables
 		//rule that uses connection tracking
 		"iptables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
 
-		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080", ns),
-		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p udp --dport 80 -j REDIRECT --to-port 8080", ns),
+		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p tcp --dport %d -j REDIRECT --to-port %d", ns, dport, redirPort),
+		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p udp --dport %d -j REDIRECT --to-port %d", ns, dport, redirPort),
 	}
 	nettestutil.RunCommands(t, cmds, false)
 	return
@@ -190,8 +208,6 @@ func SetupCrossNsDNAT(t *testing.T) (ns string) {
 // teardownCrossNsDNAT cleans up the resources created by SetupCrossNsDNAT
 func teardownCrossNsDNAT(t *testing.T) {
 	cmds := []string{
-		"iptables -D INPUT 1",
-
 		"conntrack -F",
 	}
 	nettestutil.RunCommands(t, cmds, true)
@@ -206,6 +222,8 @@ func SetupCrossNsDNAT6(t *testing.T) (ns string) {
 	})
 	ns = SetupVeth6Pair(t)
 
+	state := nettestutil.Ip6tablesSave(t)
+	t.Cleanup(func() { nettestutil.Ip6tablesRestore(t, state) })
 	cmds := []string{
 		"ip6tables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
 		fmt.Sprintf("ip netns exec %s ip6tables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080", ns),
@@ -218,7 +236,6 @@ func SetupCrossNsDNAT6(t *testing.T) (ns string) {
 // TeardownCrossNsDNAT6 cleans up the resources created by SetupCrossNsDNAT6
 func teardownCrossNsDNAT6(t *testing.T) {
 	cmds := []string{
-		"ip6tables -D INPUT 1",
 		"conntrack -F",
 	}
 	nettestutil.RunCommands(t, cmds, true)

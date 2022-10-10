@@ -19,8 +19,9 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     http_transaction_t http;
     __builtin_memset(&http, 0, sizeof(http));
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    read_into_buffer((char *)http.request_fragment, buffer, len);
+    read_into_buffer(http.request_fragment, buffer, len);
     http.owned_by_src_port = http.tup.sport;
+    log_debug("https_process: htx=%llx sport=%d\n", &http, http.owned_by_src_port);
     http_process(&http, NULL, tags);
 }
 
@@ -82,7 +83,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
     ssl_sock_t ssl_sock = { 0 };
     ssl_sock.fd = socket_fd;
-    bpf_map_update_elem(&ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
 static __always_inline void init_ssl_sock_from_do_handshake(struct sock *skp) {
@@ -102,7 +103,7 @@ static __always_inline void init_ssl_sock_from_do_handshake(struct sock *skp) {
 
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
-    bpf_map_update_elem(&ssl_sock_by_ctx, &ssl_ctx , &ssl_sock, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx , &ssl_sock, BPF_ANY);
 }
 
 #endif

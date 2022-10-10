@@ -151,7 +151,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
-		entries, err := readDirPtr(path)
+		entries, err := ioutil.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -331,7 +331,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := readFilePtr(fpath)
+	yamlFile, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return conf, err
 	}
@@ -402,10 +402,13 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		return conf, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
 
-	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
+	// Interpolate env vars. Returns an error a variable wasn't substituted, ignore it.
 	e := configresolver.SubstituteTemplateEnvVars(&conf)
 	if e != nil {
-		log.Errorf("Failed to substitute template var %s", e)
+		// Ignore NoServiceError since service is always nil for integration configs from files.
+		if _, ok := e.(*configresolver.NoServiceError); !ok {
+			log.Errorf("Failed to substitute template var %s", e)
+		}
 	}
 
 	conf.Source = "file:" + fpath

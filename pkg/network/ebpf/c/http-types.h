@@ -75,8 +75,6 @@ typedef struct {
     // this is useful for detecting race conditions that result in a batch being overrriden
     // before it gets consumed from userspace
     __u64 idx;
-    // pos indicates the batch slot where the next http transaction should be written to
-    __u8 pos;
     // idx_to_flush is used to track which batches were flushed to userspace
     // * if idx_to_flush == idx, the current index is still being appended to;
     // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
@@ -95,6 +93,23 @@ typedef struct {
     void *ctx;
     void *buf;
 } ssl_read_args_t;
+
+typedef struct {
+    void *ctx;
+    void *buf;
+} ssl_write_args_t;
+
+typedef struct {
+    void *ctx;
+    void *buf;
+    size_t *size_out_param;
+} ssl_read_ex_args_t;
+
+typedef struct {
+    void *ctx;
+    void *buf;
+    size_t *size_out_param;
+} ssl_write_ex_args_t;
 
 typedef struct {
     conn_tuple_t tup;

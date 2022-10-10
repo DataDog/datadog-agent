@@ -2,20 +2,11 @@
 #define __SOCK_H
 
 #include "kconfig.h"
-
-/* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
- * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
- * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
- * dedicated inlined function. See example functions offset_* below.
- */
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
-                                      : "=r"(var))
+#include "defs.h"
 
 // source include/linux/socket.h
 #define __AF_INET   2
 #define __AF_INET6 10
-
-static const __u64 ENABLED = 1;
 
 static __always_inline bool dns_stats_enabled() {
     __u64 val = 0;
@@ -158,17 +149,17 @@ static __always_inline __u64 offset_socket_sk() {
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     void* skc_net = NULL;
     __u32 net_ns_inum = 0;
-    bpf_probe_read_kernel(&skc_net, sizeof(void*), ((char*)sk) + offset_netns());
-    bpf_probe_read_kernel(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
+    bpf_probe_read_kernel_with_telemetry(&skc_net, sizeof(void*), ((char*)sk) + offset_netns());
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), ((char*)skc_net) + offset_ino());
     return net_ns_inum;
 }
 
 static __always_inline __u16 read_sport(struct sock* sk) {
     __u16 sport = 0;
     // try skc_num, then inet_sport
-    bpf_probe_read_kernel(&sport, sizeof(sport), ((char*)sk) + offset_dport() + sizeof(sport));
+    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)sk) + offset_dport() + sizeof(sport));
     if (sport == 0) {
-        bpf_probe_read_kernel(&sport, sizeof(sport), ((char*)sk) + offset_sport());
+        bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)sk) + offset_sport());
         sport = bpf_ntohs(sport);
     }
     return sport;
@@ -176,7 +167,7 @@ static __always_inline __u16 read_sport(struct sock* sk) {
 
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     u16 family = 0;
-    bpf_probe_read_kernel(&family, sizeof(u16), ((char*)sk) + offset_family());
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(u16), ((char*)sk) + offset_family());
     return family == expected_family;
 }
 
@@ -196,10 +187,10 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
     if (check_family(skp, __AF_INET)) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
-            bpf_probe_read_kernel(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
+            bpf_probe_read_kernel_with_telemetry(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
         }
         if (t->daddr_l == 0) {
-            bpf_probe_read_kernel(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
+            bpf_probe_read_kernel_with_telemetry(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
         }
 
         if (!t->saddr_l || !t->daddr_l) {
@@ -212,12 +203,12 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
         }
 
         if (!(t->saddr_h || t->saddr_l)) {
-            bpf_probe_read_kernel(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-            bpf_probe_read_kernel(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
+            bpf_probe_read_kernel_with_telemetry(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
+            bpf_probe_read_kernel_with_telemetry(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
         }
         if (!(t->daddr_h || t->daddr_l)) {
-            bpf_probe_read_kernel(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-            bpf_probe_read_kernel(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+            bpf_probe_read_kernel_with_telemetry(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
+            bpf_probe_read_kernel_with_telemetry(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
         }
 
         // We can only pass 4 args to bpf_trace_printk
@@ -251,7 +242,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
         t->sport = read_sport(skp);
     }
     if (t->dport == 0) {
-        bpf_probe_read_kernel(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
+        bpf_probe_read_kernel_with_telemetry(&t->dport, sizeof(t->dport), ((char*)skp) + offset_dport());
         t->dport = bpf_ntohs(t->dport);
     }
 

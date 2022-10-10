@@ -1,6 +1,7 @@
 #ifndef __HTTP_BUFFER_H
 #define __HTTP_BUFFER_H
 
+#include <linux/err.h>
 #include "http-types.h"
 
 // This function reads a constant number of bytes into the fragment buffer of the http
@@ -12,17 +13,15 @@ static __always_inline void read_into_buffer(char *buffer, char *data, size_t da
     __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
 
     // we read HTTP_BUFFER_SIZE-1 bytes to ensure that the string is always null terminated
-    if (bpf_probe_read_user(buffer, HTTP_BUFFER_SIZE - 1, data) < 0) {
+    if (bpf_probe_read_user_with_telemetry(buffer, HTTP_BUFFER_SIZE - 1, data) < 0) {
 // note: arm64 bpf_probe_read_user() could page fault if the HTTP_BUFFER_SIZE overlap a page
-#if defined(__aarch64__)
-#pragma unroll
+#pragma unroll(HTTP_BUFFER_SIZE - 1)
         for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
             bpf_probe_read_user(&buffer[i], 1, &data[i]);
             if (buffer[i] == 0) {
                 return;
             }
         }
-#endif
     }
 }
 
@@ -32,13 +31,12 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     u64 offset = (u64)info->data_off;
 
 #define BLK_SIZE (16)
-    const u32 iter = HTTP_BUFFER_SIZE / BLK_SIZE;
     const u32 len = HTTP_BUFFER_SIZE < (skb->len - (u32)offset) ? (u32)offset + HTTP_BUFFER_SIZE : skb->len;
 
     unsigned i = 0;
 
-#pragma unroll
-    for (; i < iter; i++) {
+#pragma unroll(HTTP_BUFFER_SIZE / BLK_SIZE)
+    for (; i < (HTTP_BUFFER_SIZE / BLK_SIZE); i++) {
         if (offset + BLK_SIZE - 1 >= len) { break; }
 
         bpf_skb_load_bytes(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);

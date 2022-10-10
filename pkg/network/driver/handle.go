@@ -172,6 +172,7 @@ func (dh *RealDriverHandle) GetStatsForHandle() (map[string]map[string]int64, er
 			"http_txns_captured":       stats.Http_stats.Txns_captured,
 			"http_txns_skipped_max":    stats.Http_stats.Txns_skipped_max_exceeded,
 			"http_ndis_non_contiguous": stats.Http_stats.Ndis_buffer_non_contiguous,
+			"Flows_ignored_as_etw":     stats.Http_stats.Flows_ignored_as_etw,
 		}
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:
