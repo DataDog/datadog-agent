@@ -30,6 +30,7 @@ type FlowAggregator struct {
 	sender                       aggregator.Sender
 	stopChan                     chan struct{}
 	receivedFlowCount            *atomic.Uint64
+	hashCollisionFlowCount       *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 }
@@ -46,6 +47,7 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
 		stopChan:                     make(chan struct{}),
+		hashCollisionFlowCount:       atomic.NewUint64(0),
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
@@ -77,7 +79,10 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			hasHashCollision := agg.flowAcc.add(flow)
+			if hasHashCollision {
+				agg.hashCollisionFlowCount.Inc()
+			}
 		}
 	}
 }
@@ -136,6 +141,7 @@ func (agg *FlowAggregator) flush() int {
 	}
 
 	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.hashCollisionFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)

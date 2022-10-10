@@ -95,7 +95,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 	return flowsToFlush
 }
 
-func (f *flowAccumulator) add(flowToAdd *common.Flow) {
+func (f *flowAccumulator) add(flowToAdd *common.Flow) (hasHashCollision bool) {
 	log.Tracef("Add new flow: %+v", flowToAdd)
 
 	if !f.portRollupDisabled {
@@ -117,11 +117,14 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowContext(flowToAdd)
-		return
+		return false
 	}
 	if aggFlow.flow == nil {
 		aggFlow.flow = flowToAdd
 	} else {
+		if !common.IsEqualFlowContext(*aggFlow.flow, *flowToAdd) {
+			return true
+		}
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
@@ -130,6 +133,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
 	}
 	f.flows[aggHash] = aggFlow
+	return false
 }
 
 func (f *flowAccumulator) getFlowContextCount() int {
