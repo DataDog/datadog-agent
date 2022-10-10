@@ -673,12 +673,8 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	return newTestModuleWithProfile(t, macroDefs, ruleDefs, opts, withProfile)
-}
-
-func newTestModuleWithProfile(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts, cpuProfile bool) (*testModule, error) {
 	var proFile *os.File
-	if cpuProfile {
+	if withProfile {
 		var err error
 		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
 		if err != nil {
