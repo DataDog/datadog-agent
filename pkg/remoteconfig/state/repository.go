@@ -33,9 +33,10 @@ type RepositoryState struct {
 
 // ConfigState describes an applied config by the agent client.
 type ConfigState struct {
-	Product string
-	ID      string
-	Version uint64
+	Product     string
+	ID          string
+	Version     uint64
+	ApplyStatus ApplyStatus
 }
 
 // CachedFile describes a cached file stored by the agent client
@@ -253,6 +254,15 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	return changedProducts, nil
 }
 
+// UpdateApplyStatus updates the config's metadata to reflect its processing state
+// Can be used after a call to Update() in order to tell the repository which config was acked, which
+// wasn't and which errors occurred while processing.
+func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
+	if m, ok := r.metadata[cfgPath]; ok {
+		m.ApplyStatus = status
+	}
+}
+
 func (r *Repository) getConfigs(product string) map[string]interface{} {
 	configs, ok := r.configs[product]
 	if !ok {
@@ -360,9 +370,10 @@ func (ur updateResult) isEmpty() bool {
 
 func configStateFromMetadata(m Metadata) ConfigState {
 	return ConfigState{
-		Product: m.Product,
-		ID:      m.ID,
-		Version: m.Version,
+		Product:     m.Product,
+		ID:          m.ID,
+		Version:     m.Version,
+		ApplyStatus: m.ApplyStatus,
 	}
 }
 
