@@ -7,7 +7,6 @@ package portrollup
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -29,30 +28,24 @@ func Test_endpointPairPortRollupStore_Add(t *testing.T) {
 	store.Add(IP1, IP2, 3004, 443)
 
 	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	// should only contain first 3 destPort (2001, 2002, 2003), 2004 is not curStore since the threshold is already reached
-	assert.Equal(t, []uint16{2001, 2002, 2003}, store.curStore[buildStoreKey(IP1, IP2, isSourceEndpoint, 80)])
-	assert.Equal(t, []uint16{2001, 2002, 2003}, store.newStore[buildStoreKey(IP1, IP2, isSourceEndpoint, 80)])
 
-	for _, destPort := range []uint16{2001, 2002, 2003} {
-		assert.Equal(t, uint16(1), store.GetDestToSourcePortCount(IP1, IP2, destPort))
-		assert.Equal(t, []uint16{80}, store.curStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, destPort)])
+	expectedNewStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):       {2001, 2002, 2003},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 443): {3001, 3002, 3003},
 	}
-	// make sure no entry is created for port 2004 in `destPorts`
-	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 2004))
-	_, exist := store.curStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, 2004)]
-	assert.Equal(t, false, exist)
+	assert.Equal(t, expectedNewStore, store.curStore)
+	assert.Equal(t, expectedNewStore, store.newStore)
 
-	assert.Equal(t, uint16(3), store.GetDestToSourcePortCount(IP1, IP2, 443))
-	// should only contain first 3 destPort (3001, 3002, 3003), 3004 is not curStore since the threshold is already reached
-	assert.Equal(t, []uint16{3001, 3002, 3003}, store.curStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, 443)])
-	assert.Equal(t, []uint16{3001, 3002, 3003}, store.newStore[buildStoreKey(IP1, IP2, isDestinationEndpoint, 443)])
+	assert.Equal(t, IsEphemeralDestPort, store.IsEphemeral(IP1, IP2, 80, 2001))
+	assert.Equal(t, IsEphemeralSourcePort, store.IsEphemeral(IP1, IP2, 3001, 443))
+	assert.Equal(t, NoEphemeralPort, store.IsEphemeral(IP1, IP2, 3001, 2001))
 }
 
-func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
+func Test_endpointPairPortRollupStore_test_useNewStoreAsCurrentStore_and_AddToStore(t *testing.T) {
 	// Arrange
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(common.DefaultAggregatorPortRollupThreshold)
+	store := NewEndpointPairPortRollupStore(3)
 
 	// 1/ Add
 	store.Add(IP1, IP2, 80, 2000)
@@ -60,22 +53,63 @@ func Test_endpointPairPortRollupStore_useNewStoreAsCurrentStore(t *testing.T) {
 	store.Add(IP1, IP2, 80, 2002)
 	store.Add(IP1, IP2, 3000, 443)
 	store.Add(IP1, IP2, 3001, 443)
-	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
-	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
+	store.Add(IP1, IP2, 20001, 53)
+	store.Add(IP1, IP2, 20002, 53)
+	store.Add(IP1, IP2, 20003, 53)
+	expectedStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):       {2000, 2001, 2002},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 443): {3000, 3001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3000):     {443},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3001):     {443},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 53):  {20001, 20002, 20003},
+	}
+	assert.Equal(t, expectedStore, store.curStore)
+	assert.Equal(t, expectedStore, store.newStore)
 
 	// 2/ After UseNewStoreAsCurrentStore, thanks to the double write, we should be still able to query ports tracked previously
 	store.UseNewStoreAsCurrentStore()
-	store.Add(IP1, IP2, 3000, 22)
-	store.Add(IP1, IP2, 3001, 22)
+	store.Add(IP1, IP2, 4000, 22)
+	store.Add(IP1, IP2, 4001, 22)
+	store.Add(IP1, IP2, 80, 2010)
+	store.Add(IP1, IP2, 20010, 53)
 	assert.Equal(t, uint16(3), store.GetSourceToDestPortCount(IP1, IP2, 80))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 443))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
+	expectedCurStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):       {2000, 2001, 2002},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 443): {3000, 3001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3000):     {443},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 3001):     {443},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 22):  {4000, 4001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4000):     {22},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4001):     {22},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 53):  {20001, 20002, 20003},
+	}
+	expectedNewStore := map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):      {2010},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 22): {4000, 4001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4000):    {22},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4001):    {22},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 53): {20010},
+	}
+	assert.Equal(t, expectedCurStore, store.curStore)
+	assert.Equal(t, expectedNewStore, store.newStore)
 
 	// 3/ After a second UseNewStoreAsCurrentStore, the ports added in 1/ are not present anymore in the tracker, and only port added in 2/ are available
 	store.UseNewStoreAsCurrentStore()
-	assert.Equal(t, uint16(0), store.GetSourceToDestPortCount(IP1, IP2, 80))
+	assert.Equal(t, uint16(1), store.GetSourceToDestPortCount(IP1, IP2, 80))
 	assert.Equal(t, uint16(0), store.GetDestToSourcePortCount(IP1, IP2, 443))
 	assert.Equal(t, uint16(2), store.GetDestToSourcePortCount(IP1, IP2, 22))
+	expectedCurStore = map[string][]uint16{
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 80):      {2010},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 22): {4000, 4001},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4000):    {22},
+		buildStoreKey(IP1, IP2, isSourceEndpoint, 4001):    {22},
+		buildStoreKey(IP1, IP2, isDestinationEndpoint, 53): {20010},
+	}
+	expectedNewStore = map[string][]uint16{}
+	assert.Equal(t, expectedCurStore, store.curStore)
+	assert.Equal(t, expectedNewStore, store.newStore)
 }
 
 func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralSourcePort(t *testing.T) {
