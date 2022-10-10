@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Container CPU limit reported by `docker` and `container` checks on ECS was not defaulting to task limit when no CPU limit is set at container level
+    The container CPU limit that is reported by `docker` and `container` checks on ECS was not defaulting to the task limit when no CPU limit is set at container level.
