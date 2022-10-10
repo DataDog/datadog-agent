@@ -126,7 +126,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) (hasHashCollision bool) {
 	if aggFlow.flow == nil {
 		aggFlow.flow = flowToAdd
 	} else {
+		// use go routine for has collision detection to avoid blocking critical path
 		go f.detectHashCollision(*aggFlow.flow, *flowToAdd)
+
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
