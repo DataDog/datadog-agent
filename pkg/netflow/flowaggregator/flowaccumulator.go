@@ -127,7 +127,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) (hasHashCollision bool) {
 		aggFlow.flow = flowToAdd
 	} else {
 		// use go routine for has collision detection to avoid blocking critical path
-		go f.detectHashCollision(*aggFlow.flow, *flowToAdd)
+		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
 
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
@@ -147,9 +147,9 @@ func (f *flowAccumulator) getFlowContextCount() int {
 	return len(f.flows)
 }
 
-func (f *flowAccumulator) detectHashCollision(flowA common.Flow, flowB common.Flow) {
-	if !common.IsEqualFlowContext(flowA, flowB) {
-		log.Warnf("Hash collision for flows `%v` and `%v`", flowA, flowB)
+func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
+	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
+		log.Warnf("Hash collision for flows with hash `%s`: existingFlow=`%v` flowToAdd=`%v`", hash, existingFlow, flowToAdd)
 		f.hashCollisionFlowCount.Inc()
 	}
 }
