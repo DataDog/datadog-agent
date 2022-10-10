@@ -149,7 +149,7 @@ func (f *flowAccumulator) getFlowContextCount() int {
 
 func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
 	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
-		log.Warnf("Hash collision for flows with hash `%s`: existingFlow=`%v` flowToAdd=`%v`", hash, existingFlow, flowToAdd)
+		log.Warnf("Hash collision for flows with hash `%s`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
 		f.hashCollisionFlowCount.Inc()
 	}
 }
