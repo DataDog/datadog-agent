@@ -41,7 +41,7 @@ func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 		case "total_swap":
 			stats.Swap = &intVal
 		case "total_rss":
-			// Filter out aberant values
+			// Filter out aberrant values
 			if intVal < 1<<63 {
 				stats.RSS = &intVal
 			}
