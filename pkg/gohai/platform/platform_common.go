@@ -4,8 +4,6 @@ package platform
 type Platform struct {
 	// GoVersion is the golang version.
 	GoVersion string
-	// PythonVersion is the version of python in the current env (ie: returned by "python -V").
-	PythonVersion string
 	// GoOS is equal to "runtime.GOOS"
 	GoOS string
 	// GoArch is equal to "runtime.GOARCH"
