@@ -465,6 +465,53 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 	}
 }
 
+// Verify sorting result, and request ID overwrite
+func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
+	logCollection := &LambdaLogsCollector{
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		ExecutionContext: mockExecutionContext,
+	}
+
+	logMessages := []logMessage{
+		{
+			stringRecord: "hi, log 3", time: time.UnixMilli(12345678), objectRecord: platformObjectRecord{requestID: "3th ID"},
+		},
+		{
+			stringRecord: "hi, log 1", time: time.UnixMilli(123456), logType: logTypePlatformStart, objectRecord: platformObjectRecord{requestID: "2nd ID"},
+		},
+		{
+			stringRecord: "hi, log 2", time: time.UnixMilli(1234567),
+		},
+		{
+			stringRecord: "hi, log 0", time: time.UnixMilli(12345), objectRecord: platformObjectRecord{requestID: "1st ID"},
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	expectedRequestIDs := [4]string{"1st ID", "2nd ID", "myRequestID", "3th ID"}
+
+	for i := 0; i < 4; i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			assert.Equal(t, expectedRequestIDs[i], received.Lambda.RequestID)
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
+		}
+	}
+}
+
 func TestProcessLogMessageNoStringRecordPlatformLog(t *testing.T) {
 
 	logChannel := make(chan *config.ChannelMessage)
