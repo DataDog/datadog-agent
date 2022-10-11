@@ -141,6 +141,23 @@ func TestBuildContainerMetrics(t *testing.T) {
 				PID: &provider.ContainerPIDStats{},
 			},
 		},
+		{
+			name: "limit cpu count on parent",
+			cg: &cgroups.MockCgroup{
+				CPU: &cgroups.CPUStats{},
+				Parent: &cgroups.MockCgroup{
+					CPU: &cgroups.CPUStats{
+						CPUCount: pointer.UInt64Ptr(10),
+					},
+				},
+			},
+			want: &provider.ContainerStats{
+				CPU: &provider.ContainerCPUStats{
+					Limit: pointer.Float64Ptr(1000),
+				},
+				PID: &provider.ContainerPIDStats{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
