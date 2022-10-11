@@ -129,7 +129,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 			requestNotIncluded(t, stats, req)
 		}
 
-		included, err := isRequestIncluded(stats, fastReq)
+		included, err := isRequestIncludedOnce(stats, fastReq)
 		require.NoError(t, err)
 		foundFastReq = foundFastReq || included
 	}
@@ -460,7 +460,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 		time.Sleep(10 * time.Millisecond)
 		stats := monitor.GetHTTPStats()
 		for reqIndex, req := range requests {
-			included, err := isRequestIncluded(stats, req)
+			included, err := isRequestIncludedOnce(stats, req)
 			require.NoError(t, err)
 			requestsExist[reqIndex] = requestsExist[reqIndex] || included
 		}
@@ -539,7 +539,7 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 
 func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
-	included, err := isRequestIncluded(allStats, req)
+	included, err := isRequestIncludedOnce(allStats, req)
 	require.NoError(t, err)
 	if !included {
 		t.Errorf(
@@ -552,7 +552,8 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 }
 
 func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
-	included, _ := isRequestIncluded(allStats, req)
+	included, err := isRequestIncludedOnce(allStats, req)
+	require.NoError(t, err)
 	if included {
 		expectedStatus := testutil.StatusFromPath(req.URL.Path)
 		t.Errorf(
@@ -564,7 +565,7 @@ func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *netht
 	}
 }
 
-func isRequestIncluded(allStats map[Key]*RequestStats, req *nethttp.Request) (bool, error) {
+func isRequestIncludedOnce(allStats map[Key]*RequestStats, req *nethttp.Request) (bool, error) {
 	occurrences := countRequestOccurrences(allStats, req)
 
 	if occurrences == 1 {
