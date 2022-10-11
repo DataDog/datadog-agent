@@ -4,9 +4,6 @@
 package platform
 
 import (
-	"fmt"
-	"os/exec"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -29,7 +26,6 @@ func Get() (*Platform, []string, error) {
 
 	p := &Platform{}
 	p.GoVersion = utils.GetString(platformInfo, "goV")
-	p.PythonVersion = utils.GetString(platformInfo, "pythonV")
 	p.GoOS = utils.GetString(platformInfo, "GOOS")
 	p.GoArch = utils.GetString(platformInfo, "GOOARCH")
 	p.KernelName = utils.GetString(platformInfo, "kernel_name")
@@ -60,37 +56,8 @@ func getPlatformInfo() (platformInfo map[string]string, warnings []string, err e
 	}
 
 	platformInfo["goV"] = strings.Replace(runtime.Version(), "go", "", -1)
-	// If this errors, swallow the error.
-	// It will usually mean that Python is not on the PATH
-	// and we don't care about that.
-	pythonV, e := getPythonVersion(exec.Command)
-
-	// If there was no failure, add the python variables to the platformInfo
-	if e == nil {
-		platformInfo["pythonV"] = pythonV
-	} else {
-		warnings = append(warnings, fmt.Sprintf("could not collect python version: %s", e))
-	}
-
 	platformInfo["GOOS"] = runtime.GOOS
 	platformInfo["GOOARCH"] = runtime.GOARCH
 
 	return
-}
-
-func getPythonVersion(execCmd utils.ExecCmdFunc) (string, error) {
-	out, err := execCmd("python", "-V").CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	return parsePythonVersion(out)
-}
-
-func parsePythonVersion(cmdOut []byte) (string, error) {
-	version := fmt.Sprintf("%s", cmdOut)
-	values := regexp.MustCompile("Python (.*)\n").FindStringSubmatch(version)
-	if len(values) < 2 {
-		return "", fmt.Errorf("could not parse Python version from `python -V` output: %q", version)
-	}
-	return strings.Trim(values[1], "\r"), nil
 }
