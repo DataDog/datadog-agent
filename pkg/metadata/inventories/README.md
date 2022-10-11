@@ -120,9 +120,6 @@ The payload is a JSON dict with the following fields
   - `kernel_version` - **string**:  the kernel version (Unix only, empty string on Windows).
   - `os` - **string**: the OS name description (ex: "GNU/Linux", "Windows Server 2022 Datacenter", ...).
   - `os_version` - **string**: the OS version (ex: "debian bookworm/sid", ...).
-  - `python_version` - **string**: The Python version from the agent environment. `python -V` is used in `Gohai` for
-    this. Unless the Agent environment has been modified this is the Python version from the OS not from the Agent. This
-    is a relica from Agent V5 and is not useful for Agent V6 and V7 who ship their own Python.
   - `memory_total_kb` - **int**: the total memory size for the host in KiB.
   - `memory_swap_total_kb` - **int**: the `swap` memory size in KiB (Unix only).
   - `ip_address` - **string**: the IP address for the host.
@@ -250,7 +247,6 @@ Here an example of an inventory payload:
         "kernel_version": "#1 SMP PREEMPT Debian 5.16.18-1 (2022-03-29)",
         "os": "GNU/Linux",
         "os_version": "debian bookworm/sid",
-        "python_version": "3.10.4",
         "memory_swap_total_kb": 10237948,
         "memory_total_kb": 12227556,
         "ip_address": "192.168.24.138",
