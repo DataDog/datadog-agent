@@ -136,6 +136,7 @@ func (agg *FlowAggregator) flush() int {
 	}
 
 	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
