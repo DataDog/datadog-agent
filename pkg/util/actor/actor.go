@@ -4,10 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package actor provides basic support for building actors for use in the Agent.
-//
-// Methods on this component are not re-entrant.  Components using this one
-// should _either_ call HookLifecycle once in their constructor or call Start
-// and Stop from their lifecycle hook.
 package actor
 
 import (
@@ -37,8 +33,19 @@ type Actor struct {
 }
 
 // New creates a new actor.
-func New() *Actor {
-	return &Actor{}
+func New(lc fx.Lifecycle, runFunc RunFunc) *Actor {
+	a := &Actor{}
+
+	// Connect this actor to the given fx.Lifecycle, starting and stopping it with
+	// the lifecycle.
+	lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			a.start(runFunc)
+			return nil
+		},
+		OnStop: a.stop,
+	})
+	return a
 }
 
 // RunFunc defines the function implementing the actor's event loop.  It should
@@ -49,22 +56,9 @@ func New() *Actor {
 // its main loop frequently.
 type RunFunc func(ctx context.Context, alive <-chan struct{})
 
-// HookLifecycle connects this actor to the given fx.Lifecycle, starting and
-// stopping it with the lifecycle.  Use this method _or_ the Start and Stop methods,
-// but not both.
-func (a *Actor) HookLifecycle(lc fx.Lifecycle, runFunc RunFunc) {
-	lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
-			a.Start(runFunc)
-			return nil
-		},
-		OnStop: a.Stop,
-	})
-}
-
-// Start starts run in a goroutine, setting up to stop it by cancelling the context
+// start starts run in a goroutine, setting up to stop it by cancelling the context
 // it receives.
-func (a *Actor) Start(runFunc RunFunc) {
+func (a *Actor) start(runFunc RunFunc) {
 	if a.started {
 		panic("Goroutine has already been started")
 	}
@@ -77,10 +71,10 @@ func (a *Actor) Start(runFunc RunFunc) {
 	go a.run(ctx, runFunc)
 }
 
-// Stop stops the goroutine, waiting until it is complete, or the given context
+// stop stops the goroutine, waiting until it is complete, or the given context
 // is cancelled, before returning.  Returns the error from context if it is
 // cancelled.
-func (a *Actor) Stop(ctx context.Context) error {
+func (a *Actor) stop(ctx context.Context) error {
 	if !a.started {
 		panic("Goroutine has not been started")
 	}

@@ -9,32 +9,39 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"go.uber.org/fx"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestWithoutComponents(t *testing.T) {
-	actor := Actor{}
-	ch := make(chan int)
-
-	run := func(ctx context.Context, alive <-chan struct{}) {
-		for {
-			select {
-			case <-alive:
-			case v := <-ch:
-				fmt.Printf("GOT: %d\n", v)
-			case <-ctx.Done():
-				fmt.Println("Stopping")
-				return
+func Test(t *testing.T) {
+	input := make(chan int)
+	output := make(chan string, 2)
+	fxutil.Test(t, fx.Options(
+		fx.Invoke(func(lc fx.Lifecycle) {
+			run := func(ctx context.Context, alive <-chan struct{}) {
+				for {
+					select {
+					case <-alive:
+					case v := <-input:
+						output <- fmt.Sprintf("GOT %d", v)
+					case <-ctx.Done():
+						close(output)
+						return
+					}
+				}
 			}
-		}
-	}
+			New(lc, run)
+		}),
+	), func() {
+		input <- 1
+		input <- 2
+	})
 
-	actor.Start(run)
-	ch <- 1
-	ch <- 2
-	actor.Stop(context.Background())
-
-	// Output:
-	// GOT: 1
-	// GOT: 2
-	// Stopping
+	require.Equal(t, <-output, "GOT 1")
+	require.Equal(t, <-output, "GOT 2")
+	require.Equal(t, <-output, "")
 }

@@ -10,20 +10,28 @@ Use it like this:
 
 ```go
 type listener struct {
+    // events are the things to which this component reacts
+    events chan event
+
+    // actor encapsulates this agent's "run loop"
     actor Actor
 }
 
-func newTestComp(lc fx.Lifecycle) (*listener, health.Registration) {
-    c := &listener{}
-    c.actor.HookLifecycle(lc, c.run) // hook the actor into the Fx lifecycle
-    return c, reg
+func newTestComp(lc fx.Lifecycle) (*listener) {
+    c := &listener{
+        events: ...,
+        actor: actor.New(lc, c.run),
+    }
+    return c
 }
 
 func (c *listener) run(ctx context.Context, alive <-chan struct{}) {
     for {					// the main loop
         select {
-        case <-alive: 		// consuming the message indicates the loop is healthy
-        case <-ctx.Done(): 	// actor stops when the context is complete
+        case <-c.events:
+            ...             // handle the event
+        case <-alive: 		// consuming an alive message indicates the loop is healthy
+        case <-ctx.Done(): 	// actor should stop when ctx is complete
             return
         }
     }
