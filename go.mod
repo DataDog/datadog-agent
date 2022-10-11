@@ -54,11 +54,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v0.8.2
 	github.com/DataDog/ebpf-manager v0.0.0-20221003133413-0e997fad91c4
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1
-	github.com/DataDog/nikos v1.8.0
+	github.com/DataDog/nikos v1.8.1-0.20221011202613-e8a24e7934fe
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
@@ -391,19 +391,17 @@ require (
 	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	go.uber.org/dig v1.15.0 // indirect
 	go.uber.org/fx v1.18.2
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
-	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
@@ -414,6 +412,25 @@ require (
 )
 
 require golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
+
+require (
+	github.com/go-openapi/spec v0.20.3 // indirect
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
+	github.com/knqyf263/go-rpmdb v0.0.0-20220830120628-c11b1c45080a // indirect
+	github.com/paulcacheux/did-not-finish v0.0.0-20221011202253-0fb2171cc616 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20220927061507-ef77025ab5aa // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
+	lukechampine.com/uint128 v1.2.0 // indirect
+	modernc.org/cc/v3 v3.40.0 // indirect
+	modernc.org/ccgo/v3 v3.16.9 // indirect
+	modernc.org/libc v1.20.3 // indirect
+	modernc.org/mathutil v1.5.0 // indirect
+	modernc.org/memory v1.4.0 // indirect
+	modernc.org/opt v0.1.3 // indirect
+	modernc.org/sqlite v1.19.1 // indirect
+	modernc.org/strutil v1.1.3 // indirect
+	modernc.org/token v1.0.1 // indirect
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
