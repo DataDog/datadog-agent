@@ -137,6 +137,7 @@
   <ItemGroup>
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="YamlAssertions.UnitTests.cs" />
     <Compile Include="YamlAssertions.cs" />
     <Compile Include="YamlAssertionsExtensions.cs" />
     <Compile Include="YamlExtensions.cs" />
