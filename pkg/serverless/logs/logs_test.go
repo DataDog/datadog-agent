@@ -484,7 +484,7 @@ func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
 
 	logMessages := []logMessage{
 		{
-			stringRecord: "hi, log 3", time: time.UnixMilli(12345678), objectRecord: platformObjectRecord{requestID: "4th ID"},
+			stringRecord: "hi, log 3", time: time.UnixMilli(12345678), objectRecord: platformObjectRecord{requestID: "3th ID"},
 		},
 		{
 			stringRecord: "hi, log 1", time: time.UnixMilli(123456), logType: logTypePlatformStart, objectRecord: platformObjectRecord{requestID: "2nd ID"},
@@ -498,7 +498,7 @@ func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
 	}
 	go processLogMessages(logCollection, logMessages)
 
-	expectedRequestIDs := [4]string{"1st ID", "2nd ID", "myRequestID", "4th ID"}
+	expectedRequestIDs := [4]string{"1st ID", "2nd ID", "myRequestID", "3th ID"}
 
 	for i := 0; i < 4; i++ {
 		select {

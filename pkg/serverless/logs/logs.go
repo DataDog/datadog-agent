@@ -268,7 +268,7 @@ func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	// sort messages by time (all from the same time zone) in ascending order.
 	sort.Slice(messages, func(i, j int) bool {
-		return messages[i].time.String() < messages[j].time.String()
+		return messages[i].time.Before(messages[j].time)
 	})
 	for _, message := range messages {
 		processMessage(&message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.Demux, c.HandleRuntimeDone)
@@ -280,7 +280,7 @@ func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 				continue
 			}
 			ecs := c.ExecutionContext.GetCurrentState()
-			if len(message.objectRecord.requestID) > 0 {
+			if message.objectRecord.requestID != "" {
 				if message.objectRecord.requestID != ecs.LastRequestID {
 					log.Warnf("Mismatched requestID between %s and %s", message.objectRecord.requestID, ecs.LastRequestID)
 				}
