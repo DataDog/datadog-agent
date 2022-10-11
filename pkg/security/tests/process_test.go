@@ -475,6 +475,126 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
+	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		// size overflow
+		var long string
+		for i := 0; i != 1024; i++ {
+			long += "a"
+		}
+		envs = append(envs, long)
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			return cmd.Run()
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execEnvp, err := event.GetFieldValue("exec.envp")
+			if err != nil {
+				t.Errorf("not able to get exec.envp")
+			}
+
+			envp := (execEnvp.([]string))
+			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 255, len(envp[1]), "wrong env length")
+			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
+
+			// truncated is reported if a single environment variable is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.envs_truncated")
+			if err != nil {
+				t.Errorf("not able to get envs truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("envs not truncated: %s", execEnvp.([]string))
+			}
+
+			assert.Equal(t, envs[0], envp[0], "expected first env variable")
+		}))
+	})
+
+	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
+
+		// number of envs overflow
+		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		for i := 0; i != nEnvs; i++ {
+			envs = append(envs, eval.RandString(50))
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			return cmd.Run()
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execEnvp, err := event.GetFieldValue("exec.envp")
+			if err != nil {
+				t.Errorf("not able to get exec.envp")
+			}
+
+			envp := (execEnvp.([]string))
+			assert.Equal(t, 57, len(envp), "incorrect number of envs: %s", envp)
+
+			for i := 0; i != 57; i++ {
+				assert.Equal(t, envs[i], envp[i], "expected env not found")
+			}
+
+			// truncated is reported if a single environment variable is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.envs_truncated")
+			if err != nil {
+				t.Errorf("not able to get envs truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("envs not truncated: %s", execEnvp.([]string))
+			}
+		}))
+	})
+
+	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
+
+		// number of envs overflow
+		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		for i := 0; i != nEnvs; i++ {
+			envs = append(envs, eval.RandString(500))
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("ls", args, envs)
+			return cmd.Run()
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execEnvp, err := event.GetFieldValue("exec.envp")
+			if err != nil {
+				t.Errorf("not able to get exec.envp")
+			}
+
+			envp := (execEnvp.([]string))
+			assert.Equal(t, 68, len(envp), "incorrect number of envs: %s", envp)
+
+			for i := 0; i != 68; i++ {
+				expected := envs[i]
+				if len(expected) > model.MaxArgEnvSize {
+					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+				}
+				assert.Equal(t, expected, envp[i], "expected env not found")
+			}
+
+			// truncated is reported if a single environment variable is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.envs_truncated")
+			if err != nil {
+				t.Errorf("not able to get envs truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("envs not truncated: %s", execEnvp.([]string))
+			}
+		}))
+	})
+
 	t.Run("tty", func(t *testing.T) {
 		testFile, _, err := test.Path("test-process-tty")
 		if err != nil {
