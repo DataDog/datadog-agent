@@ -22,13 +22,13 @@ import (
 var noTrace bool
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	diagnoseMetadataAvailabilityCommand := &cobra.Command{
 		Use:   "metadata-availability",
 		Short: "Check availability of cloud provider and container metadata endpoints",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := configAndLogSetup(globalArgs); err != nil {
+			if err := configAndLogSetup(globalParams); err != nil {
 				return err
 			}
 
@@ -41,7 +41,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "Check connectivity between your system and Datadog endpoints",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := configAndLogSetup(globalArgs); err != nil {
+			if err := configAndLogSetup(globalParams); err != nil {
 				return err
 			}
 
@@ -62,9 +62,9 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func configAndLogSetup(globalArgs *command.GlobalArgs) error {
+func configAndLogSetup(globalParams *command.GlobalParams) error {
 	// Global config setup
-	err := common.SetupConfig(globalArgs.ConfFilePath)
+	err := common.SetupConfig(globalParams.ConfFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

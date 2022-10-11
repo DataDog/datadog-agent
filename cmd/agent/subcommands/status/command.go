@@ -58,7 +58,7 @@ func redactError(unscrubbedError error) error {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:   "status [component [name]]",
 		Short: "Print the current status",
@@ -67,7 +67,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 			// Prevent autoconfig to run when running status as it logs before logger is setup
 			// Cannot rely on config.Override as env detection is run before overrides are set
 			os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
+			err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}
@@ -78,7 +78,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 				return err
 			}
 
-			_ = common.SetupSystemProbeConfig(globalArgs.SysProbeConfFilePath)
+			_ = common.SetupSystemProbeConfig(globalParams.SysProbeConfFilePath)
 
 			return redactError(requestStatus())
 		},
@@ -92,7 +92,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 		Short: "Print the component status",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := common.SetupConfigWithoutSecrets(globalArgs.ConfFilePath, "")
+			err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}

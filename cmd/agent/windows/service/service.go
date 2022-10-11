@@ -37,7 +37,7 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
-	if err := runcmd.StartAgent(&command.GlobalArgs{}); err != nil {
+	if err := runcmd.StartAgent(&command.GlobalParams{}); err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())
 		errno = 1 // indicates non-successful return from handler.

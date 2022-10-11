@@ -70,7 +70,7 @@ var (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	integrationCmd := &cobra.Command{
 		Use:   "integration [command]",
 		Short: "Datadog integration manager",
@@ -92,7 +92,7 @@ You must specify a version of the package to install using the syntax: <package>
  - <package> of the form datadog-<integration-name>
  - <version> of the form x.y.z`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return install(globalArgs, cmd, args)
+			return install(globalParams, cmd, args)
 		},
 	}
 	installCmd.Flags().BoolVarP(
@@ -108,7 +108,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Short: "Remove Datadog integration core/extra packages",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return remove(globalArgs, cmd, args)
+			return remove(globalParams, cmd, args)
 		},
 	}
 	integrationCmd.AddCommand(removeCmd)
@@ -118,7 +118,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Short: "Print the list of installed packages in the agent's python environment",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return list(globalArgs, cmd, args)
+			return list(globalParams, cmd, args)
 		},
 	}
 	integrationCmd.AddCommand(freezeCmd)
@@ -129,7 +129,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Args:  cobra.ExactArgs(1),
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return show(globalArgs, cmd, args)
+			return show(globalParams, cmd, args)
 		},
 	}
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
@@ -138,7 +138,7 @@ You must specify a version of the package to install using the syntax: <package>
 	return []*cobra.Command{integrationCmd}
 }
 
-func loadPythonInfo(globalArgs *command.GlobalArgs) error {
+func loadPythonInfo(globalParams *command.GlobalParams) error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -155,7 +155,7 @@ func loadPythonInfo(globalArgs *command.GlobalArgs) error {
 		rootDir = parentDir
 	}
 
-	if err := common.SetupConfigIfExist(globalArgs.ConfFilePath); err != nil {
+	if err := common.SetupConfigIfExist(globalParams.ConfFilePath); err != nil {
 		fmt.Printf("Cannot setup config, exiting: %v\n", err)
 		return err
 	}
@@ -297,7 +297,7 @@ func validateArgs(args []string, local bool) error {
 	return nil
 }
 
-func pip(globalArgs *command.GlobalArgs, args []string, stdout io.Writer, stderr io.Writer) error {
+func pip(globalParams *command.GlobalParams, args []string, stdout io.Writer, stderr io.Writer) error {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return err
@@ -349,8 +349,8 @@ func pip(globalArgs *command.GlobalArgs, args []string, stdout io.Writer, stderr
 	return nil
 }
 
-func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func install(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(globalParams); err != nil {
 		return err
 	}
 
@@ -396,7 +396,7 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 		integration = normalizePackageName(strings.TrimSpace(integration))
 
 		// Install the wheel
-		if err := pip(globalArgs, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+		if err := pip(globalParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 		}
 
@@ -473,7 +473,7 @@ func install(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) 
 	}
 
 	// Install the wheel
-	if err := pip(globalArgs, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+	if err := pip(globalParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
@@ -836,8 +836,8 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	return nil
 }
 
-func remove(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func remove(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(globalParams); err != nil {
 		return err
 	}
 
@@ -857,11 +857,11 @@ func remove(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) e
 	pipArgs = append(pipArgs, args...)
 	pipArgs = append(pipArgs, "-y")
 
-	return pip(globalArgs, pipArgs, os.Stdout, os.Stderr)
+	return pip(globalParams, pipArgs, os.Stdout, os.Stderr)
 }
 
-func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func list(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(globalParams); err != nil {
 		return err
 	}
 
@@ -871,7 +871,7 @@ func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) err
 	}
 
 	pipStdo := bytes.NewBuffer(nil)
-	err := pip(globalArgs, pipArgs, io.Writer(pipStdo), os.Stderr)
+	err := pip(globalParams, pipArgs, io.Writer(pipStdo), os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -887,8 +887,8 @@ func list(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) err
 	return nil
 }
 
-func show(globalArgs *command.GlobalArgs, cmd *cobra.Command, args []string) error {
-	if err := loadPythonInfo(globalArgs); err != nil {
+func show(globalParams *command.GlobalParams, cmd *cobra.Command, args []string) error {
+	if err := loadPythonInfo(globalParams); err != nil {
 		return err
 	}
 

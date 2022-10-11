@@ -17,7 +17,7 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	force := false
 
 	importCmd := &cobra.Command{
@@ -29,7 +29,7 @@ func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
 				return fmt.Errorf("please provide all the required arguments")
 			}
 
-			if globalArgs.ConfFilePath != "" {
+			if globalParams.ConfFilePath != "" {
 				fmt.Fprintf(os.Stderr, "Please note configdir option has no effect\n")
 			}
 			oldConfigDir := args[0]
