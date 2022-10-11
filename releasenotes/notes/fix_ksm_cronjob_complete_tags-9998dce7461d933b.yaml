@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix missing tags on the ``kubernetes_state.cronjob.complete`` service check
+    Fix missing tags on the ``kubernetes_state.cronjob.complete`` service check.
