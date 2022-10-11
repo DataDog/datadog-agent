@@ -84,7 +84,7 @@ kitchen_test_security_agent_amazonlinux_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
+        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
 
 kitchen_stress_security_agent:
   extends:

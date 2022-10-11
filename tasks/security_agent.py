@@ -35,7 +35,7 @@ from .utils import (
 )
 
 BIN_DIR = os.path.join(".", "bin")
-BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
+BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
@@ -501,11 +501,11 @@ def kitchen_functional_tests(
 def docker_functional_tests(
     ctx,
     verbose=False,
+    race=False,
     go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
-    static=False,
     bundle_ebpf=True,
     skip_linters=False,
     kernel_release=None,
@@ -517,25 +517,30 @@ def docker_functional_tests(
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
-        static=static,
+        static=True,
         skip_linters=skip_linters,
+        race=race,
         kernel_release=kernel_release,
     )
 
-    dockerfile = """
-FROM debian:bullseye
+    add_arch_line = ""
+    if arch == "x86":
+        add_arch_line = "RUN dpkg --add-architecture i386"
+
+    dockerfile = f"""
+FROM ubuntu:22.04
 
 ENV DOCKER_DD_AGENT=yes
 
-RUN dpkg --add-architecture i386
+{add_arch_line}
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
+RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"

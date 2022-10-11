@@ -49,8 +49,16 @@ monitoring and performance data.`,
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
-	// NoColor is written directly to the github.com/fatih/color global
-	agentCmd.PersistentFlags().BoolVarP(&color.NoColor, "no-color", "n", false, "disable color output")
+	// github.com/fatih/color sets its global color.NoColor to a default value based on
+	// whether the process is running in a tty.  So, we only want to override that when
+	// the value is true.
+	var noColorFlag bool
+	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
+		if noColorFlag {
+			color.NoColor = true
+		}
+	}
 
 	for _, sf := range subcommandFactories {
 		subcommands := sf(&globalParams)

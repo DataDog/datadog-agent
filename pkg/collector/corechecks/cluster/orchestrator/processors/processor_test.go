@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Item struct {
@@ -217,4 +219,43 @@ func TestChunkOrchestratorMetadataBySizeAndWeight(t *testing.T) {
 			assert.Equal(t, tc.expectedChunks, chunker.collectorOrchestratorList)
 		})
 	}
+}
+
+func TestSortedMarshal(t *testing.T) {
+	p := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-pod",
+			Annotations: map[string]string{
+				"b-annotation":   "test",
+				"ab-annotation":  "test",
+				"a-annotation":   "test",
+				"ac-annotation":  "test",
+				"ba-annotation":  "test",
+				"1ab-annotation": "test",
+			},
+		},
+	}
+	json, err := json.Marshal(p)
+	assert.NoError(t, err)
+
+	expectedJson := `{
+						"metadata":{
+							"name":"test-pod",
+							"creationTimestamp":null,
+							"annotations":{
+								"1ab-annotation":"test",
+								"a-annotation":"test",
+								"ab-annotation":"test",
+								"ac-annotation":"test",
+								"b-annotation":"test",
+								"ba-annotation":"test"
+							}
+						},
+						"spec":{
+							"containers":null
+						},
+						"status":{}
+					}`
+	actualJson := string(json)
+	assert.JSONEq(t, expectedJson, actualJson)
 }

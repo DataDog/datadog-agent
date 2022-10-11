@@ -47,12 +47,16 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 
 	var instances []resolvedInstance
 	for _, mp := range matchedProcesses {
-		flagValues := parseProcessCmdLine(mp.Cmdline)
+		name := mp.Name()
+		exe := mp.Exe()
+		cmdLine := mp.CmdlineSlice()
+		flagValues := parseProcessCmdLine(cmdLine)
+
 		instance := eval.NewInstance(
 			eval.VarMap{
-				compliance.ProcessFieldName:    mp.Name,
-				compliance.ProcessFieldExe:     mp.Exe,
-				compliance.ProcessFieldCmdLine: mp.Cmdline,
+				compliance.ProcessFieldName:    name,
+				compliance.ProcessFieldExe:     exe,
+				compliance.ProcessFieldCmdLine: cmdLine,
 				compliance.ProcessFieldFlags:   flagValues,
 			},
 			eval.FunctionMap{
@@ -60,13 +64,13 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 				compliance.ProcessFuncHasFlag: processHasFlag(flagValues),
 			},
 			eval.RegoInputMap{
-				"name":    mp.Name,
-				"exe":     mp.Exe,
-				"cmdLine": mp.Cmdline,
+				"name":    name,
+				"exe":     exe,
+				"cmdLine": cmdLine,
 				"flags":   flagValues,
 			},
 		)
-		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
+		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid())), "process"))
 	}
 
 	if len(instances) == 0 && rego {
