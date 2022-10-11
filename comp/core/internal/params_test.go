@@ -53,26 +53,6 @@ func TestLogForOneShot_override(t *testing.T) {
 	require.Equal(t, false, params.LogFormatJSONFn(g))
 }
 
-func TestLogForDaemon_android(t *testing.T) {
-	if runtime.GOOS != "android" {
-		t.Skip()
-	}
-	params := BundleParams{}.LogForDaemon("TEST", "unused", "unused")
-	g := &getter{
-		strs: map[string]string{
-			"log_level": "trace",
-		},
-	}
-
-	require.Equal(t, "TEST", params.LoggerName)
-	require.Equal(t, "trace", params.LogLevelFn(g))
-	require.Equal(t, "", params.LogFileFn(g))
-	require.Equal(t, "", params.LogSyslogURIFn(g))
-	require.Equal(t, false, params.LogSyslogRFCFn(g))
-	require.Equal(t, true, params.LogToConsoleFn(g))
-	require.Equal(t, false, params.LogFormatJSONFn(g))
-}
-
 func TestLogForDaemon_windows(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip()
@@ -182,4 +162,11 @@ func TestLogForDaemon_linux(t *testing.T) {
 		require.Equal(t, false, params.LogToConsoleFn(g))
 		require.Equal(t, true, params.LogFormatJSONFn(g))
 	})
+}
+
+func TestLogToFile(t *testing.T) {
+	params := BundleParams{}.LogForOneShot("TEST", "trace", true).LogToFile("/some/file")
+	g := &getter{}
+
+	require.Equal(t, "/some/file", params.LogFileFn(g))
 }
