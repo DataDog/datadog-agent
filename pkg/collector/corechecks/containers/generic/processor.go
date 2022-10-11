@@ -160,10 +160,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Gauge, "container.memory.kernel", containerStats.Memory.KernelMemory, tags)
 		p.sendMetric(sender.Gauge, "container.memory.limit", containerStats.Memory.Limit, tags)
 		p.sendMetric(sender.Gauge, "container.memory.soft_limit", containerStats.Memory.Softlimit, tags)
-		// Filter out aberant values
-		if *containerStats.Memory.RSS < 1<<63 {
-			p.sendMetric(sender.Gauge, "container.memory.rss", containerStats.Memory.RSS, tags)
-		}
+		p.sendMetric(sender.Gauge, "container.memory.rss", containerStats.Memory.RSS, tags)
 		p.sendMetric(sender.Gauge, "container.memory.cache", containerStats.Memory.Cache, tags)
 		p.sendMetric(sender.Gauge, "container.memory.swap", containerStats.Memory.Swap, tags)
 		p.sendMetric(sender.Gauge, "container.memory.oom_events", containerStats.Memory.OOMEvents, tags)
