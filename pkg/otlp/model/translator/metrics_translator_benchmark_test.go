@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -70,7 +69,7 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 		dpsInt := met.Gauge().DataPoints()
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetTimestamp(seconds(0))
-		dpInt.SetIntVal(1)
+		dpInt.SetIntValue(1)
 	}
 
 	return md
@@ -111,14 +110,12 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 		for i := 0; i < b; i++ {
 			buckets[i] = 10
 		}
-		bucketsSlice := pcommon.NewUInt64Slice()
-		bucketsSlice.FromRaw(buckets)
 
 		point.Negative().SetOffset(2)
-		point.Negative().SetBucketCounts(bucketsSlice)
+		point.Negative().BucketCounts().FromRaw(buckets)
 
 		point.Positive().SetOffset(3)
-		point.Positive().SetBucketCounts(bucketsSlice)
+		point.Positive().BucketCounts().FromRaw(buckets)
 
 		point.SetTimestamp(seconds(0))
 	}
@@ -151,7 +148,7 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 		dpsDouble := met.Sum().DataPoints()
 		dpDouble := dpsDouble.AppendEmpty()
 		dpDouble.SetTimestamp(seconds(0))
-		dpDouble.SetDoubleVal(math.E)
+		dpDouble.SetDoubleValue(math.E)
 	}
 
 	return md

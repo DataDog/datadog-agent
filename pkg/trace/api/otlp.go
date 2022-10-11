@@ -482,9 +482,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
-			setMetricOTLP(span, k, v.DoubleVal())
+			setMetricOTLP(span, k, v.Double())
 		case pcommon.ValueTypeInt:
-			setMetricOTLP(span, k, float64(v.IntVal()))
+			setMetricOTLP(span, k, float64(v.Int()))
 		default:
 			setMetaOTLP(span, k, v.AsString())
 		}
@@ -498,8 +498,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
-	if in.TraceStateStruct().AsRaw() != "" {
-		setMetaOTLP(span, "w3c.tracestate", in.TraceStateStruct().AsRaw())
+	if in.TraceState().AsRaw() != "" {
+		setMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
 	if lib.Name() != "" {
 		setMetaOTLP(span, semconv.OtelLibraryName, lib.Name())

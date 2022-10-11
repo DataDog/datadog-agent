@@ -572,6 +572,34 @@ int test_wait_signal(int argc, char** argv) {
     return sigwait(&set, sigptr);
 }
 
+void *thread_exec(void *arg) {
+    char **argv = (char **) arg;
+    if (argv == NULL || argv[0] == NULL) {
+        return NULL;
+    }
+
+    char *path_cpy = strdup(argv[0]);
+    char *progname = basename(argv[0]);
+    argv[0] = progname;
+
+    execv(path_cpy, argv);
+    return NULL;
+}
+
+int test_exec_in_pthread(int argc, char **argv) {
+    if (argc <= 1) {
+        return EXIT_FAILURE;
+    }
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_exec, &argv[1]) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -633,6 +661,8 @@ int main(int argc, char **argv) {
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
             exit_code = test_unlink(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "exec-in-pthread") == 0) {
+            exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;

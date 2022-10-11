@@ -460,7 +460,7 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 			return nil, err
 		}
 
-		if err := checkFindingStatus(&finding); err != nil {
+		if err := finding.normalizeStatus(); err != nil {
 			return nil, err
 		}
 
@@ -470,13 +470,23 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 	return res, nil
 }
 
-func checkFindingStatus(finding *regoFinding) error {
-	switch finding.Status {
-	case "passed", "failing", "error":
-		return nil
-	default:
+var statusMapping = map[string]string{
+	"passed":  "passed",
+	"pass":    "passed",
+	"failing": "failing",
+	"fail":    "failing",
+	"error":   "error",
+	"err":     "error",
+}
+
+func (finding *regoFinding) normalizeStatus() error {
+	mapped, ok := statusMapping[finding.Status]
+	if !ok {
 		return fmt.Errorf("unknown finding status: %s", finding.Status)
 	}
+
+	finding.Status = mapped
+	return nil
 }
 
 func checkFindingRequiredFields(metadata *mapstructure.Metadata) error {

@@ -148,7 +148,8 @@ func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, active
 }
 
 type targetsCustom struct {
-	OpaqueBackendState []byte `json:"opaque_backend_state"`
+	OpaqueBackendState   []byte `json:"opaque_backend_state"`
+	AgentRefreshInterval int64  `json:"agent_refresh_interval"`
 }
 
 func parseTargetsCustom(rawTargetsCustom []byte) (targetsCustom, error) {

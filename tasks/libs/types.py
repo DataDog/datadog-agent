@@ -38,9 +38,17 @@ class Test:
         return (self.name, self.package)
 
 
-class FailedJobReason(Enum):
+class FailedJobType(Enum):
     JOB_FAILURE = 1
     INFRA_FAILURE = 2
+
+
+class FailedJobReason(Enum):
+    MAIN_RUNNER = 1
+    DOCKER_RUNNER = 2
+    K8S_RUNNER = 3
+    KITCHEN_AZURE = 4
+    FAILED_JOB_SCRIPT = 5
 
 
 class SlackMessage:
@@ -49,12 +57,11 @@ class SlackMessage:
     TEST_SECTION_HEADER = "Failed unit tests:"
     MAX_JOBS_PER_TEST = 2
 
-    def __init__(self, base_message, jobs=None):
-        self.base_message = base_message
-        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobReason.JOB_FAILURE] if jobs else []
-        self.infra_failed_jobs = (
-            [job for job in jobs if job["failure_type"] == FailedJobReason.INFRA_FAILURE] if jobs else []
-        )
+    def __init__(self, base="", jobs=None):
+        jobs = jobs if jobs else []
+        self.base_message = base
+        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.JOB_FAILURE]
+        self.infra_failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.INFRA_FAILURE]
         self.failed_tests = defaultdict(list)
         self.coda = ""
 
