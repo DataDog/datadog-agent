@@ -48,6 +48,39 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 	}
 }
 
+func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	serverAddr := "localhost:8081"
+
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
+
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	client := nethttp.Client{}
+
+	req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
+	require.NoError(t, err)
+
+	expectedOccurrences := 10
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		io.ReadAll(resp.Body)
+		resp.Body.Close()
+	}
+	srvDoneFn()
+
+	occurrences := 0
+	require.Eventually(t, func() bool {
+		stats := monitor.GetHTTPStats()
+		occurrences += countRequestOccurrences(stats, req)
+		return occurrences == expectedOccurrences
+	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
+}
+
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
 func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
@@ -96,7 +129,9 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 			requestNotIncluded(t, stats, req)
 		}
 
-		foundFastReq = foundFastReq || isRequestIncluded(stats, fastReq)
+		included, err := isRequestIncluded(stats, fastReq)
+		require.NoError(t, err)
+		foundFastReq = foundFastReq || included
 	}
 
 	require.True(t, foundFastReq)
@@ -425,7 +460,9 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 		time.Sleep(10 * time.Millisecond)
 		stats := monitor.GetHTTPStats()
 		for reqIndex, req := range requests {
-			requestsExist[reqIndex] = requestsExist[reqIndex] || isRequestIncluded(stats, req)
+			included, err := isRequestIncluded(stats, req)
+			require.NoError(t, err)
+			requestsExist[reqIndex] = requestsExist[reqIndex] || included
 		}
 	}
 
@@ -501,8 +538,10 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 }
 
 func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
-	if !isRequestIncluded(allStats, req) {
-		expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	included, err := isRequestIncluded(allStats, req)
+	require.NoError(t, err)
+	if !included {
 		t.Errorf(
 			"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
 			req.URL.Path,
@@ -513,7 +552,8 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 }
 
 func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
-	if isRequestIncluded(allStats, req) {
+	included, _ := isRequestIncluded(allStats, req)
+	if included {
 		expectedStatus := testutil.StatusFromPath(req.URL.Path)
 		t.Errorf(
 			"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
@@ -524,13 +564,25 @@ func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *netht
 	}
 }
 
-func isRequestIncluded(allStats map[Key]*RequestStats, req *nethttp.Request) bool {
+func isRequestIncluded(allStats map[Key]*RequestStats, req *nethttp.Request) (bool, error) {
+	occurrences := countRequestOccurrences(allStats, req)
+
+	if occurrences == 1 {
+		return true, nil
+	} else if occurrences == 0 {
+		return false, nil
+	}
+	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
+}
+
+func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Request) int {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	occurrences := 0
 	for key, stats := range allStats {
 		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
-			return true
+			occurrences++
 		}
 	}
 
-	return false
+	return occurrences
 }
