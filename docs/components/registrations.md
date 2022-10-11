@@ -92,6 +92,7 @@ This technique has some caveats to be aware of:
 Subscriptions are a common form of registration, and have support in the `pkg/util/subscriptions` package.
 
 To implement a subscription, the collecting component defines a message type.
+This message type must be unique across the codebase, and should not be a built-in type like `string`.
 Providing components provide `subscriptions.Subscription[coll.Message]`, from which they can obtain a `subscriptions.Receiver[coll.Message]`.
 Collecting components require `subcriptions.Publisher[coll.Message]`, from which they can obtain a `subscriptions.Transmitter[coll.Message]`.
 
