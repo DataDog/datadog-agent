@@ -44,10 +44,9 @@ type LambdaLogsCollector struct {
 
 // platformObjectRecord contains additional information found in Platform log messages
 type platformObjectRecord struct {
-	requestID       string           // uuid; present in LogTypePlatform{Start,End,Report}
-	startLogItem    startLogItem     // present in LogTypePlatformStart only
-	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
-	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
+	requestID     string           // uuid; present in LogTypePlatform{Start,End,Report}
+	startLogItem  startLogItem     // present in LogTypePlatformStart only
+	reportLogItem reportLogMetrics // present in LogTypePlatformReport only
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
@@ -57,10 +56,6 @@ type reportLogMetrics struct {
 	memorySizeMB     int
 	maxMemoryUsedMB  int
 	initDurationMs   float64
-}
-
-type runtimeDoneItem struct {
-	status string
 }
 
 type startLogItem struct {
@@ -85,10 +80,6 @@ const (
 	logTypePlatformReport = "platform.report"
 	// logTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
 	logTypePlatformLogsDropped = "platform.logsDropped"
-	// logTypePlatformLogsSubscription is used for the log messages about Logs API registration
-	logTypePlatformLogsSubscription = "platform.logsSubscription"
-	// logTypePlatformExtension is used for the log messages about Extension API registration
-	logTypePlatformExtension = "platform.extension"
 	// logTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
 )
@@ -130,8 +121,12 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 	// the rest
 
 	switch typ {
-	case logTypePlatformLogsSubscription, logTypePlatformExtension:
-		l.logType = typ
+	case logTypePlatformLogsDropped:
+		var reason string
+		if record, ok := j["record"].(map[string]interface{}); ok {
+			reason = record["reason"].(string)
+		}
+		log.Debugf("Logs were dropped by the AWS Lambda Logs API: %s", reason)
 	case logTypeFunction, logTypeExtension:
 		l.logType = typ
 		l.stringRecord = j["record"].(string)
@@ -177,18 +172,13 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				} else {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
-			case logTypePlatformRuntimeDone:
-				if status, ok := objectRecord["status"].(string); ok {
-					l.objectRecord.runtimeDoneItem.status = status
-				} else {
-					log.Debug("Can't read the status from runtimeDone log message")
-				}
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
 		}
 	default:
 		// we're not parsing this kind of message yet
+		// platform.extension, platform.logsSubscription, platform.fault
 	}
 
 	return nil
@@ -198,10 +188,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 func shouldProcessLog(ecs *executioncontext.State, message *logMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
 	if len(ecs.ARN) == 0 || len(ecs.LastRequestID) == 0 {
-		return false
-	}
-	// Making sure that we do not process these types of logs since they are not tied to specific invovations
-	if message.logType == logTypePlatformExtension || message.logType == logTypePlatformLogsSubscription {
 		return false
 	}
 	// Making sure that empty logs are not uselessly sent
@@ -336,14 +322,10 @@ func processMessage(
 			message.stringRecord = createStringRecordForReportLog(message, ecs)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, demux)
+			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, tags, demux)
 			ec.UpdateFromRuntimeDoneLog(message.time)
 			ecs = ec.GetCurrentState()
 		}
-	}
-
-	if message.logType == logTypePlatformLogsDropped {
-		log.Debug("Logs were dropped by the AWS Lambda Logs API")
 	}
 
 	// If we receive a runtimeDone log message for the current invocation, we know the runtime is done

@@ -53,7 +53,7 @@ func getOutOfMemorySubstrings() []string {
 }
 
 // GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, demux aggregator.Demultiplexer) {
+func GenerateRuntimeDurationMetric(start time.Time, end time.Time, tags []string, demux aggregator.Demultiplexer) {
 	// first check if both date are set
 	if start.IsZero() || end.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
