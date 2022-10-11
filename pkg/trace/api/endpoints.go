@@ -117,6 +117,10 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler() },
 	},
 	{
+		Pattern: "/evp_proxy/v2/",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler() },
+	},
+	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
 	},
