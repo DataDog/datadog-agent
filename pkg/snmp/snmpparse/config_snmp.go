@@ -42,7 +42,7 @@ type SNMPConfig struct {
 
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
-	ws := []SNMPConfig{}
+	snmpconfigs := []SNMPConfig{}
 
 	for _, inst := range c.Instances {
 		instance := SNMPConfig{}
@@ -50,26 +50,26 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 		if err != nil {
 			fmt.Printf("unable to get snmp config: %v", err)
 		}
-		// add the instance(type SNMPConfig) to the array ws
-		ws = append(ws, instance)
+		// add the instance(type SNMPConfig) to the array snmpconfigs
+		snmpconfigs = append(snmpconfigs, instance)
 	}
 
-	return ws
+	return snmpconfigs
 }
 
 func GetConfigCheckSnmp() ([]SNMPConfig, error) {
-	ws := []SNMPConfig{}
+	snmpconfigs := []SNMPConfig{}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
 	err := util.SetAuthToken()
 	if err != nil {
-		return ws, err
+		return snmpconfigs, err
 	}
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return ws, err
+		return snmpconfigs, err
 	}
 	//To Do: change the configCheckURLSnmp if the snmp check is a cluster check
 	if configCheckURLSnmp == "" {
@@ -79,17 +79,17 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	cr := response.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
-		return ws, err
+		return snmpconfigs, err
 	}
-	//Store the SNMP config in an array (ws)
+	//Store the SNMP config in an array (snmpconfigs)
 	//c is of type config while the cr is the config check response including the instances
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
-			ws = ParseConfigSnmp(c)
+			snmpconfigs = ParseConfigSnmp(c)
 		}
 	}
 
-	return ws, nil
+	return snmpconfigs, nil
 
 }
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) (SNMPConfig, error) {
