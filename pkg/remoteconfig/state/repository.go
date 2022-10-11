@@ -257,6 +257,8 @@ func (r *Repository) Update(update Update) ([]string, error) {
 // UpdateApplyStatus updates the config's metadata to reflect its processing state
 // Can be used after a call to Update() in order to tell the repository which config was acked, which
 // wasn't and which errors occurred while processing.
+// Note: it is the responsibility of the caller to ensure that no new Update() call was made between
+// the first Update() call and the call to UpdateApplyStatus() so as to keep the repository state accurate.
 func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
 	if m, ok := r.metadata[cfgPath]; ok {
 		m.ApplyStatus = status
