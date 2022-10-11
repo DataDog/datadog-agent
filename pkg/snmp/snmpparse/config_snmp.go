@@ -18,44 +18,31 @@ import (
 
 var configCheckURLSnmp string
 
-type ShouldCloseConnectionSnmp int
-
-// DataSNMP contains all snmp instances YAML code
-type DataSNMP []SNMPConfig
-
 // SNMPConfig is a generic container for configuration data specific to the SNMP
 // integration.
-// The DataSNMP is an array of the SNMPConfig containers
 
 type SNMPConfig struct {
 
 	//General
-	SnmpIPAddress string `yaml:"ip_address"`
-	SnmpPort      uint16 `yaml:"port"`
-	SnmpVersion   string `yaml:"snmp_version"`
-	SnmpTimeout   int    `yaml:"timeout"`
-	SnmpRetries   int    `yaml:"retries"`
+	IPAddress string `yaml:"ip_address"`
+	Port      uint16 `yaml:"port"`
+	Version   string `yaml:"snmp_version"`
+	Timeout   int    `yaml:"timeout"`
+	Retries   int    `yaml:"retries"`
 	//v1 &2
-	SnmpCommunityString string `yaml:"community_string"`
+	CommunityString string `yaml:"community_string"`
 	//v3
-	SnmpUsername     string `yaml:"user"`
-	SnmpAuthProtocol string `yaml:"authProtocol"`
-	SnmpAuthKey      string `yaml:"authKey"`
-	SnmpPrivProtocol string `yaml:"privProtocol"`
-	SnmpPrivKey      string `yaml:"privKey"`
-	SnmpContext      string `yaml:"context_name"`
+	Username     string `yaml:"user"`
+	AuthProtocol string `yaml:"authProtocol"`
+	AuthKey      string `yaml:"authKey"`
+	PrivProtocol string `yaml:"privProtocol"`
+	PrivKey      string `yaml:"privKey"`
+	Context      string `yaml:"context_name"`
 }
 
-const (
-	// LeaveConnectionOpenSnmp keeps the underlying connection open after reading the request response
-	LeaveConnectionOpenSnmp ShouldCloseConnectionSnmp = iota
-	// CloseConnection closes the underlying connection after reading the request response
-	CloseConnectionSnmp
-)
-
-func ParseConfigSnmp(c integration.Config) DataSNMP {
+func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
-	ws := DataSNMP{}
+	ws := []SNMPConfig{}
 
 	for _, inst := range c.Instances {
 		instance := SNMPConfig{}
@@ -70,8 +57,8 @@ func ParseConfigSnmp(c integration.Config) DataSNMP {
 	return ws
 }
 
-func GetConfigCheckSnmp() (DataSNMP, error) {
-	ws := DataSNMP{}
+func GetConfigCheckSnmp() ([]SNMPConfig, error) {
+	ws := []SNMPConfig{}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
@@ -94,27 +81,25 @@ func GetConfigCheckSnmp() (DataSNMP, error) {
 	if err != nil {
 		return ws, err
 	}
-	//Store the SNMP config in the DataSNMP array (ws)
+	//Store the SNMP config in an array (ws)
 	//c is of type config while the cr is the config check response including the instances
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
 			ws = ParseConfigSnmp(c)
-			//ParseConfigSnmp(c)
-
 		}
 	}
 
 	return ws, nil
 
 }
-func GetIPConfig(ip_address string, ip_list DataSNMP) SNMPConfig {
-	//How to unit test without providing the api key ?
-	//ip_list, _ = GetConfigCheckSnmp()
+func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) (SNMPConfig, error) {
+
 	instance := SNMPConfig{}
-	for _, w := range ip_list {
-		if w.SnmpIPAddress == ip_address {
+	for _, w := range SnmpConfigList {
+		if w.IPAddress == ip_address {
 			instance = w
+			break
 		}
 	}
-	return instance
+	return instance, nil
 }
