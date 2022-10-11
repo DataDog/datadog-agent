@@ -545,17 +545,17 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
         return 1;
     }
 
-    if (read_location(ctx, &pd->write_buffer.ptr, sizeof(uint64_t), &call_data.b_len)) {
+    if (read_location(ctx, &pd->write_buffer.ptr, sizeof(uint64_t), &call_data.b_data)) {
         log_debug("[go-tls-write] failed reading buffer pointer for pid %d\n", pid);
         return 1;
     }
 
-    if (read_location(ctx, &pd->write_buffer.len, sizeof(call_data.b_data), &call_data.b_data)) {
+    if (read_location(ctx, &pd->write_buffer.len, sizeof(call_data.b_data), &call_data.b_len)) {
         log_debug("[go-tls-write] failed reading buffer length for pid %d\n", pid);
         return 1;
     }
 
-    bpf_map_update_elem(&go_tls_read_args, &call_key, &call_data, BPF_ANY);
+    bpf_map_update_elem(&go_tls_write_args, &call_key, &call_data, BPF_ANY);
     return 0;
 }
 
@@ -616,6 +616,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 1;
     }
 
+    log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
     https_process(t, (void*) call_data_ptr->b_data, call_data_ptr->b_len, GO);
     return 0;
 }
@@ -704,6 +705,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 1;
     }
 
+    log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
     https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
     return 0;
 }
