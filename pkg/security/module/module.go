@@ -447,6 +447,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 // Close the module
 func (m *Module) Close() {
+	signal.Stop(m.sigupChan)
 	close(m.sigupChan)
 
 	for _, provider := range m.policyProviders {
