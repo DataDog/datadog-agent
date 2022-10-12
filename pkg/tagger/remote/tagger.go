@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
@@ -55,7 +54,6 @@ type Tagger struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	health          *health.Handle
 	telemetryTicker *time.Ticker
 }
 
@@ -70,7 +68,6 @@ func NewTagger() *Tagger {
 // Init initializes the connection to the remote tagger and starts watching for
 // events.
 func (t *Tagger) Init(ctx context.Context) error {
-	t.health = health.RegisterLiveness("tagger")
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
 	t.ctx, t.cancel = context.WithCancel(ctx)
@@ -126,10 +123,6 @@ func (t *Tagger) Stop() error {
 	}
 
 	t.telemetryTicker.Stop()
-	err = t.health.Deregister()
-	if err != nil {
-		return err
-	}
 
 	log.Info("remote tagger stopped successfully")
 
@@ -212,8 +205,6 @@ func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 func (t *Tagger) run() {
 	for {
 		select {
-		case <-t.health.C:
-			continue
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
 			continue
