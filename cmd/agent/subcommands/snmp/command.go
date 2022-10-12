@@ -143,7 +143,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 
 				} else {
-					deviceIP = address
 					port = defaultPort
 				}
 			}
