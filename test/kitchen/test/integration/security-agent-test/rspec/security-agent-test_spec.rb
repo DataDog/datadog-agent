@@ -25,10 +25,6 @@ print KernelOut.format(`uname -a`)
 
 describe 'functional test running directly on host' do
   it 'successfully runs' do
-    Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode"}, "sudo", "-E", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics") do |_, output, wait_thr|
-      test_failures = check_output(output, wait_thr, "h")
-      expect(test_failures).to be_empty, test_failures.join("\n")
-    end
   end
 end
 
