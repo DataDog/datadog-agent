@@ -214,8 +214,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Add(1)
+	wg.Add(2)
 
 	// starts trace agent
 	go func() {
