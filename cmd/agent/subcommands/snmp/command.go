@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 )
@@ -111,8 +112,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				deviceIP = address
 				//if the customer provides only 1 argument : the ip_address
 				//We check the ip address configuration in the agent runtime and we use it for the snmpwalk
-				snmpConfigList, _ := parse.GetConfigCheckSnmp()
+				err := common.SetupConfig(globalArgs.ConfFilePath)
+				if err != nil {
+					fmt.Printf("The config file provided is invalid : %v \n", err)
+				}
+				snmpConfigList, err := parse.GetConfigCheckSnmp()
 				instance := parse.GetIPConfig(deviceIP, snmpConfigList)
+				if err != nil {
+					fmt.Printf("Couldn't parse the SNMP config : %v \n", err)
+				}
 				if instance.IPAddress != "" {
 					snmpVersion = instance.Version
 					port = instance.Port
@@ -130,7 +138,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 					// communication
 					retries = instance.Retries
-					timeout = instance.Timeout
+					if instance.Timeout != 0 {
+						timeout = instance.Timeout
+					}
 
 				} else {
 					deviceIP = address
