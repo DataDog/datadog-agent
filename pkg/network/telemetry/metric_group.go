@@ -32,8 +32,12 @@ func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 
 // NewMetric returns a new `Metric` using the provided namespace and common tags
 func (mg *MetricGroup) NewMetric(name string, tags ...string) *Metric {
+	if mg.namespace != "" {
+		name = fmt.Sprintf("%s.%s", mg.namespace, name)
+	}
+
 	m := NewMetric(
-		fmt.Sprintf("%s.%s", mg.namespace, name),
+		name,
 		append(mg.commonTags, tags...)...,
 	)
 
