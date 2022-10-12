@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,6 +61,12 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 		}
 		var configsRequest pbgo.ClientGetConfigsRequest
 		err = json.Unmarshal(buf.Bytes(), &configsRequest)
+		if err != nil {
+			statusCode = http.StatusBadRequest
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = normalize(&configsRequest)
 		if err != nil {
 			statusCode = http.StatusBadRequest
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -110,5 +117,16 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.I
 		}
 		return containerTags
 	}
+	return nil
+}
+
+func normalize(configsRequest *pbgo.ClientGetConfigsRequest) error {
+	service, err := traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
+	if err != nil {
+		return err
+	}
+	env := traceutil.NormalizeTag(configsRequest.Client.ClientTracer.Env)
+	configsRequest.Client.ClientTracer.Env = env
+	configsRequest.Client.ClientTracer.Service = service
 	return nil
 }
