@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.0.0-20221003133413-0e997fad91c4
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1
-	github.com/DataDog/nikos v1.8.1-0.20221012113348-f42df93649bb
+	github.com/DataDog/nikos v1.8.1-0.20221013103501-27cc890b1253
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
@@ -417,7 +417,7 @@ require (
 	github.com/go-openapi/spec v0.20.3 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/knqyf263/go-rpmdb v0.0.0-20220830120628-c11b1c45080a // indirect
-	github.com/paulcacheux/did-not-finish v0.0.0-20221012113243-3a9d4217ab02 // indirect
+	github.com/paulcacheux/did-not-finish v0.0.0-20221013092324-8974a3a7b252 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20220927061507-ef77025ab5aa // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect

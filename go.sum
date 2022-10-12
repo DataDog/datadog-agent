@@ -159,8 +159,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c h1:w4mZkX45/iUyef4qUp+ryZ4ItuhmIpT6tWeZ0vBdvfo=
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
-github.com/DataDog/nikos v1.8.1-0.20221012113348-f42df93649bb h1:6HYIzOhkSN79e9YDr5BCW7LCjlBJj0wO0wT5Kxk8biA=
-github.com/DataDog/nikos v1.8.1-0.20221012113348-f42df93649bb/go.mod h1:Jj28yi7LvDD87Ijsnl/HXdgILmcME+xxtKw0sip0/kw=
+github.com/DataDog/nikos v1.8.1-0.20221013103501-27cc890b1253 h1:xPv+OHp1kEapsh+8RCH6pB3BSAMEi94Uwu4q5D0ngsI=
+github.com/DataDog/nikos v1.8.1-0.20221013103501-27cc890b1253/go.mod h1:prQ/MAZ9qUO9w4NJGVMIivhljCioBRnRD2EXnc+7ST0=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/sketches-go v1.4.1 h1:j5G6as+9FASM2qC36lvpvQAj9qsv/jUs3FtO8CwZNAY=
 github.com/DataDog/sketches-go v1.4.1/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
@@ -1415,8 +1415,8 @@ github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0Mw
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
-github.com/paulcacheux/did-not-finish v0.0.0-20221012113243-3a9d4217ab02 h1:Jz6A53aMmqwYtudUxhcIH6HmOcbaXvC426MZTL3qslo=
-github.com/paulcacheux/did-not-finish v0.0.0-20221012113243-3a9d4217ab02/go.mod h1:D2HizlbHp0emQNVNw5Ga1Xh1CO5POJhQg60ruxaZVP8=
+github.com/paulcacheux/did-not-finish v0.0.0-20221013092324-8974a3a7b252 h1:vPyeQQle7OvGPYdhUYk6/53a9pKjKw/XCO1hiIYarzk=
+github.com/paulcacheux/did-not-finish v0.0.0-20221013092324-8974a3a7b252/go.mod h1:D2HizlbHp0emQNVNw5Ga1Xh1CO5POJhQg60ruxaZVP8=
 github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9 h1:P0T/NeZMojAnhpvVApPUm01YHEh8iQ0usWvmSxOPb/8=
 github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9/go.mod h1:EWib/APOK0SL3dFbYqvxE3UYd8E6s1ouQ7iEp/0LWV4=
 github.com/pborman/uuid v0.0.0-20180122190007-c65b2f87fee3/go.mod h1:VyrYX9gd7irzKovcSS6BIIEwPRkP2Wm2m9ufcdFSJ34=
