@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -697,4 +699,118 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	if diff := time.Since(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
 		t.Fatalf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
 	}
+}
+
+func TestDiscarders(t *testing.T) {
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "rule",
+			Expression: fmt.Sprintf(`open.file.path =~ "{{.Root}}/files_generator_root/%s/no-approver-*"`, noDiscardersDirName),
+		},
+		{
+			ID:         "rule2",
+			Expression: fmt.Sprintf(`unlink.file.path =~ "{{.Root}}/files_generator_root/%s/no-approver-*"`, noDiscardersDirName),
+		},
+	}
+	test, err := newTestModule(t, nil, rules, testOpts{enableActivityDump: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	rootPath, _, err := test.Path("files_generator_root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileGen, err := NewFileGenerator(rootPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(rootPath)
+
+	// TODO:
+	// - find a way to avoid module tester cleanup pollute final metrics, and re-enable
+	//   the check on MetricPerfBufferEventsWrite
+	// - validate 1:1 the discarded and sent events
+	// - take into account the retention period
+	// - increase MaxDepth and re-evaluate correctly the estimated results
+	// - add auto mount/umount of working dir and re-evaluate correctly the estimated results
+	// - add other event types (rename, utimes, chmod, chown etc)
+	err = fileGen.PrepareFileGenerator(FileGeneratorConfig{
+		id:             "static",
+		TestDuration:   time.Second * 30,
+		Debug:          false,
+		MaxTotalFiles:  1000,
+		EventsPerSec:   200,
+		MountDir:       false,
+		MountParentDir: false,
+		RemountEvery:   time.Second * 4,
+		MaxDepth:       1,
+		Open:           true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fileGen.Start(); err != nil {
+		t.Fatal(err)
+	}
+	res, err := fileGen.Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.module.SendStats()
+
+	key := metrics.MetricEventDiscarded + ":event_type:open"
+	val := test.statsdClient.Get(key)
+	key = metrics.MetricEventDiscarded + ":event_type:unlink"
+	val += test.statsdClient.Get(key)
+	if !isWithinPercentage(int64(res.EventDiscarded), val, 10) {
+		t.Errorf("%s:event_type:* (%d) is not enough close of estimated number (%d)\n", metrics.MetricEventDiscarded, val, res.EventDiscarded)
+	}
+
+	// TODO: test commented out until we find a way to do not get cleanup metrics taken into account
+	// key = metrics.MetricPerfBufferEventsWrite + ":event_type:open"
+	// val = test.statsdClient.Get(key)
+	// key = metrics.MetricPerfBufferEventsWrite + ":event_type:unlink"
+	// val += test.statsdClient.Get(key)
+	// if !isWithinPercentage(int64(res.EventSent), val, 10) {
+	// 	t.Errorf("%s:event_type:* (%d) is not enough close of estimated number (%d)\n", metrics.MetricPerfBufferEventsWrite, val, res.EventSent)
+	// }
+
+	discarders, err := test.probe.GetDiscarders()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validateDiscardersResults(t, &discarders, res)
+}
+
+func foundInode(ino uint64, discarders *probe.DiscardersDump) bool {
+	for _, inode := range discarders.Inodes {
+		if inode.Inode == ino {
+			return true
+		}
+	}
+	return false
+}
+
+func validateDiscardersResults(t *testing.T, discarders *probe.DiscardersDump, result *EstimatedResult) {
+	for _, file := range result.DiscarderPushed {
+		if !foundInode(file.ino, discarders) {
+			t.Errorf("Inode %d not found on discarders\n", file.ino)
+		}
+	}
+	for _, file := range result.ParentDiscarderPushed {
+		if !foundInode(file.ino, discarders) {
+			t.Errorf("Inode %d not found on discarders\n", file.ino)
+		}
+	}
+}
+
+func isWithinPercentage(estimated, stat, maxDrift int64) bool {
+	diff := int64(math.Abs(float64(estimated - stat)))
+	if diff > (estimated / 100 * maxDrift) {
+		return false
+	}
+	return true
 }
