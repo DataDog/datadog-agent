@@ -147,7 +147,7 @@ func (m *WindowsMonitor) GetHTTPStats() map[Key]*RequestStats {
 	stats := m.statkeeper.GetAndResetAllStats()
 	removeDuplicates(stats)
 
-	m.telemetry.report()
+	m.telemetry.log()
 
 	return stats
 }

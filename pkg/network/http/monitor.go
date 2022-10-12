@@ -140,7 +140,7 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				m.telemetry.report()
+				m.telemetry.log()
 				reply <- m.statkeeper.GetAndResetAllStats()
 			}
 		}

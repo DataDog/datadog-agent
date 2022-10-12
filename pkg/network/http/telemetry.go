@@ -79,7 +79,7 @@ func (t *telemetry) aggregate(txs []httpTX, err error) {
 	}
 }
 
-func (t *telemetry) report() {
+func (t *telemetry) log() {
 	now := time.Now().Unix()
 	then := t.then.Swap(now)
 

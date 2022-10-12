@@ -210,7 +210,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		tel.report()
+		tel.log()
 		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
@@ -236,7 +236,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		tel.report()
+		tel.log()
 		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
@@ -261,7 +261,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		tel.report()
+		tel.log()
 		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()

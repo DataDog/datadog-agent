@@ -57,17 +57,18 @@ func ReportExpvar() map[string]interface{} {
 	metrics := GetMetrics(OptExpvar)
 	previousValues := expvarDelta.GetState("")
 	root := make(map[string]interface{})
-	countByName := make(map[string]int)
+	seen := make(map[string]struct{})
 
 	for _, m := range metrics {
-		if countByName[m.name] == 1 {
+		if _, ok := seen[m.name]; ok {
 			log.Debugf(
 				"metric %q has multiple instances with different tag sets which is not suitable for expvar.",
 				m.name,
 			)
+			continue
 		}
 
-		countByName[m.name]++
+		seen[m.name] = struct{}{}
 		insertNestedValueFor(m.name, previousValues.ValueFor(m), root)
 	}
 
