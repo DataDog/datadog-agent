@@ -58,18 +58,17 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 }
 
 func GetConfigCheckSnmp() ([]SNMPConfig, error) {
-	snmpconfigs := []SNMPConfig{}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
 	err := util.SetAuthToken()
 	if err != nil {
-		return snmpconfigs, err
+		return nil, err
 	}
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return snmpconfigs, err
+		return nil, err
 	}
 	//To Do: change the configCheckURLSnmp if the snmp check is a cluster check
 	if configCheckURLSnmp == "" {
@@ -79,17 +78,17 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	cr := response.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
-		return snmpconfigs, err
+		return nil, err
 	}
 	//Store the SNMP config in an array (snmpconfigs)
 	//c is of type config while the cr is the config check response including the instances
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
-			snmpconfigs = ParseConfigSnmp(c)
+			return ParseConfigSnmp(c), nil
 		}
 	}
 
-	return snmpconfigs, nil
+	return nil, nil
 
 }
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) (SNMPConfig, error) {
@@ -98,7 +97,7 @@ func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) (SNMPConfig, er
 	for _, w := range SnmpConfigList {
 		if w.IPAddress == ip_address {
 			instance = w
-			break
+			return instance, nil
 		}
 	}
 	return instance, nil

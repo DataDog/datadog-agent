@@ -13,10 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-func TestYamlParsing(t *testing.T) {
-
-}
-
 func TestOneInstance(t *testing.T) {
 	//define the input
 	type Data = integration.Data
