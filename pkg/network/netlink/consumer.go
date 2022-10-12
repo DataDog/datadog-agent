@@ -244,7 +244,12 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 		}
 	}
 
-	conn, err := netlink.Dial(unix.AF_UNSPEC, &netlink.Config{NetNS: int(c.rootNetNs)})
+	var conn *netlink.Conn
+	err = util.WithNS(c.procRoot, c.rootNetNs, func() error {
+		conn, err = netlink.Dial(unix.AF_UNSPEC, &netlink.Config{})
+		return err
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("error dumping conntrack table, could not open netlink socket: %w", err)
 	}
