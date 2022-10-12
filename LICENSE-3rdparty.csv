@@ -576,14 +576,12 @@ core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,Copyright
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gqlparser/ast,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gqlparser/gqlerror,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gqlparser/lexer,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gqlparser/parser,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gqlparser/validator,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gqlparser/validator/rules,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
@@ -609,6 +607,7 @@ core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,Copyright 
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/ir,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/keys,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/loader/filter,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -910,6 +909,19 @@ core,go.uber.org/atomic,MIT,"Copyright (c) 2016 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/maxprocs,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
+core,go.uber.org/dig,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/dig/internal/digerror,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/dig/internal/digreflect,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/dig/internal/dot,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/dig/internal/graph,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/fx,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/fxevent,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/fxtest,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/internal/fxclock,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/internal/fxlog,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/internal/fxreflect,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/internal/lifecycle,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
+core,go.uber.org/fx/internal/testutil,MIT,"Copyright (c) 2016-2018 Uber Technologies, Inc"
 core,go.uber.org/multierr,MIT,"Copyright (c) 2017-2021 Uber Technologies, Inc"
 core,go.uber.org/zap,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/buffer,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"

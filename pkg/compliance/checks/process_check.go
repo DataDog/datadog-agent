@@ -47,24 +47,9 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 
 	var instances []resolvedInstance
 	for _, mp := range matchedProcesses {
-		name, err := mp.Name()
-		if err != nil {
-			log.Errorf("%s: Unable to fetch process name: %v", id, err)
-			continue
-		}
-
-		exe, err := mp.Exe()
-		if err != nil {
-			log.Errorf("%s: Unable to fetch process exe: %v", id, err)
-			continue
-		}
-
-		cmdLine, err := mp.CmdlineSlice()
-		if err != nil {
-			log.Errorf("%s: Unable to parse cmd line: %v", id, err)
-			continue
-		}
-
+		name := mp.Name()
+		exe := mp.Exe()
+		cmdLine := mp.CmdlineSlice()
 		flagValues := parseProcessCmdLine(cmdLine)
 
 		instance := eval.NewInstance(

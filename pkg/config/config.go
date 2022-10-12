@@ -118,6 +118,7 @@ var (
 	StartTime = time.Now()
 )
 
+// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
 func PrometheusScrapeChecksTransformer(in string) interface{} {
 	var promChecks []*types.PrometheusCheck
 	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
@@ -1162,7 +1163,6 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 
-	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
 	SetupOTLP(config)

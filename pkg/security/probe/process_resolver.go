@@ -950,7 +950,7 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 
 	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
 
-	return keys, pr.ArgsTruncated || truncated
+	return keys, pr.EnvsTruncated || truncated
 }
 
 // GetProcessEnvp returns the envs of the event with their values
@@ -961,7 +961,7 @@ func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 	envp, truncated := pr.EnvsEntry.ToArray()
 
-	return envp, pr.ArgsTruncated || truncated
+	return envp, pr.EnvsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
