@@ -168,6 +168,7 @@ if node['platform_family'] != 'windows'
         '/proc:/host/proc',
         '/etc:/host/etc',
         '/sys:/host/sys',
+        '/var:/host/var',
         # os-release
         '/etc/os-release:/host/etc/os-release',
         '/usr/lib/os-release:/host/usr/lib/os-release',
@@ -179,6 +180,7 @@ if node['platform_family'] != 'windows'
         'HOST_PROC=/host/proc',
         'HOST_ETC=/host/etc',
         'HOST_SYS=/host/sys',
+        'HOST_VAR=/host/var',
       ]
       privileged true
     end
