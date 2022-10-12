@@ -41,35 +41,6 @@ import (
 )
 
 var (
-	// dogstatsdCmd is the root command
-	dogstatsdCmd = &cobra.Command{
-		Use:   "dogstatsd [command]",
-		Short: "Datadog dogstatsd at your service.",
-		Long: `
-DogStatsD accepts custom application metrics points over UDP, and then
-periodically aggregates and forwards them to Datadog, where they can be graphed
-on dashboards. DogStatsD implements the StatsD protocol, along with a few
-extensions for special Datadog features.`,
-	}
-
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start DogStatsD",
-		Long:  `Runs DogStatsD in the foreground`,
-		RunE:  start,
-	}
-
-	versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.Agent()
-			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
-		},
-	}
-
 	confPath   string
 	socketPath string
 
@@ -83,7 +54,35 @@ const (
 	loggerName config.LoggerName = "DSD"
 )
 
-func init() {
+func MakeCommands() *cobra.Command {
+	// dogstatsdCmd is the root command
+	dogstatsdCmd := &cobra.Command{
+		Use:   "dogstatsd [command]",
+		Short: "Datadog dogstatsd at your service.",
+		Long: `
+DogStatsD accepts custom application metrics points over UDP, and then
+periodically aggregates and forwards them to Datadog, where they can be graphed
+on dashboards. DogStatsD implements the StatsD protocol, along with a few
+extensions for special Datadog features.`,
+	}
+
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start DogStatsD",
+		Long:  `Runs DogStatsD in the foreground`,
+		RunE:  start,
+	}
+
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number",
+		Long:  ``,
+		Run: func(cmd *cobra.Command, args []string) {
+			av, _ := version.Agent()
+			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
+				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
+		},
+	}
 	// attach the command to the root
 	dogstatsdCmd.AddCommand(startCmd)
 	dogstatsdCmd.AddCommand(versionCmd)
@@ -93,6 +92,7 @@ func init() {
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	return dogstatsdCmd
 }
 
 func start(cmd *cobra.Command, args []string) error {
