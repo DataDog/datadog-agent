@@ -196,66 +196,42 @@ func startAgent(globalParams *command.GlobalParams) error {
 	configSetupErr = common.SetupConfig(globalParams.ConfFilePath)
 
 	// Setup logger
-	if runtime.GOOS != "android" {
-		syslogURI := config.GetSyslogURI()
-		logFile := config.Datadog.GetString("log_file")
-		if logFile == "" {
-			logFile = common.DefaultLogFile
-		}
+	syslogURI := config.GetSyslogURI()
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
 
-		jmxLogFile := config.Datadog.GetString("jmx_log_file")
-		if jmxLogFile == "" {
-			jmxLogFile = common.DefaultJmxLogFile
-		}
+	jmxLogFile := config.Datadog.GetString("jmx_log_file")
+	if jmxLogFile == "" {
+		jmxLogFile = common.DefaultJmxLogFile
+	}
 
-		if config.Datadog.GetBool("disable_file_logging") {
-			// this will prevent any logging on file
-			logFile = ""
-			jmxLogFile = ""
-		}
+	if config.Datadog.GetBool("disable_file_logging") {
+		// this will prevent any logging on file
+		logFile = ""
+		jmxLogFile = ""
+	}
 
-		loggerSetupErr = config.SetupLogger(
-			config.CoreLoggerName,
-			config.Datadog.GetString("log_level"),
-			logFile,
+	loggerSetupErr = config.SetupLogger(
+		config.CoreLoggerName,
+		config.Datadog.GetString("log_level"),
+		logFile,
+		syslogURI,
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("log_to_console"),
+		config.Datadog.GetBool("log_format_json"),
+	)
+
+	// Setup JMX logger
+	if loggerSetupErr == nil {
+		loggerSetupErr = config.SetupJMXLogger(
+			jmxLogFile,
 			syslogURI,
 			config.Datadog.GetBool("syslog_rfc"),
 			config.Datadog.GetBool("log_to_console"),
 			config.Datadog.GetBool("log_format_json"),
 		)
-
-		// Setup JMX logger
-		if loggerSetupErr == nil {
-			loggerSetupErr = config.SetupJMXLogger(
-				jmxLogFile,
-				syslogURI,
-				config.Datadog.GetBool("syslog_rfc"),
-				config.Datadog.GetBool("log_to_console"),
-				config.Datadog.GetBool("log_format_json"),
-			)
-		}
-
-	} else {
-		loggerSetupErr = config.SetupLogger(
-			config.CoreLoggerName,
-			config.Datadog.GetString("log_level"),
-			"", // no log file on android
-			"", // no syslog on android,
-			false,
-			true,  // always log to console
-			false, // not in json
-		)
-
-		// Setup JMX logger
-		if loggerSetupErr == nil {
-			loggerSetupErr = config.SetupJMXLogger(
-				"", // no log file on android
-				"", // no syslog on android,
-				false,
-				true,  // always log to console
-				false, // not in json
-			)
-		}
 	}
 
 	if configSetupErr != nil {
@@ -366,10 +342,8 @@ func startAgent(globalParams *command.GlobalParams) error {
 	}
 
 	// start the cmd HTTP server
-	if runtime.GOOS != "android" {
-		if err = api.StartServer(configService); err != nil {
-			return log.Errorf("Error while starting api server, exiting: %v", err)
-		}
+	if err = api.StartServer(configService); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
 	// start clc runner server

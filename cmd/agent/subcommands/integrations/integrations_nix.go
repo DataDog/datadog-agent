@@ -18,17 +18,17 @@ const (
 	pythonBin = "python"
 )
 
-func getRelPyPath() string {
-	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, pythonMajorVersion))
+func getRelPyPath(cliParams *cliParams) string {
+	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, cliParams.pythonMajorVersion))
 }
 
-func getRelChecksPath() (string, error) {
-	err := detectPythonMinorVersion()
+func getRelChecksPath(cliParams *cliParams) (string, error) {
+	err := detectPythonMinorVersion(cliParams)
 	if err != nil {
 		return "", err
 	}
 
-	pythonDir := fmt.Sprintf("%s%s.%s", pythonBin, pythonMajorVersion, pythonMinorVersion)
+	pythonDir := fmt.Sprintf("%s%s.%s", pythonBin, cliParams.pythonMajorVersion, pythonMinorVersion)
 	return filepath.Join("embedded", "lib", pythonDir, "site-packages", "datadog_checks"), nil
 }
 
