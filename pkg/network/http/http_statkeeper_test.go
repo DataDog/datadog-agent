@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
@@ -22,7 +22,8 @@ import (
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
-	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	tel, err := newTelemetry()
 	require.NoError(t, err)
 	sk := newHTTPStatkeeper(cfg, tel)
@@ -102,12 +103,11 @@ func TestPathProcessing(t *testing.T) {
 		statusCode = 200
 		latency    = time.Second
 	)
-
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	setupStatKeeper := func(rules []*config.ReplaceRule) *httpStatKeeper {
-		c := &config.Config{
-			MaxHTTPStatsBuffered: 1000,
-			HTTPReplaceRules:     rules,
-		}
+		c := cfg
+		c.HTTPReplaceRules = rules
 
 		tel, err := newTelemetry()
 		require.NoError(t, err)
@@ -193,7 +193,8 @@ func TestPathProcessing(t *testing.T) {
 
 func TestHTTPCorrectness(t *testing.T) {
 	t.Run("wrong path format", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
@@ -218,7 +219,8 @@ func TestHTTPCorrectness(t *testing.T) {
 	})
 
 	t.Run("invalid http verb", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
@@ -244,7 +246,8 @@ func TestHTTPCorrectness(t *testing.T) {
 	})
 
 	t.Run("invalid latency", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
