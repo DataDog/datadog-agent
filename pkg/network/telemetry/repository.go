@@ -9,9 +9,9 @@ import (
 	"sync"
 )
 
-var r *repository
+var globalRegistry *registry
 
-type repository struct {
+type registry struct {
 	sync.Mutex
 	metrics []*Metric
 }
@@ -23,16 +23,16 @@ func GetMetrics(tags ...string) []*Metric {
 		filterIndex[f] = struct{}{}
 	}
 
-	r.Lock()
-	defer r.Unlock()
+	globalRegistry.Lock()
+	defer globalRegistry.Unlock()
 
 	if len(filterIndex) == 0 {
 		// if no filters were provided we return all metrics
-		return r.metrics
+		return globalRegistry.metrics
 	}
 
-	result := make([]*Metric, 0, len(r.metrics))
-	for _, m := range r.metrics {
+	result := make([]*Metric, 0, len(globalRegistry.metrics))
+	for _, m := range globalRegistry.metrics {
 		if matches(filterIndex, m) {
 			result = append(result, m)
 		}
@@ -44,9 +44,9 @@ func GetMetrics(tags ...string) []*Metric {
 // Clear metrics
 // WARNING: Only intended for tests
 func Clear() {
-	r.Lock()
-	defer r.Unlock()
-	r.metrics = nil
+	globalRegistry.Lock()
+	defer globalRegistry.Unlock()
+	globalRegistry.metrics = nil
 }
 
 func matches(filters map[string]struct{}, metric *Metric) bool {
@@ -66,5 +66,5 @@ func matches(filters map[string]struct{}, metric *Metric) bool {
 }
 
 func init() {
-	r = new(repository)
+	globalRegistry = new(registry)
 }

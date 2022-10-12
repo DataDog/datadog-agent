@@ -39,19 +39,19 @@ func NewMetric(name string, tagsAndOptions ...string) *Metric {
 		m.prevValue = atomic.NewInt64(0)
 	}
 
-	r.Lock()
-	defer r.Unlock()
+	globalRegistry.Lock()
+	defer globalRegistry.Unlock()
 	// Ensure we only have one intance per (name, tags). If there is an existing
 	// `Metric` instance matching the params we simply return it. For now we're
 	// doing a brute-force search here because calls to `NewMetric` are almost
 	// always restriced to program initialization
-	for _, other := range r.metrics {
+	for _, other := range globalRegistry.metrics {
 		if other.isEqual(m) {
 			return other
 		}
 	}
 
-	r.metrics = append(r.metrics, m)
+	globalRegistry.metrics = append(globalRegistry.metrics, m)
 	return m
 }
 
