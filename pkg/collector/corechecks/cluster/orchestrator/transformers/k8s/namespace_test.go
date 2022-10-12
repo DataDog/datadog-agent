@@ -48,13 +48,18 @@ func TestExtractNamespace(t *testing.T) {
 					Phase: "a-phase",
 					Conditions: []corev1.NamespaceCondition{
 						{
-							Type:    "NamespaceDeletionContentFailure",
+							Type:    "NamespaceFinalizersRemaining",
 							Status:  "False",
 							Message: "wrong msg",
 						},
 						{
+							Type:    "NamespaceDeletionContentFailure",
+							Status:  "True",
+							Message: "also the wrong msg",
+						},
+						{
 							Type:    "NamespaceDeletionDiscoveryFailure",
-							Status:  "False",
+							Status:  "True",
 							Message: "right msg",
 						},
 					},
