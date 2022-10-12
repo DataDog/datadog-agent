@@ -51,7 +51,7 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			identifier := source.Config.Path
+			identifier := tailer.Identifier(source.Config)
 			if _, exists := l.tailers[identifier]; exists {
 				// set up only one tailer per journal
 				continue

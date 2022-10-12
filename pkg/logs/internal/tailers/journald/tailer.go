@@ -80,17 +80,17 @@ func (t *Tailer) Start(cursor string) error {
 		return err
 	}
 	t.source.Status.Success()
-	t.source.AddInput(t.journalPath())
-	log.Info("Start tailing journal ", t.journalPath())
+	t.source.AddInput(t.Identifier())
+	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 	go t.tail()
 	return nil
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing journal ", t.journalPath())
+	log.Info("Stop tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 	t.stop <- struct{}{}
-	t.source.RemoveInput(t.journalPath())
+	t.source.RemoveInput(t.Identifier())
 	<-t.done
 }
 
@@ -407,7 +407,18 @@ const journaldIntegration = "journald"
 
 // Identifier returns the unique identifier of the current journal being tailed.
 func (t *Tailer) Identifier() string {
-	return journaldIntegration + ":" + t.journalPath()
+	return Identifier(t.source.Config)
+}
+
+// Identifier returns the unique identifier of the current journald config
+func Identifier(config *config.LogsConfig) string {
+	id := "default"
+	if config.ConfigId != "" {
+		id = config.ConfigId
+	} else if config.Path != "" {
+		id = config.Path
+	}
+	return journaldIntegration + ":" + id
 }
 
 // journalPath returns the path of the journal
