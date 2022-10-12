@@ -35,13 +35,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
-	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Print the runtime configuration of a running agent",
-		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+	// All subcommands use the same provided components, with a different
+	// oneShot callback.
+	oneShotRunE := func(callback interface{}) func(cmd *cobra.Command, args []string) error {
+		return func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			return fxutil.OneShot(showRuntimeConfiguration,
+			return fxutil.OneShot(callback,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfFilePath:      globalParams.ConfFilePath,
@@ -49,24 +48,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
-		},
+		}
+	}
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Print the runtime configuration of a running agent",
+		Long:  ``,
+		RunE:  oneShotRunE(showRuntimeConfiguration),
 	}
 
 	listRuntimeCmd := &cobra.Command{
 		Use:   "list-runtime",
 		Short: "List settings that can be changed at runtime",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.args = args
-			return fxutil.OneShot(listRuntimeConfigurableValue,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", true)),
-				core.Bundle,
-			)
-		},
+		RunE:  oneShotRunE(listRuntimeConfigurableValue),
 	}
 	cmd.AddCommand(listRuntimeCmd)
 
@@ -74,17 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "set [setting] [value]",
 		Short: "Set, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.args = args
-			return fxutil.OneShot(setConfigValue,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", true)),
-				core.Bundle,
-			)
-		},
+		RunE:  oneShotRunE(setConfigValue),
 	}
 	cmd.AddCommand(setCmd)
 
@@ -92,17 +77,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "get [setting]",
 		Short: "Get, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.args = args
-			return fxutil.OneShot(getConfigValue,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot("CORE", "off", true)),
-				core.Bundle,
-			)
-		},
+		RunE:  oneShotRunE(getConfigValue),
 	}
 	cmd.AddCommand(getCmd)
 
