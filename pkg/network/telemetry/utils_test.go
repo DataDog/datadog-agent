@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSplitTagsAndOpts(t *testing.T) {
@@ -38,11 +39,14 @@ func TestSplitTagsAndOpts(t *testing.T) {
 }
 
 func TestInsertNestedTagsFor(t *testing.T) {
-	assert := assert.New(t)
 	metrics := make(map[string]interface{})
-	insertNestedValueFor("http.request_count", 1, metrics)
-	insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
-	insertNestedValueFor("http.dropped", 10, metrics)
+
+	err := insertNestedValueFor("http.request_count", 1, metrics)
+	require.NoError(t, err)
+	err = insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
+	require.NoError(t, err)
+	err = insertNestedValueFor("http.dropped", 10, metrics)
+	require.NoError(t, err)
 
 	expected := map[string]interface{}{
 		"http": map[string]interface{}{
@@ -56,5 +60,5 @@ func TestInsertNestedTagsFor(t *testing.T) {
 		},
 	}
 
-	assert.Equal(expected, metrics)
+	assert.Equal(t, expected, metrics)
 }

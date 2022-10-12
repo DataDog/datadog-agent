@@ -69,7 +69,10 @@ func ReportExpvar() map[string]interface{} {
 		}
 
 		seen[m.name] = struct{}{}
-		insertNestedValueFor(m.name, previousValues.ValueFor(m), root)
+		err := insertNestedValueFor(m.name, previousValues.ValueFor(m), root)
+		if err != nil {
+			log.Errorf("error inserting metric %s into expvar map: %s", m.name, err)
+		}
 	}
 
 	return root

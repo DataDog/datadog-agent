@@ -6,6 +6,7 @@
 package telemetry
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -66,11 +67,11 @@ func splitTagsAndOptions(all []string) (tags, opts []string) {
 //     }
 //   }
 // }
-func insertNestedValueFor(name string, value int64, root map[string]interface{}) {
+func insertNestedValueFor(name string, value int64, root map[string]interface{}) error {
 	parts := strings.Split(name, ".")
 	if len(parts) == 1 {
 		root[name] = value
-		return
+		return nil
 	}
 
 	parent := root
@@ -79,8 +80,7 @@ func insertNestedValueFor(name string, value int64, root map[string]interface{})
 			child, ok := v.(map[string]interface{})
 
 			if !ok {
-				// shouldn't happen; bail out.
-				return
+				return fmt.Errorf("invalid value type")
 			}
 
 			parent = child
@@ -93,4 +93,5 @@ func insertNestedValueFor(name string, value int64, root map[string]interface{})
 	}
 
 	parent[parts[len(parts)-1]] = value
+	return nil
 }
