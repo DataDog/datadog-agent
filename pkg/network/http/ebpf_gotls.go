@@ -11,15 +11,17 @@ package http
 import (
 	"debug/elf"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/network/http/gotls/lookup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/http/gotls/lookup"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -92,7 +94,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 }
 
 type GoTLSProgram struct {
-	manager  *manager.Manager
+	manager  *errtelemetry.Manager
 	probeIDs []manager.ProbeIdentificationPair
 }
 
@@ -110,7 +112,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	return &GoTLSProgram{}
 }
 
-func (p *GoTLSProgram) ConfigureManager(m *manager.Manager) {
+func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	if p == nil {
 		return
 	}
@@ -136,6 +138,20 @@ func (p *GoTLSProgram) Start() {
 	if binPath != "" {
 		p.handleNewBinary(binPath)
 	}
+}
+
+func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
+	for _, probeInfo := range functionToProbes {
+		if probeInfo.functionInfo != nil {
+			probeList = append(probeList, probeInfo.functionInfo.getIdentificationPair())
+		}
+
+		if probeInfo.returnInfo != nil {
+			probeList = append(probeList, probeInfo.returnInfo.getIdentificationPair())
+		}
+	}
+
+	return
 }
 
 func supportedArch(arch string) bool {
@@ -273,4 +289,11 @@ func (p *GoTLSProgram) Stop() {
 	// In the future, this should stop the new process listener.
 	p.detachHooks()
 
+}
+
+func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
+	return manager.ProbeIdentificationPair{
+		EBPFSection:  i.ebpfSection,
+		EBPFFuncName: i.ebpfFunctionName,
+	}
 }
