@@ -12,17 +12,28 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	verbose bool
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	var withDebug bool
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 
 	configCheckCommand := &cobra.Command{
 		Use:     "configcheck",
@@ -30,32 +41,34 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short:   "Print all configurations loaded & resolved of a running agent",
 		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := common.SetupConfig(globalParams.ConfFilePath)
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-			var b bytes.Buffer
-			color.Output = &b
-			err = flare.GetConfigCheck(color.Output, withDebug)
-			if err != nil {
-				return fmt.Errorf("unable to get config: %v", err)
-			}
-
-			scrubbed, err := scrubber.ScrubBytes(b.Bytes())
-			if err != nil {
-				return fmt.Errorf("unable to scrub sensitive data configcheck output: %v", err)
-			}
-
-			fmt.Println(string(scrubbed))
-			return nil
+			return fxutil.OneShot(run,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: true,
+				}.LogForOneShot("CORE", "off", true)),
+				core.Bundle,
+			)
 		},
 	}
-	configCheckCommand.Flags().BoolVarP(&withDebug, "verbose", "v", false, "print additional debug info")
+	configCheckCommand.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print additional debug info")
+
 	return []*cobra.Command{configCheckCommand}
+}
+
+func run(config config.Component, cliParams *cliParams) error {
+	var b bytes.Buffer
+	color.Output = &b
+	err := flare.GetConfigCheck(color.Output, cliParams.verbose)
+	if err != nil {
+		return fmt.Errorf("unable to get pkgconfig: %v", err)
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(b.Bytes())
+	if err != nil {
+		return fmt.Errorf("unable to scrub sensitive data configcheck output: %v", err)
+	}
+
+	fmt.Println(string(scrubbed))
+	return nil
 }

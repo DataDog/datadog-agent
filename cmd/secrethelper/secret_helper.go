@@ -6,29 +6,11 @@
 //go:build secrets
 // +build secrets
 
-package secrets
-
-import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
-
-	"github.com/spf13/cobra"
-	"k8s.io/client-go/kubernetes"
-
-	"github.com/DataDog/datadog-agent/cmd/secrets/providers"
-	s "github.com/DataDog/datadog-agent/pkg/secrets"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-)
-
-// This executable provides a "read" command to fetch secrets. It can be used in
-// 2 different ways:
+// Package secrethelper implements the secrethelper subcommand.
+//
+// This subcommand is shared between multiple agent binaries.
+//
+// It provides a "read" command to fetch secrets. It can be used in 2 different ways:
 //
 // 1) With the "--with-provider-prefixes" option enabled. Each input secret
 // should follow this format: "providerPrefix/some/path". The provider prefix
@@ -43,6 +25,28 @@ import (
 // "/some/path", the fetched value of the secret will be the contents of
 // "/some/path/my_secret". This option was offered before introducing
 // "--with-provider-prefixes" and is kept to avoid breaking compatibility.
+package secrethelper
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/DataDog/datadog-agent/cmd/secrethelper/providers"
+	s "github.com/DataDog/datadog-agent/pkg/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+)
 
 const (
 	providerPrefixesFlag    = "with-provider-prefixes"
@@ -54,42 +58,53 @@ const (
 // NewKubeClient TODO <agent-core>
 type NewKubeClient func(timeout time.Duration) (kubernetes.Interface, error)
 
-func init() {
-	cmd := readSecretCmd
-	cmd.Flags().Bool(providerPrefixesFlag, false, "Use prefixes to select the secrets provider (file, k8s_secret)")
-	SecretHelperCmd.AddCommand(cmd)
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	usePrefixes bool
+
+	// args are the positional command-line arguments
+	args []string
 }
 
-// SecretHelperCmd implements secrets provider helper commands
-var SecretHelperCmd = &cobra.Command{
-	Use:   "secret-helper",
-	Short: "Secret management provider helper",
-	Long:  ``,
-}
+// Commands returns a slice of subcommands of the parent command.
+func Commands() []*cobra.Command {
+	cliParams := &cliParams{}
+	cmd := &cobra.Command{
+		Use:   "read",
+		Short: "Read secrets",
+		Long:  ``,
+		Args:  cobra.MaximumNArgs(1), // 0 when using the provider prefixes option, 1 when reading a file
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliParams.args = args
+			return fxutil.OneShot(readCmd,
+				fx.Supply(cliParams),
+			)
+		},
+	}
+	cmd.PersistentFlags().BoolVarP(&cliParams.usePrefixes, providerPrefixesFlag, "", false, "Use prefixes to select the secrets provider (file, k8s_secret)")
 
-var readSecretCmd = &cobra.Command{
-	Use:   "read",
-	Short: "Read secrets",
-	Long:  ``,
-	Args:  cobra.MaximumNArgs(1), // 0 when using the provider prefixes option, 1 when reading a file
-	RunE: func(cmd *cobra.Command, args []string) error {
-		usePrefixes, err := cmd.Flags().GetBool(providerPrefixesFlag)
-		if err != nil {
-			return err
-		}
+	secretHelperCmd := &cobra.Command{
+		Use:   "secret-helper",
+		Short: "Secret management provider helper",
+		Long:  ``,
+	}
+	secretHelperCmd.AddCommand(cmd)
 
-		dir := ""
-		if len(args) == 1 {
-			dir = args[0]
-		}
-
-		return readSecrets(os.Stdin, os.Stdout, dir, usePrefixes, apiserver.GetKubeClient)
-	},
+	return []*cobra.Command{secretHelperCmd}
 }
 
 type secretsRequest struct {
 	Version string   `json:"version"`
 	Secrets []string `json:"secrets"`
+}
+
+func readCmd(cliParams *cliParams) error {
+	dir := ""
+	if len(cliParams.args) == 1 {
+		dir = cliParams.args[0]
+	}
+
+	return readSecrets(os.Stdin, os.Stdout, dir, cliParams.usePrefixes, apiserver.GetKubeClient)
 }
 
 func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, newKubeClientFunc NewKubeClient) error {

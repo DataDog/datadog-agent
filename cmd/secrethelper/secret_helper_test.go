@@ -6,7 +6,7 @@
 //go:build secrets
 // +build secrets
 
-package secrets
+package secrethelper
 
 import (
 	"bytes"

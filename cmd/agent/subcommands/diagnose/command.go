@@ -7,32 +7,47 @@
 package diagnose
 
 import (
-	"fmt"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-var noTrace bool
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	// noTrace is the value of the --no-trace flag
+	noTrace bool
+}
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
 	diagnoseMetadataAvailabilityCommand := &cobra.Command{
 		Use:   "metadata-availability",
 		Short: "Check availability of cloud provider and container metadata endpoints",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := configAndLogSetup(globalParams); err != nil {
-				return err
-			}
-
-			return diagnose.RunAll(color.Output)
+			return fxutil.OneShot(runAll,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -41,14 +56,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Check connectivity between your system and Datadog endpoints",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := configAndLogSetup(globalParams); err != nil {
-				return err
-			}
-
-			return connectivity.RunDatadogConnectivityDiagnose(color.Output, noTrace)
+			return fxutil.OneShot(runDatadogConnectivityDiagnose,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "info", true)),
+				core.Bundle,
+			)
 		},
 	}
-	diagnoseDatadogConnectivityCommand.PersistentFlags().BoolVarP(&noTrace, "no-trace", "", false, "mute extra information about connection establishment, DNS lookup and TLS handshake")
+	diagnoseDatadogConnectivityCommand.PersistentFlags().BoolVarP(&cliParams.noTrace, "no-trace", "", false, "mute extra information about connection establishment, DNS lookup and TLS handshake")
 
 	diagnoseCommand := &cobra.Command{
 		Use:   "diagnose",
@@ -62,19 +80,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func configAndLogSetup(globalParams *command.GlobalParams) error {
-	// Global config setup
-	err := common.SetupConfig(globalParams.ConfFilePath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
+func runAll(log log.Component, config config.Component, cliParams *cliParams) error {
+	return diagnose.RunAll(color.Output)
+}
 
-	// log level is always off since this might be use by other agent to get the hostname
-	err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "info"), "", "", false, true, false)
-
-	if err != nil {
-		return fmt.Errorf("error while setting up logging, exiting: %v", err)
-	}
-
-	return nil
+func runDatadogConnectivityDiagnose(log log.Component, config config.Component, cliParams *cliParams) error {
+	return connectivity.RunDatadogConnectivityDiagnose(color.Output, cliParams.noTrace)
 }
