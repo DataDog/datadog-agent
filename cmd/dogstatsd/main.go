@@ -19,7 +19,9 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -31,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -75,7 +78,15 @@ extensions for special Datadog features.`,
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return start(cliParams.confPath)
+			return fxutil.OneShot(start,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      cliParams.confPath,
+					ConfigLoadSecrets: false,
+					ConfigMissingOK:   true,
+				}),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -101,7 +112,7 @@ extensions for special Datadog features.`,
 	return dogstatsdCmd
 }
 
-func start(confFilePath string) error {
+func start(cliParams *cliParams) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer stopAgent(cancel)
@@ -109,7 +120,7 @@ func start(confFilePath string) error {
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx, confFilePath)
+	err := runAgent(ctx, cliParams.confPath)
 	if err != nil {
 		return err
 	}
