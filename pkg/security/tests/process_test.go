@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -484,10 +485,19 @@ func TestProcessContext(t *testing.T) {
 		for i := 0; i != 1024; i++ {
 			long += "a"
 		}
+		long += "="
 		envs = append(envs, long)
 
+		if kind == dockerWrapperType {
+			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
+		}
+
 		test.WaitSignal(t, func() error {
-			cmd := cmdFunc("ls", args, envs)
+			bin := "ls"
+			if kind == dockerWrapperType {
+				bin = "env"
+			}
+			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
 		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
@@ -521,12 +531,24 @@ func TestProcessContext(t *testing.T) {
 
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var buf bytes.Buffer
+		buf.Grow(50)
 		for i := 0; i != nEnvs; i++ {
-			envs = append(envs, eval.RandString(50))
+			buf.Reset()
+			fmt.Fprintf(&buf, "%s=%s", eval.RandString(19), eval.RandString(30))
+			envs = append(envs, buf.String())
+		}
+
+		if kind == dockerWrapperType {
+			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
 		}
 
 		test.WaitSignal(t, func() error {
-			cmd := cmdFunc("ls", args, envs)
+			bin := "ls"
+			if kind == dockerWrapperType {
+				bin = "env"
+			}
+			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
 		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
@@ -560,12 +582,24 @@ func TestProcessContext(t *testing.T) {
 
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var buf bytes.Buffer
+		buf.Grow(500)
 		for i := 0; i != nEnvs; i++ {
-			envs = append(envs, eval.RandString(500))
+			buf.Reset()
+			fmt.Fprintf(&buf, "%s=%s", eval.RandString(199), eval.RandString(300))
+			envs = append(envs, buf.String())
+		}
+
+		if kind == dockerWrapperType {
+			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
 		}
 
 		test.WaitSignal(t, func() error {
-			cmd := cmdFunc("ls", args, envs)
+			bin := "ls"
+			if kind == dockerWrapperType {
+				bin = "env"
+			}
+			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
 		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
