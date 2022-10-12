@@ -17,7 +17,7 @@ cluster_agent_cloudfoundry-build_amd64:
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv -e cluster-agent-cloudfoundry.build
-    - cd $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry

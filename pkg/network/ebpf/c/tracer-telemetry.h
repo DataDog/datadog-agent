@@ -12,7 +12,6 @@ enum telemetry_counter
     missed_udp_close,
     udp_send_processed,
     udp_send_missed,
-    conn_stats_max_entries_hit,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -35,9 +34,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case udp_send_missed:
         __sync_fetch_and_add(&val->udp_sends_missed, 1);
-        break;
-    case conn_stats_max_entries_hit:
-        __sync_fetch_and_add(&val->conn_stats_max_entries_hit, 1);
         break;
     }
 }

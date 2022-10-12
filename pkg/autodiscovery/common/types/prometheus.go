@@ -6,12 +6,10 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,18 +40,6 @@ var (
 	// OpenmetricsDefaultMetricsV2 containers the match-all regular expression to match all metrics
 	OpenmetricsDefaultMetricsV2 = []interface{}{".*"}
 )
-
-func configPrometheusScrapeChecksTransformer(in string) interface{} {
-	var promChecks []*PrometheusCheck
-	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-	}
-	return promChecks
-}
-
-func init() {
-	config.PrometheusScrapeChecksTransformer = configPrometheusScrapeChecksTransformer
-}
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules
 type PrometheusCheck struct {
@@ -142,15 +128,14 @@ type InclExcl struct {
 
 // Init prepares the PrometheusCheck structure and defaults its values
 // init must be called only once
-func (pc *PrometheusCheck) Init() error {
-	pc.initInstances()
+func (pc *PrometheusCheck) Init(version int) error {
+	pc.initInstances(version)
 	return pc.initAD()
 }
 
 // initInstances defaults the Instances field in PrometheusCheck
-func (pc *PrometheusCheck) initInstances() {
+func (pc *PrometheusCheck) initInstances(version int) {
 	var openmetricsDefaultMetrics []interface{}
-	version := config.Datadog.GetInt("prometheus_scrape.version")
 	switch version {
 	case 1:
 		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV1

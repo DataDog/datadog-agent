@@ -35,6 +35,7 @@ import (
 )
 
 const (
+	defaultRefreshInterval = 1 * time.Minute
 	minimalRefreshInterval = 5 * time.Second
 	defaultClientsTTL      = 30 * time.Second
 	maxClientsTTL          = 60 * time.Second
@@ -53,7 +54,8 @@ type Service struct {
 	sync.Mutex
 	firstUpdate bool
 
-	defaultRefreshInterval time.Duration
+	defaultRefreshInterval         time.Duration
+	refreshIntervalOverrideAllowed bool
 
 	// The backoff policy used for retries when errors are encountered
 	backoffPolicy backoff.Policy
@@ -89,10 +91,17 @@ type uptaneClient interface {
 
 // NewService instantiates a new remote configuration management service
 func NewService() (*Service, error) {
+	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 	refreshInterval := config.Datadog.GetDuration("remote_configuration.refresh_interval")
+	if refreshInterval == 0 {
+		refreshInterval = defaultRefreshInterval
+		refreshIntervalOverrideAllowed = true
+	}
+
 	if refreshInterval < minimalRefreshInterval {
-		log.Warnf("remote_configuration.refresh_interval is set to %v which is bellow the minimum of %v", refreshInterval, minimalRefreshInterval)
+		log.Warnf("remote_configuration.refresh_interval is set to %v which is below the minimum of %v", refreshInterval, minimalRefreshInterval)
 		refreshInterval = minimalRefreshInterval
+		refreshIntervalOverrideAllowed = true
 	}
 
 	maxBackoffTime := config.Datadog.GetDuration("remote_configuration.max_backoff_interval")
@@ -156,19 +165,20 @@ func NewService() (*Service, error) {
 	}
 	clock := clock.New()
 	return &Service{
-		ctx:                    context.Background(),
-		firstUpdate:            true,
-		defaultRefreshInterval: refreshInterval,
-		backoffErrorCount:      0,
-		backoffPolicy:          backoffPolicy,
-		products:               make(map[rdata.Product]struct{}),
-		newProducts:            make(map[rdata.Product]struct{}),
-		hostname:               hname,
-		clock:                  clock,
-		db:                     db,
-		api:                    http,
-		uptane:                 uptaneClient,
-		clients:                newClients(clock, clientsTTL),
+		ctx:                            context.Background(),
+		firstUpdate:                    true,
+		defaultRefreshInterval:         refreshInterval,
+		refreshIntervalOverrideAllowed: refreshIntervalOverrideAllowed,
+		backoffErrorCount:              0,
+		backoffPolicy:                  backoffPolicy,
+		products:                       make(map[rdata.Product]struct{}),
+		newProducts:                    make(map[rdata.Product]struct{}),
+		hostname:                       hname,
+		clock:                          clock,
+		db:                             db,
+		api:                            http,
+		uptane:                         uptaneClient,
+		clients:                        newClients(clock, clientsTTL),
 		newActiveClients: newActiveClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
@@ -253,6 +263,17 @@ func (s *Service) refresh() error {
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
 		return err
 	}
+
+	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
+	// on the contents of our update request
+	if s.refreshIntervalOverrideAllowed {
+		ri, err := s.getRefreshInterval()
+		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
+			s.defaultRefreshInterval = ri
+			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
+		}
+	}
+
 	s.firstUpdate = false
 	for product := range s.newProducts {
 		s.products[product] = struct{}{}
@@ -288,6 +309,25 @@ func (s *Service) getClientState() ([]byte, error) {
 		return nil, err
 	}
 	return custom.OpaqueBackendState, nil
+}
+
+func (s *Service) getRefreshInterval() (time.Duration, error) {
+	rawTargetsCustom, err := s.uptane.TargetsCustom()
+	if err != nil {
+		return 0, err
+	}
+	custom, err := parseTargetsCustom(rawTargetsCustom)
+	if err != nil {
+		return 0, err
+	}
+
+	// We only allow intervals to be overridden if they are between [1s, 1m]
+	value := time.Second * time.Duration(custom.AgentRefreshInterval)
+	if value < time.Second || value > time.Minute {
+		return 0, nil
+	}
+
+	return value, nil
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
@@ -337,7 +377,7 @@ func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo
 	if err != nil {
 		return nil, err
 	}
-	matchedClientConfigs, err := executeClientPredicates(request.Client, directorTargets)
+	matchedClientConfigs, err := executeTracerPredicates(request.Client, directorTargets)
 	if err != nil {
 		return nil, err
 	}

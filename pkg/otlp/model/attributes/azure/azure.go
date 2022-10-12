@@ -38,7 +38,7 @@ func HostInfoFromAttributes(attrs pcommon.Map, usePreviewRules bool) (hostInfo *
 
 	// Add Azure VM ID as a host alias if available for compatibility with Azure integration
 	if vmID, ok := attrs.Get(conventions.AttributeHostID); ok && !usePreviewRules {
-		hostInfo.HostAliases = append(hostInfo.HostAliases, vmID.StringVal())
+		hostInfo.HostAliases = append(hostInfo.HostAliases, vmID.Str())
 	}
 
 	return
@@ -47,11 +47,11 @@ func HostInfoFromAttributes(attrs pcommon.Map, usePreviewRules bool) (hostInfo *
 // HostnameFromAttributes gets the Azure hostname from attributes
 func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
 	if vmID, ok := attrs.Get(conventions.AttributeHostID); usePreviewRules && ok {
-		return vmID.StringVal(), true
+		return vmID.Str(), true
 	}
 
 	if hostname, ok := attrs.Get(conventions.AttributeHostName); ok {
-		return hostname.StringVal(), true
+		return hostname.Str(), true
 	}
 
 	return "", false
@@ -61,7 +61,7 @@ func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bo
 func ClusterNameFromAttributes(attrs pcommon.Map) (string, bool) {
 	// Get cluster name from resource group from pkg/util/cloudprovider/azure:GetClusterName
 	if resourceGroup, ok := attrs.Get(AttributeResourceGroupName); ok {
-		splitAll := strings.Split(resourceGroup.StringVal(), "_")
+		splitAll := strings.Split(resourceGroup.Str(), "_")
 		if len(splitAll) < 4 || strings.ToLower(splitAll[0]) != "mc" {
 			return "", false // Failed to parse
 		}

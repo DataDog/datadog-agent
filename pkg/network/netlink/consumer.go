@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package netlink
 
@@ -135,7 +135,7 @@ func NewConsumer(cfg *config.Config) (*Consumer, error) {
 		procRoot:            cfg.ProcRoot,
 		pool:                newBufferPool(),
 		targetRateLimit:     cfg.ConntrackRateLimit,
-		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit)),
+		breaker:             NewCircuitBreaker(int64(cfg.ConntrackRateLimit), cfg.ConntrackRateLimitInterval),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: cfg.EnableConntrackAllNamespaces,
 		enobufs:             atomic.NewInt64(0),

@@ -8,6 +8,7 @@ package host
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -98,4 +99,39 @@ func TestCombineExtraTags(t *testing.T) {
 	hostTags := GetHostTags(ctx, false)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag1:value2", "tag2", "tag3", "tag4"}, hostTags.System)
+}
+
+func TestHostTagsCache(t *testing.T) {
+	ctx := context.Background()
+	mockConfig := config.Mock(t)
+	mockConfig.Set("collect_gce_tags", false)
+
+	fooTags := []string{"foo1:value1"}
+	var fooErr error
+
+	getProvidersDefinitionsFunc = func() map[string]*providerDef {
+		return map[string]*providerDef{
+			"foo": {
+				retries: 1,
+				getTags: func(ctx context.Context) ([]string, error) {
+					return fooTags, fooErr
+				},
+			},
+		}
+	}
+	defer func() {
+		getProvidersDefinitionsFunc = getProvidersDefinitions
+	}()
+
+	// First run, all good
+	hostTags := GetHostTags(ctx, false)
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
+
+	// Second run, provider all fails, we should get cached data
+	fooErr = errors.New("fooerr")
+
+	hostTags = GetHostTags(ctx, false)
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 }

@@ -13,7 +13,7 @@ const (
 	DefaultAggregatorFlushInterval = 300 // 5min
 
 	// DefaultAggregatorBufferSize is the default aggregator buffer size interval
-	DefaultAggregatorBufferSize = 100
+	DefaultAggregatorBufferSize = 10000
 
 	// DefaultAggregatorPortRollupThreshold is the default aggregator port rollup threshold
 	DefaultAggregatorPortRollupThreshold = 10

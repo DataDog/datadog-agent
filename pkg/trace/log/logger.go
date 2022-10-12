@@ -6,7 +6,6 @@
 package log
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -115,7 +114,6 @@ func Error(v ...interface{}) {
 // and writes to log with level = Error.
 func Errorf(format string, params ...interface{}) {
 	mu.RLock()
-	fmt.Println("X:", format, params)
 	logger.Errorf(format, params...) //nolint:errcheck
 	mu.RUnlock()
 }

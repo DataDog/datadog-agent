@@ -8,6 +8,6 @@
  */
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" : "=r"(var))
 
-static const __u64 ENABLED = 1;
+__maybe_unused static const __u64 ENABLED = 1;
 
 #endif

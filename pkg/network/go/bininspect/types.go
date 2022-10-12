@@ -3,14 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build linux
+// +build linux
+
 package bininspect
 
 import (
+	"debug/elf"
 	"errors"
 	"reflect"
 
 	"github.com/go-delve/delve/pkg/goversion"
 )
+
+type elfMetadata struct {
+	file *elf.File
+	arch GoArch
+}
 
 // Result is the result of the binary inspection process.
 type Result struct {
@@ -20,6 +29,7 @@ type Result struct {
 	IncludesDebugSymbols bool
 	Functions            map[string]FunctionMetadata
 	StructOffsets        map[FieldIdentifier]uint64
+	GoroutineIDMetadata  GoroutineIDMetadata
 }
 
 // GoArch only includes supported architectures,
@@ -179,6 +189,37 @@ type FieldIdentifier struct {
 	StructName string
 	// Name of the field in the struct
 	FieldName string
+}
+
+// GoroutineIDMetadata contains information
+// that can be used to reliably determine the ID
+// of the currently-running goroutine from an eBPF uprobe.
+type GoroutineIDMetadata struct {
+	// The offset of the `goid` field within `runtime.g`
+	GoroutineIDOffset uint64
+	// Whether the pointer to the current `runtime.g` value is in a register.
+	// If true, then `RuntimeGRegister` is given.
+	// Otherwise, `RuntimeGTLSAddrOffset` is given
+	RuntimeGInRegister bool
+
+	// The register that the pointer to the current `runtime.g` is in.
+	RuntimeGRegister int
+	// The offset of the `runtime.g` value within thread-local-storage.
+	RuntimeGTLSAddrOffset uint64
+}
+
+// ParameterLookupFunction represents a function that returns a list of parameter metadata (for example, parameter size)
+// for a specific golang function. It selects the relevant parameters metadata by the given go version & architecture.
+type ParameterLookupFunction func(goversion.GoVersion, string) ([]ParameterMetadata, error)
+
+// StructLookupFunction represents a function that returns the offset of a specific field in a struct.
+// It selects the relevant offset metadata by the given go version & architecture.
+type StructLookupFunction func(goversion.GoVersion, string) (uint64, error)
+
+// FunctionConfiguration contains info for the function analyzing process when scanning a binary.
+type FunctionConfiguration struct {
+	includeReturnLocations bool
+	paramLookupFunction    ParameterLookupFunction
 }
 
 // ErrNilElf is returned when getting a nil pointer to an elf file.
