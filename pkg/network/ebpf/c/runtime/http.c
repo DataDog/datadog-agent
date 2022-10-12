@@ -648,12 +648,12 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
         return 1;
     }
 
-    if (read_location(ctx, &pd->write_buffer.ptr, sizeof(uint64_t), &call_data.b_data)) {
+    if (read_location(ctx, &pd->write_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
         log_debug("[go-tls-write] failed reading buffer pointer for pid %d\n", pid);
         return 1;
     }
 
-    if (read_location(ctx, &pd->write_buffer.len, sizeof(call_data.b_data), &call_data.b_len)) {
+    if (read_location(ctx, &pd->write_buffer.len, sizeof(call_data.b_len), &call_data.b_len)) {
         log_debug("[go-tls-write] failed reading buffer length for pid %d\n", pid);
         return 1;
     }
