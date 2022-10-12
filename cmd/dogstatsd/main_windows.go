@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -56,7 +56,7 @@ const ServiceName = "dogstatsd"
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.Dogstatsd)
-	config.Datadog.AddConfigPath(DefaultConfPath)
+	pkgconfig.Datadog.AddConfigPath(DefaultConfPath)
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
@@ -113,7 +113,7 @@ loop:
 				break loop
 			case svc.PreShutdown:
 				log.Info("Received pre-shutdown message from service control manager")
-				elog.Info(0x4000000d, config.ServiceName)
+				elog.Info(0x4000000d, pkgconfig.ServiceName)
 				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")

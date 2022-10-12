@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -56,7 +56,7 @@ type cliParams struct {
 
 const (
 	// loggerName is the name of the dogstatsd logger
-	loggerName config.LoggerName = "DSD"
+	loggerName pkgconfig.LoggerName = "DSD"
 )
 
 func MakeCommands() *cobra.Command {
@@ -106,9 +106,9 @@ extensions for special Datadog features.`,
 
 	// local flags
 	startCmd.Flags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
-	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
+	pkgconfig.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
 	startCmd.Flags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 	return dogstatsdCmd
 }
 
@@ -137,9 +137,9 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 	// a path to the folder containing the config file was passed
 	if len(confFilePath) != 0 {
 		// we'll search for a config file named `dogstatsd.yaml`
-		config.Datadog.SetConfigName("dogstatsd")
-		config.Datadog.AddConfigPath(confFilePath)
-		_, confErr := config.Load()
+		pkgconfig.Datadog.SetConfigName("dogstatsd")
+		pkgconfig.Datadog.AddConfigPath(confFilePath)
+		_, confErr := pkgconfig.Load()
 		if confErr != nil {
 			log.Error(confErr)
 		} else {
@@ -152,7 +152,7 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 	}
 
 	// go_expvar server
-	port := config.Datadog.GetInt("dogstatsd_stats_port")
+	port := pkgconfig.Datadog.GetInt("dogstatsd_stats_port")
 	dogstatsdStats = &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: http.DefaultServeMux,
@@ -164,25 +164,25 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 	}()
 
 	// Setup logger
-	syslogURI := config.GetSyslogURI()
-	logFile := config.Datadog.GetString("log_file")
+	syslogURI := pkgconfig.GetSyslogURI()
+	logFile := pkgconfig.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = defaultLogFile
 	}
 
-	if config.Datadog.GetBool("disable_file_logging") {
+	if pkgconfig.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
 		logFile = ""
 	}
 
-	err = config.SetupLogger(
+	err = pkgconfig.SetupLogger(
 		loggerName,
-		config.Datadog.GetString("log_level"),
+		pkgconfig.Datadog.GetString("log_level"),
 		logFile,
 		syslogURI,
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
+		pkgconfig.Datadog.GetBool("syslog_rfc"),
+		pkgconfig.Datadog.GetBool("log_to_console"),
+		pkgconfig.Datadog.GetBool("log_format_json"),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -193,13 +193,13 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !config.Datadog.IsSet("api_key") {
+	if !pkgconfig.Datadog.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
 	}
 
 	// Setup healthcheck port
-	var healthPort = config.Datadog.GetInt("health_port")
+	var healthPort = pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err = healthprobe.Serve(ctx, healthPort)
 		if err != nil {
@@ -210,7 +210,7 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 	}
 
 	// setup the demultiplexer
-	keysPerDomain, err := config.GetMultipleEndpoints()
+	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
@@ -220,7 +220,7 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	opts.EnableNoAggregationPipeline = config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
+	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
@@ -242,7 +242,7 @@ func runAgent(ctx context.Context, confFilePath string) (err error) {
 	}
 
 	// container tagging initialisation if origin detection is on
-	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+	if pkgconfig.Datadog.GetBool("dogstatsd_origin_detection") {
 		store := workloadmeta.GetGlobalStore()
 		store.Start(ctx)
 
