@@ -145,13 +145,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	var ebpfSubprograms []subprogram
-	if sslProgram := newSSLProgram(c, sockFD); sslProgram != nil {
-		ebpfSubprograms = append(ebpfSubprograms, sslProgram)
-	}
-
-	if goTLSProgram := newGoTLSProgram(c); goTLSProgram != nil {
-		ebpfSubprograms = append(ebpfSubprograms, goTLSProgram)
+	// Add the subprograms even if nil, so that the manager can get the
+	// undefined probes from them when they are not enabled. Subprograms
+	// functions do checks for nil before doing anything.
+	ebpfSubprograms := []subprogram{
+		newGoTLSProgram(c),
+		newSSLProgram(c, sockFD),
 	}
 
 	program := &ebpfProgram{
