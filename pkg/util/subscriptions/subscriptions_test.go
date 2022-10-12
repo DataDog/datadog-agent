@@ -8,22 +8,24 @@ package subscriptions
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestSubscribe(t *testing.T) {
-	rx1 := NewReceiver[string]()
-	rx2 := NewReceiver[string]()
-	tx := NewTransmitter[string]([]Receiver[string]{rx1, rx2})
+// ---- msg is a message
 
-	tx.Notify("hello!")
-	require.Equal(t, "hello!", <-rx1.Chan())
-	require.Equal(t, "hello!", <-rx2.Chan())
+type msg struct {
+	s string
+}
 
-	require.Equal(t, 0, len(rx1.Chan()))
-	require.Equal(t, 0, len(rx2.Chan()))
+// ---- params defines parameters for the test
+
+type params struct {
+	// shouldReceive determines whether the receiver should register to receive
+	// messages
+	shouldReceive bool
 }
 
 // ---- rx receives messages
@@ -32,44 +34,52 @@ type RxComponent interface {
 	GetMessage() string
 }
 
-type receiver struct {
-	rx Receiver[string]
+type rx struct {
+	receiver Receiver[msg]
 }
 
-func newRx() (RxComponent, Subscription[string]) {
-	sub := NewSubscription[string]()
-	return &receiver{rx: sub.Receiver}, sub
+func newRx(params params) (RxComponent, Receiver[msg]) {
+	if !params.shouldReceive {
+		return &rx{}, Receiver[msg]{}
+	}
+
+	receiver := NewReceiver[msg]()
+	return &rx{receiver}, receiver
 }
 
-func (rx *receiver) GetMessage() string {
-	return <-rx.rx.Chan()
+func (rx *rx) GetMessage() string {
+	if rx.receiver.Ch == nil {
+		panic("this component is not receiving")
+	}
+	return (<-rx.receiver.Ch).s
 }
 
-// --- tx sends messages
+// ---- tx sends messages
 
 type TxComponent interface {
 	SendMessage(string)
 }
 
-type transmitter struct {
-	tx Transmitter[string]
+type tx struct {
+	transmitter Transmitter[msg]
 }
 
-func newTx(pub Publisher[string]) TxComponent {
-	return &transmitter{
-		tx: pub.Transmitter(),
-	}
+func newTx(transmitter Transmitter[msg]) TxComponent {
+	return &tx{transmitter}
 }
 
-func (tx *transmitter) SendMessage(message string) {
-	tx.tx.Notify(message)
+func (tx *tx) SendMessage(message string) {
+	tx.transmitter.Notify(msg{s: message})
 }
 
-func TestFx(t *testing.T) {
+// ---- tests
+
+func TestReceiving(t *testing.T) {
 	var rx RxComponent
 	var tx TxComponent
 	fxutil.Test(t,
 		fx.Options(
+			fx.Supply(params{shouldReceive: true}),
 			fx.Provide(newRx),
 			fx.Provide(newTx),
 			fx.Populate(&rx),
@@ -77,5 +87,24 @@ func TestFx(t *testing.T) {
 		), func() {
 			tx.SendMessage("hello")
 			require.Equal(t, "hello", rx.GetMessage())
+		})
+}
+
+func TestNotReceiving(t *testing.T) {
+	var rx RxComponent
+	var tx TxComponent
+	fxutil.Test(t,
+		fx.Options(
+			fx.Supply(params{shouldReceive: false}),
+			fx.Provide(newRx),
+			fx.Provide(newTx),
+			fx.Populate(&rx),
+			fx.Populate(&tx),
+		), func() {
+			// send three messages to ensure any buffered channels fill
+			// up and block (there shouldn't be any channels!)
+			tx.SendMessage("hello")
+			tx.SendMessage("cruel")
+			tx.SendMessage("world")
 		})
 }

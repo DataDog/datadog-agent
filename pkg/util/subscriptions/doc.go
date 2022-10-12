@@ -6,20 +6,15 @@
 // Package subscriptions provides support for managing subscriptions between
 // components.
 //
-// Subscriptions are keyed by the message type.  Messages can be of any type, but
-// should be unique within the agent codebase.
-//
 // This package provides a simple subscription implementation with its
 // Transmitter and Receiver types.  Send messages with tx.Notify() and receive
 // them with <-rx.Chan().
 //
-// To create a transmitter, include a Publisher in your component's dependencies, and
-// call Publisher#Transmitter() in the component constructor.
+// Subscriptions are keyed by the message type.  Messages can be of any type, but
+// that type must be unique within the agent codebase.
 //
-// To create a receiver, include a subscription in your component's provided types, and
-// use Subscription#Receiver to receive messages.
-//
-// See the conventions documentation for a description of the component interface.
+// See the components documentation (doc/components) for more detailed usage
+// information.
 //
 // Warning
 //

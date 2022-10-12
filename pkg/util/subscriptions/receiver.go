@@ -5,26 +5,28 @@
 
 package subscriptions
 
+import "go.uber.org/fx"
+
 // Receiver defines a point where messages can be received.
 //
-// A zero-valued receiver is valid, but will not receive messages.
+// A component wishing to receive messages should provide a value
+// of this type from its Fx constructor, and later poll Receiver#Ch
+// for messages.
+//
+// A zero-valued Receiver is valid, but will not receive messages.
 type Receiver[M Message] struct {
-	ch chan M
+	fx.Out
+
+	Ch chan M `group:"subscriptions"`
 }
 
-// NewReceiver creates a new Receiver.  Component-based subscriptions typically
-// use a NewSubscription to create a subscription containing a corresponding
-// Receiver.
+// NewReceiver creates a new Receiver.
+//
+// The receiver's channel is buffered to allow concurrency, but with size 1.
+// Components using a Receiver should poll the channel frequently to avoid
+// blocking the transmitter.
 func NewReceiver[M Message]() Receiver[M] {
 	return Receiver[M]{
-		ch: make(chan M, 1),
+		Ch: make(chan M, 1),
 	}
-}
-
-// Chan gets the channel from which messages for this subscription should be read
-//
-// The channel is buffered, but with a size of 1.  Callers should poll the channel
-// frequently to avoid blocking senders.
-func (s Receiver[M]) Chan() <-chan M {
-	return s.ch
 }

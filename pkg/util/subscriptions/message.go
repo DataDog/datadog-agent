@@ -5,5 +5,7 @@
 
 package subscriptions
 
-// Message is the type of the message handled by a subscription point.  It can be any type.
+// Message is the type of the message handled by a subscription point.  It can
+// be any type, but that type must be unique within the codebase.  Do not use
+// a basic type like `string` or `int` here.
 type Message interface{}

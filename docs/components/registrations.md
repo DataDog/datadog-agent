@@ -91,10 +91,10 @@ This technique has some caveats to be aware of:
 
 Subscriptions are a common form of registration, and have support in the `pkg/util/subscriptions` package.
 
-To implement a subscription, the collecting component defines a message type.
-This message type must be unique across the codebase, and should not be a built-in type like `string`.
-Providing components provide `subscriptions.Subscription[coll.Message]`, from which they can obtain a `subscriptions.Receiver[coll.Message]`.
-Collecting components require `subcriptions.Publisher[coll.Message]`, from which they can obtain a `subscriptions.Transmitter[coll.Message]`.
+In defining subscriptions, the component that transmits messages is the _collecting_ component, and the processes receiving components are the _providing_ components.
+These are matched using the message type, which must be unique across the codebase, and should not be a built-in type like `string`.
+Providing components provide a `subscriptions.Receiver[coll.Message]` which has a `Ch` channel from which to receive messages.
+Collecting components require a `subscriptions.Transmitter[coll.Message]` which has a `Notify` method to send messages.
 
 ```go
 // --- announcer/component.go ---
@@ -108,36 +108,36 @@ package announcer
 ```go
 // --- announcer/announcer.go ---
 
-func newAnnouncer(pub subscriptions.Publisher[Anouncement]) Component {
-    return &announcer{announcementTx: pub.Transmitter()}  // (get a Transmitter from the Publisher)
+func newAnnouncer(tx subscriptions.Transmitter[Anouncement]) Component {
+    return &announcer{announcementTx: tx}  // (store the transmitter)
 }
 
 // .. later send messages with 
 func (ann *announcer) announce(a announcement) {
-    ann.eventTx.Notify(a)
+    ann.annoucementTx.Notify(a)
 }
 ```
 
 ```go
 // --- listener/listener.go ---
 
-func newListener() (Component, subscriptions.Subscription[announcer.Announcement]) {
-    sub := subscriptions.NewSubscription[Event]() // create a subscription
-    return &listener{eventRx: sub.Receiver}, sub  // capture the receiver, and return the subscription
+func newListener() (Component, subscriptions.Receiver[announcer.Announcement]) {
+    rx := subscriptions.Receiver[Event]() // create a receiver
+    return &listener{announcementRx: rx}, rx  // capture the receiver _and_ return it
 }
 
 // .. later receive messages (usually in an actor's main loop)
 func (l *listener) run() {
     loop {
         select {
-        case a := <- l.eventRx.Chan():
+        case a := <- l.announcementRx.Ch:
             ...
         }
     }
 }
 ```
 
-If a receiving component does not subscribe (for example, if it is not started), it can return the zero value, `subscriptions.Subscription[Event]{}`, from its constructor.
+If a receiving component does not subscribe (for example, if it is not started), it can return the zero value, `subscriptions.Receiver[Event]{}`, from its constructor.
 If a component returns a non-nil subscriber, it _must_ consume messages from the receiver or risk blocking the transmitter.
 
 See the `pkg/util/subscriptions` documentation for more details.

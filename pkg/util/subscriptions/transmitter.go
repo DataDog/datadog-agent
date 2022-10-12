@@ -5,31 +5,28 @@
 
 package subscriptions
 
-// Transmitter defines a point where messages can be sent
-type Transmitter[M Message] struct {
-	chs []chan M
-}
+import "go.uber.org/fx"
 
-// NewTransmitter creates a new Transmitter.  Component-based subscriptions
-// typically use NewPublisher, instead.
+// Transmitter provides a way to send messages of a specific type.
 //
-// This ignores any zero-valued receivers.
-func NewTransmitter[M Message](receivers []Receiver[M]) Transmitter[M] {
-	// get the receivers' channels, filtering out nils
-	chs := make([]chan M, 0, len(receivers))
-	for _, rx := range receivers {
-		if rx.ch != nil {
-			chs = append(chs, rx.ch)
-		}
-	}
-	return Transmitter[M]{chs}
+// A component wishing to transmit messages should include a value
+// of this type in its dependencies.
+//
+// It will be matched to zero or more Receivers.
+type Transmitter[M Message] struct {
+	fx.In
+
+	Chs []chan M `group:"subscriptions"`
 }
 
 // Notify notifies all associated receivers of a new message.
 //
-// If any receiver's channel is full, this method will block.
-func (sp Transmitter[M]) Notify(message M) {
-	for _, ch := range sp.chs {
-		ch <- message
+// If any receiver's channel is full, this method will block.  If
+// any receiver's channel is closed, this method will panic.
+func (tx Transmitter[M]) Notify(message M) {
+	for _, ch := range tx.Chs {
+		if ch != nil {
+			ch <- message
+		}
 	}
 }
