@@ -98,7 +98,7 @@ func (m *Metric) Delta() int64 {
 // This is mostly inteded for serving a list of the existing
 // metrics under /network_tracer/debug/telemetry endpoint
 func (m *Metric) MarshalJSON() ([]byte, error) {
-	j, err := json.Marshal(struct {
+	return json.Marshal(struct {
 		Name string
 		Tags []string `json:",omitempty"`
 		Opts []string
@@ -107,10 +107,6 @@ func (m *Metric) MarshalJSON() ([]byte, error) {
 		Tags: m.tags,
 		Opts: m.opts,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return j, nil
 }
 
 func (m *Metric) isEqual(other *Metric) bool {
