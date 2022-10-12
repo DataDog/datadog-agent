@@ -278,6 +278,9 @@
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/http*               @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/go-tls-*            @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/tags-types.h        @DataDog/universal-service-monitoring
+/pkg/network/ebpf/go_tls*               @DataDog/universal-service-monitoring
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/http/                      @DataDog/universal-service-monitoring
