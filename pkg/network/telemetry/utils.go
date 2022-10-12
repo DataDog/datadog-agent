@@ -48,6 +48,24 @@ func splitTagsAndOptions(all []string) (tags, opts []string) {
 	return
 }
 
+// insertNestedValueFor is used for translating a set of "flat" metric names into
+// a nested map representation.
+// Usage Example:
+// metrics := make(map[string]interface{})
+// insertNestedValueFor("http.request_count", 1, metrics)
+// insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
+// Results in:
+//
+// {
+//   "http": {
+//     "request_count": 1
+//   },
+//   "dns": {
+//     "errors": {
+//       "nxdomain": 5
+//     }
+//   }
+// }
 func insertNestedValueFor(name string, value int64, root map[string]interface{}) {
 	parts := strings.Split(name, ".")
 	if len(parts) == 1 {
