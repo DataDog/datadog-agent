@@ -41,13 +41,15 @@ import (
 )
 
 var (
-	confPath   string
-	socketPath string
-
 	metaScheduler  *metadata.Scheduler
 	statsd         *dogstatsd.Server
 	dogstatsdStats *http.Server
 )
+
+type cliParams struct {
+	confPath   string
+	socketPath string
+}
 
 const (
 	// loggerName is the name of the dogstatsd logger
@@ -55,6 +57,8 @@ const (
 )
 
 func MakeCommands() *cobra.Command {
+	cliParams := &cliParams{}
+
 	// dogstatsdCmd is the root command
 	dogstatsdCmd := &cobra.Command{
 		Use:   "dogstatsd [command]",
@@ -70,7 +74,9 @@ extensions for special Datadog features.`,
 		Use:   "start",
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
-		RunE:  start,
+		RunE: func(*cobra.Command, []string) error {
+			return start(cliParams.confPath)
+		},
 	}
 
 	versionCmd := &cobra.Command{
@@ -88,14 +94,14 @@ extensions for special Datadog features.`,
 	dogstatsdCmd.AddCommand(versionCmd)
 
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
+	startCmd.Flags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
-	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
+	startCmd.Flags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 	return dogstatsdCmd
 }
 
-func start(cmd *cobra.Command, args []string) error {
+func start(confFilePath string) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer stopAgent(cancel)
@@ -103,7 +109,7 @@ func start(cmd *cobra.Command, args []string) error {
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx)
+	err := runAgent(ctx, confFilePath)
 	if err != nil {
 		return err
 	}
@@ -114,14 +120,14 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runAgent(ctx context.Context) (err error) {
+func runAgent(ctx context.Context, confFilePath string) (err error) {
 	configFound := false
 
 	// a path to the folder containing the config file was passed
-	if len(confPath) != 0 {
+	if len(confFilePath) != 0 {
 		// we'll search for a config file named `dogstatsd.yaml`
 		config.Datadog.SetConfigName("dogstatsd")
-		config.Datadog.AddConfigPath(confPath)
+		config.Datadog.AddConfigPath(confFilePath)
 		_, confErr := config.Load()
 		if confErr != nil {
 			log.Error(confErr)
