@@ -815,7 +815,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Name:       "aws.lambda.enhanced.runtime_duration",
 		Value:      runtimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:true"},
+		Tags:       []string{"cold_start:true", "warmup:false"},
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 	})
@@ -823,7 +823,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:true"},
+		Tags:       []string{"cold_start:true", "warmup:false"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 	})
@@ -831,7 +831,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"cold_start:true"},
+		Tags:       []string{"cold_start:true", "warmup:false"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 	})

@@ -59,6 +59,7 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
+	eventRawPayload := string(reqBody)
 	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
 		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
 		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
@@ -66,11 +67,14 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
-		InvokeEventRawPayload: string(reqBody),
+		InvokeEventRawPayload: eventRawPayload,
 		InvokeEventHeaders:    lambdaInvokeContext,
 		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
 
+	// Parse the event payload to check if this is a warmup event
+	lambdaPayloadString := invocationlifecycle.ParseLambdaPayload(eventRawPayload)
+	s.daemon.ExecutionContext.UpdateFromEventPayload(lambdaPayloadString)
 	s.daemon.InvocationProcessor.OnInvokeStart(startDetails)
 
 	if s.daemon.InvocationProcessor.GetExecutionInfo().TraceID == 0 {

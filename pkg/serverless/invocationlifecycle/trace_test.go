@@ -342,14 +342,14 @@ func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
 }
 
 func TestParseLambdaPayload(t *testing.T) {
-	assert.Equal(t, "", parseLambdaPayload(""))
-	assert.Equal(t, "{}", parseLambdaPayload("{}"))
-	assert.Equal(t, "{}", parseLambdaPayload("a{}a"))
-	assert.Equal(t, "{a}", parseLambdaPayload("{a}a"))
-	assert.Equal(t, "{a}", parseLambdaPayload("a{a}"))
-	assert.Equal(t, "{a}", parseLambdaPayload("}{a}a{"))
-	assert.Equal(t, "{}{}", parseLambdaPayload("{}{}"))
-	assert.Equal(t, "{a}", parseLambdaPayload("a{a}a"))
-	assert.Equal(t, "{", parseLambdaPayload("{"))
-	assert.Equal(t, "}", parseLambdaPayload("}"))
+	assert.Equal(t, "", ParseLambdaPayload(""))
+	assert.Equal(t, "{}", ParseLambdaPayload("{}"))
+	assert.Equal(t, "{}", ParseLambdaPayload("a{}a"))
+	assert.Equal(t, "{a}", ParseLambdaPayload("{a}a"))
+	assert.Equal(t, "{a}", ParseLambdaPayload("a{a}"))
+	assert.Equal(t, "{a}", ParseLambdaPayload("}{a}a{"))
+	assert.Equal(t, "{}{}", ParseLambdaPayload("{}{}"))
+	assert.Equal(t, "{a}", ParseLambdaPayload("a{a}a"))
+	assert.Equal(t, "{", ParseLambdaPayload("{"))
+	assert.Equal(t, "}", ParseLambdaPayload("}"))
 }

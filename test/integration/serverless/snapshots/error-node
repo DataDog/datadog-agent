@@ -20,7 +20,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -45,7 +46,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -70,7 +72,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -95,7 +98,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -172,7 +176,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -197,7 +202,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -222,7 +228,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -247,7 +254,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -272,7 +280,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -297,7 +306,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -322,7 +332,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -347,7 +358,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -372,7 +384,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -397,7 +410,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -422,7 +436,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -447,7 +462,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   },
@@ -472,7 +488,8 @@
       "tagb:valueb",
       "tagc:valuec",
       "tagd:valued",
-      "version:integration-tests-version"
+      "version:integration-tests-version",
+      "warmup:false"
     ],
     "dogsketches": []
   }

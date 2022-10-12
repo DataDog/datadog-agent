@@ -50,7 +50,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
+	lambdaPayloadString := ParseLambdaPayload(startDetails.InvokeEventRawPayload)
 
 	log.Debugf("Parsed payload string: %v", lambdaPayloadString)
 
@@ -66,6 +66,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	// Initialize basic values in the request handler
 	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
+
+	// Add warmup span metadata if the invocation event is from serverless-plugin-warmup
+	if trigger.IsWarmupEvent(lowercaseEventPayload) {
+		lp.addTag("warmup", "true")
+	}
 
 	payloadBytes := []byte(lambdaPayloadString)
 	region, account, resource, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
@@ -155,7 +160,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	statusCode, err := trigger.GetStatusCodeFromHTTPResponse([]byte(parseLambdaPayload(endDetails.ResponseRawPayload)))
+	statusCode, err := trigger.GetStatusCodeFromHTTPResponse([]byte(ParseLambdaPayload(endDetails.ResponseRawPayload)))
 	if err != nil {
 		log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
 	}

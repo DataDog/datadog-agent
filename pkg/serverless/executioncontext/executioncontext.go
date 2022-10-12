@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 )
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
@@ -23,6 +25,7 @@ type ExecutionContext struct {
 	coldstartRequestID string
 	lastLogRequestID   string
 	coldstart          bool
+	warmup             bool
 	startTime          time.Time
 	endTime            time.Time
 }
@@ -34,6 +37,7 @@ type State struct {
 	ColdstartRequestID string
 	LastLogRequestID   string
 	Coldstart          bool
+	Warmup             bool
 	StartTime          time.Time
 	EndTime            time.Time
 }
@@ -48,6 +52,7 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		ColdstartRequestID: ec.coldstartRequestID,
 		LastLogRequestID:   ec.lastLogRequestID,
 		Coldstart:          ec.coldstart,
+		Warmup:             ec.warmup,
 		StartTime:          ec.startTime,
 		EndTime:            ec.endTime,
 	}
@@ -81,6 +86,15 @@ func (ec *ExecutionContext) UpdateFromRuntimeDoneLog(time time.Time) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.endTime = time
+}
+
+func (ec *ExecutionContext) UpdateFromEventPayload(lambdaPayloadString string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	lowercaseEventPayload, err := trigger.Unmarshal(strings.ToLower(lambdaPayloadString))
+	if err == nil && trigger.IsWarmupEvent(lowercaseEventPayload) {
+		ec.warmup = true
+	}
 }
 
 // SaveCurrentExecutionContext stores the current context to a file
