@@ -29,19 +29,19 @@ func getNamespaceConditionMessage(n *corev1.Namespace) string {
 	messageMap := make(map[corev1.NamespaceConditionType]string)
 
 	// from https://github.com/kubernetes/api/blob/master/core/v1/types.go#L5379-L5393
+	// context https://github.com/kubernetes/design-proposals-archive/blob/8da1442ea29adccea40693357d04727127e045ed/architecture/namespaces.md#phases
 	// update if new ones appear
-	// TODO !!!!!!! WHAT IS THE RIGHT ORDER?
 	chronologicalConditions := []corev1.NamespaceConditionType{
-		corev1.NamespaceDeletionDiscoveryFailure,
-		corev1.NamespaceDeletionContentFailure,
-		corev1.NamespaceDeletionGVParsingFailure,
 		corev1.NamespaceContentRemaining,
 		corev1.NamespaceFinalizersRemaining,
+		corev1.NamespaceDeletionDiscoveryFailure,
+		corev1.NamespaceDeletionGVParsingFailure,
+		corev1.NamespaceDeletionContentFailure,
 	}
 
 	// populate messageMap with messages for non-passing conditions
 	for _, c := range n.Status.Conditions {
-		if c.Status == corev1.ConditionFalse && c.Message != "" {
+		if c.Status == corev1.ConditionTrue && c.Message != "" {
 			messageMap[c.Type] = c.Message
 		}
 	}
