@@ -202,6 +202,7 @@ func load(configPath string) (*Config, error) {
 	if !npmEnabled && usmEnabled {
 		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
+		cfg.Set("network_config.enabled", true)
 	}
 
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
