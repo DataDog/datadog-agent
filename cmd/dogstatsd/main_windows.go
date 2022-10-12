@@ -69,7 +69,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err = MakeCommand().Execute(); err != nil {
+	if err = MakeRootCommand().Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}

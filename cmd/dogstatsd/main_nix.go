@@ -21,7 +21,7 @@ const defaultLogFile = "/var/log/datadog/dogstatsd.log"
 func main() {
 	flavor.SetFlavor(flavor.Dogstatsd)
 
-	if err := MakeCommands().Execute(); err != nil {
+	if err := MakeRootCommand().Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}

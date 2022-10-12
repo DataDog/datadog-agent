@@ -59,9 +59,7 @@ const (
 	loggerName pkgconfig.LoggerName = "DSD"
 )
 
-func MakeCommands() *cobra.Command {
-	cliParams := &cliParams{}
-
+func MakeRootCommand() *cobra.Command {
 	// dogstatsdCmd is the root command
 	dogstatsdCmd := &cobra.Command{
 		Use:   "dogstatsd [command]",
@@ -73,6 +71,15 @@ on dashboards. DogStatsD implements the StatsD protocol, along with a few
 extensions for special Datadog features.`,
 	}
 
+	for _, cmd := range makeCommands() {
+		dogstatsdCmd.AddCommand(cmd)
+	}
+
+	return dogstatsdCmd
+}
+
+func makeCommands() []*cobra.Command {
+	cliParams := &cliParams{}
 	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start DogStatsD",
@@ -100,16 +107,14 @@ extensions for special Datadog features.`,
 				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
 		},
 	}
-	// attach the command to the root
-	dogstatsdCmd.AddCommand(startCmd)
-	dogstatsdCmd.AddCommand(versionCmd)
 
 	// local flags
 	startCmd.Flags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
 	pkgconfig.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
 	startCmd.Flags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
-	return dogstatsdCmd
+
+	return []*cobra.Command{startCmd, versionCmd}
 }
 
 func start(cliParams *cliParams) error {
