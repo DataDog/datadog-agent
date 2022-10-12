@@ -51,11 +51,11 @@ func TestShouldProcessLog(t *testing.T) {
 	}
 
 	invalidLog0 := &logMessage{
-		logType: logTypePlatformLogsSubscription,
+		logType: "platform.logsSubscription",
 	}
 
 	invalidLog1 := &logMessage{
-		logType: logTypePlatformExtension,
+		logType: "platform.extension",
 	}
 
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
@@ -289,9 +289,6 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 		time:    messageTime,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
@@ -324,9 +321,6 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
 			requestID: previousRequestID,
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
@@ -680,6 +674,7 @@ func TestUnmarshalJSONMalformed(t *testing.T) {
 }
 
 func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
+	// platform.logsSubscription events are not processed by the extension
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_log.json")
 	if errReadFile != nil {
@@ -687,7 +682,31 @@ func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-	assert.Equal(t, "platform.logsSubscription", logMessage.logType)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformFault(t *testing.T) {
+	// platform.fault events are not processed by the extension
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_fault.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformExtension(t *testing.T) {
+	// platform.extension events are not processed by the extension
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_extension.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
 }
 
 func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
@@ -748,9 +767,6 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 		time:    expectedTime,
 		objectRecord: platformObjectRecord{
 			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	assert.Equal(t, expectedLogMessage, message)
@@ -790,8 +806,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
 		objectRecord: platformObjectRecord{
-			requestID:       requestID,
-			runtimeDoneItem: runtimeDoneItem{},
+			requestID: requestID,
 		},
 	}
 	reportMessage := &logMessage{
