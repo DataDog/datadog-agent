@@ -114,7 +114,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// we'll search for a config file named `datadog-cluster.yaml`
 				configName = "datadog-cluster"
 			}
-			resolvedLogLevel, warnings, err := standalone.SetupCLI(config.CoreLoggerName, globalParams.ConfFilePath, configName, "", logLevel, "off")
+			resolvedLogLevel, warnings, err := setupCLI(config.CoreLoggerName, globalParams.ConfFilePath, configName, "", logLevel, "off")
 			if err != nil {
 				fmt.Printf("Cannot initialize command: %v\n", err)
 				return err
