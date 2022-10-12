@@ -112,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				//if the customer provides only 1 argument : the ip_address
 				//We check the ip address configuration in the agent runtime and we use it for the snmpwalk
 				snmpConfigList, _ := parse.GetConfigCheckSnmp()
-				instance, _ := parse.GetIPConfig(deviceIP, snmpConfigList)
+				instance := parse.GetIPConfig(deviceIP, snmpConfigList)
 				if instance.IPAddress != "" {
 					snmpVersion = instance.Version
 					port = instance.Port
@@ -132,6 +132,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					retries = instance.Retries
 					timeout = instance.Timeout
 
+				} else {
+					deviceIP = address
+					port = defaultPort
 				}
 			}
 

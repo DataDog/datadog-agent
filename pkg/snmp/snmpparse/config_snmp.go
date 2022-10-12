@@ -91,14 +91,12 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	return nil, nil
 
 }
-func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) (SNMPConfig, error) {
+func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 
-	instance := SNMPConfig{}
-	for _, w := range SnmpConfigList {
-		if w.IPAddress == ip_address {
-			instance = w
-			return instance, nil
+	for _, snmpconfig := range SnmpConfigList {
+		if snmpconfig.IPAddress == ip_address {
+			return snmpconfig
 		}
 	}
-	return instance, nil
+	return SNMPConfig{}
 }

@@ -109,6 +109,6 @@ func TestGetSNMPConfig(t *testing.T) {
 }
 
 func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedOutput SNMPConfig) {
-	output, _ := GetIPConfig(input, snmpConfigList)
+	output := GetIPConfig(input, snmpConfigList)
 	assert.Equal(t, expectedOutput, output)
 }
