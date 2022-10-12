@@ -87,9 +87,8 @@ func TestExtractNamespace(t *testing.T) {
 				Status:     corev1.NamespaceStatus{},
 			},
 			expected: model.Namespace{
-				Metadata:   &model.Metadata{},
-				Finalizers: nil,
-				Status:     "",
+				Metadata: &model.Metadata{},
+				Status:   "",
 			},
 		},
 	}
