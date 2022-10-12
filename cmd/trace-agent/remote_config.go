@@ -66,17 +66,17 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = normalize(&configsRequest)
-		if err != nil {
-			statusCode = http.StatusBadRequest
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		md := metadata.MD{
 			"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 		}
 		ctx := metadata.NewOutgoingContext(req.Context(), md)
 		if configsRequest.GetClient().GetClientTracer() != nil {
+			err = normalize(&configsRequest)
+			if err != nil {
+				statusCode = http.StatusBadRequest
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			if configsRequest.Client.ClientTracer.Tags == nil {
 				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
 			}
