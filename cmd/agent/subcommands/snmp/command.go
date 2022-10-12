@@ -109,9 +109,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					port = defaultPort
 				}
 			} else {
-				deviceIP = address
-				//if the customer provides only 1 argument : the ip_address
+				//If the customer provides only 1 argument : the ip_address
 				//We check the ip address configuration in the agent runtime and we use it for the snmpwalk
+				deviceIP = address
+				//Allow the possibility to pass the config file as an argument to the command
 				err := common.SetupConfig(globalArgs.ConfFilePath)
 				if err != nil {
 					fmt.Printf("The config file provided is invalid : %v \n", err)
