@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package standalone
+package check
 
 import (
 	"fmt"
@@ -12,11 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// SetupCLI sets up the shared utilities for a standalone CLI command:
+// setupCLI sets up the shared utilities for a standalone CLI command:
 // - config, with defaults to avoid conflicting with an agent process running in parallel
 // - logger
 // and returns the log level resolved from cliLogLevel and defaultLogLevel
-func SetupCLI(loggerName config.LoggerName, confFilePath, configName string, cliLogFile string, cliLogLevel string, defaultLogLevel string) (string, *config.Warnings, error) {
+func setupCLI(loggerName config.LoggerName, confFilePath, configName string, cliLogFile string, cliLogLevel string, defaultLogLevel string) (string, *config.Warnings, error) {
 	var resolvedLogLevel string
 
 	if cliLogLevel != "" {
