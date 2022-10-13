@@ -23,11 +23,13 @@ import (
 
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
-	sources          chan *sources.LogSource
-	pipelineProvider pipeline.Provider
-	registry         auditor.Registry
-	tailers          map[string]*tailer.Tailer
-	stop             chan struct{}
+	sources              chan *sources.LogSource
+	pipelineProvider     pipeline.Provider
+	registry             auditor.Registry
+	tailers              map[string]*tailer.Tailer
+	stop                 chan struct{}
+	newJournalFn         func() (tailer.Journal, error)
+	newJournalFromPathFn func(string) (tailer.Journal, error)
 }
 
 // NewLauncher returns a new Launcher.
@@ -43,6 +45,8 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
+	l.newJournalFn = func() (tailer.Journal, error) { return sdjournal.NewJournal() }
+	l.newJournalFromPathFn = func(path string) (tailer.Journal, error) { return sdjournal.NewJournalFromDir(path) }
 	go l.run()
 }
 
@@ -82,14 +86,14 @@ func (l *Launcher) Stop() {
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error) {
-	var journal *sdjournal.Journal
+	var journal tailer.Journal
 	var err error
 
 	if source.Config.Path == "" {
 		// open the default journal
-		journal, err = sdjournal.NewJournal()
+		journal, err = l.newJournalFn()
 	} else {
-		journal, err = sdjournal.NewJournalFromDir(source.Config.Path)
+		journal, err = l.newJournalFromPathFn(source.Config.Path)
 	}
 	if err != nil {
 		return nil, err
