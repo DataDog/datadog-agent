@@ -39,26 +39,35 @@ func TestSplitTagsAndOpts(t *testing.T) {
 }
 
 func TestInsertNestedTagsFor(t *testing.T) {
-	metrics := make(map[string]interface{})
+	t.Run("happy path", func(t *testing.T) {
+		metrics := make(map[string]interface{})
+		err := insertNestedValueFor("http.request_count", 1, metrics)
+		require.NoError(t, err)
+		err = insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
+		require.NoError(t, err)
+		err = insertNestedValueFor("http.dropped", 10, metrics)
+		require.NoError(t, err)
 
-	err := insertNestedValueFor("http.request_count", 1, metrics)
-	require.NoError(t, err)
-	err = insertNestedValueFor("dns.errors.nxdomain", 5, metrics)
-	require.NoError(t, err)
-	err = insertNestedValueFor("http.dropped", 10, metrics)
-	require.NoError(t, err)
-
-	expected := map[string]interface{}{
-		"http": map[string]interface{}{
-			"request_count": int64(1),
-			"dropped":       int64(10),
-		},
-		"dns": map[string]interface{}{
-			"errors": map[string]interface{}{
-				"nxdomain": int64(5),
+		expected := map[string]interface{}{
+			"http": map[string]interface{}{
+				"request_count": int64(1),
+				"dropped":       int64(10),
 			},
-		},
-	}
+			"dns": map[string]interface{}{
+				"errors": map[string]interface{}{
+					"nxdomain": int64(5),
+				},
+			},
+		}
 
-	assert.Equal(t, expected, metrics)
+		assert.Equal(t, expected, metrics)
+	})
+
+	t.Run("invalid type", func(t *testing.T) {
+		invalidMap := map[string]interface{}{
+			"http": "this should another map",
+		}
+		err := insertNestedValueFor("http.request_count", 1, invalidMap)
+		assert.Error(t, err)
+	})
 }
