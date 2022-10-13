@@ -184,7 +184,7 @@ func newMetrics(
 	met := metricsArray.AppendEmpty()
 	met.SetName(histogramMetricName)
 	met.SetEmptyHistogram()
-	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	hdps := met.Histogram().DataPoints()
 	hdp := hdps.AppendEmpty()
 	hdp.SetCount(histogramDataPoint.Count())

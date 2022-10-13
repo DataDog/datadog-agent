@@ -96,7 +96,7 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 		met := metricsArray.AppendEmpty()
 		met.SetName("expHist.test")
 		met.SetEmptyExponentialHistogram()
-		met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+		met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 		points := met.ExponentialHistogram().DataPoints()
 		point := points.AppendEmpty()
 
@@ -144,7 +144,7 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 		met := metricsArray.AppendEmpty()
 		met.SetName("double.delta.monotonic.sum")
 		met.SetEmptySum()
-		met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+		met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 		dpsDouble := met.Sum().DataPoints()
 		dpDouble := dpsDouble.AppendEmpty()
 		dpDouble.SetTimestamp(seconds(0))
