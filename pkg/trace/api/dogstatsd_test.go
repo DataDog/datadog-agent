@@ -110,12 +110,15 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 	// Check that both payloads were sent over (without a newline).
 	ln.SetReadDeadline(time.Now().Add(2 * time.Second))
 	buf := make([]byte, len(msg)-len(sep))
-	_, _, err = ln.ReadFrom(buf)
+	n, _, err := ln.ReadFrom(buf)
 	require.NoError(t, err)
-	_, _, err = ln.ReadFrom(buf[len(payloads[0]):])
+	if got, want := buf[:n], payloads[0]; !bytes.Equal(got, want) {
+		t.Errorf("got first payload: %q\nwant first payload: %q", got, want)
+	}
+	_, _, err = ln.ReadFrom(buf[n:])
 	require.NoError(t, err)
-	if got, want := buf, bytes.Join(payloads, nil); !bytes.Equal(got, want) {
-		t.Errorf("got: %q\nwant: %q", got, want)
+	if got, want := buf[n:], payloads[1]; !bytes.Equal(got, want) {
+		t.Errorf("got second payload: %q\nwant second payload: %q", got, want)
 	}
 }
 
