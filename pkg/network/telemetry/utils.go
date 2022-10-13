@@ -43,6 +43,9 @@ func splitTagsAndOptions(all []string) (tags, opts []string) {
 
 	tags = tagSet.GetAll()
 	opts = optSet.GetAll()
+
+	// we sort both tags and options so the order is always deterministic and
+	// comparison between different tag sets is more efficient (see `isEqual`)
 	sort.Strings(tags)
 	sort.Strings(opts)
 
