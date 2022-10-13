@@ -134,6 +134,9 @@ require (
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.6.0
+	github.com/Masterminds/goutils v1.1.0 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/miekg/dns v1.1.50
 	github.com/mitchellh/mapstructure v1.5.0
