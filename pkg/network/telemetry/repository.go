@@ -26,12 +26,13 @@ func GetMetrics(tags ...string) []*Metric {
 	globalRegistry.Lock()
 	defer globalRegistry.Unlock()
 
+	result := make([]*Metric, 0, len(globalRegistry.metrics))
 	if len(filterIndex) == 0 {
 		// if no filters were provided we return all metrics
-		return globalRegistry.metrics
+		result = append(result, globalRegistry.metrics...)
+		return result
 	}
 
-	result := make([]*Metric, 0, len(globalRegistry.metrics))
 	for _, m := range globalRegistry.metrics {
 		if matches(filterIndex, m) {
 			result = append(result, m)
