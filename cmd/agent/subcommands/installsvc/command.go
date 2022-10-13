@@ -20,21 +20,24 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalArgs *command.GlobalArgs) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "installservice",
 		Short: "Installs the agent within the service control manager",
 		Long:  ``,
-		RunE:  installService,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(installService)
+		},
 	}
 
 	return []*cobra.Command{cmd}
 }
 
-func installService(cmd *cobra.Command, args []string) error {
+func installService() error {
 	exepath, err := exePath()
 	if err != nil {
 		return err

@@ -156,8 +156,11 @@ const (
 	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
 	SockByPidFDMap        BPFMapName = "sock_by_pid_fd"
 	PidFDBySockMap        BPFMapName = "pid_fd_by_sock"
-	TCPSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
-	IPMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
+	TagsMap               BPFMapName = "conn_tags"
+	TcpSendMsgArgsMap     BPFMapName = "tcp_sendmsg_args"
+	IpMakeSkbArgsMap      BPFMapName = "ip_make_skb_args"
+	MapErrTelemetryMap    BPFMapName = "map_err_telemetry_map"
+	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
 )
 
 // SectionName returns the SectionName for the given BPF map

@@ -209,3 +209,26 @@ func unsafeUnmarshalRoot(raw []byte) (*data.Root, error) {
 	}
 	return &root, err
 }
+
+func unsafeUnmarshalTargets(raw []byte) (*data.Targets, error) {
+	var signedTargets data.Signed
+	err := json.Unmarshal(raw, &signedTargets)
+	if err != nil {
+		return nil, err
+	}
+	var targets data.Targets
+	err = json.Unmarshal(signedTargets.Signed, &targets)
+	if err != nil {
+		return nil, err
+	}
+	return &targets, err
+}
+
+func extractRootVersion(raw []byte) (int64, error) {
+	root, err := unsafeUnmarshalRoot(raw)
+	if err != nil {
+		return 0, err
+	}
+
+	return root.Version, nil
+}

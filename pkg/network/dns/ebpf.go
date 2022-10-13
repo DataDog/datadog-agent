@@ -35,13 +35,20 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		return nil, err
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if c.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  string(probes.SocketDNSFilter),
-				EBPFFuncName: funcName,
-				UID:          probeUID,
-			}},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFFuncName: funcName,
+					UID:          probeUID,
+				},
+				KprobeAttachMethod: kprobeAttachMethod,
+			},
 		},
 	}
 

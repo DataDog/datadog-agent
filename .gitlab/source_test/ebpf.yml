@@ -30,12 +30,25 @@
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/.tmp/binary-ebpf
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
+    - !reference [.retrieve_sysprobe_deps]
+  script:
+    - inv -e install-tools
+    - invoke -e golangci-lint --build system-probe ./pkg
+    - !reference [.build_sysprobe_artifacts]
+    - invoke -e security-agent.kitchen-prepare
+    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
+    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -55,41 +68,15 @@ tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: amd64
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
-    - !reference [.retrieve_sysprobe_deps]
-  script:
-    - inv -e install-tools
-    - invoke -e golangci-lint --build system-probe ./pkg
-    - !reference [.build_sysprobe_artifacts]
-    - invoke -e security-agent.kitchen-prepare
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     ARCH: arm64
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
-    - !reference [.retrieve_sysprobe_deps]
-  script:
-    - inv -e install-tools
-    - invoke -e golangci-lint --build system-probe ./pkg
-    - !reference [.build_sysprobe_artifacts]
-    - invoke -e security-agent.kitchen-prepare
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe

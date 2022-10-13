@@ -31,7 +31,7 @@ spec:
       serviceAccountName: datadog-cluster-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:1.20.0"
+          image: "gcr.io/datadoghq/cluster-agent:7.39.1"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -130,10 +130,19 @@ spec:
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
               readOnly: true
+            - name: confd
+              mountPath: /conf.d
+              readOnly: true
       volumes:
         - name: installinfo
           configMap:
             name: datadog-installinfo
+        - name: confd
+          configMap:
+            name: datadog-cluster-agent-confd
+            items:
+              - key: kubernetes_state_core.yaml.default
+                path: kubernetes_state_core.yaml.default
       affinity:
         # Prefer scheduling the cluster agents on different nodes
         # to guarantee that the standby instance can immediately take the lead from a leader running of a faulty node.

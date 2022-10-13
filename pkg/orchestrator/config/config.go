@@ -27,6 +27,7 @@ const (
 	processNS       = "process_config"
 	defaultEndpoint = "https://orchestrator.datadoghq.com"
 	maxMessageBatch = 100
+	maxMessageSize  = 50 * 1e6 // 50 MB
 )
 
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
@@ -89,16 +90,10 @@ func (oc *OrchestratorConfig) Load() error {
 		oc.Scrubber.AddCustomSensitiveWords(config.Datadog.GetStringSlice(k))
 	}
 
-	// The maximum number of pods, nodes, replicaSets, deployments and services per message. Note: Only change if the defaults are causing issues.
-	if k := key(orchestratorNS, "max_per_message"); config.Datadog.IsSet(k) {
-		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
-			log.Warn("Invalid item count per message (<= 0), ignoring...")
-		} else if maxPerMessage <= maxMessageBatch {
-			oc.MaxPerMessage = maxPerMessage
-		} else if maxPerMessage > 0 {
-			log.Warn("Overriding the configured item count per message limit because it exceeds maximum")
-		}
-	}
+	// The maximum number of resources per message and the maximum message size.
+	// Note: Only change if the defaults are causing issues.
+	setBoundedConfigIntValue(key(orchestratorNS, "max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
+	setBoundedConfigIntValue(key(orchestratorNS, "max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
 	if k := key(processNS, "pod_queue_bytes"); config.Datadog.IsSet(k) {
 		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
@@ -182,4 +177,23 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
 	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+}
+
+func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
+	if !config.Datadog.IsSet(configKey) {
+		return
+	}
+
+	val := config.Datadog.GetInt(configKey)
+
+	if val <= 0 {
+		log.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
+		return
+	}
+	if val > upperBound {
+		log.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
+		return
+	}
+
+	setter(val)
 }

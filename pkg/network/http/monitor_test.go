@@ -48,6 +48,40 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 	}
 }
 
+func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	serverAddr := "localhost:8081"
+
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
+
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	client := nethttp.Client{}
+
+	req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
+	require.NoError(t, err)
+
+	expectedOccurrences := 10
+	for i := 0; i < expectedOccurrences; i++ {
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		// Have to read the response body to ensure the client will be able to properly close the connection.
+		io.ReadAll(resp.Body)
+		resp.Body.Close()
+	}
+	srvDoneFn()
+
+	occurrences := 0
+	require.Eventually(t, func() bool {
+		stats := monitor.GetHTTPStats()
+		occurrences += countRequestOccurrences(stats, req)
+		return occurrences == expectedOccurrences
+	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
+}
+
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
 func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
@@ -63,7 +97,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
 
-	monitor, err := NewMonitor(config.New(), nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
@@ -96,7 +130,9 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 			requestNotIncluded(t, stats, req)
 		}
 
-		foundFastReq = foundFastReq || isRequestIncluded(stats, fastReq)
+		included, err := isRequestIncludedOnce(stats, fastReq)
+		require.NoError(t, err)
+		foundFastReq = foundFastReq || included
 	}
 
 	require.True(t, foundFastReq)
@@ -146,7 +182,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 				EnableKeepAlives: true,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil)
+			monitor, err := NewMonitor(config.New(), nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -210,7 +246,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				SlowResponse: slowResponseTimeout,
 			})
 
-			monitor, err := NewMonitor(config.New(), nil, nil)
+			monitor, err := NewMonitor(config.New(), nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
@@ -284,7 +320,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	})
 	defer srvDoneFn()
 
-	monitor, err := NewMonitor(config.New(), nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -315,7 +351,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 func TestRSTPacketRegression(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	monitor, err := NewMonitor(config.New(), nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -351,13 +387,83 @@ func TestRSTPacketRegression(t *testing.T) {
 	includesRequest(t, stats, &nethttp.Request{URL: url})
 }
 
+func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
+
+	const req = "GET /200/foobar HTTP/1.1\n"
+	const rsp = "HTTP/1.1 200 OK\n"
+	const serverAddr = "127.0.0.1:8080"
+
+	srvFn := func(c net.Conn) {
+		// emulates a half-transaction (beginning with a response)
+		n, err := c.Write([]byte(rsp))
+		require.NoError(t, err)
+		require.Equal(t, len(rsp), n)
+
+		// now we read the request from the client on the same connection
+		b := make([]byte, len(req))
+		n, err = c.Read(b)
+		require.NoError(t, err)
+		require.Equal(t, len(req), n)
+		require.Equal(t, string(b), req)
+
+		// and finally send the response completing a full HTTP transaction
+		n, err = c.Write([]byte(rsp))
+		require.NoError(t, err)
+		require.Equal(t, len(rsp), n)
+		c.Close()
+	}
+	srv := testutil.NewTCPServer(serverAddr, srvFn)
+	done := make(chan struct{})
+	srv.Run(done)
+	t.Cleanup(func() { close(done) })
+
+	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
+	require.NoError(t, err)
+
+	// ensure we're beginning the connection with a "headless" response from the
+	// server. this emulates the case where system-probe started in the middle of
+	// request/response cyle
+	b := make([]byte, len(rsp))
+	n, err := c.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, len(rsp), n)
+	require.Equal(t, string(b), rsp)
+
+	// now perform a request
+	n, err = c.Write([]byte(req))
+	require.NoError(t, err)
+	require.Equal(t, len(req), n)
+
+	// and read the response completing a full transaction
+	n, err = c.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, len(rsp), n)
+	require.Equal(t, string(b), rsp)
+
+	// after this response, request, response cycle we should ensure that
+	// we got a full HTTP transaction
+	stats := monitor.GetHTTPStats()
+	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
+	require.NoError(t, err)
+	includesRequest(t, stats, &nethttp.Request{URL: url, Method: "GET"})
+}
+
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
 		stats := monitor.GetHTTPStats()
 		for reqIndex, req := range requests {
-			requestsExist[reqIndex] = requestsExist[reqIndex] || isRequestIncluded(stats, req)
+			included, err := isRequestIncludedOnce(stats, req)
+			require.NoError(t, err)
+			requestsExist[reqIndex] = requestsExist[reqIndex] || included
 		}
 	}
 
@@ -369,7 +475,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
 
-	monitor, err := NewMonitor(config.New(), nil, nil)
+	monitor, err := NewMonitor(config.New(), nil, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -433,8 +539,10 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 }
 
 func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
-	if !isRequestIncluded(allStats, req) {
-		expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	included, err := isRequestIncludedOnce(allStats, req)
+	require.NoError(t, err)
+	if !included {
 		t.Errorf(
 			"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
 			req.URL.Path,
@@ -445,7 +553,9 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 }
 
 func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
-	if isRequestIncluded(allStats, req) {
+	included, err := isRequestIncludedOnce(allStats, req)
+	require.NoError(t, err)
+	if included {
 		expectedStatus := testutil.StatusFromPath(req.URL.Path)
 		t.Errorf(
 			"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
@@ -456,13 +566,25 @@ func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *netht
 	}
 }
 
-func isRequestIncluded(allStats map[Key]*RequestStats, req *nethttp.Request) bool {
+func isRequestIncludedOnce(allStats map[Key]*RequestStats, req *nethttp.Request) (bool, error) {
+	occurrences := countRequestOccurrences(allStats, req)
+
+	if occurrences == 1 {
+		return true, nil
+	} else if occurrences == 0 {
+		return false, nil
+	}
+	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
+}
+
+func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Request) int {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	occurrences := 0
 	for key, stats := range allStats {
 		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
-			return true
+			occurrences++
 		}
 	}
 
-	return false
+	return occurrences
 }
