@@ -34,6 +34,7 @@
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
+/.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform

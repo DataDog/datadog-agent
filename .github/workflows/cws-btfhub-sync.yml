@@ -52,7 +52,7 @@ jobs:
       - name: Compute branch name
         id: branch-name
         run: |
-          echo "::set-output name=BRANCH_NAME::cws/constants-sync-$(date +%s)"
+          echo "BRANCH_NAME=cws/constants-sync-$(date +%s)" >> $GITHUB_OUTPUT
 
       - name: Sync constants
         run: |
