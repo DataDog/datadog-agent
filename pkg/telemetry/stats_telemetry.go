@@ -37,22 +37,22 @@ func GetStatsTelemetryProvider() *StatsTelemetryProvider {
 
 // Count reports a count metric to the sender
 func (s *StatsTelemetryProvider) Count(metric string, value float64, tags []string) {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	if s.sender == nil {
-		return
-	}
+	s.send(func(sender StatsTelemetrySender) { sender.Count(metric, value, "", tags) })
+}
 
-	s.sender.Count(metric, value, "", tags)
 }
 
 // Gauge reports a gauge metric to the sender
 func (s *StatsTelemetryProvider) Gauge(metric string, value float64, tags []string) {
+	s.send(func(sender StatsTelemetrySender) { sender.Gauge(metric, value, "", tags) })
+}
+
+func (s *StatsTelemetryProvider) send(senderFct func(sender StatsTelemetrySender)) {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	if s.sender == nil {
 		return
 	}
 
-	s.sender.Gauge(metric, value, "", tags)
+	senderFct(s.sender)
 }
