@@ -10,5 +10,5 @@ enhancements:
   - |
     The ``agent`` CLI subcommands related to Windows services are now
     consistent in use of dashes in the command names (``install-service``,
-    ``start-service``, etc.).  The names without dashes are supported as
+    ``start-service``, and so on). The names without dashes are supported as
     aliases.
