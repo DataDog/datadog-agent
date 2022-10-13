@@ -1098,7 +1098,7 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	for _, k := range keys {
 		_, ok := e.Attributes().Get(k)
 		if !ok {
-			e.Attributes().PutString(k, attrs[k])
+			e.Attributes().PutStr(k, attrs[k])
 		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))

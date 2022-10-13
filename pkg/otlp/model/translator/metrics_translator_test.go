@@ -298,22 +298,22 @@ func TestMapIntMonotonicDifferentDimensions(t *testing.T) {
 	// One tag: valA
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().PutString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	point = slice.AppendEmpty()
 	point.SetIntValue(30)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().PutString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	// same tag: valB
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().PutString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	point = slice.AppendEmpty()
 	point.SetIntValue(40)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().PutString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -425,22 +425,22 @@ func TestMapDoubleMonotonicDifferentDimensions(t *testing.T) {
 	// One tag: valA
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().PutString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	point = slice.AppendEmpty()
 	point.SetDoubleValue(30)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().PutString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	// one tag: valB
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().PutString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	point = slice.AppendEmpty()
 	point.SetDoubleValue(40)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().PutString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -954,9 +954,9 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.PutString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -1505,7 +1505,7 @@ func createNaNMetrics() pmetric.Metrics {
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	ilms := rm.ScopeMetrics()
 
 	metricsArray := ilms.AppendEmpty().Metrics()
@@ -1885,9 +1885,9 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.PutString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.PutString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
