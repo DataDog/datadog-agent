@@ -27,7 +27,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
     """
 
     if sys.platform != 'win32':
-        print("Custom action library is only for Win32")
+        print("Building the MSI installer is only for available on Windows")
         raise Exit(code=1)
 
     env = {}
