@@ -80,7 +80,7 @@ func insertNestedValueFor(name string, value int64, root map[string]interface{})
 			child, ok := v.(map[string]interface{})
 
 			if !ok {
-				return fmt.Errorf("invalid value type")
+				return fmt.Errorf("invalid value type (%T)", v)
 			}
 
 			parent = child
