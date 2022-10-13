@@ -969,11 +969,10 @@ func TestSample(t *testing.T) {
 		pt.TraceChunk.Priority = int32(priority)
 		return pt
 	}
-	type samplingTestCase struct {
+	tests := map[string]struct {
 		trace       traceutil.ProcessedTrace
 		wantSampled bool
-	}
-	for name, tt := range map[string]samplingTestCase{
+	}{
 		"userdrop-error-no-dm-sampled": {
 			trace:       genSpan("", sampler.PriorityUserDrop),
 			wantSampled: true,
@@ -986,12 +985,12 @@ func TestSample(t *testing.T) {
 			trace:       genSpan("-1", sampler.PriorityUserDrop),
 			wantSampled: true,
 		},
-	} {
+	}
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
 			assert.Equal(t, tt.wantSampled, keep)
 		})
-
 	}
 }
 
