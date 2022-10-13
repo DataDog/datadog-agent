@@ -363,8 +363,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("server_timeout", 30)
 
 	// Configuration for TLS for outgoing connections
-	config.BindEnvAndSetDefault("force_tls_12", false) // deprecated
-	config.BindEnvAndSetDefault("min_tls_version", "") // default depends on force_tls_12
+	config.BindEnvAndSetDefault("force_tls_12", false)        // deprecated
+	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2") // default depends on force_tls_12
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
