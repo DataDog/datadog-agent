@@ -33,3 +33,20 @@ func TestMetricGroup(t *testing.T) {
 	}
 	assert.Equal(expected, summary)
 }
+
+func TestMetricGroupWithoutPrefix(t *testing.T) {
+	Clear()
+
+	assert := assert.New(t)
+	metricGroup := NewMetricGroup("")
+	metricGroup.NewMetric("m1").Set(10)
+	metricGroup.NewMetric("m2").Set(20)
+
+	summary := metricGroup.Summary()
+	expected := map[string]int64{
+		"m1": int64(10),
+		"m2": int64(20),
+	}
+
+	assert.Equal(expected, summary)
+}
