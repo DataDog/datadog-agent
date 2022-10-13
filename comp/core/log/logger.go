@@ -21,7 +21,7 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-func newLogger(lc fx.Lifecycle, params Params, config config.Component) (Component, error) {
+func newLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Component, error) {
 	if params.logLevelFn == nil {
 		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
 	}

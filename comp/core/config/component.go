@@ -24,6 +24,8 @@ import (
 
 // team: agent-shared-components
 
+type LogConfig config.ConfigReader
+
 // Component is the component type.
 type Component interface {
 	config.ConfigReader
@@ -41,6 +43,7 @@ type Mock interface {
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newConfig),
+	fx.Provide(func(config Component) LogConfig { return config }),
 )
 
 // MockModule defines the fx options for the mock component.

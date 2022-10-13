@@ -298,9 +298,9 @@ func initRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
-		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
-		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.RuntimeMutexProfileFraction{},
+		settings.RuntimeBlockProfileRate{},
+		settings.ProfilingGoroutines{},
 		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
 	}
 
