@@ -8,9 +8,11 @@ package runcmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/dig"
 )
 
 // Run executes a cobra command and handles the results.  It is intended
@@ -24,8 +26,20 @@ func Run(cmd *cobra.Command) {
 
 	err := cmd.Execute()
 	if err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "Error:", err.Error())
+		displayError(err, cmd.ErrOrStderr())
 		os.Exit(-1)
 	}
 	os.Exit(0)
+}
+
+// displayError handles displaying errors from the running command.  Typically
+// these are simply printed with an "Error: " prefix, but some kinds of errors
+// are first simplified to reduce user confusion.
+func displayError(err error, w io.Writer) {
+	_, traceFxSet := os.LookupEnv("TRACE_FX")
+	if rc := dig.RootCause(err); rc != err && !traceFxSet {
+		fmt.Fprintln(w, "Error:", rc.Error())
+		return
+	}
+	fmt.Fprintln(w, "Error:", err.Error())
 }
