@@ -22,7 +22,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/gofuzz v1.2.0
 	github.com/pkg/errors v0.9.1
-	github.com/shirou/gopsutil/v3 v3.22.6
+	github.com/shirou/gopsutil/v3 v3.22.9
 	github.com/stretchr/testify v1.8.0
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
