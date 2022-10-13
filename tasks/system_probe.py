@@ -175,7 +175,7 @@ def ninja_network_ebpf_programs(nw, build_dir):
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "kafka"]
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{prog}.o")
