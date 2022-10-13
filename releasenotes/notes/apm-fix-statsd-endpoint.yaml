@@ -9,6 +9,6 @@
 fixes:
   - |
     APM: DogStatsD data can now be proxied through the "/dogstatsd/v1/proxy" endpoint
-    and the new "/dogstatsd/v2/proxy" endpoint over UDS or UDP, with multiple payloads
+    and the new "/dogstatsd/v2/proxy" endpoint over UDS, with multiple payloads
     separated by newlines in a single request body.
     See https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
