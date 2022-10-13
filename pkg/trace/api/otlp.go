@@ -88,7 +88,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer()
-			ptraceotlp.RegisterServer(o.grpcsrv, o)
+			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
