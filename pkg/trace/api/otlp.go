@@ -577,7 +577,7 @@ func resourceFromTags(meta map[string]string) string {
 
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func status2Error(status ptrace.SpanStatus, events ptrace.SpanEventSlice, span *pb.Span) {
+func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.Span) {
 	if status.Code() != ptrace.StatusCodeError {
 		return
 	}

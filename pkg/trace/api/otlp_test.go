@@ -632,7 +632,7 @@ func TestOTLPHelpers(t *testing.T) {
 		} {
 			assert := assert.New(t)
 			span := pb.Span{Meta: make(map[string]string)}
-			status := ptrace.NewSpanStatus()
+			status := ptrace.NewStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
 			status2Error(status, tt.events, &span)
