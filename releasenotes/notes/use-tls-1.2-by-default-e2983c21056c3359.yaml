@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The ``min_tls_version`` configuration parameter is defined to `tlsv1.2` by
+    default. Set its value to `tlsv1.0` or `tlsv1.1` if a lower version is needed.
+   
+deprecations:
+  - |
+    The deprecated ``force_tls_12`` configuration parameter is ignored even if
+    ``min_tls_version`` is not given.
