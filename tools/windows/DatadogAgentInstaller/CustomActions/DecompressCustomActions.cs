@@ -59,19 +59,16 @@ namespace Datadog.CustomActions
         {
             var decoder = new SevenZip.Compression.LZMA.Decoder();
             using (var inStream = File.OpenRead(compressedFileName))
+            using (var outStream = File.Create($"{compressedFileName}.tar"))
             {
-                using (var outStream = File.Create($"{compressedFileName}.tar"))
-                {
-                    var reader = new BinaryReader(inStream, Encoding.UTF8);
-                    // Properties of the stream are encoded on 5 bytes
-                    var props = reader.ReadBytes(5);
-                    decoder.SetDecoderProperties(props);
-                    var length = reader.ReadInt64();
-                    decoder.Code(inStream, outStream, inStream.Length, length, null);
-                    outStream.Flush();
-                }
+                var reader = new BinaryReader(inStream, Encoding.UTF8);
+                // Properties of the stream are encoded on 5 bytes
+                var props = reader.ReadBytes(5);
+                decoder.SetDecoderProperties(props);
+                var length = reader.ReadInt64();
+                decoder.Code(inStream, outStream, inStream.Length, length, null);
+                outStream.Flush();
             }
-
 
             var outputPath = Path.GetDirectoryName(Path.GetFullPath(compressedFileName));
             using (var inStream = File.OpenRead($"{compressedFileName}.tar"))
