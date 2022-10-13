@@ -13,7 +13,7 @@
 
 <!--
 * A brief description of the change being made with this pull request.
-* If the description here cannot be expressed in a succint form, consider
+* If the description here cannot be expressed in a succinct form, consider
   opening multiple pull requests instead of a single one.
 -->
 
