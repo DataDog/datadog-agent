@@ -1,6 +1,7 @@
 #include "kconfig.h"
 #include "offset-guess.h"
 #include "bpf_helpers.h"
+#include "bpf_builtins.h"
 #include "map-defs.h"
 
 #include <net/net_namespace.h>

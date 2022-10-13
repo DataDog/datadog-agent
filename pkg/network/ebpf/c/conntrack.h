@@ -40,7 +40,7 @@ static __always_inline void print_translation(const conntrack_tuple_t *t) {
 }
 
 static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple_t *t, const struct nf_conntrack_tuple *ct) {
-    __builtin_memset(t, 0, sizeof(conntrack_tuple_t));
+    bpf_memset(t, 0, sizeof(conntrack_tuple_t));
 
     switch (ct->dst.protonum) {
     case IPPROTO_TCP:
@@ -108,7 +108,7 @@ static __always_inline void increment_telemetry_registers_count() {
 
 static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, conntrack_tuple_t* orig, conntrack_tuple_t* reply) {
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
-    __builtin_memset(tuplehash, 0, sizeof(tuplehash));
+    bpf_memset(tuplehash, 0, sizeof(tuplehash));
     bpf_probe_read_kernel_with_telemetry(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
 
     struct nf_conntrack_tuple orig_tup = tuplehash[IP_CT_DIR_ORIGINAL].tuple;

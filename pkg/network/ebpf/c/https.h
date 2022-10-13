@@ -17,8 +17,8 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
 static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
     http_transaction_t http;
-    __builtin_memset(&http, 0, sizeof(http));
-    __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer(http.request_fragment, buffer, len);
     http.owned_by_src_port = http.tup.sport;
     log_debug("https_process: htx=%llx sport=%d\n", &http, http.owned_by_src_port);
@@ -27,8 +27,8 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
 
 static __always_inline void https_finish(conn_tuple_t *t) {
     http_transaction_t http;
-    __builtin_memset(&http, 0, sizeof(http));
-    __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
+    bpf_memset(&http, 0, sizeof(http));
+    bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     http.owned_by_src_port = http.tup.sport;
 
     skb_info_t skb_info = {0};
@@ -71,7 +71,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
     t.netns = 0;
     t.pid = 0;
 
-    __builtin_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
+    bpf_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
 
     if (!is_ephemeral_port(ssl_sock->tup.sport)) {
         flip_tuple(&ssl_sock->tup);
