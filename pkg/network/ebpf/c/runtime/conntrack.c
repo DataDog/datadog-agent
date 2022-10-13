@@ -3,6 +3,7 @@
 
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
+#include "bpf_builtins.h"
 #include "conntrack.h"
 #include "conntrack-maps.h"
 #include "netns.h"

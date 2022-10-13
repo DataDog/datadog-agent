@@ -1,5 +1,6 @@
 #include "kconfig.h"
 #include "bpf_telemetry.h"
+#include "bpf_builtins.h"
 #include "tracer.h"
 
 #include "tracer-events.h"
