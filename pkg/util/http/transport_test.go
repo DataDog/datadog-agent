@@ -161,12 +161,12 @@ func TestCreateHTTPTransport(t *testing.T) {
 	mockConfig.Set("force_tls_12", false)
 	transport := CreateHTTPTransport()
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
-	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS10))
+	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
 	mockConfig.Set("skip_ssl_validation", true)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
-	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS10))
+	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
 	mockConfig.Set("force_tls_12", true)
 	transport = CreateHTTPTransport()
@@ -209,12 +209,12 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 		{"TlSv1.0", false, tls.VersionTLS10},
 		{"TlSv1.3", true, tls.VersionTLS13},
 		// defaults
-		{"", false, tls.VersionTLS10},
+		{"", false, tls.VersionTLS12},
 		{"", true, tls.VersionTLS12},
 		// invalid values
-		{"tlsv1.9", false, tls.VersionTLS10},
+		{"tlsv1.9", false, tls.VersionTLS12},
 		{"tlsv1.9", true, tls.VersionTLS12},
-		{"blergh", false, tls.VersionTLS10},
+		{"blergh", false, tls.VersionTLS12},
 		{"blergh", true, tls.VersionTLS12},
 	}
 
