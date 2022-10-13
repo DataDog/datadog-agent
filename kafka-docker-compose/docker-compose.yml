@@ -1,0 +1,20 @@
+version: '3'
+services:
+
+  kafka:
+    hostname: 'kafka'
+    image: 'ubuntu/kafka'
+    ports:
+      - '9092:9092'
+    environment:
+      - TZ=UTC
+      - ZOOKEEPER_PORT=2181
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: 'ubuntu/zookeeper:edge'
+    ports:
+      - '2181:2181'
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
