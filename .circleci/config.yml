@@ -205,6 +205,15 @@ jobs:
           name: lint python files
           command: inv -e lint-python
 
+  component_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run component linting
+          command: inv -e lint-components
+
   docker_tests:
     <<: *job_template
     steps:
@@ -299,6 +308,9 @@ workflows:
           requires:
             - dependencies
       - python_linting:
+          requires:
+            - dependencies
+      - component_linting:
           requires:
             - dependencies
       - docker_tests:
