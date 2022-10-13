@@ -44,3 +44,8 @@ func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumula
 func (m *HistogramBucket) GetMetricType() MetricType {
 	return HistogramType
 }
+
+// IsNoIndex returns whether the metric must be not indexed or indexed.
+func (m *HistogramBucket) IsNoIndex() bool {
+	return false
+}
