@@ -59,8 +59,8 @@ func newOnDiskRetryQueue(
 	return storage, err
 }
 
-// Serialize serializes transactions to the file system.
-func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) error {
+// Store stores transactions to the file system.
+func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	s.telemetry.addSerializeCount()
 
 	// Reset the serializer in case some transactions were serialized
@@ -103,8 +103,8 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 	return nil
 }
 
-// Deserialize deserializes transactions from the file system.
-func (s *onDiskRetryQueue) Deserialize() ([]transaction.Transaction, error) {
+// ExtractLast extract the last transactions stored.
+func (s *onDiskRetryQueue) ExtractLast() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}

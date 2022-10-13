@@ -24,19 +24,19 @@ func TestOnDiskRetryQueue(t *testing.T) {
 
 	pointDropped := fileStoragePointDroppedCountTelemetry.expvar.Value()
 	q := newTestOnDiskRetryQueue(a, path, 1000)
-	err := q.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
+	err := q.Store(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
-	err = q.Serialize(createHTTPTransactionCollectionTests("endpoint3", "endpoint4"))
+	err = q.Store(createHTTPTransactionCollectionTests("endpoint3", "endpoint4"))
 	a.NoError(err)
 	a.Equal(2, q.getFilesCount())
 	a.Equal(pointDropped, fileStoragePointDroppedCountTelemetry.expvar.Value())
 
-	transactions, err := q.Deserialize()
+	transactions, err := q.ExtractLast()
 	a.NoError(err)
 	a.Equal([]string{"endpoint3", "endpoint4"}, getEndpointsFromTransactions(transactions))
 	a.Greater(q.GetDiskSpaceUsed(), int64(0))
 
-	transactions, err = q.Deserialize()
+	transactions, err = q.ExtractLast()
 	a.NoError(err)
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))
 	a.Equal(0, q.getFilesCount())
@@ -52,7 +52,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	q := newTestOnDiskRetryQueue(a, path, maxSizeInBytes)
 
 	i := 0
-	err := q.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
+	err := q.Store(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 	a.NoError(err)
 	maxNumberOfFiles := int(maxSizeInBytes / q.GetDiskSpaceUsed())
 	a.Greaterf(maxNumberOfFiles, 2, "Not enough files for this test, increase maxSizeInBytes")
@@ -61,7 +61,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	expectedPointDrop := int64(0)
 	for i++; i < maxNumberOfFiles+fileToDrop; i++ {
 		transactions := createHTTPTransactionCollectionTests(strconv.Itoa(i))
-		err := q.Serialize(transactions)
+		err := q.Store(transactions)
 		a.NoError(err)
 		if i >= maxNumberOfFiles {
 			for _, tr := range transactions {
@@ -75,7 +75,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	a.Equal(pointDropped+expectedPointDrop, fileStoragePointDroppedCountTelemetry.expvar.Value())
 
 	for i--; i >= fileToDrop; i-- {
-		transactions, err := q.Deserialize()
+		transactions, err := q.ExtractLast()
 		a.NoError(err)
 		a.Equal([]string{strconv.Itoa(i)}, getEndpointsFromTransactions(transactions))
 	}
@@ -88,13 +88,13 @@ func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	path := t.TempDir()
 
 	retryQueue := newTestOnDiskRetryQueue(a, path, 1000)
-	err := retryQueue.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
+	err := retryQueue.Store(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
 
 	newRetryQueue := newTestOnDiskRetryQueue(a, path, 1000)
 	a.Equal(retryQueue.GetDiskSpaceUsed(), newRetryQueue.GetDiskSpaceUsed())
 	a.Equal(retryQueue.getFilesCount(), newRetryQueue.getFilesCount())
-	transactions, err := newRetryQueue.Deserialize()
+	transactions, err := newRetryQueue.ExtractLast()
 	a.NoError(err)
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))
 }
