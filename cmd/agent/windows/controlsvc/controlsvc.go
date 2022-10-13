@@ -121,7 +121,7 @@ func stopService(serviceName string, withDeps bool) error {
 			for _, dep := range deps {
 				log.Debugf("Stopping service %s", dep.serviceName)
 				// recurse to this service, but only once
-				stopService(sep.serviceName, false)
+				stopService(dep.serviceName, false)
 			}
 		}
 	}
