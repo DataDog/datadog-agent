@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fix:
+fixes:
   - |
     APM: DogStatsD data can now be proxied through the "/dogstatsd/v1/proxy" endpoint
     and the new "/dogstatsd/v2/proxy" endpoint over UDS or UDP, with multiple payloads
