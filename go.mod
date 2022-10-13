@@ -74,7 +74,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/avast/retry-go/v4 v4.1.0
 	github.com/aws/aws-lambda-go v1.32.0
-	github.com/aws/aws-sdk-go v1.44.0
+	github.com/aws/aws-sdk-go v1.44.115
 	github.com/beevik/ntp v0.3.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
@@ -133,7 +133,7 @@ require (
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.7.7
-	github.com/mdlayher/netlink v1.6.0
+	github.com/mdlayher/netlink v1.6.2
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/miekg/dns v1.1.50
 	github.com/mitchellh/mapstructure v1.5.0
@@ -181,8 +181,8 @@ require (
 	go.uber.org/zap v1.23.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
-	golang.org/x/net v0.0.0-20220909164309-bea034e7d591
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/net v0.0.0-20220923203811-8be639271d50
+	golang.org/x/sync v0.0.0-20220923202941-7f9b1623fab7
 	golang.org/x/sys v0.0.0-20221010170243-090e33056c14
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
@@ -320,7 +320,7 @@ require (
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
-	github.com/mdlayher/socket v0.1.1 // indirect
+	github.com/mdlayher/socket v0.2.3 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
