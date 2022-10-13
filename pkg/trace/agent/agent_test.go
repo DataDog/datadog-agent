@@ -981,8 +981,16 @@ func TestSample(t *testing.T) {
 			trace:       genSpan("-4", sampler.PriorityUserDrop),
 			wantSampled: false,
 		},
-		"userdrop-error-agent-dm-unsampled": {
+		"userdrop-error-agent-dm-sampled": {
 			trace:       genSpan("-1", sampler.PriorityUserDrop),
+			wantSampled: true,
+		},
+		"userkeep-error-no-dm-sampled": {
+			trace:       genSpan("", sampler.PriorityUserKeep),
+			wantSampled: true,
+		},
+		"userkeep-error-agent-dm-sampled": {
+			trace:       genSpan("-1", sampler.PriorityUserKeep),
 			wantSampled: true,
 		},
 	}
