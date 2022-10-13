@@ -17,7 +17,7 @@ package log
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/internal/computil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -71,16 +71,12 @@ type Mock interface {
 	// no further methods are defined.
 }
 
-var componentName = computil.GetComponentName()
-
 // Module defines the fx options for this component.
-var Module fx.Option = fx.Module(
-	componentName,
+var Module fx.Option = fxutil.Component(
 	fx.Provide(newLogger),
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule fx.Option = fx.Module(
-	componentName,
+var MockModule fx.Option = fxutil.Component(
 	fx.Provide(newMockLogger),
 )
