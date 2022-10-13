@@ -196,11 +196,6 @@ func init() {
 	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
 }
 
-// InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string) *BufferedAggregator {
-	return NewBufferedAggregator(s, eventPlatformForwarder, hostname, DefaultFlushInterval)
-}
-
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
