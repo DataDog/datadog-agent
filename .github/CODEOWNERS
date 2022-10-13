@@ -235,7 +235,7 @@
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
-/pkg/otlp/                              @DataDog/agent-platform
+/pkg/otlp/                              @DataDog/opentelemetry
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
@@ -327,8 +327,8 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
 /test/e2e/cws-tests/                    @DataDog/agent-security
-/test/e2e/argo-workflows/otlp-workflow.yaml @DataDog/agent-platform
-/test/e2e/containers/otlp_sender/        @DataDog/agent-platform
+/test/e2e/argo-workflows/otlp-workflow.yaml @DataDog/opentelemetry
+/test/e2e/containers/otlp_sender/        @DataDog/opentelemetry
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless
