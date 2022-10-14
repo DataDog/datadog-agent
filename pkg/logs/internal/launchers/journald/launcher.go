@@ -20,7 +20,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 )
 
-// SDJournalFactory a JounralFactory implementation that produces sdjournal instances
+// SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
 type SDJournalFactory struct{}
 
 func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {

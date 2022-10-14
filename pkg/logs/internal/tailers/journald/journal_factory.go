@@ -11,7 +11,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 )
 
-// Journal interfacae to wrap the functions defined in sdjournal.
+// Journal interface to wrap the functions defined in sdjournal.
 type Journal interface {
 	AddMatch(match string) error
 	AddDisjunction() error
