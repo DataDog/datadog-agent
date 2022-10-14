@@ -9,8 +9,6 @@
 package journald
 
 import (
-	"github.com/coreos/go-systemd/sdjournal"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
@@ -23,20 +21,20 @@ import (
 
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
-	sources              chan *sources.LogSource
-	pipelineProvider     pipeline.Provider
-	registry             auditor.Registry
-	tailers              map[string]*tailer.Tailer
-	stop                 chan struct{}
-	newJournalFn         func() (tailer.Journal, error)
-	newJournalFromPathFn func(string) (tailer.Journal, error)
+	sources          chan *sources.LogSource
+	pipelineProvider pipeline.Provider
+	registry         auditor.Registry
+	tailers          map[string]*tailer.Tailer
+	stop             chan struct{}
+	journalFactory   tailer.JournalFactory
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher() *Launcher {
+func NewLauncher(journalFactory tailer.JournalFactory) *Launcher {
 	return &Launcher{
-		tailers: make(map[string]*tailer.Tailer),
-		stop:    make(chan struct{}),
+		tailers:        make(map[string]*tailer.Tailer),
+		stop:           make(chan struct{}),
+		journalFactory: journalFactory,
 	}
 }
 
@@ -45,8 +43,6 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
-	l.newJournalFn = func() (tailer.Journal, error) { return sdjournal.NewJournal() }
-	l.newJournalFromPathFn = func(path string) (tailer.Journal, error) { return sdjournal.NewJournalFromDir(path) }
 	go l.run()
 }
 
@@ -57,7 +53,7 @@ func (l *Launcher) run() {
 		case source := <-l.sources:
 			identifier := tailer.Identifier(source.Config)
 			if _, exists := l.tailers[identifier]; exists {
-				// set up only one tailer per journal
+				log.Warn(identifier, " is already tailed. Use config_id to tail the same journal more than once")
 				continue
 			}
 			tailer, err := l.setupTailer(source)
@@ -91,9 +87,9 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 
 	if source.Config.Path == "" {
 		// open the default journal
-		journal, err = l.newJournalFn()
+		journal, err = l.journalFactory.NewJournal()
 	} else {
-		journal, err = l.newJournalFromPathFn(source.Config.Path)
+		journal, err = l.journalFactory.NewJournalFromPath(source.Config.Path)
 	}
 	if err != nil {
 		return nil, err

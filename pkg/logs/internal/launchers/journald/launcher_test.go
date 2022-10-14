@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -17,8 +18,7 @@ import (
 	"gotest.tools/assert"
 )
 
-type MockJournal struct {
-}
+type MockJournal struct{}
 
 func (m *MockJournal) AddMatch(match string) error                { return nil }
 func (m *MockJournal) AddDisjunction() error                      { return nil }
@@ -32,33 +32,41 @@ func (m *MockJournal) Next() (uint64, error)                      { return 0, ni
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) { return nil, sdjournal.ErrExpired }
 func (m *MockJournal) GetCursor() (string, error)                 { return "", nil }
 
+// MockJournalFactory a jounral factory that produces mock journal implementations
+type MockJournalFactory struct{}
+
+func (s *MockJournalFactory) NewJournal() (tailer.Journal, error) {
+	return &MockJournal{}, nil
+}
+
+func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
+	return &MockJournal{}, nil
+}
+
 func newTestLauncher() *Launcher {
-	return &Launcher{
-		sources:              make(chan *sources.LogSource),
-		pipelineProvider:     pipeline.NewMockProvider(),
-		registry:             auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")),
-		tailers:              make(map[string]*tailer.Tailer),
-		stop:                 make(chan struct{}),
-		newJournalFn:         func() (tailer.Journal, error) { return &MockJournal{}, nil },
-		newJournalFromPathFn: func(path string) (tailer.Journal, error) { return &MockJournal{}, nil },
-	}
+	launcher := NewLauncher(&MockJournalFactory{})
+	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")))
+	return launcher
 }
 
 func TestSingeJournaldConfig(t *testing.T) {
 	launcher := newTestLauncher()
-	go launcher.run()
 
-	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{})
-	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{})
+	sourceThatShouldWin := sources.NewLogSource("testSource", &config.LogsConfig{})
+	sourceThatShouldLose := sources.NewLogSource("testSource2", &config.LogsConfig{})
+	launcher.sources <- sourceThatShouldWin
+	launcher.sources <- sourceThatShouldLose
 
 	launcher.stop <- struct{}{}
 
 	assert.Equal(t, 1, len(launcher.tailers))
+
+	assert.Equal(t, "journald:default", sourceThatShouldWin.GetInputs()[0])
+	assert.Equal(t, 0, len(sourceThatShouldLose.GetInputs()))
 }
 
 func TestMultipleTailersDifferentPath(t *testing.T) {
 	launcher := newTestLauncher()
-	go launcher.run()
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})
@@ -68,21 +76,24 @@ func TestMultipleTailersDifferentPath(t *testing.T) {
 	assert.Equal(t, 2, len(launcher.tailers))
 }
 
-func TestMultipleTailersSamePathOverrridesFirst(t *testing.T) {
+func TestMultipleTailersOnSamePath(t *testing.T) {
 	launcher := newTestLauncher()
-	go launcher.run()
 
-	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar"})
-	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})
+	sourceThatShouldWin := sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar"})
+	sourceThatShouldLose := sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})
+	launcher.sources <- sourceThatShouldWin
+	launcher.sources <- sourceThatShouldLose
 
 	launcher.stop <- struct{}{}
 
 	assert.Equal(t, 1, len(launcher.tailers))
+
+	assert.Equal(t, "journald:/foo/bar", sourceThatShouldWin.GetInputs()[0])
+	assert.Equal(t, 0, len(sourceThatShouldLose.GetInputs()))
 }
 
 func TestMultipleTailersSamePathWithId(t *testing.T) {
 	launcher := newTestLauncher()
-	go launcher.run()
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar", ConfigId: "foo"})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar", ConfigId: "bar"})
@@ -94,7 +105,6 @@ func TestMultipleTailersSamePathWithId(t *testing.T) {
 
 func TestMultipleTailersWithId(t *testing.T) {
 	launcher := newTestLauncher()
-	go launcher.run()
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{ConfigId: "foo"})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{ConfigId: "bar"})
@@ -106,7 +116,6 @@ func TestMultipleTailersWithId(t *testing.T) {
 
 func TestStopLauncher(t *testing.T) {
 	launcher := newTestLauncher()
-	go launcher.run()
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})
