@@ -320,7 +320,7 @@ __bpf_no_builtin_memset(void *d __maybe_unused, __u8 c __maybe_unused,
 /* Redirect any direct use in our code to throw an error. */
 #define __builtin_memset	__bpf_no_builtin_memset
 
-static __always_inline __nobuiltin("memset") void bpf_memset(void *d, int c,
+static __always_inline __maybe_unused __nobuiltin("memset") void bpf_memset(void *d, int c,
 							 __u64 len)
 {
 	if (__builtin_constant_p(len) && __builtin_constant_p(c) && c == 0)
@@ -636,7 +636,7 @@ __bpf_no_builtin_memcpy(void *d __maybe_unused, const void *s __maybe_unused,
 /* Redirect any direct use in our code to throw an error. */
 #define __builtin_memcpy	__bpf_no_builtin_memcpy
 
-static __always_inline __nobuiltin("memcpy") void bpf_memcpy(void *d, const void *s,
+static __always_inline __maybe_unused __nobuiltin("memcpy") void bpf_memcpy(void *d, const void *s,
 							 __u64 len)
 {
 	return __bpf_memcpy(d, s, len);
@@ -961,7 +961,7 @@ __bpf_no_builtin_memcmp(const void *x __maybe_unused,
 /* Modified for our needs in that we only return either zero (x and y
  * are equal) or non-zero (x and y are non-equal).
  */
-static __always_inline __nobuiltin("memcmp") __u64 bpf_memcmp(const void *x,
+static __always_inline __maybe_unused __nobuiltin("memcmp") __u64 bpf_memcmp(const void *x,
 							  const void *y,
 							  __u64 len)
 {
@@ -1290,7 +1290,7 @@ static __always_inline void __bpf_memmove(void *d, const void *s, __u64 len)
 		return __bpf_memmove_bwd(d, s, len);
 }
 
-static __always_inline __nobuiltin("memmove") void bpf_memmove(void *d,
+static __always_inline __maybe_unused __nobuiltin("memmove") void bpf_memmove(void *d,
 							   const void *s,
 							   __u64 len)
 {
