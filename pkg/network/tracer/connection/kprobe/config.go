@@ -52,6 +52,8 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
+		enableProbe(enabled, probes.TcpRecvMsg)
+		enableProbe(enabled, probes.TcpRecvMsgRet)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 
 		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})

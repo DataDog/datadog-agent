@@ -103,14 +103,38 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
+SEC("kprobe/tcp_recvmsg")
+int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 zero = 0;
+    bpf_map_update_elem(&tcp_recvmsg, &pid_tgid, &zero, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/tcp_recvmsg")
+int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&tcp_recvmsg, &pid_tgid);
+    return 0;
+}
+
 SEC("kprobe/tcp_cleanup_rbuf")
 int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     int copied = (int)PT_REGS_PARM2(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 *count = bpf_map_lookup_elem(&tcp_recvmsg, &pid_tgid);
+    if (count) {
+        if (*count > 0) {
+            log_debug("tcp_cleanup_rbuf called multiple times, copied: %d\n", copied);
+            increment_telemetry_count(tcp_cleanup_rbuf_dup);
+        }
+        *count = *count+1;
+    }
+
     if (copied <= 0) {
         return 0;
     }
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
 
     conn_tuple_t t = {};

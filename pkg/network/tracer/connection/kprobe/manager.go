@@ -55,6 +55,8 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.SockFDLookupRet:      "kretprobe__sockfd_lookup_light",
 	probes.DoSendfile:           "kprobe__do_sendfile",
 	probes.DoSendfileRet:        "kretprobe__do_sendfile",
+	probes.TcpRecvMsg:           "kprobe__tcp_recvmsg",
+	probes.TcpRecvMsgRet:        "kretprobe__tcp_recvmsg",
 }
 
 var altProbes = map[probes.ProbeName]string{
@@ -89,6 +91,7 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			{Name: string(probes.IpMakeSkbArgsMap)},
 			{Name: string(probes.MapErrTelemetryMap)},
 			{Name: string(probes.HelperErrTelemetryMap)},
+			{Name: "tcp_recvmsg"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
