@@ -1092,7 +1092,14 @@ func extractFirstParent(path string) (string, int) {
 // InsertFileEventInProcess inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
 func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
-	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
+	var filePath string
+	if generationType != Snapshot {
+		filePath = event.ResolveFilePath(fileEvent)
+	} else {
+		filePath = fileEvent.PathnameStr
+	}
+
+	parent, nextParentIndex := extractFirstParent(filePath)
 	if nextParentIndex == 0 {
 		return false
 	}
