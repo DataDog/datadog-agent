@@ -883,6 +883,9 @@ func InitConfig(config Config) {
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
 	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
+	// If set, the default docker path will be overridden.
+	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
+
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
@@ -1426,6 +1429,12 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
 	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
 		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
+	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
+	if config.GetBool("use_podman_logs") && config.IsSet("docker_path_override") {
+		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
+		return &warnings, errors.New("Please set use_podman_logs to false or unset docker_path_override")
 	}
 
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
