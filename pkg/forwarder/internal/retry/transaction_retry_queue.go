@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,6 +39,7 @@ type TransactionRetryQueue struct {
 	dropPrioritySorter    TransactionPrioritySorter
 	optionalStorage       TransactionDiskStorage
 	telemetry             TransactionRetryQueueTelemetry
+	pointDroppedSender    *PointDroppedSender
 	mutex                 sync.RWMutex
 }
 
@@ -51,10 +53,12 @@ func BuildTransactionRetryQueue(
 	resolver resolver.DomainResolver) *TransactionRetryQueue {
 	var storage TransactionDiskStorage
 	var err error
+	domain := resolver.GetBaseDomain()
+	pointDroppedSender := NewPointDroppedSender(domain, telemetry.GetStatsTelemetryProvider())
 
 	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
 		serializer := NewHTTPTransactionsSerializer(resolver)
-		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()))
+		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointDroppedSender)
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
@@ -68,7 +72,8 @@ func BuildTransactionRetryQueue(
 		storage,
 		maxMemSizeInBytes,
 		flushToStorageRatio,
-		NewTransactionRetryQueueTelemetry(resolver.GetBaseDomain()))
+		NewTransactionRetryQueueTelemetry(domain),
+		pointDroppedSender)
 }
 
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
@@ -77,13 +82,15 @@ func NewTransactionRetryQueue(
 	optionalTransactionStorage TransactionDiskStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
-	telemetry TransactionRetryQueueTelemetry) *TransactionRetryQueue {
+	telemetry TransactionRetryQueueTelemetry,
+	pointDroppedSender *PointDroppedSender) *TransactionRetryQueue {
 	return &TransactionRetryQueue{
 		maxMemSizeInBytes:   maxMemSizeInBytes,
 		flushToStorageRatio: flushToStorageRatio,
 		dropPrioritySorter:  dropPrioritySorter,
 		optionalStorage:     optionalTransactionStorage,
 		telemetry:           telemetry,
+		pointDroppedSender:  pointDroppedSender,
 	}
 }
 
@@ -109,9 +116,11 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 			if err := tc.optionalStorage.Store(payloads); err != nil {
 				diskErr = multierror.Append(diskErr, err)
 				// Assuming all payloads failed during serialization
+				pointCountDroppped := 0
 				for _, payload := range payloads {
-					tc.telemetry.addPointDroppedCount(payload.GetPointCount())
+					pointCountDroppped += payload.GetPointCount()
 				}
+				tc.onDropPoints(pointCountDroppped)
 			}
 		}
 		if diskErr != nil {
@@ -125,9 +134,11 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	inMemTransactionDroppedCount := 0
 	if payloadSizeInBytesToDrop > 0 {
 		transactions := tc.extractTransactionsFromMemory(payloadSizeInBytesToDrop)
+		pointCountDroppped := 0
 		for _, tr := range transactions {
-			tc.telemetry.addPointDroppedCount(tr.GetPointCount())
+			pointCountDroppped += tr.GetPointCount()
 		}
+		tc.onDropPoints(pointCountDroppped)
 		inMemTransactionDroppedCount = len(transactions)
 		tc.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
 	}
@@ -138,6 +149,11 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	tc.telemetry.setTransactionsCount(len(tc.transactions))
 
 	return inMemTransactionDroppedCount, diskErr
+}
+
+func (tc *TransactionRetryQueue) onDropPoints(count int) {
+	tc.telemetry.addPointDroppedCount(count)
+	tc.pointDroppedSender.AddDroppedPointCount(count)
 }
 
 // ExtractTransactions extracts transactions from the container.
@@ -233,4 +249,14 @@ func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInByte
 	tc.transactions = tc.transactions[i:]
 	tc.currentMemSizeInBytes -= sizeInBytesExtracted
 	return transactionsExtracted
+}
+
+// Start starts pointDroppedSender
+func (tc *TransactionRetryQueue) Start() {
+	tc.pointDroppedSender.Start()
+}
+
+// Stop stops pointDroppedSender
+func (tc *TransactionRetryQueue) Stop() {
+	tc.pointDroppedSender.Stop()
 }

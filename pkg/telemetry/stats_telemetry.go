@@ -24,6 +24,11 @@ var (
 	statsProvider = &StatsTelemetryProvider{}
 )
 
+// NewStatsTelemetryProvider creates a new instance of StatsTelemetryProvider
+func NewStatsTelemetryProvider(sender StatsTelemetrySender) *StatsTelemetryProvider {
+	return &StatsTelemetryProvider{sender: sender}
+}
+
 // RegisterStatsSender regsiters a sender to send the stats metrics
 func RegisterStatsSender(sender StatsTelemetrySender) {
 	statsProvider.m.Lock()
