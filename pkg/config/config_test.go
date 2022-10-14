@@ -1174,12 +1174,14 @@ func TestPrometheusScrapeChecksTransformer(t *testing.T) {
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
-use_podman_logs: "true"
-docker_path_override: "/custom/path"
+logs_config:
+  use_podman_logs: true
+  docker_path_override: "/custom/path"
 `
 
 	config := setupConfFromYAML(datadogYaml)
-	_, err := load(config, "", false)
+	err := checkConflictingOptions(config)
 
+	fmt.Println("error: ", err)
 	assert.NotNil(t, err)
 }

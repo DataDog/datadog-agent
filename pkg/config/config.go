@@ -1383,6 +1383,16 @@ func useHostEtc(config Config) {
 	}
 }
 
+func checkConflictingOptions(config Config) error {
+	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
+	if config.GetBool("logs_config.use_podman_logs") && config.IsSet("logs_config.docker_path_override") {
+		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
+		return errors.New("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
+	}
+
+	return nil
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1431,10 +1441,9 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
 	}
 
-	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
-	if config.GetBool("use_podman_logs") && config.IsSet("docker_path_override") {
-		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
-		return &warnings, errors.New("Please set use_podman_logs to false or unset docker_path_override")
+	err := checkConflictingOptions(config)
+	if err != nil {
+		return &warnings, err
 	}
 
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
