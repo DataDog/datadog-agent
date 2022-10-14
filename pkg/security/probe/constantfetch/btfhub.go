@@ -34,7 +34,7 @@ var idToDistribMapping = map[string]string{
 	"amzn":   "amzn",
 	"centos": "centos",
 	"fedora": "fedora",
-	"oracle": "oracle-linux",
+	"ol":     "oracle-linux",
 }
 
 var archMapping = map[string]string{
