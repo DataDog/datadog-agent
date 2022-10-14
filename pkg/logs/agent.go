@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
-	journaldFactory "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -79,7 +78,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 		time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
 		coreConfig.Datadog.GetString("logs_config.file_wildcard_selection_mode")))
 	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
-	lnchrs.AddLauncher(journald.NewLauncher(&journaldFactory.SDJournalFactory{}))
+	lnchrs.AddLauncher(journald.NewLauncher(&journald.SDJournalFactory{}))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	if !util.CcaInAD() {
 		lnchrs.AddLauncher(docker.NewLauncher(

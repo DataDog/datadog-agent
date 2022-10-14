@@ -11,14 +11,26 @@ package journald
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
+
+// SDJournalFactory a JounralFactory implementation that produces sdjournal instances
+type SDJournalFactory struct{}
+
+func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
+	return nil, nil
+}
+
+func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
+	return nil, nil
+}
 
 // Launcher is not supported on no systemd environment.
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher() *Launcher {
+func NewLauncher(journalFactory *SDJournalFactory) *Launcher {
 	return &Launcher{}
 }
 

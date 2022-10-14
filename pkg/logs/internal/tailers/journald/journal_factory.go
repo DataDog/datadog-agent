@@ -1,6 +1,3 @@
-//go:build systemd
-// +build systemd
-
 package journald
 
 import (
@@ -31,15 +28,4 @@ type JournalFactory interface {
 
 	// NewJournal creates a new jounral instance from the supplied path or error
 	NewJournalFromPath(path string) (Journal, error)
-}
-
-// SDJournalFactory a JounralFactory implementation that produces sdjournal instances
-type SDJournalFactory struct{}
-
-func (s *SDJournalFactory) NewJournal() (Journal, error) {
-	return sdjournal.NewJournal()
-}
-
-func (s *SDJournalFactory) NewJournalFromPath(path string) (Journal, error) {
-	return sdjournal.NewJournalFromDir(path)
 }

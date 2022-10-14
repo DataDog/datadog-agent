@@ -17,7 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/coreos/go-systemd/sdjournal"
 )
+
+// SDJournalFactory a JounralFactory implementation that produces sdjournal instances
+type SDJournalFactory struct{}
+
+func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
+	return sdjournal.NewJournal()
+}
+
+func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
+	return sdjournal.NewJournalFromDir(path)
+}
 
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
