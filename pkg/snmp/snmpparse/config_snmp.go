@@ -7,6 +7,7 @@ package snmpparse
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -38,6 +39,7 @@ type SNMPConfig struct {
 	PrivProtocol string `yaml:"privProtocol"`
 	PrivKey      string `yaml:"privKey"`
 	Context      string `yaml:"context_name"`
+	NetAddress   string `yaml:"network_address"`
 }
 
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
@@ -70,7 +72,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	//To Do: change the configCheckURLSnmp if the snmp check is a cluster check
+	//TODO: change the configCheckURLSnmp if the snmp check is a cluster check
 	if configCheckURLSnmp == "" {
 		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
@@ -92,11 +94,25 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 }
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
-
+	instance := SNMPConfig{}
 	for _, snmpconfig := range SnmpConfigList {
 		if snmpconfig.IPAddress == ip_address {
-			return snmpconfig
+			instance = snmpconfig
+			return instance
+			//this works but need to find a better way to do the same work in one loop
 		}
 	}
+	for _, snmpconfig := range SnmpConfigList {
+		if (snmpconfig.NetAddress != "") && (instance.IPAddress == "") {
+			_, subnet, _ := net.ParseCIDR(snmpconfig.NetAddress)
+			ip := net.ParseIP(ip_address)
+			if subnet.Contains(ip) {
+				snmpconfig.IPAddress = ip_address
+				instance = snmpconfig
+				return instance
+			}
+		}
+	}
+
 	return SNMPConfig{}
 }
