@@ -93,25 +93,38 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	return nil, nil
 
 }
+
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
-	instance := SNMPConfig{}
+	ipAddressConfigs := []SNMPConfig{}
+	netAddressConfigs := []SNMPConfig{}
+
+	//split the SnmpConfigList to get the IP addresses seperated from
+	//the network addresses
 	for _, snmpconfig := range SnmpConfigList {
-		if snmpconfig.IPAddress == ip_address {
-			instance = snmpconfig
-			return instance
+		if snmpconfig.IPAddress != "" {
+			ipAddressConfigs = append(ipAddressConfigs, snmpconfig)
+		}
+		if snmpconfig.NetAddress != "" {
+			netAddressConfigs = append(netAddressConfigs, snmpconfig)
+		}
+	}
+
+	//check if the ip address is explictly mentioned
+	for _, snmpIPconfig := range ipAddressConfigs {
+		if snmpIPconfig.IPAddress == ip_address {
+			return snmpIPconfig
 			//this works but need to find a better way to do the same work in one loop
 		}
 	}
-	for _, snmpconfig := range SnmpConfigList {
-		if (snmpconfig.NetAddress != "") && (instance.IPAddress == "") {
-			_, subnet, _ := net.ParseCIDR(snmpconfig.NetAddress)
-			ip := net.ParseIP(ip_address)
-			if subnet.Contains(ip) {
-				snmpconfig.IPAddress = ip_address
-				instance = snmpconfig
-				return instance
-			}
+	//check if the ip address is a part of a network/subnet
+	for _, snmpNetConfig := range netAddressConfigs {
+		_, subnet, _ := net.ParseCIDR(snmpNetConfig.NetAddress)
+		ip := net.ParseIP(ip_address)
+		if subnet.Contains(ip) {
+			snmpNetConfig.IPAddress = ip_address
+			return snmpNetConfig
 		}
+
 	}
 
 	return SNMPConfig{}
