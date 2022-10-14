@@ -11,7 +11,6 @@ package journald
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
-	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
