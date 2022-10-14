@@ -8,6 +8,10 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
+  directory wrk_dir do
+    recursive true
+  end
+
   file "#{wrk_dir}/cws_platform" do
     content node[:cws_platform].to_s || ""
     mode 644
