@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -41,6 +43,8 @@ func TestStartInvocation(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d.TraceAgent = &trace.ServerlessTraceAgent{}
+	d.Orchestrator = orchestrator.NewLambdaOrchestrator()
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
@@ -64,6 +68,8 @@ func TestEndInvocation(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d.TraceAgent = &trace.ServerlessTraceAgent{}
+	d.Orchestrator = orchestrator.NewLambdaOrchestrator()
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
@@ -88,6 +94,8 @@ func TestEndInvocationWithError(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d.TraceAgent = &trace.ServerlessTraceAgent{}
+	d.Orchestrator = orchestrator.NewLambdaOrchestrator()
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
@@ -114,6 +122,8 @@ func TestTraceContext(t *testing.T) {
 
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d.TraceAgent = &trace.ServerlessTraceAgent{}
+	d.Orchestrator = orchestrator.NewLambdaOrchestrator()
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{

@@ -85,6 +85,10 @@ type HTTPReceiver struct {
 
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
+
+	// OnHandleTraces is a function executed when a payload is received from a tracer
+	// used in serverless context to block until ready to properly handle the payload
+	OnHandleTraces func()
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -522,6 +526,9 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	if r.OnHandleTraces != nil {
+		r.OnHandleTraces()
+	}
 	ts := r.tagStats(v, req.Header)
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {

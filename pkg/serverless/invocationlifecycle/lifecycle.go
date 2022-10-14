@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
@@ -30,6 +31,7 @@ type LifecycleProcessor struct {
 	Demux                aggregator.Demultiplexer
 	DetectLambdaLibrary  func() bool
 	InferredSpansEnabled bool
+	Orchestrator         orchestrator.Orchestrator
 
 	requestHandler *RequestHandler
 }
@@ -200,6 +202,8 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
+
+	lp.Orchestrator.HitEndInvocation()
 }
 
 // GetTags returns the tagset of the currently executing lambda function

@@ -745,6 +745,44 @@ func TestHandleTraces(t *testing.T) {
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
 }
 
+func TestHandleTracesBlocked(t *testing.T) {
+	assert := assert.New(t)
+
+	// prepare the msgpack payload
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(err)
+
+	// prepare the receiver
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+
+	// set a blocking OnHandleTraces func
+	receiver.OnHandleTraces = func() {
+		time.Sleep(5 * time.Second)
+	}
+
+	// response recorder
+	handler := receiver.handleWithVersion(v04, receiver.handleTraces)
+
+	rr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+
+	timeout := time.After(100 * time.Millisecond)
+	completed := make(chan bool)
+
+	go func() {
+		handler.ServeHTTP(rr, req)
+		completed <- true
+	}()
+
+	select {
+	case <-completed:
+		t.Fatal("should not complete")
+	case <-timeout:
+		return
+	}
+}
+
 // chunkedReader is a reader which forces partial reads, this is required
 // to trigger some network related bugs, such as body not being read fully by server.
 // Without this, all the data could be read/written at once, not triggering the issue.
