@@ -76,29 +76,5 @@ random_property: test
                 .Should()
                 .NotHaveKey(key);
         }
-
-        [Fact]
-        public void Should_Always_Set_apm_dd_url()
-        {
-            var datadogYaml = @"
-# apm_config:
-
-  # enabled: true
-
-  # apm_dd_url: <ENDPOINT>:<PORT>
-";
-            var sessionMock = new Mock<ISession>();
-            sessionMock.Setup(session => session["TRACE_DD_URL"]).Returns("https://trace.someurl.datadoghq.com");
-            var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
-                .ToYaml();
-            resultingYaml
-                .Should()
-                .HaveKey("apm_config.apm_dd_url")
-                .And.HaveValue("https://trace.someurl.datadoghq.com");
-            resultingYaml
-                .Should()
-                .NotHaveKey("apm_config.enabled");
-
-        }
     }
 }

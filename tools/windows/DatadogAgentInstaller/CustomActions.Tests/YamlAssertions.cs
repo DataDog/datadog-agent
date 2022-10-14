@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using AutoFixture;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using FluentAssertions.Primitives;
@@ -109,6 +111,18 @@ namespace CustomActions.Tests
                 .Given(() => (YamlScalarNode)Subject)
                 .ForCondition(node => string.IsNullOrEmpty(node.Value))
                 .FailWith("Expected {context} to not have a value {reason}.");
+
+            return new AndConstraint<YamlAssertions>(this);
+        }
+
+        public AndConstraint<YamlAssertions> HaveValues(
+            IList<string> values, string because = "", params object[] becauseArgs)
+        {
+            Execute.Assertion
+                .BecauseOf(because, becauseArgs)
+                .Given(() => ((YamlSequenceNode)Subject))
+                .ForCondition(subject => subject.Children.Cast<YamlScalarNode>().Select(k => k.Value).SequenceEqual(values))
+                .FailWith("Expected {context} to equal {0}{reason}", values);
 
             return new AndConstraint<YamlAssertions>(this);
         }

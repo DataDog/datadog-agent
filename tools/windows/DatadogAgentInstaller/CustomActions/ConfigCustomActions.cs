@@ -88,7 +88,7 @@ namespace Datadog.CustomActions
 
             public string Replace(string input, string propertyValue)
             {
-                return Regex.Replace(input, _regex, _replacement(propertyValue), RegexOptions.Multiline);
+                return Regex.Replace(input, _regex, _replacement(propertyValue), RegexOptions.Multiline | RegexOptions.ECMAScript);
             }
         }
 
@@ -143,13 +143,23 @@ namespace Datadog.CustomActions
                 new FormatValueReplacer("LOGS_ENABLED",                     "^[ #]*logs_enabled:.*", (value) => $"logs_enabled: {value}"),
                 new FormatValueReplacer("LOGS_DD_URL",                      "^[ #]*logs_config:.*", (value) => "logs_config:"),
                 new FormatValueReplacer("LOGS_DD_URL",                      "^[ #]*logs_dd_url:.*", (value) => $"  logs_dd_url: {value}"),
-                new FormatValueReplacer("PROCESS_ENABLED",                  "^[ #]*process_config:.*", (value) => "process_config:"),
-                new FormatValueReplacer("PROCESS_DD_URL",                   "^[ #]*process_config:.*", (value) => $"process_config:\\n  process_dd_url: : {value}"),
+                new FormatValueReplacer("PROCESS_ENABLED",                  "^[ #]*process_config:[ \n\r#]*process_collection:[ \n\r#]*enabled:.*", (value) => $"process_config:\n  process_collection:\n    enabled: {value}"),
+
+                new FormatValueReplacer("PROCESS_DD_URL",                   "^[ #]*process_config:.*", (value) => $"process_config:\n  process_dd_url: {value}"),
+
+                // Uncomment the process_config section in case PROCESS_DD_URL was not specified
                 new FormatValueReplacer("PROCESS_DISCOVERY_ENABLED",        "^[ #]*process_config:.*", (value) => "process_config:"),
-                new FormatValueReplacer("PROCESS_DISCOVERY_ENABLED",        "^[ #]*process_discovery:.*", (value) => "process_discovery:"),
-                new FormatValueReplacer("APM_ENABLED",                      "^[ #]*apm_config:.*", (value) => "apm_config:"),
-                new FormatValueReplacer("TRACE_DD_URL",                     "^[ #]*apm_config:.*", (value) => "apm_config:"),
-                new FormatValueReplacer("CMD_PORT",                         "^[ #]*cmd_port:.*", (value) => $"cmd_port: {value}"),
+                new FormatValueReplacer("PROCESS_DISCOVERY_ENABLED",        "^[ #]*process_discovery:[ \n\r#]*enabled:.*", (value) => $"  process_discovery:\n    enabled: {value}"),
+
+                new FormatValueReplacer("APM_ENABLED",                      "^[ #]*apm_config:[ \n\r#]*enabled:.*", (value) => $"apm_config:\n  enabled: {value}"),
+
+                // Uncomment the apm_config in case APM_ENABLED was not specified
+                new FormatValueReplacer("TRACE_DD_URL",                     "^[ #]*apm_config:", (value) => "apm_config:"),
+                new FormatValueReplacer("TRACE_DD_URL",                     "^[ #]*apm_dd_url:.*", (value) => $"  apm_dd_url: {value}"),
+
+                // There are multiple cmd_port entry in the config, so we need
+                // to match the top level one explicitly.
+                new FormatValueReplacer("CMD_PORT",                         "^[# ]?[ ]*cmd_port:.*", (value) => $"cmd_port: {value}"),
                 new FormatValueReplacer("DD_URL",                           "^[ #]*dd_url:.*", (value) => $"dd_url: {value}"),
                 new FormatValueReplacer("PYVER",                            "^[ #]*python_version:.*", (value) => $"python_version: {value}"),
                 new FormatValueReplacer("PROXY_HOST",                       "^[ #]*proxy:.*", (value) => FormatProxy(value, session)),

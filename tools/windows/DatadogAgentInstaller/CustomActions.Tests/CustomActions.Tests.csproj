@@ -135,6 +135,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ApmConfigTests.cs" />
+    <Compile Include="ConfigIntegrationTest.cs" />
+    <Compile Include="ProcessConfigTests.cs" />
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="YamlAssertions.UnitTests.cs" />
