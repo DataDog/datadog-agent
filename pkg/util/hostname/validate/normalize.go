@@ -8,6 +8,17 @@ package validate
 import (
 	"bytes"
 	"fmt"
+	"regexp"
+)
+
+var (
+	// Filter to clean the directory name from invalid file name characters
+	directoryNameFilter = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
+)
+
+const (
+	// Maximum size for a directory name
+	directoryNameMaxSize = 32
 )
 
 // NormalizeHost applies a liberal policy on host names.
@@ -36,4 +47,13 @@ func NormalizeHost(host string) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// CleanHostnameDir returns a hostname normalized to be use as a directory name.
+func CleanHostnameDir(hostname string) string {
+	hostname = directoryNameFilter.ReplaceAllString(hostname, "_")
+	if len(hostname) > directoryNameMaxSize {
+		return hostname[:directoryNameMaxSize]
+	}
+	return hostname
 }
