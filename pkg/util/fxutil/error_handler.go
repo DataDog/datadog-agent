@@ -15,7 +15,7 @@ import (
 type errorHandler struct{}
 
 func (errorHandler) HandleError(error) {
-	if os.Getenv("TRACE_FX") == "" {
+	if os.Getenv(traceFx) == "" {
 		fmt.Println("------------------------------------------------------")
 		fmt.Printf("Set %v to have more information about FX errors.\n", traceFx)
 		fmt.Println("------------------------------------------------------")
