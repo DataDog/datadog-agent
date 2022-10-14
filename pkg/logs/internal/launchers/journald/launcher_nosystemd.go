@@ -15,22 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
-type SDJournalFactory struct{}
-
-func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
-	return nil, nil
-}
-
-func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
-	return nil, nil
-}
-
 // Launcher is not supported on no systemd environment.
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(journalFactory *SDJournalFactory) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{}
 }
 

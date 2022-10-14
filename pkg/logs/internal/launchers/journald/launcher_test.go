@@ -49,7 +49,7 @@ func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, er
 }
 
 func newTestLauncher() *Launcher {
-	launcher := NewLauncher(&MockJournalFactory{})
+	launcher := NewLauncherWithFactory(&MockJournalFactory{})
 	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")))
 	return launcher
 }

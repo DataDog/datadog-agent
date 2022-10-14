@@ -42,7 +42,12 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(journalFactory tailer.JournalFactory) *Launcher {
+func NewLauncher() *Launcher {
+	return NewLauncherWithFactory(&SDJournalFactory{})
+}
+
+// NewLauncherWithFactory returns a new Launcher.
+func NewLauncherWithFactory(journalFactory tailer.JournalFactory) *Launcher {
 	return &Launcher{
 		tailers:        make(map[string]*tailer.Tailer),
 		stop:           make(chan struct{}),
