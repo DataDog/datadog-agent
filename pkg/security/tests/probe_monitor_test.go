@@ -50,7 +50,7 @@ func TestRulesetLoaded(t *testing.T) {
 		count := test.statsdClient.Get(key)
 		assert.Zero(t, count)
 
-		err = test.GetProbeCustomEvent(t, func() error {
+		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
@@ -100,7 +100,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		// let's help it by cleaning up most of the directories
 		defer cleanupABottomUp(truncatedParentsFile)
 
-		err = test.GetProbeCustomEvent(t, func() error {
+		err = test.GetCustomEventSent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				return err
@@ -172,7 +172,7 @@ func TestNoisyProcess(t *testing.T) {
 	}
 
 	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetProbeCustomEvent(t, func() error {
+		err = test.GetCustomEventSent(t, func() error {
 			// generate load
 			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
 				f, err := os.OpenFile(file, os.O_CREATE, 0755)
