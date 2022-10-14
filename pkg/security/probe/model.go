@@ -134,7 +134,10 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
+	if f.Filesystem == "" {
+		f.Filesystem = ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
+	}
+	return f.Filesystem
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
