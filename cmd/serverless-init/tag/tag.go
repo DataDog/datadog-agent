@@ -25,7 +25,7 @@ func getTag(envName string) (string, bool) {
 }
 
 // GetBaseTagsMapWithMetadata returns a map of Datadog's base tags + Cloud Run specific if present
-func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
+func GetBaseTagsMapWithMetadata(metadata map[string]string, origin string) map[string]string {
 	tags := map[string]string{}
 	listTags := []tagPair{
 		{
@@ -59,14 +59,14 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 		tags[key] = value
 	}
 
-	tags["origin"] = "cloudrun"
+	tags["origin"] = origin
 
 	return tags
 }
 
 // GetBaseTagsArrayWithMetadataTags see GetBaseTagsMapWithMetadata (as array)
-func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
-	tagsMap := GetBaseTagsMapWithMetadata(metadata)
+func GetBaseTagsArrayWithMetadataTags(metadata map[string]string, origin string) []string {
+	tagsMap := GetBaseTagsMapWithMetadata(metadata, origin)
 	tagsArray := make([]string, 0, len(tagsMap))
 	for key, value := range tagsMap {
 		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))

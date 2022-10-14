@@ -14,7 +14,7 @@ import (
 )
 
 func TestGetBaseTagsArrayNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 1, len(GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))))
+	assert.Equal(t, 1, len(GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0), "cloudrun")))
 }
 
 func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
@@ -28,7 +28,7 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	defer os.Unsetenv("DD_SERVICE")
 	os.Setenv("DD_VERSION", "123.4")
 	defer os.Unsetenv("DD_VERSION")
-	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))
+	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0), "cloudrun")
 	sort.Strings(tags)
 	assert.Equal(t, 6, len(tags))
 	assert.Equal(t, "env:myenv", tags[0])
@@ -54,7 +54,7 @@ func TestGetTagNotFound(t *testing.T) {
 }
 
 func TestGetBaseTagsMapNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 1, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0))))
+	assert.Equal(t, 1, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "cloudrun")))
 }
 
 func TestGetBaseTagsMapNoMetadata(t *testing.T) {
@@ -68,7 +68,7 @@ func TestGetBaseTagsMapNoMetadata(t *testing.T) {
 	defer os.Unsetenv("DD_SERVICE")
 	os.Setenv("DD_VERSION", "123.4")
 	defer os.Unsetenv("DD_VERSION")
-	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0))
+	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0), "cloudrun")
 	assert.Equal(t, 6, len(tags))
 	assert.Equal(t, "myenv", tags["env"])
 	assert.Equal(t, "fdgf34", tags["revision_name"])
@@ -84,7 +84,7 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 	tags := GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	})
+	}, "cloudrun")
 	assert.Equal(t, 4, len(tags))
 	assert.Equal(t, "mysuperlocation", tags["location"])
 	assert.Equal(t, "mysuperothermetadatavalue", tags["othermetadata"])
@@ -98,7 +98,7 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	tags := GetBaseTagsArrayWithMetadataTags(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	})
+	}, "cloudrun")
 	sort.Strings(tags)
 	assert.Equal(t, 4, len(tags))
 	assert.Equal(t, "location:mysuperlocation", tags[0])

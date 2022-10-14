@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metadata
+package helper
 
 import (
 	"net/http"
@@ -50,7 +50,7 @@ func TestGetContainerID(t *testing.T) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:        1 * time.Second,
 		containerIDURL: ts.URL,
 	}
@@ -62,7 +62,7 @@ func TestGetRegionUnknown(t *testing.T) {
 		w.Write([]byte("unknown"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
@@ -74,7 +74,7 @@ func TestGetRegionOK(t *testing.T) {
 		w.Write([]byte("projects/xxx/regions/us-central1"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
@@ -86,7 +86,7 @@ func TestGetProjectID(t *testing.T) {
 		w.Write([]byte("superproject"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:      1 * time.Second,
 		projectIDURL: ts.URL,
 	}
@@ -107,7 +107,7 @@ func TestGetMetaDataComplete(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:        1 * time.Second,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -135,7 +135,7 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:        500 * time.Millisecond,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -149,7 +149,7 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 }
 
 func TestTagMap(t *testing.T) {
-	metadata := Metadata{
+	metadata := GCPMetadata{
 		projectID: &info{
 			tagName: "project_id",
 			value:   "myprojectid",
