@@ -14,6 +14,7 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -24,10 +25,12 @@ import (
 var Bundle = fxutil.Bundle(
 	config.Module,
 	log.Module,
+	flare.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
 	log.Module,
+	flare.Module,
 )

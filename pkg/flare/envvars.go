@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -116,9 +115,9 @@ func getAllowedEnvvars() []string {
 	return found
 }
 
-// zipEnvvars collects allowed envvars that can affect the agent's
+// getEnvVars collects allowed envvars that can affect the agent's
 // behaviour while not being handled by viper, in addition to the envvars handled by viper
-func zipEnvvars(tempDir, hostname string) error {
+func getEnvVars() ([]byte, error) {
 	envvars := getAllowedEnvvars()
 
 	var b bytes.Buffer
@@ -131,6 +130,5 @@ func zipEnvvars(tempDir, hostname string) error {
 		fmt.Fprintln(&b, "Found no allowed envvar")
 	}
 
-	f := filepath.Join(tempDir, hostname, "envvars.log")
-	return writeScrubbedFile(f, b.Bytes())
+	return b.Bytes(), nil
 }

@@ -3,13 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-// +build !windows
+//go:build windows
+// +build windows
 
-package flare
+package helpers
 
-import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-)
+import "io"
 
-func getWindowsData(fb flarehelpers.FlareBuilder) {}
+func (p permissionsInfos) add(filePath string) error {
+	return nil
+}
+
+func (p permissionsInfos) commit(f io.Writer) error {
+	return nil
+}

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.etcd.io/bbolt"
@@ -25,9 +26,9 @@ func hashRCTargets(raw []byte) []byte {
 	return []byte(s)
 }
 
-func zipRemoteConfigDB(tempDir, hostname string) error {
-	dstPath := filepath.Join(tempDir, hostname, "remote-config.db")
-	tempPath := filepath.Join(tempDir, hostname, "remote-config.temp.db")
+func getRemoteConfigDB(fb flarehelpers.FlareBuilder) error {
+	dstPath, _ := fb.PrepareFilePath("remote-config.db")
+	tempPath, _ := fb.PrepareFilePath("remote-config.temp.db")
 	srcPath := filepath.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 
 	// Copies the db so it avoids bbolt from being locked
