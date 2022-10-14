@@ -1,9 +1,9 @@
 ---
 enhancements:
   - |
-    The ``min_tls_version`` configuration parameter now default to `tlsv1.2` instead of `tlsv1.0`.
+    The ``min_tls_version`` configuration parameter now defaults to ``tlsv1.2`` instead of ``tlsv1.0``.
     Set its value to `tlsv1.0` or `tlsv1.1` if a lower version is needed.
    
 deprecations:
   - |
-    The deprecated ``force_tls_12`` configuration parameter has been removed in favor of ``min_tls_version`` which default to TLS 1.2.
+    The deprecated ``force_tls_12`` configuration parameter has been removed in favor of ``min_tls_version`` which defaults to TLS v1.2.
