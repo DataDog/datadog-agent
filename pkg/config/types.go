@@ -74,6 +74,8 @@ type Config interface {
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
+	// IsKnown returns whether this key is known
+	IsKnown(key string) bool
 	// GetKnownKeys returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
 	GetKnownKeys() map[string]interface{}

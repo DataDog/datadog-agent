@@ -114,7 +114,9 @@ func DetectFeatures() {
 			}
 		}
 
-		log.Infof("Features detected from environment: %v", newFeatures)
+		if len(newFeatures) > 0 {
+			log.Infof("Features detected from environment: %v", newFeatures)
+		}
 	} else {
 		log.Warnf("Deactivating Autoconfig will disable most components. It's recommended to use autoconfig_exclude_features and autoconfig_include_features to activate/deactivate features selectively")
 	}

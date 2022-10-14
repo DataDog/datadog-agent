@@ -21,7 +21,7 @@ import (
 
 // Server offers functions that implement the standard runtime settings HTTP API
 var Server = struct {
-	GetFull          func(...string) http.HandlerFunc
+	GetFull          func(ddconfig.Config, ...string) http.HandlerFunc
 	GetValue         http.HandlerFunc
 	SetValue         http.HandlerFunc
 	ListConfigurable http.HandlerFunc
@@ -32,7 +32,7 @@ var Server = struct {
 	ListConfigurable: listConfigurableSettings,
 }
 
-func getFullConfig(namespaces ...string) http.HandlerFunc {
+func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 
@@ -47,7 +47,7 @@ func getFullConfig(namespaces ...string) http.HandlerFunc {
 	}
 	return func(w http.ResponseWriter, _ *http.Request) {
 		nsSettings := map[string]interface{}{}
-		allSettings := ddconfig.Datadog.AllSettings()
+		allSettings := cfg.AllSettings()
 		if !requiresAllNamespaces {
 			for ns := range uniqueNamespaces {
 				if val, ok := allSettings[ns]; ok {

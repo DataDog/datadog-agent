@@ -10,12 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -138,6 +137,7 @@ func StartSystemProbe() error {
 		cfg.LogLevel,
 		cfg.LogFile,
 		ddconfig.GetSyslogURI(),
+		// these can only come from defaults or env vars, since we don't read datadog.yaml
 		ddconfig.Datadog.GetBool("syslog_rfc"),
 		ddconfig.Datadog.GetBool("log_to_console"),
 		ddconfig.Datadog.GetBool("log_format_json"),
@@ -154,10 +154,10 @@ func StartSystemProbe() error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if ddconfig.Datadog.GetBool("system_probe_config.memory_controller.enabled") {
-		memoryPressureLevels := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
-		memoryThresholds := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.thresholds")
-		hierarchy := ddconfig.Datadog.GetString("system_probe_config.memory_controller.hierarchy")
+	if ddconfig.SystemProbe.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := ddconfig.SystemProbe.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := ddconfig.SystemProbe.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		hierarchy := ddconfig.SystemProbe.GetString("system_probe_config.memory_controller.hierarchy")
 		memoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
 		if err != nil {
 			log.Warnf("Can't set up memory controller: %v", err)

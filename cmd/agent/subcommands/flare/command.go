@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -63,8 +64,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: true,
+					ConfFilePath:         globalParams.ConfFilePath,
+					SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+					ConfigLoadSecrets:    true,
 				}.LogForOneShot("CORE", "off", false)),
 				core.Bundle,
 			)
@@ -154,7 +156,7 @@ func readProcessAgentProfileData(cliParams *cliParams, pdata *flare.ProfileData,
 	return collector("process", processDebugURL, seconds, pdata)
 }
 
-func makeFlare(log log.Component, config config.Component, cliParams *cliParams) error {
+func makeFlare(log log.Component, config config.Component, sysprobeConfig sysprobeconfig.Component, cliParams *cliParams) error {
 	var (
 		profile flare.ProfileData
 		err     error

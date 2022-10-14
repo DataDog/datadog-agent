@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package sysprobeconfig
 
 import (
 	"os"
@@ -34,10 +34,8 @@ type dependencies struct {
 
 func newConfig(deps dependencies) (Component, error) {
 	warnings, err := setupConfig(
-		deps.Params.ConfFilePath,
-		deps.Params.ConfigName,
-		!deps.Params.ConfigLoadSecrets,
-		!deps.Params.ConfigMissingOK)
+		deps.Params.SysProbeConfFilePath,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -46,84 +44,84 @@ func newConfig(deps dependencies) (Component, error) {
 }
 
 func (c *cfg) IsSet(key string) bool {
-	return config.Datadog.IsSet(key)
+	return config.SystemProbe.IsSet(key)
 }
 func (c *cfg) Get(key string) interface{} {
-	return config.Datadog.Get(key)
+	return config.SystemProbe.Get(key)
 }
 func (c *cfg) GetString(key string) string {
-	return config.Datadog.GetString(key)
+	return config.SystemProbe.GetString(key)
 }
 func (c *cfg) GetBool(key string) bool {
-	return config.Datadog.GetBool(key)
+	return config.SystemProbe.GetBool(key)
 }
 func (c *cfg) GetInt(key string) int {
-	return config.Datadog.GetInt(key)
+	return config.SystemProbe.GetInt(key)
 }
 func (c *cfg) GetInt32(key string) int32 {
-	return config.Datadog.GetInt32(key)
+	return config.SystemProbe.GetInt32(key)
 }
 func (c *cfg) GetInt64(key string) int64 {
-	return config.Datadog.GetInt64(key)
+	return config.SystemProbe.GetInt64(key)
 }
 func (c *cfg) GetFloat64(key string) float64 {
-	return config.Datadog.GetFloat64(key)
+	return config.SystemProbe.GetFloat64(key)
 }
 func (c *cfg) GetTime(key string) time.Time {
-	return config.Datadog.GetTime(key)
+	return config.SystemProbe.GetTime(key)
 }
 func (c *cfg) GetDuration(key string) time.Duration {
-	return config.Datadog.GetDuration(key)
+	return config.SystemProbe.GetDuration(key)
 }
 func (c *cfg) GetStringSlice(key string) []string {
-	return config.Datadog.GetStringSlice(key)
+	return config.SystemProbe.GetStringSlice(key)
 }
 func (c *cfg) GetFloat64SliceE(key string) ([]float64, error) {
-	return config.Datadog.GetFloat64SliceE(key)
+	return config.SystemProbe.GetFloat64SliceE(key)
 }
 func (c *cfg) GetStringMap(key string) map[string]interface{} {
-	return config.Datadog.GetStringMap(key)
+	return config.SystemProbe.GetStringMap(key)
 }
 func (c *cfg) GetStringMapString(key string) map[string]string {
-	return config.Datadog.GetStringMapString(key)
+	return config.SystemProbe.GetStringMapString(key)
 }
 func (c *cfg) GetStringMapStringSlice(key string) map[string][]string {
-	return config.Datadog.GetStringMapStringSlice(key)
+	return config.SystemProbe.GetStringMapStringSlice(key)
 }
 func (c *cfg) GetSizeInBytes(key string) uint {
-	return config.Datadog.GetSizeInBytes(key)
+	return config.SystemProbe.GetSizeInBytes(key)
 }
 func (c *cfg) AllSettings() map[string]interface{} {
-	return config.Datadog.AllSettings()
+	return config.SystemProbe.AllSettings()
 }
 func (c *cfg) AllSettingsWithoutDefault() map[string]interface{} {
-	return config.Datadog.AllSettingsWithoutDefault()
+	return config.SystemProbe.AllSettingsWithoutDefault()
 }
 func (c *cfg) AllKeys() []string {
-	return config.Datadog.AllKeys()
+	return config.SystemProbe.AllKeys()
 }
 func (c *cfg) GetKnownKeys() map[string]interface{} {
-	return config.Datadog.GetKnownKeys()
+	return config.SystemProbe.GetKnownKeys()
 }
 func (c *cfg) GetEnvVars() []string {
-	return config.Datadog.GetEnvVars()
+	return config.SystemProbe.GetEnvVars()
 }
 func (c *cfg) IsSectionSet(section string) bool {
-	return config.Datadog.IsSectionSet(section)
+	return config.SystemProbe.IsSectionSet(section)
 }
 func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
 func newMock(deps dependencies, t testing.TB) Component {
-	old := config.Datadog
-	config.Datadog = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+	old := config.SystemProbe
+	config.SystemProbe = config.NewConfig("mock", "XXXX", strings.NewReplacer())
 	c := &cfg{
 		warnings: &config.Warnings{},
 	}
 
-	// call InitConfig to set defaults.
-	config.InitConfig(config.Datadog)
+	// call InitSystemProbeConfig to set defaults.
+	config.InitSystemProbeConfig(config.SystemProbe)
 
 	// Viper's `GetXxx` methods read environment variables at the time they are
 	// called, if those names were passed explicitly to BindEnv*(), so we must
@@ -143,11 +141,11 @@ func newMock(deps dependencies, t testing.TB) Component {
 	})
 
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.Datadog = old })
+	t.Cleanup(func() { config.SystemProbe = old })
 
 	return c
 }
 
 func (c *cfg) Set(key string, value interface{}) {
-	config.Datadog.Set(key, value)
+	config.SystemProbe.Set(key, value)
 }

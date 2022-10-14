@@ -9,16 +9,14 @@ package run
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-
-	_ "expvar" // Blank import used because this isn't directly used in this file
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -32,9 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -115,8 +115,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(run,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfFilePath:      globalParams.ConfFilePath,
-				ConfigLoadSecrets: true,
+				ConfFilePath:         globalParams.ConfFilePath,
+				SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+				ConfigLoadSecrets:    true,
 			}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
 			core.Bundle,
 		)
@@ -143,7 +144,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	defer func() {
 		stopAgent(cliParams)
 	}()
@@ -423,7 +424,7 @@ func startAgent(cliParams *cliParams) error {
 		}
 	}
 
-	if err = common.SetupSystemProbeConfig(cliParams.GlobalParams.SysProbeConfFilePath); err != nil {
+	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
 		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 

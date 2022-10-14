@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -52,7 +51,12 @@ var NetworkTracer = module.Factory{
 			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
 		}
 
-		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
+		if ncfg.NPMEnabled {
+			log.Info("network performance monitoring (NPM) enabled")
+		}
+		if ncfg.ServiceMonitoringEnabled {
+			log.Info("universal service monitoring (USM) enabled")
+		}
 
 		t, err := tracer.NewTracer(ncfg)
 
