@@ -11,7 +11,7 @@ package constantfetch
 import (
 	_ "embed"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"runtime"
 	"strings"
 
@@ -50,9 +50,9 @@ func NewBTFHubConstantFetcher(kv *kernel.Version) (*BTFHubConstantFetcher, error
 		res:           make(map[string]uint64),
 	}
 
-	currentKernelInfos, ok := newKernelInfos(kv)
-	if !ok {
-		return nil, errors.New("failed to collect current kernel infos")
+	currentKernelInfos, err := newKernelInfos(kv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect current kernel infos: %w", err)
 	}
 
 	var constantsInfos BTFHubConstants
@@ -109,20 +109,20 @@ type kernelInfos struct {
 	unameRelease   string
 }
 
-func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
+func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 	releaseID, ok := kv.OsRelease["ID"]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to collect os-release ID")
 	}
 
 	distribution, ok := idToDistribMapping[releaseID]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to map release ID to distribution")
 	}
 
 	version, ok := kv.OsRelease["VERSION_ID"]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to collect os-release VERSION_ID")
 	}
 
 	// HACK: fix mapping of version for oracle-linux
@@ -130,13 +130,13 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 		if strings.HasPrefix(version, "7.") {
 			version = "ol7"
 		} else {
-			return nil, false
+			return nil, fmt.Errorf("failed to collect version for non ol7 oracle linux")
 		}
 	}
 
 	arch, ok := archMapping[runtime.GOARCH]
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("failed to map runtime arch to btf arch")
 	}
 
 	return &kernelInfos{
@@ -144,7 +144,7 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 		distribVersion: version,
 		arch:           arch,
 		unameRelease:   kv.UnameRelease,
-	}, true
+	}, nil
 }
 
 // BTFHubConstants represents all the information required for identifying
