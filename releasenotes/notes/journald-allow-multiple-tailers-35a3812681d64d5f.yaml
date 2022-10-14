@@ -8,7 +8,7 @@
 ---
 upgrade:
   - |
-    Journald launcher can now spawn multiple tailers on the same journal when 
+    Journald launcher can now create multiple tailers on the same journal when 
     ``config_id`` is specified. This change enables multiple configs to operate 
     on the same journal which is useful for tagging different units. 
     Note: This may have an impact on CPU usage. 
