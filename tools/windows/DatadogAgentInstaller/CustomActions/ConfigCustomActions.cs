@@ -191,7 +191,7 @@ namespace Datadog.CustomActions
             try
             {
                 string yaml;
-                using (var input = new StreamReader("datadog.yaml"))
+                using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml")))
                 {
                     yaml = input.ReadToEnd();
                 }
