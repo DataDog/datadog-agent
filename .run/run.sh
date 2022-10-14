@@ -12,10 +12,13 @@ AGENT_ROOT_DIRECTORY=$(git rev-parse --show-toplevel)
 pushd "${AGENT_ROOT_DIRECTORY}"
 BINARY_TO_RUN=${BINARY_TO_RUN:-"./bin/agent/agent"}
 
-echo "Running the following binary using dlv: ${BINARY_TO_RUN}"
+echo "Running the following command using dlv: ${BINARY_TO_RUN} ${BINARY_ARGUMENTS}"
 DLV_PORT_TO_BIND=${DLV_PORT_TO_BIND:-2345}
 BINARY_ARGUMENTS=${BINARY_ARGUMENTS:-"run -c ./bin/agent/dist/datadog.yaml"}
 DLV_BINARY_PATH=$(which dlv)
+# Removing quotes from the binary arguments.
+BINARY_ARGUMENTS="${BINARY_ARGUMENTS%\"}"
+BINARY_ARGUMENTS="${BINARY_ARGUMENTS#\"}"
 sudo -E ${DLV_BINARY_PATH} --listen=0.0.0.0:${DLV_PORT_TO_BIND} --headless=true --api-version=2 --check-go-version=false --only-same-user=false exec \
  ${BINARY_TO_RUN} -- ${BINARY_ARGUMENTS}
 popd

@@ -115,7 +115,7 @@ func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 	}
 
 	for _, check := range checks {
-		if err := check.Init(); err != nil {
+		if err := check.Init(config.Datadog.GetInt("prometheus_scrape.version")); err != nil {
 			log.Errorf("Couldn't init check configuration: %v", err)
 			continue
 		}

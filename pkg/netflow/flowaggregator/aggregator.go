@@ -29,7 +29,6 @@ type FlowAggregator struct {
 	flowAcc                      *flowAccumulator
 	sender                       aggregator.Sender
 	stopChan                     chan struct{}
-	logPayload                   bool
 	receivedFlowCount            *atomic.Uint64
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
@@ -42,12 +41,11 @@ func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, h
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled),
 		flushInterval:                flowAggregatorFlushInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
 		stopChan:                     make(chan struct{}),
-		logPayload:                   config.LogPayloads,
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
@@ -92,12 +90,10 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			log.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
-		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
 
-		// For debug purposes print out all flows
-		if agg.logPayload {
-			log.Debugf("flushed flow: %s", string(payloadBytes))
-		}
+		payloadStr := string(payloadBytes)
+		log.Tracef("flushed flow: %s", payloadStr)
+		agg.sender.EventPlatformEvent(payloadStr, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
 }
 
@@ -140,8 +136,14 @@ func (agg *FlowAggregator) flush() int {
 	}
 
 	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
 
 	return len(flowsToFlush)
 }

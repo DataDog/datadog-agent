@@ -59,6 +59,9 @@ type Config struct {
 
 	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrecompiledFallback bool
+
+	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
+	AttachKprobesWithKprobeEventsABI bool
 }
 
 func key(pieces ...string) string {
@@ -77,14 +80,15 @@ func NewConfig() *Config {
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 util.GetProcRoot(),
 
-		EnableRuntimeCompiler:      cfg.GetBool(key(spNS, "enable_runtime_compiler")),
-		RuntimeCompilerOutputDir:   cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
-		EnableKernelHeaderDownload: cfg.GetBool(key(spNS, "enable_kernel_header_download")),
-		KernelHeadersDirs:          cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:   cfg.GetString(key(spNS, "kernel_header_download_dir")),
-		AptConfigDir:               cfg.GetString(key(spNS, "apt_config_dir")),
-		YumReposDir:                cfg.GetString(key(spNS, "yum_repos_dir")),
-		ZypperReposDir:             cfg.GetString(key(spNS, "zypper_repos_dir")),
-		AllowPrecompiledFallback:   cfg.GetBool(key(spNS, "allow_precompiled_fallback")),
+		EnableRuntimeCompiler:            cfg.GetBool(key(spNS, "enable_runtime_compiler")),
+		RuntimeCompilerOutputDir:         cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
+		EnableKernelHeaderDownload:       cfg.GetBool(key(spNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:                cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:         cfg.GetString(key(spNS, "kernel_header_download_dir")),
+		AptConfigDir:                     cfg.GetString(key(spNS, "apt_config_dir")),
+		YumReposDir:                      cfg.GetString(key(spNS, "yum_repos_dir")),
+		ZypperReposDir:                   cfg.GetString(key(spNS, "zypper_repos_dir")),
+		AllowPrecompiledFallback:         cfg.GetBool(key(spNS, "allow_precompiled_fallback")),
+		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
 	}
 }

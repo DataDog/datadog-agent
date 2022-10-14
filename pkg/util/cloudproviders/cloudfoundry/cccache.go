@@ -218,7 +218,7 @@ func (ccc *CCCache) setResourceInactive(guid string) {
 		// release the resource
 		close(ch)
 		ccc.Lock()
-		ccc.activeResources[guid] = nil
+		delete(ccc.activeResources, guid)
 		ccc.Unlock()
 	}
 }
@@ -271,6 +271,14 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 	if !ok {
 		if !ccc.refreshCacheOnMiss {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find processes for the app %s in cloud controller cache", appGUID)
+		}
+
+		ccc.RLock()
+		updatedOnce := !ccc.lastUpdated.IsZero()
+		ccc.RUnlock()
+
+		if !updatedOnce {
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
@@ -331,6 +339,14 @@ func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
 	if !ok {
 		if !ccc.refreshCacheOnMiss {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find CF application %s in cloud controller cache", guid)
+		}
+
+		ccc.RLock()
+		updatedOnce := !ccc.lastUpdated.IsZero()
+		ccc.RUnlock()
+
+		if !updatedOnce {
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// cfclient.V3App and CFApplication share the same guid which causes a deadlock in the ccc.activeResources map if not properly handled
@@ -438,6 +454,14 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find application %s in cloud controller cache", guid)
 		}
 
+		ccc.RLock()
+		updatedOnce := !ccc.lastUpdated.IsZero()
+		ccc.RUnlock()
+
+		if !updatedOnce {
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
+		}
+
 		// wait in case the resource is currently being fetched
 		ccc.waitForResource(guid)
 
@@ -480,9 +504,18 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 	ccc.RLock()
 	space, ok := ccc.spacesByGUID[guid]
 	ccc.RUnlock()
+
 	if !ok {
 		if !ccc.refreshCacheOnMiss {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find space %s in cloud controller cache", guid)
+		}
+
+		ccc.RLock()
+		updatedOnce := !ccc.lastUpdated.IsZero()
+		ccc.RUnlock()
+
+		if !updatedOnce {
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
@@ -527,9 +560,18 @@ func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
 	ccc.RLock()
 	org, ok := ccc.orgsByGUID[guid]
 	ccc.RUnlock()
+
 	if !ok {
 		if !ccc.refreshCacheOnMiss {
 			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find org %s in cloud controller cache", guid)
+		}
+
+		ccc.RLock()
+		updatedOnce := !ccc.lastUpdated.IsZero()
+		ccc.RUnlock()
+
+		if !updatedOnce {
+			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 		}
 
 		// wait in case the resource is currently being fetched
@@ -638,6 +680,10 @@ func (ccc *CCCache) readData() {
 				if err != nil {
 					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
 					return
+				}
+				// skip apps without sidecars
+				if len(sidecars) == 0 {
+					continue
 				}
 				for _, sidecar := range sidecars {
 					s := sidecar
@@ -852,4 +898,5 @@ func (ccc *CCCache) reset() {
 	ccc.orgQuotasByGUID = make(map[string]*CFOrgQuota)
 	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
 	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
+	ccc.lastUpdated = time.Time{}
 }

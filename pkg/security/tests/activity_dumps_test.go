@@ -18,9 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
-	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -30,7 +27,10 @@ import (
 var expectedFormats = []string{"json", "protobuf"}
 
 func TestActivityDumps(t *testing.T) {
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{enableActivityDump: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+		enableActivityDump:      true,
+		activityDumpRateLimiter: 10,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,9 +218,64 @@ func TestActivityDumps(t *testing.T) {
 			return exitOK && execveOK
 		})
 	})
+
+	test.Run(t, "activity-dump-comm-rate-limiter", func(t *testing.T, kind wrapperType,
+		cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+
+		outputFiles, err := test.StartActivityDumpComm(t, "testsuite", outputDir, expectedFormats)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(2 * time.Second) // a quick sleep to let starts and snapshot events to be added to the dump
+
+		for i := 0; i < 20; i++ {
+			if err := os.MkdirAll("/tmp/ratelimiter", os.ModePerm); err != nil {
+				t.Fatal(err)
+			}
+			temp, err := os.CreateTemp("/tmp/ratelimiter", "ad-test-create")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(temp.Name())
+		}
+
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDumpComm(t, "testsuite")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		validateActivityDumpOutputs(t, test, expectedFormats, outputFiles, func(ad *probe.ActivityDump) bool {
+			nodes := ad.FindMatchingNodes("testsuite")
+			if nodes == nil {
+				t.Fatal("Node not found in activity dump")
+			}
+			if len(nodes) != 1 {
+				t.Fatal("Captured more than one testsuite node")
+			}
+
+			node := nodes[0]
+			tmp := node.Files["tmp"]
+			if tmp == nil {
+				t.Fatal("Didn't find /tmp node")
+			}
+			ratelimiter := tmp.Children["ratelimiter"]
+			if ratelimiter == nil {
+				t.Fatal("Didn't find /tmp/ratelimiter node")
+			}
+			if len(ratelimiter.Children) != 10 {
+				t.Fatalf("Didn't find the good number of files in tmp node (%d/10)", len(ratelimiter.Children))
+			}
+
+			return true
+		})
+	})
+
 }
 
-func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, msgpValidator func(ad *probe.ActivityDump) bool) {
+func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *probe.ActivityDump) bool) {
 	perExtOK := make(map[string]bool)
 	for _, format := range expectedFormats {
 		ext := fmt.Sprintf(".%s", format)
@@ -245,16 +300,16 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			perExtOK[ext] = true
 
 		case ".protobuf":
-			content, err := os.ReadFile(f)
+			ad, err := test.DecodeActivityDump(t, f)
 			if err != nil {
 				t.Fatal(err)
 			}
-			ad := &adproto.ActivityDump{}
-			err = proto.Unmarshal(content, ad)
-			if err != nil {
-				t.Error(err)
+
+			found := validator(ad)
+			if !found {
+				t.Error("Invalid activity dump")
 			}
-			perExtOK[ext] = true
+			perExtOK[ext] = found
 
 		default:
 			t.Fatal("Unexpected output file")
@@ -263,7 +318,7 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 
 	for ext, found := range perExtOK {
 		if !found {
-			t.Fatalf("Missing `%s`, got: %v", ext, outputFiles)
+			t.Fatalf("Missing or wrong `%s`, out of: %v", ext, outputFiles)
 		}
 	}
 }

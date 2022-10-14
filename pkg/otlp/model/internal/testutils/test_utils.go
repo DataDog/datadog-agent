@@ -13,7 +13,7 @@ func fillAttributeMap(attrs pcommon.Map, mp map[string]string) {
 	attrs.Clear()
 	attrs.EnsureCapacity(len(mp))
 	for k, v := range mp {
-		attrs.Insert(k, pcommon.NewValueString(v))
+		attrs.PutStr(k, v)
 	}
 }
 

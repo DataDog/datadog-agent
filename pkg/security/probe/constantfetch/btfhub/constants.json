@@ -20,7 +20,7 @@
 			"pid_numbers_offset": 48,
 			"pipe_inode_info_bufs_offset": 120,
 			"sb_magic_offset": 96,
-			"sizeof_inode": 592,
+			"sizeof_inode": 600,
 			"sizeof_upid": 32,
 			"sock_common_skc_family_offset": 16,
 			"sock_common_skc_net_offset": 48,
@@ -48,7 +48,64 @@
 			"pid_numbers_offset": 48,
 			"pipe_inode_info_bufs_offset": 120,
 			"sb_magic_offset": 96,
-			"sizeof_inode": 600,
+			"sizeof_inode": 608,
+			"sizeof_upid": 32,
+			"sock_common_skc_family_offset": 16,
+			"sock_common_skc_net_offset": 48,
+			"socket_sock_offset": 32,
+			"tty_name_offset": 368,
+			"tty_offset": 368
+		},
+		{
+			"binprm_file_offset": 168,
+			"bpf_map_id_offset": 48,
+			"bpf_map_type_offset": 24,
+			"bpf_prog_aux_id_offset": 16,
+			"bpf_prog_aux_offset": 24,
+			"bpf_prog_tag_offset": 16,
+			"bpf_prog_type_offset": 4,
+			"creds_uid_offset": 4,
+			"dentry_sb_offset": 104,
+			"flowi4_saddr_offset": 40,
+			"flowi4_uli_offset": 48,
+			"flowi6_saddr_offset": 56,
+			"flowi6_uli_offset": 76,
+			"net_device_ifindex_offset": 264,
+			"net_ns_offset": 120,
+			"nf_conn_ct_net_offset": 144,
+			"pid_level_offset": 4,
+			"pid_numbers_offset": 48,
+			"pipe_inode_info_bufs_offset": 120,
+			"sb_magic_offset": 96,
+			"sizeof_inode": 608,
+			"sizeof_upid": 32,
+			"sock_common_skc_family_offset": 16,
+			"sock_common_skc_net_offset": 48,
+			"socket_sock_offset": 32,
+			"tty_name_offset": 368,
+			"tty_offset": 368
+		},
+		{
+			"binprm_file_offset": 168,
+			"bpf_map_id_offset": 48,
+			"bpf_map_type_offset": 24,
+			"bpf_prog_aux_id_offset": 16,
+			"bpf_prog_aux_offset": 24,
+			"bpf_prog_tag_offset": 16,
+			"bpf_prog_type_offset": 4,
+			"creds_uid_offset": 4,
+			"dentry_sb_offset": 104,
+			"flowi4_saddr_offset": 40,
+			"flowi4_uli_offset": 48,
+			"flowi6_saddr_offset": 56,
+			"flowi6_uli_offset": 76,
+			"net_device_ifindex_offset": 264,
+			"net_ns_offset": 120,
+			"pid_level_offset": 4,
+			"pid_numbers_offset": 48,
+			"pipe_inode_info_bufs_offset": 120,
+			"sb_magic_offset": 96,
+			"sizeof_inode": 592,
 			"sizeof_upid": 32,
 			"sock_common_skc_family_offset": 16,
 			"sock_common_skc_net_offset": 48,
@@ -112,63 +169,6 @@
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
 			"tty_offset": 376
-		},
-		{
-			"binprm_file_offset": 168,
-			"bpf_map_id_offset": 48,
-			"bpf_map_type_offset": 24,
-			"bpf_prog_aux_id_offset": 16,
-			"bpf_prog_aux_offset": 24,
-			"bpf_prog_tag_offset": 16,
-			"bpf_prog_type_offset": 4,
-			"creds_uid_offset": 4,
-			"dentry_sb_offset": 104,
-			"flowi4_saddr_offset": 40,
-			"flowi4_uli_offset": 48,
-			"flowi6_saddr_offset": 56,
-			"flowi6_uli_offset": 76,
-			"net_device_ifindex_offset": 264,
-			"net_ns_offset": 120,
-			"pid_level_offset": 4,
-			"pid_numbers_offset": 48,
-			"pipe_inode_info_bufs_offset": 120,
-			"sb_magic_offset": 96,
-			"sizeof_inode": 608,
-			"sizeof_upid": 32,
-			"sock_common_skc_family_offset": 16,
-			"sock_common_skc_net_offset": 48,
-			"socket_sock_offset": 32,
-			"tty_name_offset": 368,
-			"tty_offset": 368
-		},
-		{
-			"binprm_file_offset": 168,
-			"bpf_map_id_offset": 48,
-			"bpf_map_type_offset": 24,
-			"bpf_prog_aux_id_offset": 16,
-			"bpf_prog_aux_offset": 24,
-			"bpf_prog_tag_offset": 16,
-			"bpf_prog_type_offset": 4,
-			"creds_uid_offset": 4,
-			"dentry_sb_offset": 104,
-			"flowi4_saddr_offset": 40,
-			"flowi4_uli_offset": 48,
-			"flowi6_saddr_offset": 56,
-			"flowi6_uli_offset": 76,
-			"net_device_ifindex_offset": 264,
-			"net_ns_offset": 120,
-			"nf_conn_ct_net_offset": 144,
-			"pid_level_offset": 4,
-			"pid_numbers_offset": 48,
-			"pipe_inode_info_bufs_offset": 120,
-			"sb_magic_offset": 96,
-			"sizeof_inode": 608,
-			"sizeof_upid": 32,
-			"sock_common_skc_family_offset": 16,
-			"sock_common_skc_net_offset": 48,
-			"socket_sock_offset": 32,
-			"tty_name_offset": 368,
-			"tty_offset": 368
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2110,1074 +2110,1543 @@
 	"kernels": [
 		{
 			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.101-75.76.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.104-78.84.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.106-79.86.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.109-80.92.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.114-82.97.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.114-83.126.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.121-85.96.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.123-86.109.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.128-87.105.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.133-88.105.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.133-88.112.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.138-89.102.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.143-91.122.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.146-93.123.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.152-98.182.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.154-99.181.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.158-101.185.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.165-102.185.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.165-103.209.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.171-105.231.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.173-106.229.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.177-107.254.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.181-108.257.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.186-110.268.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.193-113.317.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.200-116.320.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.203-116.332.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.209-117.337.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.214-118.339.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.219-119.340.amzn1.x86_64",
+			"cindex": 1
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.225-121.357.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.225-121.362.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.232-123.381.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.238-125.421.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.238-125.422.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.248-129.473.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.252-131.483.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.262-135.486.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.262-135.489.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.268-139.500.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.273-140.502.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.275-142.503.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.281-144.502.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.285-147.501.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.287-148.504.amzn1.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.33-51.34.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.33-51.37.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.42-52.37.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.47-56.37.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.51-60.38.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.55-62.37.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.59-64.43.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.62-65.117.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.67-66.56.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.70-67.55.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.72-68.55.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.77-69.57.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.77-70.59.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.77-70.82.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.88-72.73.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.88-72.76.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.94-73.73.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
+			"version": "1",
+			"arch": "x86_64",
+			"uname_release": "4.14.97-74.72.amzn1.x86_64",
+			"cindex": 0
+		},
+		{
+			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.101-91.76.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.104-95.84.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.106-97.85.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.109-99.92.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.114-103.97.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.114-105.126.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.121-109.96.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.123-111.109.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.128-112.105.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.133-113.105.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.133-113.112.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.138-114.102.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.143-118.123.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.146-119.123.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.146-120.181.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.152-124.171.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.152-127.182.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.154-128.181.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.158-129.185.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.165-131.185.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.165-133.209.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.171-136.231.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.173-137.228.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.173-137.229.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.177-139.253.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.177-139.254.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.181-140.257.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.181-142.260.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.186-146.268.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.192-147.314.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.193-149.317.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.198-152.320.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.200-155.322.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.203-156.332.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.209-160.335.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.209-160.339.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.214-160.339.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.219-161.340.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.219-164.354.amzn2.aarch64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.225-168.357.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.225-169.362.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.231-173.360.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.231-173.361.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.232-176.381.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.232-177.418.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.238-182.421.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.238-182.422.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.241-184.433.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.243-185.433.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.246-187.474.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.248-189.473.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.252-195.481.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.252-195.483.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.256-197.484.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.262-200.489.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.268-205.500.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.273-207.502.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.275-207.503.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.276-211.499.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.281-212.502.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.285-215.501.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.287-215.504.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.290-217.505.amzn2.aarch64",
-			"cindex": 2
+			"cindex": 4
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.291-218.527.amzn2.aarch64",
+			"cindex": 4
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.294-220.533.amzn2.aarch64",
+			"cindex": 4
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
-			"cindex": 3
+			"cindex": 5
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.77-81.59.amzn2.aarch64",
-			"cindex": 3
+			"cindex": 5
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.77-86.82.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.88-88.73.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.88-88.76.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.94-89.73.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.97-90.72.amzn2.aarch64",
-			"cindex": 0
+			"cindex": 3
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.101-91.76.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.104-95.84.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.106-97.85.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.109-99.92.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.114-103.97.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.114-105.126.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.121-109.96.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.123-111.109.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.128-112.105.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.133-113.105.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.133-113.112.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.138-114.102.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.143-118.123.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.146-119.123.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.146-120.181.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.152-124.171.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.152-127.182.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.154-128.181.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.158-129.185.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.165-131.185.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.165-133.209.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.171-136.231.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.173-137.228.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.173-137.229.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.177-139.253.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.177-139.254.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.181-140.257.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.181-142.260.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.186-146.268.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.192-147.314.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.193-149.317.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.198-152.320.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.200-155.322.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.203-156.332.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.209-160.335.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.209-160.339.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.214-160.339.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.219-161.340.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.219-164.354.amzn2.x86_64",
-			"cindex": 4
+			"cindex": 1
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.225-168.357.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.225-169.362.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.231-173.360.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.231-173.361.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.232-176.381.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.232-177.418.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.238-182.421.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.238-182.422.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.241-184.433.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.243-185.433.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.246-187.474.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.248-189.473.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.252-195.481.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.252-195.483.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.256-197.484.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.26-54.32.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.262-200.489.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.268-205.500.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.273-207.502.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.275-207.503.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.276-211.499.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.281-212.502.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.285-215.501.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.287-215.504.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.290-217.505.amzn2.x86_64",
-			"cindex": 5
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.291-218.527.amzn2.x86_64",
+			"cindex": 2
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.294-220.533.amzn2.x86_64",
+			"cindex": 2
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.33-59.34.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.33-59.37.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.42-61.37.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.47-63.37.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.47-64.38.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.51-66.38.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.55-68.37.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.59-68.43.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.62-70.117.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.67-71.56.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.70-72.55.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.72-73.55.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.77-80.57.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.77-81.59.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.77-86.82.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.88-88.73.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.88-88.76.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.94-89.73.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.97-90.72.amzn2.x86_64",
-			"cindex": 1
+			"cindex": 0
 		},
 		{
 			"distrib": "amzn",
@@ -9028,6 +9497,20 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1141-aws",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-1142-aws",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-115-generic",
 			"cindex": 55
 		},
@@ -9344,6 +9827,20 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-192-generic",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-193-generic",
+			"cindex": 57
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-194-generic",
 			"cindex": 57
 		},
 		{
@@ -11485,8 +11982,22 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1136-gcp",
+			"cindex": 62
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1137-azure",
 			"cindex": 64
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1137-gcp",
+			"cindex": 62
 		},
 		{
 			"distrib": "ubuntu",
@@ -11514,6 +12025,20 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1140-aws",
+			"cindex": 62
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1141-aws",
+			"cindex": 62
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1142-aws",
 			"cindex": 62
 		},
 		{
@@ -11549,6 +12074,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1150-azure",
+			"cindex": 64
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1151-azure",
 			"cindex": 64
 		},
 		{
@@ -11857,6 +12389,20 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-192-generic",
+			"cindex": 62
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-193-generic",
+			"cindex": 62
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-194-generic",
 			"cindex": 62
 		},
 		{

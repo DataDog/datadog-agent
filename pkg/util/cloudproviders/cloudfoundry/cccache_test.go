@@ -14,6 +14,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
@@ -261,6 +262,8 @@ func TestCCCache_GetProcesses(t *testing.T) {
 func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
 	globalCCClientCounter.Reset()
 
 	wg := sync.WaitGroup{}
@@ -283,6 +286,8 @@ func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
 	globalCCClientCounter.Reset()
 
 	wg := sync.WaitGroup{}
@@ -305,6 +310,8 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
 	globalCCClientCounter.Reset()
 
 	wg := sync.WaitGroup{}
@@ -326,6 +333,8 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
 	globalCCClientCounter.Reset()
 
 	wg := sync.WaitGroup{}
@@ -347,6 +356,8 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 	cc.refreshCacheOnMiss = true
 	cc.reset()
+	// mark the cccache as updated once to trigger the refresh behaviour
+	cc.lastUpdated = time.Now().Add(time.Second)
 	globalCCClientCounter.Reset()
 
 	wg := sync.WaitGroup{}

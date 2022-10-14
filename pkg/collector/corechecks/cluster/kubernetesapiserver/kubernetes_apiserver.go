@@ -78,9 +78,15 @@ type KubeASConfig struct {
 	// UnbundleEvents = false
 	FilteredEventTypes []string `yaml:"filtered_event_types"`
 
-	// CollectedEventTypes is a map of Kind => Reason of events to collect.
+	// CollectedEventTypes specifies which events to collect.
 	// Only effective when UnbundleEvents = true
-	CollectedEventTypes map[string][]string `yaml:"collected_event_types"`
+	CollectedEventTypes []collectedEventType `yaml:"collected_event_types"`
+}
+
+type collectedEventType struct {
+	Kind    string   `yaml:"kind"`
+	Source  string   `yaml:"source"`
+	Reasons []string `yaml:"reasons"`
 }
 
 type eventTransformer interface {

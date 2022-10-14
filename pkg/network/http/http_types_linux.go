@@ -15,10 +15,8 @@ type httpConnTuple struct {
 	Metadata uint32
 }
 type httpBatchState struct {
-	Scratch_tx    ebpfHttpTx
-	Idx           uint64
-	Pos           uint8
-	Idx_to_notify uint64
+	Idx      uint64
+	To_flush uint64
 }
 type sslSock struct {
 	Tup       httpConnTuple
@@ -41,10 +39,6 @@ type ebpfHttpTx struct {
 	Tcp_seq              uint32
 	Tags                 uint64
 }
-type httpNotification struct {
-	Cpu uint32
-	Idx uint64
-}
 type httpBatch struct {
 	Idx uint64
 	Pos uint8
@@ -63,10 +57,26 @@ type libPath struct {
 
 const (
 	HTTPBatchSize  = 0xf
-	HTTPBatchPages = 0xf
+	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
 
 	httpProg = 0x0
 
 	libPathMaxSize = 0x78
+)
+
+type ConnTag = uint64
+
+const (
+	GnuTLS  ConnTag = 0x1
+	OpenSSL ConnTag = 0x2
+	Go      ConnTag = 0x4
+)
+
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+		Go:      "tls.library:go",
+	}
 )

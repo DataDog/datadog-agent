@@ -87,6 +87,18 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 		b.data[key] = parts
 	}
 
+	// copy underlying httpTX value. this is now needed because these objects are
+	// now coming directly from pooled perf records
+	ebpfTX, ok := tx.(*ebpfHttpTx)
+	if !ok {
+		// should never happen
+		return
+	}
+
+	ebpfTxCopy := new(ebpfHttpTx)
+	*ebpfTxCopy = *ebpfTX
+	tx = ebpfTxCopy
+
 	if tx.StatusClass() == 0 {
 		parts.requests = append(parts.requests, tx)
 	} else {

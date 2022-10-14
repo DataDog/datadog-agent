@@ -199,7 +199,7 @@ bool canInstall(bool isDC, bool isReadOnlyDC, bool ddUserExists, bool isServiceA
             if (isUserDomainUser)
             {
                 // if it's a domain user. We need the password if the service isn't here
-                if (!ddServiceExists && !haveUserPassword)
+                if (!ddServiceExists && !haveUserPassword && !isServiceAccount)
                 {
                     // really an error case of (2). Even though we're not in a domain, if
                     // they supplied a domain user, we have to use it, which means we need

@@ -69,7 +69,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	return c, nil
 }
 
-// Update updates the uptane client
+// Update updates the uptane client and rollbacks in case of error
 func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
@@ -79,6 +79,19 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	// the defer is present to be sure a transaction is never left behind.
 	defer c.transactionalStore.rollback()
 
+	err := c.update(response)
+	if err != nil {
+		c.configRemoteStore = newRemoteStoreConfig(c.targetStore)
+		c.directorRemoteStore = newRemoteStoreDirector(c.targetStore)
+		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
+		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+		return err
+	}
+	return c.transactionalStore.commit()
+}
+
+// update updates the uptane client
+func (c *Client) update(response *pbgo.LatestConfigsResponse) error {
 	err := c.updateRepos(response)
 	if err != nil {
 		return err
@@ -87,12 +100,7 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 	if err != nil {
 		return err
 	}
-	err = c.verify()
-	if err != nil {
-		return err
-	}
-
-	return c.transactionalStore.commit()
+	return c.verify()
 }
 
 // TargetsCustom returns the current targets custom of this uptane client

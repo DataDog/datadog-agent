@@ -95,7 +95,9 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 	// apply deny filter by default
 	rsa.applyDefaultFilterPolicies()
 
-	for _, eventType := range rs.GetEventTypes() {
+	eventTypes := rs.GetEventTypes()
+
+	for _, eventType := range eventTypes {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {
 			return nil, err
 		}
@@ -103,7 +105,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 
 	if rsa.probe != nil {
 		// based on the ruleset and the requested rules, select the probes that need to be activated
-		if err := rsa.probe.SelectProbes(rs); err != nil {
+		if err := rsa.probe.SelectProbes(eventTypes); err != nil {
 			return nil, fmt.Errorf("failed to select probes: %w", err)
 		}
 

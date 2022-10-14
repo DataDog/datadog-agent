@@ -60,9 +60,10 @@ func debuggerErrorHandler(err error) http.Handler {
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
 func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tags string) *httputil.ReverseProxy {
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
 		ddtags := tags
-		containerID := req.Header.Get(headerContainerID)
+		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		if ct := getContainerTags(conf.ContainerTags, containerID); ct != "" {
 			ddtags = fmt.Sprintf("%s,%s", ddtags, ct)
 		}

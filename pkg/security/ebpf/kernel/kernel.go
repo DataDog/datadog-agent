@@ -21,8 +21,6 @@ import (
 	"github.com/cilium/ebpf/features"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/btf-internals/sys"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -93,9 +91,6 @@ type Version struct {
 	OsReleasePath string
 	Code          kernel.Version
 	UnameRelease  string
-
-	haveMmapableMaps *bool
-	haveRingBuffers  *bool
 }
 
 func (k *Version) String() string {
@@ -248,6 +243,11 @@ func (k *Version) IsAmazonLinuxKernel() bool {
 	return k.OsRelease["ID"] == "amzn"
 }
 
+// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+func (k *Version) IsAmazonLinux2022Kernel() bool {
+	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2022"
+}
+
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
@@ -256,38 +256,12 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
-	if k.haveMmapableMaps != nil {
-		return *k.haveMmapableMaps
-	}
+	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
 
-	// This checks BPF_F_MMAPABLE, which appeared in 5.5 for array maps.
-	m, err := sys.MapCreate(&sys.MapCreateAttr{
-		MapType:    sys.MapType(ebpf.Array),
-		KeySize:    4,
-		ValueSize:  4,
-		MaxEntries: 1,
-		MapFlags:   unix.BPF_F_MMAPABLE,
-	})
-	k.haveMmapableMaps = new(bool)
-	*k.haveMmapableMaps = err == nil
-
-	if err != nil {
-		return false
-	}
-	_ = m.Close()
-	return true
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
 func (k *Version) HaveRingBuffers() bool {
-	if k.haveRingBuffers != nil {
-		return *k.haveRingBuffers
-	}
-
 	// This checks ring buffer maps, which appeared in 5.8
-	err := features.HaveMapType(ebpf.RingBuf)
-	k.haveRingBuffers = new(bool)
-	*k.haveRingBuffers = err == nil
-
-	return *k.haveRingBuffers
+	return features.HaveMapType(ebpf.RingBuf) == nil
 }

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1185-1
+      - image: datadog/datadog-agent-runner-circle:go1186
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -102,6 +102,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
+          no_output_timeout: 20m
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
       - run:
           name: upload code coverage results

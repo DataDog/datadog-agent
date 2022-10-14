@@ -16,9 +16,9 @@ import (
 
 var (
 	// OTLPFixedSpanID specifies a fixed test SpanID.
-	OTLPFixedSpanID = pcommon.NewSpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	OTLPFixedSpanID = pcommon.SpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 	// OTLPFixedTraceID specifies a fixed test TraceID.
-	OTLPFixedTraceID = pcommon.NewTraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	OTLPFixedTraceID = pcommon.TraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 )
 
 // OTLPSpanEvent defines an OTLP test span event.
@@ -57,15 +57,15 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 	if isZero(s.TraceID[:]) {
 		span.SetTraceID(OTLPFixedTraceID)
 	} else {
-		span.SetTraceID(pcommon.NewTraceID(s.TraceID))
+		span.SetTraceID(pcommon.TraceID(s.TraceID))
 	}
 	if isZero(s.SpanID[:]) {
 		span.SetSpanID(OTLPFixedSpanID)
 	} else {
-		span.SetSpanID(pcommon.NewSpanID(s.SpanID))
+		span.SetSpanID(pcommon.SpanID(s.SpanID))
 	}
-	span.SetTraceState(ptrace.TraceState(s.TraceState))
-	span.SetParentSpanID(pcommon.NewSpanID(s.ParentID))
+	span.TraceState().FromRaw(s.TraceState)
+	span.SetParentSpanID(pcommon.SpanID(s.ParentID))
 	span.SetName(s.Name)
 	span.SetKind(s.Kind)
 	if s.Start == 0 {
@@ -123,17 +123,35 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 	for k, anyv := range from {
 		switch v := anyv.(type) {
 		case string:
-			attr.Insert(k, pcommon.NewValueString(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutStr(k, v)
+			}
 		case bool:
-			attr.Insert(k, pcommon.NewValueBool(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutBool(k, v)
+			}
 		case int:
-			attr.Insert(k, pcommon.NewValueInt(int64(v)))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutInt(k, int64(v))
+			}
 		case int64:
-			attr.Insert(k, pcommon.NewValueInt(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutInt(k, v)
+			}
 		case float64:
-			attr.Insert(k, pcommon.NewValueDouble(v))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutDouble(k, v)
+			}
 		default:
-			attr.Insert(k, pcommon.NewValueString(fmt.Sprint(v)))
+			_, ok := attr.Get(k)
+			if !ok {
+				attr.PutStr(k, fmt.Sprint(v))
+			}
 		}
 	}
 }

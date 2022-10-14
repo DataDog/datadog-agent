@@ -12,4 +12,4 @@ enhancements:
 
 other:
   - |
-    JMXFetch upgraded to `0.47.0 https://github.com/DataDog/jmxfetch/releases/0.47.0`
+    JMXFetch upgraded to `0.47.1 https://github.com/DataDog/jmxfetch/releases/0.47.1`

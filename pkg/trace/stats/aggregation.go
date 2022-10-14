@@ -44,6 +44,11 @@ type PayloadAggregationKey struct {
 }
 
 func getStatusCode(s *pb.Span) uint32 {
+	code, ok := traceutil.GetMetric(s, tagStatusCode)
+	if ok {
+		// only 7.39.0+, for lesser versions, always use Meta
+		return uint32(code)
+	}
 	strC := traceutil.GetMetaDefault(s, tagStatusCode, "")
 	if strC == "" {
 		return 0

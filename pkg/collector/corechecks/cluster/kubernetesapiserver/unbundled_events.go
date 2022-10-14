@@ -10,20 +10,22 @@ package kubernetesapiserver
 
 import (
 	"fmt"
-	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, types map[string][]string) eventTransformer {
-	collectedTypes := make(map[string]map[string]struct{}, len(types))
-	for kind, reasons := range types {
-		collectedTypes[strings.ToLower(kind)] = make(map[string]struct{}, len(reasons))
-		for _, reason := range reasons {
-			collectedTypes[strings.ToLower(kind)][reason] = struct{}{}
+func newUnbundledTransformer(clusterName string, types []collectedEventType) eventTransformer {
+	collectedTypes := make([]collectedEventType, 0, len(types))
+	for _, f := range types {
+		if f.Kind == "" && f.Source == "" {
+			log.Errorf(`invalid value for collected_event_types, either "kind" or source" need to be set: %+v`, f)
+			continue
 		}
+
+		collectedTypes = append(collectedTypes, f)
 	}
 
 	return &unbundledTransformer{
@@ -34,7 +36,7 @@ func newUnbundledTransformer(clusterName string, types map[string][]string) even
 
 type unbundledTransformer struct {
 	clusterName    string
-	collectedTypes map[string]map[string]struct{}
+	collectedTypes []collectedEventType
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, []error) {
@@ -91,13 +93,25 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 func (c *unbundledTransformer) shouldCollect(ev *v1.Event) bool {
 	involvedObject := ev.InvolvedObject
 
-	kind := strings.ToLower(involvedObject.Kind)
-	reasonsByKind, ok := c.collectedTypes[kind]
-	if !ok {
-		return false
+	for _, f := range c.collectedTypes {
+		if f.Kind != "" && f.Kind != involvedObject.Kind {
+			continue
+		}
+
+		if f.Source != "" && f.Source != ev.Source.Component {
+			continue
+		}
+
+		if len(f.Reasons) == 0 {
+			return true
+		}
+
+		for _, r := range f.Reasons {
+			if ev.Reason == r {
+				return true
+			}
+		}
 	}
 
-	_, shouldCollect := reasonsByKind[ev.Reason]
-
-	return shouldCollect
+	return false
 }

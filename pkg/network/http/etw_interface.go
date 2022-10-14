@@ -21,15 +21,23 @@ type httpEtwInterface struct {
 	maxEntriesBuffered int
 	dataChannel        chan []etw.Http
 	eventLoopWG        sync.WaitGroup
+	captureHTTP        bool
+	captureHTTPS       bool
 }
 
 func newHttpEtwInterface(c *config.Config) *httpEtwInterface {
 	return &httpEtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
 		dataChannel:        make(chan []etw.Http),
+		captureHTTPS:       c.EnableHTTPSMonitoring,
 	}
 }
 
+func (hei *httpEtwInterface) setCapturedProtocols(http, https bool) {
+	hei.captureHTTP = http
+	hei.captureHTTPS = https
+	etw.SetEnabledProtocols(http, https)
+}
 func (hei *httpEtwInterface) setMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	etw.SetMaxFlows(maxFlows)

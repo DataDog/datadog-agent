@@ -93,7 +93,6 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-proble.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-proble.yaml`).
-  - `feature_networks_http_https_via_etw_enabled` - **bool**: True if HTTP or HTTPS monitoring on Windows via Event Tracing for Windows (ETW) is enabled for Network Performance Monitoring (see: `network_config.enable_http_https_via_etw_monitoring` config option in `system-proble.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
@@ -121,9 +120,6 @@ The payload is a JSON dict with the following fields
   - `kernel_version` - **string**:  the kernel version (Unix only, empty string on Windows).
   - `os` - **string**: the OS name description (ex: "GNU/Linux", "Windows Server 2022 Datacenter", ...).
   - `os_version` - **string**: the OS version (ex: "debian bookworm/sid", ...).
-  - `python_version` - **string**: The Python version from the agent environment. `python -V` is used in `Gohai` for
-    this. Unless the Agent environment has been modified this is the Python version from the OS not from the Agent. This
-    is a relica from Agent V5 and is not useful for Agent V6 and V7 who ship their own Python.
   - `memory_total_kb` - **int**: the total memory size for the host in KiB.
   - `memory_swap_total_kb` - **int**: the `swap` memory size in KiB (Unix only).
   - `ip_address` - **string**: the IP address for the host.
@@ -251,7 +247,6 @@ Here an example of an inventory payload:
         "kernel_version": "#1 SMP PREEMPT Debian 5.16.18-1 (2022-03-29)",
         "os": "GNU/Linux",
         "os_version": "debian bookworm/sid",
-        "python_version": "3.10.4",
         "memory_swap_total_kb": 10237948,
         "memory_total_kb": 12227556,
         "ip_address": "192.168.24.138",

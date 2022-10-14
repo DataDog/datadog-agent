@@ -1,20 +1,20 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_clang*                         @DataDog/agent-network
+build_clang*                         @DataDog/ebpf-platform
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
-tests_ebpf                           @DataDog/agent-network
+tests_ebpf                           @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 
 # Golang dependency list generation
 golang_deps_generate                 @DataDog/agent-core
 
 # Binary build
-build_system-probe*                  @DataDog/agent-network
-cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libraries
+build_system-probe*                  @DataDog/ebpf-platform
+cluster_agent_cloudfoundry-build*    @Datadog/platform-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 build_serverless*                    @DataDog/serverless
 check_serverless_*                   @DataDog/serverless
@@ -32,33 +32,30 @@ dca_scan_*_docker_hub*               @DataDog/container-integrations
 check_already_deployed_version_*     @DataDog/do-not-notify
 
 # Dev container deploy
-# HACK: Silenced for now, uncomment and remove the next section once
-# public-images is fixed.
-# dca_dev_branch*                      @DataDog/container-integrations
-# dev_branch*                          @DataDog/container-integrations
-# dev_master*                          @DataDog/container-integrations
-# dev_nightly*                         @DataDog/container-integrations
-# docker_trigger_internal*             @DataDog/container-integrations
+dca_dev_branch*                        @DataDog/container-integrations
+dev_branch*                            @DataDog/container-integrations
+dev_master*                            @DataDog/container-integrations
+dev_nightly*                           @DataDog/container-integrations
 
-dca_dev_branch*                        @DataDog/do-not-notify
-dev_branch*                            @DataDog/do-not-notify
-dev_master*                            @DataDog/do-not-notify
-dev_nightly*                           @DataDog/do-not-notify
-docker_trigger_internal*               @DataDog/do-not-notify
-docker_trigger_cluster_agent_internal* @DataDog/do-not-notify
+# Internal image deploy
+docker_trigger_internal*               @DataDog/container-integrations
+docker_trigger_cluster_agent_internal* @DataDog/container-integrations
+
+# Internal kubernetes deploy
+internal_kubernetes_deploy*           @DataDog/container-integrations
 
 # Deploy
 deploy_containers*                   @DataDog/container-integrations
 
 # Functional test
-kitchen_*_system_probe*                        @DataDog/agent-network
+kitchen_*_system_probe*                        @DataDog/ebpf-platform
 kitchen_*_security_agent*                      @DataDog/agent-security
-cleanup_kitchen_functional_test                @DataDog/agent-network @DataDog/agent-security
+cleanup_kitchen_functional_test                @DataDog/ebpf-platform @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
-k8s-e2e-otlp-*                    @DataDog/agent-platform
+k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cws-*                     @DataDog/agent-security
 k8s-e2e-cspm-*                    @DataDog/agent-security

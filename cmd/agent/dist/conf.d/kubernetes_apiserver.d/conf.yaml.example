@@ -19,24 +19,25 @@ instances:
     # unbundle_events: true
 
     ## @param collected_event_types - map of array of strings - optional
-    ## Specify which events to be collected. Map of Kind as key, array of event
-    ## reasons as value. Keys are case-insensitive, values are case-sensitive.
-    ## Only effective when unbundle_events is true, otherwise
-    ## filtered_event_types is used.
+    ## Specify which events to be collected by kind, source, and reasons.
+    ## Either kind or source are required, reasons is optional. Only effective
+    ## when unbundle_events is true, otherwise filtered_event_types is used.
     #
     collected_event_types:
-      pod:
-        - Failed
-        - BackOff
-        - Unhealthy
-        - FailedScheduling
-        - FailedMount
-        - FailedAttachVolume
-      node:
-        - TerminatingEvictedPod
-        - NodeNotReady
-        - Rebooted
-        - HostPortConflict
+      - kind: Pod
+        reasons:
+          - Failed
+          - BackOff
+          - Unhealthy
+          - FailedScheduling
+          - FailedMount
+          - FailedAttachVolume
+      - kind: Node
+        reasons:
+          - TerminatingEvictedPod
+          - NodeNotReady
+          - Rebooted
+          - HostPortConflict
 
     ## @param filtered_event_types - array of strings - optional
     ## Specify a list of exclusion filters over the event type, involvedObject.kind, reason, following the Kubernetes field-selector format.

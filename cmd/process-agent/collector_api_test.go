@@ -23,7 +23,6 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd_0"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -420,16 +419,14 @@ func testPodMessageManifest(t *testing.T, clusterID string, cfg *config.AgentCon
 	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
-	assert.Equal(t, headers.ZSTDContentEncoding, req.headers.Get(headers.ContentEncodingHeader))
 
-	d, err := zstd_0.Decompress(nil, req.body)
+	reqBody, err := process.DecodeMessage(req.body)
 	require.NoError(t, err)
 
-	x := &process.CollectorManifest{}
-	err = proto.Unmarshal(d, x)
-	require.NoError(t, err)
+	cm, ok := reqBody.Body.(*process.CollectorManifest)
+	require.True(t, ok)
 
-	assert.Equal(t, clusterID, x.ClusterId)
+	assert.Equal(t, clusterID, cm.ClusterId)
 }
 
 func TestQueueSpaceNotAvailable(t *testing.T) {
@@ -533,13 +530,13 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
-	var eps []apicfg.Endpoint
+	eps := make([]apicfg.Endpoint, 0, len(apiKeys))
 	for _, key := range apiKeys {
 		eps = append(eps, apicfg.Endpoint{APIKey: key, Endpoint: collectorAddr})
 	}
 	setProcessEndpointsForTest(mockConfig, eps...)
 
-	var eventsEps []apicfg.Endpoint
+	eventsEps := make([]apicfg.Endpoint, 0, len(apiKeys))
 	for _, key := range apiKeys {
 		eventsEps = append(eventsEps, apicfg.Endpoint{APIKey: key, Endpoint: eventsAddr})
 	}

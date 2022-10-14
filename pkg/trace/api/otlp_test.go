@@ -6,6 +6,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -117,8 +118,8 @@ func TestOTLPMetrics(t *testing.T) {
 		},
 	}).Traces().ResourceSpans()
 
-	rcv.ReceiveResourceSpans(rspans.At(0), http.Header{}, "")
-	rcv.ReceiveResourceSpans(rspans.At(1), http.Header{}, "")
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, "")
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, "")
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
@@ -133,7 +134,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
-	rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
 			LibVersion: "1.2",
@@ -340,7 +341,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
+			rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -422,7 +423,7 @@ func TestOTLPHostname(t *testing.T) {
 		if tt.span != "" {
 			rattr["_dd.hostname"] = tt.span
 		}
-		src := rcv.ReceiveResourceSpans(testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		src := rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "a",
 				LibVersion: "1.2",
@@ -508,7 +509,7 @@ func TestOTLPReceiver(t *testing.T) {
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
 		o := NewOTLPReceiver(out, config.New())
-		o.processRequest(otlpProtocolGRPC, http.Header(map[string][]string{
+		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
 			headerLang:        {"go"},
 			headerContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
@@ -529,14 +530,14 @@ func TestOTLPReceiver(t *testing.T) {
 }
 
 var (
-	otlpTestSpanID  = pcommon.NewSpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
-	otlpTestTraceID = pcommon.NewTraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	otlpTestSpanID  = pcommon.SpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
+	otlpTestTraceID = pcommon.TraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 )
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64(otlpTestTraceID.Bytes()))
-		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64(otlpTestSpanID.Bytes()))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -631,7 +632,7 @@ func TestOTLPHelpers(t *testing.T) {
 		} {
 			assert := assert.New(t)
 			span := pb.Span{Meta: make(map[string]string)}
-			status := ptrace.NewSpanStatus()
+			status := ptrace.NewStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
 			status2Error(status, tt.events, &span)
@@ -811,8 +812,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			libname: "ddtracer",
 			libver:  "v2",
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID.Bytes(),
-				SpanID:     otlpTestSpanID.Bytes(),
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
 				TraceState: "state",
 				Name:       "/path",
 				Kind:       ptrace.SpanKindServer,
@@ -896,8 +897,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			libname: "ddtracer",
 			libver:  "v2",
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID.Bytes(),
-				SpanID:     otlpTestSpanID.Bytes(),
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
 				TraceState: "state",
 				Name:       "/path",
 				Kind:       ptrace.SpanKindServer,
@@ -1095,7 +1096,10 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		e.Attributes().Insert(k, pcommon.NewValueString(attrs[k]))
+		_, ok := e.Attributes().Get(k)
+		if !ok {
+			e.Attributes().PutStr(k, attrs[k])
+		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
 	e.SetDroppedAttributesCount(dropped)
@@ -1258,7 +1262,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(otlpProtocolHTTP, metadata, otlpTestTracesRequest)
+		r.processRequest(context.Background(), otlpProtocolHTTP, metadata, otlpTestTracesRequest)
 	}
 	b.StopTimer()
 	end <- struct{}{}

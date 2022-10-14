@@ -288,7 +288,6 @@ func TestGetPayload(t *testing.T) {
 			"kernel_release": "5.17.0-1-amd64",
 			"kernel_version": "Debian_5.17.3-1",
 			"os": "GNU/Linux",
-			"python_version": "3.10.4",
 			"cpu_architecture": "unknown",
 			"memory_total_kb": 1205632,
 			"memory_swap_total_kb": 1205632,

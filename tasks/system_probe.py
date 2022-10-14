@@ -18,7 +18,7 @@ from .libs.ninja_syntax import NinjaWriter
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
+BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
@@ -47,7 +47,7 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "11.0.1"
+CLANG_VERSION = "14.0.6"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -221,10 +221,10 @@ def ninja_cgo_type_files(nw, windows):
         nw.rule(
             name="godefs",
             pool="cgo_pool",
-            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8';"
+            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'ascii';"
             + "(cd $in_dir);"
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path > $out_file);"
+            + "go run $script_path | Out-File -encoding ascii $out_file);"
             + "exit $$LastExitCode\"",
         )
     else:
@@ -458,6 +458,7 @@ def test(
         "pkgs": packages,
         "run": f"-run {run}" if run else "",
         "failfast": "-failfast" if failfast else "",
+        "go": "go",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -465,7 +466,11 @@ def test(
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
+    go_root = os.getenv("GOROOT")
+    if go_root:
+        args["go"] = os.path.join(go_root, "bin", "go")
+
+    cmd = '{go} test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
@@ -855,15 +860,15 @@ def run_ninja(
 
 def setup_runtime_clang(ctx):
     # check if correct version is already present
-    res = ctx.run("/opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
+    sudo = "sudo" if not is_root() else ""
+    res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
     if res.ok:
         version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
         if version_str == CLANG_VERSION:
             return
 
-    sudo = "sudo" if not is_root() else ""
     if not os.path.exists("/opt/datadog-agent/embedded/bin"):
-        ctx.run(f"{sudo}mkdir -p /opt/datadog-agent/embedded/bin")
+        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
 
     arch = arch_mapping.get(platform.machine())
     if arch == "x64":

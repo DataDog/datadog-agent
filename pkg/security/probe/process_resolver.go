@@ -950,7 +950,7 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 
 	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
 
-	return keys, pr.ArgsTruncated || truncated
+	return keys, pr.EnvsTruncated || truncated
 }
 
 // GetProcessEnvp returns the envs of the event with their values
@@ -961,7 +961,7 @@ func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 	envp, truncated := pr.EnvsEntry.ToArray()
 
-	return envp, pr.ArgsTruncated || truncated
+	return envp, pr.EnvsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
@@ -1256,11 +1256,7 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
-	scoper := func(ctx *eval.Context) unsafe.Pointer {
-		return unsafe.Pointer((*Event)(ctx.Object).ProcessCacheEntry)
-	}
-
+func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) unsafe.Pointer) rules.VariableProvider {
 	var variables *eval.ScopedVariables
 	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
 		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {

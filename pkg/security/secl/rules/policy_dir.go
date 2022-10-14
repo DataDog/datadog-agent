@@ -103,6 +103,11 @@ func (p *PoliciesDirProvider) LoadPolicies(macroFilters []MacroFilter, ruleFilte
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
+
+		if policy == nil {
+			continue
+		}
+
 		policies = append(policies, policy)
 
 		if p.watcher != nil {

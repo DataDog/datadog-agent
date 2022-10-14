@@ -10,6 +10,7 @@ package http
 
 /*
 #include "../ebpf/c/tracer.h"
+#include "../ebpf/c/tags-types.h"
 #include "../ebpf/c/http-types.h"
 */
 import "C"
@@ -20,7 +21,6 @@ type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 
 type ebpfHttpTx C.http_transaction_t
-type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
 
@@ -34,4 +34,20 @@ const (
 	httpProg = C.HTTP_PROG
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
+)
+
+type ConnTag = uint64
+
+const (
+	GnuTLS  ConnTag = C.LIBGNUTLS
+	OpenSSL ConnTag = C.LIBSSL
+	Go      ConnTag = C.GO
+)
+
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+		Go:      "tls.library:go",
+	}
 )

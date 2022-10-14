@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -50,8 +51,8 @@ type soWatcher struct {
 	hostMount  string
 	all        *regexp.Regexp
 	rules      []soRule
-	registered map[string]func(string) error
 	loadEvents *ddebpf.PerfHandler
+	registry   *soRegistry
 }
 
 type seenKey struct {
@@ -71,14 +72,17 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 		all:        all,
 		rules:      rules,
 		loadEvents: perfHandler,
+		registry: &soRegistry{
+			byPath:  make(map[string]*soRegistration),
+			byInode: make(map[uint64]*soRegistration),
+		},
 	}
 }
 
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
 	seen := make(map[seenKey]struct{})
-	sharedLibraries := w.getSharedLibraries()
-	w.sync(sharedLibraries)
+	w.sync()
 	go func() {
 		ticker := time.NewTicker(soSyncInterval)
 		defer ticker.Stop()
@@ -88,8 +92,7 @@ func (w *soWatcher) Start() {
 			select {
 			case <-ticker.C:
 				seen = make(map[seenKey]struct{})
-				sharedLibraries := w.getSharedLibraries()
-				w.sync(sharedLibraries)
+				w.sync()
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
@@ -130,11 +133,7 @@ func (w *soWatcher) Start() {
 					}
 
 					libPath = w.canonicalizePath(libPath)
-					if _, registered := w.registered[libPath]; registered {
-						break
-					}
-
-					w.register(libPath, r)
+					w.registry.register(libPath, r)
 					break
 				}
 
@@ -148,52 +147,35 @@ func (w *soWatcher) Start() {
 	}()
 }
 
-func (w *soWatcher) sync(libraries []so.Library) {
-	old := w.registered
-	w.registered = make(map[string]func(string) error)
+func (w *soWatcher) sync() {
+	libraries := so.FindProc(w.procRoot, w.all)
+	toUnregister := make(map[string]struct{}, len(w.registry.byPath))
+	for libPath := range w.registry.byPath {
+		toUnregister[libPath] = struct{}{}
+	}
 
 	for _, lib := range libraries {
-		path := lib.HostPath
-		if callback, ok := old[path]; ok {
-			w.registered[path] = callback
-			delete(old, path)
+		path := w.canonicalizePath(lib.HostPath)
+		if _, ok := w.registry.byPath[path]; ok {
+			// shared library still mapped into memory
+			// don't unregister it
+			delete(toUnregister, path)
 			continue
 		}
 
 		for _, r := range w.rules {
 			if r.re.MatchString(path) {
-				w.register(path, r)
+				// new library detected
+				// register it
+				w.registry.register(path, r)
 				break
 			}
 		}
 	}
 
-	// Now we call the unregister callback for every shared library that is no longer mapped into memory
-	for path, unregisterCB := range old {
-		if unregisterCB == nil {
-			continue
-		}
-
-		log.Debugf("unregistering library=%s", path)
-		if err := unregisterCB(path); err != nil {
-			log.Debugf("unregisterCB %s : %s", path, err)
-		}
+	for path := range toUnregister {
+		w.registry.unregister(path)
 	}
-}
-
-func (w *soWatcher) register(libPath string, r soRule) {
-	err := r.registerCB(libPath)
-	if err != nil {
-		log.Debugf("error registering library=%s: %s", libPath, err)
-		if err := r.unregisterCB(libPath); err != nil {
-			log.Debugf("unregisterCB %s : %s", libPath, err)
-		}
-		w.registered[libPath] = nil
-		return
-	}
-
-	log.Debugf("registering library=%s", libPath)
-	w.registered[libPath] = r.unregisterCB
 }
 
 func (w *soWatcher) canonicalizePath(path string) string {
@@ -204,36 +186,83 @@ func (w *soWatcher) canonicalizePath(path string) string {
 	return followSymlink(path)
 }
 
-func (w *soWatcher) getSharedLibraries() []so.Library {
-	// libraries will include all host-resolved library paths mapped into memory
-	libraries := so.FindProc(w.procRoot, w.all)
+type soRegistration struct {
+	inode        uint64
+	refcount     int
+	unregisterCB func(string) error
+}
 
-	// TODO: should we ensure all entries are unique in the `so` package instead?
-	seen := make(map[string]struct{}, len(libraries))
-	i := 0
-	for _, lib := range libraries {
-		originalPath := lib.HostPath
-		if _, ok := seen[originalPath]; ok {
-			continue
-		}
-		seen[originalPath] = struct{}{}
+type soRegistry struct {
+	byPath  map[string]*soRegistration
+	byInode map[uint64]*soRegistration
+}
 
-		// this ensures that all symlinks are resolved only once
-		canonicalPath := w.canonicalizePath(originalPath)
-		if canonicalPath != originalPath {
-			if _, ok := seen[canonicalPath]; ok {
-				continue
-			} else {
-				seen[canonicalPath] = struct{}{}
-				lib.HostPath = canonicalPath
-			}
-		}
-
-		libraries[i] = lib
-		i++
+func (r *soRegistry) register(libPath string, rule soRule) {
+	if _, ok := r.byPath[libPath]; ok {
+		return
 	}
 
-	return libraries[0:i]
+	inode, err := getInode(libPath)
+	if err != nil {
+		return
+	}
+
+	if registration, ok := r.byInode[inode]; ok {
+		registration.refcount++
+		r.byPath[libPath] = registration
+		log.Debugf("registering library=%s", libPath)
+		return
+	}
+
+	err = rule.registerCB(libPath)
+	if err != nil {
+		log.Debugf("error registering library=%s: %s", libPath, err)
+		if err := rule.unregisterCB(libPath); err != nil {
+			log.Debugf("unregisterCB %s : %s", libPath, err)
+		}
+
+		// save sentinel value so we don't attempt to re-register shared
+		// libraries that are problematic for some reason
+		registration := newRegistration(inode, nil)
+		r.byPath[libPath] = registration
+		r.byInode[inode] = registration
+		return
+	}
+
+	log.Debugf("registering library=%s", libPath)
+	registration := newRegistration(inode, rule.unregisterCB)
+	r.byPath[libPath] = registration
+	r.byInode[inode] = registration
+}
+
+func (r *soRegistry) unregister(libPath string) {
+	registration, ok := r.byPath[libPath]
+	if !ok {
+		return
+	}
+
+	log.Debugf("unregistering library=%s", libPath)
+	delete(r.byPath, libPath)
+	registration.refcount--
+	if registration.refcount > 0 {
+		return
+	}
+
+	delete(r.byInode, registration.inode)
+	if registration.unregisterCB != nil {
+		err := registration.unregisterCB(libPath)
+		if err != nil {
+			log.Debugf("unregisterCB %s : %s", libPath, err)
+		}
+	}
+}
+
+func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
+	return &soRegistration{
+		inode:        inode,
+		unregisterCB: unregisterCB,
+		refcount:     1,
+	}
 }
 
 func followSymlink(path string) string {
@@ -242,4 +271,18 @@ func followSymlink(path string) string {
 	}
 
 	return path
+}
+
+func getInode(path string) (uint64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, fmt.Errorf("invalid file stat")
+	}
+
+	return stat.Ino, nil
 }

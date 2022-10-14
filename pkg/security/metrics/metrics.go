@@ -173,7 +173,7 @@ var (
 	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
 	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
-	// Tags: -
+	// Tags: dump_index
 	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
 	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
 	// be sent because they are too big

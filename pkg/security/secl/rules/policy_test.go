@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"

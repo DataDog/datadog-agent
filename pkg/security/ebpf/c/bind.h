@@ -53,6 +53,15 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
+
+    // should we sample this event for activity dumps ?
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
+    if (config) {
+        if (mask_has_event(config->event_mask, EVENT_BIND)) {
+            event.event.is_activity_dump_sample = 1;
+        }
+    }
+
     send_event(ctx, EVENT_BIND, event);
     return 0;
 }

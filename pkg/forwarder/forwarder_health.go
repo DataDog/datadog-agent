@@ -34,7 +34,8 @@ var (
 
 	validateAPIKeyTimeout = 10 * time.Second
 
-	apiKeyStatus = expvar.Map{}
+	apiKeyStatus  = expvar.Map{}
+	apiKeyFailure = expvar.Map{}
 )
 
 func init() {
@@ -47,7 +48,9 @@ func init() {
 
 func initForwarderHealthExpvars() {
 	apiKeyStatus.Init()
+	apiKeyFailure.Init()
 	transaction.ForwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	transaction.ForwarderExpvars.Set("APIKeyFailure", &apiKeyFailure)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
@@ -146,12 +149,18 @@ func (fh *forwarderHealth) computeDomainsURL() {
 	}
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status *expvar.String) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
-	apiKeyStatus.Set(obfuscatedKey, status)
+	if status == &apiKeyInvalid {
+		apiKeyFailure.Set(obfuscatedKey, status)
+		apiKeyStatus.Delete(obfuscatedKey)
+	} else {
+		apiKeyStatus.Set(obfuscatedKey, status)
+		apiKeyFailure.Delete(obfuscatedKey)
+	}
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
