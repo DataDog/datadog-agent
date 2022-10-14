@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
@@ -33,6 +34,7 @@ var idToDistribMapping = map[string]string{
 	"amzn":   "amzn",
 	"centos": "centos",
 	"fedora": "fedora",
+	"oracle": "oracle-linux",
 }
 
 var archMapping = map[string]string{
@@ -121,6 +123,15 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, bool) {
 	version, ok := kv.OsRelease["VERSION_ID"]
 	if !ok {
 		return nil, false
+	}
+
+	// HACK: fix mapping of version for oracle-linux
+	if distribution == "oracle-linux" {
+		if strings.HasPrefix(version, "7.") {
+			version = "ol7"
+		} else {
+			return nil, false
+		}
 	}
 
 	arch, ok := archMapping[runtime.GOARCH]
