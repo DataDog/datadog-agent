@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+/* Copyright Authors of Cilium */
+
 #ifndef __BPF_BUILTINS__
 #define __BPF_BUILTINS__
 
