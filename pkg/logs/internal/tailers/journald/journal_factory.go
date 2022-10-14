@@ -28,9 +28,9 @@ type Journal interface {
 
 // JournalFactory interface that provides journal implementations
 type JournalFactory interface {
-	// NewJournal creates a new jounral instance or error
+	// NewJournal creates a new journal instance or error
 	NewJournal() (Journal, error)
 
-	// NewJournal creates a new jounral instance from the supplied path or error
+	// NewJournal creates a new journal instance from the supplied path or error
 	NewJournalFromPath(path string) (Journal, error)
 }

@@ -37,7 +37,7 @@ func (m *MockJournal) Next() (uint64, error)                      { return 0, ni
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) { return nil, sdjournal.ErrExpired }
 func (m *MockJournal) GetCursor() (string, error)                 { return "", nil }
 
-// MockJournalFactory a jounral factory that produces mock journal implementations
+// MockJournalFactory a journal factory that produces mock journal implementations
 type MockJournalFactory struct{}
 
 func (s *MockJournalFactory) NewJournal() (tailer.Journal, error) {
