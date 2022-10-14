@@ -100,7 +100,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	// Send two payloads separated by a newline.
-	payloads := [][]byte{[]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), []byte("_sc|agent.up|0|m:this is fine")}
+	payloads := [][]byte{[]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), []byte("_e{21,36}:An exception occurred|Cannot parse CSV file from\\n10.0.0.17|t:warning|#err_type:bad_file")}
 	sep := []byte("\n")
 	msg := bytes.Join(payloads, sep)
 	body := ioutil.NopCloser(bytes.NewBuffer(msg))
