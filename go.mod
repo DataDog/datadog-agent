@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.8.2
+	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1
@@ -413,7 +413,10 @@ require (
 
 require golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 
-require github.com/go-openapi/spec v0.20.3 // indirect
+require (
+	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	k8s.io/apiextensions-apiserver v0.23.5 // indirect
+)
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
