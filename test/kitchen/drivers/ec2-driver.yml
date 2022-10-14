@@ -84,6 +84,9 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: ENV["KITCHEN_CWS_PLATFORM"]
+    <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
