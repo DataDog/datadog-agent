@@ -713,6 +713,8 @@ func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 96
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
 	default:
 		return 80
 	}
