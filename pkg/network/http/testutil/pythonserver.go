@@ -7,17 +7,14 @@ package testutil
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net"
-	nethttp "net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 )
@@ -36,6 +33,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header('Content-type', 'application/octet-stream')
         self.send_header('Content-Length', '0')
+        self.send_header('Connection', '%s')
         self.end_headers()
 
 server_address = ('%s', %s)
@@ -54,25 +52,21 @@ finally:
 `
 )
 
-var (
-	disableTLSVerification = sync.Once{}
-)
-
 func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
-	if options.EnableTLS {
-		disableTLSVerification.Do(func() {
-			nethttp.DefaultTransport.(*nethttp.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		})
+
+	connectionHeader := "close"
+	if options.EnableKeepAlives {
+		connectionHeader = "keep-alive"
 	}
 
 	curDir, _ := CurDir()
 	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
 	keyPath := filepath.Join(curDir, "testdata/server.key")
-	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, host, port, crtPath, keyPath)
+	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, connectionHeader, host, port, crtPath, keyPath)
 	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
 	defer scriptFile.Close()
