@@ -57,6 +57,14 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kprobe/tcp_recvmsg")
+int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
+    log_debug("kprobe/tcp_recvmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
+    init_ssl_sock_from_do_handshake((struct sock *)PT_REGS_PARM1(ctx));
+
+    return 0;
+}
+
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     log_debug("tracepoint/net/netif_receive_skb\n");
@@ -162,6 +170,12 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+
+    conn_tuple_t *t = tup_from_ssl_ctx(args.ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uprobe/SSL_read: no conn tuple, activating lazy loading %d %p\n", pid_tgid, args.ctx);
+        bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &args.ctx, BPF_ANY);
+    }
     return 0;
 }
 
@@ -190,6 +204,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     https_process(t, args->buf, len, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -201,6 +216,11 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    conn_tuple_t *t = tup_from_ssl_ctx(args.ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uprobe/SSL_write: no conn tuple, activating lazy loading %d %p\n", pid_tgid, args.ctx);
+        bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &args.ctx, BPF_ANY);
+    }
     return 0;
 }
 
@@ -226,6 +246,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     https_process(t, args->buf, write_len, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -238,6 +259,11 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+    conn_tuple_t *t = tup_from_ssl_ctx(args.ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uprobe/SSL_read_ex: no conn tuple, activating lazy loading %d %p\n", pid_tgid, args.ctx);
+        bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &args.ctx, BPF_ANY);
+    }
     return 0;
 }
 
@@ -278,6 +304,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -290,6 +317,11 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
+    conn_tuple_t *t = tup_from_ssl_ctx(args.ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uprobe/SSL_write_ex: no conn tuple, activating lazy loading %d %p\n", pid_tgid, args.ctx);
+        bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &args.ctx, BPF_ANY);
+    }
     return 0;
 }
 
@@ -327,6 +359,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -417,8 +450,14 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
         .buf = data,
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
+    log_debug("uprobe/gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+
+    conn_tuple_t *t = tup_from_ssl_ctx(args.ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uprobe/gnutls_record_recv: no conn tuple, activating lazy loading %d %p\n", pid_tgid, args.ctx);
+        bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &args.ctx, BPF_ANY);
+    }
     return 0;
 }
 
@@ -438,7 +477,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     }
 
     void *ssl_session = args->ctx;
-    log_debug("uret/gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
+    log_debug("uretprobe/gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
         goto cleanup;
@@ -447,6 +486,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     https_process(t, args->buf, read_len, LIBGNUTLS);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 
@@ -459,6 +499,11 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    conn_tuple_t *t = tup_from_ssl_ctx(args.ctx, pid_tgid);
+    if (t == NULL) {
+        log_debug("uprobe/gnutls_record_send: no conn tuple, activating lazy loading %d %p\n", pid_tgid, args.ctx);
+        bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &args.ctx, BPF_ANY);
+    }
     return 0;
 }
 
@@ -484,6 +529,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     https_process(t, args->buf, write_len, LIBGNUTLS);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
 

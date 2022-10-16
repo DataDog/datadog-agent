@@ -39,6 +39,9 @@ const (
 	httpSocketFilter     = "socket/http_filter"
 	httpProgsMap         = "http_progs"
 
+	tcpRecvMsgProbe = "kprobe/tcp_recvmsg"
+	tcpRecvMsgHook  = "kprobe__tcp_recvmsg"
+
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
 	// enough for typical workloads (e.g. some amount of processes blocked on
@@ -122,6 +125,15 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.TCPSendMsg),
 					EBPFFuncName: "kprobe__tcp_sendmsg",
+					UID:          probeUID,
+				},
+				KProbeMaxActive:    maxActive,
+				KprobeAttachMethod: kprobeAttachMethod,
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  tcpRecvMsgProbe,
+					EBPFFuncName: tcpRecvMsgHook,
 					UID:          probeUID,
 				},
 				KProbeMaxActive:    maxActive,
@@ -220,6 +232,13 @@ func (e *ebpfProgram) Init() error {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  string(probes.TCPSendMsg),
 					EBPFFuncName: "kprobe__tcp_sendmsg",
+					UID:          probeUID,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  tcpRecvMsgProbe,
+					EBPFFuncName: tcpRecvMsgHook,
 					UID:          probeUID,
 				},
 			},
