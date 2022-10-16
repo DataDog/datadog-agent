@@ -10,36 +10,31 @@ package kafka
 
 import (
 	"fmt"
-	"math"
-	"os"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
+	"math"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap   = "http_in_flight"
-	httpBatchesMap    = "http_batches"
-	httpBatchStateMap = "http_batch_state"
-	httpBatchEvents   = "http_batch_events"
+	//httpInFlightMap   = "http_in_flight"
+	//httpBatchesMap    = "http_batches"
+	//httpBatchStateMap = "http_batch_state"
+	//httpBatchEvents   = "http_batch_events"
 
 	kafkaKernelToUserModeMapName = "c"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
-	httpSocketFilterStub = "socket/http_filter_entry"
-	httpSocketFilter     = "socket/http_filter"
-	httpProgsMap         = "http_progs"
+	kafkaSocketFilterStub = "socket/kafka_filter_entry"
+	kafkaSocketFilter     = "socket/kafka_filter"
+	kafkaProgsMap         = "kafka_progs"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -72,13 +67,13 @@ type subprogram interface {
 	Stop()
 }
 
-var tailCalls []manager.TailCallRoute = []manager.TailCallRoute{
+var tailCalls = []manager.TailCallRoute{
 	{
-		ProgArrayName: httpProgsMap,
-		Key:           httpProg,
+		ProgArrayName: kafkaProgsMap,
+		Key:           kafkaProg,
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  httpSocketFilter,
-			EBPFFuncName: "socket__http_filter",
+			EBPFSection:  kafkaSocketFilter,
+			EBPFFuncName: "socket__kafka_filter",
 		},
 	},
 }
@@ -107,19 +102,19 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		//	{Name: "fd_by_ssl_bio"},
 		//	{Name: "ssl_ctx_by_pid_tgid"},
 		//},
-		PerfMaps: []*manager.PerfMap{
-			{
-				//Map: manager.Map{Name: httpBatchEvents},
-				Map: manager.Map{Name: "kafka_kernel_to_usermode"},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 256 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      batchCompletionHandler.RecordHandler,
-					LostHandler:        batchCompletionHandler.LostHandler,
-					RecordGetter:       batchCompletionHandler.RecordGetter,
-				},
-			},
-		},
+		//PerfMaps: []*manager.PerfMap{
+		//	{
+		//		//Map: manager.Map{Name: httpBatchEvents},
+		//		Map: manager.Map{Name: "kafka_kernel_to_usermode"},
+		//		PerfMapOptions: manager.PerfMapOptions{
+		//			PerfRingBufferSize: 256 * os.Getpagesize(),
+		//			Watermark:          1,
+		//			RecordHandler:      batchCompletionHandler.RecordHandler,
+		//			LostHandler:        batchCompletionHandler.LostHandler,
+		//			RecordGetter:       batchCompletionHandler.RecordGetter,
+		//		},
+		//	},
+		//},
 		Probes: []*manager.Probe{
 			//{
 			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -130,17 +125,17 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			//	KProbeMaxActive:    maxActive,
 			//	KprobeAttachMethod: kprobeAttachMethod,
 			//},
+			//{
+			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			//		EBPFSection:  "tracepoint/net/netif_receive_skb",
+			//		EBPFFuncName: "tracepoint__net__netif_receive_skb",
+			//		UID:          probeUID,
+			//	},
+			//},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
-					UID:          probeUID,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_entry",
+					EBPFSection:  kafkaSocketFilterStub,
+					EBPFFuncName: "socket__kafka_filter_entry",
 					UID:          probeUID,
 				},
 				KprobeAttachMethod: kprobeAttachMethod,
@@ -148,14 +143,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
 		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            []subprogram{},
 	}
 
 	return program, nil
@@ -173,7 +167,7 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 
-	e.DumpHandler = dumpMapsHandler
+	//e.DumpHandler = dumpMapsHandler
 	e.InstructionPatcher = func(m *manager.Manager) error {
 		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
@@ -181,10 +175,11 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
-	onlineCPUs, err := cpupossible.Get()
-	if err != nil {
-		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
-	}
+	//onlineCPUs, err := cpupossible.Get()
+	var err error
+	//if err != nil {
+	//	return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	//}
 
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
@@ -192,40 +187,40 @@ func (e *ebpfProgram) Init() error {
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			httpInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-			httpBatchesMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
-				EditorFlag: manager.EditMaxEntries,
-			},
+			//httpInFlightMap: {
+			//	Type:       ebpf.Hash,
+			//	MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			//	EditorFlag: manager.EditMaxEntries,
+			//},
+			//httpBatchesMap: {
+			//	Type:       ebpf.Hash,
+			//	MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
+			//	EditorFlag: manager.EditMaxEntries,
+			//},
 		},
 		TailCallRouter: tailCalls,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_entry",
+					EBPFSection:  kafkaSocketFilterStub,
+					EBPFFuncName: "socket__kafka_filter_entry",
 					UID:          probeUID,
 				},
 			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.TCPSendMsg),
-					EBPFFuncName: "kprobe__tcp_sendmsg",
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  "tracepoint/net/netif_receive_skb",
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
-					UID:          probeUID,
-				},
-			},
+			//&manager.ProbeSelector{
+			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			//		EBPFSection:  string(probes.TCPSendMsg),
+			//		EBPFFuncName: "kprobe__tcp_sendmsg",
+			//		UID:          probeUID,
+			//	},
+			//},
+			//&manager.ProbeSelector{
+			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			//		EBPFSection:  "tracepoint/net/netif_receive_skb",
+			//		EBPFFuncName: "tracepoint__net__netif_receive_skb",
+			//		UID:          probeUID,
+			//	},
+			//},
 		},
 		ConstantEditors: e.offsets,
 	}
@@ -252,7 +247,7 @@ func (e *ebpfProgram) Start() error {
 		s.Start()
 	}
 
-	e.setupMapCleaner()
+	//e.setupMapCleaner()
 
 	return nil
 }
@@ -267,31 +262,31 @@ func (e *ebpfProgram) Close() error {
 	return err
 }
 
-func (e *ebpfProgram) setupMapCleaner() {
-	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-
-	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*ebpfHttpTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
-			return (now - updated) > ttl
-		}
-
-		started := int64(httpTxn.RequestStarted())
-		return started > 0 && (now-started) > ttl
-	})
-
-	e.mapCleaner = httpMapCleaner
-}
+//func (e *ebpfProgram) setupMapCleaner() {
+//	httpMap, _, _ := e.GetMap(httpInFlightMap)
+//	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
+//	if err != nil {
+//		log.Errorf("error creating map cleaner: %s", err)
+//		return
+//	}
+//
+//	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+//	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
+//		httpTxn, ok := val.(*ebpfHttpTx)
+//		if !ok {
+//			return false
+//		}
+//
+//		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
+//			return (now - updated) > ttl
+//		}
+//
+//		started := int64(httpTxn.RequestStarted())
+//		return started > 0 && (now-started) > ttl
+//	})
+//
+//	e.mapCleaner = httpMapCleaner
+//}
 
 func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
 	// TODO: Add runtime compilation support
