@@ -9,6 +9,8 @@
 package kafka
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -31,6 +33,10 @@ var (
 
 func TestSanity(t *testing.T) {
 	monitor, err := NewMonitor(config.New(), nil, nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
 }
 
 //// TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel

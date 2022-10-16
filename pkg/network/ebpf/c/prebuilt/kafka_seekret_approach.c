@@ -1,41 +1,79 @@
-// +build ignore
+//#include <bpf/bpf_core_read.h>
+//#include <bpf/bpf_helpers.h>
+//#include <bpf/bpf_tracing.h>
+//#include <bpf/bpf_endian.h>
 
-#include "vmlinux.h"
-#include <bpf/bpf_core_read.h>
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include <bpf/bpf_endian.h>
+#include "kconfig.h"
+#include "tracer.h"
+#include "bpf_telemetry.h"
+#include "ip.h"
+#include "ipv6.h"
+#include "http.h"
+#include "https.h"
+#include "http-buffer.h"
+#include "sockfd.h"
+#include "tags-types.h"
+#include "sock.h"
+#include "port_range.h"
 
-#include "defs.h"
-#include "helpers.h"
-#include "maps.h"
-#include "structs.h"
+#include "kafka/seekret-approach/defs.h"
+#include "kafka/seekret-approach/helpers.h"
+#include "kafka/seekret-approach/maps.h"
+//#include "structs.h"
 
-SEC("tracepoint/sys_enter_bind")
-int tracepoint__sys_enter_bind(struct trace_event_raw_sys_enter *ctx)
-{
-    uint64_t id = bpf_get_current_pid_tgid();
-    struct bind_args_t bind_args = {};
+// Need to use tcp_sendmsg to create the conn_tuple struct so the tracepoint can use it later
 
-    bind_args.addr = (const struct sockaddr*)ctx->args[1];
-    bpf_map_update_elem(&active_bind_args_map, &id, &bind_args, BPF_ANY);
-
-    return 0;
-}
-
-SEC("tracepoint/sys_exit_bind")
-int tracepoint__sys_exit_bind(struct trace_event_raw_sys_exit *ctx)
-{
-    uint64_t id = bpf_get_current_pid_tgid();
-
-    const struct bind_args_t* bind_args = bpf_map_lookup_elem(&active_bind_args_map, &id);
-    if (bind_args != NULL) {
-        process_syscall_bind(ctx, id, ctx->ret, bind_args);
-        bpf_map_delete_elem(&active_bind_args_map, &id);
-    }
-
-    return 0;
-}
+//SEC("kprobe/tcp_sendmsg")
+//int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
+//    u64 pid_tgid = bpf_get_current_pid_tgid();
+//    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
+//    struct sock *parm1 = (struct sock *)PT_REGS_PARM1(ctx);
+//    struct sock *skp = parm1;
+//    bpf_map_update_with_telemetry(tcp_sendmsg_args_for_kafka, &pid_tgid, &skp, BPF_ANY);
+//    return 0;
+//}
+//
+//EC("kretprobe/tcp_sendmsg")
+//int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
+//    u64 pid_tgid = bpf_get_current_pid_tgid();
+//    struct sock **skpp = (struct sock **)bpf_map_lookup_elem(&tcp_sendmsg_args_for_kafka, &pid_tgid);
+//    if (!skpp) {
+//        log_debug("kretprobe/tcp_sendmsg: sock not found\n");
+//        return 0;
+//    }
+//
+//    struct sock *skp = *skpp;
+//    bpf_map_delete_elem(&tcp_sendmsg_args_for_kafka, &pid_tgid);
+//
+//    int sent = PT_REGS_RC(ctx);
+//    if (sent < 0) {
+//        log_debug("kretprobe/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
+//        return 0;
+//    }
+//
+//    if (!skp) {
+//        return 0;
+//    }
+//
+//    log_debug("kretprobe/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %x\n", pid_tgid, sent, skp);
+//    conn_tuple_t t = {};
+//    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+//        return 0;
+//    }
+//
+//
+//    handle_tcp_stats(&t, skp, 0);
+//
+//    // I assume here that t is a valid conn_tuple
+//    bpf_map_update_elem(&current_conn_tuple, &pid_tgid, &t, BPF_ANY);
+//    return 0;
+//
+////    __u32 packets_in = 0;
+////    __u32 packets_out = 0;
+////    get_tcp_segment_counts(skp, &packets_in, &packets_out);
+////
+////    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+//}
 
 SEC("tracepoint/sys_enter_connect")
 int tracepoint__sys_enter_connect(struct trace_event_raw_sys_enter *ctx)
@@ -179,7 +217,7 @@ int tracepoint__sys_enter_sendto(struct trace_event_raw_sys_enter *ctx)
     uint64_t id = bpf_get_current_pid_tgid();
     int sockfd = (int)ctx->args[0];
     char* buf = (char*)ctx->args[1];
-    size_t len =  (size_t)ctx->args[2];
+    //size_t len =  (size_t)ctx->args[2];
     const struct sockaddr* dest_addr = (const struct sockaddr*)ctx->args[4];
     if (dest_addr != NULL) {
         struct connect_args_t connect_args = {};
@@ -224,7 +262,12 @@ int tracepoint__sys_enter_sendmsg(struct trace_event_raw_sys_enter *ctx)
     int sockfd = (int)ctx->args[0];
     const struct user_msghdr* msghdr = (const struct user_msghdr*)ctx->args[1];
     if (msghdr != NULL) {
-        void *msg_name = BPF_CORE_READ_USER(msghdr, msg_name);
+
+        //void *msg_name = BPF_CORE_READ_USER(msghdr, msg_name);
+        void *msg_name;
+        bpf_probe_read_user(&return_value, sizeof(return_value), (void*)&(sock->__sk_common.skc_v6_daddr));
+        return return_value;
+
         if (msg_name != NULL) {
             struct connect_args_t connect_args = {};
             connect_args.fd = sockfd;
