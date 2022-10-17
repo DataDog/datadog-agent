@@ -32,7 +32,7 @@ type telemetry struct {
 
 func newTelemetry() (*telemetry, error) {
 	metricGroup := libtelemetry.NewMetricGroup(
-		"http",
+		"usm.http",
 		libtelemetry.OptExpvar,
 		libtelemetry.OptMonotonic,
 	)

@@ -13,7 +13,7 @@ import (
 )
 
 // common prefix used across all statsd metric
-const statsdPrefix = "datadog.system_probe.network_tracer."
+const statsdPrefix = "datadog.network_tracer."
 
 var statsdDelta deltaCalculator
 

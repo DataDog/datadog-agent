@@ -86,7 +86,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		)
 
 		telemetry.NewMetric(
-			"http.orphan_aggregations",
+			"usm.http.orphan_aggregations",
 			telemetry.OptMonotonic,
 			telemetry.OptExpvar,
 			telemetry.OptStatsd,

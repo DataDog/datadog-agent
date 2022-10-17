@@ -142,16 +142,18 @@ func TestGetStats(t *testing.T) {
         "udp_sends_missed": 0,
         "udp_sends_processed": 162
       },
-      "http": {
-        "aggregations": 0,
-        "dropped": 0,
-        "hits1xx": 0,
-        "hits2xx": 0,
-        "hits3xx": 0,
-        "hits4xx": 0,
-        "hits5xx": 0,
-        "misses": 0,
-        "rejected": 0
+      "usm": {
+        "http": {
+          "aggregations": 0,
+          "dropped": 0,
+          "hits1xx": 0,
+          "hits2xx": 0,
+          "hits3xx": 0,
+          "hits4xx": 0,
+          "hits5xx": 0,
+          "misses": 0,
+          "rejected": 0
+        }
       },
       "kprobes": {},
       "state": {
@@ -198,7 +200,7 @@ func TestGetStats(t *testing.T) {
 	actual, _ := tr.GetStats()
 
 	for section, entries := range expected {
-		if section == "http" && !httpSupported {
+		if section == "usm" && !httpSupported {
 			// HTTP stats not supported on some systems
 			continue
 		}
