@@ -22,10 +22,10 @@ func TestCPULow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
 
-	_ = CPU(time.Now())
+	_, _ = CPU(time.Now())
 	globalCurrentInfo.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	c := CPU(time.Now())
+	c, _ := CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
 	// checking that CPU is low enough, this is theoretically flaky,
@@ -51,7 +51,7 @@ func TestCPUHigh(t *testing.T) {
 			runtime.GC()
 
 			done := make(chan struct{}, 1)
-			c := CPU(time.Now())
+			c, _ := CPU(time.Now())
 			globalCurrentInfo.cacheDelay = testDuration
 			for i := 0; i < tc.n; i++ {
 				go func() {
@@ -67,7 +67,7 @@ func TestCPUHigh(t *testing.T) {
 				}()
 			}
 			time.Sleep(testDuration)
-			c = CPU(time.Now())
+			c, _ = CPU(time.Now())
 			for i := 0; i < tc.n; i++ {
 				done <- struct{}{}
 			}
@@ -140,7 +140,7 @@ func BenchmarkCPU(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = CPU(time.Now())
+		_, _ = CPU(time.Now())
 	}
 }
 
