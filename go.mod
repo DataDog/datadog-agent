@@ -411,9 +411,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
-
 require (
+	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	k8s.io/apiextensions-apiserver v0.23.5 // indirect
 )
