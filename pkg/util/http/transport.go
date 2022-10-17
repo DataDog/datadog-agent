@@ -74,7 +74,6 @@ func minTLSVersionFromConfig(cfg config.Config) uint16 {
 		min = tls.VersionTLS13
 	default:
 		min = tls.VersionTLS12
-
 		if minTLSVersion != "" {
 			log.Warnf("Invalid `min_tls_version` %#v; using default", minTLSVersion)
 		}
