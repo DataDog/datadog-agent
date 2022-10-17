@@ -4,6 +4,7 @@
 #include <net/netfilter/nf_conntrack.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include "conntrack-types.h"
 #include "conntrack-maps.h"

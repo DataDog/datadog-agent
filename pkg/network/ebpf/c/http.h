@@ -1,6 +1,7 @@
 #ifndef __HTTP_H
 #define __HTTP_H
 
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"

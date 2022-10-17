@@ -2,6 +2,7 @@
 #define __SOCK_H
 
 #include "kconfig.h"
+#include "bpf_builtins.h"
 #include "defs.h"
 
 // source include/linux/socket.h

@@ -1,6 +1,7 @@
 #ifndef __CONN_TUPLE_H
 #define __CONN_TUPLE_H
 
+#include "bpf_builtins.h"
 #include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED

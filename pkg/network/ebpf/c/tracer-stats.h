@@ -1,6 +1,7 @@
 #ifndef __TRACER_STATS_H
 #define __TRACER_STATS_H
 
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"

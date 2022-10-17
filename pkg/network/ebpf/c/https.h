@@ -1,6 +1,7 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#include "bpf_builtins.h"
 #include "http-buffer.h"
 #include "http-types.h"
 #include "http-maps.h"

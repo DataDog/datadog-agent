@@ -3,6 +3,7 @@
 
 #include "kconfig.h"
 #include "bpf_helpers.h"
+#include "bpf_builtins.h"
 #include "bpf_endian.h"
 
 #include <uapi/linux/if_ether.h>

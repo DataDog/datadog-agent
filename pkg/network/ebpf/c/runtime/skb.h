@@ -11,6 +11,7 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
+#include "bpf_builtins.h"
 #include "ipv6.h"
 
 // returns the data length of the skb or a negative value in case of an error
