@@ -23,7 +23,7 @@ const (
 func getDockerLogsPath() string {
 	overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
-		return overridePath
+		return filepath.Join("containers", overridePath)
 	}
 
 	return basePath

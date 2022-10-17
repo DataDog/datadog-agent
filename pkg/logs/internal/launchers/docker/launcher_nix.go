@@ -30,7 +30,7 @@ func getDockerLogsPath() string {
 	if usePodmanLogs {
 		return podmanBasePath
 	} else if len(overridePath) > 0 {
-		return overridePath
+		return filepath.Join("containers", overridePath)
 	}
 
 	return basePath
