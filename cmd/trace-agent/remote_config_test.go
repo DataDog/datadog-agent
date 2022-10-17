@@ -152,6 +152,72 @@ func TestTags(t *testing.T) {
 	}
 }
 
+func TestEnv(t *testing.T) {
+
+	var tcs = []struct {
+		name                    string
+		tracerReq               string
+		cfg                     *config.AgentConfig
+		expectedUpstreamRequest string
+	}{
+		{
+			name:      "tracer env",
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"env":"test_env"}}}`,
+			cfg: &config.AgentConfig{
+				DefaultEnv: "prod",
+			},
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"env":"test_env","tags":[]}}}`,
+		},
+		{
+			name:      "agent env",
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"env":""}}}`,
+			cfg: &config.AgentConfig{
+				DefaultEnv: "prod",
+			},
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"env":"prod","tags":[]}}}`,
+		},
+		{
+			name:      "agent env no env field",
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{}}}`,
+			cfg: &config.AgentConfig{
+				DefaultEnv: "prod",
+			},
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"env":"prod","tags":[]}}}`,
+		},
+		{
+			name:                    "no tracer",
+			tracerReq:               `{"client":{"id":"test_client"}}`,
+			cfg:                     &config.AgentConfig{},
+			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			grpc := mockAgentSecureServer{}
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
+
+			var request pbgo.ClientGetConfigsRequest
+			err := json.Unmarshal([]byte(tc.expectedUpstreamRequest), &request)
+			assert.NoError(err)
+			grpc.On("ClientGetConfigs", mock.Anything, &request, mock.Anything).Return(&pbgo.ClientGetConfigsResponse{Targets: []byte("test")}, nil)
+
+			mux := http.NewServeMux()
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", tc.cfg))
+			server := httptest.NewServer(mux)
+
+			req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(tc.tracerReq))
+			req.Header.Set("Content-Type", "application/msgpack")
+			resp, err := http.DefaultClient.Do(req)
+			assert.Nil(err)
+			_, err = ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			assert.Nil(err)
+		})
+
+	}
+}
+
 type mockAgentSecureServer struct {
 	pbgo.AgentSecureClient
 	mock.Mock

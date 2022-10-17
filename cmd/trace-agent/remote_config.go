@@ -76,6 +76,9 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 			for _, tag := range getContainerTags(req, cfg, cidProvider) {
 				configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, tag)
 			}
+			if configsRequest.Client.ClientTracer.Env == "" {
+				configsRequest.Client.ClientTracer.Env = cfg.DefaultEnv
+			}
 		}
 		cfg, err := client.ClientGetConfigs(ctx, &configsRequest)
 		if err != nil {
