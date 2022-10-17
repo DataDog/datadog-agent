@@ -12,7 +12,6 @@ enum telemetry_counter
     missed_udp_close,
     udp_send_processed,
     udp_send_missed,
-    tcp_cleanup_rbuf_dup,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -36,8 +35,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     case udp_send_missed:
         __sync_fetch_and_add(&val->udp_sends_missed, 1);
         break;
-    case tcp_cleanup_rbuf_dup:
-        __sync_fetch_and_add(&val->tcp_cleanup_rbuf_dup, 1);
     }
 }
 

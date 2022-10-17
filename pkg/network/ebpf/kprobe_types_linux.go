@@ -45,12 +45,11 @@ type Batch struct {
 	Id  uint64
 }
 type Telemetry struct {
-	Tcp_sent_miscounts   uint64
-	Missed_tcp_close     uint64
-	Missed_udp_close     uint64
-	Udp_sends_processed  uint64
-	Udp_sends_missed     uint64
-	Tcp_cleanup_rbuf_dup uint64
+	Tcp_sent_miscounts  uint64
+	Missed_tcp_close    uint64
+	Missed_udp_close    uint64
+	Udp_sends_processed uint64
+	Udp_sends_missed    uint64
 }
 type PortBinding struct {
 	Netns     uint32

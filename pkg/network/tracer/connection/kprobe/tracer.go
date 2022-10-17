@@ -399,12 +399,11 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
-		"tcp_sent_miscounts":   int64(telemetry.Tcp_sent_miscounts),
-		"missed_tcp_close":     int64(telemetry.Missed_tcp_close),
-		"missed_udp_close":     int64(telemetry.Missed_udp_close),
-		"udp_sends_processed":  int64(telemetry.Udp_sends_processed),
-		"udp_sends_missed":     int64(telemetry.Udp_sends_missed),
-		"tcp_cleanup_rbuf_dup": int64(telemetry.Tcp_cleanup_rbuf_dup),
+		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
+		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
+		"missed_udp_close":    int64(telemetry.Missed_udp_close),
+		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
+		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
 	}
 
 	for k, v := range t.telemetry.get() {
