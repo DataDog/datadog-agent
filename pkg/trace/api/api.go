@@ -736,7 +736,7 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	rateCPU := 1.0
 	if r.conf.MaxCPU > 0 {
 		if cpuErr != nil {
-			log.Errorf("Unable to get CPU times: %v. Reusing previous value", cpuErr)
+			log.Errorf("Error retrieving current CPU usage: %v. Reusing previous value", cpuErr)
 		}
 		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
 		if rateCPU < 1 {
