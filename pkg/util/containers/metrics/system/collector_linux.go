@@ -261,21 +261,20 @@ func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(pare
 
 func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	// Limit is computed using min(CPUSet, CFS CPU Quota)
-	var limitPct float64
-	if cgs.CPUCount != nil {
-		limitPct = float64(*cgs.CPUCount) * 100
+	var limitPct *float64
+
+	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
+		limitPct = pointer.UIntToFloatPtr(*cgs.CPUCount * 100)
 	}
+
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
 		quotaLimitPct := 100 * (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
-		if quotaLimitPct < limitPct {
-			limitPct = quotaLimitPct
+		if limitPct == nil || quotaLimitPct < *limitPct {
+			limitPct = &quotaLimitPct
 		}
 	}
 
-	if limitPct != 0 {
-		return &limitPct
-	}
-	return nil
+	return limitPct
 }
 
 func buildPIDStats(cgs *cgroups.PIDStats) *provider.ContainerPIDStats {
