@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 )
 
 // FIXTURE
@@ -149,7 +149,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = scheduler.NewCheckWrapper(NewCheck())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
