@@ -24,17 +24,30 @@ const (
 	samplerconfig             apmsamplingRemoteConfigID = "samplerconfig"
 )
 
+type prioritySampler interface {
+	UpdateTargetTPS(targetTPS float64)
+	UpdateRemoteRates(updates []sampler.RemoteRateUpdate)
+}
+
+type errorsSampler interface {
+	UpdateTargetTPS(targetTPS float64)
+}
+
+type rareSampler interface {
+	SetEnabled(enabled bool)
+}
+
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
 	remoteClient          config.RemoteClient
-	prioritySampler       *sampler.PrioritySampler
-	rareSampler           *sampler.RareSampler
-	errorsSampler         *sampler.ErrorsSampler
+	prioritySampler       prioritySampler
+	errorsSampler         errorsSampler
+	rareSampler           rareSampler
 	agentConfig           *config.AgentConfig
 	remoteConfigPathRegex *regexp.Regexp
 }
 
-func New(conf *config.AgentConfig, prioritySampler *sampler.PrioritySampler, rareSampler *sampler.RareSampler, errorsSampler *sampler.ErrorsSampler) *RemoteConfigHandler {
+func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteSamplingClient == nil {
 		return nil
 	}
