@@ -103,7 +103,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 		}
 		schedulerQueuesCount.Add(1)
 	}
-	s.jobQueues[check.Interval()].addJob(&CheckWrapper{inner: check})
+	s.jobQueues[check.Interval()].addJob(check)
 
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueueMutex.Lock()

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 )
 
 // FIXTURE
@@ -110,7 +111,7 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
-	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
+	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"].Inner())
 
 	// schedule the same check twice
 	_, err = suite.c.RunCheck(ch)
@@ -148,7 +149,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = NewCheck()
+	suite.c.checks["bar"] = scheduler.NewCheckWrapper(NewCheck())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
@@ -246,7 +247,7 @@ func (suite *CollectorTestSuite) TestCancelledCheckCanSendMetrics() {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
 	defer demux.Stop(false)
 
-	flip := make(chan struct{})
+	flip := make(chan aggregator.Sender)
 	flop := make(chan struct{})
 
 	ch := &cancelledCheck{
@@ -258,40 +259,29 @@ func (suite *CollectorTestSuite) TestCancelledCheckCanSendMetrics() {
 	sender.DisableDefaultHostname(true)
 
 	suite.c.RunCheck(ch)
-	<-flip
 
-	suite.c.StopCheck(ch.ID())
-	<-flip
+	// Wait for Check#Run to start before cancelling the check: otherwise it may not run at all.
+	_ = <-flip
+
+	err := suite.c.StopCheck(ch.ID())
+	assert.NoError(suite.T(), err)
 
 	flop <- struct{}{}
-	<-flip
 
-	tries := 100
+	senderFromCheck := <-flip
+	assert.Equal(suite.T(), sender, senderFromCheck)
+
+	tries := 10
 	for tries > 0 {
 		new_sender, err := aggregator.GetSender(ch.ID())
 		assert.Nil(suite.T(), err)
 		ok := new_sender != sender
 		if !ok && tries > 0 {
 			tries--
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(time.Second)
 			continue
 		}
 		assert.True(suite.T(), ok)
-		break
-	}
-
-	tries = 100
-	for tries > 0 {
-		samples, _ := demux.Aggregator().GetSeriesAndSketches(time.Time{})
-		if len(samples) == 0 && tries > 0 {
-			tries--
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-
-		assert.Len(suite.T(), samples, 1)
-		assert.Equal(suite.T(), "", samples[0].Host)
-		assert.Equal(suite.T(), "post.cancel", samples[0].Name)
 		break
 	}
 }
@@ -302,7 +292,7 @@ func (suite *CollectorTestSuite) TestCancelledCheckDestroysSender() {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
 	defer demux.Stop(false)
 
-	flip := make(chan struct{})
+	flip := make(chan aggregator.Sender)
 	flop := make(chan struct{})
 
 	ch := &cancelledCheck{
@@ -314,39 +304,25 @@ func (suite *CollectorTestSuite) TestCancelledCheckDestroysSender() {
 	sender.DisableDefaultHostname(true)
 
 	suite.c.RunCheck(ch)
-	<-flip
+	_ = <-flip
 	flop <- struct{}{}
-	<-flip
+	senderFromCheck := <-flip
+	assert.Equal(suite.T(), sender, senderFromCheck)
 
-	suite.c.StopCheck(ch.ID())
-	<-flip
+	err := suite.c.StopCheck(ch.ID())
+	assert.NoError(suite.T(), err)
 
 	tries := 100
 	for tries > 0 {
 		new_sender, err := aggregator.GetSender(ch.ID())
 		assert.Nil(suite.T(), err)
 		ok := new_sender != sender
-		if !ok && tries > 0 {
+		if !ok && tries > 1 {
 			tries--
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		assert.True(suite.T(), ok)
-		break
-	}
-
-	tries = 100
-	for tries > 0 {
-		samples, _ := demux.Aggregator().GetSeriesAndSketches(time.Time{})
-		if len(samples) == 0 && tries > 0 {
-			tries--
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-
-		assert.Len(suite.T(), samples, 1)
-		assert.Equal(suite.T(), "", samples[0].Host)
-		assert.Equal(suite.T(), "post.cancel", samples[0].Name)
 		break
 	}
 }
@@ -357,24 +333,24 @@ func TestCollectorSuite(t *testing.T) {
 
 type cancelledCheck struct {
 	check.StubCheck
-	flip chan struct{}
+	flip chan aggregator.Sender
 	flop chan struct{}
 }
 
-func (c *cancelledCheck) Cancel() {
-	c.flip <- struct{}{}
-}
-
 func (c *cancelledCheck) Run() error {
-	c.flip <- struct{}{}
+	c.flip <- nil
+
 	<-c.flop
 	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
-	s.Gauge("post.cancel", 1, "", []string{})
-	s.Commit()
-	c.flip <- struct{}{}
+
+	// Best would be to send metrics and check if they come out
+	// right, but stopping a check also removes the check sampler,
+	// which may happen even before samples are read from a
+	// channel by the demux.
+	c.flip <- s
 
 	return nil
 }

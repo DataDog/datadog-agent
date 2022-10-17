@@ -36,7 +36,7 @@ type Collector struct {
 
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
-	checks    map[check.ID]check.Check
+	checks    map[check.ID]*scheduler.CheckWrapper
 
 	m sync.RWMutex
 }
@@ -44,7 +44,7 @@ type Collector struct {
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
 	c := &Collector{
-		checks:         make(map[check.ID]check.Check),
+		checks:         make(map[check.ID]*scheduler.CheckWrapper),
 		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
 	}
@@ -109,9 +109,11 @@ func (c *Collector) Stop() {
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
+func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
+
+	ch := scheduler.NewCheckWrapper(inner)
 
 	var emptyID check.ID
 
