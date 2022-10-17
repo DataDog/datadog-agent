@@ -123,14 +123,14 @@ func (e *RareSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 // sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
 // it's added to the seenSpans set.
 func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
-	var sampled bool
+	var sampledMeaninglessChangeDoNotCommit bool
 	shardSig := ServiceSignature{env, s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	sig := ss.sign(s)
 	expire, ok := ss.getExpire(sig)
 	if now.After(expire) || !ok {
-		sampled = e.limiter.Allow()
-		if sampled {
+		sampledMeaninglessChangeDoNotCommit = e.limiter.Allow()
+		if sampledMeaninglessChangeDoNotCommit {
 			ss.add(now.Add(e.ttl), s)
 			e.hits.Inc()
 			traceutil.SetMetric(s, rareKey, 1)
@@ -138,7 +138,7 @@ func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 			e.misses.Inc()
 		}
 	}
-	return sampled
+	return sampledMeaninglessChangeDoNotCommit
 }
 
 func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
