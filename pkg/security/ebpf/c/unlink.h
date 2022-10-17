@@ -150,6 +150,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             send_event(ctx, EVENT_UNLINK, event);
         }
+    } else {
+        if (mask_has_event(enabled_events, EVENT_RMDIR)) {
+            monitor_discarded(EVENT_RMDIR);
+        } else {
+            monitor_discarded(EVENT_UNLINK);
+        }
     }
 
     if (retval >= 0) {
