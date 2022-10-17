@@ -576,6 +576,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         }
     }
 
+    // increase mount ref
+    inc_mount_ref(event->proc_entry.executable.path_key.mount_id);
+
     struct pid_cache_t on_stack_pid_entry = event->pid_entry;
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
@@ -643,6 +646,11 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
+
+        // decrease mount ref
+        if (pc) {
+            dec_mount_ref(ctx, pc->entry.executable.path_key.mount_id);
+        }
     }
 
     // remove nr translations
