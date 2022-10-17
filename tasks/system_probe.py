@@ -23,7 +23,6 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
 DNF_TAG = "dnf"
 
 CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
