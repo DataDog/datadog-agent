@@ -55,7 +55,7 @@ kitchen_test_security_agent_x64:
         KITCHEN_OSVERS: "debian-10,debian-11"
         KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "oracle"
-        KITCHEN_OSVERS: "oracle-7-9"
+        KITCHEN_OSVERS: "oracle-7-9,oracle-8-2"
         KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_test_security_agent_arm64:
