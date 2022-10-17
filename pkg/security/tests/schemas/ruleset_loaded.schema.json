@@ -57,6 +57,9 @@
                 "version": {
                     "type": "string"
                 },
+                "expression": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string",
                     "enum": [
@@ -73,7 +76,8 @@
             },
             "required": [
                 "id",
-                "status"
+                "status",
+                "expression"
             ]
         }
     }
