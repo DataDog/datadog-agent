@@ -144,16 +144,20 @@ func TestBuildContainerMetrics(t *testing.T) {
 		{
 			name: "limit cpu count on parent",
 			cg: &cgroups.MockCgroup{
-				CPU: &cgroups.CPUStats{},
+				CPU: &cgroups.CPUStats{
+					CPUCount: pointer.UInt64Ptr(uint64(utilsystem.HostCPUCount())),
+				},
 				Parent: &cgroups.MockCgroup{
 					CPU: &cgroups.CPUStats{
-						CPUCount: pointer.UInt64Ptr(10),
+						CPUCount:        pointer.UInt64Ptr(uint64(utilsystem.HostCPUCount())),
+						SchedulerPeriod: pointer.UInt64Ptr(100),
+						SchedulerQuota:  pointer.UInt64Ptr(10),
 					},
 				},
 			},
 			want: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(1000),
+					Limit: pointer.Float64Ptr(10),
 				},
 				PID: &provider.ContainerPIDStats{},
 			},
