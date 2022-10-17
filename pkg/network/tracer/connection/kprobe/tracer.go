@@ -72,6 +72,11 @@ func newTelemetry() telemetry {
 
 // New creates a new tracer
 func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if config.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -91,7 +96,8 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
-		ConstantEditors: constants,
+		ConstantEditors:           constants,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 
 	runtimeTracer := false
