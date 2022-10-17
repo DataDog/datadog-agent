@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.0.0-20221003133413-0e997fad91c4
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1
-	github.com/DataDog/nikos v1.8.1-0.20221013103501-27cc890b1253
+	github.com/DataDog/nikos v1.8.1-0.20221017083706-8ecd2a35f404
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
@@ -415,21 +415,8 @@ require golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 
 require (
 	github.com/go-openapi/spec v0.20.3 // indirect
-	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/knqyf263/go-rpmdb v0.0.0-20220830120628-c11b1c45080a // indirect
-	github.com/paulcacheux/did-not-finish v0.0.0-20221013092324-8974a3a7b252 // indirect
-	github.com/remyoudompheng/bigfft v0.0.0-20220927061507-ef77025ab5aa // indirect
+	github.com/paulcacheux/did-not-finish v0.0.0-20221017083237-cc146096e00d // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	lukechampine.com/uint128 v1.2.0 // indirect
-	modernc.org/cc/v3 v3.40.0 // indirect
-	modernc.org/ccgo/v3 v3.16.9 // indirect
-	modernc.org/libc v1.20.3 // indirect
-	modernc.org/mathutil v1.5.0 // indirect
-	modernc.org/memory v1.4.0 // indirect
-	modernc.org/opt v0.1.3 // indirect
-	modernc.org/sqlite v1.19.1 // indirect
-	modernc.org/strutil v1.1.3 // indirect
-	modernc.org/token v1.0.1 // indirect
 )
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
