@@ -22,6 +22,7 @@ end
 
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
+print KernelOut.format(`cat /etc/image-id`)
 
 describe 'functional test running directly on host' do
   it 'successfully runs' do
