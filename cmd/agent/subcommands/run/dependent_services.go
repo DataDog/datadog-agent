@@ -13,7 +13,7 @@ import (
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
-	for cfg, configKey := range s.configKeys {
+	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
 			return true
 		}

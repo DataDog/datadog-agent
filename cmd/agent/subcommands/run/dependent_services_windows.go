@@ -23,7 +23,7 @@ type serviceInitFunc func() (err error)
 // Servicedef defines a service
 type Servicedef struct {
 	name       string
-	configKeys map[config.Config]string
+	configKeys map[string]config.Config
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -32,30 +32,30 @@ type Servicedef struct {
 var subservices = []Servicedef{
 	{
 		name: "apm",
-		configKeys: map[config.Config]string{
-			config.Datadog: "apm_config.enabled",
+		configKeys: map[string]config.Config{
+			"apm_config.enabled": config.Datadog,
 		},
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
 	},
 	{
 		name: "process",
-		configKeys: map[config.Config]string{
-			config.Datadog:     "process_config.enabled",
-			config.Datadog:     "process_config.process_collection.enabled",
-			config.Datadog:     "process_config.container_collection.enabled",
-			config.Datadog:     "process_config.process_discovery.enabled",
-			config.SystemProbe: "network_config.enabled",
-			config.SystemProbe: "system_probe_config.enabled",
+		configKeys: map[string]config.Config{
+			"process_config.enabled":                      config.Datadog,
+			"process_config.process_collection.enabled":   config.Datadog,
+			"process_config.container_collection.enabled": config.Datadog,
+			"process_config.process_discovery.enabled":    config.Datadog,
+			"network_config.enabled":                      config.SystemProbe,
+			"system_probe_config.enabled":                 config.SystemProbe,
 		},
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
 	},
 	{
 		name: "sysprobe",
-		configKeys: map[config.Config]string{
-			config.SystemProbe: "network_config.enabled",
-			config.SystemProbe: "system_probe_config.enabled",
+		configKeys: map[string]config.Config{
+			"network_config.enabled":      config.SystemProbe,
+			"system_probe_config.enabled": config.SystemProbe,
 		},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,
