@@ -9,11 +9,13 @@
 package main
 
 import (
+	"os"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 )
 
 func main() {
-	runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands()))
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
 }

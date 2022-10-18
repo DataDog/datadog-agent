@@ -19,17 +19,17 @@ import (
 // for use in `main` functions, supplying the necessary error-handling and
 // exiting the process with an appropriate status.
 //
-// This function does not return.
-func Run(cmd *cobra.Command) {
+// This function returns the appropriate exit status (0 or -1).
+func Run(cmd *cobra.Command) int {
 	// always silence errors, since they are handled here
 	cmd.SilenceErrors = true
 
 	err := cmd.Execute()
 	if err != nil {
 		displayError(err, cmd.ErrOrStderr())
-		os.Exit(-1)
+		return -1
 	}
-	os.Exit(0)
+	return 0
 }
 
 // displayError handles displaying errors from the running command.  Typically
