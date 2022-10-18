@@ -13,6 +13,7 @@
 #include "bpf_endian.h"
 #include "bpf_builtins.h"
 #include "ipv6.h"
+#include "sock.h"
 
 static __always_inline __u64 offset_sk_buff_head() {
      __u64 val = 0;
@@ -24,6 +25,10 @@ static __always_inline __u64 offset_sk_buff_transport_header() {
      __u64 val = 0;
      LOAD_CONSTANT("offset_sk_buff_transport_header", val);
      return val;
+}
+
+static __always_inline int get_proto2(conn_tuple_t *t) {
+    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
 }
 
 // returns the data length of the skb or a negative value in case of an error
@@ -103,7 +108,7 @@ static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
         return ret;
     }
 
-    int proto = get_proto(tup);
+    int proto = get_proto2(tup);
     if (proto == CONN_TYPE_UDP) {
         struct udphdr udph;
         bpf_memset(&udph, 0, sizeof(struct udphdr));

@@ -58,12 +58,6 @@ BPF_HASH_MAP(conn_tup_by_tls_conn, __u32, conn_tuple_t, 1024)
 /* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
 BPF_PERCPU_ARRAY_MAP(task_thread, __u32, struct thread_struct, 1)
 
-/* Map used to store the sub program actually used by the socket filter.
- * This is done to avoid memory limitation when attaching a filter to
- * a socket.
- * See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters */
-BPF_PROG_ARRAY(http_progs, 1)
-
 /* This map used for notifying userspace of a shared library being loaded */
 BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32, 0)
 

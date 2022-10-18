@@ -15,14 +15,15 @@
 #include "go-tls-goid.h"
 #include "go-tls-location.h"
 #include "go-tls-conn.h"
+#include "protocol-dispatcher-helpers.h"
+#include "skb.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-SEC("socket/http_filter_entry")
-int socket__http_filter_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+// The entrypoint for all packets classification & decoding in universal service monitoring.
+SEC("socket/protocol_dispatcher")
+int socket__protocol_dispatcher(struct __sk_buff *skb) {
+    protocol_dispatcher_entrypoint(skb);
     return 0;
 }
 
@@ -47,6 +48,12 @@ int socket__http_filter(struct __sk_buff *skb) {
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
+
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    log_debug("http2 entry point!\n");
     return 0;
 }
 
@@ -870,4 +877,44 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
     #else
         #error "Unsupported platform"
     #endif
+}
+
+// Represents the parameters being passed to the tracepoint net/net_dev_queue
+struct net_dev_queue_ctx {
+    u64 unused;
+    struct sk_buff* skb;
+};
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+    struct sock* sk;
+    bpf_probe_read(&sk, sizeof(struct sock*), &skb->sk);
+    if (!sk) {
+        return 0;
+    }
+
+    conn_tuple_t skb_tup;
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return 0;
+    }
+
+    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+
+    bpf_map_update_elem(&skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
+
+    return 0;
 }

@@ -14,6 +14,10 @@
 #include "bpf_builtins.h"
 #include "ipv6.h"
 
+static __always_inline int get_proto2(conn_tuple_t *t) {
+    return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
+}
+
 // returns the data length of the skb or a negative value in case of an error
 static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
     unsigned char *head = NULL;
@@ -94,7 +98,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         return ret;
     }
 
-    int proto = get_proto(tup);
+    int proto = get_proto2(tup);
     if (proto == CONN_TYPE_UDP) {
         struct udphdr udph;
         bpf_memset(&udph, 0, sizeof(struct udphdr));

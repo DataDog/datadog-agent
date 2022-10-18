@@ -63,6 +63,26 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return false;
 }
 
+// Encapsulates the access to the connection protocol map.
+static __always_inline protocol_t * get_cached_protocol(conn_tuple_t *tup) {
+    return bpf_map_lookup_elem(&connection_protocol, tup);
+}
+
+// Returns true if the cached protocol is NULL, PROTOCOL_UNCLASSIFIED, or PROTOCOL_UNKNOWN.
+static __always_inline bool should_classify_protocol(protocol_t *protocol) {
+    if (protocol == NULL) {
+        return true;
+    }
+
+    return *protocol == PROTOCOL_UNKNOWN || *protocol == PROTOCOL_UNCLASSIFIED;
+}
+
+// Saves the protocol in the relevant map.
+static __always_inline void cache_protocol(conn_tuple_t *tup, protocol_t protocol) {
+    log_debug("[protocol dispatcher]: Calling protocol: %d\n", protocol);
+    bpf_map_update_with_telemetry(connection_protocol, tup, &protocol, BPF_ANY);
+}
+
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
 static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
@@ -81,15 +101,19 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
     log_debug("[protocol classification]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
 }
 
-// Decides if the protocol_classifier should process the packet. We process not empty TCP packets.
-static __always_inline bool should_process_packet(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup) {
-    // we're only interested in TCP traffic
-    if (!(tup->metadata & CONN_TYPE_TCP)) {
-        return false;
-    }
+// Returns true if the packet is TCP.
+static __always_inline bool is_tcp(conn_tuple_t *tup) {
+    return (tup->metadata&CONN_TYPE_TCP);
+}
 
-    bool empty_payload = skb_info->data_off == skb->len;
-    return !empty_payload;
+// Returns true if the payload is empty.
+static __always_inline bool is_payload_empty(struct __sk_buff *skb, skb_info_t *skb_info) {
+    return skb_info->data_off == skb->len;
+}
+
+// Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
+static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
+    return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
 }
 
 // The method is used to read the data buffer from the __sk_buf struct. Similar implementation as `read_into_buffer_skb`
@@ -222,8 +246,8 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    // We process a non empty TCP packets, rather than that - we skip the packet.
-    if (!should_process_packet(skb, &skb_info, &skb_tup)) {
+    // We support non empty TCP payloads for classification at the moment.
+    if (!is_tcp(&skb_tup) || is_payload_empty(skb, &skb_info)) {
         return;
     }
 
