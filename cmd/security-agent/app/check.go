@@ -18,7 +18,6 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -44,7 +43,17 @@ var (
 	}{}
 )
 
-func setupCheckCmd(cmd *cobra.Command) {
+// CheckCmd returns a cobra command to run security agent checks
+func CheckCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "check",
+		Short: "Run compliance check(s)",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCheck(cmd, args)
+		},
+	}
+
 	cmd.Flags().StringVarP(&checkArgs.framework, "framework", "", "", "Framework to run the checks from")
 	cmd.Flags().StringVarP(&checkArgs.file, "file", "f", "", "Compliance suite file to read rules from")
 	cmd.Flags().BoolVarP(&checkArgs.verbose, "verbose", "v", false, "Include verbose details")
@@ -53,23 +62,11 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
 	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
-}
 
-// CheckCmd returns a cobra command to run security agent checks
-func CheckCmd(confPathArrayGetter func() []string) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run compliance check(s)",
-		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, confPathArrayGetter(), args)
-		},
-	}
-	setupCheckCmd(cmd)
 	return cmd
 }
 
-func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
+func runCheck(cmd *cobra.Command, args []string) error {
 	err := configureLogger()
 	if err != nil {
 		return err
@@ -77,17 +74,6 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
-	}
-
-	// We need to set before calling `SetupConfig`
-	configName := "datadog"
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		configName = "datadog-cluster"
-	}
-
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles(configName, confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
 	}
 
 	options := []checks.BuilderOption{}
@@ -266,7 +252,5 @@ func (r *RunCheckReporter) dumpReports() error {
 }
 
 func init() {
-	complianceCmd.AddCommand(CheckCmd(func() []string {
-		return confPathArray
-	}))
+	complianceCmd.AddCommand(CheckCmd())
 }

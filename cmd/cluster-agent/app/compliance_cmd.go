@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 )
 
 var (
@@ -22,8 +23,12 @@ var (
 )
 
 func init() {
-	complianceCmd.AddCommand(app.CheckCmd(func() []string {
-		return []string{confPath}
-	}))
+	checkCmd := app.CheckCmd()
+	checkCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		// Read configuration files received from the command line arguments '-c'
+		return common.MergeConfigurationFiles("datadog-cluster", []string{confPath}, cmd.Flags().Lookup("cfgpath").Changed)
+	}
+
+	complianceCmd.AddCommand(checkCmd)
 	ClusterAgentCmd.AddCommand(complianceCmd)
 }
