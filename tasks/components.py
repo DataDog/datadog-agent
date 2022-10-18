@@ -115,7 +115,7 @@ def make_codeowners(codeowners_lines, bundles):
 
     # pass through the codeowners lines up to and including "# BEGIN COMPONENTS"
     for line in codeowners_lines:
-        line = line.rstrip("\n")
+        line = line
         yield line
         if line == "# BEGIN COMPONENTS":
             break
@@ -135,20 +135,26 @@ def make_codeowners(codeowners_lines, bundles):
         if c.team:
             yield f'/{c.path} @DataDog/{c.team}'
 
-    # drop lines from the existin codeowners until "# END COMPONENTS"
+    # drop lines from the existing codeowners until "# END COMPONENTS"
     for line in codeowners_lines:
-        line = line.rstrip("\n")
+        line = line
         if line == "# END COMPONENTS":
             yield line
             break
 
     # pass through the rest of the file
     for line in codeowners_lines:
-        yield line.rstrip("\n")
+        yield line
+
+    # ensure there's a trailing newline in the file
+    yield ""
 
 
 @task
 def lint_components(ctx, fix=False):
+    """
+    Verify (or with --fix, ensure) component-related things are correct.
+    """
     bundles, ok = get_components_and_bundles(ctx)
     fixable = False
 
@@ -170,7 +176,7 @@ def lint_components(ctx, fix=False):
     filename = ".github/CODEOWNERS"
     with open(filename, "r") as f:
         current = f.read()
-    codeowners = '\n'.join(make_codeowners(current.split('\n'), bundles))
+    codeowners = '\n'.join(make_codeowners(current.splitlines(), bundles))
     if fix:
         with open(".github/CODEOWNERS", "w") as f:
             f.write(codeowners)
