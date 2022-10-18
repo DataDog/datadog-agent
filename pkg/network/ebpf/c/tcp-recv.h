@@ -34,17 +34,6 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_recvmsg/pre_4_1_0")
-int kprobe__tcp_recvmsg__pre_4_1_0(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_recvmsg: pid_tgid: %d\n", pid_tgid);
-    void *parm2 = (void*)PT_REGS_PARM2(ctx);
-    struct sock* skp;
-    bpf_probe_read_with_telemetry(&skp, sizeof(skp), &parm2);
-    bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
-    return 0;
-}
-
 SEC("kretprobe/tcp_recvmsg")
 int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
