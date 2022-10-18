@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Remote Rates are deprecated.
+// They are not used by any customer in prod and are to be removed.
+
 package sampler
 
 import (
@@ -66,8 +69,6 @@ func newRemoteRates(client config.RemoteClient, maxTPS float64, agentVersion str
 }
 
 func (r *RemoteRates) onUpdate(updates []RemoteRateUpdate) {
-	// TODO: We don't have a version per product, yet. But, we will have it in the next version.
-	// In the meantime we will just use a version of one of the config files.
 	version := updates[0].Version
 
 	log.Debugf("fetched config version %d from remote config management", version)
