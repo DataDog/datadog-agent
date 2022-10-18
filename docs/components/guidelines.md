@@ -11,3 +11,5 @@ If a situation arises that contradicts the guidelines, then we can update the gu
 * [Using Components](./using.md)
 * [Defining Bundles](./defining-bundles.md)
 * [Defining Apps](./defining-apps.md)
+* [Registrations](./registrations.md)
+* [Subscriptions](./subscriptions.md)
