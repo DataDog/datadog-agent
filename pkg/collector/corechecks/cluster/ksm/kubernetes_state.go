@@ -455,7 +455,6 @@ func (k *KSMCheck) Run() error {
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
 	k.cancel()
-	k.CommonCancel()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
