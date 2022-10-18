@@ -24,7 +24,7 @@ import (
 
 const (
 	// Minimum value for runtime_security_config.activity_dump.max_dump_size
-	MinMaxDumSize = 10
+	MinMaxDumSize = 100
 )
 
 // Policy represents a policy file in the configuration file
