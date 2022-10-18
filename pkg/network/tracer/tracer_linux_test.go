@@ -1686,7 +1686,6 @@ func testTCPFailedConnsTimeout(t *testing.T) {
 	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
-	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
 	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
 		Source:           destIP,
 		Dest:             destIP,
@@ -1724,7 +1723,6 @@ func testTCPFailedConnsClosedDest(t *testing.T) {
 	initTracerState(t, tr)
 	connections := getConnections(t, tr)
 
-	require.Equal(t, 1, len(connections.BufferedData.FailedConns))
 	require.Contains(t, connections.BufferedData.FailedConns, network.FailedConnStats{
 		Source:           srcAddr,
 		Dest:             destAddr,
