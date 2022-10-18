@@ -113,7 +113,6 @@ func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	for _, snmpIPconfig := range ipAddressConfigs {
 		if snmpIPconfig.IPAddress == ip_address {
 			return snmpIPconfig
-			//this works but need to find a better way to do the same work in one loop
 		}
 	}
 	//check if the ip address is a part of a network/subnet
