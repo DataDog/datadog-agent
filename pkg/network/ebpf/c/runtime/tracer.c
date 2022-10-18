@@ -86,29 +86,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
-SEC("kprobe/tcp_cleanup_rbuf")
-int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    int copied = (int)PT_REGS_PARM2(ctx);
-    if (copied < 0) {
-        return 0;
-    }
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
-
-    bpf_probe_read_kernel_with_telemetry(&packets_out, sizeof(packets_out), &tcp_sk(sk)->segs_out);
-    bpf_probe_read_kernel_with_telemetry(&packets_in, sizeof(packets_in), &tcp_sk(sk)->segs_in);
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, sk, 0);
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
-}
-
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
     struct sock *sk;

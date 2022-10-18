@@ -301,8 +301,6 @@ int kretprobe__ip_make_skb(struct pt_regs *ctx) {
 // We can only get the accurate number of copied bytes from the return value, so we pass our
 // sock* pointer from the kprobe to the kretprobe via a map (udp_recv_sock) to get all required info
 //
-// The same issue exists for TCP, but we can conveniently use the downstream function tcp_cleanup_rbuf
-//
 // On UDP side, no similar function exists in all kernel versions, though we may be able to use something like
 // skb_consume_udp (v4.10+, https://elixir.bootlin.com/linux/v4.10/source/net/ipv4/udp.c#L1500)
 #define handle_udp_recvmsg(sk, msg, flags, udp_sock_map)           \
