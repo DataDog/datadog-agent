@@ -19,6 +19,7 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -26,6 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
+
+func areCGroupADsEnabled(c *config.Config) bool {
+	return c.ActivityDumpTracedCgroupsCount > 0
+}
 
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
