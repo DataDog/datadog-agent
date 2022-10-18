@@ -191,7 +191,7 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
-	sync.RWMutex
+	sync.Mutex
 	state  *atomic.Int64
 	probe  *Probe
 	client statsd.ClientInterface
@@ -279,8 +279,8 @@ func (nr *NamespaceResolver) ResolveNetworkNamespace(nsID uint32) *NetworkNamesp
 		return nil
 	}
 
-	nr.RLock()
-	defer nr.RUnlock()
+	nr.Lock()
+	defer nr.Unlock()
 
 	if ns, found := nr.networkNamespaces.Get(nsID); found {
 		return ns.(*NetworkNamespace)
@@ -492,8 +492,8 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 
 // SendStats sends metrics about the current state of the namespace resolver
 func (nr *NamespaceResolver) SendStats() error {
-	nr.RLock()
-	defer nr.RUnlock()
+	nr.Lock()
+	defer nr.Unlock()
 
 	networkNamespacesCount := float64(nr.networkNamespaces.Len())
 	if networkNamespacesCount > 0 {
@@ -553,8 +553,8 @@ type NetworkNamespaceDump struct {
 }
 
 func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamespaceDump {
-	nr.RLock()
-	defer nr.RUnlock()
+	nr.Lock()
+	defer nr.Unlock()
 
 	var handle *os.File
 	var ntl *manager.NetlinkSocket
