@@ -64,7 +64,7 @@ func TestDisablingProtocolClassification(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.False(t, cfg.ProtocolClassification)
+		assert.False(t, cfg.ProtocolClassificationEnabled)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestDisablingProtocolClassification(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.False(t, cfg.ProtocolClassification)
+		assert.False(t, cfg.ProtocolClassificationEnabled)
 	})
 }
 

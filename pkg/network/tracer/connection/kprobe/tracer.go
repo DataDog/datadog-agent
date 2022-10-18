@@ -82,7 +82,10 @@ func newTelemetry() telemetry {
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
 // The kernel has to be newer than 4.5.0 since we are using bpf_skb_load_bytes method to read from the socket filter.
-func ClassificationSupported() bool {
+func ClassificationSupported(config *config.Config) bool {
+	if !config.ProtocolClassificationEnabled {
+		return false
+	}
 	currentKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
@@ -161,7 +164,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	m.DumpHandler = dumpMapsHandler
 
 	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported() {
+	if ClassificationSupported(config) {
 		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
 			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
 			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],

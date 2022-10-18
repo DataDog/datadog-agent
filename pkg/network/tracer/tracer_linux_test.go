@@ -57,8 +57,8 @@ func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
 }
 
-func classificationSupported() bool {
-	return kprobe.ClassificationSupported()
+func classificationSupported(config *config.Config) bool {
+	return kprobe.ClassificationSupported(config)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -117,7 +117,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, config, network.ProtocolUnknown, conn.Protocol)
 	m := conn.MonotonicSum()
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 0, int(m.RecvBytes))
@@ -127,8 +127,9 @@ func TestTCPRemoveEntries(t *testing.T) {
 }
 
 func TestTCPRetransmit(t *testing.T) {
+	cfg := testConfig()
 	// Enable BPF-based system probe
-	tr, err := NewTracer(testConfig())
+	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,7 @@ func TestTCPRetransmit(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 
 	m := conn.MonotonicSum()
 	assert.Equal(t, 100*clientMessageSize, int(m.SentBytes))
@@ -1446,8 +1447,9 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 }
 
 func TestSendfileRegression(t *testing.T) {
+	cfg := testConfig()
 	// Start tracer
-	tr, err := NewTracer(testConfig())
+	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
@@ -1506,7 +1508,7 @@ func TestSendfileRegression(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
 	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSum().SentBytes), "sendfile data wasn't properly traced")
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 }
 
 func TestSendfileError(t *testing.T) {
@@ -1696,7 +1698,8 @@ func GetFreePort() (string, error) {
 }
 
 func TestProtocolClassification(t *testing.T) {
-	if !classificationSupported() {
+	cfg := testConfig()
+	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
 	}
 
@@ -1850,7 +1853,7 @@ func TestProtocolClassification(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr, err := NewTracer(testConfig())
+			tr, err := NewTracer(cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1889,11 +1892,11 @@ func TestProtocolClassification(t *testing.T) {
 			// Verify connection directions
 			conn := outgoingConns[0]
 			assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
-			assertConnectionProtocol(t, tt.want, conn.Protocol)
+			assertConnectionProtocol(t, cfg, tt.want, conn.Protocol)
 
 			conn = incomingConns[0]
 			assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
-			assertConnectionProtocol(t, tt.want, conn.Protocol)
+			assertConnectionProtocol(t, cfg, tt.want, conn.Protocol)
 		})
 	}
 }

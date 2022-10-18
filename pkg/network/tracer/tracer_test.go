@@ -217,8 +217,9 @@ func TestGetStats(t *testing.T) {
 }
 
 func TestTCPSendAndReceive(t *testing.T) {
+	cfg := testConfig()
 	// Enable BPF-based system probe
-	tr, err := NewTracer(testConfig())
+	tr, err := NewTracer(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +279,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
@@ -308,8 +309,9 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cfg := testConfig()
 	// Enable BPF-based system probe
-	tr, err := NewTracer(testConfig())
+	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
 
@@ -332,7 +334,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
@@ -389,7 +391,7 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 	assert.True(t, conn.IntraHost)
 
 	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
@@ -543,12 +545,12 @@ func TestTCPConnsReported(t *testing.T) {
 	srvConn, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	require.True(t, ok)
 	// No data was sent, so unclassified.
-	assertConnectionProtocol(t, network.ProtocolUnclassified, srvConn.Protocol)
+	assertConnectionProtocol(t, config, network.ProtocolUnclassified, srvConn.Protocol)
 	// Client-side
 	clientConn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
 	// No data was sent, so unclassified.
-	assertConnectionProtocol(t, network.ProtocolUnclassified, clientConn.Protocol)
+	assertConnectionProtocol(t, config, network.ProtocolUnclassified, clientConn.Protocol)
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -598,7 +600,7 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	if assert.True(t, ok, "unable to find incoming connection") {
 		assert.Equal(t, network.INCOMING, incoming.Direction)
 		// UDP traffic is not classified.
-		assertConnectionProtocol(t, network.ProtocolUnclassified, incoming.Protocol)
+		assertConnectionProtocol(t, cfg, network.ProtocolUnclassified, incoming.Protocol)
 
 		// make sure the inverse values are seen for the other message
 		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSum().SentBytes), "incoming sent")
@@ -610,7 +612,7 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	if assert.True(t, ok, "unable to find outgoing connection") {
 		assert.Equal(t, network.OUTGOING, outgoing.Direction)
 		// UDP traffic is not classified.
-		assertConnectionProtocol(t, network.ProtocolUnclassified, outgoing.Protocol)
+		assertConnectionProtocol(t, cfg, network.ProtocolUnclassified, outgoing.Protocol)
 
 		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSum().SentBytes), "outgoing sent")
 		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicSum().RecvBytes), "outgoing recv")
@@ -1312,7 +1314,7 @@ func TestTCPEstablished(t *testing.T) {
 	assert.Equal(t, uint32(1), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
 	// Raw protocol, classified as unknown.
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 
 	c.Close()
 	// Wait for the connection to be sent from the perf buffer
@@ -1322,7 +1324,7 @@ func TestTCPEstablished(t *testing.T) {
 	conn, ok = findConnection(laddr, raddr, connections)
 	require.True(t, ok)
 	// Raw protocol, classified as unknown.
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
 }
@@ -1359,7 +1361,7 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	conn, ok := findConnection(laddr, raddr, connections)
 
 	require.True(t, ok)
-	assertConnectionProtocol(t, network.ProtocolUnknown, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 
 	m := conn.MonotonicSum()
 	assert.Equal(t, uint32(0), m.TCPEstablished)
@@ -1390,7 +1392,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 
 	require.Len(t, outgoing, 1)
 	// UDP traffic is not classified
-	assertConnectionProtocol(t, network.ProtocolUnclassified, outgoing[0].Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolUnclassified, outgoing[0].Protocol)
 	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSum().SentBytes))
 }
 
@@ -1589,11 +1591,11 @@ func TestTCPDirection(t *testing.T) {
 	// Verify connection directions
 	conn := outgoingConns[0]
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
-	assertConnectionProtocol(t, network.ProtocolHTTP, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolHTTP, conn.Protocol)
 
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
-	assertConnectionProtocol(t, network.ProtocolHTTP, conn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolHTTP, conn.Protocol)
 }
 
 func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
@@ -1689,8 +1691,8 @@ func findConnectionForHTTPRequest(httpKey http.Key, serverPort int, conns *netwo
 	return httpConn
 }
 
-func assertConnectionProtocol(t *testing.T, expectedProtocol network.ProtocolType, protocol network.ProtocolType) {
-	if classificationSupported() {
+func assertConnectionProtocol(t *testing.T, config *config.Config, expectedProtocol network.ProtocolType, protocol network.ProtocolType) {
+	if classificationSupported(config) {
 		require.Equal(t, expectedProtocol, protocol)
 	}
 }
@@ -1760,7 +1762,7 @@ func TestHTTPStats(t *testing.T) {
 	assert.Nil(t, httpReqStats.Stats(300), "300s")            // 300
 	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
 	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
-	assertConnectionProtocol(t, network.ProtocolHTTP, httpConn.Protocol)
+	assertConnectionProtocol(t, cfg, network.ProtocolHTTP, httpConn.Protocol)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -1873,7 +1875,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 				httpConn := findConnectionForHTTPRequest(key, 443, conns)
 				require.NotNil(t, httpConn)
 				// Traffic is encrypted, thus we cannot know it is http.
-				assertConnectionProtocol(t, network.ProtocolUnknown, httpConn.Protocol)
+				assertConnectionProtocol(t, cfg, network.ProtocolUnknown, httpConn.Protocol)
 			}
 			if foundPathAndHTTPTag {
 				return true
