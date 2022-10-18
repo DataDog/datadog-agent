@@ -9,7 +9,8 @@
 package tracer
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+
 	"testing"
 )
 
