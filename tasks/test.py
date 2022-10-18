@@ -123,6 +123,7 @@ def install_tools(ctx):
 # This could be refactored in a core function that does the loop on modules and returns failures, and
 # wrapper functions that craft the command to run and process the results and errors.
 
+
 def lint_flavor(
     ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
 ):
@@ -246,7 +247,7 @@ def codecov_flavor(
             continue
 
         with ctx.cd(module.full_path()):
-            ctx.run(f"codecov -f {PROFILE_COV} -F {platform.system()}", warn=True)
+            ctx.run(f"codecov -f {PROFILE_COV} -F '{platform.system()}-{flavor}-{module.path}'", warn=True)
 
 
 def process_input_args(input_module, input_targets, input_flavors):
@@ -255,8 +256,8 @@ def process_input_args(input_module, input_targets, input_flavors):
     sets default values for them & casts them to the expected types.
     """
     if isinstance(input_module, str):
-    # when this function is called from the command line, targets are passed
-    # as comma separated tokens in a string
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
         if isinstance(input_targets, str):
             modules = [GoModule(input_module, targets=input_targets.split(','))]
         else:
