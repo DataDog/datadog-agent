@@ -115,7 +115,8 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.hasValidAPIKey())
 
-	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))
+	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with _key1"))
+	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with _key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 	assert.Equal(t, &apiKeyEndpointUnreachable, apiKeyStatus.Get("API key ending with key4"))

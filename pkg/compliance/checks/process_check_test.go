@@ -33,9 +33,6 @@ func (f *processFixture) run(t *testing.T) {
 		cache.Cache.Delete(processCacheKey)
 	}
 	processFetcher = func() (processes, error) {
-		for pid, p := range f.processes {
-			p.Pid = pid
-		}
 		return f.processes, nil
 	}
 
@@ -65,10 +62,7 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--path") == "foo"`,
 			},
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -105,14 +99,8 @@ func TestProcessCheck(t *testing.T) {
 				},
 			},
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1"},
-				},
-				38: {
-					Name:    "proc2",
-					Cmdline: []string{"arg1", "--tlsverify"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1"}),
+				NewCheckedFakeProcess(38, "proc2", []string{"arg1", "--tlsverify"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: true,
@@ -138,14 +126,8 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--path") == "foo"`,
 			},
 			processes: processes{
-				42: {
-					Name:    "proc2",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
-				43: {
-					Name:    "proc3",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc2", []string{"arg1", "--path=foo"}),
+				NewCheckedFakeProcess(43, "proc3", []string{"arg1", "--path=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -162,10 +144,7 @@ func TestProcessCheck(t *testing.T) {
 				Condition: `process.flag("--path") == "foo"`,
 			},
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--paths=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--paths=foo"}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -201,10 +180,7 @@ func TestProcessCheckCache(t *testing.T) {
 			Condition: `process.flag("--path") == "foo"`,
 		},
 		processes: processes{
-			42: {
-				Name:    "proc1",
-				Cmdline: []string{"arg1", "--path=foo"},
-			},
+			NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 		},
 		expectReport: &compliance.Report{
 			Passed: true,

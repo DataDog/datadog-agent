@@ -200,14 +200,21 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 		excludeSysOpen,
 	}
 
-	for _, v := range openSSLProbes {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, v)
+	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
+		for _, singleProbe := range sslProbeList {
+			for _, identifier := range singleProbe.GetProbesIdentificationPairList() {
+				options.ExcludedFunctions = append(options.ExcludedFunctions, identifier.EBPFFuncName)
+			}
+		}
 	}
-	for _, v := range cryptoProbes {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, v)
-	}
-	for _, v := range gnuTLSProbes {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, v)
+	for _, probeInfo := range functionToProbes {
+		if probeInfo.functionInfo != nil {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.functionInfo.ebpfFunctionName)
+		}
+		if probeInfo.returnInfo != nil {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.returnInfo.ebpfFunctionName)
+		}
+
 	}
 	options.ExcludedFunctions = append(options.ExcludedFunctions, exclude...)
 

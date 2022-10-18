@@ -28,9 +28,11 @@ func activityDumpToProto(ad *ActivityDump) *adproto.ActivityDump {
 
 		Metadata: adMetadataToProto(&ad.DumpMetadata),
 
-		Tags: ad.Tags,
+		Tags: make([]string, len(ad.Tags)),
 		Tree: make([]*adproto.ProcessActivityNode, 0, len(ad.ProcessActivityTree)),
 	}
+
+	copy(pad.Tags, ad.Tags)
 
 	for _, tree := range ad.ProcessActivityTree {
 		pad.Tree = append(pad.Tree, processActivityNodeToProto(tree))
@@ -129,13 +131,16 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 
 		Credentials: credentialsToProto(&p.Credentials),
 
-		Args:          p.ScrubbedArgv,
+		Args:          make([]string, len(p.ScrubbedArgv)),
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
-		Envs:          p.Envs,
+		Envs:          make([]string, len(p.Envs)),
 		EnvsTruncated: p.EnvsTruncated,
 	}
+
+	copy(ppi.Args, p.ScrubbedArgv)
+	copy(ppi.Envs, p.Envs)
 
 	return ppi
 }

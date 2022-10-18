@@ -18,12 +18,11 @@ from .libs.ninja_syntax import NinjaWriter
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
+BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
 DNF_TAG = "dnf"
 
 CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
@@ -47,7 +46,7 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "14.0.6"
+CLANG_VERSION = "12.0.1"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):

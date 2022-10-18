@@ -138,14 +138,21 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	sslProgram, _ := newSSLProgram(c, sockFD)
+	// Add the subprograms even if nil, so that the manager can get the
+	// undefined probes from them when they are not enabled. Subprograms
+	// functions do checks for nil before doing anything.
+	ebpfSubprograms := []subprogram{
+		newGoTLSProgram(c),
+		newSSLProgram(c, sockFD),
+	}
+
 	program := &ebpfProgram{
 		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            ebpfSubprograms,
 	}
 
 	return program, nil
@@ -174,6 +181,11 @@ func (e *ebpfProgram) Init() error {
 	onlineCPUs, err := cpupossible.Get()
 	if err != nil {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	}
 
 	options := manager.Options{
@@ -217,7 +229,8 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: e.offsets,
+		ConstantEditors:           e.offsets,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 
 	for _, s := range e.subprograms {

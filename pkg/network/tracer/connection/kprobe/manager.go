@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
@@ -67,7 +68,7 @@ var altProbes = map[probes.ProbeName]string{
 	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
-func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},

@@ -9,12 +9,12 @@
 package network
 
 import (
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 )
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
 func GetStaticTags(staticTags uint64) (tags []string) {
-	for tag, str := range netebpf.StaticTags {
+	for tag, str := range http.StaticTags {
 		if (staticTags & tag) > 0 {
 			tags = append(tags, str)
 		}

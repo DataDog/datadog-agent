@@ -118,6 +118,7 @@ var (
 	StartTime = time.Now()
 )
 
+// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
 func PrometheusScrapeChecksTransformer(in string) interface{} {
 	var promChecks []*types.PrometheusCheck
 	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
@@ -500,11 +501,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control how long we keep dogstatsd contexts in memory. This should
-	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
-	// is 10s), otherwise we won't be able to sample unseen counter as
-	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
-	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory.
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
@@ -524,7 +522,7 @@ func InitConfig(config Config) {
 	// Enable the no-aggregation pipeline.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -555,6 +553,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
+	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
@@ -1014,6 +1014,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
+	config.BindEnv("orchestrator_explorer.max_message_bytes")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
@@ -1109,6 +1110,8 @@ func InitConfig(config Config) {
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
 	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
@@ -1159,7 +1162,6 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 
-	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
 	SetupOTLP(config)

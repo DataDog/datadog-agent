@@ -279,6 +279,14 @@
               {{$key}}: {{$value}}<br>
             {{- end -}}
           </span>
+        {{- end}}        
+        {{- if .APIKeyFailure}}
+          <span class="stat_subtitle">API Keys Errors</span>
+          <span class="stat_subdata">
+            {{ range $key, $value := .APIKeyFailure}}
+              <span class="warning"> {{$key}}: {{$value}} <span> <br>
+            {{- end -}}
+          </span>
         {{- end}}
       {{- end -}}
     </span>

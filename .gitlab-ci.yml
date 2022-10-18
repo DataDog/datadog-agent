@@ -112,14 +112,12 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  ANDROID_S3_BUCKET: dd-agent-androidtesting
   BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
@@ -139,12 +137,12 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_ARMBUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_BUILDIMAGES: v10465962-8e9431f 
+  DATADOG_AGENT_BUILDERS: v9930706-ef9d493 
+  DATADOG_AGENT_WINBUILDIMAGES: v10465962-8e9431f 
+  DATADOG_AGENT_ARMBUILDIMAGES: v10465962-8e9431f 
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10465962-8e9431f 
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10465962-8e9431f 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -166,7 +164,7 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   USE_CACHING_PROXY_RUBY: "true"
-  CLANG_LLVM_VER: 14.0.6
+  CLANG_LLVM_VER: 12.0.1
 
 #
 # Condition mixins for simplification of rules
@@ -617,18 +615,13 @@ variables:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_deploy:
+.on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
+    when: always
   - <<: *if_main_branch
+    when: always
   - <<: *if_release_branch
-
-.on_main_or_release_branch_or_deploy_failure:
-  - <<: *if_deploy
-    when: on_failure
-  - <<: *if_main_branch
-    when: on_failure
-  - <<: *if_release_branch
-    when: on_failure
+    when: always
 
 .on_all_builds:
   - <<: *if_run_all_builds

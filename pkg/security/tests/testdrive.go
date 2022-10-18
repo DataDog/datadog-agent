@@ -18,7 +18,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/freddierice/go-losetup"
 )
 

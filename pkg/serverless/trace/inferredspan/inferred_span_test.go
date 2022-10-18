@@ -6,7 +6,6 @@
 package inferredspan
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -205,32 +204,24 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 }
 
 func TestIsInferredSpansEnabledWhileTrue(t *testing.T) {
-	defer unsetEnvVars()
-	setEnvVars("true", "True")
+	setEnvVars(t, "true", "True")
 	isEnabled := IsInferredSpansEnabled()
 	assert.True(t, isEnabled)
 }
 func TestIsInferredSpansEnabledWhileFalse(t *testing.T) {
-	defer unsetEnvVars()
-	setEnvVars("true", "false")
+	setEnvVars(t, "true", "false")
 	isEnabled := IsInferredSpansEnabled()
 	assert.False(t, isEnabled)
 }
 
 func TestIsInferredSpansEnabledWhileInvalid(t *testing.T) {
-	defer unsetEnvVars()
-	setEnvVars("true", "42")
+	setEnvVars(t, "true", "42")
 	isEnabled := IsInferredSpansEnabled()
 	assert.False(t, isEnabled)
 
 }
 
-func unsetEnvVars() {
-	os.Unsetenv("DD_TRACE_ENABLED")
-	os.Unsetenv("DD_TRACE_MANAGED_SERVICES")
-}
-
-func setEnvVars(trace string, managedServices string) {
-	os.Setenv("DD_TRACE_ENABLED", trace)
-	os.Setenv("DD_TRACE_MANAGED_SERVICES", managedServices)
+func setEnvVars(t *testing.T, trace string, managedServices string) {
+	t.Setenv("DD_TRACE_ENABLED", trace)
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", managedServices)
 }
