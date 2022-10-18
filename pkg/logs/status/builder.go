@@ -86,19 +86,16 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
-				BytesRead:                  source.BytesRead.Load(),
-				AllTimeAvgLatency:          source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
-				AllTimePeakLatency:         source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
-				RecentAvgLatency:           source.LatencyStats.MovingAvg() / int64(time.Millisecond),
-				RecentPeakLatency:          source.LatencyStats.MovingPeak() / int64(time.Millisecond),
-				Type:                       source.Config.Type,
-				Configuration:              b.toDictionary(source.Config),
-				Status:                     b.toString(source.Status),
-				Inputs:                     source.GetInputs(),
-				Messages:                   source.Messages.GetMessages(),
-				Info:                       source.GetInfoStatus(),
-				BytesReadFromSource:        source.GetInfoStatus(),
-				RecentAvgLatencyFromSource: source.GetInfoStatus(),
+				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
+				AllTimePeakLatency: source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
+				RecentAvgLatency:   source.LatencyStats.MovingAvg() / int64(time.Millisecond),
+				RecentPeakLatency:  source.LatencyStats.MovingPeak() / int64(time.Millisecond),
+				Type:               source.Config.Type,
+				Configuration:      b.toDictionary(source.Config),
+				Status:             b.toString(source.Status),
+				Inputs:             source.GetInputs(),
+				Messages:           source.Messages.GetMessages(),
+				Info:               source.GetInfoStatus(),
 			})
 		}
 		integrations = append(integrations, Integration{

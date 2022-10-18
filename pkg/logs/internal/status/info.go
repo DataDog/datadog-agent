@@ -36,20 +36,20 @@ type InfoProvider interface {
 
 // CountInfo records a simple count
 type CountInfo struct {
-	count *atomic.Int32
+	count *atomic.Int64
 	key   string
 }
 
 // NewCountInfo creates a new CountInfo instance
 func NewCountInfo(key string) *CountInfo {
 	return &CountInfo{
-		count: atomic.NewInt32(0),
+		count: atomic.NewInt64(0),
 		key:   key,
 	}
 }
 
 // Add a new value to the count
-func (c *CountInfo) Add(v int32) {
+func (c *CountInfo) Add(v int64) {
 	c.count.Add(v)
 }
 

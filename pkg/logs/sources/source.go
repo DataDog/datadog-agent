@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -48,29 +46,27 @@ type LogSource struct {
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
-	LatencyStats               *util.StatsTracker
-	BytesRead                  *atomic.Int64
-	hiddenFromStatus           bool
-	BytesReadFromSource        map[string]status.InfoProvider
-	RecentAvgLatencyFromSource map[string]status.InfoProvider
+	LatencyStats     *util.StatsTracker
+	BytesRead        *status.CountInfo
+	hiddenFromStatus bool
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
-	return &LogSource{
-		Name:                       name,
-		Config:                     cfg,
-		Status:                     status.NewLogStatus(),
-		inputs:                     make(map[string]bool),
-		lock:                       &sync.Mutex{},
-		Messages:                   config.NewMessages(),
-		BytesRead:                  atomic.NewInt64(0),
-		info:                       make(map[string]status.InfoProvider),
-		LatencyStats:               util.NewStatsTracker(time.Hour*24, time.Hour),
-		hiddenFromStatus:           false,
-		BytesReadFromSource:        make(map[string]status.InfoProvider),
-		RecentAvgLatencyFromSource: make(map[string]status.InfoProvider),
+	source := &LogSource{
+		Name:             name,
+		Config:           cfg,
+		Status:           status.NewLogStatus(),
+		inputs:           make(map[string]bool),
+		lock:             &sync.Mutex{},
+		Messages:         config.NewMessages(),
+		BytesRead:        status.NewCountInfo("Byte Read"),
+		info:             make(map[string]status.InfoProvider),
+		LatencyStats:     util.NewStatsTracker(time.Hour*24, time.Hour),
+		hiddenFromStatus: false,
 	}
+	source.RegisterInfo(source.BytesRead)
+	return source
 }
 
 // AddInput registers an input as being handled by this source.
