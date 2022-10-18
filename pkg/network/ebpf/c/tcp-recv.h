@@ -25,9 +25,15 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     void *parm = (void*)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM6(ctx);
 #else
     void *parm = (void*)PT_REGS_PARM1(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
 #endif
+    if (flags & MSG_PEEK) {
+        return 0;
+    }
+
     struct sock *skp;
     bpf_probe_read_with_telemetry(&skp, sizeof(skp), &parm);
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
