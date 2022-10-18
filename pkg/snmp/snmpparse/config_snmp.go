@@ -98,7 +98,7 @@ func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	ipAddressConfigs := []SNMPConfig{}
 	netAddressConfigs := []SNMPConfig{}
 
-	//split the SnmpConfigList to get the IP addresses seperated from
+	//split the SnmpConfigList to get the IP addresses separated from
 	//the network addresses
 	for _, snmpconfig := range SnmpConfigList {
 		if snmpconfig.IPAddress != "" {
@@ -109,7 +109,7 @@ func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 		}
 	}
 
-	//check if the ip address is explictly mentioned
+	//check if the ip address is explicitly mentioned
 	for _, snmpIPconfig := range ipAddressConfigs {
 		if snmpIPconfig.IPAddress == ip_address {
 			return snmpIPconfig
