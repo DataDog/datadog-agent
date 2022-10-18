@@ -3,10 +3,10 @@ name: "Serverless Integration Tests"
 on:
   push:
     paths:
-      - 'cmd/serverless/**'
-      - 'pkg/serverless/**'
-      - 'test/integration/serverless/**'
-      - '.github/workflows/serverless-integration.yml'
+      - "cmd/serverless/**"
+      - "pkg/serverless/**"
+      - "test/integration/serverless/**"
+      - ".github/workflows/serverless-integration.yml"
 
 jobs:
   test:
@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 14
-      
+
       - name: Install Serverless Framework
         run: sudo yarn global add serverless@^3.7.9 --prefix /usr/local
 
@@ -47,6 +47,6 @@ jobs:
       - name: Run tests if AWS credentials are available
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }} 
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
         run: ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh
         working-directory: go/src/github.com/DataDog/datadog-agent
