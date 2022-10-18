@@ -93,8 +93,7 @@ int kprobe__tcp_recvmsg__pre_4_1_0(struct pt_regs* ctx) {
     }
 
     void *parm2 = (void*)PT_REGS_PARM2(ctx);
-    struct sock* skp;
-    bpf_probe_read_with_telemetry(&skp, sizeof(skp), &parm2);
+    struct sock* skp = parm2;
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }

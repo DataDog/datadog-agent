@@ -34,8 +34,7 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct sock *skp;
-    bpf_probe_read_with_telemetry(&skp, sizeof(skp), &parm);
+    struct sock *skp = parm;
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
@@ -66,8 +65,7 @@ SEC("kprobe/tcp_read_sock")
 int kprobe__tcp_read_sock(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *parm1 = (void*)PT_REGS_PARM1(ctx);
-    struct sock* skp;
-    bpf_probe_read_with_telemetry(&skp, sizeof(skp), &parm1);
+    struct sock* skp = parm1;
     bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
