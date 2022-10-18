@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1
-	github.com/DataDog/nikos v1.9.0-rc.1
+	github.com/DataDog/nikos v1.9.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.0-rc.1.0.20220530183114-687bca6395e8
