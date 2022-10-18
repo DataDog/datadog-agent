@@ -13,44 +13,52 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	statusCmd = &cobra.Command{
+type cliParams struct {
+	*command.GlobalParams
+
+	json            bool
+	prettyPrintJSON bool
+	file            string
+}
+
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
+	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Print the current status",
 		Long:  ``,
-		RunE:  runStatus,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runStatus(cliParams)
+		},
 	}
 
-	statusArgs = struct {
-		json            bool
-		prettyPrintJSON bool
-		file            string
-	}{}
-)
+	statusCmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	statusCmd.Flags().StringVarP(&cliParams.file, "file", "o", "", "Output the status command to a file")
 
-func init() {
-	SecurityAgentCmd.AddCommand(statusCmd)
-	statusCmd.Flags().BoolVarP(&statusArgs.json, "json", "j", false, "print out raw json")
-	statusCmd.Flags().BoolVarP(&statusArgs.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	statusCmd.Flags().StringVarP(&statusArgs.file, "file", "o", "", "Output the status command to a file")
+	return nil
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
+func runStatus(params *cliParams) error {
 	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		return log.Errorf("Cannot setup logger, exiting: %v", err)
 	}
 
-	return requestStatus()
+	return requestStatus(params)
 }
 
-func requestStatus() error {
+func requestStatus(params *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
@@ -80,11 +88,11 @@ func requestStatus() error {
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	if statusArgs.prettyPrintJSON {
+	if params.prettyPrintJSON {
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if statusArgs.json {
+	} else if params.json {
 		s = string(r)
 	} else {
 		formattedStatus, err := status.FormatSecurityAgentStatus(r)
@@ -94,8 +102,8 @@ func requestStatus() error {
 		s = formattedStatus
 	}
 
-	if statusArgs.file != "" {
-		os.WriteFile(statusArgs.file, []byte(s), 0644) //nolint:errcheck
+	if params.file != "" {
+		os.WriteFile(params.file, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
