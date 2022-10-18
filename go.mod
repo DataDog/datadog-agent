@@ -419,7 +419,10 @@ require (
 
 require google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 
-require github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
+require (
+	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
+	github.com/segmentio/kafka-go v0.4.29
+)
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 

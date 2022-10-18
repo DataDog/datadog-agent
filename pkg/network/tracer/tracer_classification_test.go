@@ -15,14 +15,28 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/kafka"
 	"github.com/stretchr/testify/require"
 )
+
+var (
+	skipDockerBasedTests = map[string]string{}
+)
+
+func pullTestDockers() {
+	if runtime.GOOS == "linux" {
+		if err := kafka.PullKafkaDockers(); err != nil {
+			skipDockerBasedTests["kafka"] = fmt.Sprintf("skipping as we failed pulling the docker images due to: %s", err)
+		}
+	}
+}
 
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
 	dialer := &net.Dialer{
@@ -32,11 +46,14 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 		},
 	}
 
+	pullTestDockers()
+
 	tests := []struct {
-		name      string
-		clientRun func(t *testing.T, serverAddr string)
-		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
-		want      network.ProtocolType
+		name       string
+		clientRun  func(t *testing.T, serverAddr string)
+		serverRun  func(t *testing.T, serverAddr string, done chan struct{}) string
+		shouldSkip func() (bool, string)
+		want       network.ProtocolType
 	}{
 		{
 			name: "udp client",
@@ -218,9 +235,41 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			want: network.ProtocolHTTP,
 		},
+		{
+			name: "kafka - produce",
+			clientRun: func(t *testing.T, serverAddr string) {
+				client := kafka.NewClient(clientHost, serverAddr)
+				//require.NoError(t, client.CreateTopic("test"))
+				messages := [][]byte{[]byte("msg1"), []byte("msg2")}
+				require.NoError(t, client.Produce("test", messages...))
+				fetchMessages, err := client.Fetch("test")
+				require.NoError(t, err)
+				require.EqualValues(t, messages, fetchMessages)
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				serverHost, _, _ := net.SplitHostPort(serverAddr)
+				kafka.RunKafkaServers(t, serverHost)
+				return fmt.Sprintf("%s:9092", serverHost)
+			},
+			shouldSkip: func() (bool, string) {
+				if runtime.GOOS != "linux" {
+					return true, "Kafka tests supported on linux machine only"
+				}
+				errMsg, exists := skipDockerBasedTests["kafka"]
+				return exists, errMsg
+			},
+			want: network.ProtocolKafka,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldSkip != nil {
+				shouldSkip, errMsg := tt.shouldSkip()
+				if shouldSkip {
+					t.Skip(errMsg)
+				}
+			}
+
 			tr, err := NewTracer(cfg)
 			if err != nil {
 				t.Fatal(err)

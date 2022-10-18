@@ -508,6 +508,8 @@ core,github.com/klauspost/compress/gzip,BSD-3-Clause,Copyright (c) 2011 The Snap
 core,github.com/klauspost/compress/huff0,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/cpuinfo,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
+core,github.com/klauspost/compress/s2,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
+core,github.com/klauspost/compress/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 core,github.com/klauspost/compress/zip,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
@@ -687,6 +689,41 @@ core,github.com/sassoftware/go-rpmutils,Apache-2.0,Copyright (c) SAS Institute I
 core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/sassoftware/go-rpmutils/fileutil,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/secure-systems-lab/go-securesystemslib/cjson,MIT,Copyright (c) 2021 NYU Secure Systems Lab
+core,github.com/segmentio/kafka-go,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/compress,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/compress/gzip,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/compress/lz4,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/compress/snappy,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/compress/zstd,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/addoffsetstotxn,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/addpartitionstotxn,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/alterconfigs,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/alterpartitionreassignments,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/apiversions,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/createacls,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/createpartitions,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/createtopics,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/deletetopics,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/describeconfigs,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/describegroups,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/electleaders,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/endtxn,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/fetch,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/findcoordinator,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/heartbeat,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/incrementalalterconfigs,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/initproducerid,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/listgroups,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/listoffsets,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/metadata,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/offsetcommit,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/offsetfetch,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/produce,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/saslauthenticate,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/saslhandshake,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/protocol/txnoffsetcommit,MIT,Copyright (c) 2017 Segment
+core,github.com/segmentio/kafka-go/sasl,MIT,Copyright (c) 2017 Segment
 core,github.com/shirou/gopsutil/v3/cpu,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/disk,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/host,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
@@ -739,7 +776,7 @@ core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license 
 core,github.com/tinylib/msgp/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/parse,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/printer,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
-core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2021, Tobias Klauser"
+core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2022, Tobias Klauser"
 core,github.com/tklauser/numcpus,Apache-2.0,Copyright 2018 Tobias Klauser
 core,github.com/twmb/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci | Copyright 2018, Travis Bischel"
 core,github.com/ugorji/go/codec,MIT,Copyright (c) 2012-2020 Ugorji Nwoke

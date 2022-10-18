@@ -26,6 +26,7 @@ const (
 	ProtocolHTTP
 	ProtocolHTTP2
 	ProtocolTLS
+	ProtocolKafka
 	MaxProtocols
 )
 

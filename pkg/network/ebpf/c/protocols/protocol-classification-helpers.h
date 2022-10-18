@@ -14,13 +14,52 @@ long bpf_skb_load_bytes(const void *skb, u32 offset, void *to, u32 len) {return 
 #endif
 
 #define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size)   \
-        if (buf_size < min_buff_size) {                                     \
-            return false;                                                   \
-        }                                                                   \
+    if (buf_size < min_buff_size) {                                         \
+        return false;                                                       \
+    }                                                                       \
                                                                             \
-        if (buf == NULL) {                                                  \
-            return false;                                                   \
-        }                                                                   \
+    if (buf == NULL) {                                                      \
+        return false;                                                       \
+    }                                                                       \
+
+static __inline int32_t read_big_endian_int32(const char* buf) {
+    int32_t val;
+    bpf_probe_read_kernel(&val, 4, (void*)buf);
+    return bpf_ntohl(val);
+}
+
+static __inline int16_t read_big_endian_int16(const char* buf) {
+    int16_t val;
+    bpf_probe_read_kernel(&val, 2, (void*)buf);
+    return bpf_ntohs(val);
+}
+
+// Checking if the buffer represents kafka message
+static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_SIZE)
+
+    const int32_t message_size = read_big_endian_int32(buf);
+    size_t offset = sizeof(int32_t);
+
+    if (message_size < 0) {
+        return false;
+    }
+
+    const int16_t request_api_key = read_big_endian_int16(buf + offset);
+    offset += sizeof(int16_t);
+    if (request_api_key < 0 || request_api_key > KAFKA_MAX_VERSION) {
+        return false;
+    }
+
+    const int16_t request_api_version = read_big_endian_int16(buf + offset);
+    offset += sizeof(int16_t);
+    if (request_api_version < 0 || request_api_version > KAFKA_MAX_API) {
+        return false;
+    }
+
+    const int32_t correlation_id = read_big_endian_int32(buf + offset);
+    return correlation_id > 0;
+}
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
@@ -30,7 +69,7 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 #define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
     bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
-    
+
     return match;
 }
 
@@ -43,7 +82,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 #define GET "GET /"
 #define POST "POST /"
 #define PUT "PUT /"
-#define DELETE "DELETE /" 
+#define DELETE "DELETE /"
 #define HEAD "HEAD /"
 #define OPTIONS1 "OPTIONS /"
 #define OPTIONS2 "OPTIONS *"
@@ -76,6 +115,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
+    } else if (is_kafka(buf, size)) {
+        *protocol = PROTOCOL_KAFKA;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

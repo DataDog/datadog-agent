@@ -15,6 +15,19 @@
 // The minimal HTTP request has 16 characters: GET x HTTP/1.1\r\n
 #define HTTP_MIN_SIZE 16
 
+// Every kafka message encodes starts with:
+//  * 4 bytes for the size of the payload
+//  * 2 bytes for api key
+//  * 2 bytes for api version
+//  * 4 bytes for correlation id
+// Reference: https://kafka.apache.org/protocol.html#protocol_messages
+#define KAFKA_MIN_SIZE 12
+
+// Max today is 13 for fetch (https://kafka.apache.org/protocol.html#protocol_messages)
+#define KAFKA_MAX_VERSION 13
+
+#define KAFKA_MAX_API 67
+
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
 // `__attribute__ ((packed))` to tell the compiler to use as minimum bits as needed. Due to our max
@@ -25,6 +38,7 @@ typedef enum {
     PROTOCOL_HTTP,
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
+    PROTOCOL_KAFKA,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,
