@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,8 +31,8 @@ func TestConfigLoading(t *testing.T) {
 	name := iisCfg.GetSiteNameFromId(0)
 	assert.Equal(t, name, "")
 	name = iisCfg.GetSiteNameFromId(1)
-	assert.Equal(t, name, "Default_Web_Site")
+	assert.Equal(t, name, "Default Web Site")
 	name = iisCfg.GetSiteNameFromId(2)
 	assert.Equal(t, name, "TestSite")
-	iisCfg.Stop();
+	iisCfg.Stop()
 }

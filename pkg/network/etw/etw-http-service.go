@@ -751,7 +751,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *C.DD_ETW_EVENT_INFO) {
 		return
 	}
 
-	httpConnLink.http.AppPool = strings.Replace(appPool, " ", "_", -1)
+	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = binary.LittleEndian.Uint32(userData[16:24])
 	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromId(httpConnLink.http.SiteID)
 	// Parse url

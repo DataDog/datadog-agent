@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -146,7 +145,7 @@ func (iiscfg *DynamicIISConfig) readXmlConfig() error {
 		if err != nil {
 			return err
 		}
-		idmap[uint32(id)] = strings.Replace(site.Name, " ", "_", -1)
+		idmap[uint32(id)] = site.Name
 	}
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
