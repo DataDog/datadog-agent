@@ -20,6 +20,6 @@ func formatError(errno int32) model.FailedConnectionReason {
 	case int32(unix.ECONNREFUSED):
 		return model.FailedConnectionReason_connectionRefused
 	default:
-		return 0
+		return model.FailedConnectionReason_unknownFailureReason
 	}
 }

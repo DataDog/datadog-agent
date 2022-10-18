@@ -11,5 +11,5 @@ package encoding
 import model "github.com/DataDog/agent-payload/v5/process"
 
 func formatError(errno int32) model.FailedConnectionReason {
-	return 0
+	return model.FailedConnectionReason_unknownFailureReason
 }
