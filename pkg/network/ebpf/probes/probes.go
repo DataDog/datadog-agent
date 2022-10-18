@@ -55,9 +55,6 @@ const (
 
 	// TCPRecvMsg traces the tcp_recvmsg() kernel function
 	TCPRecvMsg ProbeName = "kprobe/tcp_recvmsg"
-	// TCPRecvMsgPre410 traces the tcp_recvmsg() system call on kernels prior to 4.1.0. This is created because
-	// we need to load a different kprobe implementation
-	TCPRecvMsgPre410 ProbeName = "kprobe/tcp_recvmsg/pre_4_1_0"
 	// TCPRecvMsgReturn traces the return for the tcp_recvmsg() kernel function
 	TCPRecvMsgReturn ProbeName = "kretprobe/tcp_recvmsg"
 
