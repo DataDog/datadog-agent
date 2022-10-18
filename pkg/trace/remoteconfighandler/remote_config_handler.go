@@ -82,10 +82,12 @@ func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig
 	}
 
 	if len(remoteRateUpdates) != 0 {
+		log.Debugf("updating remote rates with updates: %v", remoteRateUpdates)
 		h.prioritySampler.UpdateRemoteRates(remoteRateUpdates)
 	}
 
 	if samplerconfigPayload != nil {
+		log.Debugf("updating samplers with remote configuration: %v", samplerconfigPayload)
 		h.updateSamplers(*samplerconfigPayload)
 	}
 }
