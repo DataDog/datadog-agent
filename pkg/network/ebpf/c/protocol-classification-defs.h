@@ -16,9 +16,9 @@
 #define HTTP_MIN_SIZE 16
 
 // The enum below represents all different protocols we know to classify.
-// We set the size of the enum to be 16 bits, by adding max value (max uint16 which is 65535) and
+// We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
 // `__attribute__ ((packed))` to tell the compiler to use as minimum bits as needed. Due to our max
-// value we will use 16 bits for the enum.
+// value we will use 8 bits for the enum.
 typedef enum {
     PROTOCOL_UNCLASSIFIED = 0,
     PROTOCOL_UNKNOWN,
@@ -27,7 +27,7 @@ typedef enum {
     PROTOCOL_TLS,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
-    __MAX_UINT16 = 65535,
+    __MAX_UINT8 = 255,
 } __attribute__ ((packed)) protocol_t;
 
 #endif

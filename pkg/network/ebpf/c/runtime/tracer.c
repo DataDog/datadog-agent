@@ -112,14 +112,38 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_recvmsg: pid_tgid: %d\n", pid_tgid);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    struct sock *skp = (struct sock *)PT_REGS_PARM2(ctx);
+    struct sock *parm = (struct sock *)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM6(ctx);
 #else
-    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+    struct sock *parm = (struct sock *)PT_REGS_PARM1(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
 #endif
+    if (flags & MSG_PEEK) {
+        return 0;
+    }
 
+    struct sock *skp = parm;
+    bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/tcp_recvmsg")
+int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&tcp_recvmsg_args, &pid_tgid);
+    if (!skpp) {
+        return 0;
+    }
+
+    struct sock *skp = *skpp;
+    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
     if (!skp) {
+        return 0;
+    }
+
+    int recv = PT_REGS_RC(ctx);
+    if (recv < 0) {
         return 0;
     }
 
@@ -127,7 +151,6 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-
     return handle_message(&t, 0, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_ABSOLUTE, skp);
 }
 

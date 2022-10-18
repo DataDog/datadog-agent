@@ -1697,7 +1697,7 @@ func GetFreePort() (string, error) {
 
 func TestProtocolClassification(t *testing.T) {
 	if !classificationSupported() {
-		t.Skip("Classification is not support")
+		t.Skip("Classification is not supported")
 	}
 
 	host := "127.0.0.1"

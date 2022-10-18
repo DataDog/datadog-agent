@@ -27,9 +27,10 @@ const (
 
 var mainProbes = map[probes.ProbeName]string{
 	probes.ProtocolClassifierSocketFilter: "socket__classifier",
-	probes.TCPRecvMsg:                     "kprobe__tcp_recvmsg",
 	probes.TCPSendMsg:                     "kprobe__tcp_sendmsg",
 	probes.TCPSendMsgReturn:               "kretprobe__tcp_sendmsg",
+	probes.TCPRecvMsg:                     "kprobe__tcp_recvmsg",
+	probes.TCPRecvMsgReturn:               "kretprobe__tcp_recvmsg",
 	probes.TCPCleanupRBuf:                 "kprobe__tcp_cleanup_rbuf",
 	probes.TCPClose:                       "kprobe__tcp_close",
 	probes.TCPCloseReturn:                 "kretprobe__tcp_close",
@@ -92,6 +93,7 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			{Name: string(probes.IpMakeSkbArgsMap)},
 			{Name: string(probes.MapErrTelemetryMap)},
 			{Name: string(probes.HelperErrTelemetryMap)},
+			{Name: string(probes.TcpRecvMsgArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -142,8 +144,12 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPRecvMsgPre410), EBPFFuncName: altProbes[probes.UDPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^udp_recvmsg$", KprobeAttachMethod: kprobeAttachMethod},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.UDPv6RecvMsgPre410), EBPFFuncName: altProbes[probes.UDPv6RecvMsgPre410], UID: probeUID}, MatchFuncName: "^udpv6_recvmsg$", KprobeAttachMethod: kprobeAttachMethod},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPSendMsgPre410), EBPFFuncName: altProbes[probes.TCPSendMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_sendmsg$", KprobeAttachMethod: kprobeAttachMethod},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRecvMsgPre410), EBPFFuncName: altProbes[probes.TCPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_recvmsg$", KprobeAttachMethod: kprobeAttachMethod},
 		)
+		if ClassificationSupported() {
+			mgr.Probes = append(mgr.Probes,
+				&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRecvMsgPre410), EBPFFuncName: altProbes[probes.TCPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_recvmsg$", KprobeAttachMethod: kprobeAttachMethod},
+			)
+		}
 	}
 
 	return mgr

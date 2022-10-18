@@ -30,8 +30,8 @@ type ConnStats struct {
 	Sent_packets uint64
 	Recv_packets uint64
 	Direction    uint8
-	Protocol     uint16
-	Pad_cgo_0    [4]byte
+	Protocol     uint8
+	Pad_cgo_0    [6]byte
 }
 type Conn struct {
 	Tup        ConnTuple
