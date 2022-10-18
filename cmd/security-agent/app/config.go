@@ -11,7 +11,6 @@ package app
 import (
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/commands/config"
@@ -26,10 +25,6 @@ func init() {
 }
 
 func setupConfig(cmd *cobra.Command) error {
-	if flagNoColor {
-		color.NoColor = true
-	}
-
 	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)

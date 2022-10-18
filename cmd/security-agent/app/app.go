@@ -67,6 +67,10 @@ var (
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if flagNoColor {
+				color.NoColor = true
+			}
+
 			return common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		},
 	}
@@ -83,9 +87,6 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		Short: "Print the version info",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			if flagNoColor {
-				color.NoColor = true
-			}
 			av, _ := version.Agent()
 			meta := ""
 			if av.Meta != "" {

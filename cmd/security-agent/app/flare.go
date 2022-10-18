@@ -36,11 +36,6 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if flagNoColor {
-			color.NoColor = true
-		}
-
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		err := config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if err != nil {
