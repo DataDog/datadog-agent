@@ -60,7 +60,7 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableProtocolClassification.yaml")
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-NoPRTCLClassifying.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
