@@ -88,7 +88,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer()
-			ptraceotlp.RegisterServer(o.grpcsrv, o)
+			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -482,9 +482,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
-			setMetricOTLP(span, k, v.DoubleVal())
+			setMetricOTLP(span, k, v.Double())
 		case pcommon.ValueTypeInt:
-			setMetricOTLP(span, k, float64(v.IntVal()))
+			setMetricOTLP(span, k, float64(v.Int()))
 		default:
 			setMetaOTLP(span, k, v.AsString())
 		}
@@ -498,8 +498,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
-	if in.TraceStateStruct().AsRaw() != "" {
-		setMetaOTLP(span, "w3c.tracestate", in.TraceStateStruct().AsRaw())
+	if in.TraceState().AsRaw() != "" {
+		setMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
 	if lib.Name() != "" {
 		setMetaOTLP(span, semconv.OtelLibraryName, lib.Name())
@@ -577,7 +577,7 @@ func resourceFromTags(meta map[string]string) string {
 
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func status2Error(status ptrace.SpanStatus, events ptrace.SpanEventSlice, span *pb.Span) {
+func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.Span) {
 	if status.Code() != ptrace.StatusCodeError {
 		return
 	}

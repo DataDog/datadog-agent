@@ -6,6 +6,7 @@
 package common
 
 import (
+	"bytes"
 	"encoding/binary"
 	"hash/fnv"
 )
@@ -78,4 +79,21 @@ func (f *Flow) AggregationHash() uint64 {
 	binary.Write(h, binary.LittleEndian, f.Tos)            //nolint:errcheck
 	binary.Write(h, binary.LittleEndian, f.InputInterface) //nolint:errcheck
 	return h.Sum64()
+}
+
+// IsEqualFlowContext check if the flow and another flow have equal values for all fields used in `AggregationHash`.
+// This method is used for hash collision detection.
+func IsEqualFlowContext(a Flow, b Flow) bool {
+	if a.Namespace == b.Namespace &&
+		bytes.Compare(a.DeviceAddr, b.DeviceAddr) == 0 &&
+		bytes.Compare(a.SrcAddr, b.SrcAddr) == 0 &&
+		bytes.Compare(a.DstAddr, b.DstAddr) == 0 &&
+		a.SrcPort == b.SrcPort &&
+		a.DstPort == b.DstPort &&
+		a.IPProtocol == b.IPProtocol &&
+		a.Tos == b.Tos &&
+		a.InputInterface == b.InputInterface {
+		return true
+	}
+	return false
 }

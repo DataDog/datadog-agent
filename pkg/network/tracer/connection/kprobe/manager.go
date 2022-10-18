@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
@@ -68,7 +69,7 @@ var altProbes = map[probes.ProbeName]string{
 	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
-func newManager(closedHandler *ebpf.PerfHandler, failedConnHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, failedConnHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -85,8 +86,10 @@ func newManager(closedHandler *ebpf.PerfHandler, failedConnHandler *ebpf.PerfHan
 			{Name: string(probes.PidFDBySockMap)},
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
-			{Name: string(probes.TCPSendMsgArgsMap)},
-			{Name: string(probes.IPMakeSkbArgsMap)},
+			{Name: string(probes.TcpSendMsgArgsMap)},
+			{Name: string(probes.IpMakeSkbArgsMap)},
+			{Name: string(probes.MapErrTelemetryMap)},
+			{Name: string(probes.HelperErrTelemetryMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{

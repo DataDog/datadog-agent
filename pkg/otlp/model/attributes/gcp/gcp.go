@@ -35,7 +35,7 @@ func getGCPIntegrationHostname(attrs pcommon.Map) (string, bool) {
 		return "", false
 	}
 
-	name := hostName.StringVal()
+	name := hostName.Str()
 	if strings.Count(name, ".") >= 3 {
 		// Unless the host.name attribute has been tampered with, use the same logic as the Agent to
 		// extract the hostname: https://github.com/DataDog/datadog-agent/blob/7.36.0/pkg/util/cloudproviders/gce/gce.go#L106
@@ -48,7 +48,7 @@ func getGCPIntegrationHostname(attrs pcommon.Map) (string, bool) {
 		return "", false
 	}
 
-	alias := fmt.Sprintf("%s.%s", name, cloudAccount.StringVal())
+	alias := fmt.Sprintf("%s.%s", name, cloudAccount.Str())
 	return alias, true
 }
 
@@ -60,7 +60,7 @@ func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bo
 	}
 
 	if hostName, ok := attrs.Get(conventions.AttributeHostName); ok {
-		return hostName.StringVal(), true
+		return hostName.Str(), true
 	}
 
 	return "", false
@@ -72,19 +72,19 @@ func HostInfoFromAttributes(attrs pcommon.Map, usePreviewRules bool) (hostInfo *
 	hostInfo = &HostInfo{}
 
 	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-id:%s", hostID.StringVal()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-id:%s", hostID.Str()))
 	}
 
 	if cloudZone, ok := attrs.Get(conventions.AttributeCloudAvailabilityZone); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("zone:%s", cloudZone.StringVal()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("zone:%s", cloudZone.Str()))
 	}
 
 	if hostType, ok := attrs.Get(conventions.AttributeHostType); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-type:%s", hostType.StringVal()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-type:%s", hostType.Str()))
 	}
 
 	if cloudAccount, ok := attrs.Get(conventions.AttributeCloudAccountID); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("project:%s", cloudAccount.StringVal()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("project:%s", cloudAccount.Str()))
 	}
 
 	if alias, ok := getGCPIntegrationHostname(attrs); ok && !usePreviewRules {

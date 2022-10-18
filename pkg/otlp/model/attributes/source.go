@@ -33,13 +33,13 @@ const (
 
 func getClusterName(attrs pcommon.Map) (string, bool) {
 	if k8sClusterName, ok := attrs.Get(conventions.AttributeK8SClusterName); ok {
-		return k8sClusterName.StringVal(), true
+		return k8sClusterName.Str(), true
 	}
 
 	cloudProvider, ok := attrs.Get(conventions.AttributeCloudProvider)
-	if ok && cloudProvider.StringVal() == conventions.AttributeCloudProviderAzure {
+	if ok && cloudProvider.Str() == conventions.AttributeCloudProviderAzure {
 		return azure.ClusterNameFromAttributes(attrs)
-	} else if ok && cloudProvider.StringVal() == conventions.AttributeCloudProviderAWS {
+	} else if ok && cloudProvider.Str() == conventions.AttributeCloudProviderAWS {
 		return ec2.ClusterNameFromAttributes(attrs)
 	}
 
@@ -83,18 +83,18 @@ func k8sHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
 	}
 
 	if cluster, ok := getClusterName(attrs); ok {
-		return node.StringVal() + "-" + cluster, true
+		return node.Str() + "-" + cluster, true
 	}
-	return node.StringVal(), true
+	return node.Str(), true
 }
 
 func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
 	// Custom hostname: useful for overriding in k8s/cloud envs
 	if customHostname, ok := attrs.Get(AttributeDatadogHostname); ok {
-		return customHostname.StringVal(), true
+		return customHostname.Str(), true
 	}
 
-	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.StringVal() == conventions.AttributeAWSECSLaunchtypeFargate {
+	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.Str() == conventions.AttributeAWSECSLaunchtypeFargate {
 		// If on AWS ECS Fargate, we don't have a hostname
 		return "", false
 	}
@@ -109,11 +109,11 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 	}
 
 	cloudProvider, ok := attrs.Get(conventions.AttributeCloudProvider)
-	if ok && cloudProvider.StringVal() == conventions.AttributeCloudProviderAWS {
+	if ok && cloudProvider.Str() == conventions.AttributeCloudProviderAWS {
 		return ec2.HostnameFromAttributes(attrs, usePreviewRules)
-	} else if ok && cloudProvider.StringVal() == conventions.AttributeCloudProviderGCP {
+	} else if ok && cloudProvider.Str() == conventions.AttributeCloudProviderGCP {
 		return gcp.HostnameFromAttributes(attrs, usePreviewRules)
-	} else if ok && cloudProvider.StringVal() == conventions.AttributeCloudProviderAzure {
+	} else if ok && cloudProvider.Str() == conventions.AttributeCloudProviderAzure {
 		return azure.HostnameFromAttributes(attrs, usePreviewRules)
 	}
 
@@ -125,18 +125,18 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 
 	// host id from cloud provider
 	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
-		return hostID.StringVal(), true
+		return hostID.Str(), true
 	}
 
 	// hostname from cloud provider or OS
 	if hostName, ok := attrs.Get(conventions.AttributeHostName); ok {
-		return hostName.StringVal(), true
+		return hostName.Str(), true
 	}
 
 	if !usePreviewRules {
 		// container id (e.g. from Docker)
 		if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
-			return containerID.StringVal(), true
+			return containerID.Str(), true
 		}
 	}
 
@@ -145,9 +145,9 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) 
 
 // SourceFromAttributes gets a telemetry signal source from its attributes.
 func SourceFromAttributes(attrs pcommon.Map, usePreviewRules bool) (source.Source, bool) {
-	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.StringVal() == conventions.AttributeAWSECSLaunchtypeFargate {
+	if launchType, ok := attrs.Get(conventions.AttributeAWSECSLaunchtype); ok && launchType.Str() == conventions.AttributeAWSECSLaunchtypeFargate {
 		if taskARN, ok := attrs.Get(conventions.AttributeAWSECSTaskARN); ok {
-			return source.Source{Kind: source.AWSECSFargateKind, Identifier: taskARN.StringVal()}, true
+			return source.Source{Kind: source.AWSECSFargateKind, Identifier: taskARN.Str()}, true
 		}
 	}
 

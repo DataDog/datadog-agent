@@ -148,6 +148,22 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
+			// if the filter has type "EventTypeUnset", it does not receive
+			// events for entities that are currently in the store.
+			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: NewFilter(nil, fooSource, EventTypeUnset),
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: fooContainer,
+				},
+			},
+			expected: []EventBundle{
+				{},
+			},
+		},
+		{
 			// will receive events for entities that are currently
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not

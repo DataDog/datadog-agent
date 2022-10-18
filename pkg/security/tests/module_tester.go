@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -157,7 +156,6 @@ rules:
 
 var (
 	testEnvironment  string
-	useReload        bool
 	logLevelStr      string
 	logPatterns      stringSlice
 	logTags          stringSlice
@@ -185,6 +183,7 @@ type testOpts struct {
 	disableERPCDentryResolution  bool
 	disableMapDentryResolution   bool
 	envsWithValue                []string
+	disableAbnormalPathCheck     bool
 }
 
 func (s *stringSlice) String() string {
@@ -222,7 +221,7 @@ type testModule struct {
 	cmdWrapper            cmdWrapper
 	ruleHandler           testRuleHandler
 	eventDiscarderHandler testEventDiscarderHandler
-	statsdClient          *metrics.StatsdClient
+	statsdClient          *StatsdClient
 	proFile               *os.File
 }
 
@@ -673,12 +672,8 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
-	return newTestModuleWithProfile(t, macroDefs, ruleDefs, opts, withProfile)
-}
-
-func newTestModuleWithProfile(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts, cpuProfile bool) (*testModule, error) {
 	var proFile *os.File
-	if cpuProfile {
+	if withProfile {
 		var err error
 		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
 		if err != nil {
@@ -729,31 +724,30 @@ func newTestModuleWithProfile(t testing.TB, macroDefs []*rules.MacroDefinition, 
 		}
 	}
 
-	if useReload && testMod != nil {
-		if opts.Equal(testMod.opts) {
-			testMod.st = st
-			testMod.cmdWrapper = cmdWrapper
-			testMod.t = t
+	if testMod != nil && opts.Equal(testMod.opts) {
+		testMod.st = st
+		testMod.cmdWrapper = cmdWrapper
+		testMod.t = t
 
-			testMod.probeHandler.reloading.Lock()
-			defer testMod.probeHandler.reloading.Unlock()
+		testMod.probeHandler.reloading.Lock()
+		defer testMod.probeHandler.reloading.Unlock()
 
-			if err = testMod.reloadConfiguration(); err != nil {
-				return testMod, err
-			}
-
-			if ruleDefs != nil && logStatusMetrics {
-				t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
-			}
-			return testMod, nil
+		if err = testMod.reloadConfiguration(); err != nil {
+			return testMod, err
 		}
+
+		if ruleDefs != nil && logStatusMetrics {
+			t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
+		}
+		return testMod, nil
+	} else if testMod != nil {
 		testMod.probeHandler.SetModule(nil)
 		testMod.cleanup()
 	}
 
 	t.Log("Instantiating a new security module")
 
-	statsdClient := metrics.NewStatsdClient()
+	statsdClient := NewStatsdClient()
 
 	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
 	if err != nil {
@@ -1277,22 +1271,21 @@ func (tm *testModule) cleanup() {
 	tm.module.Close()
 }
 
+func (tm *testModule) validateAbnormalPaths() {
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
+}
+
 func (tm *testModule) Close() {
+	tm.module.SendStats()
+
+	if !tm.opts.disableAbnormalPathCheck {
+		tm.validateAbnormalPaths()
+	}
+
+	tm.statsdClient.Flush()
+
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
-	}
-
-	if withProfile {
-		pprof.StopCPUProfile()
-		tm.proFile.Close()
-	}
-
-	if useReload {
-		if _, err := newTestModuleWithProfile(tm.t, nil, nil, tm.opts, false); err != nil {
-			tm.t.Errorf("couldn't reload module with an empty policy: %v", err)
-		}
-	} else {
-		tm.cleanup()
 	}
 }
 
@@ -1462,7 +1455,7 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 func TestMain(m *testing.M) {
 	flag.Parse()
 	retCode := m.Run()
-	if useReload && testMod != nil {
+	if testMod != nil {
 		testMod.cleanup()
 	}
 	os.Exit(retCode)
@@ -1471,7 +1464,6 @@ func TestMain(m *testing.M) {
 func init() {
 	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
-	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")

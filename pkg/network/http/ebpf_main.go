@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,7 +52,7 @@ const (
 )
 
 type ebpfProgram struct {
-	*manager.Manager
+	*errtelemetry.Manager
 	cfg         *config.Config
 	bytecode    bytecode.AssetReader
 	offsets     []manager.ConstantEditor
@@ -62,13 +63,25 @@ type ebpfProgram struct {
 }
 
 type subprogram interface {
-	ConfigureManager(*manager.Manager)
+	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
+	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 	Start()
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
+var tailCalls []manager.TailCallRoute = []manager.TailCallRoute{
+	{
+		ProgArrayName: httpProgsMap,
+		Key:           httpProg,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  httpSocketFilter,
+			EBPFFuncName: "socket__http_filter",
+		},
+	},
+}
+
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -125,30 +138,54 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	sslProgram, _ := newSSLProgram(c, sockFD)
+	// Add the subprograms even if nil, so that the manager can get the
+	// undefined probes from them when they are not enabled. Subprograms
+	// functions do checks for nil before doing anything.
+	ebpfSubprograms := []subprogram{
+		newGoTLSProgram(c),
+		newSSLProgram(c, sockFD),
+	}
+
 	program := &ebpfProgram{
-		Manager:                mgr,
+		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            ebpfSubprograms,
 	}
 
 	return program, nil
 }
 
 func (e *ebpfProgram) Init() error {
+	var undefinedProbes []manager.ProbeIdentificationPair
+
 	defer e.bytecode.Close()
 
+	for _, tc := range tailCalls {
+		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
+	}
+	for _, s := range e.subprograms {
+		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+	}
+
+	e.DumpHandler = dumpMapsHandler
+	e.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
+	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
-	e.Manager.DumpHandler = dumpMapsHandler
 
 	onlineCPUs, err := cpupossible.Get()
 	if err != nil {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	}
 
 	options := manager.Options{
@@ -168,16 +205,7 @@ func (e *ebpfProgram) Init() error {
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
-		TailCallRouter: []manager.TailCallRoute{
-			{
-				ProgArrayName: httpProgsMap,
-				Key:           httpProg,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilter,
-					EBPFFuncName: "socket__http_filter",
-				},
-			},
-		},
+		TailCallRouter: tailCalls,
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -201,7 +229,8 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: e.offsets,
+		ConstantEditors:           e.offsets,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 
 	for _, s := range e.subprograms {
@@ -233,7 +262,7 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
-	err := e.Manager.Stop(manager.CleanAll)
+	err := e.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()

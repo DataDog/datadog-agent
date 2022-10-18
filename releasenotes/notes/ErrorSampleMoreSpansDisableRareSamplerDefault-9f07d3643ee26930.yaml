@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: All non-manually dropped spans will go through the error sampler. 
+deprecations:
+  - |
+    APM: The Rare Sampler is now disabled by default. If you wish to enable it explicitly you can set apm_config.enable_rare_sampler or DD_APM_ENABLE_RARE_SAMPLER to true.
