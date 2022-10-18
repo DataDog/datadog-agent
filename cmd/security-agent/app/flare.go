@@ -12,7 +12,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -42,14 +41,8 @@ var flareCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
-		// Read configuration files received from the command line arguments '-c'
-		err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-		if err != nil {
-			return err
-		}
-
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+		err := config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err

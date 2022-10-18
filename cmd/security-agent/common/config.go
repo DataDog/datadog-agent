@@ -15,6 +15,7 @@ import (
 
 // MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line
 func MergeConfigurationFiles(configName string, configurationFilesArray []string, userDefined bool) error {
+	fmt.Printf("configName=%s, configFilesArray=%v, userDefined=%v\n", configName, configurationFilesArray, userDefined)
 	// we'll search for a config file named `datadog.yaml`
 	coreconfig.Datadog.SetConfigName(configName)
 
