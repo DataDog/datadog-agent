@@ -63,6 +63,7 @@ func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
+	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 
 	return []*cobra.Command{runtimeCmd}
 }
@@ -218,20 +219,6 @@ func downloadPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 var (
-	networkNamespaceCmd = &cobra.Command{
-		Use:   "network-namespace",
-		Short: "network namespace command",
-	}
-
-	dumpNetworkNamespaceCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "dumps the network namespaces held in cache",
-		RunE:  dumpNetworkNamespace,
-	}
-
-	dumpNetworkNamespaceArgs = struct {
-		snapshotInterfaces bool
-	}{}
 
 	/*Discarders*/
 	discardersCmd = &cobra.Command{
@@ -252,7 +239,7 @@ type processCacheDumpCliParams struct {
 	withArgs bool
 }
 
-func processCacheDumpCommands(globalParams *GlobalParams) []*cobra.Command {
+func processCacheCommands(globalParams *GlobalParams) []*cobra.Command {
 	cliParams := processCacheDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -264,28 +251,47 @@ func processCacheDumpCommands(globalParams *GlobalParams) []*cobra.Command {
 			return dumpProcessCache(&cliParams)
 		},
 	}
-
 	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
 
-	return []*cobra.Command{processCacheDumpCmd}
-}
-
-func processCacheCommands(globalParams *GlobalParams) []*cobra.Command {
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
 		Short: "process cache",
 	}
-
-	processCacheCmd.AddCommand(processCacheDumpCommands(globalParams)...)
+	processCacheCmd.AddCommand(processCacheDumpCmd)
 
 	return []*cobra.Command{processCacheCmd}
 }
 
-func init() {
-	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
-	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
-	runtimeCmd.AddCommand(networkNamespaceCmd)
+type dumpNetworkNamespaceCliParams struct {
+	*GlobalParams
 
+	snapshotInterfaces bool
+}
+
+func networkNamespaceCommands(globalParams *GlobalParams) []*cobra.Command {
+	cliParams := dumpNetworkNamespaceCliParams{
+		GlobalParams: globalParams,
+	}
+
+	dumpNetworkNamespaceCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "dumps the network namespaces held in cache",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return dumpNetworkNamespace(&cliParams)
+		},
+	}
+	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
+
+	networkNamespaceCmd := &cobra.Command{
+		Use:   "network-namespace",
+		Short: "network namespace command",
+	}
+	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
+
+	return []*cobra.Command{networkNamespaceCmd}
+}
+
+func init() {
 	/*Discarders*/
 	discardersCmd.AddCommand(dumpDiscardersCmd)
 	runtimeCmd.AddCommand(discardersCmd)
@@ -308,7 +314,7 @@ func dumpProcessCache(processCacheDumpArgs *processCacheDumpCliParams) error {
 	return nil
 }
 
-func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
+func dumpNetworkNamespace(dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
