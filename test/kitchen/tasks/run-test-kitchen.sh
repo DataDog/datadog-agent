@@ -133,8 +133,6 @@ KITCHEN_IMAGE_SIZE="${KITCHEN_IMAGE_SIZE:-}"
 
 invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --imagesize="${KITCHEN_IMAGE_SIZE}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
 
-bundle install
-
 bundle exec kitchen diagnose --no-instances --loader
 
 ## copy the generated kitchen.yml to the .kitchen directory so it'll be included
