@@ -226,7 +226,7 @@ func New() *Config {
 		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:            2 * time.Minute,
 
-		ProtocolClassificationEnabled: !cfg.GetBool(join(spNS, "disable_protocol_classification")),
+		ProtocolClassificationEnabled: cfg.GetBool(join(spNS, "enable_protocol_classification")),
 
 		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
