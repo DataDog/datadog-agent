@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// team: ebpf-platform
+
 // Component is the component type.
 type Component interface {
 	// IsSet determines whether the given config parameter is set.
