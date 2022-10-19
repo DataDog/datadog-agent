@@ -105,6 +105,7 @@ func NewProcessor(h Handlers) *Processor {
 	}
 }
 
+// TODO: change interface to skip metadata and only send manifest
 // Process is used to process a list of resources of a certain type.
 func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
 	// This default allows detection of panic recoveries.

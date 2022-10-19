@@ -24,8 +24,6 @@ type CRDHandlers struct{}
 // AfterMarshalling is a handler called after resource marshalling.
 // TODO: make it work with CRD
 func (crd *CRDHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
-	//m := resourceModel.(*model.CRD)
-	//m.Yaml = yaml
 	return
 }
 

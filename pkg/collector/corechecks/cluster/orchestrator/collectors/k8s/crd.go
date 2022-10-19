@@ -13,8 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -55,8 +56,12 @@ func (c *CRDCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	grv := schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "CustomResourceDefinition"} // that's a CRD
-	c.informer = rcfg.APIClient.DDInformerFactory.ForResource(grv)
+	groupVersionResource := v1.SchemeGroupVersion.WithResource("customresourcedefinitions")
+	var err error
+	c.informer, err = rcfg.APIClient.CRDInformerFactory.ForResource(groupVersionResource)
+	if err != nil {
+		log.Error(err)
+	}
 	c.lister = c.informer.Lister() // return that Lister
 }
 
@@ -88,7 +93,7 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 	// This would happen when recovering from a processor panic. In the nominal
 	// case we would have a positive integer set at the very end of processing.
 	// If this is not the case then it means code execution stopped sooner.
-	// Panic recovery will log more information about the error so we can figure
+	// Panic recovery will log more information about the error, so we can figure
 	// out the root cause.
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
