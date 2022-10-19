@@ -164,22 +164,18 @@ func load() (*Config, error) {
 	npmEnabled := cfg.GetBool("network_config.enabled")
 	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
 
-	if npmEnabled {
-		c.EnabledModules[NetworkTracerModule] = struct{}{}
-	} else if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
+	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Info("`system_probe_config.enabled` is deprecated, enable NPM with `network_config.enabled` instead")
-		c.EnabledModules[NetworkTracerModule] = struct{}{}
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set("network_config.enabled", true)
 		npmEnabled = true
 	}
 
-	if !npmEnabled && usmEnabled {
+	if npmEnabled || usmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
-
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
 	}
