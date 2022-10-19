@@ -253,7 +253,7 @@ def codecov_flavor(
             tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
 
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
-        ctx.run(f"codecov -f {path} -F '{tag}'", warn=True)
+        ctx.run(f"codecov -f {path} -F {tag}", warn=True)
 
 
 def process_input_args(input_module, input_targets, input_flavors):
