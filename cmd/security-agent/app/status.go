@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type cliParams struct {
+type statusCliParams struct {
 	*GlobalParams
 
 	json            bool
@@ -28,7 +28,7 @@ type cliParams struct {
 }
 
 func StatusCommands(globalParams *GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
+	cliParams := &statusCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -48,7 +48,7 @@ func StatusCommands(globalParams *GlobalParams) []*cobra.Command {
 	return nil
 }
 
-func runStatus(params *cliParams) error {
+func runStatus(params *statusCliParams) error {
 	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		return log.Errorf("Cannot setup logger, exiting: %v", err)

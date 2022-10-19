@@ -137,6 +137,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 
 	factories := []SubcommandFactory{
 		StatusCommands,
+		FlareCommands,
 	}
 
 	for _, factory := range factories {
