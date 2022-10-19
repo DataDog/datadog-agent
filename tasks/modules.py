@@ -1,10 +1,11 @@
-import re
 import os
+import re
 import subprocess
 import sys
 from contextlib import contextmanager
 
 FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
+
 
 class GoModule:
     """
