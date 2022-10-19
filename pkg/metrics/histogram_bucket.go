@@ -45,7 +45,7 @@ func (m *HistogramBucket) GetMetricType() MetricType {
 	return HistogramType
 }
 
-// IsNoIndex returns whether the metric must be not indexed or indexed.
+// IsNoIndex returns if the metric must not be indexed.
 func (m *HistogramBucket) IsNoIndex() bool {
 	return false
 }

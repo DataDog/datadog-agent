@@ -77,7 +77,7 @@ type MetricSampleContext interface {
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
 
-	// IsNoIndex returns whether the metric must be not indexed or indexed.
+	// IsNoIndex returns if the metric must not be indexed.
 	IsNoIndex() bool
 }
 
@@ -130,7 +130,7 @@ func (m *MetricSample) Copy() *MetricSample {
 	return dst
 }
 
-// IsNoIndex returns whether the metric must be not indexed or indexed.
+// IsNoIndex returns if the metric must not be indexed.
 func (m *MetricSample) IsNoIndex() bool {
 	return m.NoIndex
 }
