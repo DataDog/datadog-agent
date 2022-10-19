@@ -210,7 +210,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 		}
 
 		runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-		reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
+		reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, dstContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set up compliance log reporter: %w", err)
 		}
