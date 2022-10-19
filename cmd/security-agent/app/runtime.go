@@ -185,8 +185,8 @@ func selfTestCommands(globalParams *GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
-		Run: func(cmd *cobra.Command, args []string) {
-			runRuntimeSelfTest()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRuntimeSelfTest()
 		},
 	}
 
