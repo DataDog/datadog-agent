@@ -64,6 +64,7 @@ func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
+	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
 
 	return []*cobra.Command{runtimeCmd}
 }
@@ -218,21 +219,6 @@ func downloadPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{downloadPolicyCmd}
 }
 
-var (
-
-	/*Discarders*/
-	discardersCmd = &cobra.Command{
-		Use:   "discarders",
-		Short: "discarders commands",
-	}
-
-	dumpDiscardersCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "dump discarders",
-		RunE:  dumpDiscarders,
-	}
-)
-
 type processCacheDumpCliParams struct {
 	*GlobalParams
 
@@ -291,10 +277,23 @@ func networkNamespaceCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
-func init() {
-	/*Discarders*/
+func discardersCommands(globalParams *GlobalParams) []*cobra.Command {
+
+	dumpDiscardersCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "dump discarders",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return dumpDiscarders()
+		},
+	}
+
+	discardersCmd := &cobra.Command{
+		Use:   "discarders",
+		Short: "discarders commands",
+	}
 	discardersCmd.AddCommand(dumpDiscardersCmd)
-	runtimeCmd.AddCommand(discardersCmd)
+
+	return []*cobra.Command{discardersCmd}
 }
 
 func dumpProcessCache(processCacheDumpArgs *processCacheDumpCliParams) error {
@@ -765,7 +764,7 @@ func downloadPolicy(downloadPolicyArgs *downloadPolicyCliParams) error {
 	return err
 }
 
-func dumpDiscarders(cmd *cobra.Command, args []string) error {
+func dumpDiscarders() error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
