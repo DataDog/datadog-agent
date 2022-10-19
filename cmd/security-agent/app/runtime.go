@@ -52,22 +52,36 @@ const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
+type checkPoliciesCliParams struct {
+	*GlobalParams
+
+	dir string
+}
+
+func CheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+	cliParams := checkPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
+	checkPoliciesCmd := &cobra.Command{
+		Use:   "check-policies",
+		Short: "check policies and return a report",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkPolicies(&cliParams)
+		},
+		Deprecated: "please use `security-agent runtime policy check` instead",
+	}
+
+	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+
+	return []*cobra.Command{checkPoliciesCmd}
+}
+
 var (
 	runtimeCmd = &cobra.Command{
 		Use:   "runtime",
 		Short: "runtime Agent utility commands",
 	}
-
-	checkPoliciesCmd = &cobra.Command{
-		Use:        "check-policies",
-		Short:      "check policies and return a report",
-		RunE:       checkPolicies,
-		Deprecated: "please use `security-agent runtime policy check` instead",
-	}
-
-	checkPoliciesArgs = struct {
-		dir string
-	}{}
 
 	evalArgs = struct {
 		dir       string
@@ -328,7 +342,6 @@ func init() {
 	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
-	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	commonPolicyCmd.AddCommand(evalCmd)
 	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
@@ -683,8 +696,8 @@ func checkPoliciesInner(dir string) error {
 	return nil
 }
 
-func checkPolicies(cmd *cobra.Command, args []string) error {
-	return checkPoliciesInner(checkPoliciesArgs.dir)
+func checkPolicies(args *checkPoliciesCliParams) error {
+	return checkPoliciesInner(args.dir)
 }
 
 // EvalReport defines a report of an evaluation
