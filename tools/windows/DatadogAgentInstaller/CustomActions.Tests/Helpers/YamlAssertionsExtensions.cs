@@ -1,3 +1,4 @@
+using System.Linq;
 using YamlDotNet.RepresentationModel;
 
 namespace CustomActions.Tests.Helpers
@@ -15,7 +16,9 @@ namespace CustomActions.Tests.Helpers
         /// <returns>A <see cref="YamlAssertions"/>object.</returns>
         public static YamlAssertions Should(this YamlStream instance)
         {
-            return new YamlAssertions(instance.Documents[0].RootNode);
+            // If the doc is empty, don't fail but return an assertion over an empty doc.
+            var doc = instance.Documents.FirstOrDefault() ?? new YamlDocument(new YamlMappingNode());
+            return new YamlAssertions(doc.RootNode);
         }
     }
 }
