@@ -45,7 +45,7 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
-// CheckCmd returns a cobra command to run security agent checks
+// CheckCommands returns a cobra command to run security agent checks
 func CheckCommands(globalParams *GlobalParams) []*cobra.Command {
 	checkArgs := checkCliParams{
 		GlobalParams: globalParams,

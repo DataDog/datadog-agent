@@ -100,7 +100,7 @@ type GlobalParams struct {
 
 type SubcommandFactory func(*GlobalParams) []*cobra.Command
 
-func init() {
+func CreateSecurityAgentCmd() *cobra.Command {
 	globalParams := GlobalParams{}
 
 	SecurityAgentCmd := &cobra.Command{
@@ -139,6 +139,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		StatusCommands,
 		FlareCommands,
 		CheckCommands,
+		ConfigCommands,
 	}
 
 	for _, factory := range factories {
@@ -146,6 +147,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			SecurityAgentCmd.AddCommand(subcmd)
 		}
 	}
+
+	return SecurityAgentCmd
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {
