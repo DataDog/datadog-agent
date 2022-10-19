@@ -26,15 +26,15 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 		}
 		envKey := tokens[0]
 		envVal := tokens[1]
-		if strings.HasSuffix(envKey, kmsKeySuffix) {
-			log.Debugf("Decrypting %v", envVar)
-			secretVal, err := kmsFunc(envVal)
-			if err != nil {
-				log.Debugf("Couldn't read API key from KMS: %v", err)
-				continue
-			}
-			decryptedEnvVars[strings.TrimSuffix(envKey, kmsKeySuffix)] = secretVal
-		}
+		//if strings.HasSuffix(envKey, kmsKeySuffix) {
+		//	log.Debugf("Decrypting %v", envVar)
+		//	//secretVal, err := kmsFunc(envVal)
+		//	//if err != nil {
+		//	//	log.Debugf("Couldn't read API key from KMS: %v", err)
+		//	//	continue
+		//	//}
+		//	decryptedEnvVars[strings.TrimSuffix(envKey, kmsKeySuffix)] = secretVal
+		//}
 		if strings.HasSuffix(envKey, secretArnSuffix) {
 			log.Debugf("Retrieving %v from secrets manager", envVar)
 			secretVal, err := smFunc(envVal)
@@ -57,7 +57,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
 func setSecretsFromEnv(envVars []string) {
-	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
+	for envKey, envVal := range getSecretEnvVars(envVars, nil, readAPIKeyFromSecretsManager) {
 		os.Setenv(envKey, envVal)
 	}
 }

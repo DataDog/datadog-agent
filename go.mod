@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v0.7.0
 	github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1

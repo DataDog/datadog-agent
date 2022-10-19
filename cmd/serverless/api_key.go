@@ -8,14 +8,11 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"os"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,59 +32,59 @@ const secretArnSuffix = "_SECRET_ARN"
 
 // decryptKMS decodes and deciphers the base64-encoded ciphertext given as a parameter using KMS.
 // For this to work properly, the Lambda function must have the appropriate IAM permissions.
-func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
-	decodedBytes, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", fmt.Errorf("Failed to decode ciphertext from base64: %v", err)
-	}
-
-	// When the API key is encrypted using the AWS console, the function name is added as an
-	// encryption context. When the API key is encrypted using the AWS CLI, no encryption context
-	// is added. We need to try decrypting the API key both with and without the encryption context.
-
-	// Try without encryption context, in case API key was encrypted using the AWS CLI
-	functionName := os.Getenv(functionNameEnvVar)
-	params := &kms.DecryptInput{
-		CiphertextBlob: decodedBytes,
-	}
-	response, err := kmsClient.Decrypt(params)
-
-	if err != nil {
-		log.Debug("Failed to decrypt ciphertext without encryption context, retrying with encryption context")
-		// Try with encryption context, in case API key was encrypted using the AWS Console
-		params = &kms.DecryptInput{
-			CiphertextBlob: decodedBytes,
-			EncryptionContext: map[string]*string{
-				encryptionContextKey: &functionName,
-			},
-		}
-		response, err = kmsClient.Decrypt(params)
-		if err != nil {
-			return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
-		}
-	}
-
-	plaintext := string(response.Plaintext)
-	return plaintext, nil
-}
+//func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
+//	decodedBytes, err := base64.StdEncoding.DecodeString(ciphertext)
+//	if err != nil {
+//		return "", fmt.Errorf("Failed to decode ciphertext from base64: %v", err)
+//	}
+//
+//	// When the API key is encrypted using the AWS console, the function name is added as an
+//	// encryption context. When the API key is encrypted using the AWS CLI, no encryption context
+//	// is added. We need to try decrypting the API key both with and without the encryption context.
+//
+//	// Try without encryption context, in case API key was encrypted using the AWS CLI
+//	functionName := os.Getenv(functionNameEnvVar)
+//	params := &kms.DecryptInput{
+//		CiphertextBlob: decodedBytes,
+//	}
+//	response, err := kmsClient.Decrypt(params)
+//
+//	if err != nil {
+//		log.Debug("Failed to decrypt ciphertext without encryption context, retrying with encryption context")
+//		// Try with encryption context, in case API key was encrypted using the AWS Console
+//		params = &kms.DecryptInput{
+//			CiphertextBlob: decodedBytes,
+//			EncryptionContext: map[string]*string{
+//				encryptionContextKey: &functionName,
+//			},
+//		}
+//		response, err = kmsClient.Decrypt(params)
+//		if err != nil {
+//			return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
+//		}
+//	}
+//
+//	plaintext := string(response.Plaintext)
+//	return plaintext, nil
+//}
 
 // readAPIKeyFromKMS gets and decrypts an API key encrypted with KMS if the env var DD_KMS_API_KEY has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromKMS(cipherText string) (string, error) {
-	if cipherText == "" {
-		return "", nil
-	}
-	sess, err := session.NewSession(nil)
-	if err != nil {
-		return "", err
-	}
-	kmsClient := kms.New(sess)
-	plaintext, err := decryptKMS(kmsClient, cipherText)
-	if err != nil {
-		return "", fmt.Errorf("decryptKMS error: %s", err)
-	}
-	return plaintext, nil
-}
+//func readAPIKeyFromKMS(cipherText string) (string, error) {
+//	if cipherText == "" {
+//		return "", nil
+//	}
+//	sess, err := session.NewSession(nil)
+//	if err != nil {
+//		return "", err
+//	}
+//	kmsClient := kms.New(sess)
+//	plaintext, err := decryptKMS(kmsClient, cipherText)
+//	if err != nil {
+//		return "", fmt.Errorf("decryptKMS error: %s", err)
+//	}
+//	return plaintext, nil
+//}
 
 // readAPIKeyFromSecretsManager reads an API Key from AWS Secrets Manager if the env var DD_API_KEY_SECRET_ARN has been set.
 // If none has been set, it returns an empty string and a nil error.

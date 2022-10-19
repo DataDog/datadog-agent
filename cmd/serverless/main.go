@@ -160,13 +160,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// try to read API key from KMS
 
-	var apiKey string
-	if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
-		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
-	} else if apiKey != "" {
-		log.Info("Using deciphered KMS API Key.")
-		os.Setenv(apiKeyEnvVar, apiKey)
-	}
+	var apiKey string = ""
+	//if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
+	//	log.Errorf("Error while trying to read an API Key from KMS: %s", err)
+	//} else if apiKey != "" {
+	//	log.Info("Using deciphered KMS API Key.")
+	//	os.Setenv(apiKeyEnvVar, apiKey)
+	//}
 
 	// try to read the API key from Secrets Manager, only if not set from KMS
 
