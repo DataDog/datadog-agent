@@ -52,10 +52,10 @@ var NetworkTracer = module.Factory{
 		}
 
 		if ncfg.NPMEnabled {
-			log.Info("network performance monitoring (NPM) enabled")
+			log.Info("enabling network performance monitoring (NPM)")
 		}
 		if ncfg.ServiceMonitoringEnabled {
-			log.Info("universal service monitoring (USM) enabled")
+			log.Info("enabling universal service monitoring (USM)")
 		}
 
 		t, err := tracer.NewTracer(ncfg)
