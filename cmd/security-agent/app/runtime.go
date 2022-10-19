@@ -58,6 +58,7 @@ func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
 	}
 
 	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
@@ -90,6 +91,18 @@ func checkPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
+func reloadPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+	reloadPoliciesCmd := &cobra.Command{
+		Use:   "reload",
+		Short: "Reload policies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return reloadRuntimePolicies()
+		},
+		Deprecated: "please use `security-agent runtime policy reload` instead",
+	}
+	return []*cobra.Command{reloadPoliciesCmd}
+}
+
 func commonPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
 	commonPolicyCmd := &cobra.Command{
 		Use:   "policy",
@@ -97,7 +110,8 @@ func commonPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
 	}
 
 	commonPolicyCmd.AddCommand(evalCommands(globalParams)...)
-	commonPolicyCmd.AddCommand(commonPolicyCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(commonCheckPoliciesCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(commonReloadPoliciesCommands(globalParams)...)
 	commonPolicyCmd.AddCommand(downloadPolicyCommands(globalParams)...)
 
 	return []*cobra.Command{commonPolicyCmd}
@@ -151,6 +165,17 @@ func commonCheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
+}
+
+func commonReloadPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+	commonReloadPoliciesCmd := &cobra.Command{
+		Use:   "reload",
+		Short: "Reload policies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return reloadRuntimePolicies()
+		},
+	}
+	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
 func selfTestCommands(globalParams *GlobalParams) []*cobra.Command {
@@ -222,19 +247,6 @@ var (
 		withArgs bool
 	}{}
 
-	reloadPoliciesCmd = &cobra.Command{
-		Use:        "reload",
-		Short:      "Reload policies",
-		RunE:       reloadRuntimePolicies,
-		Deprecated: "please use `security-agent runtime policy reload` instead",
-	}
-
-	commonReloadPoliciesCmd = &cobra.Command{
-		Use:   "reload",
-		Short: "Reload policies",
-		RunE:  reloadRuntimePolicies,
-	}
-
 	/*Discarders*/
 	discardersCmd = &cobra.Command{
 		Use:   "discarders",
@@ -253,10 +265,6 @@ func init() {
 
 	processCacheCmd.AddCommand(processCacheDumpCmd)
 	runtimeCmd.AddCommand(processCacheCmd)
-
-	runtimeCmd.AddCommand(reloadPoliciesCmd)
-
-	commonPolicyCmd.AddCommand(commonReloadPoliciesCmd)
 
 	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
 	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
@@ -588,7 +596,7 @@ func runRuntimeSelfTest() error {
 	return nil
 }
 
-func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
+func reloadRuntimePolicies() error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
