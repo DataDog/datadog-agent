@@ -54,6 +54,10 @@ const (
 	K8sServiceAccount
 	// K8sIngress represents a Kubernetes Ingress
 	K8sIngress
+	// K8sCRD represents a Kubernetes CRD
+	K8sCRD
+	// K8sCR represents a Kubernetes CR
+	K8sCR
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -77,6 +81,8 @@ func NodeTypes() []NodeType {
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
 		K8sIngress,
+		K8sCR,
+		K8sCRD,
 	}
 }
 
@@ -118,8 +124,12 @@ func (n NodeType) String() string {
 		return "ServiceAccount"
 	case K8sIngress:
 		return "Ingress"
+	case K8sCRD:
+		return "CRD"
+	case K8sCR:
+		return "CR"
 	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
+		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
 	}
 }
@@ -144,10 +154,12 @@ func (n NodeType) Orchestrator() string {
 		K8sClusterRole,
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
+		K8sCRD,
+		K8sCR,
 		K8sIngress:
 		return "k8s"
 	default:
-		log.Errorf("Unknown NodeType %v", n)
+		_ = log.Errorf("Unknown NodeType %v", n)
 		return ""
 	}
 }
@@ -155,7 +167,7 @@ func (n NodeType) Orchestrator() string {
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
 	if n.String() == "" {
-		log.Errorf("Unknown NodeType %v", n)
+		_ = log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
 	tags := getTelemetryTags(n)
@@ -167,28 +179,6 @@ func getTelemetryTags(n NodeType) []string {
 		n.Orchestrator(),
 		strings.ToLower(n.String()),
 	}
-}
-
-// ChunkRange returns the chunk start and end for an iteration.
-func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int) {
-	var (
-		chunkStart = chunkSize * (counter - 1)
-		chunkEnd   = chunkSize * (counter)
-	)
-	// last chunk may be smaller than the chunk size
-	if counter == chunkCount {
-		chunkEnd = numberOfElements
-	}
-	return chunkStart, chunkEnd
-}
-
-// GroupSize returns the GroupSize/number of chunks.
-func GroupSize(msgs, maxPerMessage int) int {
-	groupSize := msgs / maxPerMessage
-	if msgs%maxPerMessage > 0 {
-		groupSize++
-	}
-	return groupSize
 }
 
 // SetCacheStats sets the cache stats for each resource

@@ -93,8 +93,16 @@ func (cb *CollectorBundle) prepareCollectors() {
 // The following configuration keys are accepted:
 //   - <collector_name> (e.g "cronjobs")
 //   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
-//
-// Note that in the versionless case the collector version that'll be used is
+
+// ## CRD
+// TODO: to be verified, but if crd is setup we automatically collect all the crds and then one can specifically add special CRs to be collectd
+// TODO: once CR is activated automatically collect CRD
+// CRDs are handled special with the crd prefix
+//   - crd/<apigroup_and_version>/<collector_name> (e.g. "crd/datadoghq.com/v1alpha1/datadogagent")
+// Once CRDs are collected the agent will collect the CRD and the related CR
+// Following above example of collecting crd/datadoghq.com/v1alpha1/datadogagent
+// The agent will also collect the CRD: apiextensions.k8s.io/v1/CustomResourceDefinition for datadoghq.com/v1alpha1/datadogagent
+// Note that in the version-less case the collector version that'll be used is
 // the one declared as the default version in the inventory.
 func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 	var (
@@ -102,6 +110,11 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 		err       error
 	)
 
+	// TODO: if its crd in name lets use a dedicated handler
+	// for each crd defined:
+	// - check if exists
+	// - create informer
+	// - return a collector running the processor
 	if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
 		version := collectorName[:idx]
 		name := collectorName[idx+1:]

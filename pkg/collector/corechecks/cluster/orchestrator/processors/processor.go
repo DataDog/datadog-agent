@@ -59,7 +59,7 @@ type Handlers interface {
 	// processing loop moves on to the next resource.
 	BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody
 
-	// ExtractResource is used to build the a resource model from the raw
+	// ExtractResource is used to build a resource model from the raw
 	// resource representation.
 	ExtractResource(ctx *ProcessorContext, resource interface{}) (resourceModel interface{})
 
@@ -159,6 +159,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
 
+		// TODO: check to make that support CRD and CR
 		// Add resource manifest
 		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
 			Type:            int32(ctx.NodeType),
