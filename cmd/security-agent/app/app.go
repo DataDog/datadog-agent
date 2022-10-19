@@ -59,22 +59,6 @@ const (
 )
 
 var (
-	// SecurityAgentCmd is the entry point for security agent CLI commands
-	SecurityAgentCmd = &cobra.Command{
-		Use:   "datadog-security-agent [command]",
-		Short: "Datadog Security Agent at your service.",
-		Long: `
-Datadog Security Agent takes care of running compliance and security checks.`,
-		SilenceUsage: true, // don't print usage on errors
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if flagNoColor {
-				color.NoColor = true
-			}
-
-			return common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-		},
-	}
-
 	startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start the Security Agent",
@@ -102,22 +86,44 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	pidfilePath   string
-	confPathArray []string
-	flagNoColor   bool
+	pidfilePath string
 
 	srv          *api.Server
 	expvarServer *http.Server
 	stopper      startstop.Stopper
 )
 
+type GlobalParams struct {
+	confPathArray []string
+	flagNoColor   bool
+}
+
+type SubcommandFactory func(*GlobalParams) []*cobra.Command
+
 func init() {
+	globalParams := GlobalParams{}
+
+	SecurityAgentCmd := &cobra.Command{
+		Use:   "datadog-security-agent [command]",
+		Short: "Datadog Security Agent at your service.",
+		Long: `
+Datadog Security Agent takes care of running compliance and security checks.`,
+		SilenceUsage: true, // don't print usage on errors
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if globalParams.flagNoColor {
+				color.NoColor = true
+			}
+
+			return common.MergeConfigurationFiles("datadog", globalParams.confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+		},
+	}
+
 	defaultConfPathArray := []string{
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.flagNoColor, "no-color", "n", false, "disable color output")
 
 	SecurityAgentCmd.AddCommand(versionCmd)
 	SecurityAgentCmd.AddCommand(complianceCmd)
@@ -128,6 +134,16 @@ func init() {
 
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	SecurityAgentCmd.AddCommand(startCmd)
+
+	factories := []SubcommandFactory{
+		StatusCommands,
+	}
+
+	for _, factory := range factories {
+		for _, subcmd := range factory(nil) {
+			SecurityAgentCmd.AddCommand(subcmd)
+		}
+	}
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {
