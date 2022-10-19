@@ -71,8 +71,8 @@ func TestDisablingProtocolClassification(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_DISABLE_PROTOCOL_CLASSIFICATION", "true")
-		defer os.Unsetenv("DD_DISABLE_PROTOCOL_CLASSIFICATION")
+		os.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
+		defer os.Unsetenv("DD_ENABLE_PROTOCOL_CLASSIFICATION")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
