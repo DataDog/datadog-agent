@@ -246,13 +246,14 @@ def codecov_flavor(
             print("----- Skipped")
             continue
 
-        with ctx.cd(module.full_path()):
-            # Codecov flags are limited to 45 characters
-            tag = f"{platform.system()}-{flavor.name}-{module.codecov_path()}"
-            if len(tag) > 45:
-                # Best-effort attempt to get a unique and legible tag name
-                tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
-            ctx.run(f"codecov -f {PROFILE_COV} -F '{tag}'", warn=True)
+        # Codecov flags are limited to 45 characters
+        tag = f"{platform.system()}-{flavor.name}-{module.codecov_path()}"
+        if len(tag) > 45:
+            # Best-effort attempt to get a unique and legible tag name
+            tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
+
+        path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
+        ctx.run(f"codecov -f {path} -F '{tag}'", warn=True)
 
 
 def process_input_args(input_module, input_targets, input_flavors):
