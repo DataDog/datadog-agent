@@ -67,7 +67,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err = app.SecurityAgentCmd.Execute(); err != nil {
+	if err = app.CreateSecurityAgentCmd().Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
