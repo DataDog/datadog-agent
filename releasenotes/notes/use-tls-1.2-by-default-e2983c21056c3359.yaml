@@ -1,5 +1,6 @@
 ---
 upgrade:
-    The ``force_tls_12` configuration parameter is removed in favor of ``min_tls_version``.
-    The ``min_tls_version`` configuration parameter now defaults to `tlsv1.2` instead of ``tlsv1.0``.
-    Set ``min_tls_version`` value to `tlsv1.0` or `tlsv1.1` to allow a lower TLS version.
+    The Agent now defaults to TLS 1.2 instead of TLS 1.0. The ``force_tls_12`` configuration parameter has been
+    removed since it's now the default behavior.
+    To continue using TLS 1.0 or 1.1, you must set the ``min_tls_version`` configuration parameter to either
+    `tlsv1.0` or `tlsv1.1`.
