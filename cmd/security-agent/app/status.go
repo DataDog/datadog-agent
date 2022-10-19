@@ -55,10 +55,6 @@ func runStatus(params *cliParams) error {
 		return log.Errorf("Cannot setup logger, exiting: %v", err)
 	}
 
-	return requestStatus(params)
-}
-
-func requestStatus(params *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
