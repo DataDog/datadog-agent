@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -86,7 +85,7 @@ func New(configPath string) (*Config, error) {
 	}
 	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	// load the configuration
-	_, err := config.LoadCustom(aconfig.SystemProbe, "system-probe", false)
+	_, err := config.LoadCustom(aconfig.SystemProbe, "system-probe", true)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (!errors.As(err, &e) || configPath != "") {
@@ -102,15 +101,11 @@ func New(configPath string) (*Config, error) {
 		}
 		return nil, err
 	}
-	return load(configPath)
+	return load()
 }
 
-func load(configPath string) (*Config, error) {
+func load() (*Config, error) {
 	cfg := aconfig.SystemProbe
-
-	if err := aconfig.ResolveSecrets(cfg, filepath.Base(configPath)); err != nil {
-		return nil, err
-	}
 
 	var profSettings *profiling.Settings
 	if cfg.GetBool(key(spNS, "internal_profiling.enabled")) {

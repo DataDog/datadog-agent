@@ -45,9 +45,6 @@ const (
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
-// This function should not be called before ResolveSecrets,
-// unless you call `cmd/system-probe/config.New` or `cmd/system-probe/config.Merge` in-between.
-// This is to prevent the in-memory values from being fixed before the file-based values have had a chance to be read.
 func InitSystemProbeConfig(cfg Config) {
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
