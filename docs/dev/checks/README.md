@@ -8,14 +8,6 @@ fit for your use case, please [refer to the official documentation][custom-check
 Every check has its own YAML configuration file. The file has one mandatory key,
 `instances` and one optional, `init_config`.
 
-Note:
-If you want to run a custom check inside your development workspace 
-(github.com/DataDog/datadog-agent), you must put `MyCheck.yaml` and
-`MyCheck.py` in the `bin/agent/dist` folder located at the root of the 
-datadog-agent repository. 
-Please keep in mind that the `invoke agent.build` task will copy the
-contents inside `dev/dist` to `bin/agent/dist` when ran, so you can use
-that path if you need alonger-lived location for your custom checks.
 
 ### init_config
 
@@ -133,3 +125,91 @@ checks code.
 [collector]: /pkg/collector
 [datadog_checks_base]: https://datadog-checks-base.readthedocs.io/en/latest/
 [developer_docs]: https://docs.datadoghq.com/developers/
+
+## Running checks with a local Agent Build
+### Custom Checks
+Scenario: You have implemented a custom check called `hello_world` and you'd like
+to run this with a local agent build.
+
+1. Place the configuration file `hello_world.yaml` in `dev/dist/conf.d/` folder
+2. Place the pthon code in `dev/dist/` folder
+2. Run `inv agent.build` as usual. This step will copy the contents
+   of `dev/dist` into `bin/agent/dist`, which is where the agent will be
+   able to find your code.
+
+The resulting directory structure should look like:
+```
+dev/dist
+├── conf.d
+│   └── hello_world.yaml
+├── hello_world.py
+└── README.md
+```
+
+### Standard Checks
+There are a number of checks that ship with a full build of the Agent, but when
+you're developing against a local build, you will not get any of these python
+checks out of the box, you must install them.
+
+> Note the following instructions install python packages to the python user
+> install directory. This could conflict with existing packages.
+
+The list of checks currently shipping with the agent lives in the
+[integrations-core repo
+here](https://github.com/DataDog/integrations-core/blob/master/requirements-agent-release.txt)
+
+Say you want to test the `openmetrics` check.
+
+1. Clone `integrations-core` locally. (Optionally checkout the git tag
+   corresponding to the version you want to test)
+2. From integration-core directory, install `datadog-checks-base` as a pre-req.
+   `pip3.10 install --user './datadog_checks_base[deps]'`
+3. Install the `openmetrics` check. From inside the `integrations-core`
+   checkout:
+   `pip3.10 install --user ./openmetrics`
+
+That's it! Your local build should now have the correct packages to be able to
+run the `openmetrics` check.
+
+#### "What is this `[deps]` thing?"
+The `[deps]` at the end of the package name instructs pip to install the
+"requires" that match the `deps` "extra". Without this, you'll see errors when running the agent
+about missing dependencies.
+
+View all the possible 'extras' with:
+```
+pip3.10 install --no-warn-script-location --user --dry-run --ignore-installed -qqq --report - datadog-checks-base | jq '.install[] | select(.metadata.name=="datadog-checks-base") | .metadata.provides_extra'
+```
+
+View all the "requires" (which shows which "extra" will trigger that
+dependency to be installed) with:
+```
+pip3.10 install --no-warn-script-location --user --dry-run --ignore-installed -qqq --report - datadog-checks-base | jq '.install[] | select(.metadata.name=="datadog-checks-base") | .metadata.requires_dist'
+```
+
+#### "Which python is my agent build using?"
+Assuming you're not doing a full omnibus build, you won't have an embedded
+python in your local build, so your local build will need to choose a python
+from your system to use.
+
+By default the agent will choose the first python binary (`python` or `python3`
+depending on your configuration) from the `PATH` that is used to run the agent.
+
+### "Could not initialize Python"
+Out of the box, after an `inv agent.build`, you may see the following error on
+linux when trying to run the resulting `agent` binary:
+
+`Could not initialize Python: could not load runtime python for version 3: Unable to open three library: libdatadog-agent-three.so: cannot open shared object file: No such file or directory`
+
+To solve on linux, use the loader env var `LD_LIBRARY_PATH`.
+ie, `LD_LIBRARY_PATH=$PWD/dev/lib ./bin/agent/agent run`
+
+Why is this needed? This is due to a combination of the way `rtloader` works
+and how library loading works on linux.
+
+The very simplified summary is that `libdatadog-agent-rtloader.so` attempts to load
+`libdatadog-agent-three.so` via `dlopen`, however `libdatadog-agent-rtloader`
+does not have its `RUNPATH` set correctly in local builds, so `dlopen` is unable to find
+`libdatadog-agent-three.so`. Using `LD_LIBRARY_PATH` instructs `dlopen` where to
+search for libraries, so using it sidesteps this issue.
+
