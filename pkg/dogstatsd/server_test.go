@@ -1058,7 +1058,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
 		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
-		t.Run(fmt.Sprintf("optout_enabled=%s", enabled), testProcessedMetricsOrigin)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testProcessedMetricsOrigin)
 	}
 }
 
@@ -1096,7 +1096,7 @@ func TestContainerIDParsing(t *testing.T) {
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
 		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
-		t.Run(fmt.Sprintf("optout_enabled=%s", enabled), testContainerIDParsing)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testContainerIDParsing)
 	}
 }
 
@@ -1146,7 +1146,7 @@ func TestOriginOptout(t *testing.T) {
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
 		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
-		t.Run(fmt.Sprintf("optout_enabled=%s", enabled), func(t *testing.T) {
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), func(t *testing.T) {
 			testOriginOptout(t, enabled)
 		})
 	}
