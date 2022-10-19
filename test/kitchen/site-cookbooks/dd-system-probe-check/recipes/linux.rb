@@ -100,6 +100,10 @@ directory "/opt/datadog-agent/embedded/include" do
   recursive true
 end
 
+directory "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf" do
+  recursive true
+end
+
 cookbook_file "/opt/datadog-agent/embedded/bin/clang-bpf" do
   source "clang-bpf"
   mode '0744'
@@ -110,4 +114,14 @@ cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
   source "llc-bpf"
   mode '0744'
   action :create
+end
+
+cookbook_file "minimized-btfs.tar.gz" do
+  source "minimized-btfs.tar.gz"
+  action :create
+end
+
+execute 'extract minimized btfs' do
+  command 'tar -xf minimized-btfs.tar.gz -C /tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/'
+  action :run
 end

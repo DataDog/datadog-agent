@@ -31,6 +31,9 @@ print KernelOut.format(`uname -a`)
 Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/*.o').each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
+Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f|
+  FileUtils.chmod 0644, f, :verbose => true
+end
 
 Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
   pkg = f.delete_prefix('/tmp/system-probe-tests').delete_suffix('/testsuite')
@@ -49,6 +52,17 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
     it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
         Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
+          test_failures = check_output(output, wait_thr)
+          expect(test_failures).to be_empty, test_failures.join("\n")
+        end
+      end
+    end
+  end
+
+  describe "CO-RE system-probe tests for #{pkg}" do
+    it 'successfully runs' do
+      Dir.chdir(File.dirname(f)) do
+        Open3.popen2e({"DD_TESTS_CO_RE"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
           test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end
