@@ -45,7 +45,7 @@ func StatusCommands(globalParams *GlobalParams) []*cobra.Command {
 	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	statusCmd.Flags().StringVarP(&cliParams.file, "file", "o", "", "Output the status command to a file")
 
-	return nil
+	return []*cobra.Command{statusCmd}
 }
 
 func runStatus(params *statusCliParams) error {
