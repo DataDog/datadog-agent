@@ -46,6 +46,21 @@ const (
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg Config) {
+	// statsd
+	cfg.BindEnv("bind_host")
+	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
+
+	// logging
+	cfg.SetKnown(join(spNS, "log_file"))
+	cfg.SetKnown(join(spNS, "log_level"))
+	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
+	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
+	cfg.BindEnvAndSetDefault("syslog_uri", "")
+	cfg.BindEnvAndSetDefault("syslog_rfc", false)
+	cfg.BindEnvAndSetDefault("log_to_syslog", false)
+	cfg.BindEnvAndSetDefault("log_to_console", true)
+	cfg.BindEnvAndSetDefault("log_format_json", false)
+
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
@@ -61,12 +76,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), defaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "log_file"), defaultSystemProbeLogFilePath)
-	cfg.BindEnvAndSetDefault(join(spNS, "log_level"), "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
-
-	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_host"), "127.0.0.1")
-	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_port"), 8125)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")

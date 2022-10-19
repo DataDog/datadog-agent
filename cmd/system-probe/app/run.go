@@ -136,11 +136,10 @@ func StartSystemProbe() error {
 		loggerName,
 		cfg.LogLevel,
 		cfg.LogFile,
-		ddconfig.GetSyslogURI(),
-		// these can only come from defaults or env vars, since we don't read datadog.yaml
-		ddconfig.Datadog.GetBool("syslog_rfc"),
-		ddconfig.Datadog.GetBool("log_to_console"),
-		ddconfig.Datadog.GetBool("log_format_json"),
+		ddconfig.GetSyslogURIFromConfig(ddconfig.SystemProbe),
+		ddconfig.SystemProbe.GetBool("syslog_rfc"),
+		ddconfig.SystemProbe.GetBool("log_to_console"),
+		ddconfig.SystemProbe.GetBool("log_format_json"),
 	)
 	if err != nil {
 		return log.Criticalf("failed to setup configured logger: %s", err)
@@ -189,8 +188,10 @@ func StartSystemProbe() error {
 		}
 	}
 
-	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
-		return log.Criticalf("Error configuring statsd: %s", err)
+	if cfg.StatsdPort > 0 {
+		if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
+			return log.Criticalf("Error configuring statsd: %s", err)
+		}
 	}
 
 	// if a debug port is specified, we expose the default handler to that port

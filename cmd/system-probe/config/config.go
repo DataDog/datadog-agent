@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/viper"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -85,7 +84,7 @@ func New(configPath string) (*Config, error) {
 	}
 	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	// load the configuration
-	_, err := config.LoadCustom(aconfig.SystemProbe, "system-probe", true)
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", true)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (!errors.As(err, &e) || configPath != "") {
@@ -144,14 +143,24 @@ func load() (*Config, error) {
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
 		MaxConnsPerMessage: cfg.GetInt(key(spNS, "max_conns_per_message")),
 
-		LogFile:   cfg.GetString(key(spNS, "log_file")),
-		LogLevel:  cfg.GetString(key(spNS, "log_level")),
+		LogFile:   cfg.GetString("log_file"),
+		LogLevel:  cfg.GetString("log_level"),
 		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
 		ProfilingSettings: profSettings,
+	}
+
+	// backwards compatible log settings
+	if !cfg.IsSet("log_level") && cfg.IsSet(key(spNS, "log_level")) {
+		c.LogLevel = cfg.GetString(key(spNS, "log_level"))
+		cfg.Set("log_level", c.LogLevel)
+	}
+	if !cfg.IsSet("log_file") && cfg.IsSet(key(spNS, "log_file")) {
+		c.LogFile = cfg.GetString(key(spNS, "log_file"))
+		cfg.Set("log_file", c.LogFile)
 	}
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
