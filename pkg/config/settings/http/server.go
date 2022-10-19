@@ -21,15 +21,23 @@ import (
 
 // Server offers functions that implement the standard runtime settings HTTP API
 var Server = struct {
-	GetFull          func(ddconfig.Config, ...string) http.HandlerFunc
-	GetValue         http.HandlerFunc
-	SetValue         http.HandlerFunc
-	ListConfigurable http.HandlerFunc
+	GetFullDatadogConfig     func(...string) http.HandlerFunc
+	GetFullSystemProbeConfig func(...string) http.HandlerFunc
+	GetValue                 http.HandlerFunc
+	SetValue                 http.HandlerFunc
+	ListConfigurable         http.HandlerFunc
 }{
-	GetFull:          getFullConfig,
-	GetValue:         getConfigValue,
-	SetValue:         setConfigValue,
-	ListConfigurable: listConfigurableSettings,
+	GetFullDatadogConfig:     getGlobalFullConfig(ddconfig.Datadog),
+	GetFullSystemProbeConfig: getGlobalFullConfig(ddconfig.SystemProbe),
+	GetValue:                 getConfigValue,
+	SetValue:                 setConfigValue,
+	ListConfigurable:         listConfigurableSettings,
+}
+
+func getGlobalFullConfig(cfg ddconfig.Config) func(...string) http.HandlerFunc {
+	return func(namespaces ...string) http.HandlerFunc {
+		return getFullConfig(cfg, namespaces...)
+	}
 }
 
 func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
