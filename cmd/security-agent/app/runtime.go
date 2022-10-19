@@ -52,13 +52,26 @@ const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
+func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
+	runtimeCmd := &cobra.Command{
+		Use:   "runtime",
+		Short: "runtime Agent utility commands",
+	}
+
+	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
+	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
+
+	return []*cobra.Command{runtimeCmd}
+}
+
 type checkPoliciesCliParams struct {
 	*GlobalParams
 
 	dir string
 }
 
-func CheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+func checkPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	cliParams := checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -77,19 +90,108 @@ func CheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
-var (
-	runtimeCmd = &cobra.Command{
-		Use:   "runtime",
-		Short: "runtime Agent utility commands",
+func commonPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
+	commonPolicyCmd := &cobra.Command{
+		Use:   "policy",
+		Short: "Policy related commands",
 	}
 
-	evalArgs = struct {
-		dir       string
-		ruleID    string
-		eventFile string
-		debug     bool
-	}{}
+	commonPolicyCmd.AddCommand(evalCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(commonPolicyCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(downloadPolicyCommands(globalParams)...)
 
+	return []*cobra.Command{commonPolicyCmd}
+}
+
+type evalCliParams struct {
+	*GlobalParams
+
+	dir       string
+	ruleID    string
+	eventFile string
+	debug     bool
+}
+
+func evalCommands(globalParams *GlobalParams) []*cobra.Command {
+	evalArgs := evalCliParams{
+		GlobalParams: globalParams,
+	}
+
+	evalCmd := &cobra.Command{
+		Use:   "eval",
+		Short: "Evaluate given event data against the give rule",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return evalRule(&evalArgs)
+		},
+	}
+
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired("rule-id")
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired("event-file")
+	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+
+	return []*cobra.Command{evalCmd}
+}
+
+func commonCheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+	cliParams := checkPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
+	commonCheckPoliciesCmd := &cobra.Command{
+		Use:   "check",
+		Short: "Check policies and return a report",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkPolicies(&cliParams)
+		},
+	}
+
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+
+	return []*cobra.Command{commonCheckPoliciesCmd}
+}
+
+func selfTestCommands(globalParams *GlobalParams) []*cobra.Command {
+	selfTestCmd := &cobra.Command{
+		Use:   "self-test",
+		Short: "Run runtime self test",
+		Run: func(cmd *cobra.Command, args []string) {
+			runRuntimeSelfTest()
+		},
+	}
+
+	return []*cobra.Command{selfTestCmd}
+}
+
+type downloadPolicyCliParams struct {
+	*GlobalParams
+
+	check      bool
+	outputPath string
+}
+
+func downloadPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
+	downloadPolicyArgs := downloadPolicyCliParams{
+		GlobalParams: globalParams,
+	}
+
+	downloadPolicyCmd := &cobra.Command{
+		Use:   "download",
+		Short: "Download policies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return downloadPolicy(&downloadPolicyArgs)
+		},
+	}
+
+	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
+
+	return []*cobra.Command{downloadPolicyCmd}
+}
+
+var (
 	networkNamespaceCmd = &cobra.Command{
 		Use:   "network-namespace",
 		Short: "network namespace command",
@@ -167,12 +269,6 @@ var (
 		RunE:  listActivityDumps,
 	}
 
-	selfTestCmd = &cobra.Command{
-		Use:   "self-test",
-		Short: "Run runtime self test",
-		RunE:  runRuntimeSelfTest,
-	}
-
 	reloadPoliciesCmd = &cobra.Command{
 		Use:        "reload",
 		Short:      "Reload policies",
@@ -184,34 +280,6 @@ var (
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE:  reloadRuntimePolicies,
-	}
-
-	commonCheckPoliciesCmd = &cobra.Command{
-		Use:   "check",
-		Short: "Check policies and return a report",
-		RunE:  checkPolicies,
-	}
-
-	evalCmd = &cobra.Command{
-		Use:   "eval",
-		Short: "Evaluate given event data against the give rule",
-		RunE:  evalRule,
-	}
-
-	downloadPolicyCmd = &cobra.Command{
-		Use:   "download",
-		Short: "Download policies",
-		RunE:  downloadPolicy,
-	}
-
-	downloadPolicyArgs = struct {
-		check      bool
-		outputPath string
-	}{}
-
-	commonPolicyCmd = &cobra.Command{
-		Use:   "policy",
-		Short: "Policy related commands",
 	}
 
 	/*Discarders*/
@@ -341,28 +409,9 @@ func init() {
 	activityDumpCmd.AddCommand(activityDumpStopCmd)
 	runtimeCmd.AddCommand(activityDumpCmd)
 
-	runtimeCmd.AddCommand(checkPoliciesCmd)
-
-	commonPolicyCmd.AddCommand(evalCmd)
-	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
-	_ = evalCmd.MarkFlagRequired("rule-id")
-	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
-	_ = evalCmd.MarkFlagRequired("event-file")
-	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
-
-	runtimeCmd.AddCommand(selfTestCmd)
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
 
-	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
-	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
-	commonPolicyCmd.AddCommand(downloadPolicyCmd)
-
-	commonCheckPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	commonPolicyCmd.AddCommand(commonCheckPoliciesCmd)
-
 	commonPolicyCmd.AddCommand(commonReloadPoliciesCmd)
-	runtimeCmd.AddCommand(commonPolicyCmd)
 
 	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
 	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
@@ -758,7 +807,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	return event, nil
 }
 
-func evalRule(cmd *cobra.Command, args []string) error {
+func evalRule(evalArgs *evalCliParams) error {
 	cfg := &secconfig.Config{
 		PoliciesDir:         evalArgs.dir,
 		EnableKernelFilters: true,
@@ -843,7 +892,7 @@ func evalRule(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
+func runRuntimeSelfTest() error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -940,7 +989,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	return agent, nil
 }
 
-func downloadPolicy(cmd *cobra.Command, args []string) error {
+func downloadPolicy(downloadPolicyArgs *downloadPolicyCliParams) error {
 	apiKey := coreconfig.Datadog.GetString("api_key")
 	appKey := coreconfig.Datadog.GetString("app_key")
 
