@@ -39,7 +39,8 @@ type SNMPConfig struct {
 	PrivProtocol string `yaml:"privProtocol"`
 	PrivKey      string `yaml:"privKey"`
 	Context      string `yaml:"context_name"`
-	NetAddress   string `yaml:"network_address"`
+	//network
+	NetAddress string `yaml:"network_address"`
 }
 
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
