@@ -16,8 +16,8 @@
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
     - CLANG_MAJOR_VER=$(echo "${CLANG_LLVM_VER}" | cut -d '.' -f 1)
-    - CLANG_SHA256SUM=2b5847b6a63118b9efe5c85548363c81ffe096b66c3b3675e953e26342ae4031
-    - LLVM_SHA256SUM=050922ecaaca5781fdf6631ea92bc715183f202f9d2f15147226f023414f619a
+    - CLANG_SHA256SUM=6e912133bcf56e9cfe6a346fa7e5c52c2cde3e4e48b7a6cc6fcc7c75047da45f
+    - LLVM_SHA256SUM=7d9a8405f557cefc5a21bf5672af73903b64749d9bc3a50322239f56f34ffddf
     - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/clang-${CLANG_LLVM_VER}.src.tar.xz -O clang.src.tar.xz
     - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/llvm-${CLANG_LLVM_VER}.src.tar.xz -O llvm.src.tar.xz
     - echo -e "${LLVM_SHA256SUM} llvm.src.tar.xz\n${CLANG_SHA256SUM} clang.src.tar.xz" | sha256sum --check -

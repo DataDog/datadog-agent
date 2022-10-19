@@ -59,7 +59,8 @@ var allowedEnvvarNames = []string{
 	"DD_APM_TPS", //deprecated
 	"DD_APM_MAX_TPS",
 	"DD_APM_ERROR_TPS",
-	"DD_APM_DISABLE_RARE_SAMPLER",
+	"DD_APM_ENABLE_RARE_SAMPLER",
+	"DD_APM_DISABLE_RARE_SAMPLER", // deprecated
 	"DD_APM_MAX_REMOTE_TPS",
 	"DD_APM_MAX_MEMORY",
 	"DD_APM_MAX_CPU_PERCENT",

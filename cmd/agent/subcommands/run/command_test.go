@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package troubleshooting
+package run
 
 import (
 	"testing"
@@ -15,24 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestPayloadV5Command(t *testing.T) {
+func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"troubleshooting", "metadata_v5"},
-		printPayload,
+		[]string{"run"},
+		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, "v5", cliParams.payloadName)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, true, coreParams.ConfigLoadSecrets)
 		})
 }
 
-func TestPayloadInventoryCommand(t *testing.T) {
+func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"troubleshooting", "metadata_inventory"},
-		printPayload,
+		[]string{"run", "--pidfile", "/pid/file"},
+		run,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, "inventory", cliParams.payloadName)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, "/pid/file", cliParams.pidfilePath)
+			require.Equal(t, true, coreParams.ConfigLoadSecrets)
 		})
 }

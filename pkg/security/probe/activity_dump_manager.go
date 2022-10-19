@@ -608,7 +608,7 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 
-		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize) {
+		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true

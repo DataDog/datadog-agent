@@ -538,7 +538,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID)
+			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID, event.PIDContext.Pid)
 			mountNetNSPath := utils.NetNSPathFromPath(mountPath)
 			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
 		}
@@ -548,7 +548,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		mount := p.resolvers.MountResolver.Get(event.Umount.MountID)
+		mount := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -1077,7 +1077,7 @@ Discarder Count: Discardee Parameters
 		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
 			discardedInodeCount++
 			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
-			path, err := p.resolvers.resolveFileFieldsPath(&fields)
+			path, err := p.resolvers.resolveFileFieldsPath(&fields, &model.PIDContext{Pid: 1, Tid: 1})
 			if err != nil {
 				path = err.Error()
 			}

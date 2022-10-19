@@ -501,11 +501,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control how long we keep dogstatsd contexts in memory. This should
-	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
-	// is 10s), otherwise we won't be able to sample unseen counter as
-	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
-	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory.
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
@@ -525,7 +522,7 @@ func InitConfig(config Config) {
 	// Enable the no-aggregation pipeline.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -556,6 +553,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
+	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})

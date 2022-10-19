@@ -603,7 +603,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	testDrive, err := newTestDrive(t, "xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

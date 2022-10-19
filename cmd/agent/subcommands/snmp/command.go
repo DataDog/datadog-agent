@@ -167,9 +167,9 @@ func snmpwalk(cliParams *cliParams) error {
 		//We check the ip address configuration in the agent runtime and we use it for the snmpwalk
 		deviceIP = address
 		//Allow the possibility to pass the config file as an argument to the command
-		erre := common.SetupConfig(cliParams.ConfFilePath)
-		if erre != nil {
-			fmt.Printf("The config file provided is invalid : %v \n", erre)
+		err := common.SetupConfig(cliParams.ConfFilePath)
+		if err != nil {
+			fmt.Printf("The config file provided is invalid : %v \n", err)
 		}
 		snmpConfigList, err := parse.GetConfigCheckSnmp()
 		instance := parse.GetIPConfig(deviceIP, snmpConfigList)
