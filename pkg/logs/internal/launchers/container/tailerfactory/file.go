@@ -141,8 +141,15 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 func (tf *factory) findDockerLogPath(containerID string) string {
 	switch runtime.GOOS {
 	case "windows":
+		// if the user has set a custom docker data root, this will pick it up
+		// and set it in place of the usual docker base path
+		dockerLogsPath := dockerLogsBasePathNix
+		overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
+		if len(overridePath) > 0 {
+			dockerLogsPath = overridePath
+		}
 		return filepath.Join(
-			dockerLogsBasePathWin, "containers", containerID,
+			dockerLogsPath, "containers", containerID,
 			fmt.Sprintf("%s-json.log", containerID))
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
@@ -152,8 +159,16 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 				podmanLogsBasePath, "storage/overlay-containers", containerID,
 				"userdata/ctr.log")
 		}
+		// if the user has set a custom docker data root, this will pick it up
+		// and set it in place of the usual docker base path
+		dockerLogsPath := dockerLogsBasePathNix
+		overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
+		if len(overridePath) > 0 {
+			dockerLogsPath = overridePath
+		}
+
 		return filepath.Join(
-			dockerLogsBasePathNix, "containers", containerID,
+			dockerLogsPath, "containers", containerID,
 			fmt.Sprintf("%s-json.log", containerID))
 	}
 }
