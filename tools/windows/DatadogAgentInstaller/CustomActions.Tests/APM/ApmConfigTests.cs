@@ -1,10 +1,10 @@
-using System;
 using AutoFixture.Xunit2;
+using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
 using Moq;
 using Xunit;
 
-namespace CustomActions.Tests
+namespace CustomActions.Tests.APM
 {
     /// <summary>
     /// APM Config specific tests

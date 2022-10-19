@@ -1,7 +1,11 @@
+using CustomActions.Tests.Helpers;
 using Xunit;
 
-namespace CustomActions.Tests
+namespace CustomActions.Tests.YamlAssertions
 {
+    /// <summary>
+    /// Tests for the custom YAML assertions
+    /// </summary>
     public class YamlAssertionsUnitTests
     {
         [Fact]

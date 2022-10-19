@@ -1,4 +1,5 @@
 using AutoFixture.Xunit2;
+using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
 using Moq;
 using Xunit;
@@ -9,14 +10,6 @@ namespace CustomActions.Tests
 {
     public class WriteConfigUnitTests
     {
-        //[InlineAutoData("PROCESS_ENABLED", "process_config")]
-        //[InlineAutoData("PROCESS_DD_URL", "process_config")]
-        //[InlineAutoData("PROCESS_DISCOVERY_ENABLED", "process_discovery")]
-        //[InlineAutoData("APM_ENABLED", "apm_config")]
-        //[InlineAutoData("TRACE_DD_URL", "apm_config")]
-        //[InlineAutoData("PROXY_HOST", "proxy")]
-        //[InlineAutoData("TAGS", "tags", "tag1=someValue,tag2=other_value")]
-
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
         [InlineAutoData("SITE", "site")]

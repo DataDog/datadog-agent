@@ -1,16 +1,25 @@
 using System.Collections.Generic;
 using System.IO;
-using AutoFixture;
+using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
 using Moq;
 using Xunit;
 
-namespace CustomActions.Tests
+namespace CustomActions.Tests.IntegrationTests
 {
+    /// <summary>
+    /// Kitchen-sink tests.
+    /// </summary>
+    /// These tests expects a valid config to be found in the same folder as where the unit
+    /// tests run. The CI takes care of generating a valid configuration that will be placed
+    /// at the right location using the generate-config invoke task.
     public class ConfigIntegrationTest
     {
+        /// <summary>
+        /// Base on win-installopts kitchen test
+        /// </summary>
         [Fact]
-        public void Should_Correctly_Replace_Properties()
+        public void Should_Correctly_Replace_Properties_For_win_installopts()
         {
             var sessionMock = new Mock<ISession>();
             foreach (var keyValuePair in new Dictionary<string, string>()
@@ -32,9 +41,6 @@ namespace CustomActions.Tests
                 sessionMock.Setup(session => session[keyValuePair.Key]).Returns(keyValuePair.Value);
             }
 
-            // This test expects a valid config to be found in the same folder as where the unit
-            // tests run. The CI takes care of generating a valid configuration that will be placed
-            // at the right location using the generate-config invoke task.
             var datadogYaml = File.ReadAllText(@"datadog.yaml");
             var newConfig = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object);
             var resultingYaml = newConfig.ToYaml();
@@ -82,6 +88,36 @@ namespace CustomActions.Tests
                 .Should()
                 .HaveKey("apm_config.apm_dd_url")
                 .And.HaveValue("https://trace.someurl.datadoghq.com");
+        }
+
+        /// <summary>
+        /// Base on win-all-subservices kitchen test
+        /// </summary>
+        [Fact]
+        public void Should_Correctly_Replace_Properties_For_win_all_subservices()
+        {
+            var sessionMock = new Mock<ISession>();
+            foreach (var keyValuePair in new Dictionary<string, string>()
+                     {
+                         { "APIKEY", "testapikey" },
+                         { "LOGS_ENABLED", "true" },
+                         { "PROCESS_ENABLED", "true" },
+                         { "APM_ENABLED", "true" },
+                     })
+            {
+                sessionMock.Setup(session => session[keyValuePair.Key]).Returns(keyValuePair.Value);
+            }
+
+            var datadogYaml = File.ReadAllText(@"datadog.yaml");
+            var newConfig = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object);
+            var resultingYaml = newConfig.ToYaml();
+            resultingYaml
+                .Should()
+                .HaveKey("api_key")
+                .And.HaveValue("testapikey");
+            resultingYaml.HasLogsEnabled();
+            resultingYaml.HasProcessEnabled();
+            resultingYaml.HasApmEnabled();
         }
     }
 }

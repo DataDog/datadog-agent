@@ -1,12 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
-using AutoFixture;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using FluentAssertions.Primitives;
 using YamlDotNet.RepresentationModel;
 
-namespace CustomActions.Tests
+namespace CustomActions.Tests.Helpers
 {
     public class YamlAssertions : ReferenceTypeAssertions<YamlNode, YamlAssertions>
     {

@@ -5,12 +5,14 @@ using Microsoft.Deployment.WindowsInstaller;
 using YamlDotNet.Serialization.NamingConventions;
 using YamlDotNet.Serialization;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
+using static Datadog.CustomActions.ConfigCustomActions;
+using Cave.Collections.Generic;
 
 namespace Datadog.CustomActions
 {
-
     public class ConfigCustomActions
     {
         class DatadogConfig
@@ -58,37 +60,143 @@ namespace Datadog.CustomActions
             return ReadConfig(new SessionWrapper(session));
         }
 
-        public interface IReplacer
+        /// <summary>
+        /// Class to help do search and replace in a configuration file.
+        /// </summary>
+        /// Given a property name, it matches a pattern and replaces it with some text.
+        public class PropertyReplacer
         {
-            string PropertyName { get; }
-            bool IsMatch(string input);
-            string Replace(string input, string propertyValue);
-        }
+            /// <summary>
+            /// Internal helper class that simply groups a Regex with a replacement function.
+            /// </summary>
+            /// Necessary because tuples are not available in .Net 3.5.
+            class RegexWithReplacer
+            {
+                public Regex Regex { get; set; }
+                public Func<string, string> Replacer { get; set; }
+            }
 
-        public class FormatValueReplacer : IReplacer
-        {
-            private readonly Func<string, string> _replacement;
-            private readonly string _regex;
-            private Match _match;
+            /// <summary>
+            /// A list of regex+replacer in the order they are to be searched (first to last).
+            /// </summary>
+            private readonly List<RegexWithReplacer> _regexReplacersInOrder = new List<RegexWithReplacer>();
 
-            public FormatValueReplacer(string propertyName, string regex, Func<string, string> replacement)
+            /// <summary>
+            /// Create a new <see cref="PropertyReplacer"/>
+            /// </summary>
+            /// <param name="property">The property name.</param>
+            /// <returns>A <see cref="PropertyReplacer"/></returns>
+            public static PropertyReplacer For(string property)
+            {
+                return new PropertyReplacer(property);
+            }
+
+            /// <summary>
+            /// Adds a pattern to match for the given <see cref="PropertyName"/>.
+            /// </summary>
+            /// <param name="pattern">The regex pattern to match.</param>
+            /// <returns>This object.</returns>
+            public PropertyReplacer Match(string pattern)
+            {
+                _regexReplacersInOrder.Add(new RegexWithReplacer
+                {
+                    Regex = new Regex(pattern, RegexOptions.Multiline)
+                });
+                return this;
+            }
+
+            /// <summary>
+            /// Adds a replacer function for the *last* pattern recorded.
+            /// </summary>
+            /// The replacer function takes in the property value, as evaluated
+            /// at runtime, and returns a string that will be substituted in the source text.
+            /// <param name="replacer">The replacer function.</param>
+            /// <returns>This object.</returns>
+            /// <exception cref="Exception">Throws an exception if there are no patterns to associate
+            /// with this replacer.</exception>
+            public PropertyReplacer ReplaceWith(Func<string, string> replacer)
+            {
+                if (_regexReplacersInOrder.Count == 0)
+                {
+                    throw new Exception("Cannot use ReplaceWith without a Match");
+                }
+                _regexReplacersInOrder.Last().Replacer = replacer;
+                return this;
+            }
+
+            private PropertyReplacer(string propertyName)
             {
                 PropertyName = propertyName;
-                _replacement = replacement;
-                _regex = regex;
             }
 
+            /// <summary>
+            /// The property associated with this object.
+            /// </summary>
             public string PropertyName { get; }
 
+            /// <summary>
+            /// Check if *all* the regex match, in order.
+            /// </summary>
+            /// This function starts with the first pattern and tries to match it
+            /// against the <paramref name="input"/>. If it matches, it saves the
+            /// index where it found the match, and and tries to match the next
+            /// pattern starting at the index of the previous match.
+            /// It continues until all the patterns have been matched.
+            /// If a pattern didn't match, the function returns false.
+            /// <param name="input">The input to match with.</param>
+            /// <returns>True if all patterns match.</returns>
             public bool IsMatch(string input)
             {
-                _match = Regex.Match(input, _regex, RegexOptions.Multiline);
-                return _match != null && _match.Success;
+                int matchIndex = 0;
+                foreach (var r in _regexReplacersInOrder)
+                {
+                    var match = r.Regex.Match(input, matchIndex);
+                    if (!match.Success)
+                    {
+                        return false;
+                    }
+
+                    matchIndex = match.Index;
+                }
+                return true;
             }
 
-            public string Replace(string input, string propertyValue)
+            /// <summary>
+            /// Replaces text from the <paramref name="input"/> string with the replacer functions.
+            /// </summary>
+            /// This function starts with the first pattern and tries to match it
+            /// against the <paramref name="input"/>. If it matches, it will call the replacer function
+            /// associated with this pattern to replace the text in the input and save the index where
+            /// the match occurred.
+            /// It then tries to match the next pattern starting at the index of the previous match, and
+            /// replace the text from the <paramref name="input"/> with the text from its associated
+            /// replacer function.
+            /// If the pattern doesn't have an associated replacer function, it simply saves the index
+            /// of the match and move to the next pattern.
+            /// If a pattern fails to match, an exception is thrown.
+            /// <param name="input">The input string from where to replace the text.</param>
+            /// <param name="propertyValue">The value of the <see cref="PropertyName"/> that will be passed
+            /// to the replacer function.</param>
+            /// <returns>The <paramref name="input"/> string with the text replaced in it.</returns>
+            /// <exception cref="Exception">Throws an exception if any pattern fails to match.</exception>
+            public string DoReplace(string input, string propertyValue)
             {
-                return Regex.Replace(input, _regex, _replacement(propertyValue), RegexOptions.Multiline | RegexOptions.ECMAScript);
+                int matchIndex = 0;
+                foreach (var r in _regexReplacersInOrder)
+                {
+                    var match = r.Regex.Match(input, matchIndex);
+                    if (!match.Success)
+                    {
+                        throw new Exception($"Could not find a match for {r}");
+                    }
+                    if (r.Replacer != null)
+                    {
+                        input = r.Regex.Replace(input, r.Replacer(propertyValue), count: 1, matchIndex);
+                    }
+                    matchIndex = match.Index;
+                }
+
+                return input;
             }
         }
 
@@ -134,38 +242,73 @@ namespace Datadog.CustomActions
 
         public static string ReplaceProperties(string yaml, ISession session)
         {
-            var replacers = new List<IReplacer>
+            var replacers = new List<PropertyReplacer>
             {
-                new FormatValueReplacer("APIKEY",                           "^[ #]*api_key:.*", (value) => $"api_key: {value}"),
-                new FormatValueReplacer("SITE",                             "^[ #]*site:.*", (value) => $"site: {value}"),
-                new FormatValueReplacer("HOSTNAME",                         "^[ #]*hostname:.*", (value) => $"hostname: {value}"),
-                new FormatValueReplacer("LOGS_ENABLED",                     "^[ #]*logs_config:.*", (value) => "logs_config:"),
-                new FormatValueReplacer("LOGS_ENABLED",                     "^[ #]*logs_enabled:.*", (value) => $"logs_enabled: {value}"),
-                new FormatValueReplacer("LOGS_DD_URL",                      "^[ #]*logs_config:.*", (value) => "logs_config:"),
-                new FormatValueReplacer("LOGS_DD_URL",                      "^[ #]*logs_dd_url:.*", (value) => $"  logs_dd_url: {value}"),
-                new FormatValueReplacer("PROCESS_ENABLED",                  "^[ #]*process_config:[ \n\r#]*process_collection:[ \n\r#]*enabled:.*", (value) => $"process_config:\n  process_collection:\n    enabled: {value}"),
+                PropertyReplacer.For("APIKEY")
+                    .Match("^[ #]*api_key:.*").ReplaceWith(value => $"api_key: {value}"),
 
-                new FormatValueReplacer("PROCESS_DD_URL",                   "^[ #]*process_config:.*", (value) => $"process_config:\n  process_dd_url: {value}"),
+                PropertyReplacer.For("SITE")
+                    .Match("^[ #]*site:.*").ReplaceWith(value => $"site: {value}"),
 
-                // Uncomment the process_config section in case PROCESS_DD_URL was not specified
-                new FormatValueReplacer("PROCESS_DISCOVERY_ENABLED",        "^[ #]*process_config:.*", (value) => "process_config:"),
-                new FormatValueReplacer("PROCESS_DISCOVERY_ENABLED",        "^[ #]*process_discovery:[ \n\r#]*enabled:.*", (value) => $"  process_discovery:\n    enabled: {value}"),
+                PropertyReplacer.For("HOSTNAME")
+                    .Match("^[ #]*hostname:.*").ReplaceWith(value => $"hostname: {value}"),
 
-                new FormatValueReplacer("APM_ENABLED",                      "^[ #]*apm_config:[ \n\r#]*enabled:.*", (value) => $"apm_config:\n  enabled: {value}"),
+                // When LOGS_ENABLED is specified, it's expected to uncomment logs_config as well
+                // even if we don't modify the object.
+                PropertyReplacer.For("LOGS_ENABLED")
+                    .Match("^[ #]*logs_config:.*").ReplaceWith(_ => "logs_config:"),
 
-                // Uncomment the apm_config in case APM_ENABLED was not specified
-                new FormatValueReplacer("TRACE_DD_URL",                     "^[ #]*apm_config:", (value) => "apm_config:"),
-                new FormatValueReplacer("TRACE_DD_URL",                     "^[ #]*apm_dd_url:.*", (value) => $"  apm_dd_url: {value}"),
+                PropertyReplacer.For("LOGS_ENABLED")
+                    .Match("^[ #]*logs_enabled:.*").ReplaceWith(value => $"logs_enabled: {value}"),
+
+                PropertyReplacer.For("LOGS_DD_URL")
+                    .Match("^[ #]*logs_config:.*").ReplaceWith(value => "logs_config:")
+                    .Match("^[ #]*logs_dd_url:.*").ReplaceWith(value => $"  logs_dd_url: {value}"),
+
+                PropertyReplacer.For("PROCESS_ENABLED")
+                    .Match("^[ #]*process_config:").ReplaceWith(_ => "process_config:")
+                    .Match("^[ #]*process_collection:").ReplaceWith(_ => "  process_collection:")
+                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"    enabled: {value}"),
+
+                // PROCESS_DD_URL does not replace but appends a new key to process_config
+                PropertyReplacer.For("PROCESS_DD_URL")
+                    .Match("^[ #]*process_config:").ReplaceWith(value => $"process_config:\n  process_dd_url: {value}"),
+
+                PropertyReplacer.For("PROCESS_DISCOVERY_ENABLED")
+                    .Match("^[ #]*process_config:").ReplaceWith(_ => "process_config:")
+                    .Match("^[ #]*process_discovery:").ReplaceWith(_ => "  process_discovery:")
+                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"    enabled: {value}"),
+
+                PropertyReplacer.For("APM_ENABLED")
+                    .Match("^[ #]*apm_config:").ReplaceWith(_ => "apm_config:")
+                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"  enabled: {value}"),
+
+                PropertyReplacer.For("TRACE_DD_URL")
+                    .Match("^[ #]*apm_config:").ReplaceWith(_ => "apm_config:")
+                    .Match("^[ #]*apm_dd_url:.*").ReplaceWith(value => $"  apm_dd_url: {value}"),
 
                 // There are multiple cmd_port entry in the config, so we need
                 // to match the top level one explicitly.
-                new FormatValueReplacer("CMD_PORT",                         "^[# ]?[ ]*cmd_port:.*", (value) => $"cmd_port: {value}"),
-                new FormatValueReplacer("DD_URL",                           "^[ #]*dd_url:.*", (value) => $"dd_url: {value}"),
-                new FormatValueReplacer("PYVER",                            "^[ #]*python_version:.*", (value) => $"python_version: {value}"),
-                new FormatValueReplacer("PROXY_HOST",                       "^[ #]*proxy:.*", (value) => FormatProxy(value, session)),
-                new FormatValueReplacer("HOSTNAME_FQDN_ENABLED",            "^[ #]*hostname_fqdn:.*", (value) => $"hostname_fqdn: {value}"),
-                new FormatValueReplacer("TAGS",                             "^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>", FormatTags),
-                new FormatValueReplacer("EC2_USE_WINDOWS_PREFIX_DETECTION", "^[ #]*ec2_use_windows_prefix_detection:.*", (value) => $"ec2_use_windows_prefix_detection: {value}"),
+                PropertyReplacer.For("CMD_PORT")
+                    .Match("^[# ]?[ ]*cmd_port:.*").ReplaceWith(value => $"cmd_port: {value}"),
+
+                PropertyReplacer.For("DD_URL")
+                    .Match("^[ #]*dd_url:.*").ReplaceWith(value => $"dd_url: {value}"),
+
+                PropertyReplacer.For("PYVER")
+                    .Match("^[ #]*python_version:.*").ReplaceWith(value => $"python_version: {value}"),
+
+                PropertyReplacer.For("PROXY_HOST")
+                    .Match("^[ #]*proxy:.*").ReplaceWith(value => FormatProxy(value, session)),
+
+                PropertyReplacer.For("HOSTNAME_FQDN_ENABLED")
+                    .Match("^[ #]*hostname_fqdn:.*").ReplaceWith(value => $"hostname_fqdn: {value}"),
+
+                PropertyReplacer.For("TAGS")
+                    .Match("^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>").ReplaceWith(FormatTags),
+
+                PropertyReplacer.For("EC2_USE_WINDOWS_PREFIX_DETECTION")
+                    .Match("^[ #]*logs_enabled:.*").ReplaceWith(value => $"logs_enabled: {value}")
             };
 
             foreach (var replacer in replacers)
@@ -177,7 +320,7 @@ namespace Datadog.CustomActions
                         session.Log($"{replacer.PropertyName} did not match");
                         continue;
                     }
-                    yaml = replacer.Replace(yaml, session.Property(replacer.PropertyName));
+                    yaml = replacer.DoReplace(yaml, session.Property(replacer.PropertyName));
                 }
             }
 

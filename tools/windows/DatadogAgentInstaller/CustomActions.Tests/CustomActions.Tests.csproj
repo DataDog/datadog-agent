@@ -135,15 +135,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ApmConfigTests.cs" />
-    <Compile Include="ConfigIntegrationTest.cs" />
-    <Compile Include="ProcessConfigTests.cs" />
+    <Compile Include="APM\ApmConfigTests.cs" />
+    <Compile Include="IntegrationTests\ConfigIntegrationTest.cs" />
+    <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="YamlAssertions.UnitTests.cs" />
-    <Compile Include="YamlAssertions.cs" />
-    <Compile Include="YamlAssertionsExtensions.cs" />
-    <Compile Include="YamlExtensions.cs" />
+    <Compile Include="YamlAssertions\YamlAssertions.UnitTests.cs" />
+    <Compile Include="Helpers\YamlAssertions.cs" />
+    <Compile Include="Helpers\YamlAssertionsExtensions.cs" />
+    <Compile Include="Helpers\YamlExpectationsExtensions.cs" />
+    <Compile Include="Helpers\YamlExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -158,6 +159,9 @@
       <Project>{461CE844-4B07-47BA-B2D2-5415ABD36792}</Project>
       <Name>CustomActions</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Logs\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
