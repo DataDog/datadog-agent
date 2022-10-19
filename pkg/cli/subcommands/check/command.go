@@ -156,6 +156,9 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
 			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
+
+		}
+		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
 			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
 		pkgconfig.Datadog.Set("integration_tracing", true)
