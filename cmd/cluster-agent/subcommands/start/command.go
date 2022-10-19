@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
-// +build kubeapiserver
+//go:build !windows && kubeapiserver
+// +build !windows,kubeapiserver
 
-package app
+// Package start implements 'cluster-agent start'.
+package start
 
 import (
 	"context"
@@ -18,20 +19,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/gorilla/mux"
-	"github.com/spf13/cobra"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/scheme"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -40,169 +36,118 @@ import (
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/gorilla/mux"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/record"
 )
 
-// loggerName is the name of the cluster agent logger
-const loggerName config.LoggerName = "CLUSTER"
+const loggerName = "CLUSTER"
 
-// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we don't import cmd/agent
-var (
-	ClusterAgentCmd = &cobra.Command{
-		Use:   "datadog-cluster-agent [command]",
-		Short: "Datadog Cluster Agent at your service.",
-		Long: `
-Datadog Cluster Agent takes care of running checks that need run only once per cluster.
-It also exposes an API for other Datadog agents that provides them with cluster-level
-metadata for their metrics.`,
-	}
-
-	startCmd = &cobra.Command{
+// Commands returns a slice of subcommands for the 'cluster-agent' command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the Cluster Agent",
 		Long:  `Runs Datadog Cluster agent in the foreground`,
-		RunE:  start,
-	}
-
-	versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version info",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			if flagNoColor {
-				color.NoColor = true
-			}
-			av, _ := version.Agent()
-			meta := ""
-			if av.Meta != "" {
-				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
-			}
-			fmt.Fprintln(
-				color.Output,
-				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
-					color.BlueString(av.GetNumberAndPre()),
-					meta,
-					color.GreenString(version.Commit),
-					color.MagentaString(serializer.AgentPayloadVersion),
-				),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// TODO: once the cluster-agent is represented as a component, and
+			// not a function (start), this will use `fxutil.Run` instead of
+			// `fxutil.OneShot`.
+			return fxutil.OneShot(start,
+				fx.Supply(globalParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
+					LogParams:    log.LogForDaemon(loggerName, "log_file", common.DefaultDCALogFile),
+				}),
+				core.Bundle,
 			)
 		},
 	}
 
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
-)
-
-func init() {
-	// attach the command to the root
-	ClusterAgentCmd.AddCommand(startCmd)
-	ClusterAgentCmd.AddCommand(versionCmd)
-
-	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	return []*cobra.Command{startCmd}
 }
 
-func start(cmd *cobra.Command, args []string) error {
+func start(log log.Component, config config.Component, cliParams *command.GlobalParams) error {
+	stopCh := make(chan struct{})
+
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel()
+
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
 
-	// Reading configuration as mostly everything can depend on config variables
-	config.Datadog.SetConfigName("datadog-cluster")
-	err := common.SetupConfig(confPath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	// Setup logger
-	syslogURI := config.GetSyslogURI()
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultDCALogFile
-	}
-	if config.Datadog.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		logFile = ""
-	}
-
-	err = config.SetupLogger(
-		loggerName,
-		config.Datadog.GetString("log_level"),
-		logFile,
-		syslogURI,
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
-	)
-	if err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
-		return nil
-	}
-
 	if err := util.SetupCoreDump(); err != nil {
-		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	// Init settings that can be changed at runtime
 	if err := initRuntimeSettings(); err != nil {
-		log.Warnf("Can't initiliaze the runtime settings: %v", err)
+		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
 	// Setup Internal Profiling
 	common.SetupInternalProfiling()
 
-	if !config.Datadog.IsSet("api_key") {
-		log.Critical("no API key configured, exiting")
-		return nil
+	if !pkgconfig.Datadog.IsSet("api_key") {
+		return fmt.Errorf("no API key configured, exiting")
 	}
-
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel() // Calling cancel twice is safe
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())
-	metricsPort := config.Datadog.GetInt("metrics_port")
+	metricsPort := pkgconfig.Datadog.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
 		Handler: http.DefaultServeMux,
 	}
+
 	go func() {
 		err := metricsServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", metricsPort, err)
+			pkglog.Errorf("Error creating expvar server on port %v: %v", metricsPort, err)
 		}
 	}()
 
 	// Setup healthcheck port
-	var healthPort = config.Datadog.GetInt("health_port")
+	var healthPort = pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(mainCtx, healthPort)
 		if err != nil {
-			return log.Errorf("Error starting health port, exiting: %v", err)
+			return fmt.Errorf("Error starting health port, exiting: %v", err)
 		}
-		log.Debugf("Health check listening on port %d", healthPort)
+
+		pkglog.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	// Initialize remote configuration
 	var rcClient *remote.Client
-	if config.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err = initializeRemoteConfig(mainCtx)
+	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
+		rcClient, err := initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -212,30 +157,31 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// Starting server early to ease investigations
-	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting agent API, exiting: %v", err)
+	if err := api.StartServer(); err != nil {
+		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
 	// Getting connection to APIServer, it's done before Hostname resolution
 	// as hostname resolution may call APIServer
-	log.Info("Waiting to obtain APIClient connection")
+	pkglog.Info("Waiting to obtain APIClient connection")
 	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
 	if err != nil {
-		return log.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
+		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
-	log.Infof("Got APIClient connection")
+	pkglog.Infof("Got APIClient connection")
 
 	// Get hostname as aggregator requires hostname
-	hname, err := hostname.Get(context.TODO())
+	hname, err := hostname.Get(mainCtx)
 	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
+		return fmt.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	log.Infof("Hostname is: %s", hname)
+
+	pkglog.Infof("Hostname is: %s", hname)
 
 	// setup the forwarder
-	keysPerDomain, err := config.GetMultipleEndpoints()
+	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
 	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
+		pkglog.Error("Misconfiguration of agent endpoints: ", err)
 	}
 
 	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
@@ -257,7 +203,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Create event recorder
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(log.Infof)
+	eventBroadcaster.StartLogging(pkglog.Infof)
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
@@ -275,33 +221,33 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
-			log.Warnf("Error while starting controller: %v", err)
+			pkglog.Warnf("Error while starting controller: %v", err)
 		}
 	}
 
 	clusterName := clustername.GetClusterName(context.TODO(), hname)
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 		// so we store it in a configmap that we try and read before generating a new one.
 		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
 		_, err = apicommon.GetOrCreateClusterID(coreClient)
 		if err != nil {
-			log.Errorf("Failed to generate or retrieve the cluster ID")
+			pkglog.Errorf("Failed to generate or retrieve the cluster ID")
 		}
 
 		if clusterName == "" {
-			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
+			pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 		}
 	} else {
-		log.Info("Orchestrator explorer is disabled")
+		pkglog.Info("Orchestrator explorer is disabled")
 	}
 
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
+	// don't import cmd/agent
+
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, config.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
@@ -310,7 +256,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if config.Datadog.GetBool("cluster_checks.enabled") {
+	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx)
 		if err == nil {
@@ -318,15 +264,15 @@ func start(cmd *cobra.Command, args []string) error {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
 		} else {
-			log.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
+			pkglog.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}
 	} else {
-		log.Debug("Cluster check Autodiscovery disabled")
+		pkglog.Debug("Cluster check Autodiscovery disabled")
 	}
 
 	wg := sync.WaitGroup{}
 	// Autoscaler Controller Goroutine
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
+	if pkgconfig.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
 		go func() {
@@ -334,25 +280,25 @@ func start(cmd *cobra.Command, args []string) error {
 
 			errServ := custommetrics.RunServer(mainCtx, apiCl)
 			if errServ != nil {
-				log.Errorf("Error in the External Metrics API Server: %v", errServ)
+				pkglog.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
 		}()
 	}
 
 	// Compliance
-	if config.Datadog.GetBool("compliance_config.enabled") {
+	if pkgconfig.Datadog.GetBool("compliance_config.enabled") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
-				log.Errorf("Error while running compliance agent: %v", err)
+				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
 	}
 
-	if config.Datadog.GetBool("admission_controller.enabled") {
-		if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+	if pkgconfig.Datadog.GetBool("admission_controller.enabled") {
+		if pkgconfig.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
 				IsLeaderFunc: le.IsLeader,
 				K8sClient:    apiCl.Cl,
@@ -379,14 +325,14 @@ func start(cmd *cobra.Command, args []string) error {
 
 		err = admissionpkg.StartControllers(admissionCtx)
 		if err != nil {
-			log.Errorf("Could not start admission controller: %v", err)
+			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			// Webhook and secret controllers are started successfully
 			// Setup the the k8s admission webhook server
 			server := admissioncmd.NewServer()
-			server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
-			server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
-			server.Register(config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl)
 
 			// Start the k8s admission webhook server
 			wg.Add(1)
@@ -395,15 +341,15 @@ func start(cmd *cobra.Command, args []string) error {
 
 				errServ := server.Run(mainCtx, apiCl.Cl)
 				if errServ != nil {
-					log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
+					pkglog.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 				}
 			}()
 		}
 	} else {
-		log.Info("Admission controller is disabled")
+		pkglog.Info("Admission controller is disabled")
 	}
 
-	log.Infof("All components started. Cluster Agent now running.")
+	pkglog.Infof("All components started. Cluster Agent now running.")
 
 	// Block here until we receive the interrupt signal
 	<-signalCh
@@ -412,30 +358,50 @@ func start(cmd *cobra.Command, args []string) error {
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
 	if err != nil {
-		log.Warnf("Cluster Agent health unknown: %s", err)
+		pkglog.Warnf("Cluster Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
-		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
+		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
 
-	// wait for the External Metrics Server and
-	// the Admission Webhook Server to stop properly
+	// wait for the External Metrics Server and the Admission Webhook Server to
+	// stop properly
 	wg.Wait()
 
-	if stopCh != nil {
-		close(stopCh)
-	}
+	close(stopCh)
 
 	demux.Stop(true)
 	if err := metricsServer.Shutdown(context.Background()); err != nil {
-		log.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
+		pkglog.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
 	}
 
-	log.Info("See ya!")
-	log.Flush()
+	pkglog.Info("See ya!")
+	pkglog.Flush()
+
 	return nil
+}
+
+// initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
+func initRuntimeSettings() error {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
+		return err
+	}
+
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction")); err != nil {
+		return err
+	}
+
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate("runtime_block_profile_rate")); err != nil {
+		return err
+	}
+
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines("internal_profiling_goroutines")); err != nil {
+		return err
+	}
+
+	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-cluster-agent"})
 }
 
 func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
@@ -445,7 +411,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	}
 	go handler.Run(ctx)
 
-	log.Info("Started cluster check Autodiscovery")
+	pkglog.Info("Started cluster check Autodiscovery")
 	return handler, nil
 }
 

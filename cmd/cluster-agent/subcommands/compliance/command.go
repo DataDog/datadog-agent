@@ -6,35 +6,33 @@
 //go:build !windows && kubeapiserver
 // +build !windows,kubeapiserver
 
-package app
+// Package compliance implements 'cluster-agent compliance'.
+package version
 
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
-var (
-	complianceCmd = &cobra.Command{
+// Commands returns a slice of subcommands for the 'cluster-agent' command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	complianceCmd := &cobra.Command{
 		Use:   "compliance",
-		Short: "Compliance utility commands",
+		Short: "compliance utility commands",
 	}
-)
 
-func init() {
 	bundleParams := core.BundleParams{
-		ConfigParams: config.NewParams(
-			"",
-			config.WithConfFilePath(confPath),
-			config.WithConfigName("datadog-cluster"),
-		),
-		LogParams: log.LogForOneShot(string(loggerName), "off", true),
+		ConfigParams: config.NewClusterAgentParams(""),
+		LogParams:    log.LogForOneShot("CLUSTER", "off", true),
 	}
 
 	// TODO: The SecAgent Check package should be a component
 	complianceCmd.AddCommand(check.CommandsWrapped(bundleParams)...)
-	ClusterAgentCmd.AddCommand(complianceCmd)
+
+	return []*cobra.Command{complianceCmd}
 }
