@@ -30,27 +30,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-var (
-	checkArgs = struct {
-		framework         string
-		file              string
-		verbose           bool
-		report            bool
-		overrideRegoInput string
-		dumpRegoInput     string
-		dumpReports       string
-		skipRegoEval      bool
-	}{}
-)
+type checkCliParams struct {
+	*GlobalParams
+
+	args []string
+
+	framework         string
+	file              string
+	verbose           bool
+	report            bool
+	overrideRegoInput string
+	dumpRegoInput     string
+	dumpReports       string
+	skipRegoEval      bool
+}
 
 // CheckCmd returns a cobra command to run security agent checks
-func CheckCmd() *cobra.Command {
+func CheckCommands(globalParams *GlobalParams) []*cobra.Command {
+	checkArgs := checkCliParams{
+		GlobalParams: globalParams,
+	}
+
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Run compliance check(s)",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, args)
+			checkArgs.args = args
+			return runCheck(&checkArgs)
 		},
 	}
 
@@ -63,11 +70,11 @@ func CheckCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
 	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
 
-	return cmd
+	return []*cobra.Command{cmd}
 }
 
-func runCheck(cmd *cobra.Command, args []string) error {
-	err := configureLogger()
+func runCheck(checkArgs *checkCliParams) error {
+	err := configureLogger(checkArgs)
 	if err != nil {
 		return err
 	}
@@ -106,8 +113,8 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 
 	var ruleID string
-	if len(args) != 0 {
-		ruleID = args[0]
+	if len(checkArgs.args) != 0 {
+		ruleID = checkArgs.args[0]
 	}
 
 	hname, err := hostname.Get(context.TODO())
@@ -166,7 +173,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func configureLogger() error {
+func configureLogger(checkArgs *checkCliParams) error {
 	var (
 		logFormat = "%LEVEL | %Msg%n"
 		logLevel  = "info"
@@ -249,8 +256,4 @@ func (r *RunCheckReporter) dumpReports() error {
 		return os.WriteFile(r.dumpReportsPath, reportsJSON, 0644)
 	}
 	return nil
-}
-
-func init() {
-	complianceCmd.AddCommand(CheckCmd())
 }
