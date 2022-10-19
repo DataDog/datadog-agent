@@ -125,5 +125,5 @@ package {{ .Package }}
 
 {{ .Imports -}}
 
-var {{ .AssetName }} = {{ .PackagePrefix }}NewAsset("{{ .Filename }}", "{{ .Hash }}")
+var {{ .AssetName }} = {{ .PackagePrefix }}newAsset("{{ .Filename }}", "{{ .Hash }}")
 `))

@@ -35,7 +35,7 @@ func TestMount(t *testing.T) {
 		Expression: fmt.Sprintf(`chown.file.path == "{{.Root}}/%s/test-release"`, dstMntBasename),
 	}}
 
-	testDrive, err := newTestDrive(t, "xfs", []string{})
+	testDrive, err := newTestDrive(t, "xfs", []string{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,6 +149,79 @@ func TestMount(t *testing.T) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_pending")
+		})
+	})
+}
+
+func TestMountPropagated(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule",
+		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`),
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dir1Path, _, err := test.Path("dir1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testDrivePath := path.Join(dir1Path, "test-drive")
+
+	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(testDrivePath)
+
+	testDrive, err := newTestDrive(t, "xfs", []string{}, testDrivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir1BindMntPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir1BindMntPath)
+
+	if err := syscall.Mount(dir1Path, dir1BindMntPath, "bind", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		testDrivePath := path.Join(dir1BindMntPath, "test-drive")
+		if err := syscall.Unmount(testDrivePath, syscall.MNT_FORCE); err != nil {
+			t.Logf("Failed to unmount %s", testDrivePath)
+		}
+
+		if err := syscall.Unmount(dir1BindMntPath, syscall.MNT_FORCE); err != nil {
+			t.Logf("Failed to unmount %s", dir1BindMntPath)
+		}
+	}()
+
+	file, _, err := test.Path("dir1-bind-mounted/test-drive/test-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(file, []byte{}, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("bind-mounted-chmod", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return os.Chmod(file, 0700)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			t.Log(event.Open.File.PathnameStr)
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
+			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
 	})
 }

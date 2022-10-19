@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -933,12 +932,8 @@ dogstatsd_mapper_profiles:
 
 func TestNewServerExtraTags(t *testing.T) {
 	// restore env/config after having runned the test
-	e := os.Getenv("DD_TAGS")
-	ed := os.Getenv("DD_DOGSTATSD_TAGS")
 	p := config.Datadog.Get("dogstatsd_port")
 	defer func() {
-		os.Setenv("DD_TAGS", e)
-		os.Setenv("DD_DOGSTATSD_TAGS", ed)
 		config.Datadog.SetDefault("dogstatsd_port", p)
 	}()
 
@@ -955,7 +950,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
-	os.Setenv("DD_TAGS", "hello:world")
+	t.Setenv("DD_TAGS", "hello:world")
 	demux = mockDemultiplexer()
 	s, err = NewServer(demux, false)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")
@@ -964,7 +959,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
-	os.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
+	t.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
 	demux = mockDemultiplexer()
 	s, err = NewServer(demux, false)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")

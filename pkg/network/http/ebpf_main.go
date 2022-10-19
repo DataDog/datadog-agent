@@ -87,11 +87,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if c.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
-	}
-
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -124,8 +119,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
-				KProbeMaxActive:    maxActive,
-				KprobeAttachMethod: kprobeAttachMethod,
+				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -140,7 +134,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
-				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
@@ -190,6 +183,11 @@ func (e *ebpfProgram) Init() error {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
+	}
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -231,7 +229,8 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: e.offsets,
+		ConstantEditors:           e.offsets,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 
 	for _, s := range e.subprograms {

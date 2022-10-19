@@ -22,25 +22,28 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		{
-			Use:   "start-service",
-			Short: "starts the agent within the service control manager",
-			Long:  ``,
+			Use:     "start-service",
+			Aliases: []string{"startservice"},
+			Short:   "starts the agent within the service control manager",
+			Long:    ``,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(controlsvc.StartService)
 			},
 		},
 		{
-			Use:   "stopservice",
-			Short: "stops the agent within the service control manager",
-			Long:  ``,
+			Use:     "stop-service",
+			Aliases: []string{"stopservice"},
+			Short:   "stops the agent within the service control manager",
+			Long:    ``,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(controlsvc.StopService)
 			},
 		},
 		{
-			Use:   "restart-service",
-			Short: "restarts the agent within the service control manager",
-			Long:  ``,
+			Use:     "restart-service",
+			Aliases: []string{"restartservice"},
+			Short:   "restarts the agent within the service control manager",
+			Long:    ``,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(controlsvc.RestartService)
 			},
