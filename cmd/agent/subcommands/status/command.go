@@ -131,7 +131,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(log log.Component, config config.Component, sysprobeConfig sysprobeconfig.Component, cliParams *cliParams) error {
+func statusCmd(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	return redactError(requestStatus(config, cliParams))
 }
 

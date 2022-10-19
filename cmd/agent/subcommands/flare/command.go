@@ -156,7 +156,7 @@ func readProcessAgentProfileData(cliParams *cliParams, pdata *flare.ProfileData,
 	return collector("process", processDebugURL, seconds, pdata)
 }
 
-func makeFlare(log log.Component, config config.Component, sysprobeConfig sysprobeconfig.Component, cliParams *cliParams) error {
+func makeFlare(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	var (
 		profile flare.ProfileData
 		err     error
