@@ -127,10 +127,6 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 
 	SecurityAgentCmd.AddCommand(versionCmd)
 
-	if runtimeCmd != nil {
-		SecurityAgentCmd.AddCommand(runtimeCmd)
-	}
-
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	SecurityAgentCmd.AddCommand(startCmd)
 
@@ -139,6 +135,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		FlareCommands,
 		ConfigCommands,
 		ComplianceCommands,
+		RuntimeCommands,
 	}
 
 	for _, factory := range factories {

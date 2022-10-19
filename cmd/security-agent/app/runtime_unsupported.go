@@ -26,7 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-var runtimeCmd *cobra.Command
+func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
+	return nil
+}
 
 func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
