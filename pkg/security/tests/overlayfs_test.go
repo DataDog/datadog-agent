@@ -135,10 +135,7 @@ func TestOverlayFS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mountPoint, _, err := testDrive.Path("bind")
-	if err != nil {
-		t.Fatal(err)
-	}
+	mountPoint := testDrive.Path("bind")
 	defer os.Remove(mountPoint)
 
 	if err := os.Mkdir(mountPoint, 0777); err != nil {
