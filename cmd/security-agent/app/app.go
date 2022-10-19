@@ -126,7 +126,6 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.flagNoColor, "no-color", "n", false, "disable color output")
 
 	SecurityAgentCmd.AddCommand(versionCmd)
-	SecurityAgentCmd.AddCommand(complianceCmd)
 
 	if runtimeCmd != nil {
 		SecurityAgentCmd.AddCommand(runtimeCmd)
@@ -138,8 +137,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	factories := []SubcommandFactory{
 		StatusCommands,
 		FlareCommands,
-		CheckCommands,
 		ConfigCommands,
+		ComplianceCommands,
 	}
 
 	for _, factory := range factories {

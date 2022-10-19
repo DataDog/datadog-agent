@@ -27,29 +27,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-var (
-	complianceCmd = &cobra.Command{
+func ComplianceCommands(globalParams *GlobalParams) []*cobra.Command {
+	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "Compliance Agent utility commands",
 	}
 
-	eventCmd = &cobra.Command{
-		Use:    "event",
-		Short:  "Issue logs to test Security Agent compliance events",
-		RunE:   eventRun,
+	complianceCmd.AddCommand(complianceEventCommand(globalParams))
+	complianceCmd.AddCommand(CheckCommands(globalParams)...)
+
+	return []*cobra.Command{complianceCmd}
+}
+
+type eventCliParams struct {
+	*GlobalParams
+
+	sourceName string
+	sourceType string
+	event      event.Event
+	data       []string
+}
+
+func complianceEventCommand(globalParams *GlobalParams) *cobra.Command {
+	eventArgs := eventCliParams{
+		GlobalParams: globalParams,
+	}
+
+	eventCmd := &cobra.Command{
+		Use:   "event",
+		Short: "Issue logs to test Security Agent compliance events",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return eventRun(&eventArgs)
+		},
 		Hidden: true,
 	}
 
-	eventArgs = struct {
-		sourceName string
-		sourceType string
-		event      event.Event
-		data       []string
-	}{}
-)
-
-func init() {
-	complianceCmd.AddCommand(eventCmd)
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
@@ -57,6 +69,8 @@ func init() {
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
+
+	return eventCmd
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
@@ -64,7 +78,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", config.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
 }
 
-func eventRun(cmd *cobra.Command, args []string) error {
+func eventRun(eventArgs *eventCliParams) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
