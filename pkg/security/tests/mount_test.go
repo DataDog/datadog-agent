@@ -47,17 +47,11 @@ func TestMount(t *testing.T) {
 	}
 	defer test.Close()
 
-	mntPath, _, err := testDrive.Path("test-mount")
-	if err != nil {
-		t.Fatal(err)
-	}
+	mntPath := testDrive.Path("test-mount")
 	os.MkdirAll(mntPath, 0755)
 	defer os.RemoveAll(mntPath)
 
-	dstMntPath, _, err := testDrive.Path(dstMntBasename)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dstMntPath := testDrive.Path(dstMntBasename)
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
@@ -90,10 +84,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
-		file, _, err := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		file := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
 
 		f, err := os.Create(file)
 		if err != nil {
