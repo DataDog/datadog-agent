@@ -84,7 +84,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
-		file := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
+		file := testDrive.Path(dstMntBasename, "test-mount")
 
 		f, err := os.Create(file)
 		if err != nil {
