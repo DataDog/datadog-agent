@@ -46,11 +46,6 @@ type Tailer struct {
 	// ends.
 	decodedOffset *atomic.Int64
 
-	// bytesRead is the number of bytes successfully read from the file by this
-	// tailer.  This may be smaller than lastReadOffset if the tailer did not
-	// begin at the start of the file.
-	bytesRead int64
-
 	// file contains the logs configuration for the file to parse (path, source, ...)
 	// If you are looking for the os.file use to read on the FS, see osFile.
 	file *File
@@ -238,7 +233,7 @@ func (t *Tailer) readForever() {
 	defer func() {
 		t.osFile.Close()
 		t.decoder.Stop()
-		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
+		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Load(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
 	for {
@@ -325,7 +320,6 @@ func (t *Tailer) wait() {
 }
 
 func (t *Tailer) recordBytes(n int64) {
-	t.bytesRead += n
 	t.file.Source.RecordBytes(n)
 }
 
