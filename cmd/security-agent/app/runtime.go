@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -61,6 +60,7 @@ func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
+	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 
 	return []*cobra.Command{runtimeCmd}
 }
@@ -222,53 +222,6 @@ var (
 		withArgs bool
 	}{}
 
-	activityDumpCmd = &cobra.Command{
-		Use:   "activity-dump",
-		Short: "activity dump command",
-	}
-
-	activityDumpArgs = struct {
-		comm                     string
-		file                     string
-		timeout                  int
-		differentiateArgs        bool
-		localStorageDirectory    string
-		localStorageFormats      []string
-		localStorageCompression  bool
-		remoteStorageFormats     []string
-		remoteStorageCompression bool
-		remoteRequest            bool
-	}{}
-
-	activityDumpGenerateCmd = &cobra.Command{
-		Use:   "generate",
-		Short: "generate command for activity dumps",
-	}
-
-	activityDumpGenerateDumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "generate an activity dump",
-		RunE:  generateActivityDump,
-	}
-
-	activityDumpGenerateEncodingCmd = &cobra.Command{
-		Use:   "encoding",
-		Short: "encode an activity dump to the requested formats",
-		RunE:  generateEncodingFromActivityDump,
-	}
-
-	activityDumpStopCmd = &cobra.Command{
-		Use:   "stop",
-		Short: "stops the first activity dump that matches the provided selector",
-		RunE:  stopActivityDump,
-	}
-
-	activityDumpListCmd = &cobra.Command{
-		Use:   "list",
-		Short: "get the list of running activity dumps",
-		RunE:  listActivityDumps,
-	}
-
 	reloadPoliciesCmd = &cobra.Command{
 		Use:        "reload",
 		Short:      "Reload policies",
@@ -298,116 +251,8 @@ var (
 func init() {
 	processCacheDumpCmd.Flags().BoolVar(&processCacheDumpArgs.withArgs, "with-args", false, "add process arguments to the dump")
 
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
-	activityDumpGenerateDumpCmd.Flags().IntVar(
-		&activityDumpArgs.timeout,
-		"timeout",
-		60,
-		"timeout for the activity dump in minutes",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&activityDumpArgs.differentiateArgs,
-		"differentiate-args",
-		true,
-		"add the arguments in the process node merge algorithm",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.localStorageDirectory,
-		"output",
-		"/tmp/activity_dumps/",
-		"local storage output directory",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&activityDumpArgs.localStorageCompression,
-		"compression",
-		false,
-		"defines if the local storage output should be compressed before persisting the data to disk",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
-		&activityDumpArgs.localStorageFormats,
-		"format",
-		[]string{},
-		fmt.Sprintf("local storage output formats. Available options are %v.", dump.AllStorageFormats()),
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&activityDumpArgs.remoteStorageCompression,
-		"remote-compression",
-		true,
-		"defines if the remote storage output should be compressed before sending the data",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
-		&activityDumpArgs.remoteStorageFormats,
-		"remote-format",
-		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", dump.AllStorageFormats()),
-	)
-
-	activityDumpStopCmd.Flags().StringVar(
-		&activityDumpArgs.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
-
-	activityDumpGenerateEncodingCmd.Flags().StringVar(
-		&activityDumpArgs.file,
-		"input",
-		"",
-		"path to the activity dump file",
-	)
-	_ = activityDumpGenerateEncodingCmd.MarkFlagRequired("input")
-	activityDumpGenerateEncodingCmd.Flags().StringVar(
-		&activityDumpArgs.localStorageDirectory,
-		"output",
-		"/tmp/activity_dumps/",
-		"local storage output directory",
-	)
-	activityDumpGenerateEncodingCmd.Flags().BoolVar(
-		&activityDumpArgs.localStorageCompression,
-		"compression",
-		false,
-		"defines if the local storage output should be compressed before persisting the data to disk",
-	)
-	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
-		&activityDumpArgs.localStorageFormats,
-		"format",
-		[]string{},
-		fmt.Sprintf("local storage output formats. Available options are %v.", dump.AllStorageFormats()),
-	)
-	activityDumpGenerateEncodingCmd.Flags().BoolVar(
-		&activityDumpArgs.remoteStorageCompression,
-		"remote-compression",
-		true,
-		"defines if the remote storage output should be compressed before sending the data",
-	)
-	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
-		&activityDumpArgs.remoteStorageFormats,
-		"remote-format",
-		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", dump.AllStorageFormats()),
-	)
-	activityDumpGenerateEncodingCmd.Flags().BoolVar(
-		&activityDumpArgs.remoteRequest,
-		"remote",
-		false,
-		"when set, the transcoding will be done by system-probe instead of the current security-agent instance",
-	)
-
 	processCacheCmd.AddCommand(processCacheDumpCmd)
 	runtimeCmd.AddCommand(processCacheCmd)
-
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateEncodingCmd)
-
-	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
-	activityDumpCmd.AddCommand(activityDumpListCmd)
-	activityDumpCmd.AddCommand(activityDumpStopCmd)
-	runtimeCmd.AddCommand(activityDumpCmd)
 
 	runtimeCmd.AddCommand(reloadPoliciesCmd)
 
@@ -487,175 +332,6 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessag
 			printStorageRequestMessage(prefix+"\t", storage)
 		}
 	}
-}
-
-func parseStorageRequest() (*api.StorageRequestParams, error) {
-	// parse local storage formats
-	_, err := dump.ParseStorageFormats(activityDumpArgs.localStorageFormats)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't parse local storage formats %v: %v", activityDumpArgs.localStorageFormats, err)
-	}
-
-	// parse remote storage formats
-	_, err = dump.ParseStorageFormats(activityDumpArgs.remoteStorageFormats)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't parse remote storage formats %v: %v", activityDumpArgs.remoteStorageFormats, err)
-	}
-	return &api.StorageRequestParams{
-		LocalStorageDirectory:    activityDumpArgs.localStorageDirectory,
-		LocalStorageCompression:  activityDumpArgs.localStorageCompression,
-		LocalStorageFormats:      activityDumpArgs.localStorageFormats,
-		RemoteStorageCompression: activityDumpArgs.remoteStorageCompression,
-		RemoteStorageFormats:     activityDumpArgs.remoteStorageFormats,
-	}, nil
-}
-
-func generateActivityDump(cmd *cobra.Command, args []string) error {
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
-	}
-	defer client.Close()
-
-	storage, err := parseStorageRequest()
-	if err != nil {
-		return err
-	}
-
-	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
-		Comm:              activityDumpArgs.comm,
-		Timeout:           int32(activityDumpArgs.timeout),
-		DifferentiateArgs: activityDumpArgs.differentiateArgs,
-		Storage:           storage,
-	})
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
-	}
-
-	printSecurityActivityDumpMessage("", output)
-	return nil
-}
-
-func listActivityDumps(cmd *cobra.Command, args []string) error {
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
-	}
-	defer client.Close()
-
-	output, err := client.ListActivityDumps()
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump list request failed: %s", output.Error)
-	}
-
-	if len(output.Dumps) > 0 {
-		fmt.Println("active dumps:")
-		for _, d := range output.Dumps {
-			printSecurityActivityDumpMessage("\t", d)
-		}
-	} else {
-		fmt.Println("no active dumps found")
-	}
-
-	return nil
-}
-
-func stopActivityDump(cmd *cobra.Command, args []string) error {
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
-	}
-	defer client.Close()
-
-	output, err := client.StopActivityDump(activityDumpArgs.comm)
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump stop request failed: %s", output.Error)
-	}
-
-	fmt.Println("done!")
-	return nil
-}
-
-func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
-	var output *api.TranscodingRequestMessage
-
-	if activityDumpArgs.remoteRequest {
-		// send the encoding request to system-probe
-		client, err := secagent.NewRuntimeSecurityClient()
-		if err != nil {
-			return fmt.Errorf("encoding generation failed: %w", err)
-		}
-		defer client.Close()
-
-		// parse encoding request
-		storage, err := parseStorageRequest()
-		if err != nil {
-			return err
-		}
-
-		output, err = client.GenerateEncoding(&api.TranscodingRequestParams{
-			ActivityDumpFile: activityDumpArgs.file,
-			Storage:          storage,
-		})
-		if err != nil {
-			return fmt.Errorf("couldn't send request to system-probe: %w", err)
-		}
-
-	} else {
-		// encoding request will be handled locally
-		ad := sprobe.NewEmptyActivityDump()
-
-		// open and parse input file
-		if err := ad.Decode(activityDumpArgs.file); err != nil {
-			return err
-		}
-		parsedRequests, err := parseStorageRequest()
-		if err != nil {
-			return err
-		}
-
-		storageRequests, err := dump.ParseStorageRequests(parsedRequests)
-		if err != nil {
-			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
-		}
-		for _, request := range storageRequests {
-			ad.AddStorageRequest(request)
-		}
-
-		storage, err := sprobe.NewActivityDumpStorageManager(nil)
-		if err != nil {
-			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
-		}
-
-		err = storage.Persist(ad)
-		if err != nil {
-			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
-		}
-
-		output = ad.ToTranscodingRequestMessage()
-	}
-
-	if len(output.GetError()) > 0 {
-		return fmt.Errorf("encoding generation failed: %s", output.GetError())
-	}
-	if len(output.GetStorage()) > 0 {
-		fmt.Printf("encoding generation succeeded:\n")
-		for _, storage := range output.GetStorage() {
-			printStorageRequestMessage("\t", storage)
-		}
-	} else {
-		fmt.Println("encoding generation succeeded: empty output")
-	}
-	return nil
 }
 
 func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
