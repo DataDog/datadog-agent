@@ -10,8 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
@@ -26,52 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
-
-func ComplianceCommands(globalParams *GlobalParams) []*cobra.Command {
-	complianceCmd := &cobra.Command{
-		Use:   "compliance",
-		Short: "Compliance Agent utility commands",
-	}
-
-	complianceCmd.AddCommand(complianceEventCommand(globalParams))
-	complianceCmd.AddCommand(CheckCommands(globalParams)...)
-
-	return []*cobra.Command{complianceCmd}
-}
-
-type eventCliParams struct {
-	*GlobalParams
-
-	sourceName string
-	sourceType string
-	event      event.Event
-	data       []string
-}
-
-func complianceEventCommand(globalParams *GlobalParams) *cobra.Command {
-	eventArgs := eventCliParams{
-		GlobalParams: globalParams,
-	}
-
-	eventCmd := &cobra.Command{
-		Use:   "event",
-		Short: "Issue logs to test Security Agent compliance events",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return eventRun(&eventArgs)
-		},
-		Hidden: true,
-	}
-
-	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
-
-	return eventCmd
-}
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
