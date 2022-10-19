@@ -13,7 +13,7 @@ namespace CustomActions.Tests.IntegrationTests
     /// These tests expects a valid config to be found in the same folder as where the unit
     /// tests run. The CI takes care of generating a valid configuration that will be placed
     /// at the right location using the generate-config invoke task.
-    public class ConfigIntegrationTest
+    public class TestConfig
     {
         /// <summary>
         /// Base on win-installopts kitchen test

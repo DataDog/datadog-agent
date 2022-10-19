@@ -136,12 +136,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
-    <Compile Include="IntegrationTests\ConfigIntegrationTest.cs" />
+    <Compile Include="IntegrationTests\TestConfig.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="YamlAssertions\YamlAssertions.UnitTests.cs" />
+    <Compile Include="YamlAssertions\YamlAssertionsTests.cs" />
     <Compile Include="Helpers\YamlAssertions.cs" />
     <Compile Include="Helpers\YamlAssertionsExtensions.cs" />
     <Compile Include="Helpers\YamlExpectationsExtensions.cs" />

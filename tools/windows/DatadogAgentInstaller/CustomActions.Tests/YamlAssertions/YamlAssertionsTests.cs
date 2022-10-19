@@ -6,7 +6,7 @@ namespace CustomActions.Tests.YamlAssertions
     /// <summary>
     /// Tests for the custom YAML assertions
     /// </summary>
-    public class YamlAssertionsUnitTests
+    public class YamlAssertionsTests
     {
         [Fact]
         public void Should_Succeed_With_NonNestedKey()
