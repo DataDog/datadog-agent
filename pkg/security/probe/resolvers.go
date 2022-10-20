@@ -100,6 +100,7 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDCon
 		return pathStr, mountErr
 	}
 
+	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}
