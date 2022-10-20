@@ -48,5 +48,17 @@ deeply:
         {
             "test: 42".ToYaml().Should().HaveKey("test").And.NotHaveValue("32");
         }
+
+        [Fact]
+        public void Should_HaveValues_Correctly_Evaluate_List()
+        {
+            @"test_list:
+                - elementA
+                - anotherElementCalledB"
+                .ToYaml()
+                .Should()
+                .HaveKey("test_list")
+                .And.HaveValues(new []{"elementA", "anotherElementCalledB"});
+        }
     }
 }
