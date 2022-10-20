@@ -77,7 +77,7 @@ type MetricSampleContext interface {
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
 
-	// IsNoIndex returns if the metric must not be indexed.
+	// IsNoIndex returns true if the metric must not be indexed.
 	IsNoIndex() bool
 }
 
