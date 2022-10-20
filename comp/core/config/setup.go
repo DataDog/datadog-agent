@@ -24,7 +24,8 @@ func setupConfig(
 	configName string,
 	withoutSecrets bool,
 	failOnMissingFile bool,
-	useDefaultConfigPath bool) (*config.Warnings, error) {
+	useDefaultConfigPath bool,
+	defaultConfPath string) (*config.Warnings, error) {
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
 	}
@@ -39,8 +40,12 @@ func setupConfig(
 		}
 	}
 	if useDefaultConfigPath {
-		config.Datadog.AddConfigPath(common.DefaultConfPath)
+		if len(defaultConfPath) == 0 {
+			defaultConfPath = common.DefaultConfPath
+		}
+		config.Datadog.AddConfigPath(defaultConfPath)
 	}
+
 	// load the configuration
 	var err error
 	var warnings *config.Warnings

@@ -85,7 +85,7 @@ func makeCommands() []*cobra.Command {
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return runDogstatsdFct(cliParams, start)
+			return runDogstatsdFct(cliParams, "", start)
 		},
 	}
 
@@ -110,7 +110,7 @@ func makeCommands() []*cobra.Command {
 	return []*cobra.Command{startCmd, versionCmd}
 }
 
-func runDogstatsdFct(cliParams *cliParams, fct interface{}) error {
+func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(core.BundleParams{
@@ -119,6 +119,7 @@ func runDogstatsdFct(cliParams *cliParams, fct interface{}) error {
 			ConfigMissingOK:        true,
 			ConfigName:             "dogstatsd",
 			ExcludeDefaultConfPath: true,
+			DefaultConfPath:        defaultConfPath,
 		}),
 		core.Bundle,
 	)

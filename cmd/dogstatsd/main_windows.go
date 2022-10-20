@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,14 +57,12 @@ const ServiceName = "dogstatsd"
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.Dogstatsd)
-	pkgconfig.Datadog.AddConfigPath(DefaultConfPath)
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
-		confPath = DefaultConfPath
 		runService(false)
 		return
 	}
@@ -86,7 +85,10 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cliParams := &cliParams{}
-	err := runDogstatsdFct(cliParams, func(config config.Component) error { return runAgent(ctx, cliParams, config) })
+	err := runDogstatsdFct(
+		cliParams,
+		DefaultConfPath,
+		func(config config.Component) error { return runAgent(ctx, cliParams, config) })
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
