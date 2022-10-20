@@ -33,6 +33,11 @@
 #error "kernel version not included?"
 #endif
 
+static __always_inline u32 get_sk_cookie(struct sock *sk) {
+    u64 t = bpf_ktime_get_ns();
+    return (u32)(((u64)sk) ^ t);
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t *t, struct sock *skp, u8 state) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;

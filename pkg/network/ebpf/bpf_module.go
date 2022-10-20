@@ -16,54 +16,32 @@ import (
 
 // ReadBPFModule from the asset file
 func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "tracer.o"
-	if debug {
-		file = "tracer-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, debug, "tracer")
 }
 
 // ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "http.o"
-	if debug {
-		file = "http-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, debug, "http")
 }
 
 // ReadDNSModule from the asset file
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "dns.o"
-	if debug {
-		file = "dns-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, debug, "dns")
 }
 
 // ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "offset-guess.o"
+	return readModule(bpfDir, debug, "offset-guess")
+}
+
+func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, debug, "tracer-fentry")
+}
+
+func readModule(bpfDir string, debug bool, name string) (bytecode.AssetReader, error) {
+	file := name + ".o"
 	if debug {
-		file = "offset-guess-debug.o"
+		file = name + "-debug.o"
 	}
 
 	ebpfReader, err := bytecode.GetReader(bpfDir, file)

@@ -80,7 +80,7 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     }
 }
 
-static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
+static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr) {

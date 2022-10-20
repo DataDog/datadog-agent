@@ -6,7 +6,7 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package fentry
 
 import (
 	"errors"
@@ -21,7 +21,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -40,7 +39,7 @@ const (
 	probeUID = "net"
 )
 
-type kprobeTracer struct {
+type tracer struct {
 	m *manager.Manager
 
 	conns    *ebpf.Map
@@ -71,7 +70,7 @@ func newTelemetry() telemetry {
 }
 
 // New creates a new tracer
-func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
+func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -94,32 +93,14 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		ConstantEditors: constants,
 	}
 
-	runtimeTracer := false
-	var buf bytecode.AssetReader
-	var err error
-	if config.EnableRuntimeCompiler {
-		buf, err = getRuntimeCompiledTracer(config)
-		if err != nil {
-			if !config.AllowPrecompiledFallback {
-				return nil, fmt.Errorf("error compiling network tracer: %s", err)
-			}
-			log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
-		} else {
-			runtimeTracer = true
-			defer func() { _ = buf.Close() }()
-		}
+	buf, err := netebpf.ReadFentryTracerModule(config.BPFDir, config.BPFDebug)
+	if err != nil {
+		return nil, fmt.Errorf("could not read tracer module: %s", err)
 	}
-
-	if buf == nil {
-		buf, err = netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
-		if err != nil {
-			return nil, fmt.Errorf("could not read bpf module: %s", err)
-		}
-		defer buf.Close()
-	}
+	defer buf.Close()
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledProbes(config, runtimeTracer)
+	enabledProbes, err := enabledPrograms(config)
 	if err != nil {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
@@ -129,8 +110,8 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(config, perfHandlerTCP, runtimeTracer)
-	m.DumpHandler = dumpMapsHandler
+	m := newManager(config, perfHandlerTCP)
+	//m.DumpHandler = dumpMapsHandler
 
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -143,7 +124,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
+		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
 			mgrOptions.ExcludedFunctions = append(mgrOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
@@ -169,15 +150,15 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 
 	batchMgr, err := connection.NewConnBatchManager(m)
 	if err != nil {
-		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
+		return nil, fmt.Errorf("could not create batch manager: %w", err)
 	}
 
 	closeConsumer, err := connection.NewTCPCloseConsumer(m, perfHandlerTCP, batchMgr)
 	if err != nil {
-		return nil, fmt.Errorf("could not create TCPCloseConsumer: %w", err)
+		return nil, fmt.Errorf("could not create tcpCloseConsumer: %w", err)
 	}
 
-	tr := &kprobeTracer{
+	tr := &tracer{
 		m:             m,
 		config:        config,
 		closeConsumer: closeConsumer,
@@ -210,7 +191,7 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	return tr, nil
 }
 
-func (t *kprobeTracer) Start(callback func([]network.ConnectionStats)) (err error) {
+func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()
@@ -230,16 +211,16 @@ func (t *kprobeTracer) Start(callback func([]network.ConnectionStats)) (err erro
 	return nil
 }
 
-func (t *kprobeTracer) FlushPending() {
+func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
 
-func (t *kprobeTracer) Stop() {
+func (t *tracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	t.closeConsumer.Stop()
 }
 
-func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
+func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case string(probes.SockByPidFDMap):
 		m, _, _ := t.m.GetMap(name)
@@ -255,7 +236,7 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	}
 }
 
-func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
@@ -336,7 +317,7 @@ func (t *telemetry) get() map[string]interface{} {
 	return atomicstats.Report(t)
 }
 
-func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
+func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	t.removeTuple.Sport = conn.SPort
 	t.removeTuple.Dport = conn.DPort
 	t.removeTuple.Netns = conn.NetNS
@@ -375,7 +356,7 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 	return nil
 }
 
-func (t *kprobeTracer) GetTelemetry() map[string]int64 {
+func (t *tracer) GetTelemetry() map[string]int64 {
 	var zero uint64
 	mp, _, err := t.m.GetMap(string(probes.TelemetryMap))
 	if err != nil {
@@ -413,7 +394,7 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
+func (t *tracer) DumpMaps(maps ...string) (string, error) {
 	return t.m.DumpMaps(maps...)
 }
 
@@ -458,7 +439,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
+func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
 	if tuple.Type() != netebpf.TCP {
 		return false
 	}

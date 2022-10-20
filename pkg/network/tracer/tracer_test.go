@@ -589,6 +589,7 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 
 	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	if assert.True(t, ok, "unable to find incoming connection") {
+		t.Logf("%+v", incoming)
 		assert.Equal(t, network.INCOMING, incoming.Direction)
 
 		// make sure the inverse values are seen for the other message

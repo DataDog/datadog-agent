@@ -61,3 +61,5 @@ var (
 		OpenSSL: "tls.library:openssl",
 	}
 )
+
+const SizeofBatch = C.sizeof_batch_t

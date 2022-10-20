@@ -6,11 +6,7 @@
 #include "tracer-telemetry.h"
 
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
-
-static __always_inline u32 get_sk_cookie(struct sock *sk) {
-    u64 t = bpf_ktime_get_ns();
-    return (u32)((u64)sk ^ t);
-}
+static __always_inline u32 get_sk_cookie(struct sock *sk);
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it

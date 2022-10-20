@@ -101,3 +101,5 @@ var (
 		OpenSSL: "tls.library:openssl",
 	}
 )
+
+const SizeofBatch = 0x1f0

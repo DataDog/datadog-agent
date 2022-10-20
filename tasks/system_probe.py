@@ -182,6 +182,19 @@ def ninja_network_ebpf_programs(nw, build_dir):
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
 
+def ninja_network_core_ebpf_programs(nw, build_dir):
+    network_bpf_dir = os.path.join("pkg", "network", "ebpf")
+    network_c_dir = os.path.join(network_bpf_dir, "c")
+    network_co_re_dir = os.path.join(network_c_dir, "co-re")
+
+    network_flags = "-Ipkg/network/ebpf/c -g"
+    network_programs = ["tracer-fentry"]
+    for prog in network_programs:
+        infile = os.path.join(network_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{prog}.o")
+        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
+
+
 def ninja_runtime_compilation_files(nw):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
@@ -299,6 +312,7 @@ def ninja_generate(
         else:
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release)
             ninja_network_ebpf_programs(nw, build_dir)
+            ninja_network_core_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_runtime_compilation_files(nw)
 

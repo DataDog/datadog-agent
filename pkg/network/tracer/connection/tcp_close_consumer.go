@@ -6,30 +6,30 @@
 //go:build linux_bpf
 // +build linux_bpf
 
-package kprobe
+package connection
 
 import (
 	"sync"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"go.uber.org/atomic"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	perfReceivedStat = "perf_recv"
-	perfLostStat     = "perf_lost"
+	PerfReceivedStat = "perf_recv"
+	PerfLostStat     = "perf_lost"
 )
 
-type tcpCloseConsumer struct {
+type TCPCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
-	batchManager *perfBatchManager
+	batchManager *PerfBatchManager
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
 	once         sync.Once
@@ -39,23 +39,8 @@ type tcpCloseConsumer struct {
 	perfLost     *atomic.Int64
 }
 
-func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*tcpCloseConsumer, error) {
-	connCloseEventMap, _, err := m.GetMap(string(probes.ConnCloseEventMap))
-	if err != nil {
-		return nil, err
-	}
-	connCloseMap, _, err := m.GetMap(string(probes.ConnCloseBatchMap))
-	if err != nil {
-		return nil, err
-	}
-
-	numCPUs := int(connCloseEventMap.MaxEntries())
-	batchManager, err := newPerfBatchManager(connCloseMap, numCPUs)
-	if err != nil {
-		return nil, err
-	}
-
-	c := &tcpCloseConsumer{
+func NewTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *PerfBatchManager) (*TCPCloseConsumer, error) {
+	c := &TCPCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
@@ -66,7 +51,7 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler) (*
 	return c, nil
 }
 
-func (c *tcpCloseConsumer) FlushPending() {
+func (c *TCPCloseConsumer) FlushPending() {
 	if c == nil {
 		return
 	}
@@ -76,14 +61,14 @@ func (c *tcpCloseConsumer) FlushPending() {
 	<-wait
 }
 
-func (c *tcpCloseConsumer) GetStats() map[string]int64 {
+func (c *TCPCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		perfReceivedStat: c.perfReceived.Load(),
-		perfLostStat:     c.perfLost.Load(),
+		PerfReceivedStat: c.perfReceived.Load(),
+		PerfLostStat:     c.perfLost.Load(),
 	}
 }
 
-func (c *tcpCloseConsumer) Stop() {
+func (c *TCPCloseConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -93,7 +78,7 @@ func (c *tcpCloseConsumer) Stop() {
 	})
 }
 
-func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
+func (c *TCPCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
 		return
 	}
