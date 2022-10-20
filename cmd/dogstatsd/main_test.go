@@ -16,10 +16,9 @@ import (
 func TestStartCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		makeCommands(),
-		[]string{"start", "--cfgpath", "PATH", "--socket", "SOCKET"},
+		[]string{"start", "--cfgpath", "PATH"},
 		start,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, "PATH", cliParams.confPath)
-			require.Equal(t, "SOCKET", cliParams.socketPath)
 		})
 }

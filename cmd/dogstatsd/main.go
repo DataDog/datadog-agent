@@ -143,11 +143,6 @@ func start(cliParams *cliParams, config config.Component) error {
 	return nil
 }
 
-func runService(ctx context.Context) {
-	cliParams := &cliParams{}
-	runDogstatsdFct(cliParams, func(config config.Component) error { return runAgent(ctx, cliParams, config) })
-}
-
 func runAgent(ctx context.Context, cliParams *cliParams, config config.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")

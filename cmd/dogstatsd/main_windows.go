@@ -85,7 +85,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := runService(ctx)
+	cliParams := &cliParams{}
+	err := runDogstatsdFct(cliParams, func(config config.Component) error { return runAgent(ctx, cliParams, config) })
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
