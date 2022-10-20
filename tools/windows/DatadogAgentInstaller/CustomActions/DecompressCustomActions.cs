@@ -50,12 +50,12 @@ namespace Datadog.CustomActions
                 }
                 else
                 {
-                    session.Log($"{nameof(DecompressPythonDistribution)}: {embedded} not found, skipping decompression.");
+                    session.Log($"{embedded} not found, skipping decompression.");
                 }
             }
             catch (Exception e)
             {
-                session.Log($"{nameof(DecompressPythonDistributions)}: Error while decompressing {compressedDisitributionFile}: {e}");
+                session.Log($"Error while decompressing {compressedDisitributionFile}: {e}");
                 return ActionResult.Failure;
             }
 

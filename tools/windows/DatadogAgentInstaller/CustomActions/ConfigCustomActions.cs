@@ -8,16 +8,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
-using static Datadog.CustomActions.ConfigCustomActions;
-using Cave.Collections.Generic;
 
 namespace Datadog.CustomActions
 {
     public class ConfigCustomActions
     {
+        /// <summary>
+        /// Subset of the Datadog config file that we are going to read.
+        /// </summary>
+        // ReSharper disable once ArrangeTypeMemberModifiers
         class DatadogConfig
         {
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public string ApiKey { get; set; }
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public string Site { get; set; }
         }
 
@@ -47,7 +51,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"{nameof(ReadConfig)}: User config could not be read: ", e);
+                session.Log($"User config could not be read: {e}");
             }
 
             return ActionResult.Success;
@@ -348,7 +352,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"{nameof(WriteConfig)}: User config could not be written: ", e);
+                session.Log($"User config could not be written: {e}");
             }
 
             return ActionResult.Success;

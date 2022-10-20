@@ -37,13 +37,13 @@ namespace Datadog.CustomActions
                 {
                     session["DDAGENTUSER_FOUND"] = "true";
                     session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
-                    session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Found {userName} in {domain} as {nameUse}");
+                    session.Log($"Found {userName} in {domain} as {nameUse}");
                     NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
                 }
                 else
                 {
                     session["DDAGENTUSER_FOUND"] = "false";
-                    session.Log($"{nameof(ProcessDdAgentUserCredentials)}: User {ddAgentUserName} doesn't exist.");
+                    session.Log($"User {ddAgentUserName} doesn't exist.");
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
@@ -56,7 +56,7 @@ namespace Datadog.CustomActions
                 if (userFound && string.IsNullOrEmpty(ddAgentUserPassword) && !isServiceAccount)
                 {
                     // Impossible to use an existing user that is not a service account without a password
-                    session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Provide a password for the user {ddAgentUserName}");
+                    session.Log($"Provide a password for the user {ddAgentUserName}");
                     return ActionResult.Failure;
                 }
 
@@ -74,7 +74,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"{nameof(ProcessDdAgentUserCredentials)}: Error processing ddAgentUser credentials: {e}");
+                session.Log($"Error processing ddAgentUser credentials: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
@@ -101,7 +101,7 @@ namespace Datadog.CustomActions
                         out _);
                     if (!userFound)
                     {
-                        session.Log($"{nameof(ConfigureUser)}: Could not find user {ddAgentUserName}.");
+                        session.Log($"Could not find user {ddAgentUserName}.");
                         return ActionResult.Failure;
                     }
                 }
@@ -141,7 +141,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                session.Log($"{nameof(ConfigureUser)}: failed to configure user: {e}");
+                session.Log($"Failed to configure user: {e}");
                 return ActionResult.Failure;
             }
         }

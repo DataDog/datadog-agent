@@ -36,10 +36,12 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="CompilerExtensions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="DecompressCustomActions.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="ISession.cs" />
+    <Compile Include="SessionWrapper.cs" />
     <Compile Include="UserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

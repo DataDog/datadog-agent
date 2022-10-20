@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
@@ -21,12 +22,11 @@ namespace Datadog.CustomActions
         /// <summary>
         /// see <see cref="Session.Log(string)"/>
         /// </summary>
-        void Log(string msg);
-
-        /// <summary>
-        /// see <see cref="Session.Log(string, object[])"/>
-        /// </summary>
-        void Log(string format, params object[] args);
+        void Log(
+            string msg,
+            [CallerMemberName] string memberName = null,
+            [CallerFilePath] string filePath = null,
+            [CallerLineNumber] int lineNumber = 0);
 
         /// <summary>
         /// see <see cref="Session.Components"/>
@@ -51,48 +51,5 @@ namespace Datadog.CustomActions
         {
             get;
         }
-    }
-
-    public class SessionWrapper : ISession
-    {
-        private readonly Session _session;
-
-        public SessionWrapper(Session session)
-        {
-            _session = session;
-        }
-
-        public string this[string property]
-        {
-            get => _session[property];
-            set => _session[property] = value;
-        }
-
-        public MessageResult Message(InstallMessage messageType, Record record)
-        {
-            return _session.Message(messageType, record);
-        }
-
-        public void Log(string msg)
-        {
-            _session.Log(msg);
-        }
-
-        public void Log(string format, params object[] args)
-        {
-            _session.Log(format, args);
-        }
-
-        public ComponentInfoCollection Components
-        {
-            get => _session.Components;
-        }
-
-        public FeatureInfoCollection Features
-        {
-            get => _session.Features;
-        }
-
-        public CustomActionData CustomActionData => _session.CustomActionData;
     }
 }
