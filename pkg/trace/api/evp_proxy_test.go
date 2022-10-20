@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -62,6 +63,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 	randBodyBuf := make([]byte, 1024)
 	rand.Read(randBodyBuf)
 
+	timing.Stop() // https://github.com/DataDog/datadog-agent/issues/13934
 	stats := &testutil.TestStatsClient{}
 	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats

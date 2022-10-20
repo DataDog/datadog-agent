@@ -8,6 +8,7 @@ package timing
 import (
 	"fmt"
 	"math/rand"
+
 	"sync"
 	"testing"
 	"time"
@@ -22,8 +23,10 @@ func TestTiming(t *testing.T) {
 	assert := assert.New(t)
 	stats := &testutil.TestStatsClient{}
 
+	Stop() // https://github.com/DataDog/datadog-agent/issues/13934
 	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats
+	stopReport = defaultSet.Autoreport(AutoreportInterval)
 
 	t.Run("report", func(t *testing.T) {
 		stats.Reset()

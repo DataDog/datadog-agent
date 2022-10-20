@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -92,6 +93,7 @@ func TestOTLPMetrics(t *testing.T) {
 	stats := &testutil.TestStatsClient{}
 	cfg := config.New()
 
+	timing.Stop() // https://github.com/DataDog/datadog-agent/issues/13934
 	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats
 	out := make(chan *Payload, 1)
