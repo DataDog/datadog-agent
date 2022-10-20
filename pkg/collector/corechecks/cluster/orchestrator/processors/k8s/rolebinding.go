@@ -20,22 +20,14 @@ import (
 )
 
 // RoleBindingHandlers implements the Handlers interface for Kubernetes RoleBindings.
-type RoleBindingHandlers struct{}
+type RoleBindingHandlers struct {
+	BaseHandler
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *RoleBindingHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.RoleBinding)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *RoleBindingHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *RoleBindingHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
