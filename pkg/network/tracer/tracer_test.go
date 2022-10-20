@@ -1953,12 +1953,10 @@ func TestOpenSSLVersions(t *testing.T) {
 
 // TestOpenSSLVersionsSlowStart check we are able to capture TLS traffic even if we haven't captured the TLS handshake.
 // It can happen if the agent starts after connections have been made, or agent restart (OOM/upgrade).
-// Unfortunately, we probably won't capture the first request, but we will capture the rest.
+// Unfortunately, this is only a best-effort mechanism and it relies on some assumptions that are not always necessarily true
+// such as having SSL_read/SSL_write calls in the same call-stack/execution-context as the kernel function tcp_sendmsg. Force
+// this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
 func TestOpenSSLVersionsSlowStart(t *testing.T) {
-	if !httpSupported(t) {
-		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
-	}
-
 	if !httpsSupported(t) {
 		t.Skip("HTTPS feature not available supported for this setup")
 	}
@@ -1973,7 +1971,7 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 		EnableKeepAlives: true,
 	})
 	require.NoError(t, err)
-	defer closer()
+	t.Cleanup(closer)
 
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	// Send a couple of requests we won't capture.
@@ -1991,8 +1989,10 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 	// Giving the tracer time to install the hooks
 	time.Sleep(time.Second)
 
-	// First request we won't capture.
-	requestFn()
+	// Send a warmup batch of requests to trigger the fallback behavior
+	for i := 0; i < numberOfRequests; i++ {
+		requestFn()
+	}
 
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
