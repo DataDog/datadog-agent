@@ -37,48 +37,39 @@ namespace Datadog.CustomActions
             File.Delete($"{compressedFileName}");
         }
 
-        private static ActionResult DecompressPythonDistributions(ISession session)
+        private static ActionResult DecompressPythonDistribution(ISession session, string compressedDisitributionFile)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
 
             try
             {
-                var embedded2 = Path.Combine(projectLocation, "embedded2.COMPRESSED");
-                if (File.Exists(embedded2))
+                var embedded = Path.Combine(projectLocation, compressedDisitributionFile);
+                if (File.Exists(embedded))
                 {
-                    Decompress(embedded2);
+                    Decompress(embedded);
                 }
                 else
                 {
-                    session.Log($"{nameof(DecompressPythonDistributions)}: {embedded2} not found, skipping decompression.");
+                    session.Log($"{nameof(DecompressPythonDistribution)}: {embedded} not found, skipping decompression.");
                 }
             }
             catch (Exception e)
             {
-                session.Log($"{nameof(DecompressPythonDistributions)}: Error while decompressing embedded2.COMPRESSED: {e}");
-                return ActionResult.Failure;
-            }
-
-
-            try
-            {
-                var embedded3 = Path.Combine(projectLocation, "embedded3.COMPRESSED");
-                if (File.Exists(embedded3))
-                {
-                    Decompress(embedded3);
-                }
-                else
-                {
-                    session.Log($"{nameof(DecompressPythonDistributions)}: {embedded3} not found, skipping decompression.");
-                }
-            }
-            catch (Exception e)
-            {
-                session.Log($"{nameof(DecompressPythonDistributions)}: Error while decompressing embedded3.COMPRESSED: {e}");
+                session.Log($"{nameof(DecompressPythonDistributions)}: Error while decompressing {compressedDisitributionFile}: {e}");
                 return ActionResult.Failure;
             }
 
             return ActionResult.Success;
+        }
+
+        private static ActionResult DecompressPythonDistributions(ISession session)
+        {
+            var actionResult = DecompressPythonDistribution(session, "embedded2.COMPRESSED");
+            if (actionResult != ActionResult.Success)
+            {
+                return actionResult;
+            }
+            return DecompressPythonDistribution(session, "embedded3.COMPRESSED");
         }
 
         [CustomAction]
