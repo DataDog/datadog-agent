@@ -22,5 +22,7 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "#{pip} install ."
+  # Adding pyopenssl==21.0.0 here is a temporary workaround so that we don't get
+  # pyopenssl>=22.0.0 which requires a higher version of cryptography
+  command "#{pip} install pyopenssl==21.0.0 ."
 end
