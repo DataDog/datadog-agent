@@ -50,8 +50,7 @@ var (
 )
 
 type cliParams struct {
-	confPath   string
-	socketPath string
+	confPath string
 }
 
 const (
@@ -111,7 +110,8 @@ func makeCommands() []*cobra.Command {
 	// local flags
 	startCmd.Flags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
 	pkgconfig.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
-	startCmd.Flags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
+	var socketPath string
+	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 
 	return []*cobra.Command{startCmd, versionCmd}
