@@ -98,6 +98,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -612,4 +613,13 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	}
 
 	return nil
+}
+
+// disableCmdPort overrrides the `cmd_port` configuration so that when the
+// server starts up, it does not do so on the same port as a running agent.
+//
+// Ideally, the server wouldn't start up at all, but this workaround has been
+// in place for some time.
+func disableCmdPort() {
+	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
 }
