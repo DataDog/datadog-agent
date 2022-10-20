@@ -26,8 +26,7 @@ var (
 )
 
 func init() {
-	// TODO: improve this
-	checkCmd := app.CheckCommands(nil)[0]
+	checkCmd := app.CheckCmd()
 	checkCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")

@@ -45,6 +45,11 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
+// TODO: fix this, this is currently a stub for the cluster-agent
+func CheckCmd() *cobra.Command {
+	return CheckCommands(&GlobalParams{})[0]
+}
+
 // CheckCommands returns a cobra command to run security agent checks
 func CheckCommands(globalParams *GlobalParams) []*cobra.Command {
 	checkArgs := checkCliParams{
