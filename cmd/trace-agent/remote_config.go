@@ -71,12 +71,7 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 		}
 		ctx := metadata.NewOutgoingContext(req.Context(), md)
 		if configsRequest.GetClient().GetClientTracer() != nil {
-			err = normalize(&configsRequest)
-			if err != nil {
-				statusCode = http.StatusBadRequest
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			normalize(&configsRequest)
 			if configsRequest.Client.ClientTracer.Tags == nil {
 				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
 			}
@@ -120,13 +115,11 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.I
 	return nil
 }
 
-func normalize(configsRequest *pbgo.ClientGetConfigsRequest) error {
-	service, err := traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
-	if err != nil {
-		return err
-	}
+func normalize(configsRequest *pbgo.ClientGetConfigsRequest) {
+	// err is explicitly ignored as it is not an actual error and the expected normalized service
+	// is returned regardless.
+	service, _ := traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
 	env := traceutil.NormalizeTag(configsRequest.Client.ClientTracer.Env)
 	configsRequest.Client.ClientTracer.Env = env
 	configsRequest.Client.ClientTracer.Service = service
-	return nil
 }

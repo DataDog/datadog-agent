@@ -90,29 +90,29 @@ func TestTags(t *testing.T) {
 	}{
 		{
 			name:      "both tracer and container tags",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar","baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar","baz:qux"]}}}`,
 		},
 		{
 			name:                    "tracer tags only",
-			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:      "container tags only",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test"}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["baz:qux"]}}}`,
 		},
 		{
 			name:                    "no tracer",
@@ -140,10 +140,10 @@ func TestTags(t *testing.T) {
 			req.Header.Set("Content-Type", "application/msgpack")
 			req.Header.Set("Datadog-Container-ID", "cid")
 			resp, err := http.DefaultClient.Do(req)
-			assert.Nil(err)
+			assert.NoError(err)
 			body, err := ioutil.ReadAll(resp.Body)
 			resp.Body.Close()
-			assert.Nil(err)
+			assert.NoError(err)
 			assert.Equal(200, resp.StatusCode)
 			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
 
