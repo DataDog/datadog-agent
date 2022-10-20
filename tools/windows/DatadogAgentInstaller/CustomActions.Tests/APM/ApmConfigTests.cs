@@ -13,7 +13,7 @@ namespace CustomActions.Tests.APM
     {
         [Theory]
         [InlineAutoData]
-        public void Should_Always_Set_apm_dd_url(string traceDdUrl)
+        public void Should_Always_Set_apm_dd_url(Mock<ISession> sessionMock, string traceDdUrl)
         {
             var datadogYaml = @"
 # apm_config:
@@ -22,7 +22,6 @@ namespace CustomActions.Tests.APM
 
   # apm_dd_url: <ENDPOINT>:<PORT>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["TRACE_DD_URL"]).Returns(traceDdUrl);
             var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
                 .ToYaml();
@@ -37,7 +36,7 @@ namespace CustomActions.Tests.APM
 
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Trace_Url_Set_And_Apm_Enabled(string traceDdUrl, string apmEnabled)
+        public void Should_Correctly_Replace_When_Trace_Url_Set_And_Apm_Enabled(Mock<ISession> sessionMock, string traceDdUrl, string apmEnabled)
         {
             var datadogYaml = @"
 # apm_config:
@@ -46,7 +45,6 @@ namespace CustomActions.Tests.APM
 
   # apm_dd_url: <ENDPOINT>:<PORT>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["TRACE_DD_URL"]).Returns(traceDdUrl);
             sessionMock.Setup(session => session["APM_ENABLED"]).Returns(apmEnabled);
             var r = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object);
@@ -63,7 +61,7 @@ namespace CustomActions.Tests.APM
 
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Trace_Url_Unset_And_Apm_Enabled_Is_True(string apmEnabled)
+        public void Should_Correctly_Replace_When_Trace_Url_Unset_And_Apm_Enabled_Is_True(Mock<ISession> sessionMock, string apmEnabled)
         {
             var datadogYaml = @"
 # apm_config:
@@ -72,7 +70,6 @@ namespace CustomActions.Tests.APM
 
   # apm_dd_url: <ENDPOINT>:<PORT>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["APM_ENABLED"]).Returns(apmEnabled);
             var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object).ToYaml();
             resultingYaml

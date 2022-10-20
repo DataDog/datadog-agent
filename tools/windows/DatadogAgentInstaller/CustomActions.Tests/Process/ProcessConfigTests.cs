@@ -13,7 +13,9 @@ namespace CustomActions.Tests.Process
     {
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Process_Enabled(string processEnabled)
+        public void Should_Correctly_Replace_When_Process_Enabled(
+            Mock<ISession> sessionMock,
+            string processEnabled)
         {
             var datadogYaml = @"
 # process_config:
@@ -27,7 +29,6 @@ namespace CustomActions.Tests.Process
   ## Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
   # enabled: ""true""
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROCESS_ENABLED"]).Returns(processEnabled);
             var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object).ToYaml();
             resultingYaml
@@ -41,7 +42,9 @@ namespace CustomActions.Tests.Process
 
         [Theory]
         [InlineAutoData]
-        public void Should_Always_Set_process_dd_url(string processDdUrl)
+        public void Should_Always_Set_process_dd_url(
+            Mock<ISession> sessionMock,
+            string processDdUrl)
         {
             var datadogYaml = @"
 # process_config:
@@ -55,7 +58,6 @@ namespace CustomActions.Tests.Process
   ## Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
   # enabled: ""true""
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROCESS_DD_URL"]).Returns(processDdUrl);
             var r = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object);
             var resultingYaml = r.ToYaml();
@@ -67,7 +69,10 @@ namespace CustomActions.Tests.Process
 
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Process_Url_Set_And_Process_Enabled(string processEnabled, string processDdUrl)
+        public void Should_Correctly_Replace_When_Process_Url_Set_And_Process_Enabled(
+            Mock<ISession> sessionMock,
+            string processEnabled,
+            string processDdUrl)
         {
             var datadogYaml = @"
 # process_config:
@@ -96,7 +101,6 @@ namespace CustomActions.Tests.Process
   #
   # enabled: ""true""
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROCESS_ENABLED"]).Returns(processEnabled);
             sessionMock.Setup(session => session["PROCESS_DD_URL"]).Returns(processDdUrl);
             var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object).ToYaml();
@@ -112,7 +116,9 @@ namespace CustomActions.Tests.Process
 
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Process_Discovery_Enabled(string processDiscovery)
+        public void Should_Correctly_Replace_When_Process_Discovery_Enabled(
+            Mock<ISession> sessionMock,
+            string processDiscovery)
         {
             var datadogYaml = @"
 # process_config:
@@ -122,7 +128,6 @@ namespace CustomActions.Tests.Process
   # process_discovery:
     # enabled: false
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROCESS_DISCOVERY_ENABLED"]).Returns(processDiscovery);
             var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object).ToYaml();
             resultingYaml

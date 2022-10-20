@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
+using AutoFixture.Xunit2;
 using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
 using Moq;
@@ -18,10 +20,10 @@ namespace CustomActions.Tests.IntegrationTests
         /// <summary>
         /// Base on win-installopts kitchen test
         /// </summary>
-        [Fact]
-        public void Should_Correctly_Replace_Properties_For_win_installopts()
+        [Theory]
+        [InlineAutoData]
+        public void Should_Correctly_Replace_Properties_For_win_installopts(Mock<ISession> sessionMock)
         {
-            var sessionMock = new Mock<ISession>();
             foreach (var keyValuePair in new Dictionary<string, string>()
                      {
                          { "APIKEY", "testapikey" },
@@ -93,10 +95,10 @@ namespace CustomActions.Tests.IntegrationTests
         /// <summary>
         /// Base on win-all-subservices kitchen test
         /// </summary>
-        [Fact]
-        public void Should_Correctly_Replace_Properties_For_win_all_subservices()
+        [Theory]
+        [InlineAutoData]
+        public void Should_Correctly_Replace_Properties_For_win_all_subservices(Mock<ISession> sessionMock)
         {
-            var sessionMock = new Mock<ISession>();
             foreach (var keyValuePair in new Dictionary<string, string>()
                      {
                          { "APIKEY", "testapikey" },

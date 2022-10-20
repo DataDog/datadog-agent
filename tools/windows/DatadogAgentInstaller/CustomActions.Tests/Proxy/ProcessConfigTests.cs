@@ -14,12 +14,17 @@ namespace CustomActions.Tests.Proxy
         /// <summary>
         /// Verifies that the replacer doesn't do anything when PROXY_HOST is missing.
         /// </summary>
+        /// <param name="sessionMock">The mocked session.</param>
         /// <param name="proxyPort">The generated proxy port.</param>
         /// <param name="proxyUser">The generated proxy user.</param>
         /// <param name="proxyPassword">The generated proxy password.</param>
         [Theory]
         [InlineAutoData]
-        public void Dont_Do_Anything_When_Only_Optional_Proxy_Values_Present(int proxyPort, string proxyUser, string proxyPassword)
+        public void Dont_Do_Anything_When_Only_Optional_Proxy_Values_Present(
+            Mock<ISession> sessionMock,
+            int proxyPort,
+            string proxyUser,
+            string proxyPassword)
         {
             var datadogYaml = @"
 # proxy:
@@ -29,7 +34,6 @@ namespace CustomActions.Tests.Proxy
 #     - <HOSTNAME-1>
 #     - <HOSTNAME-2>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROXY_PORT"]).Returns(proxyPort.ToString);
             sessionMock.Setup(session => session["PROXY_USER"]).Returns(proxyUser);
             sessionMock.Setup(session => session["PROXY_PASSWORD"]).Returns(proxyPassword);
@@ -48,10 +52,13 @@ namespace CustomActions.Tests.Proxy
         /// <summary>
         /// Verifies that the replacer will insert the correct default values.
         /// </summary>
+        /// <param name="sessionMock">The mocked session.</param>
         /// <param name="proxyHost">The generated proxy host.</param>
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Only_PROXY_HOST_Present(string proxyHost)
+        public void Should_Correctly_Replace_When_Only_PROXY_HOST_Present(
+            Mock<ISession> sessionMock,
+            string proxyHost)
         {
             var datadogYaml = @"
 # proxy:
@@ -61,7 +68,6 @@ namespace CustomActions.Tests.Proxy
 #     - <HOSTNAME-1>
 #     - <HOSTNAME-2>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROXY_HOST"]).Returns(proxyHost);
             var r = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object);
             var resultingYaml = r.ToYaml();
@@ -77,7 +83,13 @@ namespace CustomActions.Tests.Proxy
 
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Proxy_Values_Specified(string proxyScheme, string proxyHost, int proxyPort, string proxyUser, string proxyPassword)
+        public void Should_Correctly_Replace_When_Proxy_Values_Specified(
+            Mock<ISession> sessionMock,
+            string proxyScheme,
+            string proxyHost,
+            int proxyPort,
+            string proxyUser,
+            string proxyPassword)
         {
             var datadogYaml = @"
 # proxy:
@@ -87,7 +99,6 @@ namespace CustomActions.Tests.Proxy
 #     - <HOSTNAME-1>
 #     - <HOSTNAME-2>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["PROXY_HOST"]).Returns($"{proxyScheme}://{proxyHost}");
             sessionMock.Setup(session => session["PROXY_PORT"]).Returns(proxyPort.ToString);
             sessionMock.Setup(session => session["PROXY_USER"]).Returns(proxyUser);

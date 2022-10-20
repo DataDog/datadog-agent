@@ -13,7 +13,7 @@ namespace CustomActions.Tests.Logs
     {
         [Theory]
         [InlineAutoData]
-        public void Should_Correctly_Replace_When_Dd_Logs_Url_Specified(string ddLogsUrl)
+        public void Should_Correctly_Replace_When_Dd_Logs_Url_Specified(Mock<ISession> sessionMock, string ddLogsUrl)
         {
             var datadogYaml = @"
 # logs_enabled: false
@@ -22,7 +22,6 @@ namespace CustomActions.Tests.Logs
 
   # logs_dd_url: <ENDPOINT>:<PORT>
 ";
-            var sessionMock = new Mock<ISession>();
             sessionMock.Setup(session => session["LOGS_DD_URL"]).Returns(ddLogsUrl);
             var resultingYaml = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object).ToYaml();
             resultingYaml
