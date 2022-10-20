@@ -6,6 +6,17 @@ using System.Text;
 
 namespace Datadog.CustomActions.Native
 {
+    /// <summary>
+    /// See https://learn.microsoft.com/en-us/windows/win32/secauthz/account-rights-constants
+    /// </summary>
+    public enum AccountRightsConstants
+    {
+        SeDenyInteractiveLogonRight,
+        SeDenyNetworkLogonRight,
+        SeDenyRemoteInteractiveLogonRight,
+        SeServiceLogonRight
+    }
+
     public static class NativeMethods
     {
         public enum ReturnCodes
@@ -217,7 +228,7 @@ namespace Datadog.CustomActions.Native
             uint totalentries //number of entries
         );
 
-        public static void AddUserToGroup(SecurityIdentifier securityIdentifier, string groupName)
+        public static void AddToGroup(this SecurityIdentifier securityIdentifier, string groupName)
         {
             ReturnCodes err;
             var sid = new byte[securityIdentifier.BinaryLength];
@@ -318,8 +329,9 @@ namespace Datadog.CustomActions.Native
         [DllImport("advapi32.dll")]
         private static extern long LsaNtStatusToWinError(long status);
 
-        public static void AddPrivilege(SecurityIdentifier securityIdentifier, string privilegeName)
+        public static void AddPrivilege(this SecurityIdentifier securityIdentifier, AccountRightsConstants accountRights)
         {
+            var privilegeName = accountRights.ToString();
             var sid = new byte[securityIdentifier.BinaryLength];
             securityIdentifier.GetBinaryForm(sid, 0);
             var userRights = new[]

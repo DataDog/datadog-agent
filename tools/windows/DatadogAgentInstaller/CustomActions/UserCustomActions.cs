@@ -2,6 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using static Datadog.CustomActions.Native.NativeMethods;
 
@@ -109,13 +110,13 @@ namespace Datadog.CustomActions
                     securityIdentifier = new SecurityIdentifier(session.Property("DDAGENTUSER_SID"));
                 }
 
-                AddUserToGroup(securityIdentifier, "Performance Monitor Users");
-                AddUserToGroup(securityIdentifier, "Event Log Readers");
+                securityIdentifier.AddToGroup("Performance Monitor Users");
+                securityIdentifier.AddToGroup("Event Log Readers");
 
-                AddPrivilege(securityIdentifier, "SeDenyInteractiveLogonRight");
-                AddPrivilege(securityIdentifier, "SeDenyNetworkLogonRight");
-                AddPrivilege(securityIdentifier, "SeDenyRemoteInteractiveLogonRight");
-                AddPrivilege(securityIdentifier, "SeServiceLogonRight");
+                securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyInteractiveLogonRight);
+                securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyNetworkLogonRight);
+                securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
+                securityIdentifier.AddPrivilege(AccountRightsConstants.SeServiceLogonRight);
 
                 /*
                 var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey("SOFTWARE\\Datadog\\Datadog Agent");
