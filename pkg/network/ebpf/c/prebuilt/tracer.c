@@ -1,5 +1,6 @@
 #include "kconfig.h"
 #include "bpf_telemetry.h"
+#include "bpf_builtins.h"
 #include "tracer.h"
 
 #include "tracer-events.h"
@@ -414,7 +415,7 @@ static __always_inline int handle_ret_udp_recvmsg(int copied, void *udp_sock_map
     log_debug("kretprobe/udp_recvmsg: ret=%d\n", copied);
 
     conn_tuple_t t = {};
-    __builtin_memset(&t, 0, sizeof(conn_tuple_t));
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
     if (st->msg) {
         struct sockaddr *sap = NULL;
         bpf_probe_read_kernel_with_telemetry(&sap, sizeof(sap), &(st->msg->msg_name));
