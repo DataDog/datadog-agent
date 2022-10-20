@@ -31,7 +31,7 @@ func NewStartStopAction() *StartStopAction {
 	}
 }
 
-// Start run `start` function. If `Start` was already call does nothing.
+// Start runs `start` function. If `Start` was already called, the call does nothing.
 // This function is thread safe.
 func (s *StartStopAction) Start(start func(context.Context)) {
 	s.startMut.Lock()
