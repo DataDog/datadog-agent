@@ -222,7 +222,7 @@ static __always_inline int handle_ret_udp_recvmsg(struct sock *sk, struct msghdr
     log_debug("fexit/udp_recvmsg: ret=%d\n", copied);
 
     conn_tuple_t t = {};
-    __builtin_memset(&t, 0, sizeof(conn_tuple_t));
+    __bpf_memset_builtin(&t, 0, sizeof(conn_tuple_t));
     if (msg) {
         sockaddr_to_addr(msg->msg_name, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
     }
