@@ -30,8 +30,7 @@ namespace Datadog.CustomActions
                 {
                     var deserializer = new DeserializerBuilder()
                         .IgnoreUnmatchedProperties()
-                        .WithNamingConvention(UnderscoredNamingConvention
-                            .Instance) // see height_in_inches in sample yml 
+                        .WithNamingConvention(UnderscoredNamingConvention.Instance)
                         .Build();
 
                     var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
