@@ -130,7 +130,7 @@ func (m *MetricSample) Copy() *MetricSample {
 	return dst
 }
 
-// IsNoIndex returns if the metric must not be indexed.
+// IsNoIndex returns true if the metric must not be indexed.
 func (m *MetricSample) IsNoIndex() bool {
 	return m.NoIndex
 }
