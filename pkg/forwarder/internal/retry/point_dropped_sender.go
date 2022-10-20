@@ -30,6 +30,7 @@ func NewPointDroppedSender(domain string, provider *telemetry.StatsTelemetryProv
 		startStopAction: util.NewStartStopAction()}
 }
 
+// Start starts sending metrics.
 func (t *PointDroppedSender) Start() {
 	t.startStopAction.Start(func(context context.Context) {
 		ticker := time.NewTicker(30 * time.Second)
