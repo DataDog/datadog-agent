@@ -84,15 +84,7 @@ func makeCommands() []*cobra.Command {
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return fxutil.OneShot(start,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      cliParams.confPath,
-					ConfigLoadSecrets: false,
-					ConfigMissingOK:   true,
-				}),
-				core.Bundle,
-			)
+			return runDogstatsdFct(cliParams, start)
 		},
 	}
 
@@ -117,6 +109,18 @@ func makeCommands() []*cobra.Command {
 	return []*cobra.Command{startCmd, versionCmd}
 }
 
+func runDogstatsdFct(cliParams *cliParams, fct interface{}) error {
+	return fxutil.OneShot(fct,
+		fx.Supply(cliParams),
+		fx.Supply(core.BundleParams{
+			ConfFilePath:      cliParams.confPath,
+			ConfigLoadSecrets: false,
+			ConfigMissingOK:   true,
+		}),
+		core.Bundle,
+	)
+}
+
 func start(cliParams *cliParams) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
@@ -134,6 +138,10 @@ func start(cliParams *cliParams) error {
 	<-stopCh
 
 	return nil
+}
+
+func runService(ctx context.Context) {
+	runDogstatsdFct(&cliParams{}, func() error { return runAgent(ctx, "") })
 }
 
 func runAgent(ctx context.Context, confFilePath string) (err error) {
