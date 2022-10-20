@@ -13,9 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 )
 
 func main() {
-	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
+	if err := command.MakeCommand(subcommands.AgentSubcommands()).Execute(); err != nil {
+		os.Exit(-1)
+	}
 }
