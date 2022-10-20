@@ -160,6 +160,8 @@ github.com/DataDog/go-tuf v0.3.0--fix-localmeta h1:lM/fRQNIaJpsnLU7edjV3jYHylCym
 github.com/DataDog/go-tuf v0.3.0--fix-localmeta/go.mod h1:E5XP0wXitrFUHe4b8cUcAAdxBW4LbfnqF4WXXGLgWNo=
 github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec h1:BB0E2Ij4/rO6RANy91r9ND27PtPLcdrwUJJ27B2CbIY=
 github.com/DataDog/gohai v0.0.0-20220823152657-b201b8a4ebec/go.mod h1:oyPC4jWHHjVVNjslDAKp8EqfQBaSmODjHt4HCX+C+9Q=
+github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda h1:0xPsvJrSNeob7C1fvh0i47XBX76HedF3LOFKsY/cqUM=
+github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda/go.mod h1:MsW+WM5jOyvzu7KUfg5DB4nmTBYFdm4g0Bq3JhGy1oQ=
 github.com/DataDog/gopsutil v1.1.0/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gopsutil v1.2.1 h1:FO3AZvwBUWlJZ0TL4T5/fsEoWxsGz0DFtaIB2bHn/OQ=
 github.com/DataDog/gopsutil v1.2.1/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
