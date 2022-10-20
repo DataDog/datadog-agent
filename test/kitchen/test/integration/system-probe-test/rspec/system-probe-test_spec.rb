@@ -9,6 +9,7 @@ runtime_compiled_tests = Array.[](
 )
 
 co_re_tests = Array.[](
+  "/pkg/collector/corechecks/ebpf/probe"
 )
 
 def check_output(output, wait_thr)
