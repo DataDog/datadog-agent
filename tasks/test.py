@@ -252,6 +252,9 @@ def codecov_flavor(
             # Best-effort attempt to get a unique and legible tag name
             tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
 
+        # The codecov command has to be run from the root of the repository, otherwise
+        # codecov gets confused and merges the roots of all modules, resulting in a
+        # nonsensical directory tree in the codecov app
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
         ctx.run(f"codecov -f {path} -F {tag}", warn=True)
 
