@@ -106,7 +106,7 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	return nil
 }
 
-// ExtractLast extract the last transactions stored.
+// ExtractLast extracts the last transactions stored.
 func (s *onDiskRetryQueue) ExtractLast() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
