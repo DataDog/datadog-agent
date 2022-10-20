@@ -22,7 +22,6 @@ import (
 type CRHandlers struct{}
 
 // AfterMarshalling is a handler called after resource marshalling.
-// TODO: make it work with CRD
 func (crd *CRHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	return
 }
@@ -40,7 +39,6 @@ func (crd *CRHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resou
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (crd *CRHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
-	// TODO: make it work with CRD
 	return nil
 }
 
