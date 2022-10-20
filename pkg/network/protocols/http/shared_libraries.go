@@ -78,8 +78,9 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 		rules:      rules,
 		loadEvents: perfHandler,
 		registry: &soRegistry{
-			byPath:  make(map[string]*soRegistration),
-			byInode: make(map[uint64]*soRegistration),
+			procRoot: procRoot,
+			byPath:   make(map[string]*soRegistration),
+			byInode:  make(map[uint64]*soRegistration),
 		},
 	}
 }
@@ -180,12 +181,11 @@ func (w *soWatcher) sync() {
 				// new library detected
 				// register it
 				for _, pidPath := range lib.PidsPath {
-					if pidPathArray := strings.Split(pidPath, string(os.PathSeparator)); len(pidPathArray) > 0 {
-						pidStr := pidPathArray[len(pidPathArray)-1]
-						if pid, err := strconv.Atoi(pidStr); err != nil {
-							w.registry.register(path, pid, r)
-						}
+					pid, err := extractPID(pidPath)
+					if err != nil {
+						continue
 					}
+					w.registry.register(path, pid, r)
 				}
 				break
 			}
@@ -198,29 +198,40 @@ func (w *soWatcher) sync() {
 }
 
 func (w *soWatcher) checkProcessDone() (updated bool) {
-	updated = false
+	regsToBeRemoved := make(map[*soRegistration]struct{})
+	pathsToBeRemoved := make(map[string]struct{})
+
 	for libpath, registration := range w.registry.byPath {
+		if _, ok := regsToBeRemoved[registration]; ok {
+			// this is possible because a library (represented by a given inode)
+			// can be registered through multiple paths
+			pathsToBeRemoved[libpath] = struct{}{}
+			continue
+		}
+
+		if len(registration.pids) == 0 || registration.unregisterCB == nil {
+			// this library doesn't require liveness checks
+			continue
+		}
+
 		for pid := range registration.pids {
-			/* check if the process is alive */
-			var err error
-			var fi os.FileInfo
-			procPidPath := util.GetProcRoot() + string(os.PathSeparator) + strconv.Itoa(pid)
-			if fi, err = os.Stat(procPidPath); err == nil && fi.IsDir() {
-				continue
+			if !isProcessAlive(pid) {
+				delete(registration.pids, pid)
 			}
+		}
 
-			if _, ok := err.(*os.PathError); ok {
-				log.Debugf("process %s doesn't exist anymore, unregister %s", procPidPath, libpath)
-			} else {
-				log.Errorf("stat process %s error %w", procPidPath, err)
-			}
-
-			w.registry.unregister(libpath)
-			delete(registration.pids, pid)
+		if len(registration.pids) == 0 {
+			// all processes are gone, so schedule this for removal
+			pathsToBeRemoved[libpath] = struct{}{}
+			regsToBeRemoved[registration] = struct{}{}
 			updated = true
 		}
-		w.registry.byPath[libpath] = registration
 	}
+
+	for libpath := range w.registry.byPath {
+		w.registry.unregister(libpath)
+	}
+
 	return updated
 }
 
@@ -233,19 +244,28 @@ func (w *soWatcher) canonicalizePath(path string) string {
 }
 
 type soRegistration struct {
-	pids         map[int]struct{}
+	// set of pid paths (eg. /host/proc/123) that are used for liveness checks
+	// this is done to unregister shared libraries as soon as all processes
+	// referencing it terminate. This is required when the shared library is
+	// located in a volume where mount propagation is enabled, so containers
+	// don't get stuck during termination.
+	pids map[string]struct{}
+
 	inode        uint64
 	refcount     int
 	unregisterCB func(string) error
 }
 
 type soRegistry struct {
-	byPath  map[string]*soRegistration
-	byInode map[uint64]*soRegistration
+	procRoot string
+	byPath   map[string]*soRegistration
+	byInode  map[uint64]*soRegistration
 }
 
 func (r *soRegistry) register(libPath string, pid int, rule soRule) {
-	if _, ok := r.byPath[libPath]; ok {
+	pidPath := fmt.Sprintf("%s/%d", r.procRoot, pid)
+	if registration, ok := r.byPath[libPath]; ok {
+		registration.pids[pidPath] = struct{}{}
 		return
 	}
 
@@ -256,8 +276,8 @@ func (r *soRegistry) register(libPath string, pid int, rule soRule) {
 
 	if registration, ok := r.byInode[inode]; ok {
 		registration.refcount++
-		registration.pids[pid] = struct{}{}
 		r.byPath[libPath] = registration
+		registration.pids[pidPath] = struct{}{}
 		log.Debugf("registering library=%s", libPath)
 		return
 	}
@@ -271,14 +291,15 @@ func (r *soRegistry) register(libPath string, pid int, rule soRule) {
 
 		// save sentinel value so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
-		registration := newRegistration(pid, inode, nil)
+		registration := newRegistration(inode, nil)
 		r.byPath[libPath] = registration
 		r.byInode[inode] = registration
 		return
 	}
 
 	log.Debugf("registering library=%s", libPath)
-	registration := newRegistration(pid, inode, rule.unregisterCB)
+	registration := newRegistration(inode, rule.unregisterCB)
+	registration.pids[pidPath] = struct{}{}
 	r.byPath[libPath] = registration
 	r.byInode[inode] = registration
 }
@@ -305,14 +326,13 @@ func (r *soRegistry) unregister(libPath string) {
 	}
 }
 
-func newRegistration(pid int, inode uint64, unregisterCB func(string) error) *soRegistration {
+func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
 	r := &soRegistration{
-		pids:         make(map[int]struct{}),
+		pids:         make(map[string]struct{}),
 		inode:        inode,
 		unregisterCB: unregisterCB,
 		refcount:     1,
 	}
-	r.pids[pid] = struct{}{}
 	return r
 }
 
@@ -336,4 +356,24 @@ func getInode(path string) (uint64, error) {
 	}
 
 	return stat.Ino, nil
+}
+
+func extractPID(pidPath string) (int, error) {
+	pidPathArray := strings.Split(pidPath, string(os.PathSeparator))
+	if len(pidPathArray) == 0 {
+		return 0, fmt.Errorf("invalid PID path: %s", pidPath)
+	}
+
+	pidStr := pidPathArray[len(pidPathArray)-1]
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid PID path: %s", pidPath)
+	}
+
+	return pid, nil
+}
+
+func isProcessAlive(pidPath string) bool {
+	fi, err := os.Stat(pidPath)
+	return err == nil && fi.IsDir()
 }
