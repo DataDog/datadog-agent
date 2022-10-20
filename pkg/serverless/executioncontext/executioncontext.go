@@ -90,7 +90,7 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
+	err = ioutil.WriteFile(persistedStateFilePath, file, 0600)
 	if err != nil {
 		return err
 	}

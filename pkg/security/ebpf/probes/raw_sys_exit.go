@@ -144,5 +144,69 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: "tracepoint_handle_sys_commit_creds_exit",
 			},
 		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.MMapEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_mmap_exit",
+				EBPFFuncName: "tracepoint_handle_sys_mmap_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.MProtectEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_mprotect_exit",
+				EBPFFuncName: "tracepoint_handle_sys_mprotect_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.PTraceEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_ptrace_exit",
+				EBPFFuncName: "tracepoint_handle_sys_ptrace_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SpliceEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_splice_exit",
+				EBPFFuncName: "tracepoint_handle_sys_splice_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.BPFEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_bpf_exit",
+				EBPFFuncName: "tracepoint_handle_sys_bpf_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.BindEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_bind_exit",
+				EBPFFuncName: "tracepoint_handle_sys_bind_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.LoadModuleEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_init_module_exit",
+				EBPFFuncName: "tracepoint_handle_sys_init_module_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.UnloadModuleEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "tracepoint/handle_sys_delete_module_exit",
+				EBPFFuncName: "tracepoint_handle_sys_delete_module_exit",
+			},
+		},
 	}
 }

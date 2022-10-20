@@ -245,16 +245,16 @@ type sslProgram struct {
 
 var _ subprogram = &sslProgram{}
 
-func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*sslProgram, error) {
+func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 	if !c.EnableHTTPSMonitoring || !HTTPSSupported(c) {
-		return nil, nil
+		return nil
 	}
 
 	return &sslProgram{
 		cfg:         c,
 		sockFDMap:   sockFDMap,
 		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
-	}, nil
+	}
 }
 
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
@@ -280,10 +280,6 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 		probeSysOpen = doSysOpenAt2
 	}
 
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if o.cfg.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
-	}
 	for _, kprobe := range kprobeKretprobePrefix {
 		m.Probes = append(m.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -291,8 +287,7 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 				EBPFFuncName: kprobe + "__" + probeSysOpen.function,
 				UID:          probeUID,
 			},
-				KProbeMaxActive:    maxActive,
-				KprobeAttachMethod: kprobeAttachMethod,
+				KProbeMaxActive: maxActive,
 			},
 		)
 	}

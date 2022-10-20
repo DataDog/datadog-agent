@@ -647,6 +647,8 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 		offset = 20
 	case kv.IsRH8Kernel():
 		offset = 56
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		offset = 56
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
@@ -708,5 +710,12 @@ func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 }
 
 func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
-	return 80
+	switch {
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 96
+	default:
+		return 80
+	}
 }

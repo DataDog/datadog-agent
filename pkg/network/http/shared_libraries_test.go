@@ -207,6 +207,15 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 			}
 		}
 	}
+	for _, probeInfo := range functionToProbes {
+		if probeInfo.functionInfo != nil {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.functionInfo.ebpfFunctionName)
+		}
+		if probeInfo.returnInfo != nil {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.returnInfo.ebpfFunctionName)
+		}
+
+	}
 	options.ExcludedFunctions = append(options.ExcludedFunctions, exclude...)
 
 	mgr.InstructionPatcher = func(m *manager.Manager) error {
