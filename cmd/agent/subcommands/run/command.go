@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -421,6 +422,14 @@ func startAgent(cliParams *cliParams) error {
 		if err != nil {
 			pkglog.Errorf("Failed to start snmp-traps server: %s", err)
 		}
+	}
+
+	// FIXME: this is necessary to fix windows agent starting as a service, since it is bypassing fx providing
+	// sysprobeconfig via the cobra run command. If this is removed, the system-probe config is not initialized
+	// correctly, and the agent does not correctly determine if system-probe is enabled. Ultimately causing the
+	// system-probe service to not start.
+	if _, err := sysconfig.New(cliParams.SysProbeConfFilePath); err != nil {
+		pkglog.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 
 	// Detect Cloud Provider
