@@ -6,6 +6,7 @@
 package remoteconfighandler
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -89,7 +90,7 @@ func TestPrioritySampler(t *testing.T) {
 		},
 	}
 
-	raw, _ := payload.MarshalMsg(nil)
+	raw, _ := json.Marshal(payload)
 	config := state.APMSamplingConfig{
 		Config: raw,
 	}
@@ -119,7 +120,7 @@ func TestErrorsSampler(t *testing.T) {
 		},
 	}
 
-	raw, _ := payload.MarshalMsg(nil)
+	raw, _ := json.Marshal(payload)
 	config := state.APMSamplingConfig{
 		Config: raw,
 	}
@@ -149,7 +150,7 @@ func TestRareSampler(t *testing.T) {
 		},
 	}
 
-	raw, _ := payload.MarshalMsg(nil)
+	raw, _ := json.Marshal(payload)
 	config := state.APMSamplingConfig{
 		Config: raw,
 	}
@@ -189,7 +190,7 @@ func TestEnvPrecedence(t *testing.T) {
 		}},
 	}
 
-	raw, _ := payload.MarshalMsg(nil)
+	raw, _ := json.Marshal(payload)
 	config := state.APMSamplingConfig{
 		Config: raw,
 	}

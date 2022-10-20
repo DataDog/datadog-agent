@@ -6,6 +6,7 @@
 package remoteconfighandler
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -111,7 +112,7 @@ func (h *RemoteConfigHandler) extractUpdatePayloads(update map[string]state.APMS
 			remoteRateUpdates = append(remoteRateUpdates, sampler.RemoteRateUpdate{Version: conf.Metadata.Version, Config: payload})
 		case samplerconfig:
 			samplerconfigPayload = &apmsampling.SamplerConfig{}
-			_, err := samplerconfigPayload.UnmarshalMsg(conf.Config)
+			err = json.Unmarshal(conf.Config, samplerconfigPayload)
 			if err != nil {
 				return []sampler.RemoteRateUpdate{}, nil, fmt.Errorf("failed to unmarshal SamplerConfig remote config envPayload: %w", err)
 			}
