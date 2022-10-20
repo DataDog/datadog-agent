@@ -22,6 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -114,14 +115,15 @@ func runDogstatsdFct(cliParams *cliParams, fct interface{}) error {
 		fx.Supply(cliParams),
 		fx.Supply(core.BundleParams{
 			ConfFilePath:      cliParams.confPath,
-			ConfigLoadSecrets: false,
+			ConfigLoadSecrets: true,
 			ConfigMissingOK:   true,
+			ConfigName:        "dogstatsd",
 		}),
 		core.Bundle,
 	)
 }
 
-func start(cliParams *cliParams) error {
+func start(cliParams *cliParams, config config.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer stopAgent(cancel)
@@ -129,7 +131,7 @@ func start(cliParams *cliParams) error {
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx, cliParams.confPath)
+	err := runAgent(ctx, cliParams, config)
 	if err != nil {
 		return err
 	}
@@ -141,26 +143,12 @@ func start(cliParams *cliParams) error {
 }
 
 func runService(ctx context.Context) {
-	runDogstatsdFct(&cliParams{}, func() error { return runAgent(ctx, "") })
+	cliParams := &cliParams{}
+	runDogstatsdFct(cliParams, func(config config.Component) error { return runAgent(ctx, cliParams, config) })
 }
 
-func runAgent(ctx context.Context, confFilePath string) (err error) {
-	configFound := false
-
-	// a path to the folder containing the config file was passed
-	if len(confFilePath) != 0 {
-		// we'll search for a config file named `dogstatsd.yaml`
-		pkgconfig.Datadog.SetConfigName("dogstatsd")
-		pkgconfig.Datadog.AddConfigPath(confFilePath)
-		_, confErr := pkgconfig.Load()
-		if confErr != nil {
-			log.Error(confErr)
-		} else {
-			configFound = true
-		}
-	}
-
-	if !configFound {
+func runAgent(ctx context.Context, cliParams *cliParams, config config.Component) (err error) {
+	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
 
