@@ -87,54 +87,62 @@ namespace Datadog.CustomActions
 
         private static ActionResult ConfigureUser(ISession session)
         {
-            SecurityIdentifier securityIdentifier;
-            if (string.IsNullOrEmpty(session.Property("DDAGENTUSER_SID")))
+            try
             {
-                var ddAgentUserName = $"{session.Property("DDAGENTUSER_DOMAIN")}\\{session.Property("DDAGENTUSER_NAME")}";
-                var userFound = LookupAccountName(ddAgentUserName,
-                    out _,
-                    out _,
-                    out securityIdentifier,
-                    out _);
-                if (!userFound)
+                SecurityIdentifier securityIdentifier;
+                if (string.IsNullOrEmpty(session.Property("DDAGENTUSER_SID")))
                 {
-                    session.Log($"{nameof(ConfigureUser)}: Could not find user {ddAgentUserName}.");
+                    var ddAgentUserName = $"{session.Property("DDAGENTUSER_DOMAIN")}\\{session.Property("DDAGENTUSER_NAME")}";
+                    var userFound = LookupAccountName(ddAgentUserName,
+                        out _,
+                        out _,
+                        out securityIdentifier,
+                        out _);
+                    if (!userFound)
+                    {
+                        session.Log($"{nameof(ConfigureUser)}: Could not find user {ddAgentUserName}.");
+                        return ActionResult.Failure;
+                    }
+                }
+                else
+                {
+                    securityIdentifier = new SecurityIdentifier(session.Property("DDAGENTUSER_SID"));
+                }
+
+                AddUserToGroup(securityIdentifier, "Performance Monitor Users");
+                AddUserToGroup(securityIdentifier, "Event Log Readers");
+
+                AddPrivilege(securityIdentifier, "SeDenyInteractiveLogonRight");
+                AddPrivilege(securityIdentifier, "SeDenyNetworkLogonRight");
+                AddPrivilege(securityIdentifier, "SeDenyRemoteInteractiveLogonRight");
+                AddPrivilege(securityIdentifier, "SeServiceLogonRight");
+
+                /*
+                var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey("SOFTWARE\\Datadog\\Datadog Agent");
+                if (key != null)
+                {
+                    key.GetAccessControl()
+                        .AddAccessRule(new RegistryAccessRule(
+                            securityIdentifier,
+                            RegistryRights.WriteKey |
+                            RegistryRights.ReadKey |
+                            RegistryRights.Delete |
+                            RegistryRights.FullControl,
+                            AccessControlType.Allow));
+                }
+                else
+                {
+                    session.Log($"{nameof(ConfigureUser)}: Could not set registry ACLs.");
                     return ActionResult.Failure;
                 }
+                */
+                return ActionResult.Success;
             }
-            else
+            catch (Exception e)
             {
-                securityIdentifier = new SecurityIdentifier(session.Property("DDAGENTUSER_SID"));
-            }
-
-            AddUserToGroup(securityIdentifier, "Performance Monitor Users");
-            AddUserToGroup(securityIdentifier, "Event Log Readers");
-
-            AddPrivilege(securityIdentifier, "SeDenyInteractiveLogonRight");
-            AddPrivilege(securityIdentifier, "SeDenyNetworkLogonRight");
-            AddPrivilege(securityIdentifier, "SeDenyRemoteInteractiveLogonRight");
-            AddPrivilege(securityIdentifier, "SeServiceLogonRight");
-
-            /*
-            var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey("SOFTWARE\\Datadog\\Datadog Agent");
-            if (key != null)
-            {
-                key.GetAccessControl()
-                    .AddAccessRule(new RegistryAccessRule(
-                        securityIdentifier,
-                        RegistryRights.WriteKey |
-                        RegistryRights.ReadKey |
-                        RegistryRights.Delete |
-                        RegistryRights.FullControl,
-                        AccessControlType.Allow));
-            }
-            else
-            {
-                session.Log($"{nameof(ConfigureUser)}: Could not set registry ACLs.");
+                session.Log($"{nameof(ConfigureUser)}: failed to configure user: {e}");
                 return ActionResult.Failure;
             }
-            */
-            return ActionResult.Success;
         }
 
         [CustomAction]
