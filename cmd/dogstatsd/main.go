@@ -154,7 +154,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 	}
 
 	// go_expvar server
-	port := pkgconfig.Datadog.GetInt("dogstatsd_stats_port")
+	port := config.GetInt("dogstatsd_stats_port")
 	dogstatsdStats = &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: http.DefaultServeMux,
@@ -167,24 +167,24 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 
 	// Setup logger
 	syslogURI := pkgconfig.GetSyslogURI()
-	logFile := pkgconfig.Datadog.GetString("log_file")
+	logFile := config.GetString("log_file")
 	if logFile == "" {
 		logFile = defaultLogFile
 	}
 
-	if pkgconfig.Datadog.GetBool("disable_file_logging") {
+	if config.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
 		logFile = ""
 	}
 
 	err = pkgconfig.SetupLogger(
 		loggerName,
-		pkgconfig.Datadog.GetString("log_level"),
+		config.GetString("log_level"),
 		logFile,
 		syslogURI,
-		pkgconfig.Datadog.GetBool("syslog_rfc"),
-		pkgconfig.Datadog.GetBool("log_to_console"),
-		pkgconfig.Datadog.GetBool("log_format_json"),
+		config.GetBool("syslog_rfc"),
+		config.GetBool("log_to_console"),
+		config.GetBool("log_format_json"),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -195,13 +195,13 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !pkgconfig.Datadog.IsSet("api_key") {
+	if !config.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
 	}
 
 	// Setup healthcheck port
-	var healthPort = pkgconfig.Datadog.GetInt("health_port")
+	var healthPort = config.GetInt("health_port")
 	if healthPort > 0 {
 		err = healthprobe.Serve(ctx, healthPort)
 		if err != nil {
@@ -222,7 +222,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
+	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
@@ -244,7 +244,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 	}
 
 	// container tagging initialisation if origin detection is on
-	if pkgconfig.Datadog.GetBool("dogstatsd_origin_detection") {
+	if config.GetBool("dogstatsd_origin_detection") {
 		store := workloadmeta.GetGlobalStore()
 		store.Start(ctx)
 
