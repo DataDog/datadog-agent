@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\more.xunit.runner.visualstudio.2.3.1\build\net20\more.xunit.runner.visualstudio.props" Condition="Exists('..\packages\more.xunit.runner.visualstudio.2.3.1\build\net20\more.xunit.runner.visualstudio.props')" />
   <Import Project="..\packages\xunit.core.2.4.2\build\xunit.core.props" Condition="Exists('..\packages\xunit.core.2.4.2\build\xunit.core.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -137,6 +138,7 @@
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
     <Compile Include="IntegrationTests\TestConfig.cs" />
+    <Compile Include="Logs\ProcessConfigTests.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="WriteConfigUnitTests.cs" />
@@ -161,9 +163,7 @@
       <Name>CustomActions</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Logs\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -172,6 +172,7 @@
     <Error Condition="!Exists('..\packages\xunit.core.2.4.2\build\xunit.core.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\xunit.core.2.4.2\build\xunit.core.props'))" />
     <Error Condition="!Exists('..\packages\xunit.core.2.4.2\build\xunit.core.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\xunit.core.2.4.2\build\xunit.core.targets'))" />
     <Error Condition="!Exists('..\packages\WixSharp.bin.1.20.2\build\WixSharp.bin.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\WixSharp.bin.1.20.2\build\WixSharp.bin.targets'))" />
+    <Error Condition="!Exists('..\packages\more.xunit.runner.visualstudio.2.3.1\build\net20\more.xunit.runner.visualstudio.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\more.xunit.runner.visualstudio.2.3.1\build\net20\more.xunit.runner.visualstudio.props'))" />
   </Target>
   <Import Project="..\packages\xunit.core.2.4.2\build\xunit.core.targets" Condition="Exists('..\packages\xunit.core.2.4.2\build\xunit.core.targets')" />
   <Import Project="..\packages\WixSharp.bin.1.20.2\build\WixSharp.bin.targets" Condition="Exists('..\packages\WixSharp.bin.1.20.2\build\WixSharp.bin.targets')" />

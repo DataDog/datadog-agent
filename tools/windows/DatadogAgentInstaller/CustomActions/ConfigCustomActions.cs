@@ -308,7 +308,7 @@ namespace Datadog.CustomActions
                     .Match("^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>").ReplaceWith(FormatTags),
 
                 PropertyReplacer.For("EC2_USE_WINDOWS_PREFIX_DETECTION")
-                    .Match("^[ #]*logs_enabled:.*").ReplaceWith(value => $"logs_enabled: {value}")
+                    .Match("(^[ #]*ec2_use_windows_prefix_detection:.*|\\Z)").ReplaceWith(value => $"ec2_use_windows_prefix_detection: {value}")
             };
 
             foreach (var replacer in replacers)
