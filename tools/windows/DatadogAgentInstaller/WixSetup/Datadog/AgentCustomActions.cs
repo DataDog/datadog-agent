@@ -55,7 +55,8 @@ namespace WixSetup.Datadog
                     "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
                     "NPM=[NPM], " +
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
-                    "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                    "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]")
+                .HideTarget(true);
 
             ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
                     new Id("ProcessDdAgentUserCredentials"),
