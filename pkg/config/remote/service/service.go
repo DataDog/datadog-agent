@@ -65,7 +65,6 @@ type Service struct {
 	ctx           context.Context
 	clock         clock.Clock
 	hostname      string
-	environment   string
 	traceAgentEnv string
 	db            *bbolt.DB
 	uptane        uptaneClient
