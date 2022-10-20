@@ -62,12 +62,14 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
-	ctx      context.Context
-	clock    clock.Clock
-	hostname string
-	db       *bbolt.DB
-	uptane   uptaneClient
-	api      api.API
+	ctx           context.Context
+	clock         clock.Clock
+	hostname      string
+	environment   string
+	traceAgentEnv string
+	db            *bbolt.DB
+	uptane        uptaneClient
+	api           api.API
 
 	products         map[rdata.Product]struct{}
 	newProducts      map[rdata.Product]struct{}
@@ -174,6 +176,7 @@ func NewService() (*Service, error) {
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hname,
+		traceAgentEnv:                  config.GetTraceAgentDefaultEnv(),
 		clock:                          clock,
 		db:                             db,
 		api:                            http,
@@ -246,7 +249,7 @@ func (s *Service) refresh() error {
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
 	}
-	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	response, err := s.api.Fetch(s.ctx, request)
 	s.Lock()

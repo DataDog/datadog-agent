@@ -1888,3 +1888,25 @@ func GetVectorURL(datatype DataType) (string, error) {
 	}
 	return "", nil
 }
+
+// GetTraceAgentDefaultEnv returns the default env for the trace agent
+func GetTraceAgentDefaultEnv() string {
+	defaultEnv := ""
+	if Datadog.IsSet("apm_config.env") {
+		defaultEnv = Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
+	} else if Datadog.IsSet("env") {
+		defaultEnv = Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
+	} else {
+		for _, tag := range GetConfiguredTags(false) {
+			if strings.HasPrefix(tag, "env:") {
+				defaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
+				break
+			}
+		}
+	}
+
+	return defaultEnv
+}
