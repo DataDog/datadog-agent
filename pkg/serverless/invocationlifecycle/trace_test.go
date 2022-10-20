@@ -7,7 +7,6 @@ package invocationlifecycle
 
 import (
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -202,10 +201,8 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 }
 func TestEndExecutionSpanWithNoError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	defer os.Unsetenv(functionNameEnvVar)
-	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
-	os.Setenv(functionNameEnvVar, "TestFunction")
-	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 
@@ -245,10 +242,8 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 }
 
 func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
-	defer os.Unsetenv(functionNameEnvVar)
-	defer os.Unsetenv("DD_CAPTURE_LAMBDA_PAYLOAD")
-	os.Setenv(functionNameEnvVar, "TestFunction")
-	os.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "INVALID_INPUT")
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "INVALID_INPUT")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
@@ -290,8 +285,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 
 func TestEndExecutionSpanWithError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
-	defer os.Unsetenv(functionNameEnvVar)
-	os.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv(functionNameEnvVar, "TestFunction")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	startDetails := &InvocationStartDetails{

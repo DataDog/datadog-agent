@@ -88,7 +88,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source 
 
 	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
-	c.subscriber = createEventSubscriber("ContainerdCheck", cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
+	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
 	return nil
 }
@@ -172,7 +172,7 @@ func (c *ContainerdCheck) collectEvents(sender aggregator.Sender) {
 
 	if !c.subscriber.isRunning() {
 		// Keep track of the health of the Containerd socket.
-		c.subscriber.CheckEvents(c.client)
+		c.subscriber.CheckEvents()
 	}
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events

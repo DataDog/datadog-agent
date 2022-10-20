@@ -279,54 +279,24 @@ int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
     return sys_open_ret(ctx, retval, DR_KPROBE);
 }
 
-SEC("tracepoint/syscalls/sys_exit_creat")
-int tracepoint_syscalls_sys_exit_creat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
-}
-
 SYSCALL_KRETPROBE(creat) {
     return kprobe_sys_open_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_open_by_handle_at")
-int tracepoint_syscalls_sys_exit_open_by_handle_at(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
     return kprobe_sys_open_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_truncate")
-int tracepoint_syscalls_sys_exit_truncate(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
-}
-
 SYSCALL_COMPAT_KRETPROBE(truncate) {
     return kprobe_sys_open_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_open")
-int tracepoint_syscalls_sys_exit_open(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open) {
     return kprobe_sys_open_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_openat")
-int tracepoint_syscalls_sys_exit_openat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
-}
-
 SYSCALL_COMPAT_KRETPROBE(openat) {
     return kprobe_sys_open_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_openat2")
-int tracepoint_syscalls_sys_exit_openat2(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_KRETPROBE(openat2) {

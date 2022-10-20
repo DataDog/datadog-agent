@@ -1,6 +1,7 @@
 #ifndef __TRACER_STATS_H
 #define __TRACER_STATS_H
 
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
@@ -11,7 +12,7 @@ static __always_inline u32 get_sk_cookie(struct sock *sk);
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
-    __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
+    bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);

@@ -341,6 +341,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/Networks": "#networks",
     "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
     "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
+    "@DataDog/opentelemetry": "#opentelemetry-ops",
 }
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.

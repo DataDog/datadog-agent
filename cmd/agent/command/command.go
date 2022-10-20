@@ -14,11 +14,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// GlobalArgs contains the values of agent-global Cobra flags.
+// GlobalParams contains the values of agent-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
-type GlobalArgs struct {
+type GlobalParams struct {
 	// ConfFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
 	ConfFilePath string
@@ -29,11 +29,11 @@ type GlobalArgs struct {
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
-type SubcommandFactory func(globalArgs *GlobalArgs) []*cobra.Command
+type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
-	globalArgs := GlobalArgs{}
+	globalParams := GlobalParams{}
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
@@ -46,14 +46,22 @@ monitoring and performance data.`,
 		SilenceUsage: true,
 	}
 
-	agentCmd.PersistentFlags().StringVarP(&globalArgs.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	agentCmd.PersistentFlags().StringVarP(&globalArgs.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
-	// NoColor is written directly to the github.com/fatih/color global
-	agentCmd.PersistentFlags().BoolVarP(&color.NoColor, "no-color", "n", false, "disable color output")
+	// github.com/fatih/color sets its global color.NoColor to a default value based on
+	// whether the process is running in a tty.  So, we only want to override that when
+	// the value is true.
+	var noColorFlag bool
+	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
+		if noColorFlag {
+			color.NoColor = true
+		}
+	}
 
 	for _, sf := range subcommandFactories {
-		subcommands := sf(&globalArgs)
+		subcommands := sf(&globalParams)
 		for _, cmd := range subcommands {
 			agentCmd.AddCommand(cmd)
 		}

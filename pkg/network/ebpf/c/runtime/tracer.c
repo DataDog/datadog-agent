@@ -1,5 +1,6 @@
 #include "kconfig.h"
 #include "bpf_telemetry.h"
+#include "bpf_builtins.h"
 #include "tracer.h"
 
 #include "tracer-events.h"
@@ -320,7 +321,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
         return;
     }
     conn_tuple_t t;
-    __builtin_memset(&t, 0, sizeof(conn_tuple_t));
+    bpf_memset(&t, 0, sizeof(conn_tuple_t));
     int data_len = sk_buff_to_tuple(skb, &t);
     if (data_len <= 0) {
         log_debug("ERR(skb_consume_udp): error reading tuple ret=%d\n", data_len);

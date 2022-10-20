@@ -10,7 +10,6 @@ package trace
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -49,8 +48,7 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 
-	os.Setenv("DD_API_KEY", "x")
-	defer os.Unsetenv("DD_API_KEY")
+	t.Setenv("DD_API_KEY", "x")
 	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)

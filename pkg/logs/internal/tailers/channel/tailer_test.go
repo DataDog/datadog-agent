@@ -6,7 +6,6 @@
 package channel
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -25,30 +24,25 @@ func TestComputeServiceName(t *testing.T) {
 }
 
 func TestComputeServiceNameFromCloudRunRevision(t *testing.T) {
-	os.Setenv("K_REVISION", "version-abc")
-	defer os.Unsetenv("K_REVISION")
-	os.Setenv("K_SERVICE", "superService")
+	t.Setenv("K_REVISION", "version-abc")
+	t.Setenv("K_SERVICE", "superService")
 	assert.Equal(t, "service-value", computeServiceName(nil, "service-value"))
 	assert.Equal(t, "superservice", computeServiceName(nil, ""))
 }
 
 func TestNotServerlessModeKVersionUndefined(t *testing.T) {
-	os.Setenv("K_SERVICE", "superService")
-	defer os.Unsetenv("K_SERVICE")
+	t.Setenv("K_SERVICE", "superService")
 	assert.False(t, isServerlessOrigin(nil))
 }
 
 func TestNotServerlessModeKServiceUndefined(t *testing.T) {
-	os.Setenv("K_REVISION", "version-abc")
-	defer os.Unsetenv("K_REVISION")
+	t.Setenv("K_REVISION", "version-abc")
 	assert.False(t, isServerlessOrigin(nil))
 }
 
 func TestServerlessModeCloudRun(t *testing.T) {
-	os.Setenv("K_REVISION", "version-abc")
-	defer os.Unsetenv("K_REVISION")
-	os.Setenv("K_SERVICE", "superService")
-	defer os.Unsetenv("K_SERVICE")
+	t.Setenv("K_REVISION", "version-abc")
+	t.Setenv("K_SERVICE", "superService")
 	assert.True(t, isServerlessOrigin(nil))
 }
 
