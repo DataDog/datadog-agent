@@ -78,12 +78,12 @@ func (h *StatefulSetHandlers) ResourceList(ctx *processors.ProcessorContext, lis
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *StatefulSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *StatefulSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.StatefulSet).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *StatefulSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *StatefulSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resource.(*appsv1.StatefulSet).ResourceVersion
 }
 

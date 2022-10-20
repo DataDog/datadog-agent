@@ -68,10 +68,10 @@ type Handlers interface {
 	ResourceList(ctx *ProcessorContext, list interface{}) (resources []interface{})
 
 	// ResourceUID returns the resource UID.
-	ResourceUID(ctx *ProcessorContext, resource, resourceModel interface{}) types.UID
+	ResourceUID(ctx *ProcessorContext, resource interface{}) types.UID
 
 	// ResourceVersion returns the resource Version.
-	ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string
+	ResourceVersion(ctx *ProcessorContext, resource interface{}) string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -105,7 +105,6 @@ func NewProcessor(h Handlers) *Processor {
 	}
 }
 
-// TODO: change interface to skip metadata and only send manifest
 // Process is used to process a list of resources of a certain type.
 func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
 	// This default allows detection of panic recoveries.
@@ -131,8 +130,8 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		}
 
 		// Cache check
-		resourceUID := p.h.ResourceUID(ctx, resource, resourceMetadataModel)
-		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
+		resourceUID := p.h.ResourceUID(ctx, resource)
+		resourceVersion := p.h.ResourceVersion(ctx, resource)
 
 		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
 			continue
@@ -160,7 +159,6 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
 
-		// TODO: check to make that support CRD and CR
 		// Add resource manifest
 		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
 			Type:            int32(ctx.NodeType),
@@ -198,6 +196,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 }
 
 // build orchestrator manifest message
+// TODO: is it worth making that part of the object interface? More code but clearer? that gets rid of that not so nice check
 func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 
@@ -205,11 +204,24 @@ func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interfa
 		manifests = append(manifests, m.(*model.Manifest))
 	}
 
-	return &model.CollectorManifest{
+	cm := &model.CollectorManifest{
 		ClusterName: ctx.Cfg.KubeClusterName,
 		ClusterId:   ctx.ClusterID,
 		Manifests:   manifests,
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
+	}
+
+	switch ctx.NodeType {
+	case orchestrator.K8sCRD:
+		return &model.CollectorManifestCRD{
+			Manifest: cm,
+		}
+	case orchestrator.K8sCR:
+		return &model.CollectorManifestCR{
+			Manifest: cm,
+		}
+	default:
+		return cm
 	}
 }

@@ -125,9 +125,9 @@ func (n NodeType) String() string {
 	case K8sIngress:
 		return "Ingress"
 	case K8sCRD:
-		return "CRD"
+		return "CustomResourceDefinition"
 	case K8sCR:
-		return "CR"
+		return "CustomResources"
 	default:
 		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -189,4 +189,12 @@ func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType NodeType) {
 		NodeType:  nodeType,
 	}
 	KubernetesResourceCache.Set(BuildStatsKey(nodeType), stats, NoExpiration)
+}
+
+func IsCRDType(n NodeType) bool {
+	switch n {
+	case K8sCRD, K8sCR:
+		return true
+	}
+	return false
 }

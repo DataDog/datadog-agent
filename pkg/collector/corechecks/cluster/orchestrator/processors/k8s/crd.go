@@ -11,6 +11,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -22,7 +23,6 @@ import (
 type CRDHandlers struct{}
 
 // AfterMarshalling is a handler called after resource marshalling.
-// TODO: make it work with CRD
 func (crd *CRDHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	return
 }
@@ -45,13 +45,13 @@ func (crd *CRDHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resou
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 func (crd *CRDHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
-	return nil
+	return
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
 func (crd *CRDHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*v1.CustomResourceDefinition)
+	resourceList := list.([]runtime.Object)
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
@@ -62,12 +62,12 @@ func (crd *CRDHandlers) ResourceList(ctx *processors.ProcessorContext, list inte
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (crd *CRDHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (crd *CRDHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*v1.CustomResourceDefinition).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (crd *CRDHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (crd *CRDHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resource.(*v1.CustomResourceDefinition).ResourceVersion
 }
 

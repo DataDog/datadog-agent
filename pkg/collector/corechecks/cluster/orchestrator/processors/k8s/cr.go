@@ -63,12 +63,12 @@ func (crd *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list inter
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (crd *CRHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (crd *CRHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*v1.CustomResourceDefinition).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (crd *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (crd *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resource.(*v1.CustomResourceDefinition).ResourceVersion
 }
 

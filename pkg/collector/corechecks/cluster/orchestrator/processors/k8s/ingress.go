@@ -78,12 +78,12 @@ func (h *IngressHandlers) ResourceList(ctx *processors.ProcessorContext, list in
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *IngressHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *IngressHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*netv1.Ingress).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *IngressHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *IngressHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resource.(*netv1.Ingress).ResourceVersion
 }
 

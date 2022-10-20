@@ -89,6 +89,7 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 	}
 
 	processResult, processed := c.processor.Process(ctx, list)
+	processResult.MetadataMessages = nil
 
 	// This would happen when recovering from a processor panic. In the nominal
 	// case we would have a positive integer set at the very end of processing.
@@ -99,15 +100,9 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 		return nil, collectors.ErrProcessingPanic
 	}
 
-	// The CRD processor can return errors since it has to grab extra
-	// information from the API server during processing.
-	if err != nil {
-		return nil, collectors.NewProcessingError(err)
-	}
-
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    1,
+		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}
 
