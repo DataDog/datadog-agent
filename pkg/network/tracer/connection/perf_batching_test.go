@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
@@ -27,11 +26,6 @@ const (
 	numTestCPUs        = 4
 	pidMax      uint32 = 1 << 22 // PID_MAX_LIMIT on 64 bit systems
 )
-
-func testConfig() *config.Config {
-	cfg := config.New()
-	return cfg
-}
 
 func TestPerfBatchManagerExtract(t *testing.T) {
 	t.Run("normal flush", func(t *testing.T) {
