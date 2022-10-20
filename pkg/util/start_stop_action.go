@@ -47,7 +47,7 @@ func (s *StartStopAction) Start(start func(context.Context)) {
 	}()
 }
 
-// Stop sends a stop signal to the function run by `Start` and wait until its completion.
+// Stop sends a stop signal to the function run by `Start` and waits until its completion.
 // If `Start`` was not called or `Stop` was already called, this function does nothing.
 // `Start` cannot be called after calling `Stop`.
 // This function is thread safe.
