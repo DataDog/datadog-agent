@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
@@ -19,8 +17,7 @@ namespace Datadog.CustomActions
             return Convert.ToBase64String(rgb);
         }
 
-        [CustomAction]
-        public static ActionResult ProcessDdAgentUserCredentials(Session session)
+        private static ActionResult ProcessDdAgentUserCredentials(ISession session)
         {
             try
             {
@@ -83,7 +80,12 @@ namespace Datadog.CustomActions
         }
 
         [CustomAction]
-        public static ActionResult ConfigureUser(Session session)
+        public static ActionResult ProcessDdAgentUserCredentials(Session session)
+        {
+            return ProcessDdAgentUserCredentials(new SessionWrapper(session));
+        }
+
+        private static ActionResult ConfigureUser(ISession session)
         {
             SecurityIdentifier securityIdentifier;
             if (string.IsNullOrEmpty(session.Property("DDAGENTUSER_SID")))
@@ -133,6 +135,12 @@ namespace Datadog.CustomActions
             }
             */
             return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureUser(Session session)
+        {
+            return ConfigureUser(new SessionWrapper(session));
         }
     }
 }
