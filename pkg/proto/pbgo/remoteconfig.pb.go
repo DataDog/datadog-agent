@@ -316,6 +316,7 @@ type LatestConfigsRequest struct {
 	BackendClientState           []byte    `protobuf:"bytes,10,opt,name=backend_client_state,json=backendClientState,proto3" json:"backend_client_state,omitempty"`
 	HasError                     bool      `protobuf:"varint,11,opt,name=has_error,json=hasError,proto3" json:"has_error,omitempty"`
 	Error                        string    `protobuf:"bytes,12,opt,name=error,proto3" json:"error,omitempty"`
+	TraceAgentEnv                string    `protobuf:"bytes,13,opt,name=traceAgentEnv,proto3" json:"traceAgentEnv,omitempty"`
 	XXX_NoUnkeyedLiteral         struct{}  `json:"-"`
 	XXX_unrecognized             []byte    `json:"-"`
 	XXX_sizecache                int32     `json:"-"`
@@ -419,6 +420,13 @@ func (m *LatestConfigsRequest) GetHasError() bool {
 func (m *LatestConfigsRequest) GetError() string {
 	if m != nil {
 		return m.Error
+	}
+	return ""
+}
+
+func (x *LatestConfigsRequest) GetTraceAgentEnv() string {
+	if x != nil {
+		return x.TraceAgentEnv
 	}
 	return ""
 }
