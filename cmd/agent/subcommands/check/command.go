@@ -619,7 +619,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 // server starts up, it does not do so on the same port as a running agent.
 //
 // Ideally, the server wouldn't start up at all, but this workaround has been
-// in place for some times.
+// in place for some time.
 func disableCmdPort() {
 	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
 }
