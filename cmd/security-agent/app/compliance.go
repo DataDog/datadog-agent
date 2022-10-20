@@ -14,7 +14,6 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -66,11 +65,6 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
