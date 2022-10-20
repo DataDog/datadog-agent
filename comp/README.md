@@ -1,4 +1,5 @@
 # Agent Components
+<!-- NOTE: this file is auto-generated; do not edit -->
 
 This file lists all components defined in this repository, with their package summary.
 Click the links for more documentation.

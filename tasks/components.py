@@ -91,6 +91,7 @@ def get_components_and_bundles(ctx):
 def make_components_md(bundles):
     pkg_root = 'github.com/DataDog/dd-agent-comp-experiments/'
     yield '# Agent Components'
+    yield '<!-- NOTE: this file is auto-generated; do not edit -->'
     yield ''
     yield 'This file lists all components defined in this repository, with their package summary.'
     yield 'Click the links for more documentation.'
