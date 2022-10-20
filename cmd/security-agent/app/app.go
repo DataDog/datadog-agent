@@ -37,7 +37,6 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -59,35 +58,6 @@ const (
 )
 
 var (
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Security Agent",
-		Long:  `Runs Datadog Security agent in the foreground`,
-		RunE:  start,
-	}
-
-	versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version info",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.Agent()
-			meta := ""
-			if av.Meta != "" {
-				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
-			}
-
-			fmt.Fprintf(color.Output, "Security agent %s %s- Commit: '%s' - Serialization version: %s\n",
-				color.BlueString(av.GetNumberAndPre()),
-				meta,
-				color.GreenString(version.Commit),
-				color.MagentaString(serializer.AgentPayloadVersion),
-			)
-		},
-	}
-
-	pidfilePath string
-
 	srv          *api.Server
 	expvarServer *http.Server
 	stopper      startstop.Stopper
@@ -125,17 +95,14 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.flagNoColor, "no-color", "n", false, "disable color output")
 
-	SecurityAgentCmd.AddCommand(versionCmd)
-
-	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	SecurityAgentCmd.AddCommand(startCmd)
-
 	factories := []SubcommandFactory{
 		StatusCommands,
 		FlareCommands,
 		ConfigCommands,
 		ComplianceCommands,
 		RuntimeCommands,
+		VersionCommands,
+		StartCommands,
 	}
 
 	for _, factory := range factories {
@@ -171,33 +138,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, int
 	return endpoints, destinationsCtx, nil
 }
 
-func start(cmd *cobra.Command, args []string) error {
-	// Main context passed to components
-	ctx, cancel := context.WithCancel(context.Background())
-	defer StopAgent(cancel)
-
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	go handleSignals(stopCh)
-
-	err := RunAgent(ctx)
-	if errors.Is(err, errAllComponentsDisabled) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	// Block here until we receive a stop signal
-	<-stopCh
-
-	return nil
-}
-
 var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context) (err error) {
+func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
 	logFile := coreconfig.Datadog.GetString("security_agent.log_file")
