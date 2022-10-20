@@ -51,7 +51,7 @@ func (m *MockSender) Gauge(metric string, value float64, hostname string, tags [
 	m.Called(metric, value, hostname, tags)
 }
 
-//GaugeNoIndex adds a gauge type to the mock calls that is not idexed.
+//GaugeNoIndex adds a gauge type to the mock calls that is not indexed.
 func (m *MockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
 }
