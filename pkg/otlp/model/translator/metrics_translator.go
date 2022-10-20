@@ -84,7 +84,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 func isCumulativeMonotonic(md pmetric.Metric) bool {
 	switch md.Type() {
 	case pmetric.MetricTypeSum:
-		return md.Sum().AggregationTemporality() == pmetric.MetricAggregationTemporalityCumulative &&
+		return md.Sum().AggregationTemporality() == pmetric.AggregationTemporalityCumulative &&
 			md.Sum().IsMonotonic()
 	}
 	return false
@@ -458,15 +458,15 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
 				case pmetric.MetricTypeSum:
 					switch md.Sum().AggregationTemporality() {
-					case pmetric.MetricAggregationTemporalityCumulative:
+					case pmetric.AggregationTemporalityCumulative:
 						if t.cfg.SendMonotonic && isCumulativeMonotonic(md) {
 							t.mapNumberMonotonicMetrics(ctx, consumer, baseDims, md.Sum().DataPoints())
 						} else {
 							t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Sum().DataPoints())
 						}
-					case pmetric.MetricAggregationTemporalityDelta:
+					case pmetric.AggregationTemporalityDelta:
 						t.mapNumberMetrics(ctx, consumer, baseDims, Count, md.Sum().DataPoints())
-					default: // pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String(metricName, md.Name()),
 							zap.Any("aggregation temporality", md.Sum().AggregationTemporality()),
@@ -475,10 +475,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					}
 				case pmetric.MetricTypeHistogram:
 					switch md.Histogram().AggregationTemporality() {
-					case pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityDelta:
-						delta := md.Histogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
+					case pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityDelta:
+						delta := md.Histogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
 						t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
-					default: // pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.Histogram().AggregationTemporality()),
@@ -487,10 +487,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					}
 				case pmetric.MetricTypeExponentialHistogram:
 					switch md.ExponentialHistogram().AggregationTemporality() {
-					case pmetric.MetricAggregationTemporalityDelta:
-						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
+					case pmetric.AggregationTemporalityDelta:
+						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
 						t.mapExponentialHistogramMetrics(ctx, consumer, baseDims, md.ExponentialHistogram().DataPoints(), delta)
-					default: // pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.ExponentialHistogram().AggregationTemporality()),

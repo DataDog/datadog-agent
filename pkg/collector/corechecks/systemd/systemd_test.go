@@ -11,7 +11,6 @@ package systemd
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -244,8 +243,7 @@ unit_names:
 }
 
 func TestDefaultDockerAgentPrivateSocketConnection(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "true")
-	defer os.Unsetenv("DOCKER_DD_AGENT")
+	t.Setenv("DOCKER_DD_AGENT", "true")
 
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
@@ -265,8 +263,7 @@ unit_names:
 }
 
 func TestDefaultDockerAgentSystemBusSocketConnectionNotCalled(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "true")
-	defer os.Unsetenv("DOCKER_DD_AGENT")
+	t.Setenv("DOCKER_DD_AGENT", "true")
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)

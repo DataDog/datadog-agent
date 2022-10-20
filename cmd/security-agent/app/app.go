@@ -67,6 +67,10 @@ var (
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if flagNoColor {
+				color.NoColor = true
+			}
+
 			return common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		},
 	}
@@ -83,22 +87,17 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		Short: "Print the version info",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			if flagNoColor {
-				color.NoColor = true
-			}
 			av, _ := version.Agent()
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 			}
-			fmt.Fprintln(
-				color.Output,
-				fmt.Sprintf("Security agent %s %s- Commit: '%s' - Serialization version: %s",
-					color.BlueString(av.GetNumberAndPre()),
-					meta,
-					color.GreenString(version.Commit),
-					color.MagentaString(serializer.AgentPayloadVersion),
-				),
+
+			fmt.Fprintf(color.Output, "Security agent %s %s- Commit: '%s' - Serialization version: %s\n",
+				color.BlueString(av.GetNumberAndPre()),
+				meta,
+				color.GreenString(version.Commit),
+				color.MagentaString(serializer.AgentPayloadVersion),
 			)
 		},
 	}

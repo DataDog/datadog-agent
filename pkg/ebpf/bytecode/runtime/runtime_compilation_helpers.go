@@ -14,20 +14,20 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
+	"path/filepath"
+	"strings"
 
-	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"golang.org/x/sys/unix"
 )
+
+type CompiledOutput interface {
+	io.Reader
+	io.ReaderAt
+	io.Closer
+}
 
 var defaultFlags = []string{
 	"-D__KERNEL__",
@@ -50,166 +50,97 @@ var defaultFlags = []string{
 	"-nostdinc",
 }
 
-func hashFlags(flags []string) string {
-	h := sha256.New()
-	for _, f := range flags {
-		h.Write([]byte(f))
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-// CompilationTelemetry is telemetry collected per-program when attempting compilation
-type CompilationTelemetry struct {
-	compilationEnabled  bool
-	compilationResult   CompilationResult
-	compilationDuration time.Duration
-	headerFetchResult   kernel.HeaderFetchResult
-}
-
-func (tm *CompilationTelemetry) getTelemetry() map[string]int64 {
-	stats := make(map[string]int64)
-	if tm.compilationEnabled {
-		stats["runtime_compilation_enabled"] = 1
-		stats["runtime_compilation_result"] = int64(tm.compilationResult)
-		stats["kernel_header_fetch_result"] = int64(tm.headerFetchResult)
-		stats["runtime_compilation_duration"] = tm.compilationDuration.Nanoseconds()
-	} else {
-		stats["runtime_compilation_enabled"] = 0
-	}
-	return stats
-}
-
-// SendMetrics sends the collected metrics using the statsd client provided
-func (tm *CompilationTelemetry) SendMetrics(client statsd.ClientInterface) error {
-	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
-
-	var enabled float64 = 0
-	if tm.compilationEnabled {
-		enabled = 1
-	}
-	if err := client.Gauge(metrics.MetricRuntimeCompiledConstantsEnabled, enabled, tags, 1); err != nil {
-		return err
+// compileToObjectFile compiles the input ebpf program & returns the compiled output
+func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, outputDirErr, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
 	}
 
-	// if the runtime compilation is not enabled we return directly
-	if !tm.compilationEnabled {
-		return nil
-	}
+	flags, flagHash := computeFlagsAndHash(additionalFlags)
 
-	if err := client.Gauge(metrics.MetricRuntimeCompiledConstantsCompilationResult, float64(tm.compilationResult), tags, 1); err != nil {
-		return err
-	}
-	if err := client.Gauge(metrics.MetricRuntimeCompiledConstantsCompilationDuration, float64(tm.compilationDuration), tags, 1); err != nil {
-		return err
-	}
-	return client.Gauge(metrics.MetricRuntimeCompiledConstantsHeaderFetchResult, float64(tm.headerFetchResult), tags, 1)
-}
-
-// CompilationFileProvider is the interface for a compilation to provide the input and output
-type CompilationFileProvider interface {
-	GetInputReader(config *ebpf.Config, tm *CompilationTelemetry) (io.Reader, error)
-	GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *CompilationTelemetry) (string, error)
-}
-
-// Compiler represents a compiler for use at runtime
-type Compiler struct {
-	telemetry CompilationTelemetry
-}
-
-// NewCompiler creates a Compiler
-func NewCompiler() *Compiler {
-	return &Compiler{
-		telemetry: CompilationTelemetry{},
-	}
-}
-
-// GetRCTelemetry returns the collected telemetry about the compilation
-func (rc *Compiler) GetRCTelemetry() CompilationTelemetry {
-	return rc.telemetry
-}
-
-// CompileObjectFile compiles an eBPF program
-func (rc *Compiler) CompileObjectFile(config *ebpf.Config, cflags []string, inputFileName string, provider CompilationFileProvider) (CompiledOutput, error) {
-	start := time.Now()
-	defer func() {
-		rc.telemetry.compilationDuration = time.Since(start)
-		rc.telemetry.compilationEnabled = true
-	}()
-
-	// we use the raw uname instead of the kernel version, because some kernel versions
-	// can be clamped to 255 thus causing collisions
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		rc.telemetry.compilationResult = kernelVersionErr
-		return nil, fmt.Errorf("unable to get kernel version: %w", err)
-	}
-
-	inputReader, err := provider.GetInputReader(config, &rc.telemetry)
+	outputFile, err := getOutputFilePath(outputDir, filename, inHash, flagHash)
 	if err != nil {
-		return nil, err
+		return nil, outputFileErr, fmt.Errorf("unable to get output file path: %w", err)
 	}
 
-	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
-		rc.telemetry.compilationResult = outputDirErr
-		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
-	}
-
-	flags := append(defaultFlags, cflags...)
-	outputFile, err := provider.GetOutputFilePath(config, &uname, hashFlags(flags), &rc.telemetry)
-
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("looking for output file: %s", outputFile)
+	var result CompilationResult
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
-			rc.telemetry.compilationResult = outputFileErr
-			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
+			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		dirs, res, err := kernel.GetKernelHeaders(config.EnableKernelHeaderDownload, config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
-		rc.telemetry.headerFetchResult = res
-		if err != nil {
-			rc.telemetry.compilationResult = headerFetchErr
-			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+
+		if err := compiler.CompileToObjectFile(in, outputFile, flags, kernelHeaders); err != nil {
+			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
-		if err := compiler.CompileToObjectFile(inputReader, outputFile, flags, dirs); err != nil {
-			rc.telemetry.compilationResult = compilationErr
-			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", inputFileName, err)
-		}
-		rc.telemetry.compilationResult = compilationSuccess
-		log.Infof("successfully compiled runtime version of %s", inputFileName)
+
+		log.Infof("successfully compiled runtime version of %s", filename)
+		result = compilationSuccess
 	} else {
-		rc.telemetry.compilationResult = compiledOutputFound
+		log.Infof("found previously compiled runtime version of %s", filename)
+		result = compiledOutputFound
 	}
 
 	err = bytecode.VerifyAssetPermissions(outputFile)
 	if err != nil {
-		rc.telemetry.compilationResult = outputFileErr
-		return nil, err
+		return nil, outputFileErr, err
 	}
 
 	out, err := os.Open(outputFile)
 	if err != nil {
-		rc.telemetry.compilationResult = resultReadErr
+		return nil, resultReadErr, err
 	}
-	return out, err
+	return out, result, nil
 }
 
-// Sha256hex returns the hex string of the sha256 of the provided buffer
-func Sha256hex(buf []byte) (string, error) {
+func computeFlagsAndHash(additionalFlags []string) ([]string, string) {
+	flags := make([]string, len(defaultFlags)+len(additionalFlags))
+	copy(flags, defaultFlags)
+	copy(flags[len(defaultFlags):], additionalFlags)
+
 	hasher := sha256.New()
-	if _, err := hasher.Write(buf); err != nil {
+	for _, f := range flags {
+		hasher.Write([]byte(f))
+	}
+	flagHash := fmt.Sprintf("%x", hasher.Sum(nil))
+
+	return flags, flagHash
+}
+
+func getOutputFilePath(outputDir, filename, inputHash, flagHash string) (string, error) {
+	// filename includes uname hash, input file hash, and cflags hash
+	// this ensures we re-compile when either of the input changes
+	baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+
+	unameHash, err := getUnameHash()
+	if err != nil {
 		return "", err
 	}
-	cCodeHash := hasher.Sum(nil)
-	return hex.EncodeToString(cCodeHash), nil
+
+	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s-%s-%s-%s.o", baseName, unameHash, inputHash, flagHash))
+	return outputFile, nil
 }
 
-// UnameHash returns a sha256 hash of the uname release and version
-func UnameHash(uname *unix.Utsname) (string, error) {
+// getUnameHash returns a sha256 hash of the uname release and version
+func getUnameHash() (string, error) {
+	// we use the raw uname instead of the kernel version, because some kernel versions
+	// can be clamped to 255 thus causing collisions
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		return "", fmt.Errorf("unable to get kernel version: %w", err)
+	}
+
 	var rv string
 	rv += unix.ByteSliceToString(uname.Release[:])
 	rv += unix.ByteSliceToString(uname.Version[:])
-	return Sha256hex([]byte(rv))
+	return sha256hex([]byte(rv))
+}
+
+// sha256hex returns the hex string of the sha256 of the provided buffer
+func sha256hex(buf []byte) (string, error) {
+	hasher := sha256.New()
+	if _, err := hasher.Write(buf); err != nil {
+		return "", fmt.Errorf("unable to get sha256 hash: %w", err)
+	}
+	cCodeHash := hasher.Sum(nil)
+	return hex.EncodeToString(cCodeHash), nil
 }

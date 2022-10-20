@@ -35,6 +35,28 @@ func TestMetadataAvailabilityCommand(t *testing.T) {
 		})
 }
 
+func TestShowMetadataV5Command(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "v5"},
+		printPayload,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, "v5", cliParams.payloadName)
+		})
+}
+
+func TestShowMetadataInventoryCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "inventory"},
+		printPayload,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, "inventory", cliParams.payloadName)
+		})
+}
+
 func TestDatadogConnectivityCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),

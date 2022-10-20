@@ -53,7 +53,14 @@ type OTLP struct {
 	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
 	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
 
-	// SpanNameAsResourceName uses the OTLP span name as the Datadog resource name.
+	// SpanNameAsResourceName specifies whether the OpenTelemetry span's name should be
+	// used as the Datadog span's operation name. By default (when this is false), the
+	// operation name is deduced from a combination between the instrumentation scope
+	// name and the span kind.
+	//
+	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
+	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
+	// kind comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
@@ -318,8 +325,8 @@ type AgentConfig struct {
 	MaxEPS          float64
 	MaxRemoteTPS    float64
 
-	// Rare Sampler configuation
-	RareSamplerDisabled       bool
+	// Rare Sampler configuration
+	RareSamplerEnabled        bool
 	RareSamplerTPS            int
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
@@ -457,7 +464,7 @@ func New() *AgentConfig {
 		MaxEPS:          200,
 		MaxRemoteTPS:    100,
 
-		RareSamplerDisabled:       false,
+		RareSamplerEnabled:        false,
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,

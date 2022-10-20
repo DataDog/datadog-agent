@@ -268,7 +268,7 @@ func TestRenameReuseInode(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
 	}}
 
-	testDrive, err := newTestDrive(t, "xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

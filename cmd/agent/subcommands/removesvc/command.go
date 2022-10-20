@@ -24,9 +24,10 @@ import (
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "remove-service",
-		Short: "Removes the agent from the service control manager",
-		Long:  ``,
+		Use:     "remove-service",
+		Aliases: []string{"removeservice"},
+		Short:   "Removes the agent from the service control manager",
+		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(removeService)
 		},
