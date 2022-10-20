@@ -39,5 +39,5 @@ func main() {
 	}
 	defer log.Flush()
 
-	runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands()))
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
 }
