@@ -48,6 +48,9 @@ type BundleParams struct {
 	// LoggerName is the name that appears in the logfile
 	LoggerName string
 
+	// ExcludeDefaultConfPath determines whether the default config path must be excluded.
+	ExcludeDefaultConfPath bool
+
 	// LogLevelFn returns the log level. This field is set by methods on this
 	// type.
 	LogLevelFn func(configGetter) string
