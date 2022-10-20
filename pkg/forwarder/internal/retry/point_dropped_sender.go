@@ -42,9 +42,7 @@ func (t *PointDroppedSender) Start() {
 				// Report the metric as gauge because metrics may be dropped. When the connexion
 				// recovers, the gauge gives the total amount of points dropped.
 				count := t.droppedPointCount.Load()
-				if count > 0 {
-					t.provider.GaugeNoIndex("datadog.agent.point.dropped", float64(count), t.tags)
-				}
+				t.provider.GaugeNoIndex("datadog.agent.point.dropped", float64(count), t.tags)
 			}
 		}
 	})
