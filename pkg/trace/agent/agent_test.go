@@ -295,6 +295,7 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,

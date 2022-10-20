@@ -23,7 +23,6 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -362,11 +361,6 @@ func init() {
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -384,11 +378,6 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 }
 
 func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -460,11 +449,6 @@ func parseStorageRequest() (*api.StorageRequestParams, error) {
 }
 
 func generateActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -494,11 +478,6 @@ func generateActivityDump(cmd *cobra.Command, args []string) error {
 }
 
 func listActivityDumps(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -526,11 +505,6 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 }
 
 func stopActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -550,10 +524,6 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 }
 
 func generateEncodingFromActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
 	var output *api.TranscodingRequestMessage
 
 	if activityDumpArgs.remoteRequest {

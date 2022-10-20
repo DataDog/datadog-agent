@@ -72,7 +72,7 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/avast/retry-go/v4 v4.1.0
+	github.com/avast/retry-go/v4 v4.2.0
 	github.com/aws/aws-lambda-go v1.32.0
 	github.com/aws/aws-sdk-go v1.44.117
 	github.com/beevik/ntp v0.3.0
@@ -190,7 +190,7 @@ require (
 	golang.org/x/tools v0.1.12
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20221010155953-15ba04fc1c0e
-	google.golang.org/grpc v1.50.0
+	google.golang.org/grpc v1.50.1
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -391,7 +391,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.10.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v0.32.1 // indirect
 	go.opentelemetry.io/otel/trace v1.10.0 // indirect
-	go.uber.org/dig v1.15.0 // indirect
+	go.uber.org/dig v1.15.0
 	go.uber.org/fx v1.18.2
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect

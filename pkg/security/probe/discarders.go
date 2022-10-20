@@ -182,6 +182,8 @@ type inodeDiscarders struct {
 	erpc           *ERPC
 	dentryResolver *DentryResolver
 	rs             *rules.RuleSet
+	discarderEvent *Event
+	evalCtx        *eval.Context
 
 	// parentDiscarderFncs holds parent discarder functions per depth
 	parentDiscarderFncs [maxParentDiscarderDepth]map[eval.Field]func(dirname string) (bool, error)
@@ -190,10 +192,15 @@ type inodeDiscarders struct {
 }
 
 func newInodeDiscarders(inodesMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
+	event := NewEvent(nil, nil, nil)
+	ctx := eval.NewContext(event.GetPointer())
+
 	id := &inodeDiscarders{
 		Map:            inodesMap,
 		erpc:           erpc,
 		dentryResolver: dentryResolver,
+		discarderEvent: event,
+		evalCtx:        ctx,
 	}
 
 	id.initParentDiscarderFncs()
@@ -246,10 +253,6 @@ func (id *inodeDiscarders) expireInodeDiscarder(req *ERPCRequest, mountID uint32
 	return id.erpc.Request(req)
 }
 
-var (
-	discarderEvent = NewEvent(nil, nil, nil)
-)
-
 // use a faster version of path.Dir which adds some sanity checks not required here
 func dirname(filename string) string {
 	if len(filename) == 0 {
@@ -291,7 +294,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		return nil, nil
 	}
 
-	if _, err := discarderEvent.GetFieldType(field); err != nil {
+	if _, err := id.discarderEvent.GetFieldType(field); err != nil {
 		return nil, err
 	}
 
@@ -300,12 +303,14 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 	}
 
 	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
-	if _, err := discarderEvent.GetFieldType(basenameField); err != nil {
+	if _, err := id.discarderEvent.GetFieldType(basenameField); err != nil {
 		return nil, err
 	}
 
-	var valueFnc func(dirname string) (bool, bool, error)
-	var valueFncs []func(dirname string) (bool, bool, error)
+	var basenameRules []*rules.Rule
+
+	var isDiscarderFnc func(dirname string) (bool, bool, error)
+	var isDiscarderFncs []func(dirname string) (bool, bool, error)
 
 	for _, rule := range bucket.GetRules() {
 		// ensure we don't push parent discarder if there is another rule relying on the parent path
@@ -329,41 +334,44 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 						return nil, fmt.Errorf("unexpected glob `%v`: %w", value.Value, err)
 					}
 
-					valueFnc = func(dirname string) (bool, bool, error) {
+					isDiscarderFnc = func(dirname string) (bool, bool, error) {
 						return !glob.Contains(dirname), false, nil
 					}
 				} else if value.Type == eval.ScalarValueType {
 					str := value.Value.(string)
-					valueFnc = func(dirname string) (bool, bool, error) {
+					isDiscarderFnc = func(dirname string) (bool, bool, error) {
 						return !strings.HasPrefix(str, dirname), false, nil
 					}
 				} else {
 					// regex are not currently supported on path, see ValidateFields
-					valueFnc = func(dirname string) (bool, bool, error) {
+					isDiscarderFnc = func(dirname string) (bool, bool, error) {
 						return false, false, nil
 					}
 				}
 
-				valueFncs = append(valueFncs, valueFnc)
+				isDiscarderFncs = append(isDiscarderFncs, isDiscarderFnc)
 			}
 		}
 
-		// check basename
+		// collect all the rule on which we need to check the parent discarder found
 		if values := rule.GetFieldValues(basenameField); len(values) > 0 {
-			valueFnc = func(dirname string) (bool, bool, error) {
-				if err := discarderEvent.SetFieldValue(basenameField, path.Base(dirname)); err != nil {
-					return false, false, err
-				}
-
-				if isDiscarder, _ := rs.IsDiscarder(discarderEvent, basenameField); !isDiscarder {
-					return false, true, nil
-				}
-
-				return true, true, nil
-			}
-			valueFncs = append(valueFncs, valueFnc)
+			basenameRules = append(basenameRules, rule)
 		}
 	}
+
+	// basename check, the goal is to ensure there is no dirname(parent) that matches a .file.name rule
+	isDiscarderFnc = func(dirname string) (bool, bool, error) {
+		if err := id.discarderEvent.SetFieldValue(basenameField, path.Base(dirname)); err != nil {
+			return false, false, err
+		}
+
+		if isDiscarder, _ := rules.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
+			return false, true, nil
+		}
+
+		return true, true, nil
+	}
+	isDiscarderFncs = append(isDiscarderFncs, isDiscarderFnc)
 
 	fnc = func(dirname string) (bool, error) {
 		var result, altered bool
@@ -371,18 +379,18 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 
 		defer func() {
 			if altered {
-				*discarderEvent = eventZero
+				*id.discarderEvent = eventZero
 			}
 		}()
 
-		for _, fnc := range valueFncs {
+		for _, fnc := range isDiscarderFncs {
 			result, altered, err = fnc(dirname)
 			if !result {
 				return false, err
 			}
 		}
 
-		return len(valueFncs) > 0, nil
+		return len(isDiscarderFncs) > 0, nil
 	}
 	id.parentDiscarderFncs[depth-1][field] = fnc
 
