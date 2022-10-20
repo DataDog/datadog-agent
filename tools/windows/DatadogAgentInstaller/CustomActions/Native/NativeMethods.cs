@@ -241,7 +241,7 @@ namespace Datadog.CustomActions.Native
             {
                 Marshal.FreeHGlobal(info.pSID);
             }
-            throw new Exception($"Could not add user to group: {err}");
+            throw new Exception($"Could not add user to group {groupName}: {err}");
         }
 
         #region Add/Remove privileges
