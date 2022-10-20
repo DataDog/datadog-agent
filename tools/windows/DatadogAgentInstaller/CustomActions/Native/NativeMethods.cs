@@ -337,7 +337,7 @@ namespace Datadog.CustomActions.Native
             var winErrorCode = LsaNtStatusToWinError(status);
             if (winErrorCode != 0)
             {
-                throw new Win32Exception((int)winErrorCode, "LsaOpenPolicy failed");
+                throw new Exception("LsaOpenPolicy failed", new Win32Exception((int)winErrorCode));
             }
 
             var pSid = Marshal.AllocHGlobal(sid.Length);
@@ -349,7 +349,7 @@ namespace Datadog.CustomActions.Native
                 winErrorCode = LsaNtStatusToWinError(status);
                 if (winErrorCode != 0)
                 {
-                    throw new Win32Exception((int)winErrorCode, "LsaAddAccountRights failed");
+                    throw new Exception("LsaAddAccountRights failed", new Win32Exception((int)winErrorCode));
                 }
             }
             finally
