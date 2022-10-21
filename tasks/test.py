@@ -130,19 +130,17 @@ def lint_flavor(
     """
     Runs linters for given flavor, build tags, and modules.
     """
-    # For now we only run golangci_lint on Unix as the Windows env needs more work
-    if sys.platform != 'win32':
-        print(f"--- Flavor {flavor.name}: golangci_lint")
-        for module in modules:
-            print(f"----- Module '{module.full_path()}'")
-            if not module.condition():
-                print("----- Skipped")
-                continue
+    print(f"--- Flavor {flavor.name}: golangci_lint")
+    for module in modules:
+        print(f"----- Module '{module.full_path()}'")
+        if not module.condition():
+            print("----- Skipped")
+            continue
 
-            with ctx.cd(module.full_path()):
-                golangci_lint(
-                    ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
-                )
+        with ctx.cd(module.full_path()):
+            golangci_lint(
+                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+            )
 
 
 def test_flavor(
