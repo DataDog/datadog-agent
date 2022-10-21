@@ -61,7 +61,7 @@ type MemoryStats struct {
 	PSIFull PSIStats
 }
 
-// CPUStats - all metrics are in nanoseconds execept if otherwise specified
+// CPUStats - all metrics are in nanoseconds except if otherwise specified
 // cgroupv1: cpu/cpuacct/cpuset
 // cgroupv2: cpu/cpuset
 type CPUStats struct {

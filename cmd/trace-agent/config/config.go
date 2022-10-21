@@ -335,10 +335,14 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
-	// undocumented
 	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
+	} else if coreconfig.Datadog.IsSet("apm_config.k8s_max_milli_cpu") {
+		mc := coreconfig.Datadog.GetInt("apm_config.k8s_max_milli_cpu")
+		log.Debugf("Kubernetes CPU limit detected, setting max_cpu_percent to 90% of %d milli-cpu.", mc)
+		c.MaxCPU = float64(mc) / 1000.0 * 0.9
 	}
+
 	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
 		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
 	}

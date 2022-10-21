@@ -81,6 +81,7 @@ func setupAPM(config Config) {
 
 	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
 	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")
+	config.BindEnv("apm_config.k8s_max_milli_cpu", "DD_K8S_MAX_CPU")
 	config.BindEnv("apm_config.env", "DD_APM_ENV")
 	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")
 	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")
