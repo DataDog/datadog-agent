@@ -55,9 +55,12 @@ type Handlers interface {
 	BeforeMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool)
 
 	// BuildMessageBody is used to build a message containing a chunk of
-	// resource models of a certain size. If skip is true then the resource
-	// processing loop moves on to the next resource.
+	// resource models of a certain size.
 	BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody
+
+	// BuildManifestMessageBody is used to build a message containing a chunk of
+	// resource manifests of a certain size.
+	BuildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
 
 	// ExtractResource is used to build a resource model from the raw
 	// resource representation.
@@ -184,7 +187,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 	for i := 0; i < chunkCount; i++ {
 		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunker.collectorOrchestratorList[i], chunkCount))
-		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
+		manifestMessages = append(manifestMessages, p.h.BuildManifestMessageBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
 	}
 
 	processResult = ProcessResult{
@@ -193,36 +196,4 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 	}
 
 	return processResult, len(resourceMetadataModels)
-}
-
-// build orchestrator manifest message
-// TODO: is it worth making that part of the object interface? More code but clearer? that gets rid of that not so nice check
-// yes, once previous PR gets merged
-func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
-	manifests := make([]*model.Manifest, 0, len(resourceManifests))
-
-	for _, m := range resourceManifests {
-		manifests = append(manifests, m.(*model.Manifest))
-	}
-
-	cm := &model.CollectorManifest{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		Manifests:   manifests,
-		GroupId:     ctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-	}
-
-	switch ctx.NodeType {
-	case orchestrator.K8sCRD:
-		return &model.CollectorManifestCRD{
-			Manifest: cm,
-		}
-	case orchestrator.K8sCR:
-		return &model.CollectorManifestCR{
-			Manifest: cm,
-		}
-	default:
-		return cm
-	}
 }

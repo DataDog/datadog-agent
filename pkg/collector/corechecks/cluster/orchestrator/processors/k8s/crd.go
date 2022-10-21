@@ -20,20 +20,19 @@ import (
 )
 
 // CRDHandlers implements the Handlers interface for Kubernetes CronJobs.
-type CRDHandlers struct{}
+type CRDHandlers struct {
+	BaseHandlers
+}
+
+func (crd *CRDHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
+	return &model.CollectorManifestCRD{
+		Manifest: cm,
+	}
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (crd *CRDHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (crd *CRDHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (crd *CRDHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -76,10 +75,4 @@ func (crd *CRDHandlers) ResourceVersion(ctx *processors.ProcessorContext, resour
 func (crd *CRDHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*v1.CustomResourceDefinition)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (crd *CRDHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
-	return
 }
