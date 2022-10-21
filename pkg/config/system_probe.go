@@ -46,6 +46,8 @@ const (
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg Config) {
+	cfg.BindEnvAndSetDefault("go_core_dump", false)
+
 	// statsd
 	cfg.BindEnv("bind_host")
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)

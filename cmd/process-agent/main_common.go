@@ -108,7 +108,7 @@ Exiting.`
 )
 
 func runAgent(exit chan struct{}) {
-	if err := ddutil.SetupCoreDump(); err != nil {
+	if err := ddutil.SetupCoreDump(ddconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

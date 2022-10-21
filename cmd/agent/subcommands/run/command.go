@@ -268,7 +268,7 @@ func startAgent(cliParams *cliParams) error {
 		pkglog.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(pkgconfig.Datadog); err != nil {
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

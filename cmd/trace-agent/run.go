@@ -132,7 +132,7 @@ func Run(ctx context.Context) {
 		defer os.Remove(flags.PIDFilePath)
 	}
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 

@@ -149,7 +149,7 @@ func StartSystemProbe() error {
 	log.Infof("running system-probe with version: %s", versionString())
 	color.NoColor = false
 
-	if err := util.SetupCoreDump(); err != nil {
+	if err := util.SetupCoreDump(ddconfig.SystemProbe); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
