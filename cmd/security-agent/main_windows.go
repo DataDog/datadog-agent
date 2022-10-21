@@ -82,7 +82,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := app.RunAgent(ctx)
+	err := app.RunAgent(ctx, "")
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
