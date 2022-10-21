@@ -62,10 +62,6 @@ func mockPdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQU
 }
 
 func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
-	return mockPdhAddCounter(hQuery, szFullCounterPath, dwUserData, phCounter)
-}
-
-func mockPdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
 	ndx := int(hQuery)
 	var thisQuery mockQuery
 	var ok bool
@@ -185,7 +181,6 @@ func SetupTesting(counterstringsfile, countersfile string) {
 	activeAvailableCounters, _ = ReadCounters(countersfile)
 	// For testing
 	pfnPdhOpenQuery = mockPdhOpenQuery
-	pfnPdhAddCounter = mockPdhAddCounter
 	pfnPdhAddEnglishCounter = mockPdhAddEnglishCounter
 	pfnPdhCollectQueryData = mockPdhCollectQueryData
 	pfnPdhRemoveCounter = mockPdhRemoveCounter

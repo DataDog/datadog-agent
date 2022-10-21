@@ -16,7 +16,6 @@ import (
 // For testing
 var (
 	pfnPdhOpenQuery                     = PdhOpenQuery
-	pfnPdhAddCounter                    = PdhAddCounter
 	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
 	pfnPdhCollectQueryData              = PdhCollectQueryData
 	pfnPdhRemoveCounter                 = PdhRemoveCounter
@@ -100,29 +99,6 @@ func GetEnglishCounterInstance(className string, counterName string, instance st
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcountera
 func GetEnglishSingleInstanceCounter(className string, counterName string) (*PdhSingleInstanceCounterSet, error) {
 	return GetEnglishCounterInstance(className, counterName, "")
-}
-
-// GetLocalizedSingleInstanceCounter returns a single instance counter object for the given counter class
-// the className and counterName must be in the same localization as the system.
-func GetLocalizedSingleInstanceCounter(className string, counterName string) (*PdhSingleInstanceCounterSet, error) {
-	var p PdhSingleInstanceCounterSet
-	if err := p.Initialize(className, counterName); err != nil {
-		return nil, err
-	}
-
-	path, err := pfnPdhMakeCounterPath("", className, "", counterName)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
-	}
-	winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &p.counter)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to add localized counter %#x", winerror)
-	}
-	winerror = pfnPdhCollectQueryData(p.query)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to collect query data %#x", winerror)
-	}
-	return &p, nil
 }
 
 // GetMultiInstanceCounter returns a multi-instance counter object for the given counter class
