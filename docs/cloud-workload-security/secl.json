@@ -1246,7 +1246,7 @@
         {
           "name": "dns.id",
           "type": "int",
-          "definition": "the DNS request ID",
+          "definition": "[Experimental] the DNS request ID",
           "constants": ""
         },
         {
