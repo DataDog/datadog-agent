@@ -119,7 +119,7 @@ def install_tools(ctx):
                     ctx.run(f"go install {tool}")
 
 
-# TODO: The following four functions all do something similar: they run a given command on a list of modules
+# TODO(AP-1879): The following four functions all do something similar: they run a given command on a list of modules
 # This could be refactored in a core function that does the loop on modules and returns failures, and
 # wrapper functions that craft the command to run and process the results and errors.
 
