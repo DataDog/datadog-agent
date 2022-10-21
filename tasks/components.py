@@ -116,7 +116,6 @@ def make_codeowners(codeowners_lines, bundles):
 
     # pass through the codeowners lines up to and including "# BEGIN COMPONENTS"
     for line in codeowners_lines:
-        line = line
         yield line
         if line == "# BEGIN COMPONENTS":
             break
@@ -138,7 +137,6 @@ def make_codeowners(codeowners_lines, bundles):
 
     # drop lines from the existing codeowners until "# END COMPONENTS"
     for line in codeowners_lines:
-        line = line
         if line == "# END COMPONENTS":
             yield line
             break
@@ -181,11 +179,10 @@ def lint_components(ctx, fix=False):
     if fix:
         with open(".github/CODEOWNERS", "w") as f:
             f.write(codeowners)
-    else:
-        if current != codeowners:
-            print(f"** {filename} differs")
-            ok = False
-            fixable = True
+    elif current != codeowners:
+        print(f"** {filename} differs")
+        ok = False
+        fixable = True
 
     if not ok:
         if fixable:
