@@ -68,6 +68,14 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     nw.variable("ebpfflags", get_ebpf_build_flags())
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release))
 
+    # see https://github.com/torvalds/linux/commit/9618bde489b2d23779b1e2d04c10983da21f3818
+    # for explanation
+    nw.rule(
+        name="coreclang",
+        command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o - | opt -O2 -mtriple=bpf-pc-linux | llvm-dis -o $out",
+        depfile="$out.d",
+    )
+
     nw.rule(
         name="ebpfclang",
         command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
@@ -88,14 +96,17 @@ def ninja_define_exe_compiler(nw):
     )
 
 
-def ninja_ebpf_program(nw, infile, outfile, variables=None):
+def ninja_ebpf_program(nw, infile, outfile, variables=None, is_core=False):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
     out_base = f"{outdir}/{basename}"
+    rule = "ebpfclang"
+    if is_core:
+        rule = "coreclang"
     nw.build(
         inputs=[infile],
         outputs=[f"{out_base}.bc"],
-        rule="ebpfclang",
+        rule=rule,
         variables=variables,
     )
     nw.build(
@@ -162,10 +173,10 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
-def ninja_network_ebpf_program(nw, infile, outfile, flags):
-    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
+def ninja_network_ebpf_program(nw, infile, outfile, flags, is_core=False):
+    ninja_ebpf_program(nw, infile, outfile, {"flags": flags}, is_core)
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}, is_core)
 
 
 def ninja_network_ebpf_programs(nw, build_dir):
