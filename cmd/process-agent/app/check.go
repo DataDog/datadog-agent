@@ -68,10 +68,6 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
 	ddconfig.Datadog.Set("disable_file_logging", true)
 
-	// We need to load in the system probe environment variables before we load the config, otherwise an
-	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
 	configPath := cmd.Flag(flags.CfgPath).Value.String()
 	var sysprobePath string
 	if cmd.Flag(flags.SysProbeConfig) != nil {
@@ -83,7 +79,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(sysprobePath)
+	syscfg, err := sysconfig.New(sysprobePath)
 	if err != nil {
 		return log.Critical(err)
 	}

@@ -3,14 +3,14 @@ hostname: server-01
 
 process_agent_enabled: true
 process_config:
+  container_collection:
+    enabled: true
+  process_collection:
+    enabled: true
   process_dd_url: http://my-process-app.datadoghq.com
-  enabled: 'true'
   queue_size: 10
   intervals:
     container: 8
     process: 30
-  windows:
-    args_refresh_interval: 100
-    add_new_args: false
   scrub_args: false
   expvar_port: 5065

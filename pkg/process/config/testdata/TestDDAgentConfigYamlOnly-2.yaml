@@ -7,7 +7,4 @@ process_config:
   intervals:
       container: 8
       process: 30
-  windows:
-      args_refresh_interval: -1
-      add_new_args: true
   scrub_args: true

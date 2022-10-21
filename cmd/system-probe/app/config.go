@@ -54,7 +54,7 @@ func getSettingsClient(cmd *cobra.Command, _ []string) (settings.Client, error) 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
 func initRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	err := settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigKey: config.Namespace + ".log_level"})
+	err := settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigRoot: ddconfig.SystemProbe})
 	if err != nil {
 		return err
 	}

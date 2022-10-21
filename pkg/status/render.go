@@ -68,7 +68,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsFunc := func() { renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
 	logsAgentFunc := func() { renderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
 	systemProbeFunc := func() {
-		if config.Datadog.GetBool("system_probe_config.enabled") {
+		if systemProbeStats != nil {
 			renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 		}
 	}

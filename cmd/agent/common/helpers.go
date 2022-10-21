@@ -28,47 +28,32 @@ func SetupConfig(confFilePath string) error {
 
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
 func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
-	return setupConfig(confFilePath, configName, false, true)
+	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true)
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
 func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
-	_, err := setupConfig(confFilePath, configName, true, true)
+	_, err := setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, true, true)
 	return err
 }
 
-// SetupConfigIfExist fires up the configuration system but
-// doesn't raise an error if the configuration file is the default one
-// and it doesn't exist.
-func SetupConfigIfExist(confFilePath string) error {
-	_, err := setupConfig(confFilePath, "", false, false)
-	return err
-}
-
-func setupConfig(confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
+func setupConfig(cfg config.Config, origin string, confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
 	if configName != "" {
-		config.Datadog.SetConfigName(configName)
+		cfg.SetConfigName(configName)
 	}
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
+		cfg.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(confFilePath, ".yaml") {
-			config.Datadog.SetConfigFile(confFilePath)
+			cfg.SetConfigFile(confFilePath)
 		}
 	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
+	cfg.AddConfigPath(DefaultConfPath)
 	// load the configuration
-	var err error
-	var warnings *config.Warnings
-
-	if withoutSecrets {
-		warnings, err = config.LoadWithoutSecret()
-	} else {
-		warnings, err = config.Load()
-	}
+	warnings, err := config.LoadCustom(cfg, origin, !withoutSecrets)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
