@@ -87,27 +87,12 @@ int __attribute__((always_inline)) kprobe_sys_chmod_ret(struct pt_regs *ctx) {
     return sys_chmod_ret(ctx, retval);
 }
 
-SEC("tracepoint/syscalls/sys_exit_chmod")
-int tracepoint_syscalls_sys_exit_chmod(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chmod_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(chmod) {
     return kprobe_sys_chmod_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_fchmod")
-int tracepoint_syscalls_sys_exit_fchmod(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chmod_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(fchmod) {
     return kprobe_sys_chmod_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_fchmodat")
-int tracepoint_syscalls_sys_exit_fchmodat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_chmod_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(fchmodat) {

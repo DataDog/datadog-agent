@@ -1,6 +1,7 @@
 #ifndef __HTTP_H
 #define __HTTP_H
 
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
@@ -71,7 +72,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         return;
     }
 
-    __builtin_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
+    bpf_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
     log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
     log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
     batch->pos++;
@@ -89,7 +90,7 @@ static __always_inline void http_begin_request(http_transaction_t *http, http_me
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
     http->response_status_code = 0;
-    __builtin_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
+    bpf_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
     log_debug("http_begin_request: htx=%llx method=%d start=%llx\n", http, http->request_method, http->request_started);
 }
 
@@ -196,7 +197,7 @@ static __always_inline int http_process(http_transaction_t *http_stack, skb_info
 
     if (http_should_flush_previous_state(http, packet_type)) {
         http_enqueue(http);
-        __builtin_memcpy(http, http_stack, sizeof(http_transaction_t));
+        bpf_memcpy(http, http_stack, sizeof(http_transaction_t));
     }
 
     log_debug("http_process: type=%d method=%d\n", packet_type, method);

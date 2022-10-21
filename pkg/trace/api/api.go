@@ -713,9 +713,10 @@ var killProcess = func(format string, a ...interface{}) {
 // the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
 // limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
+	cpu, cpuErr := watchdog.CPU(now)
 	wi := watchdog.Info{
 		Mem: watchdog.Mem(),
-		CPU: watchdog.CPU(now),
+		CPU: cpu,
 	}
 	rateMem := 1.0
 	if r.conf.MaxMemory > 0 {
@@ -734,6 +735,9 @@ func (r *HTTPReceiver) watchdog(now time.Time) {
 	}
 	rateCPU := 1.0
 	if r.conf.MaxCPU > 0 {
+		if cpuErr != nil {
+			log.Errorf("Error retrieving current CPU usage: %v. Reusing previous value", cpuErr)
+		}
 		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
 		if rateCPU < 1 {
 			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg*100)

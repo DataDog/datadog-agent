@@ -9,65 +9,59 @@ package config
 import (
 	"fmt"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	// args are the positional command line args
+	args []string
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	// utility function to set up logging and config, shared between subcommands
-	setupConfigAndLogs := func() error {
-		err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
-
-		err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
-
-		err = util.SetAuthToken()
-		if err != nil {
-			fmt.Printf("Cannot setup auth token, exiting: %v\n", err)
-			return err
-		}
-
-		return nil
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
 	}
-
-	getClient := func(_ *cobra.Command, _ []string) (settings.Client, error) {
-		return common.NewSettingsClient()
+	// All subcommands use the same provided components, with a different
+	// oneShot callback.
+	oneShotRunE := func(callback interface{}) func(cmd *cobra.Command, args []string) error {
+		return func(cmd *cobra.Command, args []string) error {
+			cliParams.args = args
+			return fxutil.OneShot(callback,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "off", true)),
+				core.Bundle,
+			)
+		}
 	}
-
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Print the runtime configuration of a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setupConfigAndLogs(); err != nil {
-				return err
-			}
-			return showRuntimeConfiguration(getClient, cmd, args)
-		},
+		RunE:  oneShotRunE(showRuntimeConfiguration),
 	}
 
 	listRuntimeCmd := &cobra.Command{
 		Use:   "list-runtime",
 		Short: "List settings that can be changed at runtime",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setupConfigAndLogs(); err != nil {
-				return err
-			}
-			return listRuntimeConfigurableValue(getClient, cmd, args)
-		},
+		RunE:  oneShotRunE(listRuntimeConfigurableValue),
 	}
 	cmd.AddCommand(listRuntimeCmd)
 
@@ -75,12 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "set [setting] [value]",
 		Short: "Set, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setupConfigAndLogs(); err != nil {
-				return err
-			}
-			return setConfigValue(getClient, cmd, args)
-		},
+		RunE:  oneShotRunE(setConfigValue),
 	}
 	cmd.AddCommand(setCmd)
 
@@ -88,20 +77,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "get [setting]",
 		Short: "Get, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setupConfigAndLogs(); err != nil {
-				return err
-			}
-			return getConfigValue(getClient, cmd, args)
-		},
+		RunE:  oneShotRunE(getConfigValue),
 	}
 	cmd.AddCommand(getCmd)
 
 	return []*cobra.Command{cmd}
 }
 
-func showRuntimeConfiguration(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
-	c, err := getClient(cmd, args)
+func showRuntimeConfiguration(log log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	c, err := common.NewSettingsClient()
 	if err != nil {
 		return err
 	}
@@ -116,8 +105,13 @@ func showRuntimeConfiguration(getClient settings.ClientBuilder, cmd *cobra.Comma
 	return nil
 }
 
-func listRuntimeConfigurableValue(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
-	c, err := getClient(cmd, args)
+func listRuntimeConfigurableValue(log log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	c, err := common.NewSettingsClient()
 	if err != nil {
 		return err
 	}
@@ -137,17 +131,22 @@ func listRuntimeConfigurableValue(getClient settings.ClientBuilder, cmd *cobra.C
 	return nil
 }
 
-func setConfigValue(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
-	if len(args) != 2 {
+func setConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	c, err := getClient(cmd, args)
+	err := util.SetAuthToken()
 	if err != nil {
 		return err
 	}
 
-	hidden, err := c.Set(args[0], args[1])
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		return err
+	}
+
+	hidden, err := c.Set(cliParams.args[0], cliParams.args[1])
 	if err != nil {
 		return err
 	}
@@ -156,27 +155,32 @@ func setConfigValue(getClient settings.ClientBuilder, cmd *cobra.Command, args [
 		fmt.Printf("IMPORTANT: you have modified a hidden option, this may incur billing charges or have other unexpected side-effects.\n")
 	}
 
-	fmt.Printf("Configuration setting %s is now set to: %s\n", args[0], args[1])
+	fmt.Printf("Configuration setting %s is now set to: %s\n", cliParams.args[0], cliParams.args[1])
 
 	return nil
 }
 
-func getConfigValue(getClient settings.ClientBuilder, cmd *cobra.Command, args []string) error {
-	if len(args) != 1 {
+func getConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	c, err := getClient(cmd, args)
+	err := util.SetAuthToken()
 	if err != nil {
 		return err
 	}
 
-	value, err := c.Get(args[0])
+	c, err := common.NewSettingsClient()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%s is set to: %v\n", args[0], value)
+	value, err := c.Get(cliParams.args[0])
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s is set to: %v\n", cliParams.args[0], value)
 
 	return nil
 }

@@ -210,14 +210,34 @@ func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
 	return typedConfigs
 }
 
+// ApplyState represents the status of a configuration application by a remote configuration client
+// Clients need to either ack the correct application of received configurations, or communicate that
+// they haven't applied it yet, or communicate any error that may have happened while doing so
+type ApplyState uint64
+
+const (
+	ApplyStateUnknown ApplyState = iota
+	ApplyStateUnacknowledged
+	ApplyStateAcknowledged
+	ApplyStateError
+)
+
+// ApplyStatus is the processing status for a given configuration.
+// It basically represents whether a config was successfully processed and apply, or if an error occurred
+type ApplyStatus struct {
+	State ApplyState
+	Error string
+}
+
 // Metadata stores remote config metadata for a given configuration
 type Metadata struct {
-	Product   string
-	ID        string
-	Name      string
-	Version   uint64
-	RawLength uint64
-	Hashes    map[string][]byte
+	Product     string
+	ID          string
+	Name        string
+	Version     uint64
+	RawLength   uint64
+	Hashes      map[string][]byte
+	ApplyStatus ApplyStatus
 }
 
 func newConfigMetadata(parsedPath configPath, tfm data.TargetFileMeta) (Metadata, error) {

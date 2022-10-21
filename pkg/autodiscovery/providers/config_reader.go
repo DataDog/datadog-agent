@@ -67,11 +67,19 @@ var doOnce sync.Once
 // It reads all configs and caches them in memory for 5 minutes.
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
+	fileCacheExpiration := 5 * time.Minute
+	if config.Datadog.GetBool("autoconf_config_files_poll") {
+		// Removing some time (1s) to avoid races with polling interval.
+		// If cache expiration is set to be == ticker interval the cache may be used if t1B (cache read time) - t0B (ticker time) < t1A (cache store time) - t0A (ticker time).
+		// Which is likely to be the case because the code path on a cache write is slower.
+		fileCacheExpiration = time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval")-1) * time.Second
+	}
+
 	doOnce.Do(func() {
 		if reader == nil {
 			reader = &configFilesReader{
 				paths: paths,
-				cache: cache.New(5*time.Minute, 30*time.Second),
+				cache: cache.New(fileCacheExpiration, 30*time.Second),
 			}
 		}
 
@@ -103,21 +111,26 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 	reader.Lock()
 	defer reader.Unlock()
 
+	var configs []integration.Config
+	var errs map[string]string
+
 	cachedConfigs, foundConfigs := reader.cache.Get("configs")
 	cachedErrors, foundErrors := reader.cache.Get("errors")
-	if !foundConfigs || !foundErrors {
-		// Cache expired
-		reader.readAndCacheAll()
-	}
+	if foundConfigs && foundErrors {
+		// Cache hit
+		var ok bool
+		configs, ok = cachedConfigs.([]integration.Config)
+		if !ok {
+			return nil, nil, errors.New("couldn't cast cached configs from cache")
+		}
 
-	configs, ok := cachedConfigs.([]integration.Config)
-	if !ok {
-		return nil, nil, errors.New("couldn't cast cached configs from cache")
-	}
-
-	errs, ok := cachedErrors.(map[string]string)
-	if !ok {
-		return nil, nil, errors.New("couldn't cast cached config errors from cache")
+		errs, ok = cachedErrors.(map[string]string)
+		if !ok {
+			return nil, nil, errors.New("couldn't cast cached config errors from cache")
+		}
+	} else {
+		// Cache miss, read again
+		configs, errs = reader.readAndCacheAll()
 	}
 
 	return filterConfigs(configs, keep), errs, nil
@@ -134,10 +147,11 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 	return filteredConfigs
 }
 
-func (r *configFilesReader) readAndCacheAll() {
+func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]string) {
 	configs, errors := r.read(GetAll)
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
+	return configs, errors
 }
 
 // read scans paths searching for configuration files. When found,
@@ -427,10 +441,8 @@ func containsString(slice []string, str string) bool {
 
 // ResetReader is only for unit tests
 func ResetReader(paths []string) {
-	reader = &configFilesReader{
-		paths: paths,
-		cache: cache.New(5*time.Minute, 30*time.Second),
-	}
+	reader = nil
+	doOnce = sync.Once{}
 
-	reader.readAndCacheAll()
+	InitConfigFilesReader(paths)
 }

@@ -69,7 +69,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	payloadBytes := []byte(lambdaPayloadString)
 	region, account, resource, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
-	if err != nil {
+	if arnParseErr != nil {
 		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
 	}
 

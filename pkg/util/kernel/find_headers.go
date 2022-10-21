@@ -21,11 +21,20 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/mholt/archiver/v3"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/nikos/types"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
@@ -37,19 +46,17 @@ const fedoraKernelModulesPath = "/usr"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
-// HeaderFetchResult enumerates kernel header fetching success & failure modes
-type HeaderFetchResult int
+var errReposDirInaccessible = errors.New("unable to access repos directory")
+
+type headerFetchResult int
 
 const (
-	// NotAttempted represents the case where runtime compilation fails prior to attempting to
-	// fetch kernel headers
-	NotAttempted HeaderFetchResult = iota
+	notAttempted headerFetchResult = iota
 	customHeadersFound
 	defaultHeadersFound
 	sysfsHeadersFound
 	downloadedHeadersFound
-	// DownloadSuccess represents the case where kernel headers were successfully downloaded via nikos
-	DownloadSuccess
+	downloadSuccess
 	hostVersionErr
 	downloadFailure
 	validationFailure
@@ -57,19 +64,109 @@ const (
 	headersNotFoundDownloadDisabled
 )
 
-var errReposDirInaccessible = errors.New("unable to access repos directory")
+func (r headerFetchResult) IsSuccess() bool {
+	return customHeadersFound <= r && r <= downloadSuccess
+}
 
-// GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
-// to  download them to headerDownloadDir
-func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
-	hv, hvErr := HostVersion()
-	if hvErr != nil {
-		return nil, hostVersionErr, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
+// HeaderProvider is a global object which is responsible for managing the fetching of kernel headers
+var HeaderProvider *headerProvider
+var providerMu sync.Mutex
+
+type headerProvider struct {
+	downloadEnabled   bool
+	headerDirs        []string
+	headerDownloadDir string
+
+	downloader headerDownloader
+
+	result        headerFetchResult
+	kernelHeaders []string
+}
+
+func initProvider(config *ebpf.Config) {
+	HeaderProvider = &headerProvider{
+		downloadEnabled:   config.EnableKernelHeaderDownload,
+		headerDirs:        config.KernelHeadersDirs,
+		headerDownloadDir: config.KernelHeadersDownloadDir,
+
+		downloader: headerDownloader{
+			aptConfigDir:   config.AptConfigDir,
+			yumReposDir:    config.YumReposDir,
+			zypperReposDir: config.ZypperReposDir,
+		},
+
+		result:        notAttempted,
+		kernelHeaders: []string{},
+	}
+}
+
+// GetKernelHeaders fetches and returns kernel headers for the currently running kernel.
+//
+// The first time GetKernelHeaders is called, it will search the host for kernel headers, and if they
+// cannot be found it will attempt to download headers to the configured header download directory.
+//
+// Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
+// kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
+// number of times.
+func GetKernelHeaders(config *ebpf.Config, client statsd.ClientInterface) []string {
+	providerMu.Lock()
+	defer providerMu.Unlock()
+
+	if HeaderProvider == nil {
+		initProvider(config)
 	}
 
-	if len(headerDirs) > 0 {
-		if dirs := validateHeaderDirs(hv, headerDirs, true); len(dirs) > 0 {
-			return headerDirs, customHeadersFound, nil
+	if HeaderProvider.result != notAttempted {
+		log.Debugf("kernel headers requested: returning result of previous search")
+		return HeaderProvider.kernelHeaders
+	}
+
+	hv, err := HostVersion()
+	if err != nil {
+		HeaderProvider.result = hostVersionErr
+		log.Warnf("Unable to find kernel headers: unable to determine host kernel version: %s", err)
+		return []string{}
+	}
+
+	headers, result, err := HeaderProvider.getKernelHeaders(hv)
+	if result == downloadFailure {
+		// Download failures can be due to intermittent issues. To mitigate this, if a download
+		// failure occurs we will wait a moment and retry the download one time.
+		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
+		time.Sleep(5 * time.Second)
+		headers, result, err = HeaderProvider.downloadHeaders(hv)
+	}
+	if client != nil {
+		submitTelemetry(result, client)
+	}
+
+	HeaderProvider.kernelHeaders = headers
+	HeaderProvider.result = result
+	if err != nil {
+		log.Warnf("Unable to find kernel headers: %s", err)
+	}
+
+	return headers
+}
+
+// GetResult returns the result of kernel header fetching
+func (h *headerProvider) GetResult() headerFetchResult {
+	providerMu.Lock()
+	defer providerMu.Unlock()
+
+	if h == nil {
+		return notAttempted
+	}
+
+	return h.result
+}
+
+func (h *headerProvider) getKernelHeaders(hv Version) ([]string, headerFetchResult, error) {
+	log.Debugf("beginning search for kernel headers")
+
+	if len(h.headerDirs) > 0 {
+		if dirs := validateHeaderDirs(hv, h.headerDirs, true); len(dirs) > 0 {
+			return h.headerDirs, customHeadersFound, nil
 		}
 		log.Debugf("unable to find configured kernel headers: no valid headers found")
 	} else {
@@ -89,7 +186,7 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 		log.Debugf("unable to find system kernel headers: %v", err)
 	}
 
-	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), false)
+	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(h.headerDownloadDir), false)
 	if len(downloadedDirs) > 0 && !containsCriticalHeaders(downloadedDirs) {
 		// If this happens, it means we've previously downloaded kernel headers containing broken
 		// symlinks. We'll delete these to prevent them from affecting the next download
@@ -104,21 +201,24 @@ func GetKernelHeaders(downloadEnabled bool, headerDirs []string, headerDownloadD
 	}
 	log.Debugf("unable to find downloaded kernel headers: no valid headers found")
 
-	if !downloadEnabled {
+	if !h.downloadEnabled {
 		return nil, headersNotFoundDownloadDisabled, fmt.Errorf("no valid matching kernel header directories found. To download kernel headers, set system_probe_config.enable_kernel_header_download to true")
 	}
 
-	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
-	if err := d.downloadHeaders(headerDownloadDir); err != nil {
+	return h.downloadHeaders(hv)
+}
+
+func (h *headerProvider) downloadHeaders(hv Version) ([]string, headerFetchResult, error) {
+	if err := h.downloader.downloadHeaders(h.headerDownloadDir); err != nil {
 		if errors.Is(err, errReposDirInaccessible) {
 			return nil, reposDirAccessFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 		}
 		return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 	}
 
-	log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
-	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(headerDownloadDir), true); len(dirs) > 0 {
-		return dirs, DownloadSuccess, nil
+	log.Infof("successfully downloaded kernel headers to %s", h.headerDownloadDir)
+	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(h.headerDownloadDir), true); len(dirs) > 0 {
+		return dirs, downloadSuccess, nil
 	}
 	return nil, validationFailure, fmt.Errorf("downloaded headers are not valid")
 }
@@ -324,4 +424,39 @@ func unloadKHeadersModule() error {
 		return fmt.Errorf("unable to unload kheaders module: %s", stderr.String())
 	}
 	return nil
+}
+
+func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
+	if result == notAttempted {
+		return
+	}
+
+	var platform string
+	if target, err := types.NewTarget(); err == nil {
+		platform = strings.ToLower(target.Distro.Display)
+	} else {
+		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
+		platform = host.GetStatusInformation().Platform
+	}
+
+	tags := []string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("platform:%s", platform),
+	}
+
+	var resultTag string
+	if result.IsSuccess() {
+		resultTag = "success"
+	} else {
+		resultTag = "failure"
+	}
+
+	khdTags := append(tags,
+		fmt.Sprintf("result:%s", resultTag),
+		fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(result).String()),
+	)
+
+	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
+		log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
+	}
 }

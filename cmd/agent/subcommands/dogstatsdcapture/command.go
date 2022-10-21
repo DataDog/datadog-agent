@@ -13,11 +13,16 @@ import (
 	"io/ioutil"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
 
@@ -27,42 +32,44 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-var (
-	dsdCaptureDuration   time.Duration
-	dsdCaptureFilePath   string
-	dsdCaptureCompressed bool
-)
-
 const (
 	defaultCaptureDuration = time.Duration(1) * time.Minute
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	*command.GlobalParams
+
+	dsdCaptureDuration   time.Duration
+	dsdCaptureFilePath   string
+	dsdCaptureCompressed bool
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
 	dogstatsdCaptureCmd := &cobra.Command{
 		Use:   "dogstatsd-capture",
 		Short: "Start a dogstatsd UDS traffic capture",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			err := common.SetupConfigWithoutSecrets(globalParams.ConfFilePath, "")
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			err = config.SetupLogger(config.CoreLoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			return dogstatsdCapture()
+			return fxutil.OneShot(dogstatsdCapture,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "off", true)),
+				core.Bundle,
+			)
 		},
 	}
 
-	dogstatsdCaptureCmd.Flags().DurationVarP(&dsdCaptureDuration, "duration", "d", defaultCaptureDuration, "Duration traffic capture should span.")
-	dogstatsdCaptureCmd.Flags().StringVarP(&dsdCaptureFilePath, "path", "p", "", "Directory path to write the capture to.")
-	dogstatsdCaptureCmd.Flags().BoolVarP(&dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
+	dogstatsdCaptureCmd.Flags().DurationVarP(&cliParams.dsdCaptureDuration, "duration", "d", defaultCaptureDuration, "Duration traffic capture should span.")
+	dogstatsdCaptureCmd.Flags().StringVarP(&cliParams.dsdCaptureFilePath, "path", "p", "", "Directory path to write the capture to.")
+	dogstatsdCaptureCmd.Flags().BoolVarP(&cliParams.dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
 
 	// shut up grpc client!
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
@@ -70,7 +77,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdCaptureCmd}
 }
 
-func dogstatsdCapture() error {
+func dogstatsdCapture(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,7 +104,7 @@ func dogstatsdCapture() error {
 
 	conn, err := grpc.DialContext(
 		ctx,
-		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
@@ -107,9 +114,9 @@ func dogstatsdCapture() error {
 	cli := pb.NewAgentSecureClient(conn)
 
 	resp, err := cli.DogstatsdCaptureTrigger(ctx, &pb.CaptureTriggerRequest{
-		Duration:   dsdCaptureDuration.String(),
-		Path:       dsdCaptureFilePath,
-		Compressed: dsdCaptureCompressed,
+		Duration:   cliParams.dsdCaptureDuration.String(),
+		Path:       cliParams.dsdCaptureFilePath,
+		Compressed: cliParams.dsdCaptureCompressed,
 	})
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 #ifndef __CONN_TUPLE_H
 #define __CONN_TUPLE_H
 
+#include "bpf_builtins.h"
 #include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
@@ -106,7 +107,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
  * Reads values into a `conn_tuple_t` from a `sock`. Initializes all values in conn_tuple_t to `0`. Returns 1 success, 0 otherwise.
  */
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
-    __builtin_memset(t, 0, sizeof(conn_tuple_t));
+    bpf_memset(t, 0, sizeof(conn_tuple_t));
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 

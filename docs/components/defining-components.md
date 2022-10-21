@@ -10,9 +10,6 @@ The package must have the following defined in `component.go`:
  * A team-name comment of the form `// team: <teamname>`.
    This is used to generate CODEOWNERS information.
 
- * `componentName` -- the Go path of the component, relative to the repository root, e.g., `comp/core/health`.
-   This is set with the `computil.GetComponentName` utility.
-
  * `Component` -- the interface type implemented by the component.
    This is the type by which other components will require this one via `fx`.
    It can be an empty interface, if there is no need for any methods.
@@ -20,7 +17,7 @@ The package must have the following defined in `component.go`:
    All interface methods should be exported and thoroughly documented.
 
  * `Module` -- an `fx.Option` that can be included in the bundle's `Module` or an `fx.App` to make this component available.
-   To assist with debugging, use `fx.Module(componentName, ..)`.
+   To assist with debugging, use `fxutil.Component(options...)`.
    This item should have a formulaic doc string like `// Module defines the fx options for this component.`
 
 Components should not be nested; that is, no component's Go path should be a prefix of another component's Go path.
@@ -41,11 +38,8 @@ type Component interface {
 	Foo(key string) string
 }
 
-const componentName = computil.GetComponentName()
-
 // Module defines the fx options for this component.
-var Module = fx.Module(
-    componentName,
+var Module = fxutil.Component(
     fx.Provide(newFoo),
 )
 ```
@@ -137,8 +131,7 @@ type Mock interface {
 }
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fx.Module(
-    "comp/foo",
+var MockModule = fxutil.Component(
     fx.Provide(newMockFoo),
 )
 ```

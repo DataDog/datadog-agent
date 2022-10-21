@@ -1,10 +1,10 @@
 name "snowflake-connector-python-py3"
-default_version "2.6.0"
+default_version "2.7.12"
 
 dependency "pip3"
 
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "bb7af6933bdd6b8b105dac304de66fdb03e0b17378d588b5be6f1026b6ce3674",
+       :sha256 => "80d9a43ff29dfbcdc5d40d52c469db1ae47eff8b276e60b63deee674676bea74",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"
@@ -22,5 +22,7 @@ build do
     pip = "#{install_dir}/embedded/bin/pip3"
   end
 
-  command "#{pip} install ."
+  # Adding pyopenssl==21.0.0 here is a temporary workaround so that we don't get
+  # pyopenssl>=22.0.0 which requires a higher version of cryptography
+  command "#{pip} install pyopenssl==21.0.0 ."
 end
