@@ -55,7 +55,8 @@ import (
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName coreconfig.LoggerName = "SECURITY"
+	loggerName    coreconfig.LoggerName = "SECURITY"
+	loggerNameStr                       = string(loggerName)
 )
 
 var (

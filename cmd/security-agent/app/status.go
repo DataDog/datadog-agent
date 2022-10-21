@@ -12,12 +12,15 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type statusCliParams struct {
@@ -38,7 +41,14 @@ func StatusCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Short: "Print the current status",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cliParams)
+			return fxutil.OneShot(runStatus,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(loggerNameStr, "off", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -49,17 +59,12 @@ func StatusCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{statusCmd}
 }
 
-func runStatus(params *statusCliParams) error {
-	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-	if err != nil {
-		return log.Errorf("Cannot setup logger, exiting: %v", err)
-	}
-
+func runStatus(log log.Component, config config.Component, params *statusCliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("security_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.GetInt("security_agent.cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()
