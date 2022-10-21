@@ -20,7 +20,9 @@ import (
 )
 
 // PersistentVolumeClaimHandlers implements the Handlers interface for Kubernetes PersistentVolumeClaims.
-type PersistentVolumeClaimHandlers struct{}
+type PersistentVolumeClaimHandlers struct {
+	BaseHandler
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *PersistentVolumeClaimHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
@@ -82,9 +84,4 @@ func (h *PersistentVolumeClaimHandlers) ResourceVersion(ctx *processors.Processo
 func (h *PersistentVolumeClaimHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.PersistentVolumeClaim)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *PersistentVolumeClaimHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 }
