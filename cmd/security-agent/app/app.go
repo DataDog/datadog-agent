@@ -106,7 +106,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	}
 
 	for _, factory := range factories {
-		for _, subcmd := range factory(nil) {
+		for _, subcmd := range factory(&globalParams) {
 			SecurityAgentCmd.AddCommand(subcmd)
 		}
 	}
