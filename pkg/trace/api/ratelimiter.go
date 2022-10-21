@@ -116,7 +116,7 @@ func (ps *rateLimiter) Active() bool {
 	return active
 }
 
-// Stats returns a copy of the currrent rate limiter's stats.
+// Stats returns a copy of the current rate limiter's stats.
 func (ps *rateLimiter) Stats() *info.RateLimiterStats {
 	ps.mu.RLock()
 	stats := ps.stats
