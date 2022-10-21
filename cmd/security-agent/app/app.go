@@ -65,13 +65,13 @@ var (
 
 type GlobalParams struct {
 	confPathArray []string
-	flagNoColor   bool
 }
 
 type SubcommandFactory func(*GlobalParams) []*cobra.Command
 
 func CreateSecurityAgentCmd() *cobra.Command {
 	globalParams := GlobalParams{}
+	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
 		Use:   "datadog-security-agent [command]",
@@ -80,7 +80,7 @@ func CreateSecurityAgentCmd() *cobra.Command {
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if globalParams.flagNoColor {
+			if flagNoColor {
 				color.NoColor = true
 			}
 
@@ -93,7 +93,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.flagNoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	factories := []SubcommandFactory{
 		StatusCommands,
