@@ -20,22 +20,14 @@ import (
 )
 
 // ClusterRoleBindingHandlers implements the Handlers interface for Kubernetes ClusteRoleBindings.
-type ClusterRoleBindingHandlers struct{}
+type ClusterRoleBindingHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *ClusterRoleBindingHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.ClusterRoleBinding)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *ClusterRoleBindingHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *ClusterRoleBindingHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -92,9 +84,4 @@ func (h *ClusterRoleBindingHandlers) ResourceVersion(ctx *processors.ProcessorCo
 func (h *ClusterRoleBindingHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*rbacv1.ClusterRoleBinding)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *ClusterRoleBindingHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 }

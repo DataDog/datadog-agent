@@ -20,22 +20,14 @@ import (
 )
 
 // IngressHandlers implements the Handlers interface for Kubernetes Ingresss.
-type IngressHandlers struct{}
+type IngressHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *IngressHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Ingress)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *IngressHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *IngressHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 

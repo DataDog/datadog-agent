@@ -35,10 +35,6 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 		return nil, err
 	}
 
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if c.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
-	}
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
 			{
@@ -47,7 +43,6 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 					EBPFFuncName: funcName,
 					UID:          probeUID,
 				},
-				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
@@ -70,6 +65,10 @@ func (e *ebpfProgram) Init() error {
 		})
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -84,6 +83,7 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: constantEditors,
+		ConstantEditors:           constantEditors,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	})
 }

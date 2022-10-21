@@ -19,22 +19,14 @@ import (
 )
 
 // CronJobV1Handlers implements the Handlers interface for Kubernetes CronJobs.
-type CronJobV1Handlers struct{}
+type CronJobV1Handlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *CronJobV1Handlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.CronJob)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *CronJobV1Handlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *CronJobV1Handlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 

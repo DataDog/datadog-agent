@@ -71,11 +71,6 @@ SYSCALL_KRETPROBE(bind) {
     return sys_bind_ret(ctx, retval);
 }
 
-SEC("tracepoint/syscalls/sys_exit_bind")
-int tracepoint_syscalls_sys_exit_bind(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_bind_ret(args, args->ret);
-}
-
 SEC("kprobe/security_socket_bind")
 int kprobe_security_socket_bind(struct pt_regs *ctx) {
     struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
@@ -131,6 +126,11 @@ int kprobe_security_socket_bind(struct pt_regs *ctx) {
 #endif
     }
     return 0;
+}
+
+SEC("tracepoint/handle_sys_bind_exit")
+int tracepoint_handle_sys_bind_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_bind_ret(args, args->ret);
 }
 
 #endif /* _BIND_H_ */

@@ -58,10 +58,6 @@ func TestOctogonConstants(t *testing.T) {
 			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
 		})
 
-		checkKernelCompatibility(t, "AL2022", func(kv *kernel.Version) bool {
-			return kv.IsAmazonLinux2022Kernel()
-		})
-
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
@@ -71,10 +67,6 @@ func TestOctogonConstants(t *testing.T) {
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
-		})
-
-		checkKernelCompatibility(t, "AL2022", func(kv *kernel.Version) bool {
-			return kv.IsAmazonLinux2022Kernel()
 		})
 
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
@@ -118,10 +110,6 @@ func TestOctogonConstants(t *testing.T) {
 	t.Run("guesser-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			return kv.IsSLESKernel() || kv.IsOracleUEKKernel()
-		})
-
-		checkKernelCompatibility(t, "AL2022", func(kv *kernel.Version) bool {
-			return kv.IsAmazonLinux2022Kernel()
 		})
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)

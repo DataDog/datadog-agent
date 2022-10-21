@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ import (
 func TestRulesetLoaded(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
 
 	probeMonitorOpts := testOpts{}
@@ -49,13 +50,21 @@ func TestRulesetLoaded(t *testing.T) {
 		count := test.statsdClient.Get(key)
 		assert.Zero(t, count)
 
-		if err := test.reloadConfiguration(); err != nil {
-			t.Errorf("failed to reload configuration: %v", err)
+		err = test.GetProbeCustomEvent(t, func() error {
+			// force a reload
+			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
+		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
+			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
+
+			test.module.SendStats()
+
+			assert.Equal(t, count+1, test.statsdClient.Get(key))
+
+			return validateRuleSetLoadedSchema(t, customEvent)
+		}, model.CustomRulesetLoadedEventType)
+		if err != nil {
+			t.Fatal(err)
 		}
-
-		test.module.SendStats()
-
-		assert.Equal(t, count+1, test.statsdClient.Get(key))
 	})
 }
 

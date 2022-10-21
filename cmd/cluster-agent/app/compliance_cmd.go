@@ -9,9 +9,13 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -22,8 +26,17 @@ var (
 )
 
 func init() {
-	complianceCmd.AddCommand(app.CheckCmd(func() []string {
-		return []string{confPath}
-	}))
+	checkCmd := app.CheckCmd()
+	checkCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		// we'll search for a config file named `datadog-cluster.yaml`
+		config.Datadog.SetConfigName("datadog-cluster")
+		err := common.SetupConfig(confPath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global cluster agent configuration: %w", err)
+		}
+		return nil
+	}
+
+	complianceCmd.AddCommand(checkCmd)
 	ClusterAgentCmd.AddCommand(complianceCmd)
 }

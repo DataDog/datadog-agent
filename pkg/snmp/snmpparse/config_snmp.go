@@ -7,6 +7,7 @@ package snmpparse
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -38,6 +39,8 @@ type SNMPConfig struct {
 	PrivProtocol string `yaml:"privProtocol"`
 	PrivKey      string `yaml:"privKey"`
 	Context      string `yaml:"context_name"`
+	//network
+	NetAddress string `yaml:"network_address"`
 }
 
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
@@ -70,7 +73,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	//To Do: change the configCheckURLSnmp if the snmp check is a cluster check
+	//TODO: change the configCheckURLSnmp if the snmp check is a cluster check
 	if configCheckURLSnmp == "" {
 		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
@@ -91,12 +94,38 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	return nil, nil
 
 }
-func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 
+func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
+	ipAddressConfigs := []SNMPConfig{}
+	netAddressConfigs := []SNMPConfig{}
+
+	//split the SnmpConfigList to get the IP addresses separated from
+	//the network addresses
 	for _, snmpconfig := range SnmpConfigList {
-		if snmpconfig.IPAddress == ip_address {
-			return snmpconfig
+		if snmpconfig.IPAddress != "" {
+			ipAddressConfigs = append(ipAddressConfigs, snmpconfig)
+		}
+		if snmpconfig.NetAddress != "" {
+			netAddressConfigs = append(netAddressConfigs, snmpconfig)
 		}
 	}
+
+	//check if the ip address is explicitly mentioned
+	for _, snmpIPconfig := range ipAddressConfigs {
+		if snmpIPconfig.IPAddress == ip_address {
+			return snmpIPconfig
+		}
+	}
+	//check if the ip address is a part of a network/subnet
+	for _, snmpNetConfig := range netAddressConfigs {
+		_, subnet, _ := net.ParseCIDR(snmpNetConfig.NetAddress)
+		ip := net.ParseIP(ip_address)
+		if subnet.Contains(ip) {
+			snmpNetConfig.IPAddress = ip_address
+			return snmpNetConfig
+		}
+
+	}
+
 	return SNMPConfig{}
 }

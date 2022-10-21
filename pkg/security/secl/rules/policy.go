@@ -6,7 +6,6 @@
 package rules
 
 import (
-	"errors"
 	"fmt"
 	"io"
 
@@ -24,12 +23,11 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name        string
-	Source      string
-	Version     string
-	Rules       []*RuleDefinition
-	Macros      []*MacroDefinition
-	RuleSkipped []*RuleDefinition
+	Name    string
+	Source  string
+	Version string
+	Rules   []*RuleDefinition
+	Macros  []*MacroDefinition
 }
 
 // AddMacro add a macro to the policy
@@ -43,29 +41,6 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-// AddRule add a rule to the policy
-func (p *Policy) SkipRule(def *RuleDefinition) {
-	def.Policy = p
-	p.RuleSkipped = append(p.RuleSkipped, def)
-}
-
-// remove rules that have a valid version from the skipped list
-func cleanupRuleSkipped(policy *Policy) {
-	var skipped []*RuleDefinition
-
-LOOP:
-	for _, s := range policy.RuleSkipped {
-		for _, r := range policy.Rules {
-			if s.ID == r.ID {
-				continue LOOP
-			}
-		}
-		skipped = append(skipped, s)
-	}
-
-	policy.RuleSkipped = skipped
-}
-
 func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	var errs *multierror.Error
 
@@ -74,6 +49,8 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Source:  source,
 		Version: def.Version,
 	}
+
+	var skipped []*RuleDefinition
 
 MACROS:
 	for _, macroDef := range def.Macros {
@@ -104,32 +81,46 @@ RULES:
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
-				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("error when evaluating one of the rule filters: %w", err)})
+				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleAgentVersion})
 			}
 			if !isRuleAccepted {
-				policy.SkipRule(ruleDef)
+				// report only agent version filtering
+				if _, ok := filter.(*AgentVersionFilter); ok {
+					skipped = append(skipped, ruleDef)
+				}
 				continue RULES
 			}
 		}
 
 		if ruleDef.ID == "" {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no ID defined for rule with expression")})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutID})
 			continue
 		}
 		if !validators.CheckRuleID(ruleDef.ID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleIDPattern})
 			continue
 		}
 
 		if ruleDef.Expression == "" && !ruleDef.Disabled {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutExpression})
 			continue
 		}
 
 		policy.AddRule(ruleDef)
 	}
 
-	cleanupRuleSkipped(policy)
+LOOP:
+	for _, s := range skipped {
+		for _, r := range policy.Rules {
+			if s.ID == r.ID {
+				continue LOOP
+			}
+		}
+		// set the policy so that when we parse the errors we can get the policy associated
+		s.Policy = policy
+
+		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s, Err: ErrRuleAgentVersion})
+	}
 
 	return policy, errs.ErrorOrNil()
 }
