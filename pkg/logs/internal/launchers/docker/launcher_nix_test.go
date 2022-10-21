@@ -34,12 +34,4 @@ func TestGetPath(t *testing.T) {
 			"/var/lib/containers/storage/overlay-containers/123abc/userdata/ctr.log",
 			getPath("123abc"))
 	})
-	t.Run("docker_path_override=/custom/path", func(t *testing.T) {
-		mockConfig := config.Mock(t)
-		mockConfig.Set("logs_config.docker_path_override", "/custom/path")
-
-		require.Equal(t,
-			filepath.Join("/custom/path", "123abc/123abc-json.log"),
-			getPath("123abc"))
-	})
 }

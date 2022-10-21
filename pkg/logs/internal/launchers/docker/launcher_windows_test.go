@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -79,18 +78,7 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 }
 
 func TestGetPath(t *testing.T) {
-	t.Run("docker_path_override not set", func(t *testing.T) {
-		require.Equal(t,
-			filepath.Join(basePath, "123abc/123abc-json.log"),
-			getPath("123abc"))
-	})
-
-	t.Run("docker_path_override=/custom/path", func(t *testing.T) {
-		mockConfig := config.Mock(t)
-		mockConfig.Set("logs_config.docker_path_override", "/custom/path")
-
-		require.Equal(t,
-			filepath.Join("custom/path", "123abc/123abc-json.log"),
-			getPath("123abc"))
-	})
+	require.Equal(t,
+		filepath.Join(basePath, "123abc/123abc-json.log"),
+		getPath("123abc"))
 }
