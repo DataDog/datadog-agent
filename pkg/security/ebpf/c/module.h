@@ -93,7 +93,7 @@ int kprobe_module_put(struct pt_regs *ctx) {
     return trace_module(mod);
 }
 
-int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -105,7 +105,12 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval) 
         .file = syscall->init_module.file,
         .loaded_from_memory = syscall->init_module.loaded_from_memory,
     };
-    bpf_probe_read_str(&event.name, sizeof(event.name), &syscall->init_module.name[0]);
+
+    if (!modname) {
+        bpf_probe_read_str(&event.name, sizeof(event.name), &syscall->init_module.name[0]);
+    } else {
+        bpf_probe_read_str(&event.name, sizeof(event.name), modname);
+    }
 
     if (syscall->init_module.dentry != NULL) {
         fill_file_metadata(syscall->init_module.dentry, &event.file.metadata);
@@ -119,12 +124,48 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval) 
     return 0;
 }
 
+struct tracepoint_module_module_load_t {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    unsigned int taints;
+    int data_loc_modname;
+};
+
+SEC("tracepoint/module/module_load")
+int module_load(struct tracepoint_module_module_load_t *args) {
+    u64 tracepoint_module_load_sends_event;
+    LOAD_CONSTANT("tracepoint_module_load_sends_event", tracepoint_module_load_sends_event);
+    if (tracepoint_module_load_sends_event) {
+        // check if the tracepoint is hit by a kworker
+        u32 pid = bpf_get_current_pid_tgid();
+        u32 *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
+        if (!is_kworker) {
+            return 0;
+        }
+
+        struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+        if (!syscall) {
+            return 0;
+        }
+
+        unsigned short modname_offset = args->data_loc_modname & 0xFFFF;
+        char *modname = (char *)args + modname_offset;
+
+        return trace_init_module_ret(args, 0, modname);
+    }
+
+    return 0;
+}
+
 SYSCALL_KRETPROBE(init_module) {
-    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx));
+    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
 }
 
 SYSCALL_KRETPROBE(finit_module) {
-    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx));
+    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
 }
 
 struct delete_module_event_t {
@@ -180,7 +221,7 @@ SYSCALL_KRETPROBE(delete_module) {
 
 SEC("tracepoint/handle_sys_init_module_exit")
 int tracepoint_handle_sys_init_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return trace_init_module_ret(args, args->ret);
+    return trace_init_module_ret(args, args->ret, NULL);
 }
 
 SEC("tracepoint/handle_sys_delete_module_exit")
