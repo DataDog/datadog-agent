@@ -43,6 +43,12 @@ func newConfig(deps dependencies) (Component, error) {
 	return &cfg{warnings}, nil
 }
 
+func (c *cfg) ConfigFileUsed() string {
+	return config.SystemProbe.ConfigFileUsed()
+}
+func (c *cfg) IsKnown(key string) bool {
+	return config.SystemProbe.IsKnown(key)
+}
 func (c *cfg) IsSet(key string) bool {
 	return config.SystemProbe.IsSet(key)
 }

@@ -45,6 +45,12 @@ func newConfig(deps dependencies) (Component, error) {
 	return &cfg{warnings}, nil
 }
 
+func (c *cfg) ConfigFileUsed() string {
+	return config.Datadog.ConfigFileUsed()
+}
+func (c *cfg) IsKnown(key string) bool {
+	return config.Datadog.IsKnown(key)
+}
 func (c *cfg) IsSet(key string) bool {
 	return config.Datadog.IsSet(key)
 }
