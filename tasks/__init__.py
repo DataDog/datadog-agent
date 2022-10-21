@@ -42,6 +42,7 @@ from .go import (
     tidy_all,
 )
 from .test import (
+    codecov,
     download_tools,
     e2e_tests,
     install_shellcheck,
@@ -64,6 +65,7 @@ ns = Collection()
 # add single tasks to the root
 ns.add_task(golangci_lint)
 ns.add_task(test)
+ns.add_task(codecov)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
