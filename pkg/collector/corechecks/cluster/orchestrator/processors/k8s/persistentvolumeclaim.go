@@ -29,16 +29,6 @@ func (h *PersistentVolumeClaimHandlers) AfterMarshalling(ctx *processors.Process
 	return
 }
 
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *PersistentVolumeClaimHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *PersistentVolumeClaimHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *PersistentVolumeClaimHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {

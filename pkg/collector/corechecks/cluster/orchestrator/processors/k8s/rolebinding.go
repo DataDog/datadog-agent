@@ -85,8 +85,3 @@ func (h *RoleBindingHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorCon
 	r := resource.(*rbacv1.RoleBinding)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *RoleBindingHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
-}
