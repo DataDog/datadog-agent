@@ -29,13 +29,14 @@ const (
 // CollectorBundle is a container for a group of collectors. It provides a way
 // to easily run them all.
 type CollectorBundle struct {
-	check              *OrchestratorCheck
-	collectors         []collectors.Collector
-	discoverCollectors bool
-	extraSyncTimeout   time.Duration
-	inventory          *inventory.CollectorInventory
-	stopCh             chan struct{}
-	runCfg             *collectors.CollectorRunConfig
+	check               *OrchestratorCheck
+	collectors          []collectors.Collector
+	discoverCollectors  bool
+	extraSyncTimeout    time.Duration
+	inventory           *inventory.CollectorInventory
+	stopCh              chan struct{}
+	runCfg              *collectors.CollectorRunConfig
+	activatedCollectors map[string]struct{}
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -124,6 +125,13 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
 	}
 
+	// TODO: check if that is enough
+	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+		_ = cb.check.Warnf("collector %s has already been added", collectorName)
+		return
+	}
+
+	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
 	cb.collectors = append(cb.collectors, collector)
 }
 
@@ -244,7 +252,7 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
 		}
 
-		if cb.runCfg.Config.IsManifestCollectionEnabled { // TODO: discuss whether to activate this by default when crd/cr collection is activated
+		if cb.runCfg.Config.IsManifestCollectionEnabled {
 			sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 		}
 	}

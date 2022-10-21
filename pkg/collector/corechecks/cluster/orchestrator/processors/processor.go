@@ -197,6 +197,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 // build orchestrator manifest message
 // TODO: is it worth making that part of the object interface? More code but clearer? that gets rid of that not so nice check
+// yes, once previous PR gets merged
 func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 

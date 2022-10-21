@@ -52,7 +52,7 @@ func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInve
 		return nil, err
 	}
 
-	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources()
+	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources() // TODO: can be used for cr check
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, err
@@ -93,7 +93,7 @@ func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector
 }
 
 func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, resources []*v1.APIResourceList) {
-	for _, list := range resources {
+	for _, list := range resources { // TODO: make properly support crd (not cr)
 		for _, resource := range list.APIResources {
 			collector, err := inventory.CollectorForVersion(resource.Name, list.GroupVersion)
 			if err != nil {

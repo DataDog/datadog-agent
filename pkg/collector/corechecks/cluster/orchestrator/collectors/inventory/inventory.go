@@ -17,8 +17,8 @@ import (
 
 // CollectorInventory is used to store and retrieve available collectors.
 type CollectorInventory struct {
-	collectors   []collectors.CollectorVersions
-	crCollectors map[string]collectors.Collector
+	collectors          []collectors.CollectorVersions
+	activatedCollectors map[string]collectors.Collector
 }
 
 // NewCollectorInventory returns a new inventory containing all known
@@ -46,18 +46,15 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
 			k8sCollectors.NewCRDCollectorVersions(),
 		},
-		crCollectors: map[string]collectors.Collector{},
+		activatedCollectors: map[string]collectors.Collector{},
 	}
 }
 
 // CollectorForCustomResource ...
 func (ci *CollectorInventory) CollectorForCustomResource(collectorName string) (collectors.Collector, error) {
-	if _, ok := ci.crCollectors[collectorName]; ok {
-		return nil, fmt.Errorf("collector %s has already been added", collectorName)
-	}
-	// TODO: check discover here -> does the CRD exist? does the agent try to collect pods again?
+	// TODO: 1 - check discover here -> does the CRD exist?
+	// TODO: 2 - does the agent try to collect pods again? -> use a shared map to check + make sure crd is done last so we don't need to do the check everywhere?
 	collector := k8sCollectors.NewCRCollectorVersions(collectorName)
-	ci.crCollectors[collectorName] = collector
 	return collector, nil
 }
 
