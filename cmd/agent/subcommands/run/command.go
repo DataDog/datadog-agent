@@ -196,7 +196,16 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
 func StartAgentWithDefaults() error {
-	return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
+	// run startAgent in an app, so that the log and config components get initialized
+	return fxutil.OneShot(func(log log.Component, config config.Component) error {
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
+	},
+		fx.Supply(core.BundleParams{
+			ConfFilePath:      "", // no config file path specification in this situation
+			ConfigLoadSecrets: true,
+		}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
+		core.Bundle,
+	)
 }
 
 // startAgent Initializes the agent process
