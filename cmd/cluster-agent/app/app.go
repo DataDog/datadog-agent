@@ -249,7 +249,7 @@ func start(cmd *cobra.Command, args []string) error {
 		WPAClient:          apiCl.WPAClient,
 		WPAInformerFactory: apiCl.WPAInformerFactory,
 		DDClient:           apiCl.DDClient,
-		DDInformerFactory:  apiCl.DDInformerFactory,
+		DDInformerFactory:  apiCl.DynamicInformerFactory,
 		Client:             apiCl.Cl,
 		IsLeaderFunc:       le.IsLeader,
 		EventRecorder:      eventRecorder,

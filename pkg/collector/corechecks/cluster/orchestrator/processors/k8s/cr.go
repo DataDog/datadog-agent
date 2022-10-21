@@ -10,7 +10,8 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -50,7 +51,7 @@ func (crd *CRHandlers) ExtractResource(ctx *processors.ProcessorContext, resourc
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
 func (crd *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*v1.CustomResourceDefinition)
+	resourceList := list.([]runtime.Object)
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
@@ -62,19 +63,19 @@ func (crd *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list inter
 
 // ResourceUID is a handler called to retrieve the resource UID.
 func (crd *CRHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*v1.CustomResourceDefinition).UID
+	return resource.(*unstructured.Unstructured).GetUID()
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 func (crd *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
-	return resource.(*v1.CustomResourceDefinition).ResourceVersion
+	return resource.(*unstructured.Unstructured).GetResourceVersion()
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 func (crd *CRHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
-	r := resource.(*v1.CustomResourceDefinition)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	annotations := resource.(*unstructured.Unstructured).GetAnnotations()
+	redact.RemoveLastAppliedConfigurationAnnotation(annotations) // todo: update because its not a pointer
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

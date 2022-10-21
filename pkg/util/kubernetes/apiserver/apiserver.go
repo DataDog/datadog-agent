@@ -79,10 +79,10 @@ type APIClient struct {
 
 	// DDClient gives access to all datadoghq/ custom types
 	DDClient dynamic.Interface
-	// DDInformerFactory gives access to informers for all datadoghq/ custom types
-	DDInformerFactory dynamicinformer.DynamicSharedInformerFactory
+	// DynamicInformerFactory gives access to dynamic informers in example for all datadoghq/ custom types
+	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
-	// DDInformerFactory gives access to informers for all datadoghq/ custom types
+	// CRDInformerFactory gives access to informers for all crds
 	CRDInformerFactory externalversions.SharedInformerFactory
 
 	// initRetry used to setup the APIClient
@@ -352,6 +352,10 @@ func (c *APIClient) connect() error {
 			_ = log.Errorf("Error getting datadoghq Client: %s", err.Error())
 			return err
 		}
+		if c.DynamicInformerFactory, err = getDDInformerFactory(); err != nil {
+			_ = log.Errorf("Error getting datadoghq Client: %s", err.Error())
+			return err
+		}
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
@@ -392,7 +396,7 @@ func (c *APIClient) connect() error {
 		}
 	}
 	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		if c.DDInformerFactory, err = getDDInformerFactory(); err != nil {
+		if c.DynamicInformerFactory, err = getDDInformerFactory(); err != nil {
 			log.Errorf("Error getting datadoghq Client: %s", err.Error())
 			return err
 		}

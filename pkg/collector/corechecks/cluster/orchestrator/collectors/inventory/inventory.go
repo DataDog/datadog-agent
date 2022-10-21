@@ -17,7 +17,8 @@ import (
 
 // CollectorInventory is used to store and retrieve available collectors.
 type CollectorInventory struct {
-	collectors []collectors.CollectorVersions
+	collectors   []collectors.CollectorVersions
+	crCollectors map[string]collectors.Collector
 }
 
 // NewCollectorInventory returns a new inventory containing all known
@@ -45,7 +46,19 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
 			k8sCollectors.NewCRDCollectorVersions(),
 		},
+		crCollectors: map[string]collectors.Collector{},
 	}
+}
+
+// CollectorForCustomResource ...
+func (ci *CollectorInventory) CollectorForCustomResource(collectorName string) (collectors.Collector, error) {
+	if _, ok := ci.crCollectors[collectorName]; ok {
+		return nil, fmt.Errorf("collector %s has already been added", collectorName)
+	}
+	// TODO: maybe check discover here
+	collector := k8sCollectors.NewCRCollectorVersions(collectorName)
+	ci.crCollectors[collectorName] = collector.Collectors[0]
+	return collector.Collectors[0], nil // TODO: there is no play to have more than one collector versions per collector, but this is hacky and should be revisited
 }
 
 // CollectorForDefaultVersion retrieves a collector given its name. It returns an error if the

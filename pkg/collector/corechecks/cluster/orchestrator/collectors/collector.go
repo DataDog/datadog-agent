@@ -24,7 +24,6 @@ import (
 // resource type.
 type Collector interface {
 	// Informer returns the shared informer for that resource.
-	// TODO: make that return a list of informers
 	Informer() cache.SharedInformer
 
 	// Init is where the collector initialization happens. It is used to create

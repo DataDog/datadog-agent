@@ -9,6 +9,9 @@
 package k8s
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -21,14 +24,15 @@ import (
 )
 
 // NewCRCollectorVersions builds the group of collector versions.
-func NewCRCollectorVersions() collectors.CollectorVersions {
+func NewCRCollectorVersions(cr string) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewCRCollector(),
+		NewCRCollector(cr),
 	)
 }
 
 // CRCollector is a collector for Kubernetes CRs.
 type CRCollector struct {
+	grv       string
 	informer  informers.GenericInformer
 	lister    cache.GenericLister
 	metadata  *collectors.CollectorMetadata
@@ -37,29 +41,38 @@ type CRCollector struct {
 
 // NewCRCollector creates a new collector for the Kubernetes CR
 // resource.
-func NewCRCollector() *CRCollector {
+func NewCRCollector(grv string) *CRCollector {
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
 			IsStable:         false,
-			Name:             "customresources",
+			Name:             fmt.Sprintf("customresources/%s", grv), // TODO: make that smarter?
 			NodeType:         orchestrator.K8sCR,
 		},
+		grv:       grv,
 		processor: processors.NewProcessor(new(k8sProcessors.CRHandlers)),
 	}
 }
 
 // Informer returns the shared informer.
-// TODO: we can init the informer here
 func (c *CRCollector) Informer() cache.SharedInformer {
 	return c.informer.Informer()
 }
 
+// input: crd/datadoghq.com/v1alpha1/DatadogMetric output -> schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetric"}
+func (c *CRCollector) getGRV() schema.GroupVersionResource {
+	// TODO: add special handling for non proper formatted cr
+	list := strings.Split(c.grv, "/")
+	if len(list) != 4 {
+		panic("not ok!")
+	}
+	return schema.GroupVersionResource{Group: list[1], Version: list[2], Resource: list[3]}
+}
+
 // Init is used to initialize the collector.
 func (c *CRCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	// TODO: assume we have a list of names in the init config where we can make a map of CR <> cr
-	grv := schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogagents"} // that's a CR
-	c.informer = rcfg.APIClient.DDInformerFactory.ForResource(grv)
+	grv := c.getGRV()
+	c.informer = rcfg.APIClient.DynamicInformerFactory.ForResource(grv)
 	c.lister = c.informer.Lister() // return that Lister
 }
 
@@ -73,7 +86,7 @@ func (c *CRCollector) Metadata() *collectors.CollectorMetadata {
 
 // Run triggers the collection process.
 func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
-	list, err := c.lister.List(labels.Everything())
+	list, err := c.lister.List(labels.Everything()) // later panics because I cannot convert unstructured
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
