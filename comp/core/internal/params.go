@@ -37,6 +37,10 @@ type BundleParams struct {
 	// the component's config data.
 	ConfigLoadSysProbe bool
 
+	SecurityAgentConfigFilePaths []string
+
+	ConfigLoadSecurityAgent bool
+
 	// ConfigLoadSecrets determines whether secrets in the configuration file
 	// should be evaluated.  This is typically false for one-shot commands.
 	ConfigLoadSecrets bool

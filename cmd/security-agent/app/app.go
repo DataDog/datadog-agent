@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -79,7 +79,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 				color.NoColor = true
 			}
 
-			return secagentcommon.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			return err
 		},
 	}
 
