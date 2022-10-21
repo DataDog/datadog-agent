@@ -437,10 +437,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if sendLoadedReport {
 		// report that a new policy was loaded
 		monitor := m.probe.GetMonitor()
-		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadApproversErrs)
-		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+		monitor.ReportRuleSetLoaded(ruleSet, loadApproversErrs)
 
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
 	}
 
 	return nil
@@ -448,6 +447,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 // Close the module
 func (m *Module) Close() {
+	signal.Stop(m.sigupChan)
 	close(m.sigupChan)
 
 	for _, provider := range m.policyProviders {

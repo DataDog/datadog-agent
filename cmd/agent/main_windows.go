@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,8 +39,5 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err := command.MakeCommand(subcommands.AgentSubcommands()).Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
 }
