@@ -48,6 +48,11 @@ const (
 func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 
+	// Auto exit configuration
+	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
+	cfg.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
+	cfg.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
+
 	// statsd
 	cfg.BindEnv("bind_host")
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)

@@ -6,14 +6,13 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"golang.org/x/net/context"
 )
 
 const (
@@ -26,12 +25,12 @@ type ExitDetector interface {
 }
 
 // ConfigureAutoExit starts automatic shutdown mechanism if necessary
-func ConfigureAutoExit(ctx context.Context) error {
+func ConfigureAutoExit(ctx context.Context, cfg config.Config) error {
 	var sd ExitDetector
 	var err error
 
-	if config.Datadog.GetBool("auto_exit.noprocess.enabled") {
-		sd, err = DefaultNoProcessExit()
+	if cfg.GetBool("auto_exit.noprocess.enabled") {
+		sd, err = DefaultNoProcessExit(cfg)
 	}
 
 	if err != nil {
@@ -42,7 +41,7 @@ func ConfigureAutoExit(ctx context.Context) error {
 		return nil
 	}
 
-	validationPeriod := time.Duration(config.Datadog.GetInt("auto_exit.validation_period")) * time.Second
+	validationPeriod := time.Duration(cfg.GetInt("auto_exit.validation_period")) * time.Second
 	return startAutoExit(ctx, sd, defaultExitTicker, validationPeriod)
 }
 

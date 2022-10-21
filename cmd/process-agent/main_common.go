@@ -148,7 +148,7 @@ func runAgent(exit chan struct{}) {
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
-	err = manager.ConfigureAutoExit(mainCtx)
+	err = manager.ConfigureAutoExit(mainCtx, ddconfig.Datadog)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		cleanupAndExit(1)

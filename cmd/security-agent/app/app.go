@@ -230,7 +230,7 @@ func RunAgent(ctx context.Context) (err error) {
 		return nil
 	}
 
-	err = manager.ConfigureAutoExit(ctx)
+	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		return nil

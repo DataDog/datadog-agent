@@ -114,7 +114,7 @@ func run(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	err := manager.ConfigureAutoExit(mainCtx)
+	err := manager.ConfigureAutoExit(mainCtx, ddconfig.SystemProbe)
 	if err != nil {
 		return log.Criticalf("Unable to configure auto-exit, err: %w", err)
 	}

@@ -136,7 +136,7 @@ func Run(ctx context.Context) {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	err = manager.ConfigureAutoExit(ctx)
+	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
 	if err != nil {
 		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
 		return

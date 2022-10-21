@@ -319,7 +319,7 @@ func startAgent(cliParams *cliParams) error {
 		pkglog.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
 	}
 
-	err = manager.ConfigureAutoExit(common.MainCtx)
+	err = manager.ConfigureAutoExit(common.MainCtx, pkgconfig.Datadog)
 	if err != nil {
 		return pkglog.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
