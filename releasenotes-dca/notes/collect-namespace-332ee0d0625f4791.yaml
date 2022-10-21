@@ -6,5 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
-  - Collect K8S namespaces
+features:
+  - |
+    Add ``Namespace`` collection in the orchestrator check.

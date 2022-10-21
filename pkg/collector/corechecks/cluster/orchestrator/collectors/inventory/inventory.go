@@ -33,6 +33,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewDeploymentCollectorVersions(),
 			k8sCollectors.NewIngressCollectorVersions(),
 			k8sCollectors.NewJobCollectorVersions(),
+			k8sCollectors.NewNamespaceCollectorVersions(),
 			k8sCollectors.NewNodeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(),
@@ -43,7 +44,6 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewServiceAccountCollectorVersions(),
 			k8sCollectors.NewStatefulSetCollectorVersions(),
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
-			k8sCollectors.NewNamespaceCollectorVersions(),
 		},
 	}
 }
