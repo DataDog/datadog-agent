@@ -149,6 +149,19 @@ var (
 	// Tags: -
 	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
 
+	// Mount resolver metrics
+
+	// MetricMountResolverCacheSize is the name of the metric used to report the size of the user space
+	// mount cache
+	// Tags: -
+	MetricMountResolverCacheSize = newRuntimeMetric(".mount_resolver.cache_size")
+	// MetricMountResolverHits is the counter of successful mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverHits = newRuntimeMetric(".mount_resolver.hits")
+	// MetricDentryResolverMiss is the counter of unsuccessful mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
+
 	// Activity dump metrics
 
 	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
@@ -234,17 +247,6 @@ var (
 
 	// MetricEventMonitoringRunning is reported when the runtime-security module is running with event monitoring enabled
 	MetricEventMonitoringRunning = newAgentMetric(".event_monitoring.running")
-
-	// Runtime Compiled Constants metrics
-
-	// MetricRuntimeCompiledConstantsEnabled is used to report if the runtime compilation has succeeded
-	MetricRuntimeCompiledConstantsEnabled = newRuntimeCompiledConstantsMetric(".enabled")
-	// MetricRuntimeCompiledConstantsCompilationResult is used to report the result of the runtime compilation
-	MetricRuntimeCompiledConstantsCompilationResult = newRuntimeCompiledConstantsMetric(".compilation_result")
-	// MetricRuntimeCompiledConstantsCompilationDuration is used to report the duration of the runtime compilation
-	MetricRuntimeCompiledConstantsCompilationDuration = newRuntimeCompiledConstantsMetric(".compilation_duration")
-	// MetricRuntimeCompiledConstantsHeaderFetchResult is used to report the result of the header fetching
-	MetricRuntimeCompiledConstantsHeaderFetchResult = newRuntimeCompiledConstantsMetric(".header_fetch_result")
 
 	// RuntimeMonitor metrics
 
@@ -416,8 +418,4 @@ func newRuntimeMetric(name string) string {
 
 func newAgentMetric(name string) string {
 	return MetricAgentPrefix + name
-}
-
-func newRuntimeCompiledConstantsMetric(name string) string {
-	return newRuntimeMetric(".runtime_compilation.constants" + name)
 }

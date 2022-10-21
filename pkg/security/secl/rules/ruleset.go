@@ -318,7 +318,7 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	}
 
 	if err := rule.Parse(); err != nil {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("syntax error: %w", err)}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrRuleSyntax{Err: err}}
 	}
 
 	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {
@@ -459,6 +459,17 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 }
 
 // IsDiscarder partially evaluates an Event against a field
+func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, error) {
+	for _, rule := range rules {
+		isTrue, err := rule.PartialEval(ctx, field)
+		if err != nil || isTrue {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// IsDiscarder partially evaluates an Event against a field
 func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
@@ -473,13 +484,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	ctx := rs.pool.Get(event.GetPointer())
 	defer rs.pool.Put(ctx)
 
-	for _, rule := range bucket.rules {
-		isTrue, err := rule.PartialEval(ctx, field)
-		if err != nil || isTrue {
-			return false, err
-		}
-	}
-	return true, nil
+	return IsDiscarder(ctx, field, bucket.rules)
 }
 
 func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
@@ -568,15 +573,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				}
 			}
 
-			isDiscarder := true
-			for _, rule := range bucket.rules {
-				isTrue, err := rule.PartialEval(ctx, field)
-				if err != nil || isTrue {
-					isDiscarder = false
-					break
-				}
-			}
-			if isDiscarder {
+			if isDiscarder, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
 				rs.NotifyDiscarderFound(event, field, eventType)
 			}
 		}

@@ -407,7 +407,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
+	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -622,7 +622,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, error) {
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.PIDContext) (string, error) {
 
 	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
 		fileEvent.SetPathnameStr("")
@@ -632,7 +632,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, er
 		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields)
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, ctx)
 	if err != nil {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -669,7 +669,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
 	if entry.FileEvent.MountID != 0 {
-		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID)
+		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
 	}
 
 	return entry.FileEvent.Filesystem
@@ -703,12 +703,12 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent); err != nil {
+	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
 	} else {

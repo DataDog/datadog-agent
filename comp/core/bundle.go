@@ -13,33 +13,25 @@
 package core
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/internal/computil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
-
-var componentName = computil.GetComponentName()
 
 // BundleParams defines the parameters for this bundle.
 type BundleParams = internal.BundleParams
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fx.Module(
-	componentName,
-
+var Bundle = fxutil.Bundle(
 	config.Module,
 	log.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fx.Module(
-	componentName,
-
+var MockBundle = fxutil.Bundle(
 	config.MockModule,
 	log.Module,
 )

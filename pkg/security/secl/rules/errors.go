@@ -12,6 +12,15 @@ import (
 )
 
 var (
+	// ErrRuleWithoutID is returned when there is no ID
+	ErrRuleWithoutID = errors.New("no rule ID")
+
+	// ErrRuleWithoutExpression is returned when there is no expression
+	ErrRuleWithoutExpression = errors.New("no rule expression")
+
+	// ErrRuleWithoutExpression is returned when there is no expression
+	ErrRuleIDPattern = errors.New("rule ID pattern error")
+
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
 
@@ -29,6 +38,9 @@ var (
 
 	// ErrCannotMergeExpression is returned when trying to merge SECL expression
 	ErrCannotMergeExpression = errors.New("cannot merge expression")
+
+	// ErrRuleAgentVersion is returned when there is an agent version error
+	ErrRuleAgentVersion = errors.New("agent version incompatible")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type
@@ -104,5 +116,46 @@ type ErrRuleLoad struct {
 }
 
 func (e ErrRuleLoad) Error() string {
-	return fmt.Sprintf("rule `%s` definition error: %s", e.Definition.ID, e.Err)
+	return fmt.Sprintf("rule `%s` error: %s", e.Definition.ID, e.Err)
+}
+
+// RuleLoadErrType defines an rule error type
+type RuleLoadErrType string
+
+const (
+	// AgentVersionErrType agent version incompatible
+	AgentVersionErrType RuleLoadErrType = "agent_version_error"
+	// EventTypeNotEnabledErrType event type not enabled
+	EventTypeNotEnabledErrType RuleLoadErrType = "event_type_disabled"
+	// SyntaxErrType syntax error
+	SyntaxErrType RuleLoadErrType = "syntax_error"
+	// UnknownErrType undefined error
+	UnknownErrType RuleLoadErrType = "error"
+)
+
+// Type return the type of the error
+func (e ErrRuleLoad) Type() RuleLoadErrType {
+	switch e.Err {
+	case ErrRuleAgentVersion:
+		return AgentVersionErrType
+	case ErrEventTypeNotEnabled:
+		return EventTypeNotEnabledErrType
+	}
+
+	switch e.Err.(type) {
+	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax:
+		return SyntaxErrType
+	}
+
+	return UnknownErrType
+
+}
+
+// ErrRuleSyntax is returned when there is a syntax error
+type ErrRuleSyntax struct {
+	Err error
+}
+
+func (e *ErrRuleSyntax) Error() string {
+	return fmt.Sprintf("syntax error `%v`", e.Err)
 }

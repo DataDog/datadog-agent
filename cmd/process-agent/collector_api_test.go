@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -337,9 +336,8 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 }
 
 func TestSendPodMessageSendManifestPayload(t *testing.T) {
-	clusterID, orig, cfg, check := getPodCheckMessage()
+	clusterID, cfg, check := getPodCheckMessage(t)
 	cfg.Orchestrator.IsManifestCollectionEnabled = true
-	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
 	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, cfg, ep)
@@ -348,8 +346,7 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 }
 
 func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
-	clusterID, orig, cfg, check := getPodCheckMessage()
-	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
+	clusterID, cfg, check := getPodCheckMessage(t)
 
 	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, cfg, ep)
@@ -362,15 +359,14 @@ func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	})
 }
 
-func getPodCheckMessage() (string, string, *config.AgentConfig, checks.Check) {
+func getPodCheckMessage(t *testing.T) (string, *config.AgentConfig, checks.Check) {
 
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.Orchestrator.OrchestrationCollectionEnabled = true
 
-	orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
-	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 
 	pd := make([]process.MessageBody, 0, 2)
 	m := &process.CollectorPod{
@@ -386,7 +382,7 @@ func getPodCheckMessage() (string, string, *config.AgentConfig, checks.Check) {
 		name: checks.Pod.Name(),
 		data: [][]process.MessageBody{pd},
 	}
-	return clusterID, orig, cfg, check
+	return clusterID, cfg, check
 }
 
 func testPodMessageMetadata(t *testing.T, clusterID string, cfg *config.AgentConfig, ep *mockEndpoint) {

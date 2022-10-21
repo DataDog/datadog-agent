@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package tests
 
 import (
 	"sync"
@@ -36,6 +36,16 @@ func (s *StatsdClient) Get(key string) int64 {
 
 // Gauge does nothing and returns nil
 func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate float64) error {
+	s.Lock()
+	defer s.Unlock()
+
+	if len(tags) == 0 {
+		s.counts[name] = int64(value)
+	}
+
+	for _, tag := range tags {
+		s.counts[name+":"+tag] = int64(value)
+	}
 	return nil
 }
 
@@ -45,11 +55,11 @@ func (s *StatsdClient) Count(name string, value int64, tags []string, rate float
 	defer s.Unlock()
 
 	if len(tags) == 0 {
-		s.counts[name] = value
+		s.counts[name] += value
 	}
 
 	for _, tag := range tags {
-		s.counts[name+":"+tag] = value
+		s.counts[name+":"+tag] += value
 	}
 	return nil
 }

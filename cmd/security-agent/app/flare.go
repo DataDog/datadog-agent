@@ -12,7 +12,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -37,19 +36,8 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if flagNoColor {
-			color.NoColor = true
-		}
-
-		// Read configuration files received from the command line arguments '-c'
-		err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-		if err != nil {
-			return err
-		}
-
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+		err := config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
@@ -88,10 +76,11 @@ func requestFlare(caseID string) error {
 	}
 
 	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	sr := string(r)
 	var filePath string
 	if e != nil {
-		if r != nil && string(r) != "" {
-			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+		if r != nil && sr != "" {
+			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(sr))
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
@@ -102,14 +91,14 @@ func requestFlare(caseID string) error {
 			return e
 		}
 	} else {
-		filePath = string(r)
+		filePath = sr
 	}
 
-	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
+	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
 	if !autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
 		if !confirmation {
-			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
+			fmt.Fprintf(color.Output, "Aborting. (You can still use %s)\n", color.YellowString(filePath))
 			return nil
 		}
 	}
