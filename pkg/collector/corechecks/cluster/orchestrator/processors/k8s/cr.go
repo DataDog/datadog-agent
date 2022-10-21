@@ -10,12 +10,11 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -74,8 +73,10 @@ func (crd *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resourc
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 func (crd *CRHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
-	annotations := resource.(*unstructured.Unstructured).GetAnnotations()
-	redact.RemoveLastAppliedConfigurationAnnotation(annotations) // todo: update because its not a pointer
+	r := resource.(*unstructured.Unstructured)
+	annotations := r.GetAnnotations()
+	redact.RemoveLastAppliedConfigurationAnnotation(annotations)
+	r.SetAnnotations(annotations)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
