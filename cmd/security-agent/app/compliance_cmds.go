@@ -8,10 +8,11 @@ package app
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
-func ComplianceCommands(globalParams *GlobalParams) []*cobra.Command {
+func ComplianceCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "Compliance Agent utility commands",
@@ -24,7 +25,7 @@ func ComplianceCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 type eventCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	sourceName string
 	sourceType string
@@ -32,7 +33,7 @@ type eventCliParams struct {
 	data       []string
 }
 
-func complianceEventCommand(globalParams *GlobalParams) *cobra.Command {
+func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 	eventArgs := eventCliParams{
 		GlobalParams: globalParams,
 	}

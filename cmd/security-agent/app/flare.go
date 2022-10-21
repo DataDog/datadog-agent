@@ -12,6 +12,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -19,13 +20,13 @@ import (
 )
 
 type flareCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	customerEmail string
 	autoconfirm   bool
 }
 
-func FlareCommands(globalParams *GlobalParams) []*cobra.Command {
+func FlareCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := flareCliParams{
 		GlobalParams: globalParams,
 	}

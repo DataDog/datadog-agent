@@ -11,6 +11,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -19,7 +20,7 @@ import (
 )
 
 type activityDumpCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	comm                     string
 	file                     string
@@ -33,7 +34,7 @@ type activityDumpCliParams struct {
 	remoteRequest            bool
 }
 
-func activityDumpCommands(globalParams *GlobalParams) []*cobra.Command {
+func activityDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
@@ -46,7 +47,7 @@ func activityDumpCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpCmd}
 }
 
-func listCommands(globalParams *GlobalParams) []*cobra.Command {
+func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
@@ -58,7 +59,7 @@ func listCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpListCmd}
 }
 
-func stopCommands(globalParams *GlobalParams) []*cobra.Command {
+func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -81,7 +82,7 @@ func stopCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpStopCmd}
 }
 
-func generateCommands(globalParams *GlobalParams) []*cobra.Command {
+func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	activityDumpGenerateCmd := &cobra.Command{
 		Use:   "generate",
 		Short: "generate command for activity dumps",
@@ -93,7 +94,7 @@ func generateCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpGenerateCmd}
 }
 
-func generateDumpCommands(globalParams *GlobalParams) []*cobra.Command {
+func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -158,7 +159,7 @@ func generateDumpCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpGenerateDumpCmd}
 }
 
-func generateEncodingCommands(globalParams *GlobalParams) []*cobra.Command {
+func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := activityDumpCliParams{
 		GlobalParams: globalParams,
 	}

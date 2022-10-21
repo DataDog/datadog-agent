@@ -28,7 +28,8 @@ import (
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -63,14 +64,8 @@ var (
 	stopper      startstop.Stopper
 )
 
-type GlobalParams struct {
-	confPathArray []string
-}
-
-type SubcommandFactory func(*GlobalParams) []*cobra.Command
-
 func CreateSecurityAgentCmd() *cobra.Command {
-	globalParams := GlobalParams{}
+	globalParams := common.GlobalParams{}
 	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
@@ -84,7 +79,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 				color.NoColor = true
 			}
 
-			return common.MergeConfigurationFiles("datadog", globalParams.confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			return secagentcommon.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 		},
 	}
 
@@ -92,10 +87,10 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
-	factories := []SubcommandFactory{
+	factories := []common.SubcommandFactory{
 		StatusCommands,
 		FlareCommands,
 		ConfigCommands,

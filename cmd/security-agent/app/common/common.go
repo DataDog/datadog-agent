@@ -3,16 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || !kubeapiserver
+package common
 
-package app
+import "github.com/spf13/cobra"
 
-import (
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-)
-
-func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	return nil
+type GlobalParams struct {
+	ConfPathArray []string
 }
+
+type SubcommandFactory func(*GlobalParams) []*cobra.Command

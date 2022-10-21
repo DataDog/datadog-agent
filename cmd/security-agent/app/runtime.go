@@ -23,6 +23,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -51,7 +52,7 @@ const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
-func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
+func RuntimeCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
 		Short: "runtime Agent utility commands",
@@ -70,12 +71,12 @@ func RuntimeCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 type checkPoliciesCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	dir string
 }
 
-func checkPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -94,7 +95,7 @@ func checkPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
-func reloadPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
@@ -106,7 +107,7 @@ func reloadPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{reloadPoliciesCmd}
 }
 
-func commonPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
+func commonPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	commonPolicyCmd := &cobra.Command{
 		Use:   "policy",
 		Short: "Policy related commands",
@@ -121,7 +122,7 @@ func commonPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 type evalCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	dir       string
 	ruleID    string
@@ -129,7 +130,7 @@ type evalCliParams struct {
 	debug     bool
 }
 
-func evalCommands(globalParams *GlobalParams) []*cobra.Command {
+func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	evalArgs := evalCliParams{
 		GlobalParams: globalParams,
 	}
@@ -152,7 +153,7 @@ func evalCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{evalCmd}
 }
 
-func commonCheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -170,7 +171,7 @@ func commonCheckPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
 
-func commonReloadPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
+func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
@@ -181,7 +182,7 @@ func commonReloadPoliciesCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
-func selfTestCommands(globalParams *GlobalParams) []*cobra.Command {
+func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
@@ -194,13 +195,13 @@ func selfTestCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 type downloadPolicyCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	check      bool
 	outputPath string
 }
 
-func downloadPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
+func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	downloadPolicyArgs := downloadPolicyCliParams{
 		GlobalParams: globalParams,
 	}
@@ -220,12 +221,12 @@ func downloadPolicyCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 type processCacheDumpCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	withArgs bool
 }
 
-func processCacheCommands(globalParams *GlobalParams) []*cobra.Command {
+func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := processCacheDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -249,12 +250,12 @@ func processCacheCommands(globalParams *GlobalParams) []*cobra.Command {
 }
 
 type dumpNetworkNamespaceCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	snapshotInterfaces bool
 }
 
-func networkNamespaceCommands(globalParams *GlobalParams) []*cobra.Command {
+func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
 	}
@@ -277,7 +278,7 @@ func networkNamespaceCommands(globalParams *GlobalParams) []*cobra.Command {
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
-func discardersCommands(globalParams *GlobalParams) []*cobra.Command {
+func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
