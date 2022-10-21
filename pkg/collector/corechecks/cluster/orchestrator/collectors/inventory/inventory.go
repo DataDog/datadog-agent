@@ -55,10 +55,10 @@ func (ci *CollectorInventory) CollectorForCustomResource(collectorName string) (
 	if _, ok := ci.crCollectors[collectorName]; ok {
 		return nil, fmt.Errorf("collector %s has already been added", collectorName)
 	}
-	// TODO: maybe check discover here
+	// TODO: check discover here -> does the CRD exist? does the agent try to collect pods again?
 	collector := k8sCollectors.NewCRCollectorVersions(collectorName)
-	ci.crCollectors[collectorName] = collector.Collectors[0]
-	return collector.Collectors[0], nil // TODO: there is no play to have more than one collector versions per collector, but this is hacky and should be revisited
+	ci.crCollectors[collectorName] = collector
+	return collector, nil
 }
 
 // CollectorForDefaultVersion retrieves a collector given its name. It returns an error if the
