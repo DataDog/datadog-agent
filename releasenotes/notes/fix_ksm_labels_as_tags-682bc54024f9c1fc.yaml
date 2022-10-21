@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    In ``kubernetes_state_core`` check, fix the `labels_as_tags` feature when the same kubernetes label must be turned into different datadog tag, depending on the resource kind like with::
+    In ``kubernetes_state_core`` check, fix the `labels_as_tags` feature when the same Kubernetes label must be turned into different Datadog tags, depending on the resource:
 
        labels_as_tags:
          daemonset:
