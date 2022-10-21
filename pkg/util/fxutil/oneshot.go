@@ -37,7 +37,6 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	opts = append(opts,
 		delayedCall.option(),
 		fxLoggingOption(),
-		fxErrorHandler(),
 	)
 	app := fx.New(opts...)
 

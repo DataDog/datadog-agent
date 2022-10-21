@@ -12,14 +12,12 @@ import (
 	"go.uber.org/fx/fxevent"
 )
 
-var traceFx = "TRACE_FX"
-
 // fxLoggingOption creates an fx.Option to configure the Fx logger, either to do nothing
 // (the default) or to log to the console (when TRACE_FX is set).
 func fxLoggingOption() fx.Option {
 	return fx.WithLogger(
 		func() fxevent.Logger {
-			if os.Getenv(traceFx) == "" {
+			if os.Getenv("TRACE_FX") == "" {
 				return fxevent.NopLogger
 			}
 			return &fxevent.ConsoleLogger{W: os.Stderr}
