@@ -30,6 +30,8 @@ const (
 	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filer
 	ProtocolClassifierSocketFilter ProbeName = "socket/classifier"
 
+	NetDevQueue ProbeName = "tracepoint/net/net_dev_queue"
+
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeName = "kprobe/tcp_sendmsg"
 

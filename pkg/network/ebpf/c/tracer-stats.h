@@ -58,19 +58,24 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     t2.netns = 0;
     t2.pid = 0;
 
-    protocol_t *protocol = bpf_map_lookup_elem(&connection_protocol, &t2);
-    if (protocol != NULL) {
-        local_protocol = *protocol;
-    }
+    if (sk != NULL) {
+        log_debug("[update_conn_stats]: connection_protocol key: %p\n", sk);
+        protocol_t *protocol = bpf_map_lookup_elem(&connection_protocol, &sk);
+        if (protocol != NULL) {
+            local_protocol = *protocol;
+        }
 
-    // We update the protocol if the new protocol is known, and we don't already have a known protocol.
-    if (local_protocol != PROTOCOL_UNCLASSIFIED && val->protocol == PROTOCOL_UNCLASSIFIED) {
-        log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", local_protocol);
-        val->protocol = local_protocol;
-    } else if (local_protocol != PROTOCOL_UNCLASSIFIED && val->protocol != PROTOCOL_UNKNOWN && val->protocol != local_protocol) {
-        // If the new protocol was classified, the current protocol is classified and it is known, then there is a possible error.
-        // If the current protocol is "unknown" and we managed to classify it to another protocol -> that's a reasonable and expected scenario.
-        log_debug("[update_conn_stats]: A classified connection (%d) has been re-classified with protocol %d\n", val->protocol, local_protocol);
+        // We update the protocol if the new protocol is known, and we don't already have a known protocol.
+        if (local_protocol != PROTOCOL_UNCLASSIFIED && val->protocol == PROTOCOL_UNCLASSIFIED) {
+            log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", local_protocol);
+            val->protocol = local_protocol;
+        } else if (local_protocol != PROTOCOL_UNCLASSIFIED && val->protocol != PROTOCOL_UNKNOWN && val->protocol != local_protocol) {
+            // If the new protocol was classified, the current protocol is classified and it is known, then there is a possible error.
+            // If the current protocol is "unknown" and we managed to classify it to another protocol -> that's a reasonable and expected scenario.
+            log_debug("[update_conn_stats]: A classified connection (%d) has been re-classified with protocol %d\n", val->protocol, local_protocol);
+        }
+    } else {
+        log_debug("[update_conn_stats]: sk is NULL %d\n", local_protocol);
     }
 
     // If already in our map, increment size in-place

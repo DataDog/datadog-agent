@@ -843,6 +843,46 @@ cleanup:
     return 0;
 }
 
+// Creates conn_tuple_t from the sk_buff, and caches the socket pointer for the conn_tuple in the map conn_tuple_to_socket_map.
+static __always_inline void cache_socket_to_pre_nat_conn_tuple(struct sk_buff* skb) {
+    struct sock* sk;
+    bpf_probe_read(&sk, sizeof(struct sock*), &skb->sk);
+    if (!sk) {
+        return;
+    }
+
+    conn_tuple_t skb_tup;
+    __builtin_memset(&skb_tup, 0, sizeof(skb_tup));
+
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return;
+    }
+
+    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
+        return;
+    }
+
+    bpf_map_update_elem(&conn_tuple_to_socket_map, &skb_tup, &sk, BPF_ANY);
+}
+
+// Represents the parameters being passed to the tracepoint net/net_dev_queue
+struct net_dev_queue_ctx {
+    u64 unused;
+    struct sk_buff* skb;
+};
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+
+    cache_socket_to_pre_nat_conn_tuple(sk, skb);
+
+    return 0;
+}
+
 //endregion
 
 // This number will be interpreted by elf-loader to set the current running kernel version

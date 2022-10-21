@@ -192,7 +192,13 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     __builtin_memset(request_fragment, 0, sizeof(request_fragment));
     read_into_buffer_skb_post_4_5_0((char *)request_fragment, skb, &skb_info);
 
-    protocol_t *protocol = bpf_map_lookup_elem(&connection_protocol, &tup);
+    struct sock **protocol_key_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_map, &tup);
+    if (protocol_key_ptr == NULL) {
+        log_debug("[protocol dispatcher]: protocol_key_ptr is null, aborting\n");
+        return;
+    }
+    struct sock **protocol_key = protocol_key_ptr;
+    protocol_t *protocol = bpf_map_lookup_elem(&connection_protocol, protocol_key);
     protocol_t local_protocol = PROTOCOL_UNCLASSIFIED;
     if (protocol != NULL) {
         local_protocol = *protocol;
@@ -201,7 +207,7 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     classify_protocol(&local_protocol, request_fragment, sizeof(request_fragment));
 
     log_debug("[protocol dispatcher]: Calling protocol: %d\n", local_protocol);
-    bpf_map_update_with_telemetry(connection_protocol, &tup, &local_protocol, BPF_ANY);
+    bpf_map_update_with_telemetry(connection_protocol, protocol_key, &local_protocol, BPF_ANY);
 }
 
 #endif
