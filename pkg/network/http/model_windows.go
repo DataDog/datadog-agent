@@ -11,6 +11,7 @@ package http
 import (
 	"bytes"
 	"encoding/binary"
+
 	//"encoding/hex"
 	"errors"
 	"fmt"
@@ -276,6 +277,7 @@ func (tx *etwHttpTX) DynamicTags() []string {
 	return []string{
 		fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 		fmt.Sprintf("http.iis.site:%v", tx.SiteID),
+		fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
 		fmt.Sprintf("service:%v", tx.AppPool),
 	}
 }
