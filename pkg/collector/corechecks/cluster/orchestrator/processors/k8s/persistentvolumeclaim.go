@@ -21,7 +21,7 @@ import (
 
 // PersistentVolumeClaimHandlers implements the Handlers interface for Kubernetes PersistentVolumeClaims.
 type PersistentVolumeClaimHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

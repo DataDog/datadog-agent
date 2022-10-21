@@ -21,7 +21,7 @@ import (
 
 // DeploymentHandlers implements the Handlers interface for Kubernetes Deployments.
 type DeploymentHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

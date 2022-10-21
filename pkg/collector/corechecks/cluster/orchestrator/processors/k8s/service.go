@@ -21,7 +21,7 @@ import (
 
 // ServiceHandlers implements the Handlers interface for Kubernetes Services.
 type ServiceHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

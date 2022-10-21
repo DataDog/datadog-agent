@@ -20,7 +20,7 @@ import (
 
 // CronJobV1Handlers implements the Handlers interface for Kubernetes CronJobs.
 type CronJobV1Handlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

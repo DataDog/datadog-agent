@@ -21,7 +21,7 @@ import (
 
 // JobHandlers implements the Handlers interface for Kubernetes Jobs.
 type JobHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

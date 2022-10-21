@@ -21,7 +21,7 @@ import (
 
 // NodeHandlers implements the Handlers interface for Kubernetes Nodes.
 type NodeHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

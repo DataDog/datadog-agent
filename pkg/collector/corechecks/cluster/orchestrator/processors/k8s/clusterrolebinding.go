@@ -21,7 +21,7 @@ import (
 
 // ClusterRoleBindingHandlers implements the Handlers interface for Kubernetes ClusteRoleBindings.
 type ClusterRoleBindingHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

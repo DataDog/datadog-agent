@@ -21,7 +21,7 @@ import (
 
 // DaemonSetHandlers implements the Handlers interface for Kubernetes DaemonSets.
 type DaemonSetHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

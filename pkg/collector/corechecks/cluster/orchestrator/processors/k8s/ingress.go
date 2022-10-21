@@ -21,7 +21,7 @@ import (
 
 // IngressHandlers implements the Handlers interface for Kubernetes Ingresss.
 type IngressHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

@@ -21,7 +21,7 @@ import (
 
 // StatefulSetHandlers implements the Handlers interface for Kubernetes StatefulSets.
 type StatefulSetHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

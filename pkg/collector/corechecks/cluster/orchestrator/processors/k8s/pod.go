@@ -30,7 +30,7 @@ import (
 
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
 type PodHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

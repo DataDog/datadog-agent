@@ -21,7 +21,7 @@ import (
 
 // RoleBindingHandlers implements the Handlers interface for Kubernetes RoleBindings.
 type RoleBindingHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

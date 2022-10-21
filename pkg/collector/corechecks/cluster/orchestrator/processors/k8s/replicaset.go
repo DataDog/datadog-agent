@@ -21,7 +21,7 @@ import (
 
 // ReplicaSetHandlers implements the Handlers interface for Kubernetes ReplicaSets.
 type ReplicaSetHandlers struct {
-	BaseHandler
+	BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
