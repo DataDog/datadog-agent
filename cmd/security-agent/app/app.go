@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -55,8 +56,7 @@ import (
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName    coreconfig.LoggerName = "SECURITY"
-	loggerNameStr                       = string(loggerName)
+	loggerName coreconfig.LoggerName = common.LoggerName
 )
 
 var (
@@ -93,7 +93,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	factories := []common.SubcommandFactory{
-		StatusCommands,
+		status.Commands,
 		FlareCommands,
 		ConfigCommands,
 		ComplianceCommands,

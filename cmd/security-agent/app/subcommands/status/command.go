@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package status
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ type statusCliParams struct {
 	file            string
 }
 
-func StatusCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := &statusCliParams{
 		GlobalParams: globalParams,
 	}
@@ -46,7 +46,7 @@ func StatusCommands(globalParams *common.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
 					ConfigLoadSecurityAgent:      true,
-				}.LogForOneShot(loggerNameStr, "off", true)),
+				}.LogForOneShot(common.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},
