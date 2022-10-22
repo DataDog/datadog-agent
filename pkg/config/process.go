@@ -95,6 +95,7 @@ func procBindEnv(config Config, key string) {
 }
 
 func setupProcesses(config Config) {
+	config.SetKnown("process_agent_enabled")
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")

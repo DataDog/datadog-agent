@@ -176,18 +176,8 @@ int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {
     return sys_unlink_ret(ctx, retval);
 }
 
-SEC("tracepoint/syscalls/sys_exit_unlink")
-int tracepoint_syscalls_sys_exit_unlink(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_unlink_ret(args, args->ret);
-}
-
 SYSCALL_KRETPROBE(unlink) {
     return kprobe_sys_unlink_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_unlinkat")
-int tracepoint_syscalls_sys_exit_unlinkat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_unlink_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(unlinkat) {

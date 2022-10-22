@@ -81,9 +81,9 @@ func validateEventSchema(t *testing.T, event *sprobe.Event, path string) bool {
 }
 
 //nolint:deadcode,unused
-func validateStringSchema(t *testing.T, ad string, path string) bool {
+func validateStringSchema(t *testing.T, event string, path string) bool {
 	t.Helper()
-	return validateSchema(t, ad, path)
+	return validateSchema(t, event, path)
 }
 
 //nolint:deadcode,unused
@@ -210,4 +210,10 @@ func validateBindSchema(t *testing.T, event *sprobe.Event) bool {
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")
+}
+
+//nolint:deadcode,unused
+func validateRuleSetLoadedSchema(t *testing.T, event *sprobe.CustomEvent) bool {
+	t.Helper()
+	return validateStringSchema(t, event.String(), "file:///schemas/ruleset_loaded.schema.json")
 }

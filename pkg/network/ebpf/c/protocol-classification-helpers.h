@@ -5,6 +5,7 @@
 
 #include "protocol-classification-defs.h"
 #include "protocol-classification-maps.h"
+#include "bpf_builtins.h"
 #include "ip.h"
 
 // Patch to support old kernels that does not support bpf_skb_load_bytes, by adding a dummy implementation.
@@ -173,6 +174,9 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
+    if (skb == NULL) {
+        return;
+    }
     skb_info_t skb_info = {0};
     conn_tuple_t tup = {0};
 
@@ -188,8 +192,8 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         return;
     }
 
-     char request_fragment[CLASSIFICATION_MAX_BUFFER];
-    __builtin_memset(request_fragment, 0, sizeof(request_fragment));
+    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
     read_into_buffer_skb_post_4_5_0((char *)request_fragment, skb, &skb_info);
 
     struct sock **protocol_key_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_map, &tup);

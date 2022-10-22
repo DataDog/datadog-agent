@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -67,10 +68,6 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
 	ddconfig.Datadog.Set("disable_file_logging", true)
 
-	// We need to load in the system probe environment variables before we load the config, otherwise an
-	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
 	configPath := cmd.Flag(flags.CfgPath).Value.String()
 	var sysprobePath string
 	if cmd.Flag(flags.SysProbeConfig) != nil {
@@ -82,7 +79,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(sysprobePath)
+	syscfg, err := sysconfig.New(sysprobePath)
 	if err != nil {
 		return log.Critical(err)
 	}
@@ -132,6 +129,14 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 			c()
 		}
 	}()
+
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
+
+	if checks.Process.SysprobeProcessModuleEnabled {
+		net.SetSystemProbePath(cfg.SystemProbeAddress)
+	}
+
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if check == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data

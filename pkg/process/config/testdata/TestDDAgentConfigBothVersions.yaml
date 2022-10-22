@@ -3,5 +3,3 @@ api_key: apikey_20
 process_config:
   process_dd_url: http://my-process-app.datadoghq.com
   queue_size: 10
-  windows:
-      args_refresh_interval: 40

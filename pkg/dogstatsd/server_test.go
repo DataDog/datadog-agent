@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -933,12 +932,8 @@ dogstatsd_mapper_profiles:
 
 func TestNewServerExtraTags(t *testing.T) {
 	// restore env/config after having runned the test
-	e := os.Getenv("DD_TAGS")
-	ed := os.Getenv("DD_DOGSTATSD_TAGS")
 	p := config.Datadog.Get("dogstatsd_port")
 	defer func() {
-		os.Setenv("DD_TAGS", e)
-		os.Setenv("DD_DOGSTATSD_TAGS", ed)
 		config.Datadog.SetDefault("dogstatsd_port", p)
 	}()
 
@@ -955,7 +950,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
-	os.Setenv("DD_TAGS", "hello:world")
+	t.Setenv("DD_TAGS", "hello:world")
 	demux = mockDemultiplexer()
 	s, err = NewServer(demux, false)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")
@@ -964,7 +959,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
-	os.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
+	t.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
 	demux = mockDemultiplexer()
 	s, err = NewServer(demux, false)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")
@@ -975,7 +970,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 }
 
-func TestProcessedMetricsOrigin(t *testing.T) {
+func testProcessedMetricsOrigin(t *testing.T) {
 	assert := assert.New(t)
 
 	demux := mockDemultiplexer()
@@ -1053,7 +1048,16 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
 }
 
-func TestContainerIDParsing(t *testing.T) {
+func TestProcessedMetricsOrigin(t *testing.T) {
+	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
+	for _, enabled := range []bool{true, false} {
+		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testProcessedMetricsOrigin)
+	}
+}
+
+func testContainerIDParsing(t *testing.T) {
 	assert := assert.New(t)
 
 	s, err := NewServer(mockDemultiplexer(), false)
@@ -1080,4 +1084,65 @@ func TestContainerIDParsing(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
 	assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+}
+
+func TestContainerIDParsing(t *testing.T) {
+	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
+	for _, enabled := range []bool{true, false} {
+		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testContainerIDParsing)
+	}
+}
+
+func testOriginOptout(t *testing.T, enabled bool) {
+	assert := assert.New(t)
+
+	s, err := NewServer(mockDemultiplexer(), false)
+	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s.Stop()
+
+	parser := newParser(newFloat64ListPool())
+	parser.dsdOriginEnabled = true
+
+	// Metric
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", false)
+	assert.NoError(err)
+	assert.Len(metrics, 1)
+	if enabled {
+		assert.Equal("", metrics[0].OriginFromClient)
+	} else {
+		assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
+	}
+
+	// Event
+	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
+	assert.NoError(err)
+	assert.NotNil(event)
+	if enabled {
+		assert.Equal("", metrics[0].OriginFromClient)
+	} else {
+		assert.Equal("container_id://event-container", event.OriginFromClient)
+	}
+
+	// Service check
+	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
+	assert.NoError(err)
+	assert.NotNil(serviceCheck)
+	if enabled {
+		assert.Equal("", serviceCheck.OriginFromClient)
+	} else {
+		assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+	}
+}
+
+func TestOriginOptout(t *testing.T) {
+	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
+	for _, enabled := range []bool{true, false} {
+		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), func(t *testing.T) {
+			testOriginOptout(t, enabled)
+		})
+	}
 }

@@ -136,6 +136,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 /*
@@ -160,7 +161,8 @@ type Http struct {
 	// if such tracking is desired
 	//
 	// Url           string
-	SiteID uint32
+	SiteID   uint32
+	SiteName string
 	// HeaderLength  uint32
 	// ContentLength uint32
 }
@@ -245,10 +247,13 @@ var (
 	transferedETWBytesPayload uint64
 
 	lastSummaryTime time.Time
+
+	iisConfig *winutil.DynamicIISConfig
 )
 
 func init() {
 	initializeEtwHttpServiceSubscription()
+
 }
 
 func cleanupActivityIdViaConnOpen(connOpen *ConnOpen, activityId C.DDGUID) {
@@ -748,6 +753,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *C.DD_ETW_EVENT_INFO) {
 
 	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = binary.LittleEndian.Uint32(userData[16:24])
+	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromId(httpConnLink.http.SiteID)
 	// Parse url
 	if urlOffset > len(userData) {
 		parsingErrorCount++
@@ -894,6 +900,7 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *C.DD_ETW_EVENT_IN
 
 		// <<<MORE ETW HttpService DETAILS>>>
 		httpConnLink.http.SiteID = cacheEntry.http.SiteID
+		httpConnLink.http.SiteName = iisConfig.GetSiteNameFromId(cacheEntry.http.SiteID)
 
 		completeReqRespTracking(eventInfo, httpConnLink)
 		servedFromCache++
@@ -1291,9 +1298,25 @@ func SetEnabledProtocols(http, https bool) {
 func startEtwHttpServiceSubscription() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
+	var err error
+	iisConfig, err = winutil.NewDynamicIISConfig()
+	if err != nil {
+		log.Warnf("Failed to create iis config %v", err)
+		iisConfig = nil
+	} else {
+		err = iisConfig.Start()
+		if err != nil {
+			log.Warnf("Failed to start iis config %v", err)
+			iisConfig = nil
+		}
+	}
 }
 
 func stopEtwHttpServiceSubscription() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()
+	if iisConfig != nil {
+		iisConfig.Stop()
+		iisConfig = nil
+	}
 }

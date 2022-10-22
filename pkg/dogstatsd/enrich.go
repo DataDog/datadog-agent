@@ -22,6 +22,18 @@ var (
 	CardinalityTagPrefix = "dd.internal.card:"
 )
 
+// enrichConfig contains static parameters used in various enrichment
+// procedures for metrics, events and service checks.
+type enrichConfig struct {
+	metricPrefix              string
+	metricPrefixBlacklist     []string
+	metricBlocklist           []string
+	defaultHostname           string
+	entityIDPrecedenceEnabled bool
+	serverlessMode            bool
+	originOptOutEnabled       bool
+}
+
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
 //
 // The following tables explain how the origins are chosen.
@@ -47,8 +59,8 @@ var (
 // | empty                  | not empty       || container prefix + originFromMsg    |
 // | none                   | not empty       || container prefix + originFromMsg    |
 //  ---------------------------------------------------------------------------------
-func extractTagsMetadata(tags []string, defaultHostname, originFromUDS string, originFromMsg []byte, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
-	host := defaultHostname
+func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, conf enrichConfig) ([]string, string, string, string, string) {
+	host := conf.defaultHostname
 
 	n := 0
 	originFromTag, cardinality := "", ""
@@ -69,7 +81,7 @@ func extractTagsMetadata(tags []string, defaultHostname, originFromUDS string, o
 	udsOrigin := ""
 	// We use the UDS socket origin if no origin ID was specify in the tags
 	// or 'dogstatsd_entity_id_precedence' is set to False (default false).
-	if originFromTag == "" || !entityIDPrecedenceEnabled {
+	if originFromTag == "" || !conf.entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
 		udsOrigin = originFromUDS
 	}
@@ -88,6 +100,12 @@ func extractTagsMetadata(tags []string, defaultHostname, originFromUDS string, o
 		// originFromMsg is the container id sent by the newer clients.
 		// Opt-in is handled when parsing.
 		originFromClient = containers.BuildTaggerEntityName(string(originFromMsg))
+	}
+
+	if conf.originOptOutEnabled && cardinality == "none" {
+		udsOrigin = ""
+		originFromClient = ""
+		cardinality = ""
 	}
 
 	return tags, host, udsOrigin, originFromClient, cardinality
@@ -139,20 +157,19 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
-	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, conf enrichConfig) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, ddSample.containerID, entityIDPrecedenceEnabled)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(ddSample.tags, origin, ddSample.containerID, conf)
 
-	if !isExcluded(metricName, namespace, excludedNamespaces) {
-		metricName = namespace + metricName
+	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
+		metricName = conf.metricPrefix + metricName
 	}
 
-	if len(metricBlocklist) > 0 && isMetricBlocklisted(metricName, metricBlocklist) {
+	if len(conf.metricBlocklist) > 0 && isMetricBlocklisted(metricName, conf.metricBlocklist) {
 		return []metrics.MetricSample{}
 	}
 
-	if serverlessMode { // we don't want to set the host while running in serverless mode
+	if conf.serverlessMode { // we don't want to set the host while running in serverless mode
 		hostnameFromTags = ""
 	}
 
@@ -221,8 +238,8 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
 	return metrics.EventAlertTypeSuccess
 }
 
-func enrichEvent(event dogstatsdEvent, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.Event {
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(event.tags, defaultHostname, origin, event.containerID, entityIDPrecedenceEnabled)
+func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metrics.Event {
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(event.tags, origin, event.containerID, conf)
 
 	enrichedEvent := &metrics.Event{
 		Title:            event.title,
@@ -260,8 +277,8 @@ func enrichServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSta
 	return metrics.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.ServiceCheck {
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(serviceCheck.tags, defaultHostname, origin, serviceCheck.containerID, entityIDPrecedenceEnabled)
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *metrics.ServiceCheck {
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(serviceCheck.tags, origin, serviceCheck.containerID, conf)
 
 	enrichedServiceCheck := &metrics.ServiceCheck{
 		CheckName:        serviceCheck.name,

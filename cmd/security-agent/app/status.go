@@ -11,10 +11,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -44,17 +42,7 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	if flagNoColor {
-		color.NoColor = true
-	}
-
-	// Read configuration files received from the command line arguments '-c'
-	err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-	if err != nil {
-		return err
-	}
-
-	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		return log.Errorf("Cannot setup logger, exiting: %v", err)
 	}

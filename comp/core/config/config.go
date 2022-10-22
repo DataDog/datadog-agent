@@ -13,7 +13,6 @@ import (
 
 	"go.uber.org/fx"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -41,13 +40,6 @@ func newConfig(deps dependencies) (Component, error) {
 		!deps.Params.ConfigMissingOK)
 	if err != nil {
 		return nil, err
-	}
-
-	if deps.Params.ConfigLoadSysProbe {
-		_, err := sysconfig.Merge(deps.Params.SysProbeConfFilePath)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &cfg{warnings}, nil

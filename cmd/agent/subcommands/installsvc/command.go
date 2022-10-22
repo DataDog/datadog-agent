@@ -26,9 +26,10 @@ import (
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "installservice",
-		Short: "Installs the agent within the service control manager",
-		Long:  ``,
+		Use:     "install-service",
+		Aliases: []string{"installservice"},
+		Short:   "Installs the agent within the service control manager",
+		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(installService)
 		},

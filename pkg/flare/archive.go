@@ -266,7 +266,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not zip exp var: %s", err)
 	}
 
-	if config.Datadog.GetBool("system_probe_config.enabled") {
+	if config.SystemProbe.GetBool("system_probe_config.enabled") {
 		err = zipSystemProbeStats(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip system probe exp var stats: %s", err)
@@ -545,7 +545,7 @@ func zipExpVar(tempDir, hostname string) error {
 }
 
 func zipSystemProbeStats(tempDir, hostname string) error {
-	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeStats := status.GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return err

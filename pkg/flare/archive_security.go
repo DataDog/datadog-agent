@@ -184,7 +184,7 @@ func zipComplianceFiles(tempDir, hostname string, permsInfos permissionsInfos) e
 }
 
 func zipRuntimeFiles(tempDir, hostname string, permsInfos permissionsInfos) error {
-	runtimeDir := config.Datadog.GetString("runtime_security_config.policies.dir")
+	runtimeDir := config.SystemProbe.GetString("runtime_security_config.policies.dir")
 
 	if permsInfos != nil {
 		addParentPerms(runtimeDir, permsInfos)

@@ -52,7 +52,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := NewMountResolver(probe)
+	mountResolver, err := NewMountResolver(probe.statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -89,13 +89,13 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 }
 
 // resolveFileFieldsPath resolves the inode to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
+	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID, ctx.Pid)
 	if mountErr != nil {
 		return pathStr, mountErr
 	}
@@ -264,7 +264,7 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}

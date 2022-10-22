@@ -3,17 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build process
-// +build process
-
-package common
+package sysprobeconfig
 
 import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// SetupSystemProbeConfig reads the system-probe.yaml into the global config object
-func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
-	_, err := sysconfig.Merge(sysProbeConfFilePath)
-	return err
+func setupConfig(confFilePath string) (*config.Warnings, error) {
+	_, err := sysconfig.New(confFilePath)
+	return nil, err
 }

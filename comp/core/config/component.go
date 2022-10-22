@@ -20,8 +20,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/internal/computil"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -58,14 +58,14 @@ type Component interface {
 	// GetTime gets a time as a config parameter value.
 	GetTime(key string) time.Time
 
-	// GetTime gets a duration as a config parameter value, parsing common suffixes.
+	// GetDuration gets a duration as a config parameter value, parsing common suffixes.
 	// Bare integers are treated as nanoseconds.
 	GetDuration(key string) time.Duration
 
-	// GetTime gets a slice of strings (represented as a list in the source YAML)
+	// GetStringSlice gets a slice of strings (represented as a list in the source YAML)
 	GetStringSlice(key string) []string
 
-	// GetTime gets a slice of floats (represented as a list in the source
+	// GetFloat64SliceE gets a slice of floats (represented as a list in the source
 	// YAML) as a config parameter value, returning an error if any of the
 	// values cannot be parsed
 	GetFloat64SliceE(key string) ([]float64, error)
@@ -121,16 +121,12 @@ type Mock interface {
 	Set(key string, value interface{})
 }
 
-var componentName = computil.GetComponentName()
-
 // Module defines the fx options for this component.
-var Module = fx.Module(
-	componentName,
+var Module = fxutil.Component(
 	fx.Provide(newConfig),
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fx.Module(
-	componentName,
+var MockModule = fxutil.Component(
 	fx.Provide(newMock),
 )

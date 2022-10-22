@@ -116,6 +116,9 @@ func (m *Monitor) SendStats() error {
 		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send namespace_resolver stats: %w", err)
 		}
+		if err := resolvers.MountResolver.SendStats(); err != nil {
+			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
+		}
 	}
 
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
@@ -168,14 +171,11 @@ type RuleSetLoadedReport struct {
 	Event *CustomEvent
 }
 
-// PrepareRuleSetLoadedReport prepares a report of new loaded ruleset
-func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multierror.Error) RuleSetLoadedReport {
-	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
-	return RuleSetLoadedReport{Rule: r, Event: ev}
-}
-
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
+func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
+	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
+	report := RuleSetLoadedReport{Rule: r, Event: ev}
+
 	if err := m.probe.statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}

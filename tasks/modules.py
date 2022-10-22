@@ -1,7 +1,10 @@
 import os
+import re
 import subprocess
 import sys
 from contextlib import contextmanager
+
+FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
 
 
 class GoModule:
@@ -65,6 +68,16 @@ class GoModule:
             return ["6" + agent_version[1:], "7" + agent_version[1:]]
 
         return [f"{self.path}/{self.__version(agent_version)}"]
+
+    def codecov_path(self):
+        """Return the path of the Go module, normalized to satisfy Codecov
+        restrictions on flags.
+        https://docs.codecov.com/docs/flags
+        """
+        if self.path == ".":
+            return "main"
+
+        return re.sub(FORBIDDEN_CODECOV_FLAG_CHARS, '_', self.path)
 
     def full_path(self):
         """Return the absolute path of the Go module."""

@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -98,11 +99,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: true,
+					ConfFilePath:         globalParams.ConfFilePath,
+					SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+					ConfigLoadSecrets:    true,
 					// TODO: when implementing `datadog-cluster-agent check`,
 					// ConfigName must be set to "datadog-cluster"
 				}.LogForOneShot("CORE", "off", true)),
@@ -146,7 +149,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
@@ -612,4 +615,13 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	}
 
 	return nil
+}
+
+// disableCmdPort overrrides the `cmd_port` configuration so that when the
+// server starts up, it does not do so on the same port as a running agent.
+//
+// Ideally, the server wouldn't start up at all, but this workaround has been
+// in place for some time.
+func disableCmdPort() {
+	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
 }

@@ -16,7 +16,6 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -235,8 +234,8 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
-			os.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
+			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
+			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -339,13 +338,6 @@ func TestUnknownMethodRegression(t *testing.T) {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
-
-	telemetry := monitor.GetStats()
-	require.NotEmpty(t, telemetry)
-	_, ok := telemetry["dropped"]
-	require.True(t, ok)
-	_, ok = telemetry["misses"]
-	require.True(t, ok)
 }
 
 func TestRSTPacketRegression(t *testing.T) {

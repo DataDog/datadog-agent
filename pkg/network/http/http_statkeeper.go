@@ -60,12 +60,6 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 
 		h.add(tx)
 	}
-
-	h.telemetry.aggregations.Store(int64(len(h.stats)))
-}
-
-func (h *httpStatKeeper) ProcessCompleted() {
-	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
@@ -82,7 +76,7 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 func (h *httpStatKeeper) add(tx httpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		return
 	}
 	path, rejected := h.processHTTPPath(tx, rawPath)
@@ -91,7 +85,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 	}
 
 	if Method(tx.RequestMethod()) == MethodUnknown {
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
 		}
@@ -100,8 +94,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
-		log.Infof("latency less than zero")
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
 		}
@@ -112,9 +105,10 @@ func (h *httpStatKeeper) add(tx httpTX) {
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
-			h.telemetry.dropped.Inc()
+			h.telemetry.dropped.Add(1)
 			return
 		}
+		h.telemetry.aggregations.Add(1)
 		stats = new(RequestStats)
 		h.stats[key] = stats
 	}
@@ -155,7 +149,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
-				h.telemetry.rejected.Inc()
+				h.telemetry.rejected.Add(1)
 				return "", true
 			}
 
@@ -167,11 +161,10 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 	// If the user didn't specify a rule matching this particular path, we can check for its format.
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
-		log.Infof("http path malformed")
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
 		}
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		return "", true
 	}
 	return h.intern(path), false

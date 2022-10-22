@@ -29,13 +29,8 @@ type BundleParams struct {
 	ConfigName string
 
 	// SysProbeConfFilePath is the path at which to look for system-probe
-	// configuration, usually given by --sysprobecfgpath.  This is not used
-	// unless ConfigLoadSysProbe is true.
+	// configuration, usually given by --sysprobecfgpath.
 	SysProbeConfFilePath string
-
-	// ConfigLoadSysProbe determines whether to read the system-probe.yaml into
-	// the component's config data.
-	ConfigLoadSysProbe bool
 
 	// ConfigLoadSecrets determines whether secrets in the configuration file
 	// should be evaluated.  This is typically false for one-shot commands.

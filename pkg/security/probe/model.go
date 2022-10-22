@@ -105,7 +105,7 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
 			switch err.(type) {
 			case ErrDentryPathKeyNotFound:
@@ -135,7 +135,7 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	if f.Filesystem == "" {
-		f.Filesystem = ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
+		f.Filesystem = ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
 	}
 	return f.Filesystem
 }
