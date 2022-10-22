@@ -52,8 +52,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 
 func TestDisablingProtocolClassification(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-NoPRTCLClassifying.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -62,8 +61,7 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		newConfig(t)
 
 		os.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
 		defer os.Unsetenv("DD_ENABLE_PROTOCOL_CLASSIFICATION")
