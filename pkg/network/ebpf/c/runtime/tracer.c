@@ -863,7 +863,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     }
 
     conn_tuple_t skb_tup;
-    __builtin_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
     if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
         return 0;
     }
