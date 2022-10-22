@@ -174,9 +174,6 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
-    if (skb == NULL) {
-        return;
-    }
     skb_info_t skb_info = {0};
     conn_tuple_t tup = {0};
 

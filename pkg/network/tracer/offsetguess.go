@@ -271,7 +271,6 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
-	// TODO: replace with other method
 	if kprobe.ClassificationSupported(c) {
 		enableProbe(p, probes.NetDevQueue)
 	}
@@ -792,13 +791,7 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 		return nil, err
 	}
 
-	return &eventGenerator{
-		listener: l,
-		conn:     c,
-		udpConn:  udpConn,
-		udp6Conn: udp6Conn,
-		udpDone:  udpDone,
-	}, nil
+	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
 }
 
 func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {

@@ -62,7 +62,6 @@ func SetupSNAT(t *testing.T) string {
 		fmt.Sprintf("ip link add %s type dummy", linkName),
 		fmt.Sprintf("ip address add 7.7.7.7 broadcast + dev %s", linkName),
 		fmt.Sprintf("ip address add 6.6.6.6 broadcast + dev %s", linkName),
-		fmt.Sprintf("ip address add 5.5.5.5 broadcast + dev %s", linkName),
 		fmt.Sprintf("ip link set %s up", linkName),
 		"iptables -t nat -A POSTROUTING -s 6.6.6.6/32 -j SNAT --to-source 7.7.7.7",
 	}

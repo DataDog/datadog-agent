@@ -75,8 +75,6 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
             // If the current protocol is "unknown" and we managed to classify it to another protocol -> that's a reasonable and expected scenario.
             log_debug("[update_conn_stats]: A classified connection (%d) has been re-classified with protocol %d\n", val->protocol, local_protocol);
         }
-    } else {
-        log_debug("[update_conn_stats]: sk is NULL %d\n", local_protocol);
     }
 
     // If already in our map, increment size in-place
