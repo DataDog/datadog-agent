@@ -46,9 +46,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
 			enableProbe(enabled, probes.TCPRecvMsg)
 			enableProbe(enabled, probes.TCPRecvMsgReturn)
-			if runtimeTracer {
-				enableProbe(enabled, probes.NetDevQueue)
-			}
+			enableProbe(enabled, probes.NetDevQueue)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPSendMsgReturn)

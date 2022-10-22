@@ -1704,28 +1704,31 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 
-	t.Run("with dnat - ingress traffic", func(t *testing.T) {
+	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
-		testProtocolClassificationIngress(t, cfg, "2.2.2.2", "1.1.1.1")
+		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
 	})
 
-	t.Run("with snat - egress traffic", func(t *testing.T) {
+	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
-		testProtocolClassificationEgress(t, cfg, "6.6.6.6", "127.0.0.1")
+		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
 	})
 
-	t.Run("without nat - ingress traffic", func(t *testing.T) {
-		testProtocolClassificationIngress(t, cfg, "127.0.0.1", "127.0.0.1")
-	})
-
-	t.Run("without nat - egress traffic", func(t *testing.T) {
-		testProtocolClassificationEgress(t, cfg, "127.0.0.1", "127.0.0.1")
+	t.Run("without nat", func(t *testing.T) {
+		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
 	})
 }
 
-func testProtocolClassificationIngress(t *testing.T, cfg *config.Config, targetHost, serverHost string) {
+func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	dialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP:   net.ParseIP(clientHost),
+			Port: 0,
+		},
+	}
+
 	tests := []struct {
 		name           string
 		transportLayer string
@@ -1768,213 +1771,6 @@ func testProtocolClassificationIngress(t *testing.T, cfg *config.Config, targetH
 			transportLayer: "tcp",
 			done:           make(chan struct{}),
 			clientRun: func(t *testing.T, serverAddr string) {
-				c, err := net.DialTimeout("tcp", serverAddr, time.Second)
-				require.NoError(t, err)
-				defer c.Close()
-			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
-					c.Close()
-				})
-				require.NoError(t, server.Run(done))
-			},
-			want: network.ProtocolUnclassified,
-		},
-		{
-			name:           "tcp client with sending random data",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, serverAddr string) {
-				c, err := net.DialTimeout("tcp", serverAddr, time.Second)
-				require.NoError(t, err)
-				defer c.Close()
-				c.Write([]byte("hello\n"))
-			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
-					r := bufio.NewReader(c)
-					input, err := r.ReadBytes(byte('\n'))
-					if err == nil {
-						c.Write(input)
-					}
-					c.Close()
-				})
-				require.NoError(t, server.Run(done))
-			},
-			want: network.ProtocolUnknown,
-		},
-		//{
-		//	//
-		//	name: "tcp client with sending encrypted data",
-		//	want: network.ProtocolUnknown,
-		//},
-		{
-			name:           "tcp client with sending HTTP request",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, serverAddr string) {
-				client := nethttp.Client{}
-				resp, err := client.Get("http://" + serverAddr + "/test")
-				require.NoError(t, err)
-				io.Copy(ioutil.Discard, resp.Body)
-				resp.Body.Close()
-			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				srv := &nethttp.Server{
-					Addr: serverAddr,
-					Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
-						io.Copy(ioutil.Discard, req.Body)
-						w.WriteHeader(200)
-					}),
-					ReadTimeout:  time.Second,
-					WriteTimeout: time.Second,
-				}
-				srv.SetKeepAlivesEnabled(false)
-				go func() {
-					_ = srv.ListenAndServe()
-				}()
-				go func() {
-					<-done
-					fmt.Println("shutting down")
-					srv.Shutdown(context.Background())
-				}()
-			},
-			want: network.ProtocolHTTP,
-		},
-		{
-			// Although it seems weird to test it, it is a real use-case.
-			// Consider a keep alive connection already established between a client and a server.
-			// Then the agent is being started, and able to capture the last response sent, and then the connection
-			// is terminated. Although we won't capture that HTTP traffic, it is still (as far as we know) a HTTP connection.
-			name:           "tcp client with sending HTTP response",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, serverAddr string) {
-
-				c, err := net.DialTimeout("tcp", serverAddr, time.Second)
-				require.NoError(t, err)
-				defer c.Close()
-				c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
-			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
-					r := bufio.NewReader(c)
-					input, err := r.ReadBytes(byte('\n'))
-					if err == nil {
-						c.Write(input)
-					}
-					c.Close()
-				})
-				require.NoError(t, server.Run(done))
-			},
-			want: network.ProtocolHTTP,
-		},
-		//{
-		//	name: "tcp client with sending HTTP2 request",
-		//	want: network.ProtocolHTTP2,
-		//},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tr, err := NewTracer(cfg)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tr.Stop()
-			defer close(tt.done)
-
-			initTracerState(t, tr)
-			port, err := GetFreePort()
-			require.NoError(t, err)
-			serverAddr := net.JoinHostPort(serverHost, port)
-			targetAddr := net.JoinHostPort(targetHost, port)
-			fmt.Println("server", serverAddr)
-			tt.serverRun(t, serverAddr, tt.done)
-
-			time.Sleep(time.Second)
-			tt.clientRun(t, targetAddr)
-			time.Sleep(time.Second)
-
-			var outgoingConns []network.ConnectionStats
-			var incomingConns []network.ConnectionStats
-			require.Eventuallyf(t, func() bool {
-				conns := getConnections(t, tr)
-				if len(outgoingConns) == 0 {
-					outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-						return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
-					})
-				}
-				if len(incomingConns) == 0 {
-					incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-						return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
-					})
-				}
-
-				return len(outgoingConns) == 1 && len(incomingConns) == 1
-			}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
-
-			// Verify connection directions
-			conn := outgoingConns[0]
-			assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
-			assertConnectionProtocol(t, cfg, tt.want, conn.Protocol)
-
-			conn = incomingConns[0]
-			assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
-			assertConnectionProtocol(t, cfg, tt.want, conn.Protocol)
-		})
-	}
-}
-
-func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHost, serverHost string) {
-	dialer := &net.Dialer{
-		LocalAddr: &net.TCPAddr{
-			IP:   net.ParseIP(clientHost),
-			Port: 0,
-		},
-	}
-
-	tests := []struct {
-		name           string
-		transportLayer string
-		clientRun      func(t *testing.T, clientAddr, serverAddr string)
-		done           chan struct{}
-		serverRun      func(t *testing.T, serverAddr string, done chan struct{})
-		want           network.ProtocolType
-	}{
-		{
-			name:           "udp client",
-			transportLayer: "udp",
-			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, serverAddr string) {
-				c, err := net.DialTimeout("udp", serverAddr, time.Second)
-				require.NoError(t, err)
-				defer c.Close()
-
-				for i := 0; i < 5; i++ {
-					_, err = c.Write(genPayload(clientMessageSize))
-					require.NoError(t, err)
-
-					buf := make([]byte, serverMessageSize)
-					_, err = c.Read(buf)
-					require.NoError(t, err)
-				}
-			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				udpServer := &UDPServer{
-					address: serverAddr,
-					onMessage: func(b []byte, n int) []byte {
-						return genPayload(serverMessageSize)
-					},
-				}
-				require.NoError(t, udpServer.Run(done, 10))
-			},
-			want: network.ProtocolUnclassified,
-		},
-		{
-			name:           "tcp client without sending data",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, clientAddr, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
 				cancel()
@@ -1993,7 +1789,7 @@ func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHo
 			name:           "tcp client with sending random data",
 			transportLayer: "tcp",
 			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, clientAddr, serverAddr string) {
+			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
 				cancel()
@@ -2014,16 +1810,11 @@ func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHo
 			},
 			want: network.ProtocolUnknown,
 		},
-		//{
-		//	//
-		//	name: "tcp client with sending encrypted data",
-		//	want: network.ProtocolUnknown,
-		//},
 		{
 			name:           "tcp client with sending HTTP request",
 			transportLayer: "tcp",
 			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, clientAddr, serverAddr string) {
+			clientRun: func(t *testing.T, serverAddr string) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						DialContext: dialer.DialContext,
@@ -2064,7 +1855,7 @@ func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHo
 			name:           "tcp client with sending HTTP response",
 			transportLayer: "tcp",
 			done:           make(chan struct{}),
-			clientRun: func(t *testing.T, clientAddr, serverAddr string) {
+			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
 				cancel()
@@ -2085,10 +1876,6 @@ func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHo
 			},
 			want: network.ProtocolHTTP,
 		},
-		//{
-		//	name: "tcp client with sending HTTP2 request",
-		//	want: network.ProtocolHTTP2,
-		//},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2103,12 +1890,12 @@ func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHo
 			port, err := GetFreePort()
 			require.NoError(t, err)
 			serverAddr := net.JoinHostPort(serverHost, port)
-			fmt.Println("server", serverAddr)
+			targetAddr := net.JoinHostPort(targetHost, port)
 			tt.serverRun(t, serverAddr, tt.done)
 
-			time.Sleep(time.Second)
-			tt.clientRun(t, clientHost, serverAddr)
-			time.Sleep(time.Second)
+			// Letting the server time to start
+			time.Sleep(500 * time.Millisecond)
+			tt.clientRun(t, targetAddr)
 
 			var outgoingConns []network.ConnectionStats
 			var incomingConns []network.ConnectionStats
@@ -2116,7 +1903,7 @@ func testProtocolClassificationEgress(t *testing.T, cfg *config.Config, clientHo
 				conns := getConnections(t, tr)
 				if len(outgoingConns) == 0 {
 					outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-						return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+						return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 					})
 				}
 				if len(incomingConns) == 0 {

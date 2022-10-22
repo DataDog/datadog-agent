@@ -29,6 +29,9 @@ static const __u8 GUESS_DADDR_FL6 = 13;
 static const __u8 GUESS_SPORT_FL6 = 14;
 static const __u8 GUESS_DPORT_FL6 = 15;
 static const __u8 GUESS_SOCKET_SK = 16;
+static const __u8 GUESS_SK_BUFF_SOCK = 17;
+static const __u8 GUESS_SK_BUFF_TRANSPORT_HEADER = 18;
+static const __u8 GUESS_SK_BUFF_HEAD = 19;
 
 static const __u8 TRACER_STATE_UNINITIALIZED = 0;
 static const __u8 TRACER_STATE_CHECKING = 1;
@@ -63,6 +66,9 @@ typedef struct {
     __u64 offset_sport_fl6;
     __u64 offset_dport_fl6;
     __u64 offset_socket_sk;
+    __u64 offset_sk_buff_sock;
+    __u64 offset_sk_buff_transport_header;
+    __u64 offset_sk_buff_head;
 
     __u64 err;
 
@@ -85,6 +91,9 @@ typedef struct {
     __u32 daddr_fl6[4];
     __u16 sport_fl6;
     __u16 dport_fl6;
+    __u16 transport_header;
+    __u16 network_header;
+    __u16 mac_header;
 
     __u8 ipv6_enabled;
     __u8 fl4_offsets;

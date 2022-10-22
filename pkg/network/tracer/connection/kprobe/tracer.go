@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	classificationMinimumKernel = kernel.VersionCode(4, 5, 0)
+	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 )
 
 type kprobeTracer struct {
@@ -81,7 +81,8 @@ func newTelemetry() telemetry {
 }
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
-// The kernel has to be newer than 4.5.0 since we are using bpf_skb_load_bytes method to read from the socket filter.
+// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
+// filter, and a tracepoint (4.7.0+)
 func ClassificationSupported(config *config.Config) bool {
 	if !config.ProtocolClassificationEnabled {
 		return false
