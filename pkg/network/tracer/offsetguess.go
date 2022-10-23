@@ -761,11 +761,13 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 }
 
 type eventGenerator struct {
-	listener net.Listener
-	conn     net.Conn
-	udpConn  net.Conn
-	udp6Conn *net.UDPConn
-	udpDone  func()
+	listener    net.Listener
+	conn        net.Conn
+	udpConn     net.Conn
+	udp6Conn    *net.UDPConn
+	udpDone     func()
+	tcpListener net.Listener
+	tcpConn     net.Conn
 }
 
 func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
@@ -801,7 +803,28 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 		return nil, err
 	}
 
-	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
+	netDevQueueTestListener, err := net.Listen("tcp4", fmt.Sprintf("%s:0", listenIPv4))
+	if err != nil {
+		return nil, err
+	}
+
+	go acceptHandler(netDevQueueTestListener)
+	// Establish connection that will be used in the offset guessing
+	netDevQueueTestConn, err := net.Dial(netDevQueueTestListener.Addr().Network(), netDevQueueTestListener.Addr().String())
+	if err != nil {
+		_ = netDevQueueTestListener.Close()
+		return nil, err
+	}
+
+	return &eventGenerator{
+		listener:    l,
+		conn:        c,
+		udpConn:     udpConn,
+		udp6Conn:    udp6Conn,
+		udpDone:     udpDone,
+		tcpListener: netDevQueueTestListener,
+		tcpConn:     netDevQueueTestConn,
+	}, nil
 }
 
 func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
@@ -871,27 +894,21 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
-		conn, err := net.DialTimeout("tcp", e.listener.Addr().String(), tcpDialTimeout)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-
-		_, sportString, err := net.SplitHostPort(conn.LocalAddr().String())
+		_, sportString, err := net.SplitHostPort(e.tcpConn.LocalAddr().String())
 		if err != nil {
 			return err
 		}
 
 		sport, _ := strconv.Atoi(sportString)
 		expected.sport = uint16(sport)
-		_, dportString, err := net.SplitHostPort(conn.RemoteAddr().String())
+		_, dportString, err := net.SplitHostPort(e.tcpConn.RemoteAddr().String())
 		if err != nil {
 			return err
 		}
 		dport, _ := strconv.Atoi(dportString)
 		expected.dport = uint16(dport)
 
-		_, err = conn.Write([]byte("GET /request\r\n"))
+		_, err = e.tcpConn.Write([]byte("GET /request\r\n"))
 		return err
 	}
 
@@ -927,7 +944,9 @@ func (e *eventGenerator) Close() {
 		e.conn.Close()
 	}
 
-	_ = e.listener.Close()
+	if e.listener != nil {
+		_ = e.listener.Close()
+	}
 
 	if e.udpConn != nil {
 		_ = e.udpConn.Close()
@@ -939,6 +958,14 @@ func (e *eventGenerator) Close() {
 
 	if e.udpDone != nil {
 		e.udpDone()
+	}
+
+	if e.tcpListener != nil {
+		_ = e.tcpListener.Close()
+	}
+
+	if e.tcpConn != nil {
+		_ = e.tcpConn.Close()
 	}
 }
 
