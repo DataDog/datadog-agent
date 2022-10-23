@@ -56,8 +56,6 @@ var stateString = map[netebpf.TracerState]string{
 const (
 	disabled uint8 = 0
 	enabled  uint8 = 1
-
-	tcpDialTimeout = 10 * time.Second
 )
 
 var whatString = map[netebpf.GuessWhat]string{
