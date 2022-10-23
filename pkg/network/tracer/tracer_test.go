@@ -2035,8 +2035,8 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 		return true
 	}, 3*time.Second, time.Second, "connection not found")
 
-	for reqIndex, exists := range missedRequestsExist {
-		require.Falsef(t, exists, "request %d was not meant to be captured found (req %v) but we captured it", reqIndex+1, requests[reqIndex])
+	for reqIndex, missing := range missedRequestsExist {
+		require.Truef(t, missing, "request %d was not meant to be captured found (req %v) but we captured it", reqIndex+1, requests[reqIndex])
 	}
 }
 
