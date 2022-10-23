@@ -861,7 +861,8 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
-		conn, err := net.Dial("tcp", e.listener.Addr().String())
+		fmt.Println("connecting to", e.listener.Addr().String())
+		conn, err := net.DialTimeout("tcp", e.listener.Addr().String(), 10*time.Second)
 		if err != nil {
 			return err
 		}
@@ -871,6 +872,7 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 		if err != nil {
 			return err
 		}
+		fmt.Println("sport is", sportString)
 
 		sport, _ := strconv.Atoi(sportString)
 		expected.sport = uint16(sport)
@@ -880,8 +882,12 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 		}
 		dport, _ := strconv.Atoi(dportString)
 		expected.dport = uint16(dport)
+		fmt.Println("dport is", dportString)
 
-		_, _ = conn.Write([]byte("GET /request\r\n"))
+		_, err = conn.Write([]byte("GET /request\r\n"))
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -936,9 +942,11 @@ func acceptHandler(l net.Listener) {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
+			fmt.Println("terminating handler ", l.Addr())
 			return
 		}
 
+		fmt.Println("handling request ", conn.LocalAddr(), conn.RemoteAddr())
 		_, _ = io.Copy(ioutil.Discard, conn)
 		conn.Close()
 	}
