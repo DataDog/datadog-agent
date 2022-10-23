@@ -42,6 +42,8 @@ const (
 )
 
 var (
+	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
+	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 )
 

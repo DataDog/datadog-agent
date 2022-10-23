@@ -290,6 +290,8 @@ SEC("tracepoint/net/net_dev_queue")
 int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    // If we've triggered the hook and we are not under the context of guess offsets for GUESS_SK_BUFF_SOCK,
+    // GUESS_SK_BUFF_TRANSPORT_HEADER, or GUESS_SK_BUFF_HEAD then we should do nothing in the hook.
     if (status == NULL || (
             status->what != GUESS_SK_BUFF_SOCK &&
             status->what != GUESS_SK_BUFF_TRANSPORT_HEADER &&

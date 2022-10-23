@@ -8,21 +8,24 @@
 #include "bpf_builtins.h"
 #include "ip.h"
 
-// Patch to support old kernels that does not support bpf_skb_load_bytes, by adding a dummy implementation.
+// Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
 long bpf_skb_load_bytes(const void *skb, u32 offset, void *to, u32 len) {return 0;}
 #endif
 
+#define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size)   \
+        if (buf_size < min_buff_size) {                                     \
+            return false;                                                   \
+        }                                                                   \
+                                                                            \
+        if (buf == NULL) {                                                  \
+            return false;                                                   \
+        }                                                                   \
+
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
-    if (buf_size < HTTP2_MARKER_SIZE) {
-        return false;
-    }
-
-    if (buf == NULL) {
-        return false;
-    }
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
 
     // Unfortunately, the compiler tries to outsmart and causes the verifier on older kernels to think we have more
     // than a millions possible instructions in the code and thus it fails to verify and load it.
@@ -37,12 +40,7 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
 // a request, where <method> is one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, or PATCH.
 static __always_inline bool is_http(const char *buf, __u32 size) {
-    if (size < HTTP_MIN_SIZE) {
-        return false;
-    }
-    if (buf == NULL) {
-        return false;
-    }
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, HTTP_MIN_SIZE)
 
     if ((buf[0] == 'H') && (buf[1] == 'T') && (buf[2] == 'T') && (buf[3] == 'P')) {
         return true;
@@ -86,7 +84,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
 // Decides if the protocol_classifier should process the packet. We process not empty TCP packets.
 static __always_inline bool should_process_packet(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup) {
     // we're only interested in TCP traffic
-    if (!(tup->metadata&CONN_TYPE_TCP)) {
+    if (!(tup->metadata & CONN_TYPE_TCP)) {
         return false;
     }
 
@@ -96,7 +94,7 @@ static __always_inline bool should_process_packet(struct __sk_buff *skb, skb_inf
 
 // The method is used to read the data buffer from the __sk_buf struct. Similar implementation as `read_into_buffer_skb`
 // from http parsing, but uses a different constant (CLASSIFICATION_MAX_BUFFER).
-static __always_inline void read_into_buffer_skb_post_4_5_0(char *buffer, struct __sk_buff *skb, skb_info_t *info) {
+static __always_inline void read_into_buffer_for_classification(char *buffer, struct __sk_buff *skb, skb_info_t *info) {
     u64 offset = (u64)info->data_off;
 
 #define BLK_SIZE (16)
@@ -153,7 +151,7 @@ static __always_inline void read_into_buffer_skb_post_4_5_0(char *buffer, struct
     }
 }
 
-// checks if we have seen that tcp packet before. If can happen if a packet travels multiple interfaces or retransmissions.
+// checks if we have seen that tcp packet before. It can happen if a packet travels multiple interfaces or retransmissions.
 static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info_t *skb_info) {
     if (!skb_info || !skb_info->tcp_seq) {
         return false;
@@ -177,14 +175,18 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     skb_info_t skb_info = {0};
     conn_tuple_t tup = {0};
 
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
     if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
         return;
     }
 
+    // We process a non empty TCP packets, rather than that - we skip the packet.
     if (!should_process_packet(skb, &skb_info, &tup)) {
         return;
     }
 
+    // Making sure we've not processed the same tcp segment, which can happen when a single packet travels different
+    // interfaces.
     if (has_sequence_seen_before(&tup, &skb_info)) {
         return;
     }
@@ -208,7 +210,7 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
 
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_skb_post_4_5_0((char *)request_fragment, skb, &skb_info);
+    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
 
     protocol_t original_protocol = local_protocol;
     classify_protocol(&local_protocol, request_fragment, sizeof(request_fragment));

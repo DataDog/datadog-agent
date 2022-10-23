@@ -68,6 +68,7 @@ static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
         bpf_probe_read_kernel_with_telemetry(&tup->saddr_l, sizeof(__be32), &iph.saddr);
         bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
     }
+#ifdef FEATURE_IPV6_ENABLED
     else if (iph.version == 6) {
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
@@ -93,6 +94,7 @@ static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
         read_in6_addr(&tup->saddr_h, &tup->saddr_l, &ip6h.saddr);
         read_in6_addr(&tup->daddr_h, &tup->daddr_l, &ip6h.daddr);
     }
+#endif
     else {
         log_debug("unknown IP version: %d\n", iph.version);
         return 0;
@@ -119,9 +121,7 @@ static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
 
         //log_debug("udp recv: udphdr.len=%d\n", bpf_ntohs(udph.len));
         return (int)(bpf_ntohs(udph.len) - sizeof(struct udphdr));
-    }
-
-    if (proto == CONN_TYPE_TCP) {
+    } else if (proto == CONN_TYPE_TCP) {
         struct tcphdr tcph;
         bpf_memset(&tcph, 0, sizeof(struct tcphdr));
         ret = bpf_probe_read_kernel_with_telemetry(&tcph, sizeof(tcph), (struct tcphdr *)(head + trans_head));

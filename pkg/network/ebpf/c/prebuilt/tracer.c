@@ -152,6 +152,8 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
         return 0;
     }
 
+    // Calling the method with default values only (0, CONN_DIRECTION_UNKNOWN, PACKET_COUNT_ABSOLUTE) as we don't want
+    // to change the current stats of the connection, just to load the protocol.
     return handle_message(&t, 0, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_ABSOLUTE, skp);
 }
 

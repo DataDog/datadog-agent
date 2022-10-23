@@ -1730,17 +1730,15 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 
 	tests := []struct {
-		name           string
-		transportLayer string
-		clientRun      func(t *testing.T, serverAddr string)
-		done           chan struct{}
-		serverRun      func(t *testing.T, serverAddr string, done chan struct{})
-		want           network.ProtocolType
+		name      string
+		clientRun func(t *testing.T, serverAddr string)
+		done      chan struct{}
+		serverRun func(t *testing.T, serverAddr string, done chan struct{})
+		want      network.ProtocolType
 	}{
 		{
-			name:           "udp client",
-			transportLayer: "udp",
-			done:           make(chan struct{}),
+			name: "udp client",
+			done: make(chan struct{}),
 			clientRun: func(t *testing.T, serverAddr string) {
 				c, err := net.DialTimeout("udp", serverAddr, time.Second)
 				require.NoError(t, err)
@@ -1767,9 +1765,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolUnclassified,
 		},
 		{
-			name:           "tcp client without sending data",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
+			name: "tcp client without sending data",
+			done: make(chan struct{}),
 			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
@@ -1786,9 +1783,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolUnclassified,
 		},
 		{
-			name:           "tcp client with sending random data",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
+			name: "tcp client with sending random data",
+			done: make(chan struct{}),
 			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
@@ -1811,9 +1807,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolUnknown,
 		},
 		{
-			name:           "tcp client with sending HTTP request",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
+			name: "tcp client with sending HTTP request",
+			done: make(chan struct{}),
 			clientRun: func(t *testing.T, serverAddr string) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
@@ -1852,9 +1847,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			// Consider a keep alive connection already established between a client and a server.
 			// Then the agent is being started, and able to capture the last response sent, and then the connection
 			// is terminated. Although we won't capture that HTTP traffic, it is still (as far as we know) a HTTP connection.
-			name:           "tcp client with sending HTTP response",
-			transportLayer: "tcp",
-			done:           make(chan struct{}),
+			name: "tcp client with sending HTTP response",
+			done: make(chan struct{}),
 			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
@@ -1862,6 +1856,34 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
+					r := bufio.NewReader(c)
+					input, err := r.ReadBytes(byte('\n'))
+					if err == nil {
+						c.Write(input)
+					}
+					c.Close()
+				})
+				require.NoError(t, server.Run(done))
+			},
+			want: network.ProtocolHTTP,
+		},
+		{
+			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
+			// with the first protocol we've found.
+			name: "mixed protocols",
+			done: make(chan struct{}),
+			clientRun: func(t *testing.T, serverAddr string) {
+				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
+				cancel()
+				require.NoError(t, err)
+				defer c.Close()
+				c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
+				// http2 prefix.
+				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
