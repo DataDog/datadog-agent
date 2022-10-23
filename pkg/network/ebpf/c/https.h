@@ -40,16 +40,16 @@ static __always_inline void https_finish(conn_tuple_t *t) {
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
     if (ssl_sock == NULL) {
-        // best-effort fallback mechanism to guess the socket address without
-        // intercepting the SSL socket initialization. this improves the the quality
+        // Best-effort fallback mechanism to guess the socket address without
+        // intercepting the SSL socket initialization. This improves the the quality
         // of data for TLS connections started *prior* to system-probe
-        // initialization.  here we simply store the pid_tgid along with its
-        // corresponding ssl_ctx pointer. in another probe (tcp_sendmsg), we
+        // initialization. Here we simply store the pid_tgid along with its
+        // corresponding ssl_ctx pointer. In another probe (tcp_sendmsg), we
         // query again this map and if there is a match we assume that the *sock
-        // object is the the TCP socket being used by this SSL connection.  The
+        // object is the the TCP socket being used by this SSL connection. The
         // whole thing works based on the assumption that SSL_read/SSL_write is
         // then followed by the execution of tcp_sendmsg within the same CPU
-        // context.  This is not necessarily true for all cases (such as when
+        // context. This is not necessarily true for all cases (such as when
         // using the async SSL API) but seems to work on most-cases.
         bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
         return NULL;
