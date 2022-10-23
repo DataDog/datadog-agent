@@ -552,7 +552,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 	case netebpf.GuessSocketSK:
 		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
 			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
-			// the guessing of their relevant offsets. The problem is with compatability with older kernel versions
+			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
 			// where `struct sk_buff` have changed, and it does not match our current guessing.
 			next := netebpf.GuessSKBuffSock
 			if !protocolClassificationSupported {
