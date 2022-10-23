@@ -189,10 +189,6 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    char request_fragment[CLASSIFICATION_MAX_BUFFER];
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_skb_post_4_5_0((char *)request_fragment, skb, &skb_info);
-
     struct sock **protocol_key_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_map, &tup);
     if (protocol_key_ptr == NULL) {
         log_debug("[protocol_classifier_entrypoint]: protocol_key_ptr is null, aborting\n");
@@ -205,10 +201,23 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         local_protocol = *protocol;
     }
 
+    // If we've already identified the protocol of the socket, no need to read the buffer and try to classify it.
+    if (local_protocol != PROTOCOL_UNCLASSIFIED && local_protocol != PROTOCOL_UNKNOWN) {
+        return;
+    }
+
+    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_skb_post_4_5_0((char *)request_fragment, skb, &skb_info);
+
+    protocol_t original_protocol = local_protocol;
     classify_protocol(&local_protocol, request_fragment, sizeof(request_fragment));
 
     log_debug("[protocol_classifier_entrypoint]: Calling protocol: %d\n", local_protocol);
-    bpf_map_update_with_telemetry(connection_protocol, &protocol_key, &local_protocol, BPF_ANY);
+    // If there has been a change in the classification, save the new protocol.
+    if (original_protocol != local_protocol) {
+        bpf_map_update_with_telemetry(connection_protocol, &protocol_key, &local_protocol, BPF_ANY);
+    }
 }
 
 #endif
