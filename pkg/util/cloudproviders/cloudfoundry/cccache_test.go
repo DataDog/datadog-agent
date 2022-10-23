@@ -28,30 +28,19 @@ type testCCClientCounter struct {
 var globalCCClientCounter = testCCClientCounter{}
 
 func (t *testCCClientCounter) UpdateHits(method string) {
-	t.RLock()
-	if t.hitsByMethod == nil {
-		t.RUnlock()
-		t.Lock()
-		t.hitsByMethod = make(map[string]int)
-		t.Unlock()
-	} else {
-		t.RUnlock()
-	}
-
 	t.Lock()
 	defer t.Unlock()
+	if t.hitsByMethod == nil {
+		t.hitsByMethod = make(map[string]int)
+	}
 	t.hitsByMethod[method]++
 }
 
 func (t *testCCClientCounter) GetHits(method string) int {
-	t.RLock()
+	t.Lock()
+	defer t.Unlock()
 	if t.hitsByMethod == nil {
-		t.RUnlock()
-		t.Lock()
 		t.hitsByMethod = make(map[string]int)
-		t.Unlock()
-	} else {
-		t.RUnlock()
 	}
 	return t.hitsByMethod[method]
 }
