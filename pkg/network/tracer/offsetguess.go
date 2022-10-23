@@ -56,6 +56,8 @@ var stateString = map[netebpf.TracerState]string{
 const (
 	disabled uint8 = 0
 	enabled  uint8 = 1
+
+	tcpDialTimeout = 10 * time.Second
 )
 
 var whatString = map[netebpf.GuessWhat]string{
@@ -375,7 +377,7 @@ func getIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, expected *fieldValues, maxRetries *int, threshold uint64) error {
+func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, expected *fieldValues, maxRetries *int, threshold uint64, protocolClassificationSupported bool) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
@@ -549,7 +551,14 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 
 	case netebpf.GuessSocketSK:
 		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
-			logAndAdvance(status, status.Offset_socket_sk, netebpf.GuessSKBuffSock)
+			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
+			// the guessing of their relevant offsets. The problem is with compatability with older kernel versions
+			// where `struct sk_buff` have changed, and it does not match our current guessing.
+			next := netebpf.GuessSKBuffSock
+			if !protocolClassificationSupported {
+				next = netebpf.GuessDAddrIPv6
+			}
+			logAndAdvance(status, status.Offset_socket_sk, next)
 			break
 		}
 		status.Offset_socket_sk++
@@ -694,13 +703,14 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		return nil, errors.Wrap(err, "error retrieving expected value")
 	}
 
+	protocolClassificationSupported := kprobe.ClassificationSupported(cfg)
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for netebpf.TracerState(status.State) != netebpf.StateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return nil, err
 		}
 
-		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, threshold); err != nil {
+		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, threshold, protocolClassificationSupported); err != nil {
 			return nil, err
 		}
 
@@ -861,7 +871,7 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
-		conn, err := net.Dial("tcp", e.listener.Addr().String())
+		conn, err := net.DialTimeout("tcp", e.listener.Addr().String(), tcpDialTimeout)
 		if err != nil {
 			return err
 		}
@@ -881,8 +891,8 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 		dport, _ := strconv.Atoi(dportString)
 		expected.dport = uint16(dport)
 
-		_, _ = conn.Write([]byte("GET /request\r\n"))
-		return nil
+		_, err = conn.Write([]byte("GET /request\r\n"))
+		return err
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
