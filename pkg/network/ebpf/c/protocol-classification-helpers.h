@@ -246,23 +246,23 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
 
     protocol_t sock_tup_protocol = get_cached_protocol_or_default(&cached_sock_conn_tup);
     protocol_t inverse_skb_tup_protocol = get_cached_protocol_or_default(&inverse_skb_conn_tup);
-    protocol_t local_protocol = choose_protocol(sock_tup_protocol, inverse_skb_tup_protocol);
+    protocol_t cur_fragment_protocol = choose_protocol(sock_tup_protocol, inverse_skb_tup_protocol);
 
     // If we've already identified the protocol of the socket, no need to read the buffer and try to classify it.
-    if (local_protocol == PROTOCOL_UNCLASSIFIED || local_protocol == PROTOCOL_UNKNOWN) {
+    if (cur_fragment_protocol == PROTOCOL_UNCLASSIFIED || cur_fragment_protocol == PROTOCOL_UNKNOWN) {
         char request_fragment[CLASSIFICATION_MAX_BUFFER];
         bpf_memset(request_fragment, 0, sizeof(request_fragment));
         read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-        classify_protocol(&local_protocol, request_fragment, sizeof(request_fragment));
+        classify_protocol(&cur_fragment_protocol, request_fragment, sizeof(request_fragment));
     }
 
-    log_debug("[protocol_classifier_entrypoint]: Classifying protocol as: %d\n", local_protocol);
+    log_debug("[protocol_classifier_entrypoint]: Classifying protocol as: %d\n", cur_fragment_protocol);
     // If there has been a change in the classification, save the new protocol.
-    if (sock_tup_protocol != local_protocol) {
-        bpf_map_update_with_telemetry(connection_protocol, &cached_sock_conn_tup, &local_protocol, BPF_ANY);
+    if (sock_tup_protocol != cur_fragment_protocol) {
+        bpf_map_update_with_telemetry(connection_protocol, &cached_sock_conn_tup, &cur_fragment_protocol, BPF_ANY);
     }
-    if (inverse_skb_tup_protocol != local_protocol) {
-        bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &local_protocol, BPF_ANY);
+    if (inverse_skb_tup_protocol != cur_fragment_protocol) {
+        bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_ANY);
     }
 }
 
