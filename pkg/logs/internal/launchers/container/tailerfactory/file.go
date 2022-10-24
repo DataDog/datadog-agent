@@ -139,15 +139,18 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 
 // findDockerLogPath returns a path for the given container.
 func (tf *factory) findDockerLogPath(containerID string) string {
+	// if the user has set a custom docker data root, this will pick it up
+	// and set it in place of the usual docker base path
+	overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
+	if len(overridePath) > 0 {
+		return overridePath
+	}
+
 	switch runtime.GOOS {
 	case "windows":
 		// if the user has set a custom docker data root, this will pick it up
 		// and set it in place of the usual docker base path
-		dockerLogsPath := dockerLogsBasePathNix
-		overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
-		if len(overridePath) > 0 {
-			dockerLogsPath = overridePath
-		}
+		dockerLogsPath := dockerLogsBasePathWin
 		return filepath.Join(
 			dockerLogsPath, "containers", containerID,
 			fmt.Sprintf("%s-json.log", containerID))
@@ -159,13 +162,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 				podmanLogsBasePath, "storage/overlay-containers", containerID,
 				"userdata/ctr.log")
 		}
-		// if the user has set a custom docker data root, this will pick it up
-		// and set it in place of the usual docker base path
 		dockerLogsPath := dockerLogsBasePathNix
-		overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
-		if len(overridePath) > 0 {
-			dockerLogsPath = overridePath
-		}
 
 		return filepath.Join(
 			dockerLogsPath, "containers", containerID,

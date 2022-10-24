@@ -1126,6 +1126,5 @@ logs_config:
 	config := setupConfFromYAML(datadogYaml)
 	err := checkConflictingOptions(config)
 
-	fmt.Println("error: ", err)
 	assert.NotNil(t, err)
 }

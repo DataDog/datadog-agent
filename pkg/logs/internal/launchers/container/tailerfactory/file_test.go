@@ -137,11 +137,9 @@ func TestDockerOverride(t *testing.T) {
 	customPath := filepath.Join(tmp, "/custom/path")
 	mockConfig.Set("logs_config.docker_path_override", customPath)
 
-	t.Log("logs_config.docker_path_override")
 	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
-	t.Log(p)
 
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
