@@ -185,23 +185,25 @@
 //            http->owned_by_src_port == pre_norm_src_port);
 //}
 //
-static __always_inline int kafka_process(kafka_transaction_t *kafka_stack, skb_info_t *skb_info, __u64 tags) {
+static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info, __u64 tags) {
     //log_debug("in kafka_process");
-    char *buffer = (char *)kafka_stack->request_fragment;
-//    log_debug("Buffer: %s", buffer);
-    // TODO: read 4 bytes as size
-    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
+//    char *buffer = (char *)kafka_stack->request_fragment;
+////    log_debug("Buffer: %s", buffer);
+//    // TODO: read 4 bytes as size
+//    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
 
     // Temporary hack for debugging
-    if (kafka_stack->tup.dport != 9092 && kafka_stack->tup.sport != 9092) {
+    if (kafka_transaction->tup.dport != 9092 && kafka_transaction->tup.sport != 9092) {
         return 0;
     }
     //log_debug("Kafka port!");
 
-    if (!is_kafka(buffer, buffer_size)) {
+//    if (!is_kafka(buffer, buffer_size)) {
+    if (!try_parse_request_header(kafka_transaction)) {
         //log_debug("Not a Kafka traffic");
         return 0;
     }
+    log_debug("client_id from up: %s", kafka_transaction->client_id);
     log_debug("Kafka request found!");
 
 //    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;

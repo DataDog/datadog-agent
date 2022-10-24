@@ -19,6 +19,9 @@
 //// This determines the size of the payload fragment that is captured for each HTTP request
 //#define HTTP_BUFFER_SIZE (8 * 20)
 #define KAFKA_BUFFER_SIZE (8 * 20)
+
+#define CLIENT_ID_MAX_STRING_SIZE 50
+
 //// This controls the number of HTTP transactions read from userspace at a time
 //#define HTTP_BATCH_SIZE 15
 //// HTTP_BATCH_PAGES controls how many `http_batch_t` instances exist for each CPU core
@@ -66,6 +69,9 @@
 // Kafka transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
+    uint16_t request_api_version;
+    uint32_t correlation_id;
+    char client_id[CLIENT_ID_MAX_STRING_SIZE];
     __u64 request_started;
     __u8  request_method;
     __u16 response_status_code;
