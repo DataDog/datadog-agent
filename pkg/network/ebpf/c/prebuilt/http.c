@@ -15,7 +15,7 @@
 #include "go-tls-location.h"
 #include "go-tls-conn.h"
 
-#include "sock-impl.h"
+#include "sock.h"
 
 #define SO_SUFFIX_SIZE 3
 

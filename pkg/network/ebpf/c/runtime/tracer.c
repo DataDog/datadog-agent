@@ -35,7 +35,7 @@
 #endif
 
 #include "conn-tuple.h"
-#include "sock-impl.h"
+#include "sock.h"
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
