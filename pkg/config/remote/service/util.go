@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.etcd.io/bbolt"
@@ -31,8 +32,13 @@ type AgentMetadata struct {
 
 func recreate(path string) (*bbolt.DB, error) {
 	log.Infof("Clear remote configuration database")
-	if err := os.Remove(path); err != nil {
-		return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
+	err := os.Remove(path)
+	if err != nil {
+		log.Debugf("failed to remove rc db: %v", err)
+	}
+	err = os.MkdirAll(filepath.Dir(path), 0700)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rc db dir: %v", err)
 	}
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
 	if err != nil {
