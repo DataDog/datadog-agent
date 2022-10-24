@@ -69,7 +69,7 @@ type APMSamplingConfig struct {
 }
 
 func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, error) {
-	// We do not unmarshal the data here because its format depends on the config ID.
+	// We actually don't parse the payload here, we delegate this responsibility to the trace agent
 	return APMSamplingConfig{
 		Config:   data,
 		Metadata: metadata,
