@@ -20,8 +20,9 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
-func init() {
-	SecurityAgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
+func ConfigCommands(globalParams *GlobalParams) []*cobra.Command {
+	cmd := cmdconfig.Config(getSettingsClient)
+	return []*cobra.Command{cmd}
 }
 
 func setupConfig(cmd *cobra.Command) error {
