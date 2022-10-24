@@ -884,7 +884,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
 	// If set, the agent will look in this path for docker container log files.  Use this option if
-	// docker `data-root` has been set to a custom path and you wish to follow the logs there.  In
+	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
 	// order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
 	// See more documentation here:
 	// https://docs.docker.com/engine/reference/commandline/dockerd/.
