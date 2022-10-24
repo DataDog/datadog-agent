@@ -163,8 +163,7 @@ SEC("fentry/udp_send_skb")
 int BPF_PROG(udp_send_skb,
              struct sk_buff *skb,
              struct flowi4 *fl4,
-             void *cork,
-             int err) {
+             void *cork) {
     u64 len = skb->len - skb_transport_offset(skb) - sizeof(struct udphdr);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_with_telemetry(udp_send_skb_args, &pid_tgid, &len, BPF_ANY);
