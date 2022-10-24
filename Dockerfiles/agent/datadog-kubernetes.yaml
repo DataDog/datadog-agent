@@ -3,8 +3,7 @@
 
 apm_config:
   apm_non_local_traffic: true
-  max_memory: 500000000
-  max_cpu_percent: 45
+  max_memory: 0
 
 # Use java container support
 jmx_use_container_support: true
