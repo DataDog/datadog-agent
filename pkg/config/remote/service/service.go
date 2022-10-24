@@ -141,7 +141,7 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	http := api.NewHTTPClient(authKeys.httpHeaders())
+	http := api.NewHTTPClient(authKeys.apiAuth())
 	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err

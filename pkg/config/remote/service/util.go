@@ -14,6 +14,7 @@ import (
 
 	"go.etcd.io/bbolt"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
@@ -103,14 +104,15 @@ type remoteConfigAuthKeys struct {
 	rcKey    *msgpgo.RemoteConfigKey
 }
 
-func (k *remoteConfigAuthKeys) httpHeaders() map[string]string {
-	headers := map[string]string{
-		"DD-Api-Key": k.apiKey,
+func (k *remoteConfigAuthKeys) apiAuth() api.Auth {
+	auth := api.Auth{
+		ApiKey: k.apiKey,
 	}
 	if k.rcKeySet {
-		headers["DD-Application-Key"] = k.rcKey.AppKey
+		auth.UseAppKey = true
+		auth.AppKey = k.rcKey.AppKey
 	}
-	return headers
+	return auth
 }
 
 func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys, error) {
