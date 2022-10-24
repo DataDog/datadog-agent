@@ -2001,7 +2001,7 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 
 	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
-	missedRequestsExist := make([]bool, len(missedRequests))
+	expectedMissingRequestsCaught := make([]bool, len(missedRequests))
 
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
@@ -2017,8 +2017,8 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 		}
 
 		for reqIndex, req := range missedRequests {
-			if !missedRequestsExist[reqIndex] {
-				missedRequestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			if !expectedMissingRequestsCaught[reqIndex] {
+				expectedMissingRequestsCaught[reqIndex] = isRequestIncluded(conns.HTTP, req)
 			}
 		}
 
@@ -2035,8 +2035,10 @@ func TestOpenSSLVersionsSlowStart(t *testing.T) {
 		return true
 	}, 3*time.Second, time.Second, "connection not found")
 
-	for reqIndex, missing := range missedRequestsExist {
-		require.Truef(t, missing, "request %d was not meant to be captured found (req %v) but we captured it", reqIndex+1, requests[reqIndex])
+	// Here we intend to check if we catch requests we should not have caught
+	// Thus, if an expected missing requests - exists, thus there is a problem.
+	for reqIndex, exist := range expectedMissingRequestsCaught {
+		require.Falsef(t, exist, "request %d was not meant to be captured found (req %v) but we captured it", reqIndex+1, requests[reqIndex])
 	}
 }
 
