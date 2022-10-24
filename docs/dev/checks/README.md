@@ -128,14 +128,14 @@ checks code.
 
 ## Running checks with a local Agent Build
 ### Custom Checks
-Scenario: You have implemented a custom check called `hello_world` and you'd like
-to run this with a local agent build.
+Scenario: You have implemented a custom check called `hello_world` and you would
+like to run this with a local Agent build.
 
-1. Place the configuration file `hello_world.yaml` in `dev/dist/conf.d/` folder
-2. Place the pthon code in `dev/dist/` folder
-2. Run `inv agent.build` as usual. This step will copy the contents
-   of `dev/dist` into `bin/agent/dist`, which is where the agent will be
-   able to find your code.
+1. Place the configuration file `hello_world.yaml` in the `dev/dist/conf.d/` folder.
+1. Place your Python code in the `dev/dist/` folder.
+1. Run `inv agent.build` as usual. This step copies the contents
+   of `dev/dist` into `bin/agent/dist`, which is where the Agent looks
+   for your code.
 
 The resulting directory structure should look like:
 ```
@@ -148,64 +148,72 @@ dev/dist
 
 ### Standard Checks
 There are a number of checks that ship with a full build of the Agent, but when
-you're developing against a local build, you will not get any of these python
+you're developing against a local build, you will not get any of these Python
 checks out of the box, you must install them.
 
-> Note the following instructions install python packages to the python user
+> Note the following instructions install Python packages to the Python user
 > install directory. This could conflict with existing packages.
 
-The list of checks currently shipping with the agent lives in the
+The list of checks currently shipping with the Agent lives in the
 [integrations-core repo
 here](https://github.com/DataDog/integrations-core/blob/master/requirements-agent-release.txt)
 
-Say you want to test the `openmetrics` check.
+Scenario: You want to test the `openmetrics` check:
 
-1. Clone `integrations-core` locally. (Optionally checkout the git tag
-   corresponding to the version you want to test)
-2. From integration-core directory, install `datadog-checks-base` as a pre-req.
-   `pip3.10 install --user './datadog_checks_base[deps]'`
+1. Clone `integrations-core` locally. (Optionally, check out the git tag
+   corresponding to the version you want to test.)
+2. From the `integrations-core/` directory, install `datadog-checks-base` as a pre-req.
+    ```
+    python3 -m pip install --user './datadog_checks_base[deps]'
+    ```
 3. Install the `openmetrics` check. From inside the `integrations-core`
    checkout:
-   `pip3.10 install --user ./openmetrics`
+    ```
+    python3 -m pip install --user ./openmetrics
+    ```
 
 That's it! Your local build should now have the correct packages to be able to
 run the `openmetrics` check.
 
 #### "What is this `[deps]` thing?"
 The `[deps]` at the end of the package name instructs pip to install the
-"requires" that match the `deps` "extra". Without this, you'll see errors when running the agent
+requirements that match the `deps` "extra". Without this, you'll see errors when running the Agent
 about missing dependencies.
 
 View all the possible 'extras' with:
 ```
-pip3.10 install --no-warn-script-location --user --dry-run --ignore-installed -qqq --report - datadog-checks-base | jq '.install[] | select(.metadata.name=="datadog-checks-base") | .metadata.provides_extra'
+python3 -m pip install --no-warn-script-location --user --dry-run --ignore-installed -qqq --report - datadog-checks-base | jq '.install[] | select(.metadata.name=="datadog-checks-base") | .metadata.provides_extra'
 ```
 
-View all the "requires" (which shows which "extra" will trigger that
+View all the requirements (which shows which "extra" will trigger that
 dependency to be installed) with:
 ```
-pip3.10 install --no-warn-script-location --user --dry-run --ignore-installed -qqq --report - datadog-checks-base | jq '.install[] | select(.metadata.name=="datadog-checks-base") | .metadata.requires_dist'
+python3 -m pip install --no-warn-script-location --user --dry-run --ignore-installed -qqq --report - datadog-checks-base | jq '.install[] | select(.metadata.name=="datadog-checks-base") | .metadata.requires_dist'
 ```
 
-#### "Which python is my agent build using?"
+#### "Which Python binary is my Agent build using?"
 Assuming you're not doing a full omnibus build, you won't have an embedded
-python in your local build, so your local build will need to choose a python
-from your system to use.
+Python binary in your local build, so your local build will need to choose a Python
+binary from your system to use.
 
-By default the agent will choose the first python binary (`python` or `python3`
-depending on your configuration) from the `PATH` that is used to run the agent.
+By default, the Agent chooses the first python binary (`python` or `python3`
+depending on your configuration) from the `PATH` that is used to run the Agent.
+
+> There are some environment variables that can change the way the binary is
+> chosen, for the full story see the function `resolvePythonExecPath`
+> in `pkg/collector/python/init.go`.
 
 ### "Could not initialize Python"
 Out of the box, after an `inv agent.build`, you may see the following error on
-linux when trying to run the resulting `agent` binary:
+Linux when trying to run the resulting `agent` binary:
 
 `Could not initialize Python: could not load runtime python for version 3: Unable to open three library: libdatadog-agent-three.so: cannot open shared object file: No such file or directory`
 
-To solve on linux, use the loader env var `LD_LIBRARY_PATH`.
-ie, `LD_LIBRARY_PATH=$PWD/dev/lib ./bin/agent/agent run`
+To solve on Linux, use the loader env var `LD_LIBRARY_PATH`.
+For example, `LD_LIBRARY_PATH=$PWD/dev/lib ./bin/agent/agent run`
 
 Why is this needed? This is due to a combination of the way `rtloader` works
-and how library loading works on linux.
+and how library loading works on Linux.
 
 The very simplified summary is that `libdatadog-agent-rtloader.so` attempts to load
 `libdatadog-agent-three.so` via `dlopen`, however `libdatadog-agent-rtloader`
