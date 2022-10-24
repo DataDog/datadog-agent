@@ -108,6 +108,131 @@ func TestGetSNMPConfig(t *testing.T) {
 
 }
 
+func TestGetSNMPConfigNetwork(t *testing.T) {
+	IPList := []SNMPConfig{
+		{
+			Version:         "2",
+			CommunityString: "password",
+			NetAddress:      "192.168.5.0/24",
+			Port:            161,
+			Timeout:         60,
+			Retries:         3,
+		},
+		{
+			Version:         "2",
+			CommunityString: "drowssap",
+			IPAddress:       "98.6.18.159",
+			Port:            162,
+			Timeout:         30,
+			Retries:         5,
+		},
+		{
+			Version:         "3",
+			CommunityString: "drowssap",
+			IPAddress:       "98.6.18.160",
+			Port:            172,
+			Timeout:         30,
+			Retries:         5,
+		},
+	}
+	input := "192.168.5.3"
+	Exoutput := SNMPConfig{
+		Version:         "2",
+		CommunityString: "password",
+		IPAddress:       "192.168.5.3",
+		NetAddress:      "192.168.5.0/24",
+		Port:            161,
+		Timeout:         60,
+		Retries:         3,
+	}
+	assertIP(t, input, IPList, Exoutput)
+
+}
+
+func TestGetSNMPConfigNet(t *testing.T) {
+	//if the ip address is a part of network but alos is defined indivudualy
+	// the ip_address field should be the one that works
+	IPList := []SNMPConfig{
+		{
+			Version:         "2",
+			CommunityString: "password",
+			NetAddress:      "192.168.5.0/24",
+			Port:            161,
+			Timeout:         60,
+			Retries:         3,
+		},
+		{
+			Version:         "2",
+			CommunityString: "drowssap",
+			IPAddress:       "98.6.18.159",
+			Port:            162,
+			Timeout:         30,
+			Retries:         5,
+		},
+		{
+			Version:         "2",
+			CommunityString: "password",
+			IPAddress:       "192.168.5.1",
+			Port:            161,
+			Timeout:         60,
+			Retries:         3,
+		},
+	}
+	input := "192.168.5.1"
+	Exoutput := SNMPConfig{
+		Version:         "2",
+		CommunityString: "password",
+		IPAddress:       "192.168.5.1",
+		Port:            161,
+		Timeout:         60,
+		Retries:         3,
+	}
+	assertIP(t, input, IPList, Exoutput)
+
+}
+
+func TestGetSNMPConfigNoAddress(t *testing.T) {
+	//if the ip address doesn't match anything
+	IPList := []SNMPConfig{
+		{
+			Version:         "2",
+			CommunityString: "password",
+			NetAddress:      "192.168.5.0/24",
+			Port:            161,
+			Timeout:         60,
+			Retries:         3,
+		},
+		{
+			Version:         "2",
+			CommunityString: "drowssap",
+			IPAddress:       "98.6.18.159",
+			Port:            162,
+			Timeout:         30,
+			Retries:         5,
+		},
+		{
+			Version:         "2",
+			CommunityString: "password",
+			IPAddress:       "192.168.5.1",
+			Port:            161,
+			Timeout:         60,
+			Retries:         3,
+		},
+	}
+	input := "192.168.6.1"
+	Exoutput := SNMPConfig{}
+	assertIP(t, input, IPList, Exoutput)
+
+}
+func TestGetSNMPConfigEmpty(t *testing.T) {
+	//if the snmp configuration is empty
+	IPList := []SNMPConfig{}
+	input := "192.168.6.1"
+	Exoutput := SNMPConfig{}
+	assertIP(t, input, IPList, Exoutput)
+
+}
+
 func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedOutput SNMPConfig) {
 	output := GetIPConfig(input, snmpConfigList)
 	assert.Equal(t, expectedOutput, output)

@@ -288,7 +288,7 @@ func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
 }
 
 func (ad *ActivityDump) checkInMemorySize() {
-	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize) {
+	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize()) {
 		return
 	}
 

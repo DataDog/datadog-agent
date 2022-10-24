@@ -6,7 +6,6 @@
 package runtime
 
 import (
-	"os"
 	"runtime"
 	"testing"
 
@@ -21,18 +20,29 @@ func TestAutoMaxProcs(t *testing.T) {
 	runtime.GOMAXPROCS(2)
 	assert.Equal(t, 2, runtime.GOMAXPROCS(0))
 
-	os.Setenv("GOMAXPROCS", "1000m")
-	// set new limit
-	SetMaxProcs()
-	assert.Equal(t, 1, runtime.GOMAXPROCS(0))
-
-	os.Setenv("GOMAXPROCS", "1500m")
-	// set new limit
-	SetMaxProcs()
-	assert.Equal(t, 1, runtime.GOMAXPROCS(0))
-
-	os.Setenv("GOMAXPROCS", "2000m")
-	// set new limit
-	SetMaxProcs()
-	assert.Equal(t, 2, runtime.GOMAXPROCS(0))
+	tests := []struct {
+		maxProcsValue string
+		expected      int
+	}{
+		{
+			maxProcsValue: "1000m",
+			expected:      1,
+		},
+		{
+			maxProcsValue: "1500m",
+			expected:      1,
+		},
+		{
+			maxProcsValue: "2000m",
+			expected:      2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.maxProcsValue, func(t *testing.T) {
+			t.Setenv("GOMAXPROCS", test.maxProcsValue)
+			// set new limit
+			SetMaxProcs()
+			assert.Equal(t, test.expected, runtime.GOMAXPROCS(0))
+		})
+	}
 }

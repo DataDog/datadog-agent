@@ -352,7 +352,9 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 				probe: &Probe{
 					statsdClient: mock.NewStatsdClient(),
 					config: &config.Config{
-						ActivityDumpMaxDumpSize: 2048,
+						ActivityDumpMaxDumpSize: func() int {
+							return 2048
+						},
 					},
 				},
 				ignoreFromSnapshot: make(map[string]bool),

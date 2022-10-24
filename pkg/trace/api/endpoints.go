@@ -125,7 +125,11 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
 	},
 	{
-		Pattern: "/dogstatsd/v1/proxy",
+		Pattern: "/dogstatsd/v1/proxy", // deprecated
+		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
+	},
+	{
+		Pattern: "/dogstatsd/v2/proxy",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
 	},
 }

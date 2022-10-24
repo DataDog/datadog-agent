@@ -172,9 +172,11 @@
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
-# components
-/comp                                   @DataDog/agent-shared-components
-/comp/core/                             @DataDog/agent-shared-components
+# The following is managed by `inv lint-components` -- DO NOT EDIT
+# BEGIN COMPONENTS
+/comp @DataDog/agent-shared-components
+/comp/core @DataDog/agent-shared-components
+# END COMPONENTS
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components

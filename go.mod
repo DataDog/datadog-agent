@@ -72,7 +72,7 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/avast/retry-go/v4 v4.1.0
+	github.com/avast/retry-go/v4 v4.3.0
 	github.com/aws/aws-lambda-go v1.32.0
 	github.com/aws/aws-sdk-go v1.44.117
 	github.com/beevik/ntp v0.3.0
@@ -182,15 +182,15 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
-	golang.org/x/net v0.0.0-20221012135044-0b7e1fb9d458
+	golang.org/x/net v0.1.0
 	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
-	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43
-	golang.org/x/text v0.3.7
+	golang.org/x/sys v0.1.0
+	golang.org/x/text v0.4.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
-	golang.org/x/tools v0.1.12
+	golang.org/x/tools v0.2.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20221010155953-15ba04fc1c0e
-	google.golang.org/grpc v1.50.0
+	google.golang.org/grpc v1.50.1
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -270,7 +270,7 @@ require (
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20201014110547-68ccff494617 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -391,12 +391,12 @@ require (
 	go.opentelemetry.io/otel/sdk v1.10.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v0.32.1 // indirect
 	go.opentelemetry.io/otel/trace v1.10.0 // indirect
-	go.uber.org/dig v1.15.0 // indirect
+	go.uber.org/dig v1.15.0
 	go.uber.org/fx v1.18.2
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
+	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20221006150949-b44042a4b9c1 // indirect
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
+	golang.org/x/term v0.1.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
