@@ -67,19 +67,11 @@ api_key:
 ## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.0"
 ## This option defines the minimum TLS version that will be used when
 ## submitting data to the Datadog intake specified in "site" or "dd_url".
-## This parameter defaults to "tlsv1.0" (but see `force_tls_12`, below).
+## This parameter defaults to "tlsv1.2".
 ## Possible values are: tlsv1.0, tlsv1.1, tlsv1.2, tlsv1.3; values are case-
 ## insensitive.
 #
-# min_tls_version: "tlsv1.0"
-
-## @param force_tls_12 - boolean - optional - default: false
-## @env DD_FORCE_TLS_12 - boolean - optional - default: false
-## Setting this option to "true" is equivalent to setting the default for
-## `min_tls_version` to `tlsv1.2`.  This parameter is deprecated in favor of
-## `min_tls_version`.
-#
-# force_tls_12: false
+# min_tls_version: "tlsv1.2"
 
 ## @param hostname - string - optional - default: auto-detected
 ## @env DD_HOSTNAME - string - optional - default: auto-detected
