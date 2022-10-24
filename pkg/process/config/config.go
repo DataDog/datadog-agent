@@ -8,6 +8,7 @@ package config
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -278,6 +279,15 @@ func loadEnvVariables() {
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
+		}
+	}
+
+	if v := os.Getenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS"); v != "" {
+		endpoints := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
+			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
 }

@@ -13,8 +13,7 @@ import (
 
 // LogLevelRuntimeSetting wraps operations to change log level at runtime.
 type LogLevelRuntimeSetting struct {
-	ConfigRoot config.Config
-	ConfigKey  string
+	ConfigKey string
 }
 
 // Description returns the runtime setting's description
@@ -52,11 +51,7 @@ func (l LogLevelRuntimeSetting) Set(v interface{}) error {
 	if l.ConfigKey != "" {
 		key = l.ConfigKey
 	}
-	cfg := config.Datadog
-	if l.ConfigRoot != nil {
-		cfg = l.ConfigRoot
-	}
-	cfg.Set(key, logLevel)
+	config.Datadog.Set(key, logLevel)
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil
