@@ -50,12 +50,12 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	return endpoints
 }
 
-func (r *HTTPReceiver) evpProxyHandler() http.Handler {
+func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
 	handler := evpProxyForwarder(r.conf)
-	return http.StripPrefix("/evp_proxy/v1", handler)
+	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%v", apiVersion), handler)
 }
 
 // evpProxyErrorHandler returns an HTTP handler that will always return
