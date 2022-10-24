@@ -63,6 +63,7 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 }
 
 // MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line
+// TODO(paulcacheux): change this a component method once all security-agent commands have been converted to fx
 func MergeConfigurationFiles(configName string, configurationFilesArray []string, userDefined bool) (*config.Warnings, error) {
 	// we'll search for a config file named `datadog.yaml`
 	config.Datadog.SetConfigName(configName)

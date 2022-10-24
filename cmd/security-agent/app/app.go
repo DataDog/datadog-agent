@@ -80,6 +80,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 				color.NoColor = true
 			}
 
+			// TODO(paulcacheux): remove this once all subcommands have been converted to use config component
 			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 			return err
 		},
