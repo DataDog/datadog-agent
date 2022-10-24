@@ -55,7 +55,7 @@ func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
 	handler := evpProxyForwarder(r.conf)
-	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%v", apiVersion), handler)
+	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%d", apiVersion), handler)
 }
 
 // evpProxyErrorHandler returns an HTTP handler that will always return
