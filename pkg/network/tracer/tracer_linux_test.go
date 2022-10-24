@@ -15,6 +15,7 @@ import (
 	"fmt"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"io"
 	"io/ioutil"
 	"math"
@@ -1871,6 +1872,48 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolHTTP,
 		},
 		{
+			name: "gRPC traffic - unary call",
+			done: make(chan struct{}),
+			clientRun: func(t *testing.T, serverAddr string) {
+				c, err := grpc.NewClient(serverAddr, grpc.Options{
+					CustomDialer: dialer,
+				})
+				require.NoError(t, err)
+				defer c.Close()
+				require.NoError(t, c.HandleUnary(context.Background(), "test"))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+				closer, err := grpc.Server(serverAddr)
+				require.NoError(t, err)
+				go func() {
+					<-done
+					closer()
+				}()
+			},
+			want: network.ProtocolHTTP2,
+		},
+		{
+			name: "gRPC traffic - stream call",
+			done: make(chan struct{}),
+			clientRun: func(t *testing.T, serverAddr string) {
+				c, err := grpc.NewClient(serverAddr, grpc.Options{
+					CustomDialer: dialer,
+				})
+				require.NoError(t, err)
+				defer c.Close()
+				require.NoError(t, c.HandleStream(context.Background(), 5))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+				closer, err := grpc.Server(serverAddr)
+				require.NoError(t, err)
+				go func() {
+					<-done
+					closer()
+				}()
+			},
+			want: network.ProtocolHTTP2,
+		},
+		{
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
 			// with the first protocol we've found.
 			name: "mixed protocols",
@@ -1919,32 +1962,32 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			time.Sleep(500 * time.Millisecond)
 			tt.clientRun(t, targetAddr)
 
-			var outgoingConns []network.ConnectionStats
-			var incomingConns []network.ConnectionStats
+			foundIncoming := false
+			foundOutgoing := false
 			require.Eventuallyf(t, func() bool {
 				conns := getConnections(t, tr)
-				if len(outgoingConns) == 0 {
-					outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-						return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
-					})
+				outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+					return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
+				})
+				incomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+					return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+				})
+
+				for _, conn := range outgoingConns {
+					if conn.Protocol == tt.want {
+						foundOutgoing = true
+						break
+					}
 				}
-				if len(incomingConns) == 0 {
-					incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-						return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
-					})
+				for _, conn := range incomingConns {
+					if conn.Protocol == tt.want {
+						foundIncoming = true
+						break
+					}
 				}
 
-				return len(outgoingConns) == 1 && len(incomingConns) == 1
+				return foundOutgoing && foundIncoming
 			}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
-
-			// Verify connection directions
-			conn := outgoingConns[0]
-			assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
-			assertConnectionProtocol(t, cfg, tt.want, conn.Protocol)
-
-			conn = incomingConns[0]
-			assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
-			assertConnectionProtocol(t, cfg, tt.want, conn.Protocol)
 		})
 	}
 }

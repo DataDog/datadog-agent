@@ -78,7 +78,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_UNKNOWN;
     }
 
-    log_debug("[protocol classification]: Classified protocol as %d %d %s\n", *protocol, size, buf);
+    log_debug("[protocol classification]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
 }
 
 // Decides if the protocol_classifier should process the packet. We process not empty TCP packets.
@@ -170,55 +170,99 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
     return false;
 }
 
+// Returns the cached protocol for the given connection tuple, or PROTOCOL_UNCLASSIFIED if missing.
+static __always_inline protocol_t get_cached_protocol_or_default(conn_tuple_t *tup) {
+    protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, tup);
+    if (cached_protocol_ptr != NULL) {
+        return *cached_protocol_ptr;
+    }
+
+    return PROTOCOL_UNCLASSIFIED;
+}
+
+// Given protocols for the socket connection tuple, and the inverse skb connection tuple, the function returns
+// the final protocol among the two.
+// If the sock_tup_protocol is unclassified, then it does not matter what's the value of the inverse_skb_tup_protocol,
+// we will take it. If the inverse_skb_tup_protocol is unclassified as well, then it does not matter which "unclassified"
+// we choose. If it is unknown or classified, then we should choose it.
+// If the sock_tup_protocol is unknown, then we take the inverse_skb_tup_protocol if it is classified or unknown.
+// If both are unknown, then it does not matter which "unknown" we choose. If the inverse_skb_tup_protocol is classified,
+// then for sure we should choose it.
+// On any other case take sock_tup_protocol.
+static __always_inline protocol_t choose_protocol(protocol_t sock_tup_protocol, protocol_t inverse_skb_tup_protocol) {
+    if ((sock_tup_protocol == PROTOCOL_UNCLASSIFIED) ||
+        (sock_tup_protocol == PROTOCOL_UNKNOWN && inverse_skb_tup_protocol != PROTOCOL_UNCLASSIFIED)) {
+        return inverse_skb_tup_protocol;
+    }
+
+    // On any other case, we give the priority to the classified protocol for the socket connection tuple
+    return sock_tup_protocol;
+}
+
+// Replaces the source and dest fields (addresses and ports).
+static __always_inline void invert_conn_tuple(conn_tuple_t *original_conn, conn_tuple_t *output_conn) {
+    output_conn->saddr_h = original_conn->daddr_h;
+    output_conn->saddr_l = original_conn->daddr_l;
+    output_conn->daddr_h = original_conn->saddr_h;
+    output_conn->daddr_l = original_conn->saddr_l;
+    output_conn->sport = original_conn->dport;
+    output_conn->dport = original_conn->sport;
+    output_conn->metadata = original_conn->metadata;
+    output_conn->pid = original_conn->pid;
+    output_conn->netns = original_conn->netns;
+}
+
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
-    conn_tuple_t tup = {0};
+    conn_tuple_t skb_tup = {0};
 
     // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
-    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
         return;
     }
 
     // We process a non empty TCP packets, rather than that - we skip the packet.
-    if (!should_process_packet(skb, &skb_info, &tup)) {
+    if (!should_process_packet(skb, &skb_info, &skb_tup)) {
         return;
     }
 
     // Making sure we've not processed the same tcp segment, which can happen when a single packet travels different
     // interfaces.
-    if (has_sequence_seen_before(&tup, &skb_info)) {
+    if (has_sequence_seen_before(&skb_tup, &skb_info)) {
         return;
     }
 
-    struct sock **protocol_key_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_map, &tup);
-    if (protocol_key_ptr == NULL) {
-        log_debug("[protocol_classifier_entrypoint]: protocol_key_ptr is null, aborting\n");
+    conn_tuple_t *cached_sock_conn_tup_ptr = bpf_map_lookup_elem(&skb_conn_tuple_to_socket_conn_tuple, &skb_tup);
+    if (cached_sock_conn_tup_ptr == NULL) {
         return;
     }
-    struct sock *protocol_key = *protocol_key_ptr;
-    protocol_t *protocol = bpf_map_lookup_elem(&connection_protocol, &protocol_key);
-    protocol_t local_protocol = PROTOCOL_UNCLASSIFIED;
-    if (protocol != NULL) {
-        local_protocol = *protocol;
-    }
+
+    conn_tuple_t cached_sock_conn_tup = *cached_sock_conn_tup_ptr;
+    conn_tuple_t inverse_skb_conn_tup = {0};
+    invert_conn_tuple(&skb_tup, &inverse_skb_conn_tup);
+    inverse_skb_conn_tup.pid = 0;
+    inverse_skb_conn_tup.netns = 0;
+
+    protocol_t sock_tup_protocol = get_cached_protocol_or_default(&cached_sock_conn_tup);
+    protocol_t inverse_skb_tup_protocol = get_cached_protocol_or_default(&inverse_skb_conn_tup);
+    protocol_t local_protocol = choose_protocol(sock_tup_protocol, inverse_skb_tup_protocol);
 
     // If we've already identified the protocol of the socket, no need to read the buffer and try to classify it.
-    if (local_protocol != PROTOCOL_UNCLASSIFIED && local_protocol != PROTOCOL_UNKNOWN) {
-        return;
+    if (local_protocol == PROTOCOL_UNCLASSIFIED || local_protocol == PROTOCOL_UNKNOWN) {
+        char request_fragment[CLASSIFICATION_MAX_BUFFER];
+        bpf_memset(request_fragment, 0, sizeof(request_fragment));
+        read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+        classify_protocol(&local_protocol, request_fragment, sizeof(request_fragment));
     }
 
-    char request_fragment[CLASSIFICATION_MAX_BUFFER];
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-
-    protocol_t original_protocol = local_protocol;
-    classify_protocol(&local_protocol, request_fragment, sizeof(request_fragment));
-
-    log_debug("[protocol_classifier_entrypoint]: Calling protocol: %d\n", local_protocol);
+    log_debug("[protocol_classifier_entrypoint]: Classifying protocol as: %d\n", local_protocol);
     // If there has been a change in the classification, save the new protocol.
-    if (original_protocol != local_protocol) {
-        bpf_map_update_with_telemetry(connection_protocol, &protocol_key, &local_protocol, BPF_ANY);
+    if (sock_tup_protocol != local_protocol) {
+        bpf_map_update_with_telemetry(connection_protocol, &cached_sock_conn_tup, &local_protocol, BPF_ANY);
+    }
+    if (inverse_skb_tup_protocol != local_protocol) {
+        bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &local_protocol, BPF_ANY);
     }
 }
 
