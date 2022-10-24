@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -43,9 +44,13 @@ type labelsFetcher struct {
 	nodeLabels map[string]string
 }
 
-func (f *labelsFetcher) fetch() (err error) {
-	f.nodeLabels, err = hostinfo.GetNodeLabels(context.TODO())
-	return
+func (f *labelsFetcher) fetch() error {
+	nodeInfo, err := hostinfo.NewNodeInfo()
+	if err != nil {
+		return fmt.Errorf("unable to instantiate NodeInfo, err: %w", err)
+	}
+	f.nodeLabels, err = nodeInfo.GetNodeLabels(context.TODO())
+	return err
 }
 
 func notifyFetchNodeLabels() backoff.Notify {

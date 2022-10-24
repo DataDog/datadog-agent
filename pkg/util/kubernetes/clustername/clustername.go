@@ -109,10 +109,17 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 		}
 
 		if data.clusterName == "" && config.IsFeaturePresent(config.Kubernetes) {
-			clusterName, err := hostinfo.GetNodeClusterNameLabel(ctx)
+			var clusterName string
+			nodeInfo, err := hostinfo.NewNodeInfo()
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
 			} else {
+				clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx)
+				if err != nil {
+					log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+				}
+			}
+			if len(clusterName) > 0 {
 				data.clusterName = clusterName
 			}
 		}
