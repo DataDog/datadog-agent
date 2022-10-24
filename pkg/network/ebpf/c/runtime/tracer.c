@@ -880,6 +880,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     sock_tup.netns = 0;
 
     bpf_map_update_elem(&skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
+    bpf_map_update_elem(&conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
 
     return 0;
 }

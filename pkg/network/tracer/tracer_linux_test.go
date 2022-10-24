@@ -16,6 +16,7 @@ import (
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 	"math"
@@ -31,12 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	vnetns "github.com/vishvananda/netns"
-	"golang.org/x/sys/unix"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -47,6 +42,10 @@ import (
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	vnetns "github.com/vishvananda/netns"
 )
 
 func httpSupported(t *testing.T) bool {
@@ -1709,16 +1708,19 @@ func TestProtocolClassification(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
 		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
+		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
 		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
 		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
 	})
 }
 
@@ -1962,32 +1964,105 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			time.Sleep(500 * time.Millisecond)
 			tt.clientRun(t, targetAddr)
 
-			foundIncoming := false
-			foundOutgoing := false
-			require.Eventuallyf(t, func() bool {
-				conns := getConnections(t, tr)
-				outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-					return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
-				})
-				incomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-					return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
-				})
-
-				for _, conn := range outgoingConns {
-					if conn.Protocol == tt.want {
-						foundOutgoing = true
-						break
-					}
-				}
-				for _, conn := range incomingConns {
-					if conn.Protocol == tt.want {
-						foundIncoming = true
-						break
-					}
-				}
-
-				return foundOutgoing && foundIncoming
-			}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+			waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, tt.want)
 		})
 	}
+}
+
+func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	t.Run("protocol cleanup", func(t *testing.T) {
+		dialer := &net.Dialer{
+			LocalAddr: &net.TCPAddr{
+				IP:   net.ParseIP(clientHost),
+				Port: 9999,
+			},
+			Control: func(network, address string, c syscall.RawConn) error {
+				var opErr error
+				err := c.Control(func(fd uintptr) {
+					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+				})
+				if err != nil {
+					return err
+				}
+				return opErr
+			},
+		}
+
+		tr, err := NewTracer(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tr.Stop()
+
+		initTracerState(t, tr)
+		port, err := GetFreePort()
+		require.NoError(t, err)
+		serverAddr := net.JoinHostPort(serverHost, port)
+		targetAddr := net.JoinHostPort(targetHost, port)
+		done := make(chan struct{})
+		server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
+			r := bufio.NewReader(c)
+			input, err := r.ReadBytes(byte('\n'))
+			if err == nil {
+				c.Write(input)
+			}
+			c.Close()
+		})
+		require.NoError(t, server.Run(done))
+
+		// Letting the server time to start
+		time.Sleep(500 * time.Millisecond)
+
+		// Running a HTTP client
+		timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+		c, err := dialer.DialContext(timedContext, "tcp", targetAddr)
+		cancel()
+		require.NoError(t, err)
+		c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
+		fmt.Println("1", c.LocalAddr().String(), c.RemoteAddr().String())
+
+		c.Close()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, network.ProtocolHTTP)
+
+		time.Sleep(time.Second * 2)
+		timedContext, cancel = context.WithTimeout(context.Background(), time.Second)
+		c, err = dialer.DialContext(timedContext, "tcp", targetAddr)
+		cancel()
+		require.NoError(t, err)
+		c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
+
+		fmt.Println("2", c.LocalAddr().String(), c.RemoteAddr().String())
+		c.Close()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, network.ProtocolHTTP2)
+	})
+}
+
+func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
+	foundIncoming := false
+	foundOutgoing := false
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
+		})
+		incomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+		})
+
+		for _, conn := range outgoingConns {
+			if conn.Protocol == expectedProtocol {
+				foundOutgoing = true
+				break
+			}
+		}
+		for _, conn := range incomingConns {
+			if conn.Protocol == expectedProtocol {
+				foundIncoming = true
+				break
+			}
+		}
+
+		return foundOutgoing && foundIncoming
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
 }
