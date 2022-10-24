@@ -36,6 +36,7 @@ type CollectorBundle struct {
 	inventory           *inventory.CollectorInventory
 	stopCh              chan struct{}
 	runCfg              *collectors.CollectorRunConfig
+	crdDiscovery        *APIServerDiscoveryProvider
 	activatedCollectors map[string]struct{}
 }
 
@@ -60,7 +61,8 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh: make(chan struct{}),
+		stopCh:       make(chan struct{}),
+		crdDiscovery: NewAPIServerDiscoveryProvider(),
 	}
 
 	bundle.prepare()
@@ -107,7 +109,7 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 	)
 
 	if strings.HasPrefix(collectorName, "crd/") {
-		collector, err = cb.inventory.CollectorForCustomResource(strings.TrimPrefix(collectorName, "crd/"))
+		collector, err = cb.inventory.CollectorForCustomResource(strings.TrimPrefix(collectorName, "crd/"), cb.crdDiscovery)
 	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
 		version := collectorName[:idx]
 		name := collectorName[idx+1:]
@@ -125,13 +127,13 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
 	}
 
-	// TODO: check if that is enough
-	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
+	if _, ok := cb.activatedCollectors[collector.Metadata().Name]; ok {
 		_ = cb.check.Warnf("collector %s has already been added", collectorName)
 		return
 	}
 
-	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
+	cb.activatedCollectors[collector.Metadata().Name] = struct{}{}
 	cb.collectors = append(cb.collectors, collector)
 }
 

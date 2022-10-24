@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 
@@ -27,43 +28,41 @@ const (
 	defaultAPIServerTimeout = 20 * time.Second
 )
 
+type discoveryCache struct {
+	groups              []*v1.APIGroup
+	resources           []*v1.APIResourceList
+	filled              bool
+	collectorForVersion map[collectorVersion]struct{}
+}
+
+type collectorVersion struct {
+	version string
+	name    string
+}
+
 // APIServerDiscoveryProvider is a discovery provider that uses the Kubernetes
 // API Server as its data source.
 type APIServerDiscoveryProvider struct {
 	result []collectors.Collector
 	seen   map[string]struct{}
+	cache  discoveryCache
 }
 
 // NewAPIServerDiscoveryProvider returns a new instance of the APIServer
 // discovery provider.
 func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 	return &APIServerDiscoveryProvider{
-		seen: make(map[string]struct{}),
+		seen:  make(map[string]struct{}),
+		cache: discoveryCache{},
 	}
 }
 
 // Discover returns collectors to enable based on information exposed by the API server.
 func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
-	defer cancel()
+	groups, resources, err := p.getServerGroupsAndResources()
 
-	client, err := apiserver.WaitForAPIClient(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources() // TODO: can be used for cr check
-	if err != nil {
-		if !discovery.IsGroupDiscoveryFailedError(err) {
-			return nil, err
-		}
-		// We don't handle API group errors here because we assume API groups used
-		// by collectors in the orchestrator check will always be part of the result
-		// even though it might be incomplete due to discovery failures on other
-		// groups.
-		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
-		}
 	}
 
 	if len(resources) == 0 {
@@ -81,6 +80,63 @@ func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInve
 	return p.result, nil
 }
 
+func (p *APIServerDiscoveryProvider) DiscoverCRDResource(grv string) (*k8sCollectors.CRCollector, error) {
+	if !p.cache.filled {
+		var err error
+		p.cache.groups, p.cache.resources, err = p.getServerGroupsAndResources()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(p.cache.resources) == 0 {
+			return nil, fmt.Errorf("failed to discover resources from API groups")
+		}
+		for _, list := range p.cache.resources {
+			for _, resource := range list.APIResources {
+				cv := collectorVersion{
+					version: resource.Name,
+					name:    list.GroupVersion,
+				}
+				p.cache.collectorForVersion[cv] = struct{}{}
+			}
+		}
+	}
+
+	collector := k8sCollectors.NewCRCollectorVersions(grv)
+	if _, ok := p.cache.collectorForVersion[collectorVersion{
+		version: collector.Metadata().Version,
+		name:    collector.Metadata().Name,
+	}]; ok {
+		return collector, nil
+	}
+	return nil, fmt.Errorf("failed to discover resource collectorName: %s", grv)
+}
+
+func (p *APIServerDiscoveryProvider) getServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
+	defer cancel()
+
+	client, err := apiserver.WaitForAPIClient(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources()
+	if err != nil {
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			return nil, nil, err
+		}
+		// We don't handle API group errors here because we assume API groups used
+		// by collectors in the orchestrator check will always be part of the result
+		// even though it might be incomplete due to discovery failures on other
+		// groups.
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
+		}
+	}
+	return groups, resources, nil
+}
+
 func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector) {
 	// Make sure resource collectors are added at most once
 	if _, found := p.seen[collector.Metadata().Name]; found {
@@ -93,7 +149,7 @@ func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector
 }
 
 func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, resources []*v1.APIResourceList) {
-	for _, list := range resources { // TODO: make properly support crd (not cr)
+	for _, list := range resources {
 		for _, resource := range list.APIResources {
 			collector, err := inventory.CollectorForVersion(resource.Name, list.GroupVersion)
 			if err != nil {

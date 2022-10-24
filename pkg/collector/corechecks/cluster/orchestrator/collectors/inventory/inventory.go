@@ -10,7 +10,10 @@ package inventory
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 )
@@ -50,11 +53,21 @@ func NewCollectorInventory() *CollectorInventory {
 	}
 }
 
-// CollectorForCustomResource ...
-func (ci *CollectorInventory) CollectorForCustomResource(collectorName string) (collectors.Collector, error) {
-	// TODO: 1 - check discover here -> does the CRD exist?
-	// TODO: 2 - does the agent try to collect pods again? -> use a shared map to check + make sure crd is done last so we don't need to do the check everywhere?
-	collector := k8sCollectors.NewCRCollectorVersions(collectorName)
+// CollectorForCustomResource creates a custom resource collector given its name. It returns an error if the resource does not exist
+func (ci *CollectorInventory) CollectorForCustomResource(collectorName string, discovery *orchestrator.APIServerDiscoveryProvider) (collectors.Collector, error) {
+	// discover resources on the api server
+	// cache them
+	// use the cache and check grv against
+	grv := strings.Split(collectorName, "/")
+	if len(grv) < 3 { // resources can have sub slashes, so we need at least 3
+		return nil, fmt.Errorf("GRV needs to be of the following format: <apigroup_and_version>/<collector_name")
+	}
+
+	collector, err := discovery.DiscoverCRDResource(collectorName)
+	if err != nil {
+		return nil, err
+	}
+
 	return collector, nil
 }
 

@@ -24,8 +24,8 @@ import (
 )
 
 // NewCRCollectorVersions builds the group of collector versions.
-func NewCRCollectorVersions(cr string) *CRCollector {
-	return NewCRCollector(cr)
+func NewCRCollectorVersions(grv string) *CRCollector {
+	return NewCRCollector(grv)
 }
 
 // CRCollector is a collector for Kubernetes CRs.
@@ -40,12 +40,15 @@ type CRCollector struct {
 // NewCRCollector creates a new collector for the Kubernetes CR
 // resource.
 func NewCRCollector(grv string) *CRCollector {
+	grvSplit := strings.Split(grv, "/")
+
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
 			IsStable:         false,
-			Name:             fmt.Sprintf("customresources/%s", grv), // TODO: make that smarter?
+			Name:             fmt.Sprintf("%s", grvSplit[3]),
 			NodeType:         orchestrator.K8sCR,
+			Version:          fmt.Sprintf("%s/%s", grvSplit[0], grvSplit[1]),
 		},
 		grv:       grv,
 		processor: processors.NewProcessor(new(k8sProcessors.CRHandlers)),
