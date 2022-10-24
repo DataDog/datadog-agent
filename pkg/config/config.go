@@ -1903,7 +1903,7 @@ func GetTraceAgentDefaultEnv() string {
 			if strings.HasPrefix(tag, "env:") {
 				defaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
-				break
+				return defaultEnv
 			}
 		}
 	}

@@ -181,9 +181,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
-	newDefaultEnv := coreconfig.GetTraceAgentDefaultEnv()
-	if newDefaultEnv != "" {
-		c.DefaultEnv = newDefaultEnv
+	if env := coreconfig.GetTraceAgentDefaultEnv(); env != "" {
+		c.DefaultEnv = env
 	}
 
 	prevEnv := c.DefaultEnv
