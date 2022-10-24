@@ -18,10 +18,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -90,12 +89,10 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
-	stats := &testutil.TestStatsClient{}
 	cfg := config.New()
+	stats := &teststatsd.Client{}
+	defer testutil.WithStatsClient(stats)()
 
-	timing.Stop() // https://github.com/DataDog/datadog-agent/issues/13934
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
@@ -125,10 +122,10 @@ func TestOTLPMetrics(t *testing.T) {
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
 }
 
 func TestOTLPNameRemapping(t *testing.T) {

@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package testutil
+// Package teststatsd provides a statsd client that maintains internal stats for unit testing various packages.
+// It was pulled out of testutil to avoid a cyclic dependency with the `timing` package.
+package teststatsd
 
 import (
 	"math"
@@ -32,8 +34,9 @@ type GaugeSummary struct {
 	Max   float64
 }
 
-// TestStatsClient is a mocked StatsClient that records all calls and replies with configurable error return values.
-type TestStatsClient struct {
+// Client is a mocked StatsClient that records all calls and replies with configurable error return values.
+// When using this you almost certainly want to use `testutil.WithStatsClient`.
+type Client struct {
 	mu sync.RWMutex
 
 	GaugeErr       error
@@ -47,7 +50,7 @@ type TestStatsClient struct {
 }
 
 // Reset resets client's internal records.
-func (c *TestStatsClient) Reset() {
+func (c *Client) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.GaugeErr = nil
@@ -61,7 +64,7 @@ func (c *TestStatsClient) Reset() {
 }
 
 // Gauge records a call to a Gauge operation and replies with GaugeErr
-func (c *TestStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
+func (c *Client) Gauge(name string, value float64, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.GaugeCalls = append(c.GaugeCalls, MetricsArgs{Name: name, Value: value, Tags: tags, Rate: rate})
@@ -69,13 +72,13 @@ func (c *TestStatsClient) Gauge(name string, value float64, tags []string, rate 
 }
 
 // Flush implements metrics.StatsClient
-func (c *TestStatsClient) Flush() error {
+func (c *Client) Flush() error {
 	// TODO
 	return nil
 }
 
 // Count records a call to a Count operation and replies with CountErr
-func (c *TestStatsClient) Count(name string, value int64, tags []string, rate float64) error {
+func (c *Client) Count(name string, value int64, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.CountCalls = append(c.CountCalls, MetricsArgs{Name: name, Value: float64(value), Tags: tags, Rate: rate})
@@ -83,7 +86,7 @@ func (c *TestStatsClient) Count(name string, value int64, tags []string, rate fl
 }
 
 // Histogram records a call to a Histogram operation and replies with HistogramErr
-func (c *TestStatsClient) Histogram(name string, value float64, tags []string, rate float64) error {
+func (c *Client) Histogram(name string, value float64, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.HistogramCalls = append(c.HistogramCalls, MetricsArgs{Name: name, Value: value, Tags: tags, Rate: rate})
@@ -91,7 +94,7 @@ func (c *TestStatsClient) Histogram(name string, value float64, tags []string, r
 }
 
 // Timing records a call to a Timing operation.
-func (c *TestStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
+func (c *Client) Timing(name string, value time.Duration, tags []string, rate float64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.TimingCalls = append(c.TimingCalls, MetricsArgs{Name: name, Value: float64(value), Tags: tags, Rate: rate})
@@ -99,7 +102,7 @@ func (c *TestStatsClient) Timing(name string, value time.Duration, tags []string
 }
 
 // GetCountSummaries computes summaries for all names supplied as parameters to Count calls.
-func (c *TestStatsClient) GetCountSummaries() map[string]*CountSummary {
+func (c *Client) GetCountSummaries() map[string]*CountSummary {
 	result := map[string]*CountSummary{}
 
 	c.mu.RLock()
@@ -121,7 +124,7 @@ func (c *TestStatsClient) GetCountSummaries() map[string]*CountSummary {
 }
 
 // GetGaugeSummaries computes summaries for all names supplied as parameters to Gauge calls.
-func (c *TestStatsClient) GetGaugeSummaries() map[string]*GaugeSummary {
+func (c *Client) GetGaugeSummaries() map[string]*GaugeSummary {
 	result := map[string]*GaugeSummary{}
 
 	c.mu.RLock()

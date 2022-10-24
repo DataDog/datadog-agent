@@ -20,8 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -252,7 +251,7 @@ func TestRoundTripper(t *testing.T) {
 			maxPayloadSize     int64
 			expectedError      bool
 			roundTripperError  error
-			testRequestMetrics func(*testing.T, *testutil.TestStatsClient)
+			testRequestMetrics func(*testing.T, *teststatsd.Client)
 		}{
 			{
 				name: "no body",
@@ -265,7 +264,7 @@ func TestRoundTripper(t *testing.T) {
 					},
 					Body: nil,
 				},
-				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+				testRequestMetrics: func(t *testing.T, stats *teststatsd.Client) {
 					expectedTags := []string{
 						"content_type:application/json",
 						"path:/some/endpoint",
@@ -301,7 +300,7 @@ func TestRoundTripper(t *testing.T) {
 					Body: ioutil.NopCloser(bytes.NewReader(randBodyBuf)),
 				},
 				maxPayloadSize: 10000,
-				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+				testRequestMetrics: func(t *testing.T, stats *teststatsd.Client) {
 					expectedTags := []string{
 						"content_type:application/msgpack",
 						"path:/some/endpoint/2",
@@ -338,7 +337,7 @@ func TestRoundTripper(t *testing.T) {
 				},
 				maxPayloadSize: 1000,
 				expectedError:  true,
-				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+				testRequestMetrics: func(t *testing.T, stats *teststatsd.Client) {
 					expectedTags := []string{
 						"content_type:application/cbor",
 						"path:/some/endpoint/3",
@@ -380,7 +379,7 @@ func TestRoundTripper(t *testing.T) {
 				},
 				expectedError:     true,
 				roundTripperError: errors.New("my error"),
-				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+				testRequestMetrics: func(t *testing.T, stats *teststatsd.Client) {
 					expectedTags := []string{
 						"content_type:application/protobuf",
 						"path:/some/endpoint/4",
@@ -409,10 +408,8 @@ func TestRoundTripper(t *testing.T) {
 		} {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
-				timing.Stop() // https://github.com/DataDog/datadog-agent/issues/13934
-				stats := &testutil.TestStatsClient{}
-				defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-				metrics.Client = stats
+				stats := &teststatsd.Client{}
+				defer testutil.WithStatsClient(stats)()
 
 				// Wrap a test round-tripper with metrics
 				rt := withMetrics(roundTripperFunc(func(req *http.Request) (*http.Response, error) {
