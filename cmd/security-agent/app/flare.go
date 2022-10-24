@@ -12,56 +12,63 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
 
-var (
+type flareCliParams struct {
+	*common.GlobalParams
+
 	customerEmail string
 	autoconfirm   bool
-)
-
-func init() {
-	SecurityAgentCmd.AddCommand(flareCmd)
-
-	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
-	flareCmd.SetArgs([]string{"caseID"})
 }
 
-var flareCmd = &cobra.Command{
-	Use:   "flare [caseID]",
-	Short: "Collect a flare and send it to Datadog",
-	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		err := config.SetupLogger(loggerName, "off", "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
+func FlareCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := flareCliParams{
+		GlobalParams: globalParams,
+	}
 
-		caseID := ""
-		if len(args) > 0 {
-			caseID = args[0]
-		}
-
-		if customerEmail == "" {
-			var err error
-			customerEmail, err = input.AskForEmail()
+	flareCmd := &cobra.Command{
+		Use:   "flare [caseID]",
+		Short: "Collect a flare and send it to Datadog",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// The flare command should not log anything, all errors should be reported directly to the console without the log format
+			err := config.SetupLogger(loggerName, "off", "", "", false, true, false)
 			if err != nil {
-				fmt.Println("Error reading email, please retry or contact support")
+				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 				return err
 			}
-		}
 
-		return requestFlare(caseID)
-	},
+			caseID := ""
+			if len(args) > 0 {
+				caseID = args[0]
+			}
+
+			if cliParams.customerEmail == "" {
+				var err error
+				cliParams.customerEmail, err = input.AskForEmail()
+				if err != nil {
+					fmt.Println("Error reading email, please retry or contact support")
+					return err
+				}
+			}
+
+			return requestFlare(caseID, &cliParams)
+		},
+	}
+
+	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
+	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.SetArgs([]string{"caseID"})
+
+	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(caseID string) error {
+func requestFlare(caseID string, params *flareCliParams) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Security Agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -95,7 +102,7 @@ func requestFlare(caseID string) error {
 	}
 
 	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
-	if !autoconfirm {
+	if !params.autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
 		if !confirmation {
 			fmt.Fprintf(color.Output, "Aborting. (You can still use %s)\n", color.YellowString(filePath))
@@ -103,7 +110,7 @@ func requestFlare(caseID string) error {
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, caseID, customerEmail)
+	response, e := flare.SendFlare(filePath, caseID, params.customerEmail)
 	fmt.Println(response)
 	if e != nil {
 		return e

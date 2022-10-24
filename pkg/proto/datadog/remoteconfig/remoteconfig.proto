@@ -52,6 +52,7 @@ message LatestConfigsRequest {
   bytes backend_client_state = 10;
   bool has_error = 11;
   string error = 12;
+  string trace_agent_env = 13;
 }
 
 message LatestConfigsResponse {

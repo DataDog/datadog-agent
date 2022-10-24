@@ -22,20 +22,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func TestRemoteConfigKey(t *testing.T) {
+func TestAuthKeys(t *testing.T) {
 	tests := []struct {
-		input  string
+		rcKey  string
+		apiKey string
 		err    bool
-		output *msgpgo.RemoteConfigKey
+		output remoteConfigAuthKeys
 	}{
-		{input: generateKey(t, 2, "datadoghq.com", "58d58c60b8ac337293ce2ca6b28b19eb"), output: &msgpgo.RemoteConfigKey{AppKey: "58d58c60b8ac337293ce2ca6b28b19eb", OrgID: 2, Datacenter: "datadoghq.com"}},
-		{input: generateKey(t, 2, "datadoghq.com", ""), err: true},
-		{input: generateKey(t, 2, "", "app_Key"), err: true},
-		{input: generateKey(t, 0, "datadoghq.com", "app_Key"), err: true},
+		{apiKey: "37d58c60b8ac337293ce2ca6b28b19eb", rcKey: generateKey(t, 2, "datadoghq.com", "58d58c60b8ac337293ce2ca6b28b19eb"), output: remoteConfigAuthKeys{
+			apiKey:   "37d58c60b8ac337293ce2ca6b28b19eb",
+			rcKeySet: true,
+			rcKey:    &msgpgo.RemoteConfigKey{AppKey: "58d58c60b8ac337293ce2ca6b28b19eb", OrgID: 2, Datacenter: "datadoghq.com"},
+		}},
+		{apiKey: "37d58c60b8ac337293ce2ca6b28b19eb", rcKey: "", output: remoteConfigAuthKeys{
+			apiKey:   "37d58c60b8ac337293ce2ca6b28b19eb",
+			rcKeySet: false,
+		}},
+		{rcKey: generateKey(t, 2, "datadoghq.com", ""), err: true},
+		{rcKey: generateKey(t, 2, "", "app_Key"), err: true},
+		{rcKey: generateKey(t, 0, "datadoghq.com", "app_Key"), err: true},
 	}
 	for _, test := range tests {
-		t.Run(test.input, func(tt *testing.T) {
-			output, err := parseRemoteConfigKey(test.input)
+		t.Run(fmt.Sprintf("%s|%s", test.apiKey, test.rcKey), func(tt *testing.T) {
+			output, err := getRemoteConfigAuthKeys(test.apiKey, test.rcKey)
 			if test.err {
 				assert.Error(tt, err)
 			} else {

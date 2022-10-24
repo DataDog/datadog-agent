@@ -29,6 +29,12 @@ type API interface {
 	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
 }
 
+type Auth struct {
+	ApiKey    string
+	AppKey    string
+	UseAppKey bool
+}
+
 // HTTPClient fetches configurations using HTTP requests
 type HTTPClient struct {
 	baseURL string
@@ -37,13 +43,14 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(apiKey, appKey string) *HTTPClient {
+func NewHTTPClient(auth Auth) *HTTPClient {
 	header := http.Header{
-		"DD-Api-Key":         []string{apiKey},
-		"DD-Application-Key": []string{appKey},
-		"Content-Type":       []string{"application/x-protobuf"},
+		"Content-Type": []string{"application/x-protobuf"},
+		"DD-Api-Key":   []string{auth.ApiKey},
 	}
-
+	if auth.UseAppKey {
+		header["DD-Application-Key"] = []string{auth.AppKey}
+	}
 	httpClient := &http.Client{
 		Transport: httputils.CreateHTTPTransport(),
 	}

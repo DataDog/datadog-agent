@@ -372,7 +372,7 @@ func TestEVPProxyHandler(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg := config.New()
 		receiver := &HTTPReceiver{conf: cfg}
-		handler := receiver.evpProxyHandler()
+		handler := receiver.evpProxyHandler(2)
 		require.NotNil(t, handler)
 	})
 
@@ -380,11 +380,11 @@ func TestEVPProxyHandler(t *testing.T) {
 		cfg := config.New()
 		cfg.EVPProxy.Enabled = false
 		receiver := &HTTPReceiver{conf: cfg}
-		handler := receiver.evpProxyHandler()
+		handler := receiver.evpProxyHandler(2)
 		require.NotNil(t, handler)
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/evp_proxy/v1/mypath", nil)
+		req := httptest.NewRequest("POST", "/evp_proxy/v2/mypath", nil)
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		handler.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusMethodNotAllowed, rec.Code)

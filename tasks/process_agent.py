@@ -128,6 +128,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
 
