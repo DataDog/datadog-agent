@@ -54,7 +54,7 @@ type PdhMultiInstanceCounterSet struct {
 func (p *PdhCounterSet) Initialize(className string, counterName string) error {
 
 	// refresh PDH object cache (refresh will only occur periodically)
-	tryRefreshPdhObjectCache()
+	_, _ = tryRefreshPdhObjectCache()
 
 	p.className = className
 	p.counterName = counterName
@@ -170,6 +170,6 @@ func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
 
 // Close closes the query handle, freeing the underlying windows resources.
 func (p *PdhCounterSet) Close() {
-	PdhCloseQuery(p.query)
+	pfnPdhCloseQuery(p.query)
 }
 

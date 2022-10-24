@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"unsafe"
-	"time"
 	"sync"
+	"time"
+	"unsafe"
 
-	"golang.org/x/sys/windows"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,10 +76,12 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 // Lock enforces no more than once forceRefresh=false
 // is running concurrently
 var lock_lastPdhRefreshTime sync.Mutex
+
 // tracks last time a refresh was successful
 // initialize with process init time as that is when
 // the PDH object cache is implicitly created/refreshed.
 var lastPdhRefreshTime = atomic.NewTime(time.Now())
+
 func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// Refresh the Windows internal PDH Object cache
 	//
@@ -127,9 +129,9 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 
 	log.Infof("Refreshing performance counters")
 	r, _, _ := procPdhEnumObjects.Call(
-		uintptr(0), // NULL data source, use computer in szMachineName parameter
-		uintptr(0), // NULL use local computer
-		uintptr(0), // NULL don't return output
+		uintptr(0),                    // NULL data source, use computer in szMachineName parameter
+		uintptr(0),                    // NULL use local computer
+		uintptr(0),                    // NULL don't return output
 		uintptr(unsafe.Pointer(&len)), // output size
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(1)) // do refresh
@@ -144,11 +146,6 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// update time
 	lastPdhRefreshTime.Store(time.Now())
 	return true, nil
-}
-func forceRefreshPdhObjectCache() (didrefresh bool, err error) {
-	// Refresh the Windows internal PDH Object cache
-	// see refreshPdhObjectCache() for details
-	return refreshPdhObjectCache(true)
 }
 func tryRefreshPdhObjectCache() (didrefresh bool, err error) {
 	// Attempt to refresh the Windows internal PDH Object cache
@@ -276,25 +273,6 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 	path = windows.UTF16ToString(buf)
 	return
 
-}
-
-func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err error) {
-	var lpdwType uint32
-	var pValue PDH_FMT_COUNTERVALUE_LARGE
-
-	ret, _, _ := procPdhGetFormattedCounterValue.Call(
-		uintptr(hCounter),
-		uintptr(PDH_FMT_LARGE),
-		uintptr(unsafe.Pointer(&lpdwType)),
-		uintptr(unsafe.Pointer(&pValue)))
-	if ERROR_SUCCESS != ret {
-		if ret == PDH_INVALID_DATA && pValue.CStatus == PDH_CSTATUS_NO_INSTANCE {
-			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
-		}
-		return 0, fmt.Errorf("Error retrieving large value %#x %#x", ret, pValue.CStatus)
-	}
-
-	return pValue.LargeValue, nil
 }
 
 func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err error) {

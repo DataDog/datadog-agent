@@ -200,6 +200,9 @@ func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*Pro
 }
 
 func readUnicodeString32(h windows.Handle, u unicodeString32) (string, error) {
+	if u.length > u.maxLength {
+		return "", fmt.Errorf("Invalid unicodeString32, maxLength %v < length %v", u.maxLength, u.length)
+	}
 	buf := make([]uint8, u.length+2)
 	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
 	if err != nil {
@@ -295,6 +298,9 @@ func getCommandParamsForProcess64(h windows.Handle, includeImagePath bool) (*Pro
 }
 
 func readUnicodeString(h windows.Handle, u unicodeString) (string, error) {
+	if u.length > u.maxLength {
+		return "", fmt.Errorf("Invalid unicodeString, maxLength %v < length %v", u.maxLength, u.length)
+	}
 	buf := make([]uint8, u.length+2)
 	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
 	if err != nil {
