@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -21,6 +20,7 @@ import (
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
+	config.ConfigReader
 
 	// warnings are the warnings generated during setup
 	warnings *config.Warnings
@@ -42,81 +42,9 @@ func newConfig(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
-	return &cfg{warnings}, nil
+	return &cfg{config.Datadog, warnings}, nil
 }
 
-func (c *cfg) ConfigFileUsed() string {
-	return config.Datadog.ConfigFileUsed()
-}
-func (c *cfg) IsKnown(key string) bool {
-	return config.Datadog.IsKnown(key)
-}
-func (c *cfg) IsSet(key string) bool {
-	return config.Datadog.IsSet(key)
-}
-func (c *cfg) Get(key string) interface{} {
-	return config.Datadog.Get(key)
-}
-func (c *cfg) GetString(key string) string {
-	return config.Datadog.GetString(key)
-}
-func (c *cfg) GetBool(key string) bool {
-	return config.Datadog.GetBool(key)
-}
-func (c *cfg) GetInt(key string) int {
-	return config.Datadog.GetInt(key)
-}
-func (c *cfg) GetInt32(key string) int32 {
-	return config.Datadog.GetInt32(key)
-}
-func (c *cfg) GetInt64(key string) int64 {
-	return config.Datadog.GetInt64(key)
-}
-func (c *cfg) GetFloat64(key string) float64 {
-	return config.Datadog.GetFloat64(key)
-}
-func (c *cfg) GetTime(key string) time.Time {
-	return config.Datadog.GetTime(key)
-}
-func (c *cfg) GetDuration(key string) time.Duration {
-	return config.Datadog.GetDuration(key)
-}
-func (c *cfg) GetStringSlice(key string) []string {
-	return config.Datadog.GetStringSlice(key)
-}
-func (c *cfg) GetFloat64SliceE(key string) ([]float64, error) {
-	return config.Datadog.GetFloat64SliceE(key)
-}
-func (c *cfg) GetStringMap(key string) map[string]interface{} {
-	return config.Datadog.GetStringMap(key)
-}
-func (c *cfg) GetStringMapString(key string) map[string]string {
-	return config.Datadog.GetStringMapString(key)
-}
-func (c *cfg) GetStringMapStringSlice(key string) map[string][]string {
-	return config.Datadog.GetStringMapStringSlice(key)
-}
-func (c *cfg) GetSizeInBytes(key string) uint {
-	return config.Datadog.GetSizeInBytes(key)
-}
-func (c *cfg) AllSettings() map[string]interface{} {
-	return config.Datadog.AllSettings()
-}
-func (c *cfg) AllSettingsWithoutDefault() map[string]interface{} {
-	return config.Datadog.AllSettingsWithoutDefault()
-}
-func (c *cfg) AllKeys() []string {
-	return config.Datadog.AllKeys()
-}
-func (c *cfg) GetKnownKeys() map[string]interface{} {
-	return config.Datadog.GetKnownKeys()
-}
-func (c *cfg) GetEnvVars() []string {
-	return config.Datadog.GetEnvVars()
-}
-func (c *cfg) IsSectionSet(section string) bool {
-	return config.Datadog.IsSectionSet(section)
-}
 func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
