@@ -35,7 +35,7 @@ type GaugeSummary struct {
 }
 
 // Client is a mocked StatsClient that records all calls and replies with configurable error return values.
-// When using this you almost certainly want to use `testutil.WithStatsClient`.
+// Don't create this Client directly. Instead, use the constructor provided through `testutil.WithStatsClient`.
 type Client struct {
 	mu sync.RWMutex
 
