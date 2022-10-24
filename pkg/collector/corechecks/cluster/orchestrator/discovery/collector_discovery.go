@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
-	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,38 +27,24 @@ const (
 	defaultAPIServerTimeout = 20 * time.Second
 )
 
-type discoveryCache struct {
-	groups              []*v1.APIGroup
-	resources           []*v1.APIResourceList
-	filled              bool
-	collectorForVersion map[collectorVersion]struct{}
-}
-
-type collectorVersion struct {
-	version string
-	name    string
-}
-
 // APIServerDiscoveryProvider is a discovery provider that uses the Kubernetes
 // API Server as its data source.
 type APIServerDiscoveryProvider struct {
 	result []collectors.Collector
 	seen   map[string]struct{}
-	cache  discoveryCache
 }
 
 // NewAPIServerDiscoveryProvider returns a new instance of the APIServer
 // discovery provider.
 func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 	return &APIServerDiscoveryProvider{
-		seen:  make(map[string]struct{}),
-		cache: discoveryCache{collectorForVersion: map[collectorVersion]struct{}{}}, // TODO: maybe dedicated file and make the discovery shared?
+		seen: make(map[string]struct{}),
 	}
 }
 
 // Discover returns collectors to enable based on information exposed by the API server.
 func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
-	groups, resources, err := p.getServerGroupsAndResources()
+	groups, resources, err := GetServerGroupsAndResources()
 
 	if err != nil {
 		return nil, err
@@ -80,43 +65,8 @@ func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInve
 	return p.result, nil
 }
 
-func (p *APIServerDiscoveryProvider) DiscoverCRDResource(grv string) (*k8sCollectors.CRCollector, error) {
-	if !p.cache.filled {
-		var err error
-		p.cache.groups, p.cache.resources, err = p.getServerGroupsAndResources()
-		if err != nil {
-			return nil, err
-		}
-
-		if len(p.cache.resources) == 0 {
-			return nil, fmt.Errorf("failed to discover resources from API groups")
-		}
-		for _, list := range p.cache.resources {
-			for _, resource := range list.APIResources {
-				cv := collectorVersion{
-					version: list.GroupVersion,
-					name:    resource.Name,
-				}
-				p.cache.collectorForVersion[cv] = struct{}{}
-			}
-		}
-		p.cache.filled = true
-	}
-
-	collector, err := k8sCollectors.NewCRCollectorVersions(grv)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := p.cache.collectorForVersion[collectorVersion{
-		version: collector.Metadata().Version,
-		name:    collector.Metadata().Name,
-	}]; ok {
-		return collector, nil // maybe re-use cache and seen once or twice
-	}
-	return nil, fmt.Errorf("failed to discover resource collectorName: %s", grv)
-}
-
-func (p *APIServerDiscoveryProvider) getServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+// GetServerGroupsAndResources accesses the api server to retrieve the registered groups and resources
+func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
 	defer cancel()
 
