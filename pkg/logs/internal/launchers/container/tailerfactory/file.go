@@ -143,7 +143,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	// and set it in place of the usual docker base path
 	overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
-		return overridePath
+		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
 	}
 
 	switch runtime.GOOS {
