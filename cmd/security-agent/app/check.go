@@ -18,6 +18,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -31,7 +32,7 @@ import (
 )
 
 type checkCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	args []string
 
@@ -47,11 +48,11 @@ type checkCliParams struct {
 
 // TODO: fix this, this is currently a stub for the cluster-agent
 func CheckCmd() *cobra.Command {
-	return CheckCommands(&GlobalParams{})[0]
+	return CheckCommands(&common.GlobalParams{})[0]
 }
 
 // CheckCommands returns a cobra command to run security agent checks
-func CheckCommands(globalParams *GlobalParams) []*cobra.Command {
+func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	checkArgs := checkCliParams{
 		GlobalParams: globalParams,
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -20,14 +21,14 @@ import (
 )
 
 type statusCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	json            bool
 	prettyPrintJSON bool
 	file            string
 }
 
-func StatusCommands(globalParams *GlobalParams) []*cobra.Command {
+func StatusCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := &statusCliParams{
 		GlobalParams: globalParams,
 	}

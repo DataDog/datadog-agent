@@ -8,13 +8,14 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-func VersionCommands(globalParams *GlobalParams) []*cobra.Command {
+func VersionCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version info",
