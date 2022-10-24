@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
@@ -67,6 +68,8 @@ func init() {
 }
 
 func bootstrapEventsCmd(cmd *cobra.Command) error {
+	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
+
 	configPath := cmd.Flag(flags.CfgPath).Value.String()
 	var sysprobePath string
 	if cmd.Flag(flags.SysProbeConfig) != nil {
@@ -78,7 +81,7 @@ func bootstrapEventsCmd(cmd *cobra.Command) error {
 	}
 
 	// Load system-probe.yaml file and merge it to the global Datadog config
-	sysCfg, err := sysconfig.New(sysprobePath)
+	sysCfg, err := sysconfig.Merge(sysprobePath)
 	if err != nil {
 		return log.Critical(err)
 	}

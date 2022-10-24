@@ -21,26 +21,18 @@ import (
 
 // Server offers functions that implement the standard runtime settings HTTP API
 var Server = struct {
-	GetFullDatadogConfig     func(...string) http.HandlerFunc
-	GetFullSystemProbeConfig func(...string) http.HandlerFunc
-	GetValue                 http.HandlerFunc
-	SetValue                 http.HandlerFunc
-	ListConfigurable         http.HandlerFunc
+	GetFull          func(...string) http.HandlerFunc
+	GetValue         http.HandlerFunc
+	SetValue         http.HandlerFunc
+	ListConfigurable http.HandlerFunc
 }{
-	GetFullDatadogConfig:     getGlobalFullConfig(ddconfig.Datadog),
-	GetFullSystemProbeConfig: getGlobalFullConfig(ddconfig.SystemProbe),
-	GetValue:                 getConfigValue,
-	SetValue:                 setConfigValue,
-	ListConfigurable:         listConfigurableSettings,
+	GetFull:          getFullConfig,
+	GetValue:         getConfigValue,
+	SetValue:         setConfigValue,
+	ListConfigurable: listConfigurableSettings,
 }
 
-func getGlobalFullConfig(cfg ddconfig.Config) func(...string) http.HandlerFunc {
-	return func(namespaces ...string) http.HandlerFunc {
-		return getFullConfig(cfg, namespaces...)
-	}
-}
-
-func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
+func getFullConfig(namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 
@@ -55,7 +47,7 @@ func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
 	}
 	return func(w http.ResponseWriter, _ *http.Request) {
 		nsSettings := map[string]interface{}{}
-		allSettings := cfg.AllSettings()
+		allSettings := ddconfig.Datadog.AllSettings()
 		if !requiresAllNamespaces {
 			for ns := range uniqueNamespaces {
 				if val, ok := allSettings[ns]; ok {

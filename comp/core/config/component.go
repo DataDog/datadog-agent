@@ -58,14 +58,14 @@ type Component interface {
 	// GetTime gets a time as a config parameter value.
 	GetTime(key string) time.Time
 
-	// GetDuration gets a duration as a config parameter value, parsing common suffixes.
+	// GetTime gets a duration as a config parameter value, parsing common suffixes.
 	// Bare integers are treated as nanoseconds.
 	GetDuration(key string) time.Duration
 
-	// GetStringSlice gets a slice of strings (represented as a list in the source YAML)
+	// GetTime gets a slice of strings (represented as a list in the source YAML)
 	GetStringSlice(key string) []string
 
-	// GetFloat64SliceE gets a slice of floats (represented as a list in the source
+	// GetTime gets a slice of floats (represented as a list in the source
 	// YAML) as a config parameter value, returning an error if any of the
 	// values cannot be parsed
 	GetFloat64SliceE(key string) ([]float64, error)

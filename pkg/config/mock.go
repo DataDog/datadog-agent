@@ -12,9 +12,8 @@ import (
 )
 
 var (
-	isConfigMocked            = false
-	isSystemProbeConfigMocked = false
-	m                         = sync.Mutex{}
+	isConfigMocked = false
+	m              = sync.Mutex{}
 )
 
 // MockConfig should only be used in tests
@@ -55,34 +54,4 @@ func Mock(t *testing.T) *MockConfig {
 	// Configuration defaults
 	InitConfig(Datadog)
 	return &MockConfig{Datadog}
-}
-
-// MockSystemProbe is creating and returning a mock system-probe config
-func MockSystemProbe(t *testing.T) *MockConfig {
-	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to
-	// Mock to reset the config to a blank state. This way we have only one mock per test and test helpers can call
-	// Mock.
-	if t != nil {
-		m.Lock()
-		defer m.Unlock()
-		if isSystemProbeConfigMocked {
-			// The configuration is already mocked.
-			return &MockConfig{SystemProbe}
-		}
-
-		isSystemProbeConfigMocked = true
-		originalConfig := SystemProbe
-		t.Cleanup(func() {
-			m.Lock()
-			defer m.Unlock()
-			isSystemProbeConfigMocked = false
-			SystemProbe = originalConfig
-		})
-	}
-
-	// Configure Datadog global configuration
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	// Configuration defaults
-	InitSystemProbeConfig(SystemProbe)
-	return &MockConfig{SystemProbe}
 }

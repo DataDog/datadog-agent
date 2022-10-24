@@ -125,12 +125,12 @@ func TestProcessCheck(t *testing.T) {
 }
 
 func TestSysprobeProcessModule(t *testing.T) {
-	cfg, syscfg, ocfg := config.Mock(t), config.MockSystemProbe(t), &oconfig.OrchestratorConfig{}
+	cfg, ocfg := config.Mock(t), &oconfig.OrchestratorConfig{}
 	cfg.Set("process_config.process_collection.enabled", true)
-	syscfg.Set("system_probe_config.enabled", true)
+	cfg.Set("system_probe_config.enabled", true)
 
 	t.Run("enabled", func(t *testing.T) {
-		syscfg.Set("system_probe_config.process_config.enabled", true)
+		cfg.Set("system_probe_config.process_config.enabled", true)
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
@@ -139,7 +139,7 @@ func TestSysprobeProcessModule(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
-		syscfg.Set("system_probe_config.process_config.enabled", false)
+		cfg.Set("system_probe_config.process_config.enabled", false)
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
@@ -149,12 +149,12 @@ func TestSysprobeProcessModule(t *testing.T) {
 }
 
 func TestConnectionsCheck(t *testing.T) {
-	syscfg := config.MockSystemProbe(t)
+	cfg := config.Mock(t)
 	ocfg := &oconfig.OrchestratorConfig{}
-	syscfg.Set("system_probe_config.enabled", true)
+	cfg.Set("system_probe_config.enabled", true)
 
 	t.Run("enabled", func(t *testing.T) {
-		syscfg.Set("network_config.enabled", true)
+		cfg.Set("network_config.enabled", true)
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
@@ -163,7 +163,7 @@ func TestConnectionsCheck(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
-		syscfg.Set("network_config.enabled", false)
+		cfg.Set("network_config.enabled", false)
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 

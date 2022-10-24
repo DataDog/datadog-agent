@@ -194,7 +194,8 @@ func join(pieces ...string) string {
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.SystemProbe
+	cfg := ddconfig.Datadog
+	ddconfig.InitSystemProbeConfig(cfg)
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),

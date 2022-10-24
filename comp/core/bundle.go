@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 )
 
 // team: agent-shared-components
@@ -29,12 +28,10 @@ type BundleParams = internal.BundleParams
 var Bundle = fxutil.Bundle(
 	config.Module,
 	log.Module,
-	sysprobeconfig.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
 	log.Module,
-	sysprobeconfig.MockModule,
 )

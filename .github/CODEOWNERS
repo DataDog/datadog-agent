@@ -176,7 +176,6 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
-/comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
 # pkg

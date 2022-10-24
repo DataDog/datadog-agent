@@ -27,7 +27,7 @@ type ReplaceRule struct {
 }
 
 func parseReplaceRules(cfg ddconfig.Config, key string) ([]*ReplaceRule, error) {
-	if !config.SystemProbe.IsSet(key) {
+	if !config.Datadog.IsSet(key) {
 		return nil, nil
 	}
 

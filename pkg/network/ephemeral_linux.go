@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 var (
@@ -25,7 +25,11 @@ var (
 // IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
 func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 	initEphemeralIntPair.Do(func() {
-		ephemeralIntPair = sysctl.NewIntPair(util.GetProcRoot(), "net/ipv4/ip_local_port_range", time.Hour)
+		procfsPath := "/proc"
+		if config.Datadog.IsSet("procfs_path") {
+			procfsPath = config.Datadog.GetString("procfs_path")
+		}
+		ephemeralIntPair = sysctl.NewIntPair(procfsPath, "net/ipv4/ip_local_port_range", time.Hour)
 	})
 
 	low, hi, err := ephemeralIntPair.Get()
