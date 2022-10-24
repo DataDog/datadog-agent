@@ -31,7 +31,7 @@ int socket__kafka_filter_entry(struct __sk_buff *skb) {
 SEC("socket/kafka_filter")
 //int socket__http_filter(struct __sk_buff* skb) {
 int socket__kafka_filter(struct __sk_buff* skb) {
-    log_debug("In Kafka filter!");
+    //log_debug("In Kafka filter!");
     skb_info_t skb_info;
 //    http_transaction_t http;
     kafka_transaction_t kafka;
@@ -40,6 +40,9 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     if (!read_conn_tuple_skb(skb, &skb_info, &kafka.tup)) {
         return 0;
     }
+//    if (kafka.tup.dport == 9092) {
+//        log_debug("Kafka port!");
+//    }
 //
 //    if (!http_allow_packet(&http, skb, &skb_info)) {
 //        return 0;
@@ -54,6 +57,8 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 //
 //    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     read_into_buffer_skb((char *)kafka.request_fragment, skb, &skb_info);
+//    log_debug("skb->len: %d, info->data_off: %d", skb->len, skb_info.data_off);
+//    log_debug("kafka.request_fragment: %d %d %d", kafka.request_fragment[6], kafka.request_fragment[7], kafka.request_fragment[8]);
 //    http_process(&http, &skb_info, NO_TAGS);
     kafka_process(&kafka, &skb_info, NO_TAGS);
     return 0;

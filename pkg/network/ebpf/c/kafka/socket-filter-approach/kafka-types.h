@@ -3,6 +3,19 @@
 
 #include "../../tracer.h"
 
+// Every kafka message encodes starts with:
+//  * 4 bytes for the size of the payload
+//  * 2 bytes for api key
+//  * 2 bytes for api version
+//  * 4 bytes for correlation id
+// Reference: https://kafka.apache.org/protocol.html#protocol_messages
+#define KAFKA_MIN_SIZE 12
+
+// Max today is 13 for fetch (https://kafka.apache.org/protocol.html#protocol_messages)
+#define KAFKA_MAX_VERSION 13
+
+#define KAFKA_MAX_API 67
+
 //// This determines the size of the payload fragment that is captured for each HTTP request
 //#define HTTP_BUFFER_SIZE (8 * 20)
 #define KAFKA_BUFFER_SIZE (8 * 20)

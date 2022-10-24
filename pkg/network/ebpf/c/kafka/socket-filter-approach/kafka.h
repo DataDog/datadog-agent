@@ -4,6 +4,7 @@
 #include "tracer.h"
 //#include "http-types.h"
 #include "kafka-types.h"
+#include "kafka-helpers.h"
 //#include "http-maps.h"
 //#include "https.h"
 
@@ -185,8 +186,24 @@
 //}
 //
 static __always_inline int kafka_process(kafka_transaction_t *kafka_stack, skb_info_t *skb_info, __u64 tags) {
-    log_debug("in kafka_process");
-//    char *buffer = (char *)http_stack->request_fragment;
+    //log_debug("in kafka_process");
+    char *buffer = (char *)kafka_stack->request_fragment;
+//    log_debug("Buffer: %s", buffer);
+    // TODO: read 4 bytes as size
+    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
+
+    // Temporary hack for debugging
+    if (kafka_stack->tup.dport != 9092 && kafka_stack->tup.sport != 9092) {
+        return 0;
+    }
+    //log_debug("Kafka port!");
+
+    if (!is_kafka(buffer, buffer_size)) {
+        //log_debug("Not a Kafka traffic");
+        return 0;
+    }
+    log_debug("Kafka request found!");
+
 //    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
 //    http_method_t method = HTTP_METHOD_UNKNOWN;
 //    http_parse_data(buffer, &packet_type, &method);
@@ -223,6 +240,7 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_stack, skb_i
 //
     return 0;
 }
+
 //
 //// this function is called by the socket-filter program to decide whether or not we should inspect
 //// the contents of a certain packet, in order to avoid the cost of processing packets that are not
