@@ -910,7 +910,14 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    bpf_map_update_elem(&conn_tuple_to_socket_map, &skb_tup, &sk, BPF_ANY);
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+
+    bpf_map_update_elem(&skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
 
     return 0;
 }
