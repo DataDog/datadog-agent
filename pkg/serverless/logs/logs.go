@@ -44,9 +44,10 @@ type LambdaLogsCollector struct {
 
 // platformObjectRecord contains additional information found in Platform log messages
 type platformObjectRecord struct {
-	requestID     string           // uuid; present in LogTypePlatform{Start,End,Report}
-	startLogItem  startLogItem     // present in LogTypePlatformStart only
-	reportLogItem reportLogMetrics // present in LogTypePlatformReport only
+	requestID       string           // uuid; present in LogTypePlatform{Start,End,Report}
+	startLogItem    startLogItem     // present in LogTypePlatformStart only
+	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
+	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
@@ -56,6 +57,13 @@ type reportLogMetrics struct {
 	memorySizeMB     int
 	maxMemoryUsedMB  int
 	initDurationMs   float64
+}
+
+// runtimeDoneItem contains metrics found in a LogTypePlatformRuntimeDone log
+type runtimeDoneItem struct {
+	responseLatency  float64
+	responseDuration float64
+	producedBytes    float64
 }
 
 type startLogItem struct {
@@ -168,6 +176,31 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				}
 			case logTypePlatformRuntimeDone:
 				l.stringRecord = fmt.Sprintf("END RequestId: %s", l.objectRecord.requestID)
+				if spans, ok := objectRecord["spans"].([]interface{}); ok {
+					for _, span := range spans {
+						spanMap, ok := span.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						durationMs, ok := spanMap["durationMs"].(float64)
+						if !ok {
+							continue
+						}
+						if v, ok := spanMap["name"].(string); ok {
+							switch v {
+							case "responseLatency":
+								l.objectRecord.runtimeDoneItem.responseLatency = durationMs
+							case "responseDuration":
+								l.objectRecord.runtimeDoneItem.responseDuration = durationMs
+							}
+						}
+					}
+				}
+				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+					if v, ok := metrics["producedBytes"].(float64); ok {
+						l.objectRecord.runtimeDoneItem.producedBytes = v
+					}
+				}
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
