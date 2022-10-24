@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/crd"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +38,7 @@ type CollectorBundle struct {
 	inventory           *inventory.CollectorInventory
 	stopCh              chan struct{}
 	runCfg              *collectors.CollectorRunConfig
-	crdDiscovery        *APIServerDiscoveryProvider
+	crdDiscovery        *crd.DiscoveryCollector
 	activatedCollectors map[string]struct{}
 }
 
@@ -61,8 +63,9 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh:       make(chan struct{}),
-		crdDiscovery: NewAPIServerDiscoveryProvider(),
+		stopCh:              make(chan struct{}),
+		crdDiscovery:        crd.NewDiscoveryCollectorForInventory(),
+		activatedCollectors: map[string]struct{}{},
 	}
 
 	bundle.prepare()
@@ -109,7 +112,7 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 	)
 
 	if strings.HasPrefix(collectorName, "crd/") {
-		collector, err = cb.inventory.CollectorForCustomResource(strings.TrimPrefix(collectorName, "crd/"), cb.crdDiscovery)
+		collector, err = cb.crdDiscovery.VerifyForInventory(strings.TrimPrefix(collectorName, "crd/"))
 	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
 		version := collectorName[:idx]
 		name := collectorName[idx+1:]
@@ -123,17 +126,18 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 		return
 	}
 
+	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
+	// I am using the fullName for now on purpose in case we have the same resource across 2 different groups setup
+	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+		_ = cb.check.Warnf("collector %s has already been added", collectorName) // Before using unstable info
+		return
+	}
+
 	if !collector.Metadata().IsStable {
 		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
 	}
 
-	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
-	if _, ok := cb.activatedCollectors[collector.Metadata().Name]; ok {
-		_ = cb.check.Warnf("collector %s has already been added", collectorName)
-		return
-	}
-
-	cb.activatedCollectors[collector.Metadata().Name] = struct{}{}
+	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
 	cb.collectors = append(cb.collectors, collector)
 }
 
@@ -158,7 +162,7 @@ func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 		return false
 	}
 
-	collectors, err := NewAPIServerDiscoveryProvider().Discover(cb.inventory)
+	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
 	if err != nil {
 		_ = cb.check.Warnf("Collector discovery failed: %s", err)
 		return false

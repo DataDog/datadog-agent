@@ -6,19 +6,19 @@
 //go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
-package orchestrator
+package discovery
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,7 +53,7 @@ type APIServerDiscoveryProvider struct {
 func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 	return &APIServerDiscoveryProvider{
 		seen:  make(map[string]struct{}),
-		cache: discoveryCache{},
+		cache: discoveryCache{collectorForVersion: map[collectorVersion]struct{}{}}, // TODO: maybe dedicated file and make the discovery shared?
 	}
 }
 
@@ -94,20 +94,24 @@ func (p *APIServerDiscoveryProvider) DiscoverCRDResource(grv string) (*k8sCollec
 		for _, list := range p.cache.resources {
 			for _, resource := range list.APIResources {
 				cv := collectorVersion{
-					version: resource.Name,
-					name:    list.GroupVersion,
+					version: list.GroupVersion,
+					name:    resource.Name,
 				}
 				p.cache.collectorForVersion[cv] = struct{}{}
 			}
 		}
+		p.cache.filled = true
 	}
 
-	collector := k8sCollectors.NewCRCollectorVersions(grv)
+	collector, err := k8sCollectors.NewCRCollectorVersions(grv)
+	if err != nil {
+		return nil, err
+	}
 	if _, ok := p.cache.collectorForVersion[collectorVersion{
 		version: collector.Metadata().Version,
 		name:    collector.Metadata().Name,
 	}]; ok {
-		return collector, nil
+		return collector, nil // maybe re-use cache and seen once or twice
 	}
 	return nil, fmt.Errorf("failed to discover resource collectorName: %s", grv)
 }

@@ -6,7 +6,7 @@
 //go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
-package orchestrator
+package discovery
 
 import (
 	"testing"
