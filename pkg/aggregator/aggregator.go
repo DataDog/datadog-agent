@@ -426,6 +426,9 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
+	aggregatorChecksMetricSample.Add(1)
+	tlmProcessed.Inc("metrics")
+
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
 			checkSampler.commit(timeNowNano())
@@ -441,6 +444,9 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBucket) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
+
+	aggregatorCheckHistogramBucketMetricSample.Add(1)
+	tlmProcessed.Inc("histogram_bucket")
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = util.SortUniqInPlace(checkBucket.bucket.Tags)
@@ -750,12 +756,8 @@ func (agg *BufferedAggregator) run() {
 			aggregatorEventPlatformErrorLogged = false
 		case <-agg.health.C:
 		case checkMetric := <-agg.checkMetricIn:
-			aggregatorChecksMetricSample.Add(1)
-			tlmProcessed.Inc("metrics")
 			agg.handleSenderSample(checkMetric)
 		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
-			aggregatorCheckHistogramBucketMetricSample.Add(1)
-			tlmProcessed.Inc("histogram_bucket")
 			agg.handleSenderBucket(checkHistogramBucket)
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
