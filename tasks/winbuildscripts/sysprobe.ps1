@@ -18,6 +18,11 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Py
 & inv -e install-tools
 
 & inv -e golangci-lint --build system-probe .\pkg
+$err = $LASTEXITCODE
+if ($err -ne 0) {
+    Write-Host -ForegroundColor Red "golangci-lint failed $err"
+    [Environment]::Exit($err)
+}
 
 & inv -e system-probe.kitchen-prepare
 
