@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -130,30 +131,33 @@ func NewService() (*Service, error) {
 	backoffPolicy := backoff.NewPolicy(minBackoffFactor, baseBackoffTime,
 		maxBackoffTime.Seconds(), recoveryInterval, recoveryReset)
 
-	rawRemoteConfigKey := config.Datadog.GetString("remote_configuration.key")
-	remoteConfigKey, err := parseRemoteConfigKey(rawRemoteConfigKey)
-	if err != nil {
-		return nil, err
-	}
-
 	apiKey := config.Datadog.GetString("api_key")
 	if config.Datadog.IsSet("remote_configuration.api_key") {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
 	}
 	apiKey = config.SanitizeAPIKey(apiKey)
+	rcKey := config.Datadog.GetString("remote_configuration.key")
+	authKeys, err := getRemoteConfigAuthKeys(apiKey, rcKey)
+	if err != nil {
+		return nil, err
+	}
+	http := api.NewHTTPClient(authKeys.httpHeaders())
 	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	http := api.NewHTTPClient(apiKey, remoteConfigKey.AppKey)
-
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
+	apiKeyHash := sha256.Sum256([]byte(apiKey))
+	cacheKey := fmt.Sprintf("%s/", apiKeyHash)
+	opt := []uptane.ClientOption{}
+	if authKeys.rcKeySet {
+		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
+	}
+	uptaneClient, err := uptane.NewClient(db, cacheKey, opt...)
 	if err != nil {
 		return nil, err
 	}

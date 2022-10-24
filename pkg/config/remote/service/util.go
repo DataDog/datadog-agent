@@ -96,22 +96,48 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 	return db, nil
 }
 
-func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
-	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM_")
+type remoteConfigAuthKeys struct {
+	apiKey string
+
+	rcKeySet bool
+	rcKey    *msgpgo.RemoteConfigKey
+}
+
+func (k *remoteConfigAuthKeys) httpHeaders() map[string]string {
+	headers := map[string]string{
+		"DD-Api-Key": k.apiKey,
+	}
+	if k.rcKeySet {
+		headers["DD-Application-Key"] = k.rcKey.AppKey
+	}
+	return headers
+}
+
+func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys, error) {
+	if rcKey == "" {
+		return remoteConfigAuthKeys{
+			apiKey: apiKey,
+		}, nil
+	}
+	rcKey = strings.TrimPrefix(rcKey, "DDRCM_")
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
-	rawKey, err := encoding.DecodeString(serializedKey)
+	rawKey, err := encoding.DecodeString(rcKey)
 	if err != nil {
-		return nil, err
+		return remoteConfigAuthKeys{}, err
 	}
 	var key msgpgo.RemoteConfigKey
 	_, err = key.UnmarshalMsg(rawKey)
 	if err != nil {
-		return nil, err
+		return remoteConfigAuthKeys{}, err
 	}
 	if key.AppKey == "" || key.Datacenter == "" || key.OrgID == 0 {
-		return nil, fmt.Errorf("invalid remote config key")
+		return remoteConfigAuthKeys{}, fmt.Errorf("invalid remote config key")
 	}
-	return &key, nil
+	return remoteConfigAuthKeys{
+		apiKey:   apiKey,
+		rcKeySet: true,
+		rcKey:    &key,
+	}, nil
 }
 
 func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {

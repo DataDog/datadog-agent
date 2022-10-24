@@ -37,13 +37,13 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(apiKey, appKey string) *HTTPClient {
+func NewHTTPClient(authHeaders map[string]string) *HTTPClient {
 	header := http.Header{
-		"DD-Api-Key":         []string{apiKey},
-		"DD-Application-Key": []string{appKey},
-		"Content-Type":       []string{"application/x-protobuf"},
+		"Content-Type": []string{"application/x-protobuf"},
 	}
-
+	for k, v := range authHeaders {
+		header[k] = []string{v}
+	}
 	httpClient := &http.Client{
 		Transport: httputils.CreateHTTPTransport(),
 	}
