@@ -214,8 +214,7 @@ type BufferedAggregator struct {
 	eventIn        chan metrics.Event
 	serviceCheckIn chan metrics.ServiceCheck
 
-	checkMetricIn          chan senderMetricSample
-	checkHistogramBucketIn chan senderHistogramBucket
+	checkItems             chan senderItem
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	orchestratorManifestIn chan senderOrchestratorManifest
 	eventPlatformIn        chan senderEventPlatformEvent
@@ -293,8 +292,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
 		eventIn:        make(chan metrics.Event, bufferSize),
 
-		checkMetricIn:          make(chan senderMetricSample, bufferSize),
-		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
+		checkItems: make(chan senderItem, bufferSize),
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		orchestratorManifestIn: make(chan senderOrchestratorManifest, bufferSize),
@@ -379,7 +377,7 @@ func AddRecurrentSeries(newSerie *metrics.Serie) {
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.checkHistogramBucketIn)+len(agg.eventPlatformIn) == 0 {
+	if len(agg.checkItems)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.eventPlatformIn) == 0 {
 		return true
 	}
 	return false
@@ -755,10 +753,8 @@ func (agg *BufferedAggregator) run() {
 
 			aggregatorEventPlatformErrorLogged = false
 		case <-agg.health.C:
-		case checkMetric := <-agg.checkMetricIn:
-			agg.handleSenderSample(checkMetric)
-		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
-			agg.handleSenderBucket(checkHistogramBucket)
+		case checkItem := <-agg.checkItems:
+			checkItem.handle(agg)
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
 			tlmProcessed.Inc("events")

@@ -57,10 +57,9 @@ type checkSender struct {
 	metricStats             check.SenderStats
 	priormetricStats        check.SenderStats
 	statsLock               sync.RWMutex
-	smsOut                  chan<- senderMetricSample
+	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
-	histogramBucketOut      chan<- senderHistogramBucket
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	contlcycleOut           chan<- senderContainerLifecycleEvent
@@ -69,15 +68,28 @@ type checkSender struct {
 	service                 string
 }
 
+// senderItem knows how the aggregator should handle it
+type senderItem interface {
+	handle(agg *BufferedAggregator)
+}
+
 type senderMetricSample struct {
 	id           check.ID
 	metricSample *metrics.MetricSample
 	commit       bool
 }
 
+func (s *senderMetricSample) handle(agg *BufferedAggregator) {
+	agg.handleSenderSample(*s)
+}
+
 type senderHistogramBucket struct {
 	id     check.ID
 	bucket *metrics.HistogramBucket
+}
+
+func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
+	agg.handleSenderBucket(*s)
 }
 
 type senderEventPlatformEvent struct {
@@ -110,10 +122,9 @@ type checkSenderPool struct {
 func newCheckSender(
 	id check.ID,
 	defaultHostname string,
-	smsOut chan<- senderMetricSample,
+	itemsOut chan<- senderItem,
 	serviceCheckOut chan<- metrics.ServiceCheck,
 	eventOut chan<- metrics.Event,
-	bucketOut chan<- senderHistogramBucket,
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
@@ -122,12 +133,11 @@ func newCheckSender(
 	return &checkSender{
 		id:                      id,
 		defaultHostname:         defaultHostname,
-		smsOut:                  smsOut,
+		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
 		metricStats:             check.NewSenderStats(),
 		priormetricStats:        check.NewSenderStats(),
-		histogramBucketOut:      bucketOut,
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
@@ -211,7 +221,7 @@ func (s *checkSender) FinalizeCheckServiceTag() {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
 	s.cyclemetricStats()
 }
 
@@ -231,7 +241,7 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.smsOut <- senderMetricSample{s.id, sample, false}
+	s.itemsOut <- &senderMetricSample{s.id, sample, false}
 }
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType, flushFirstValue bool) {
@@ -254,7 +264,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.smsOut <- senderMetricSample{s.id, metricSample, false}
+	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -331,7 +341,7 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.histogramBucketOut <- senderHistogramBucket{s.id, histogramBucket}
+	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++
@@ -454,10 +464,9 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	sender := newCheckSender(
 		id,
 		sp.agg.hostname,
-		sp.agg.checkMetricIn,
+		sp.agg.checkItems,
 		sp.agg.serviceCheckIn,
 		sp.agg.eventIn,
-		sp.agg.checkHistogramBucketIn,
 		sp.agg.orchestratorMetadataIn,
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
