@@ -59,9 +59,9 @@ func (p *PdhCounterSet) Initialize(className string, counterName string) error {
 	p.className = className
 	p.counterName = counterName
 
-	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
-	if ERROR_SUCCESS != winerror {
-		err := fmt.Errorf("Failed to open PDH query handle %#x", winerror)
+	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+	if ERROR_SUCCESS != pdherror {
+		err := fmt.Errorf("Failed to open PDH query handle %#x", pdherror)
 		return err
 	}
 	return nil
@@ -82,13 +82,13 @@ func GetEnglishCounterInstance(className string, counterName string, instance st
 	if err != nil {
 		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
 	}
-	winerror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to add english counter %#x", winerror)
+	pdherror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to add english counter %#x", pdherror)
 	}
-	winerror = pfnPdhCollectQueryData(p.query)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to collect query data %#x", winerror)
+	pdherror = pfnPdhCollectQueryData(p.query)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to collect query data %#x", pdherror)
 	}
 	return &p, nil
 }
@@ -115,13 +115,13 @@ func GetEnglishMultiInstanceCounter(className string, counterName string, verify
 	if err != nil {
 		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
 	}
-	winerror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to add english counter %#x", winerror)
+	pdherror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to add english counter %#x", pdherror)
 	}
-	winerror = pfnPdhCollectQueryData(p.query)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to collect query data %#x", winerror)
+	pdherror = pfnPdhCollectQueryData(p.query)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to collect query data %#x", pdherror)
 	}
 
 	return &p, nil
