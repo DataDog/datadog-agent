@@ -7,17 +7,14 @@ package testutil
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net"
-	nethttp "net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 )
@@ -36,6 +33,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header('Content-type', 'application/octet-stream')
         self.send_header('Content-Length', '0')
+        self.send_header('Connection', 'keep-alive')
         self.end_headers()
 
 server_address = ('%s', %s)
@@ -54,19 +52,10 @@ finally:
 `
 )
 
-var (
-	disableTLSVerification = sync.Once{}
-)
-
 func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
-	}
-	if options.EnableTLS {
-		disableTLSVerification.Do(func() {
-			nethttp.DefaultTransport.(*nethttp.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		})
 	}
 
 	curDir, _ := CurDir()
