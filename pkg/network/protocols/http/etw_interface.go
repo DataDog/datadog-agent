@@ -112,18 +112,6 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 	}()
 }
 
-func (hei *httpEtwInterface) getHttpFlows() []etw.Http {
-	hei.eventLoopWG.Add(1)
-	defer hei.eventLoopWG.Done()
-
-	httpTxs, _ := etw.ReadHttpTx()
-	return httpTxs
-}
-
-func (hei *httpEtwInterface) getStats() (map[string]int64, error) {
-	return nil, nil
-}
-
 func (hei *httpEtwInterface) close() {
 	etw.StopEtw("ddnpm-httpservice")
 

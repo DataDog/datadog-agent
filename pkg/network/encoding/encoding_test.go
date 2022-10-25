@@ -235,6 +235,8 @@ func TestSerialization(t *testing.T) {
 			): &httpReqStats,
 		},
 	}
+	// ignore "declared but not used"
+	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
@@ -481,6 +483,8 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 			): &httpReqStats,
 		},
 	}
+	// ignore "declared but not used"
+	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
