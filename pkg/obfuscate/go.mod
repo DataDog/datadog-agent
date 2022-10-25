@@ -8,6 +8,5 @@ require (
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/stretchr/testify v1.7.1
 	go.uber.org/atomic v1.10.0
-	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 )
