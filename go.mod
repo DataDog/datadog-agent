@@ -182,7 +182,7 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
-	golang.org/x/net v0.1.0
+	golang.org/x/net v0.1.1-0.20221020164045-430a433969d0
 	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
 	golang.org/x/sys v0.1.0
 	golang.org/x/text v0.4.0
