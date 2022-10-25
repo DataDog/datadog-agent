@@ -296,6 +296,7 @@ func TestGetPayload(t *testing.T) {
 			"mac_address": "00:0c:29:b6:d2:32",
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
+			"cloud_identifiers": {"cloud-test":"some_identifier"},
 			"os_version": "testOS"
 		}
 	}`

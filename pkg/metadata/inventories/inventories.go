@@ -101,7 +101,8 @@ const (
 	agentFullConf     AgentMetadataName = "full_configuration"
 
 	// key for the host metadata cache. See host_metadata.go
-	HostOSVersion AgentMetadataName = "os_version"
+	HostOSVersion        AgentMetadataName = "os_version"
+	HostCloudIdentifiers AgentMetadataName = "cloud_identifiers"
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed

@@ -127,6 +127,10 @@ The payload is a JSON dict with the following fields
   - `mac_address` - **string**: the MAC address for the host.
   - `agent_version` - **string**: the version of the Agent that sent this payload.
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent.
+  - `cloud_identifiers` - **dict of string to string**: The different identifiers found for the current cloud providers.
+    Those can vary depending on cloud providers, agent setup, instance type, ... Those identifiers can be used by the
+    backend to link an agent to instance. This is useful when we can determine with certainty wether we're running on a
+    cloud provider or not (metadata API not available, agent running in a container, ...).
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -253,7 +257,11 @@ Here an example of an inventory payload:
         "ipv6_address": "fe80::1ff:fe23:4567:890a",
         "mac_address": "01:23:45:67:89:AB",
         "agent_version": "7.37.0-devel+git.198.68a5b69",
-        "cloud_provider": "AWS"
+        "cloud_provider": "AWS",
+        "cloud_identifiers": {
+            "ec2-product_uuid": "ec2d024c-6b4c-46a1-ba8b-d058c272dd99",
+            "ec2-instance_id": "i-abcdef"
+        }
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895

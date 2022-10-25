@@ -41,6 +41,7 @@ var (
 		MacAddress:           "00:0c:29:b6:d2:32",
 		AgentVersion:         version.AgentVersion,
 		CloudProvider:        "some_cloud_provider",
+		CloudIdentifiers:     map[string]string{"cloud-test": "some_identifier"},
 		OsVersion:            "testOS",
 	}
 )
@@ -115,6 +116,7 @@ func setupHostMetadataMock() func() {
 	platformGet = platformMock
 
 	SetAgentMetadata(AgentCloudProvider, "some_cloud_provider")
+	SetHostMetadata(HostCloudIdentifiers, map[string]string{"cloud-test": "some_identifier"})
 	SetHostMetadata(HostOSVersion, "testOS")
 
 	return reset
@@ -145,6 +147,7 @@ func setupHostMetadataErrorMock() func() {
 	memoryGet = memoryErrorMock
 	networkGet = networkErrorMock
 	platformGet = platformErrorMock
+	hostMetadata = make(AgentMetadata)
 	return reset
 }
 

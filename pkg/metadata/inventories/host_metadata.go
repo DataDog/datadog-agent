@@ -52,9 +52,10 @@ type HostMetadata struct {
 	MacAddress  string `json:"mac_address"`
 
 	// from the agent itself
-	AgentVersion  string `json:"agent_version"`
-	CloudProvider string `json:"cloud_provider"`
-	OsVersion     string `json:"os_version"`
+	AgentVersion     string            `json:"agent_version"`
+	CloudProvider    string            `json:"cloud_provider"`
+	CloudIdentifiers map[string]string `json:"cloud_identifiers"`
+	OsVersion        string            `json:"os_version"`
 }
 
 // For now we simply logs warnings from gohai.
@@ -139,6 +140,14 @@ func getHostMetadata() *HostMetadata {
 		}
 	} else {
 		logErrorf("OS version not found in agent metadata cache") //nolint:errcheck
+	}
+
+	if value, ok := hostMetadata[string(HostCloudIdentifiers)]; ok {
+		if mapValue, ok := value.(map[string]string); ok {
+			metadata.CloudIdentifiers = mapValue
+		} else {
+			logErrorf("Cloud identifiers are not a map[string]string in host metadata cache") //nolint:errcheck
+		}
 	}
 	return metadata
 }

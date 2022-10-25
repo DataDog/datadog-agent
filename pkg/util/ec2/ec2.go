@@ -6,10 +6,12 @@
 package ec2
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -109,6 +111,41 @@ func IsRunningOn(ctx context.Context) bool {
 		return true
 	}
 	return false
+}
+
+// for test purpose
+var (
+	// Those file might contain the EC2 product_uuid. Depending on the version, agent setup or instance type the
+	// file might not be present or the agent might not have read access. We try them all until one succeed.
+	identifiersUUIDSources = []string{
+		"/sys/hypervisor/uuid",
+		"/sys/devices/virtual/dmi/id/product_uuid",
+		"/sys/class/dmi/id/product_serial",
+	}
+	// From: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html
+	// instance ID for instances built on the Nitro system.
+	instanceIDSource = "/sys/devices/virtual/dmi/id/board_asset_tag"
+)
+
+// CollectIdentifiers returns a list of unique identifiers for this cloud provider instance. We collect as much as we
+// can, depending on the setup not sources will be available. This is a "best effort" approach.
+func CollectIdentifiers(ctx context.Context) map[string]string {
+	identifiers := map[string]string{}
+
+	for _, source := range identifiersUUIDSources {
+		data, err := os.ReadFile(source)
+		if err == nil && len(data) > 3 && bytes.HasPrefix(data, []byte("ec2")) {
+			identifiers["ec2-product-uuid"] = strings.TrimSuffix(string(data), "\n")
+			break
+		}
+	}
+
+	data, err := os.ReadFile(instanceIDSource)
+	if err == nil && len(data) > 0 {
+		identifiers["ec2-instance-id"] = strings.TrimSuffix(string(data), "\n")
+	}
+
+	return identifiers
 }
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.

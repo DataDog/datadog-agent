@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -542,4 +544,29 @@ func TestGetNTPHosts(t *testing.T) {
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
+}
+
+func TestCollectIdentifiers(t *testing.T) {
+	tempDir := t.TempDir()
+	defer func(sources []string) { identifiersUUIDSources = sources }(identifiersUUIDSources)
+	defer func(source string) { instanceIDSource = source }(instanceIDSource)
+
+	invalidPath := filepath.Join(tempDir, "invalid")
+	validPath := filepath.Join(tempDir, "valid")
+
+	identifiersUUIDSources = []string{
+		invalidPath,
+		filepath.Join(tempDir, "does-no-exists"),
+		validPath,
+	}
+	instanceIDSource = filepath.Join(tempDir, "board_asset_tag")
+
+	os.WriteFile(invalidPath, []byte("b40b8a96-4874-4d59-ba59-f6b07abf9920\n"), os.ModePerm)
+	os.WriteFile(validPath, []byte("ec2b8a96-4874-4d59-ba59-f6b07abf9920\n"), os.ModePerm)
+	os.WriteFile(instanceIDSource, []byte("i-something\n"), os.ModePerm)
+
+	assert.Equal(t, map[string]string{
+		"ec2-product-uuid": "ec2b8a96-4874-4d59-ba59-f6b07abf9920",
+		"ec2-instance-id":  "i-something",
+	}, CollectIdentifiers(context.TODO()))
 }
