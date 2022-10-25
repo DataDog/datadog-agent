@@ -21,7 +21,7 @@ namespace WixSetup.Datadog
                 Version = new Version(
                     versionMatch.Groups["major"].Value.ToInt(),
                     versionMatch.Groups["minor"].Value.ToInt(),
-                    versionMatch.Groups["build"].Value.ToInt()
+                    2 // Use 1 once we replace the main installer with this one.
                 );
             }
             else
