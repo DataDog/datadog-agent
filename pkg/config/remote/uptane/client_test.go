@@ -28,7 +28,7 @@ func TestClientState(t *testing.T) {
 	config.Datadog.Set("remote_configuration.config_root", testRepository1.configRoot)
 
 	db := getTestDB(t)
-	client1, err := NewClient(db, "testcachekey", 2)
+	client1, err := NewClient(db, "testcachekey", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 
 	// Testing default state
@@ -53,7 +53,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
 
 	// Testing state is maintained between runs
-	client2, err := NewClient(db, "testcachekey", 2)
+	client2, err := NewClient(db, "testcachekey", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
@@ -66,7 +66,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
 
 	// Testing state is isolated by cache key
-	client3, err := NewClient(db, "testcachekey2", 2)
+	client3, err := NewClient(db, "testcachekey2", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	clientState, err = client3.State()
 	assert.NoError(t, err)
@@ -92,7 +92,7 @@ func TestClientFullState(t *testing.T) {
 
 	// Prepare
 	db := getTestDB(t)
-	client, err := NewClient(db, "testcachekey", 2)
+	client, err := NewClient(db, "testcachekey", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client.Update(testRepository.toUpdate())
 	assert.NoError(t, err)
@@ -131,14 +131,14 @@ func TestClientVerifyTUF(t *testing.T) {
 	db := getTestDB(t)
 
 	previousConfigTargets := testRepository1.configTargets
-	client1, err := NewClient(db, "testcachekey1", 2)
+	client1, err := NewClient(db, "testcachekey1", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	testRepository1.configTargets = generateTargets(generateKey(), testRepository1.configTargetsVersion, nil)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.Error(t, err)
 
 	testRepository1.configTargets = previousConfigTargets
-	client2, err := NewClient(db, "testcachekey2", 2)
+	client2, err := NewClient(db, "testcachekey2", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	testRepository1.directorTargets = generateTargets(generateKey(), testRepository1.directorTargetsVersion, nil)
 	err = client2.Update(testRepository1.toUpdate())
@@ -178,7 +178,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
-	client1, err := NewClient(db, "testcachekey1", 2)
+	client1, err := NewClient(db, "testcachekey1", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
@@ -188,7 +188,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid1.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid1.configRoot)
-	client2, err := NewClient(db, "testcachekey2", 2)
+	client2, err := NewClient(db, "testcachekey2", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
 	assert.Error(t, err)
@@ -197,7 +197,7 @@ func TestClientVerifyUptane(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid2.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid2.configRoot)
-	client3, err := NewClient(db, "testcachekey3", 2)
+	client3, err := NewClient(db, "testcachekey3", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid2.toUpdate())
 	assert.Error(t, err)
@@ -229,14 +229,14 @@ func TestClientVerifyOrgID(t *testing.T) {
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryValid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryValid.configRoot)
-	client1, err := NewClient(db, "testcachekey1", 2)
+	client1, err := NewClient(db, "testcachekey1", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	config.Datadog.Set("remote_configuration.director_root", testRepositoryInvalid.directorRoot)
 	config.Datadog.Set("remote_configuration.config_root", testRepositoryInvalid.configRoot)
-	client2, err := NewClient(db, "testcachekey2", 2)
+	client2, err := NewClient(db, "testcachekey2", WithOrgIDCheck(2))
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)

@@ -26,7 +26,7 @@
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_amazonlinux
-    - .kitchen_ec2
+    - .kitchen_ec2_x64
   needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_amazonlinux_a7_x64:
@@ -36,7 +36,7 @@
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_amazonlinux
-    - .kitchen_ec2
+    - .kitchen_ec2_x64
   needs: ["deploy_rpm_testing-a7_x64"]
 
 .kitchen_scenario_amazonlinux_a6_arm64:

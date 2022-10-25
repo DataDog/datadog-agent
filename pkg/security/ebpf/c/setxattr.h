@@ -171,27 +171,12 @@ int __attribute__((always_inline)) kprobe_sys_setxattr_ret(struct pt_regs *ctx) 
     return sys_xattr_ret(ctx, retval, EVENT_SETXATTR);
 }
 
-SEC("tracepoint/syscalls/sys_exit_setxattr")
-int tracepoint_syscalls_sys_exit_setxattr(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
-}
-
 SYSCALL_KRETPROBE(setxattr) {
     return kprobe_sys_setxattr_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_fsetxattr")
-int tracepoint_syscalls_sys_exit_fsetxattr(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
-}
-
 SYSCALL_KRETPROBE(fsetxattr) {
     return kprobe_sys_setxattr_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_lsetxattr")
-int tracepoint_syscalls_sys_exit_lsetxattr(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
 }
 
 SYSCALL_KRETPROBE(lsetxattr) {
@@ -208,27 +193,12 @@ int __attribute__((always_inline)) kprobe_sys_removexattr_ret(struct pt_regs *ct
     return sys_xattr_ret(ctx, retval, EVENT_REMOVEXATTR);
 }
 
-SEC("tracepoint/syscalls/sys_exit_removexattr")
-int tracepoint_syscalls_sys_exit_removexattr(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
-}
-
 SYSCALL_KRETPROBE(removexattr) {
     return kprobe_sys_removexattr_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_lremovexattr")
-int tracepoint_syscalls_sys_exit_lremovexattr(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
-}
-
 SYSCALL_KRETPROBE(lremovexattr) {
     return kprobe_sys_removexattr_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_fremovexattr")
-int tracepoint_syscalls_sys_exit_fremovexattr(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 
 SYSCALL_KRETPROBE(fremovexattr) {

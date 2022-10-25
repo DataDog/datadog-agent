@@ -26,7 +26,7 @@ spec:
         runAsUser: 0
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -80,6 +80,8 @@ spec:
               value: "/var/run/datadog/dsd.socket"
             - name: DD_EXTRA_CONFIG_PROVIDERS
               value: "clusterchecks endpointschecks"
+            - name: DD_IGNORE_AUTOCONF
+              value: "kubernetes_state"
             - name: DD_EXPVAR_PORT
               value: "6000"
           volumeMounts:
@@ -92,6 +94,10 @@ spec:
             - name: tmpdir
               mountPath: /tmp
               readOnly: false
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              mountPropagation: None
+              readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
             - name: runtimesocketdir
@@ -130,7 +136,7 @@ spec:
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -140,7 +146,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.36.1"
+          image: "gcr.io/datadoghq/agent:7.39.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -190,6 +196,9 @@ spec:
         - hostPath:
             path: /sys/fs/cgroup
           name: cgroups
+        - hostPath:
+            path: /etc/os-release
+          name: os-release-file
         - hostPath:
             path: /var/run/datadog/
             type: DirectoryOrCreate

@@ -78,21 +78,20 @@ func NewCurrentInfo() (*CurrentInfo, error) {
 	}, nil
 }
 
-// CPU returns basic CPU info.
-func (pi *CurrentInfo) CPU(now time.Time) CPUInfo {
+// CPU returns basic CPU info, or the previous valid CPU info and an error.
+func (pi *CurrentInfo) CPU(now time.Time) (CPUInfo, error) {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 
 	dt := now.Sub(pi.lastCPUTime)
 	if dt <= pi.cacheDelay {
-		return pi.lastCPU // don't query too often, cache a little bit
+		return pi.lastCPU, nil // don't query too often, cache a little bit
 	}
 	pi.lastCPUTime = now
 
 	userTime, err := cpuTimeUser(pi.pid)
 	if err != nil {
-		log.Debugf("Unable to get CPU times: %v", err)
-		return pi.lastCPU
+		return pi.lastCPU, err
 	}
 
 	dua := userTime - pi.lastCPUUser
@@ -104,7 +103,7 @@ func (pi *CurrentInfo) CPU(now time.Time) CPUInfo {
 		pi.lastCPUUser = userTime
 	}
 
-	return pi.lastCPU
+	return pi.lastCPU, nil
 }
 
 // Mem returns basic memory info.
@@ -114,10 +113,10 @@ func (pi *CurrentInfo) Mem() MemInfo {
 	return MemInfo{Alloc: ms.Alloc}
 }
 
-// CPU returns basic CPU info.
-func CPU(now time.Time) CPUInfo {
+// CPU returns basic CPU info, or the previous valid CPU info and an error.
+func CPU(now time.Time) (CPUInfo, error) {
 	if globalCurrentInfo == nil {
-		return CPUInfo{}
+		return CPUInfo{}, nil
 	}
 	return globalCurrentInfo.CPU(now)
 }

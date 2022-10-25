@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sys/windows"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -76,10 +77,6 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 	return name, nil
 }
 
-// TODO: configurable?
-const (
-	PDH_REFRESH_INTERVAL = 60 // in seconds
-)
 // Lock enforces no more than once forceRefresh=false
 // is running concurrently
 var lock_lastPdhRefreshTime sync.Mutex
@@ -91,16 +88,28 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// Refresh the Windows internal PDH Object cache
 	//
 	// When forceRefresh=false, the cache is refreshed no more frequently
-	// than the PDH_REFRESH_INTERVAL.
+	// than the refresh interval. The refresh interval is controlled by the
+	// config option 'windows_counter_refresh_interval'.
 	//
-	// forceRefresh - If true, ignore PDH_REFRESH_INTERVAL and refresh anyway
+	// forceRefresh - If true, ignore the refresh interval and refresh anyway
 	//
 	// returns didrefresh=true if the refresh operation was successful
 	//
 
 	var len uint32
 
-	// Only refresh at most every PDH_REFRESH_INTERVAL seconds
+	refresh_interval := config.Datadog.GetInt("windows_counter_refresh_interval")
+	if refresh_interval == 0 {
+		// refresh disabled
+		return false, nil
+	} else if refresh_interval < 0 {
+		// invalid value
+		e := fmt.Sprintf("windows_counter_refresh_interval cannot be a negative number")
+		log.Errorf(e)
+		return false, fmt.Errorf(e)
+	}
+
+	// Only refresh at most every refresh_interval seconds
 	// or when forceRefresh=true
 	if !forceRefresh {
 		// TODO: use TryLock in golang 1.18
@@ -110,7 +119,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		defer lock_lastPdhRefreshTime.Unlock()
 		timenow := time.Now()
 		// time.Time.Sub() uses a monotonic clock
-		if timenow.Sub(lastPdhRefreshTime.Load()).Seconds() < PDH_REFRESH_INTERVAL {
+		if int(timenow.Sub(lastPdhRefreshTime.Load()).Seconds()) < refresh_interval {
 			// too soon, skip refresh
 			return false, nil
 		}

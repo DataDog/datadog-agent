@@ -67,7 +67,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err = app.SecurityAgentCmd.Execute(); err != nil {
+	if err = app.CreateSecurityAgentCmd().Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
@@ -82,7 +82,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := app.RunAgent(ctx)
+	err := app.RunAgent(ctx, "")
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)

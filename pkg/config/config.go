@@ -363,8 +363,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("server_timeout", 30)
 
 	// Configuration for TLS for outgoing connections
-	config.BindEnvAndSetDefault("force_tls_12", false) // deprecated
-	config.BindEnvAndSetDefault("min_tls_version", "") // default depends on force_tls_12
+	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
@@ -501,13 +500,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control how long we keep dogstatsd contexts in memory. This should
-	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
-	// is 10s), otherwise we won't be able to sample unseen counter as
-	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
-	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory.
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
+	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
@@ -525,7 +522,7 @@ func InitConfig(config Config) {
 	// Enable the no-aggregation pipeline.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -556,6 +553,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
+	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
@@ -1888,4 +1887,26 @@ func GetVectorURL(datatype DataType) (string, error) {
 		return vectorURL, nil
 	}
 	return "", nil
+}
+
+// GetTraceAgentDefaultEnv returns the default env for the trace agent
+func GetTraceAgentDefaultEnv() string {
+	defaultEnv := ""
+	if Datadog.IsSet("apm_config.env") {
+		defaultEnv = Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
+	} else if Datadog.IsSet("env") {
+		defaultEnv = Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
+	} else {
+		for _, tag := range GetConfiguredTags(false) {
+			if strings.HasPrefix(tag, "env:") {
+				defaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
+				return defaultEnv
+			}
+		}
+	}
+
+	return defaultEnv
 }

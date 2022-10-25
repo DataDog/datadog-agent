@@ -87,11 +87,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if c.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
-	}
-
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -124,8 +119,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "kprobe__tcp_sendmsg",
 					UID:          probeUID,
 				},
-				KProbeMaxActive:    maxActive,
-				KprobeAttachMethod: kprobeAttachMethod,
+				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -140,19 +134,25 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "socket__http_filter_entry",
 					UID:          probeUID,
 				},
-				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
 
-	sslProgram, _ := newSSLProgram(c, sockFD)
+	// Add the subprograms even if nil, so that the manager can get the
+	// undefined probes from them when they are not enabled. Subprograms
+	// functions do checks for nil before doing anything.
+	ebpfSubprograms := []subprogram{
+		newGoTLSProgram(c),
+		newSSLProgram(c, sockFD),
+	}
+
 	program := &ebpfProgram{
 		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		subprograms:            ebpfSubprograms,
 	}
 
 	return program, nil
@@ -181,6 +181,11 @@ func (e *ebpfProgram) Init() error {
 	onlineCPUs, err := cpupossible.Get()
 	if err != nil {
 		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
+
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	}
 
 	options := manager.Options{
@@ -224,7 +229,8 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: e.offsets,
+		ConstantEditors:           e.offsets,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 
 	for _, s := range e.subprograms {

@@ -43,8 +43,16 @@ type Client struct {
 	transactionalStore *transactionalStore
 }
 
+type ClientOption func(c *Client)
+
+func WithOrgIDCheck(orgID int64) ClientOption {
+	return func(c *Client) {
+		c.orgID = orgID
+	}
+}
+
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error) {
+func NewClient(cacheDB *bbolt.DB, cacheKey string, options ...ClientOption) (*Client, error) {
 	transactionalStore := newTransactionalStore(cacheDB)
 	localStoreConfig, err := newLocalStoreConfig(transactionalStore, cacheKey)
 	if err != nil {
@@ -56,13 +64,15 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgID int64) (*Client, error)
 	}
 	targetStore := newTargetStore(transactionalStore, cacheKey)
 	c := &Client{
-		orgID:               orgID,
 		configLocalStore:    localStoreConfig,
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorLocalStore:  localStoreDirector,
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
 		targetStore:         targetStore,
 		transactionalStore:  transactionalStore,
+	}
+	for _, o := range options {
+		o(c)
 	}
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
@@ -230,6 +240,10 @@ func (c *Client) verify() error {
 }
 
 func (c *Client) verifyOrgID() error {
+	// skip the orgID check when no orgID was provided to the client
+	if c.orgID == 0 {
+		return nil
+	}
 	directorTargets, err := c.directorTUFClient.Targets()
 	if err != nil {
 		return err

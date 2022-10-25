@@ -86,6 +86,10 @@ func parseFileMetaCustom(customJSON *json.RawMessage) (ConfigFileMetaCustom, err
 }
 
 func executePredicate(client *pbgo.Client, predicates []*pbgo.TracerPredicateV1) (bool, error) {
+	// No tracer predicates match everything
+	if len(predicates) == 0 {
+		return true, nil
+	}
 	for _, predicate := range predicates {
 		if predicate.ClientID != "" && client.Id != predicate.ClientID {
 			continue

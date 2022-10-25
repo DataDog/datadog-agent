@@ -110,16 +110,12 @@
         "azure": {
             "x86_64": {
                 "win2008r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows2008-R2-SP1/versions/1.0.0",
-                "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410",
-                "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190416",
-                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190416",
-                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190410",
-                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.2114.2108051826",
-                "win1903": "urn,MicrosoftWindowsServer:WindowsServer:Datacenter-Core-1903-with-Containers-smalldisk:18362.1256.2012032308",
-                "win1909": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-1909-with-containers-smalldisk:18363.1316.2101130054",
-                "win2004": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-2004-with-containers-smalldisk:19041.1415.2112101053",
-                "win20h2": "urn,MicrosoftWindowsServer:WindowsServer:datacenter-core-20h2-with-containers-smalldisk:19042.1645.220403",
-                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:20348.169.2108120020"
+                "win2012": "urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.23920.221007",
+                "win2012r2": "urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:9600.20625.221005",
+                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
+                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
+                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
+                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:20348.1131.221014"
             }
         },
         "ec2": {
