@@ -73,8 +73,8 @@ Logs Agent
       24h Peak Latency (ms): {{ .recent_peak_latency }}
       {{- if .info }}
       {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
-      {{Split $key}}: {{index $value 0}} {{ else }}
-      {{Split $key}}:
+      {{$key}}: {{index $value 0}} {{ else }}
+      {{$key}}:
       {{- range $inf := $value }}
         {{ $inf }}
       {{- end }}
