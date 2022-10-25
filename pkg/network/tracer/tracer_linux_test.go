@@ -1684,20 +1684,6 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	assert.Greater(t, p_tcp_sendmsg, int64(0))
 }
 
-func GetFreePort() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return "", err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
-}
-
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
 	if !classificationSupported(cfg) {
@@ -1707,20 +1693,20 @@ func TestProtocolClassification(t *testing.T) {
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
-		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
-		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
+		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
-		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
+		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
-		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }
 
@@ -1736,7 +1722,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 		name      string
 		clientRun func(t *testing.T, serverAddr string)
 		done      chan struct{}
-		serverRun func(t *testing.T, serverAddr string, done chan struct{})
+		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
 		want      network.ProtocolType
 	}{
 		{
@@ -1756,7 +1742,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					require.NoError(t, err)
 				}
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				udpServer := &UDPServer{
 					address: serverAddr,
 					onMessage: func(b []byte, n int) []byte {
@@ -1764,6 +1750,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					},
 				}
 				require.NoError(t, udpServer.Run(done, 10))
+				return udpServer.address
 			},
 			want: network.ProtocolUnclassified,
 		},
@@ -1777,11 +1764,12 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, err)
 				defer c.Close()
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					c.Close()
 				})
 				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolUnclassified,
 		},
@@ -1796,7 +1784,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				defer c.Close()
 				c.Write([]byte("hello\n"))
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -1806,6 +1794,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					c.Close()
 				})
 				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolUnknown,
 		},
@@ -1823,9 +1812,12 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				io.Copy(ioutil.Discard, resp.Body)
 				resp.Body.Close()
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				ln, err := net.Listen("tcp", serverAddr)
+				require.NoError(t, err)
+
 				srv := &nethttp.Server{
-					Addr: serverAddr,
+					Addr: ln.Addr().String(),
 					Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
 						io.Copy(ioutil.Discard, req.Body)
 						w.WriteHeader(200)
@@ -1835,13 +1827,13 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				}
 				srv.SetKeepAlivesEnabled(false)
 				go func() {
-					_ = srv.ListenAndServe()
+					_ = srv.Serve(ln)
 				}()
 				go func() {
 					<-done
-					fmt.Println("shutting down")
 					srv.Shutdown(context.Background())
 				}()
+				return srv.Addr
 			},
 			want: network.ProtocolHTTP,
 		},
@@ -1860,7 +1852,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				defer c.Close()
 				c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -1870,6 +1862,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					c.Close()
 				})
 				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolHTTP,
 		},
@@ -1884,13 +1877,15 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				defer c.Close()
 				require.NoError(t, c.HandleUnary(context.Background(), "test"))
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				closer, err := grpc.Server(serverAddr)
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server, err := grpc.NewServer(serverAddr)
 				require.NoError(t, err)
+				server.Run()
 				go func() {
 					<-done
-					closer()
+					server.Stop()
 				}()
+				return server.Address
 			},
 			want: network.ProtocolHTTP2,
 		},
@@ -1905,13 +1900,15 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				defer c.Close()
 				require.NoError(t, c.HandleStream(context.Background(), 5))
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
-				closer, err := grpc.Server(serverAddr)
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server, err := grpc.NewServer(serverAddr)
 				require.NoError(t, err)
+				server.Run()
 				go func() {
 					<-done
-					closer()
+					server.Stop()
 				}()
+				return server.Address
 			},
 			want: network.ProtocolHTTP2,
 		},
@@ -1930,7 +1927,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				// http2 prefix.
 				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -1940,6 +1937,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					c.Close()
 				})
 				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolHTTP,
 		},
@@ -1954,11 +1952,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			defer close(tt.done)
 
 			initTracerState(t, tr)
-			port, err := GetFreePort()
 			require.NoError(t, err)
-			serverAddr := net.JoinHostPort(serverHost, port)
+			serverAddr := tt.serverRun(t, serverHost, tt.done)
+			_, port, err := net.SplitHostPort(serverAddr)
+			require.NoError(t, err)
 			targetAddr := net.JoinHostPort(targetHost, port)
-			tt.serverRun(t, serverAddr, tt.done)
 
 			// Letting the server time to start
 			time.Sleep(500 * time.Millisecond)
@@ -1974,7 +1972,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		dialer := &net.Dialer{
 			LocalAddr: &net.TCPAddr{
 				IP:   net.ParseIP(clientHost),
-				Port: 9999,
+				Port: 0,
 			},
 			Control: func(network, address string, c syscall.RawConn) error {
 				var opErr error
@@ -1996,12 +1994,9 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		defer tr.Stop()
 
 		initTracerState(t, tr)
-		port, err := GetFreePort()
 		require.NoError(t, err)
-		serverAddr := net.JoinHostPort(serverHost, port)
-		targetAddr := net.JoinHostPort(targetHost, port)
 		done := make(chan struct{})
-		server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
+		server := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
 			input, err := r.ReadBytes(byte('\n'))
 			if err == nil {
@@ -2010,31 +2005,35 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			c.Close()
 		})
 		require.NoError(t, server.Run(done))
+		_, port, err := net.SplitHostPort(server.address)
+		require.NoError(t, err)
+		targetAddr := net.JoinHostPort(targetHost, port)
 
 		// Letting the server time to start
 		time.Sleep(500 * time.Millisecond)
 
 		// Running a HTTP client
-		timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
-		c, err := dialer.DialContext(timedContext, "tcp", targetAddr)
-		cancel()
+		client := nethttp.Client{
+			Transport: &nethttp.Transport{
+				DialContext: dialer.DialContext,
+			},
+		}
+		resp, err := client.Get("http://" + targetAddr + "/test")
+		if err == nil {
+			resp.Body.Close()
+		}
+
+		client.CloseIdleConnections()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP)
+
+		time.Sleep(2 * time.Second)
+		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
+			CustomDialer: dialer,
+		})
 		require.NoError(t, err)
-		c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
-		fmt.Println("1", c.LocalAddr().String(), c.RemoteAddr().String())
-
-		c.Close()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, network.ProtocolHTTP)
-
-		time.Sleep(time.Second * 2)
-		timedContext, cancel = context.WithTimeout(context.Background(), time.Second)
-		c, err = dialer.DialContext(timedContext, "tcp", targetAddr)
-		cancel()
-		require.NoError(t, err)
-		c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
-
-		fmt.Println("2", c.LocalAddr().String(), c.RemoteAddr().String())
-		c.Close()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, network.ProtocolHTTP2)
+		defer grpcClient.Close()
+		_ = grpcClient.HandleUnary(context.Background(), "test")
+		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP2)
 	})
 }
 
@@ -2064,5 +2063,5 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 		}
 
 		return foundOutgoing && foundIncoming
-	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
 }

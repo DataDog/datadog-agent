@@ -16,20 +16,23 @@ import (
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
 )
 
-// server is used to implement helloworld.GreeterServer.
-type server struct {
+// Server is used to implement helloworld.GreeterServer.
+type Server struct {
+	Address string
+	grpcSrv *grpc.Server
+	lis     net.Listener
+
 	pb.UnimplementedGreeterServer
 	pbStream.UnimplementedMathServer
 }
 
 // SayHello implements helloworld.GreeterServer.
-func (server) SayHello(_ context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-	log.Printf("Received: %v", in.GetName())
+func (Server) SayHello(_ context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
 	return &pb.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
 
-// FetchResponse implements StreamService.
-func (server) Max(srv pbStream.Math_MaxServer) error {
+// Max implements MathServer.
+func (Server) Max(srv pbStream.Math_MaxServer) error {
 	var max int32
 	for {
 		select {
@@ -42,7 +45,6 @@ func (server) Max(srv pbStream.Math_MaxServer) error {
 		req, err := srv.Recv()
 		if err == io.EOF {
 			// return will close stream from server side
-			log.Println("exit")
 			return nil
 		}
 		if err != nil {
@@ -63,23 +65,33 @@ func (server) Max(srv pbStream.Math_MaxServer) error {
 	}
 }
 
-// Server returns a new instance of the gRPC server.
-func Server(addr string) (func(), error) {
+// NewServer returns a new instance of the gRPC server.
+func NewServer(addr string) (*Server, error) {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	s := grpc.NewServer()
-	pb.RegisterGreeterServer(s, &server{})
-	pbStream.RegisterMathServer(s, server{})
 
+	server := &Server{
+		Address: lis.Addr().String(),
+		grpcSrv: grpc.NewServer(),
+		lis:     lis,
+	}
+
+	pb.RegisterGreeterServer(server.grpcSrv, server)
+	pbStream.RegisterMathServer(server.grpcSrv, server)
+
+	return server, nil
+}
+
+func (s Server) Stop() {
+	s.grpcSrv.Stop()
+}
+
+func (s Server) Run() {
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := s.grpcSrv.Serve(s.lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
-
-	return func() {
-		s.Stop()
-	}, nil
 }
