@@ -264,6 +264,15 @@ func TestConfigHostname(t *testing.T) {
 		assert.Equal("envoverride", cfg.Hostname)
 	})
 
+	t.Run("serverless", func(t *testing.T) {
+		defer cleanConfig()()
+		coreconfig.Datadog.Set("serverless.enabled", true)
+		assert := assert.New(t)
+		cfg, err := LoadConfigFile("./testdata/site_default.yaml")
+		assert.NoError(err)
+		assert.Equal("", cfg.Hostname)
+	})
+
 	t.Run("external", func(t *testing.T) {
 		body, err := ioutil.ReadFile("testdata/stringcode.go.tmpl")
 		if err != nil {
