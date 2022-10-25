@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -1401,9 +1402,9 @@ func TestHTTPStats(t *testing.T) {
 		DPort:  80,
 	}
 
-	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", true, http.MethodGet)
+	key := transaction.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", true, transaction.MethodGet)
 
-	httpStats := make(map[http.Key]*http.RequestStats)
+	httpStats := make(map[transaction.Key]*http.RequestStats)
 	var rs http.RequestStats
 	httpStats[key] = &rs
 
@@ -1427,9 +1428,9 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 		DPort:  80,
 	}
 
-	getStats := func(path string) map[http.Key]*http.RequestStats {
-		httpStats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+	getStats := func(path string) map[transaction.Key]*http.RequestStats {
+		httpStats := make(map[transaction.Key]*http.RequestStats)
+		key := transaction.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, transaction.MethodGet)
 		var rs http.RequestStats
 		httpStats[key] = &rs
 		return httpStats

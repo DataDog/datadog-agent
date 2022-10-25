@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -334,7 +335,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	stats := monitor.GetHTTPStats()
 
 	for key := range stats {
-		if key.Method == MethodUnknown {
+		if key.Method == transaction.MethodUnknown {
 			t.Error("detected HTTP request with method unknown")
 		}
 	}
@@ -530,7 +531,7 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+func includesRequest(t *testing.T, allStats map[transaction.Key]*RequestStats, req *nethttp.Request) {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	included, err := isRequestIncludedOnce(allStats, req)
 	require.NoError(t, err)
@@ -544,7 +545,7 @@ func includesRequest(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.
 	}
 }
 
-func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *nethttp.Request) {
+func requestNotIncluded(t *testing.T, allStats map[transaction.Key]*RequestStats, req *nethttp.Request) {
 	included, err := isRequestIncludedOnce(allStats, req)
 	require.NoError(t, err)
 	if included {
@@ -558,7 +559,7 @@ func requestNotIncluded(t *testing.T, allStats map[Key]*RequestStats, req *netht
 	}
 }
 
-func isRequestIncludedOnce(allStats map[Key]*RequestStats, req *nethttp.Request) (bool, error) {
+func isRequestIncludedOnce(allStats map[transaction.Key]*RequestStats, req *nethttp.Request) (bool, error) {
 	occurrences := countRequestOccurrences(allStats, req)
 
 	if occurrences == 1 {
@@ -569,7 +570,7 @@ func isRequestIncludedOnce(allStats map[Key]*RequestStats, req *nethttp.Request)
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-func countRequestOccurrences(allStats map[Key]*RequestStats, req *nethttp.Request) int {
+func countRequestOccurrences(allStats map[transaction.Key]*RequestStats, req *nethttp.Request) int {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {

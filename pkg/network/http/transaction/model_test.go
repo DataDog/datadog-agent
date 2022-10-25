@@ -17,8 +17,8 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}
@@ -33,8 +33,8 @@ func TestMaximumLengthPath(t *testing.T) {
 	rep := strings.Repeat("a", HTTPBufferSize-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			[]byte(str),
 		),
 	}
@@ -47,8 +47,8 @@ func TestMaximumLengthPath(t *testing.T) {
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			// This probably isn't a valid HTTP request
 			// (since it's missing a version before the end),
 			// but if the null byte isn't handled
@@ -64,17 +64,17 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 }
 
 func TestLatency(t *testing.T) {
-	tx := ebpfHttpTx{
-		response_last_seen: 2e6,
-		request_started:    1e6,
+	tx := EbpfHttpTx{
+		Response_last_seen: 2e6,
+		Request_started:    1e6,
 	}
 	// quantization brings it down
 	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := ebpfHttpTx{
-		request_fragment: requestFragment(
+	tx := EbpfHttpTx{
+		Request_fragment: RequestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}

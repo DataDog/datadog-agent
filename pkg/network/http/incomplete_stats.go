@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 const defaultMinAge = 30 * time.Second
@@ -42,39 +43,35 @@ const defaultMinAge = 30 * time.Second
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[KeyTuple]*txParts
+	data       map[transaction.KeyTuple]*txParts
 	maxEntries int
 	telemetry  *telemetry
 	minAgeNano int64
 }
 
 type txParts struct {
-	requests  []httpTX
-	responses []httpTX
+	requests  []transaction.HttpTX
+	responses []transaction.HttpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]httpTX, 0, 5),
-		responses: make([]httpTX, 0, 5),
+		requests:  make([]transaction.HttpTX, 0, 5),
+		responses: make([]transaction.HttpTX, 0, 5),
 	}
 }
 
 func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
 	return &incompleteBuffer{
-		data:       make(map[KeyTuple]*txParts),
+		data:       make(map[transaction.KeyTuple]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
 	}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX) {
-	key := KeyTuple{
-		SrcIPHigh: uint64(tx.SrcIPHigh()),
-		SrcIPLow:  uint64(tx.SrcIPLow()),
-		SrcPort:   uint16(tx.SrcPort()),
-	}
+func (b *incompleteBuffer) Add(tx transaction.HttpTX) {
+	key := tx.NewKeyTuple()
 
 	parts, ok := b.data[key]
 	if !ok {
@@ -89,13 +86,13 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*ebpfHttpTx)
+	ebpfTX, ok := tx.(*transaction.EbpfHttpTx)
 	if !ok {
 		// should never happen
 		return
 	}
 
-	ebpfTxCopy := new(ebpfHttpTx)
+	ebpfTxCopy := new(transaction.EbpfHttpTx)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
@@ -106,14 +103,14 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []transaction.HttpTX {
 	var (
-		joined   []httpTX
+		joined   []transaction.HttpTX
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
 
-	b.data = make(map[KeyTuple]*txParts)
+	b.data = make(map[transaction.KeyTuple]*txParts)
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
@@ -155,12 +152,12 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
+func (b *incompleteBuffer) shouldKeep(tx transaction.HttpTX, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []httpTX
+type byRequestTime []transaction.HttpTX
 
 func (rt byRequestTime) Len() int      { return len(rt) }
 func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
@@ -168,7 +165,7 @@ func (rt byRequestTime) Less(i, j int) bool {
 	return rt[i].RequestStarted() < rt[j].RequestStarted()
 }
 
-type byResponseTime []httpTX
+type byResponseTime []transaction.HttpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 
 	"github.com/cilium/ebpf"
 )
@@ -75,7 +76,7 @@ func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]transacti
 }
 
 func (m *batchManager) GetPendingTransactions() []transaction.HttpTX {
-	transactions := make([]httpTX, 0, HTTPBatchSize*HTTPBatchPages/2)
+	transactions := make([]transaction.HttpTX, 0, HTTPBatchSize*HTTPBatchPages/2)
 	for i := 0; i < m.numCPUs; i++ {
 		for lookup := 0; lookup < maxLookupsPerCPU; lookup++ {
 			var (
@@ -128,5 +129,5 @@ func batchFromEventData(data []byte) *httpBatch {
 
 // Transactions returns the slice of HTTP transactions embedded in the batch
 func (batch *httpBatch) Transactions() []transaction.EbpfHttpTx {
-	return (*(*[netebpf.HTTPBatchSize]transaction.EbpfHttpTx)(unsafe.Pointer(&batch.txs)))[:]
+	return (*(*[transaction.HTTPBatchSize]transaction.EbpfHttpTx)(unsafe.Pointer(&batch.Txs)))[:]
 }

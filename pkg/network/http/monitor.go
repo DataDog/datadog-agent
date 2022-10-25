@@ -163,7 +163,7 @@ func (m *Monitor) GetHTTPStats() map[transaction.Key]*RequestStats {
 		return nil
 	}
 
-	reply := make(chan map[Key]*RequestStats, 1)
+	reply := make(chan map[transaction.Key]*RequestStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
 	return <-reply

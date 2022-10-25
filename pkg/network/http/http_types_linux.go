@@ -3,6 +3,17 @@
 
 package http
 
+type ebpfHttpTx struct {
+	Tup                  httpConnTuple
+	Request_started      uint64
+	Request_method       uint8
+	Response_status_code uint16
+	Response_last_seen   uint64
+	Request_fragment     [160]byte
+	Owned_by_src_port    uint16
+	Tcp_seq              uint32
+	Tags                 uint64
+}
 type httpConnTuple struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -28,17 +39,6 @@ type sslReadArgs struct {
 	Buf *byte
 }
 
-type ebpfHttpTx struct {
-	Tup                  httpConnTuple
-	Request_started      uint64
-	Request_method       uint8
-	Response_status_code uint16
-	Response_last_seen   uint64
-	Request_fragment     [160]byte
-	Owned_by_src_port    uint16
-	Tcp_seq              uint32
-	Tags                 uint64
-}
 type httpBatch struct {
 	Idx uint64
 	Pos uint8

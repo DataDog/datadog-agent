@@ -6,7 +6,7 @@
 //go:build ignore
 // +build ignore
 
-package http
+package transaction
 
 /*
 #include "../../ebpf/c/tracer.h"
@@ -15,4 +15,14 @@ package http
 */
 import "C"
 
-type ebpfHttpTx C.http_transaction_t
+type HttpConnTuple C.conn_tuple_t
+type EbpfHttpTx C.http_transaction_t
+
+const (
+	HTTPBatchSize  = C.HTTP_BATCH_SIZE
+	HTTPBatchPages = C.HTTP_BATCH_PAGES
+	HTTPBufferSize = C.HTTP_BUFFER_SIZE
+)
+
+type httpBatch C.http_batch_t
+type httpBatchKey C.http_batch_key_t

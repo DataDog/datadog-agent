@@ -13,27 +13,12 @@ import (
 	"errors"
 	"strings"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 /*
 #include "../../ebpf/c/http-types.h"
 */
 import "C"
-
-type EbpfHttpTx ebpf.EbpfHttpTx
-
-/*
-const (
-	HTTPBatchSize  = int(C.HTTP_BATCH_SIZE)
-	HTTPBatchPages = int(C.HTTP_BATCH_PAGES)
-	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
-)
-*/
-type httpNotification C.http_batch_notification_t
-type httpBatch C.http_batch_t
-type httpBatchKey C.http_batch_key_t
 
 // export to match windows definition
 var ErrLostBatch = errors.New("http batch lost (not consumed fast enough)")
@@ -43,7 +28,7 @@ var ErrLostBatch = errors.New("http batch lost (not consumed fast enough)")
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
 func (tx *EbpfHttpTx) Path(buffer []byte) ([]byte, bool) {
-	b := *(*[ebpf.HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
 
 	// b might contain a null terminator in the middle
 	bLen := strlen(b[:])
@@ -63,7 +48,7 @@ func (tx *EbpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 
 	// no bound check necessary here as we know we at least have '/' character
 	n := copy(buffer, b[i:j])
-	fullPath := j < bLen || (j == ebpf.HTTPBufferSize-1 && b[j] == ' ')
+	fullPath := j < bLen || (j == HTTPBufferSize-1 && b[j] == ' ')
 	return buffer[:n], fullPath
 }
 
@@ -88,7 +73,7 @@ func (tx *EbpfHttpTx) Incomplete() bool {
 }
 
 func (tx *EbpfHttpTx) ReqFragment() []byte {
-	asslice := (*[1 << 30]byte)(unsafe.Pointer(&tx.Request_fragment))[:int(ebpf.HTTPBufferSize):int(ebpf.HTTPBufferSize)]
+	asslice := (*[1 << 30]byte)(unsafe.Pointer(&tx.Request_fragment))[:int(HTTPBufferSize):int(HTTPBufferSize)]
 	return asslice
 }
 
@@ -140,7 +125,7 @@ func (tx *EbpfHttpTx) DynamicTags() []string {
 
 func (tx *EbpfHttpTx) String() string {
 	var output strings.Builder
-	fragment := *(*[ebpf.HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
+	fragment := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.Request_fragment))
 	output.WriteString("ebpf.EbpfHttpTx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(fragment[:]) + "', ")
@@ -162,10 +147,10 @@ func nsTimestampToFloat(ns uint64) float64 {
 	return float64(ns << shift)
 }
 
-func RequestFragment(fragment []byte) [ebpf.HTTPBufferSize]int8 {
-	var b [ebpf.HTTPBufferSize]int8
+func RequestFragment(fragment []byte) [HTTPBufferSize]byte {
+	var b [HTTPBufferSize]byte
 	for i := 0; i < len(b) && i < len(fragment); i++ {
-		b[i] = int8(fragment[i])
+		b[i] = byte(fragment[i])
 	}
 	return b
 }
@@ -178,12 +163,19 @@ func (tx *EbpfHttpTx) NewKey(path string, fullPath bool) Key {
 			SrcPort:   uint16(tx.Tup.Sport),
 			DstIPHigh: uint64(tx.Tup.Daddr_h),
 			DstIPLow:  uint64(tx.Tup.Daddr_l),
-			DstPort:   uint64(tx.Tup.Dport),
+			DstPort:   uint16(tx.Tup.Dport),
 		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
 		Method: tx.Method(),
+	}
+}
+func (tx *EbpfHttpTx) NewKeyTuple() KeyTuple {
+	return KeyTuple{
+		SrcIPHigh: uint64(tx.Tup.Saddr_h),
+		SrcIPLow:  uint64(tx.Tup.Saddr_l),
+		SrcPort:   uint16(tx.Tup.Sport),
 	}
 }

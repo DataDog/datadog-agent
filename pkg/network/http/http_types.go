@@ -15,6 +15,7 @@ package http
 */
 import "C"
 
+type ebpfHttpTx C.http_transaction_t
 type httpConnTuple C.conn_tuple_t
 type httpBatchState C.http_batch_state_t
 type sslSock C.ssl_sock_t

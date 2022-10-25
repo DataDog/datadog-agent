@@ -13,19 +13,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
-	var tx ebpfHttpTx
+func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) transaction.HttpTX {
+	var tx transaction.EbpfHttpTx
 
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := uint64(uint64(latency))
+	latencyNS := uint64(latency)
 	tx.Request_started = 1
 	tx.Request_method = 1
 	tx.Response_last_seen = tx.Request_started + latencyNS
 	tx.Response_status_code = uint16(code)
-	tx.Request_fragment = requestFragment([]byte(reqFragment))
+	tx.Request_fragment = transaction.RequestFragment([]byte(reqFragment))
 	tx.Tup.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Bytes()))
 	tx.Tup.Sport = uint16(sourcePort)
 	tx.Tup.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Bytes()))

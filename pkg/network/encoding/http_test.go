@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -27,14 +28,14 @@ func TestFormatHTTPStats(t *testing.T) {
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	httpKey1 := http.NewKey(
+	httpKey1 := transaction.NewKey(
 		localhost,
 		localhost,
 		clientPort,
 		serverPort,
 		"/testpath-1",
 		true,
-		http.MethodGet,
+		transaction.MethodGet,
 	)
 	var httpStats1 http.RequestStats
 	for i := 100; i <= 500; i += 100 {
@@ -42,7 +43,7 @@ func TestFormatHTTPStats(t *testing.T) {
 	}
 
 	httpKey2 := httpKey1
-	httpKey2.Path = http.Path{
+	httpKey2.Path = transaction.Path{
 		Content:  "/testpath-2",
 		FullPath: true,
 	}
@@ -62,7 +63,7 @@ func TestFormatHTTPStats(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
+		HTTP: map[transaction.Key]*http.RequestStats{
 			httpKey1: &httpStats1,
 			httpKey2: &httpStats2,
 		},
@@ -123,14 +124,14 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 
-	key := http.NewKey(
+	key := transaction.NewKey(
 		util.AddressFromString("10.1.1.1"),
 		util.AddressFromString("10.2.2.2"),
 		60000,
 		80,
 		"/testpath",
 		true,
-		http.MethodGet,
+		transaction.MethodGet,
 	)
 
 	payload := &network.Connections{
@@ -144,7 +145,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 				},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
+		HTTP: map[transaction.Key]*http.RequestStats{
 			key: &httpReqStats,
 		},
 	}
@@ -197,14 +198,14 @@ func TestIDCollisionRegression(t *testing.T) {
 	}
 
 	var httpStats http.RequestStats
-	httpKey := http.NewKey(
+	httpKey := transaction.NewKey(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
 		60000,
 		80,
 		"/",
 		true,
-		http.MethodGet,
+		transaction.MethodGet,
 	)
 	httpStats.AddRequest(100, 1.0, 0, nil)
 
@@ -212,7 +213,7 @@ func TestIDCollisionRegression(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP: map[http.Key]*http.RequestStats{
+		HTTP: map[transaction.Key]*http.RequestStats{
 			httpKey: &httpStats,
 		},
 	}
@@ -253,14 +254,14 @@ func TestLocalhostScenario(t *testing.T) {
 	}
 
 	var httpStats http.RequestStats
-	httpKey := http.NewKey(
+	httpKey := transaction.NewKey(
 		util.AddressFromString("127.0.0.1"),
 		util.AddressFromString("127.0.0.1"),
 		60000,
 		80,
 		"/",
 		true,
-		http.MethodGet,
+		transaction.MethodGet,
 	)
 	httpStats.AddRequest(100, 1.0, 0, nil)
 
@@ -268,7 +269,7 @@ func TestLocalhostScenario(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP: map[http.Key]*http.RequestStats{
+		HTTP: map[transaction.Key]*http.RequestStats{
 			httpKey: &httpStats,
 		},
 	}
