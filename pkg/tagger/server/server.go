@@ -26,14 +26,14 @@ const (
 	streamKeepAliveInterval = 9 * time.Minute
 )
 
+type Server struct {
+	tagger tagger.Tagger
+}
+
 func NewServer(t tagger.Tagger) *Server {
 	return &Server{
 		tagger: t,
 	}
-}
-
-type Server struct {
-	tagger tagger.Tagger
 }
 
 // TaggerStreamEntities subscribes to added, removed, or changed entities in the Tagger

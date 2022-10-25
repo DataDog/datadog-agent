@@ -122,7 +122,12 @@ func StartServer() error {
 	})
 
 	timeout := config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
-	srv := grpcutil.NewMuxedGRPCServer(tlsConfig, grpcSrv, grpcutil.TimeoutHandlerFunc(router, timeout))
+	srv := grpcutil.NewMuxedGRPCServer(
+		listener.Addr().String(),
+		tlsConfig,
+		grpcSrv,
+		grpcutil.TimeoutHandlerFunc(router, timeout),
+	)
 	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
