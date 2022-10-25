@@ -66,14 +66,12 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    // We update the protocol if the new protocol is known, and we don't already have a known protocol.
-    if (protocol != PROTOCOL_UNCLASSIFIED && val->protocol == PROTOCOL_UNCLASSIFIED) {
+    if (val->protocol == PROTOCOL_UNCLASSIFIED) {
         log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
         val->protocol = protocol;
-    } else if (protocol != PROTOCOL_UNCLASSIFIED && val->protocol != PROTOCOL_UNKNOWN && val->protocol != protocol) {
-        // If the new protocol was classified, the current protocol is classified and it is known, then there is a possible error.
-        // If the current protocol is "unknown" and we managed to classify it to another protocol -> that's a reasonable and expected scenario.
-        log_debug("[update_conn_stats]: A classified connection (%d) has been re-classified with protocol %d\n", val->protocol, protocol);
+    } else if (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
+        log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
+        val->protocol = protocol;
     }
 
     // If already in our map, increment size in-place
