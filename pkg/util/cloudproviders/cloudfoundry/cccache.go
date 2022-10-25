@@ -205,8 +205,9 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 
 		// check the cache in case the resource was fetched while we were waiting
 		ccc.RLock()
-		resource, ok := cache[guid]
+		resource, ok = cache[guid]
 		ccc.RUnlock()
+
 		if ok {
 			return resource, nil
 		}
@@ -221,6 +222,7 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 			ccc.RLock()
 			resource, ok := cache[guid]
 			ccc.RUnlock()
+
 			if ok {
 				return resource, nil
 			}
