@@ -6,14 +6,14 @@
 package apmsampling
 
 type SamplerConfig struct {
-	AllEnvs SamplerEnvConfig `json:"allEnvs"`
-	ByEnv   []EnvAndConfig   `json:"byEnv"`
+	AllEnvs SamplerEnvConfig `json:"all_envs"`
+	ByEnv   []EnvAndConfig   `json:"by_env"`
 }
 
 type SamplerEnvConfig struct {
-	PrioritySamplerTargetTPS *float64 `json:"prioritySamplerTargetTPS"`
-	ErrorsSamplerTargetTPS   *float64 `json:"errorsSamplerTargetTPS"`
-	RareSamplerEnabled       *bool    `json:"rareSamplerEnabled"`
+	PrioritySamplerTargetTPS *float64 `json:"priority_sampler_target_TPS"`
+	ErrorsSamplerTargetTPS   *float64 `json:"errors_sampler_target_TPS"`
+	RareSamplerEnabled       *bool    `json:"rare_sampler_enabled"`
 }
 
 type EnvAndConfig struct {

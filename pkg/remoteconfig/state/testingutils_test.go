@@ -193,14 +193,14 @@ func newAPMSamplingFile() []byte {
 	return raw
 }
 
-func addAPMSamplingFile(id string, version int64, file []byte, targets *data.Targets) (string, data.Hashes, []byte) {
+func addAPMSamplingFile(id string, version int64, file []byte, targets *data.Targets) (string, data.Hashes) {
 	path := fmt.Sprintf("datadog/3/%s/%s/config", ProductAPMSampling, id)
 
 	tfm := generateRCTargetFileMeta(file, version)
 
 	targets.Targets[path] = tfm
 
-	return path, tfm.Hashes, file
+	return path, tfm.Hashes
 }
 
 func convertGoTufHashes(hashes data.Hashes) map[string][]byte {

@@ -35,7 +35,7 @@ const (
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
 type RareSampler struct {
-	enabled bool
+	enabled *atomic.Bool
 	hits    *atomic.Int64
 	misses  *atomic.Int64
 	shrinks *atomic.Int64
@@ -53,7 +53,7 @@ type RareSampler struct {
 // of env, service, name, resource, http-status, error type for each top level or measured spans
 func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 	e := &RareSampler{
-		enabled:     conf.RareSamplerEnabled,
+		enabled:     atomic.NewBool(conf.RareSamplerEnabled),
 		hits:        atomic.NewInt64(0),
 		misses:      atomic.NewInt64(0),
 		shrinks:     atomic.NewInt64(0),
@@ -77,7 +77,8 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
-	if !e.enabled {
+
+	if !e.enabled.Load() {
 		return false
 	}
 
@@ -94,7 +95,7 @@ func (e *RareSampler) Stop() {
 }
 
 func (e *RareSampler) SetEnabled(enabled bool) {
-	e.enabled = enabled
+	e.enabled.Store(enabled)
 }
 
 func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
