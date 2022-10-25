@@ -1,6 +1,7 @@
 #include <linux/kconfig.h>
 #include "tracer.h"
 #include "bpf_telemetry.h"
+#include "bpf_builtins.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "http.h"
@@ -29,7 +30,7 @@ SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     http_transaction_t http;
-    __builtin_memset(&http, 0, sizeof(http));
+    bpf_memset(&http, 0, sizeof(http));
 
     if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
         return 0;
@@ -53,7 +54,7 @@ SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
     // map connection tuple during SSL_do_handshake(ctx)
-    init_ssl_sock_from_do_handshake((struct sock *)PT_REGS_PARM1(ctx));
+    map_ssl_ctx_to_sock((struct sock *)PT_REGS_PARM1(ctx));
 
     return 0;
 }
@@ -595,7 +596,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs *ctx) {
 
     // Copy map value into eBPF stack
     lib_path_t lib_path;
-    __builtin_memcpy(&lib_path, path, sizeof(lib_path));
+    bpf_memcpy(&lib_path, path, sizeof(lib_path));
 
     u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));

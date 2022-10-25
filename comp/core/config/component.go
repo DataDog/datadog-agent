@@ -20,8 +20,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/internal/computil"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -121,16 +121,12 @@ type Mock interface {
 	Set(key string, value interface{})
 }
 
-var componentName = computil.GetComponentName()
-
 // Module defines the fx options for this component.
-var Module = fx.Module(
-	componentName,
+var Module = fxutil.Component(
 	fx.Provide(newConfig),
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fx.Module(
-	componentName,
+var MockModule = fxutil.Component(
 	fx.Provide(newMock),
 )

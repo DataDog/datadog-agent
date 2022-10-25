@@ -49,11 +49,10 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		}
 	}()
 
-	kernelHeaders, fetchResult, err := kernel.GetKernelHeaders(config.EnableKernelHeaderDownload, config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
-	a.tm.headerFetchResult = fetchResult
-	if err != nil {
+	kernelHeaders := kernel.GetKernelHeaders(config, client)
+	if len(kernelHeaders) == 0 {
 		a.tm.compilationResult = headerFetchErr
-		return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+		return nil, fmt.Errorf("unable to find kernel headers")
 	}
 
 	outputDir := config.RuntimeCompilerOutputDir

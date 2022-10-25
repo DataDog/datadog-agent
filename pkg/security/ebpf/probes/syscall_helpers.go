@@ -91,29 +91,26 @@ func ShouldUseSyscallExitTracepoints() bool {
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
 
-func expandKprobe(hookpoint string, syscallName string, flag int) []string {
+func expandKprobe(hookpoint string, flag int) []string {
 	var sections []string
 	if flag&Entry == Entry {
 		sections = append(sections, "kprobe/"+hookpoint)
 	}
-	if flag&Exit == Exit {
-		if len(syscallName) > 0 && ShouldUseSyscallExitTracepoints() {
-			sections = append(sections, "tracepoint/syscalls/sys_exit_"+syscallName)
-		} else {
-			sections = append(sections, "kretprobe/"+hookpoint)
-		}
+	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
+		sections = append(sections, "kretprobe/"+hookpoint)
 	}
+
 	return sections
 }
 
 func expandSyscallSections(syscallName string, flag int, compat ...bool) []string {
-	sections := expandKprobe(getSyscallFnName(syscallName), syscallName, flag)
+	sections := expandKprobe(getSyscallFnName(syscallName), flag)
 
 	if RuntimeArch == "x64" {
 		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
-			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), "", flag)...)
+			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), flag)...)
 		} else {
-			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), "", flag)...)
+			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), flag)...)
 		}
 	}
 
