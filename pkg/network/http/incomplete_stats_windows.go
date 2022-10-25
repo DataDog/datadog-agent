@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 // Windows does not have incomplete http transactions because flows in the windows driver
@@ -22,5 +23,5 @@ func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuff
 	return &incompleteBuffer{}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX)                {}
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX { return nil }
+func (b *incompleteBuffer) Add(tx transaction.HttpTX)                {}
+func (b *incompleteBuffer) Flush(now time.Time) []transaction.HttpTX { return nil }

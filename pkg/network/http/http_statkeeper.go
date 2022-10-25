@@ -13,12 +13,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpStatKeeper struct {
-	stats      map[Key]*RequestStats
+	stats      map[transaction.Key]*RequestStats
 	incomplete *incompleteBuffer
 	maxEntries int
 	telemetry  *telemetry
@@ -39,7 +40,7 @@ type httpStatKeeper struct {
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 
 	return &httpStatKeeper{
-		stats:             make(map[Key]*RequestStats),
+		stats:             make(map[transaction.Key]*RequestStats),
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
@@ -50,7 +51,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	}
 }
 
-func (h *httpStatKeeper) Process(transactions []httpTX) {
+func (h *httpStatKeeper) Process(transactions []transaction.HttpTX) {
 	for i := range transactions {
 		tx := transactions[i]
 		if tx.Incomplete() {
@@ -62,18 +63,18 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 	}
 }
 
-func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+func (h *httpStatKeeper) GetAndResetAllStats() map[transaction.Key]*RequestStats {
 	for _, tx := range h.incomplete.Flush(time.Now()) {
 		h.add(tx)
 	}
 
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]*RequestStats)
+	h.stats = make(map[transaction.Key]*RequestStats)
 	h.interned = make(map[string]string)
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx httpTX) {
+func (h *httpStatKeeper) add(tx transaction.HttpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Add(1)
@@ -84,7 +85,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		return
 	}
 
-	if Method(tx.RequestMethod()) == MethodUnknown {
+	if transaction.Method(tx.RequestMethod()) == transaction.MethodUnknown {
 		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -101,7 +102,7 @@ func (h *httpStatKeeper) add(tx httpTX) {
 		return
 	}
 
-	key := h.newKey(tx, path, fullPath)
+	key := tx.NewKey(path, fullPath)
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
@@ -116,24 +117,6 @@ func (h *httpStatKeeper) add(tx httpTX) {
 	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
-	return Key{
-		KeyTuple: KeyTuple{
-			SrcIPHigh: tx.SrcIPHigh(),
-			SrcIPLow:  tx.SrcIPLow(),
-			SrcPort:   tx.SrcPort(),
-			DstIPHigh: tx.DstIPHigh(),
-			DstIPLow:  tx.DstIPLow(),
-			DstPort:   tx.DstPort(),
-		},
-		Path: Path{
-			Content:  path,
-			FullPath: fullPath,
-		},
-		Method: tx.Method(),
-	}
-}
-
 func pathIsMalformed(fullPath []byte) bool {
 	for _, r := range fullPath {
 		if !strconv.IsPrint(rune(r)) {
@@ -143,7 +126,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx transaction.HttpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
@@ -162,7 +145,7 @@ func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
+			log.Debugf("http path malformed: %+v %s", tx.NewKey("", false).KeyTuple, tx.String())
 		}
 		h.telemetry.malformed.Add(1)
 		return "", true

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -280,7 +281,7 @@ func (e *ebpfProgram) setupMapCleaner() {
 
 	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*ebpfHttpTx)
+		httpTxn, ok := val.(*transaction.bpfHttpTx)
 		if !ok {
 			return false
 		}

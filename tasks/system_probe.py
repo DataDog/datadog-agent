@@ -242,6 +242,10 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/http-types.h",
             ],
+            "pkg/network/http/transaction/transaction_types.go":[
+                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/http-types.h",
+            ]
         }
         nw.rule(
             name="godefs",

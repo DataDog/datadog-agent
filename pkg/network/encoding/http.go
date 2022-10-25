@@ -12,12 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 type httpEncoder struct {
-	aggregations   map[http.KeyTuple]*aggregationWrapper
-	staticTags     map[http.KeyTuple]uint64
-	dynamicTagsSet map[http.KeyTuple]map[string]struct{}
+	aggregations   map[transaction.KeyTuple]*aggregationWrapper
+	staticTags     map[transaction.KeyTuple]uint64
+	dynamicTagsSet map[transaction.KeyTuple]map[string]struct{}
 
 	// pre-allocated objects
 	dataPool []model.HTTPStats_Data
@@ -29,10 +30,10 @@ type httpEncoder struct {
 
 // aggregationWrapper is meant to handle collision scenarios where multiple
 // `ConnectionStats` objects may claim the same `HTTPAggregations` object because
-// they generate the same http.KeyTuple
+// they generate the same transaction.KeyTuple
 // TODO: we should probably revist/get rid of this if we ever replace socket
 // filters by kprobes, since in that case we would have access to PIDs, and
-// could incorporate that information in the `http.KeyTuple` struct.
+// could incorporate that information in the `transaction.KeyTuple` struct.
 type aggregationWrapper struct {
 	*model.HTTPAggregations
 
@@ -68,7 +69,7 @@ func (a *aggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTTPAggr
 	// exactly the same source and destination addresses but different PIDs to
 	// "bind" to the same HTTPAggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
-	// `http.KeyTuple` doesn't have a PID field.) This happens mostly in the
+	// `transaction.KeyTuple` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker proceses share the
 	// same socket
 	return nil
@@ -80,9 +81,9 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	}
 
 	encoder := &httpEncoder{
-		aggregations:   make(map[http.KeyTuple]*aggregationWrapper, len(payload.Conns)),
-		staticTags:     make(map[http.KeyTuple]uint64, len(payload.Conns)),
-		dynamicTagsSet: make(map[http.KeyTuple]map[string]struct{}, len(payload.Conns)),
+		aggregations:   make(map[transaction.KeyTuple]*aggregationWrapper, len(payload.Conns)),
+		staticTags:     make(map[transaction.KeyTuple]uint64, len(payload.Conns)),
+		dynamicTagsSet: make(map[transaction.KeyTuple]map[string]struct{}, len(payload.Conns)),
 
 		// pre-allocate all data objects at once
 		dataPool: make([]model.HTTPStats_Data, len(payload.HTTP)*http.NumStatusClasses),
@@ -117,7 +118,7 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 }
 
 func (e *httpEncoder) buildAggregations(payload *network.Connections) {
-	aggrSize := make(map[http.KeyTuple]int)
+	aggrSize := make(map[transaction.KeyTuple]int)
 	for key := range payload.HTTP {
 		aggrSize[key.KeyTuple]++
 	}

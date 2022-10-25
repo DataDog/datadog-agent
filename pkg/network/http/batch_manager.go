@@ -53,7 +53,7 @@ func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 	}, nil
 }
 
-func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]httpTX, error) {
+func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]transaction.HttpTX, error) {
 	state := &m.stateByCPU[event.CPU]
 	batch := batchFromEventData(event.Data)
 
@@ -66,7 +66,7 @@ func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]httpTX, e
 	state.idx = int(batch.Idx) + 1
 	state.pos = 0
 
-	txns := make([]httpTX, len(batch.Transactions()[offset:]))
+	txns := make([]transaction.HttpTX, len(batch.Transactions()[offset:]))
 	tocopy := batch.Transactions()[offset:]
 	for idx := range tocopy {
 		txns[idx] = &tocopy[idx]
@@ -74,7 +74,7 @@ func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]httpTX, e
 	return txns, nil
 }
 
-func (m *batchManager) GetPendingTransactions() []httpTX {
+func (m *batchManager) GetPendingTransactions() []transaction.HttpTX {
 	transactions := make([]httpTX, 0, HTTPBatchSize*HTTPBatchPages/2)
 	for i := 0; i < m.numCPUs; i++ {
 		for lookup := 0; lookup < maxLookupsPerCPU; lookup++ {
@@ -124,4 +124,9 @@ func (m *batchManager) GetPendingTransactions() []httpTX {
 
 func batchFromEventData(data []byte) *httpBatch {
 	return (*httpBatch)(unsafe.Pointer(&data[0]))
+}
+
+// Transactions returns the slice of HTTP transactions embedded in the batch
+func (batch *httpBatch) Transactions() []transaction.EbpfHttpTx {
+	return (*(*[netebpf.HTTPBatchSize]transaction.EbpfHttpTx)(unsafe.Pointer(&batch.txs)))[:]
 }

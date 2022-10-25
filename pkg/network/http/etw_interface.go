@@ -14,12 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/etw"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type httpEtwInterface struct {
 	maxEntriesBuffered int
-	dataChannel        chan []etw.Http
+	dataChannel        chan []transaction.WinHttpTransaction
 	eventLoopWG        sync.WaitGroup
 	captureHTTP        bool
 	captureHTTPS       bool
@@ -28,7 +29,7 @@ type httpEtwInterface struct {
 func newHttpEtwInterface(c *config.Config) *httpEtwInterface {
 	return &httpEtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
-		dataChannel:        make(chan []etw.Http),
+		dataChannel:        make(chan []transaction.WinHttpTransaction),
 		captureHTTPS:       c.EnableHTTPSMonitoring,
 	}
 }
@@ -112,7 +113,7 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 	}()
 }
 
-func (hei *httpEtwInterface) getHttpFlows() []etw.Http {
+func (hei *httpEtwInterface) getHttpFlows() []transaction.WinHttpTransaction {
 	hei.eventLoopWG.Add(1)
 	defer hei.eventLoopWG.Done()
 

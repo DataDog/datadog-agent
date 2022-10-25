@@ -20,7 +20,6 @@ type httpBatchState C.http_batch_state_t
 type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 
-type ebpfHttpTx C.http_transaction_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
 

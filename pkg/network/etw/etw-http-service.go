@@ -135,6 +135,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -147,9 +148,7 @@ import "C"
 
 type Http struct {
 	// Most of it just like driver's HTTP data ...
-	Txn driver.HttpTransactionType
-	// To keep up with FullHttpTransaction (cannot import http package - will be cyclical import)
-	// Probably need to move to common windows utility package
+	Txn             driver.HttpTransactionType
 	RequestFragment []byte
 
 	// ... plus some extra
@@ -188,7 +187,7 @@ type ConnOpen struct {
 type HttpConnLink struct {
 	connActivityId C.DDGUID
 
-	http Http
+	http transaction.WinHttpTransaction
 
 	url string
 }
@@ -205,7 +204,7 @@ type Cache struct {
 
 type HttpCache struct {
 	cache Cache
-	http  Http
+	http  transaction.WinHttpTransaction
 }
 
 const (
@@ -227,7 +226,7 @@ var (
 	httpCache             map[string]*HttpCache
 
 	completedHttpTxMux      sync.Mutex
-	completedHttpTx         []Http
+	completedHttpTx         []transaction.WinHttpTransaction
 	completedHttpTxMaxCount uint64 = 1000 // default max
 	maxRequestFragmentBytes uint64 = 25
 	completedHttpTxDropped  uint   = 0 // when should we reset this telemetry and how to expose it
@@ -649,7 +648,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *C.DD_ETW_EVENT_INFO) {
 	}
 
 	// Verb (in future we can cast number to)
-	httpConnLink.http.Txn.RequestMethod = verbToMethod(binary.LittleEndian.Uint32(userData[8:12]))
+	httpConnLink.http.Txn.RequestMethod = uint32(verbToMethod(binary.LittleEndian.Uint32(userData[8:12])))
 
 	// Parse Url
 	urlOffset := 12
@@ -1255,7 +1254,7 @@ func initializeEtwHttpServiceSubscription() {
 
 	completedHttpTxMux.Lock()
 	defer completedHttpTxMux.Unlock()
-	completedHttpTx = make([]Http, 0, 100)
+	completedHttpTx = make([]transaction.WinHttpTransaction, 0, 100)
 }
 
 func (h *Http) String() string {
@@ -1267,7 +1266,7 @@ func (h *Http) String() string {
 	output.WriteString("}")
 	return output.String()
 }
-func ReadHttpTx() (httpTxs []Http, err error) {
+func ReadHttpTx() (httpTxs []transaction.WinHttpTransaction, err error) {
 	if !httpServiceSubscribed {
 		return nil, errors.New("ETW HttpService is not currently subscribed")
 	}
@@ -1278,7 +1277,7 @@ func ReadHttpTx() (httpTxs []Http, err error) {
 	// Return accumulated httpTx and reset array
 	readHttpTx := completedHttpTx
 
-	completedHttpTx = make([]Http, 0, 100)
+	completedHttpTx = make([]transaction.WinHttpTransaction, 0, 100)
 
 	return readHttpTx, nil
 }

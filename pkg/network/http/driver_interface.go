@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 )
@@ -28,16 +29,12 @@ const (
 	httpReadBufferCount = 100
 )
 
-type FullHttpTransaction struct {
-	Txn             driver.HttpTransactionType
-	RequestFragment []byte
-}
 type httpDriverInterface struct {
 	driverHTTPHandle  driver.Handle
 	driverEventHandle windows.Handle
 
 	readMux     sync.Mutex
-	dataChannel chan []FullHttpTransaction
+	dataChannel chan []transaction.WinHttpTransaction
 	eventLoopWG sync.WaitGroup
 	closed      bool
 	// configuration entries
@@ -57,7 +54,7 @@ func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterfac
 		return nil, err
 	}
 
-	d.dataChannel = make(chan []FullHttpTransaction)
+	d.dataChannel = make(chan []transaction.WinHttpTransaction)
 	return d, nil
 }
 
@@ -133,7 +130,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 }
 
 //func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
-func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction, error) {
+func (di *httpDriverInterface) readPendingTransactions() ([]transaction.WinHttpTransaction, error) {
 	var (
 		bytesRead uint32
 		buf       = make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
@@ -153,10 +150,10 @@ func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction,
 	if bytesRead == 0 {
 		return nil, nil
 	}
-	transactionBatch := make([]FullHttpTransaction, 0)
+	transactionBatch := make([]transaction.WinHttpTransaction, 0)
 
 	for i := uint32(0); i < bytesRead; {
-		var tx FullHttpTransaction
+		var tx transaction.WinHttpTransaction
 		tx.Txn = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf[i]))
 		tx.RequestFragment = make([]byte, tx.Txn.MaxRequestFragment)
 		i += driver.HttpTransactionTypeSize

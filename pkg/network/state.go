@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +43,7 @@ type State interface {
 		latestTime uint64,
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
-		http map[http.Key]*http.RequestStats,
+		http map[transaction.Key]*http.RequestStats,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -77,7 +78,7 @@ type State interface {
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
 	BufferedData
-	HTTP     map[http.Key]*http.RequestStats
+	HTTP     map[transaction.Key]*http.RequestStats
 	DNSStats dns.StatsByKeyByNameByType
 }
 
@@ -103,7 +104,7 @@ type client struct {
 	stats             map[string]StatCountersByCookie
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
-	httpStatsDelta  map[http.Key]*http.RequestStats
+	httpStatsDelta  map[transaction.Key]*http.RequestStats
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
@@ -116,7 +117,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 	c.closedConnections = c.closedConnections[:0]
 	c.closedConnectionsKeys = make(map[string]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
-	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
+	c.httpStatsDelta = make(map[transaction.Key]*http.RequestStats)
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
@@ -199,7 +200,7 @@ func (ns *networkState) GetDelta(
 	latestTime uint64,
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
-	httpStats map[http.Key]*http.RequestStats,
+	httpStats map[transaction.Key]*http.RequestStats,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -435,7 +436,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 }
 
 // storeHTTPStats stores the latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
+func (ns *networkState) storeHTTPStats(allStats map[transaction.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
 			if len(client.httpStatsDelta) == 0 {
@@ -476,7 +477,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
 		closedConnectionsKeys: make(map[string]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
-		httpStatsDelta:        map[http.Key]*http.RequestStats{},
+		httpStatsDelta:        map[transaction.Key]*http.RequestStats{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c

@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/http/transaction"
 )
 
 /*
@@ -31,20 +32,6 @@ import "C"
 // difference between windows and unix epochs in 100ns intervals
 // 11644473600s * 1000ms/s * 1000us/ms * 10 intervals/us
 const EPOCH_DIFFERENCE_SECS uint64 = 116444736000000000
-
-// Copied from github.com\DataDog\datadog-agent\pkg\network\http\http_stats.go
-// Note: cannot refer to it due to package circularity
-const (
-	methodUnknown uint32 = iota
-	methodGet
-	methodPost
-	methodPut
-	methodDelete
-	methodHead
-	methodOptions
-	methodPatch
-	methodMaximum
-)
 
 // From HTTP_VERB enumeration (http.h)
 const (
@@ -72,38 +59,38 @@ const (
 )
 
 var (
-	verb2method = []uint32{
+	verb2method = []transaction.Method{
 		// from HTTP_VERB enumeration (http.h) (etw-http-service.go)
 		//
 		// looks like MS does not define verb for PATCH method
 		//
-		methodUnknown, // httpVerbUnparsed uint32 = iota
-		methodUnknown, // httpVerbUnknown
-		methodUnknown, // httpVerbInvalid
-		methodOptions, // httpVerbOPTIONS
-		methodGet,     // httpVerbGET
-		methodHead,    // httpVerbHEAD
-		methodPost,    // httpVerbPOST
-		methodPut,     // httpVerbPUT
-		methodDelete,  // httpVerbDELETE
-		methodUnknown, // httpVerbTRACE
-		methodUnknown, // httpVerbCONNECT
-		methodUnknown, // httpVerbTRACK
-		methodUnknown, // httpVerbMOVE
-		methodUnknown, // httpVerbCOPY
-		methodUnknown, // httpVerbPROPFIND
-		methodUnknown, // httpVerbPROPPATCH
-		methodUnknown, // httpVerbMKCOL
-		methodUnknown, // httpVerbLOCK
-		methodUnknown, // httpVerbUNLOCK
-		methodUnknown, // httpVerbSEARCH
-		methodUnknown, // httpVerbMaximum
+		transaction.MethodUnknown, // httpVerbUnparsed uint32 = iota
+		transaction.MethodUnknown, // httpVerbUnknown
+		transaction.MethodUnknown, // httpVerbInvalid
+		transaction.MethodOptions, // httpVerbOPTIONS
+		transaction.MethodGet,     // httpVerbGET
+		transaction.MethodHead,    // httpVerbHEAD
+		transaction.MethodPost,    // httpVerbPOST
+		transaction.MethodPut,     // httpVerbPUT
+		transaction.MethodDelete,  // httpVerbDELETE
+		transaction.MethodUnknown, // httpVerbTRACE
+		transaction.MethodUnknown, // httpVerbCONNECT
+		transaction.MethodUnknown, // httpVerbTRACK
+		transaction.MethodUnknown, // httpVerbMOVE
+		transaction.MethodUnknown, // httpVerbCOPY
+		transaction.MethodUnknown, // httpVerbPROPFIND
+		transaction.MethodUnknown, // httpVerbPROPPATCH
+		transaction.MethodUnknown, // httpVerbMKCOL
+		transaction.MethodUnknown, // httpVerbLOCK
+		transaction.MethodUnknown, // httpVerbUNLOCK
+		transaction.MethodUnknown, // httpVerbSEARCH
+		transaction.MethodUnknown, // httpVerbMaximum
 	}
 )
 
-func verbToMethod(verb uint32) uint32 {
+func verbToMethod(verb uint32) transaction.Method {
 	if verb >= httpVerbMaximum {
-		return methodUnknown
+		return transaction.MethodUnknown
 	}
 
 	return verb2method[verb]
@@ -139,7 +126,7 @@ func httpVerbToStr(httVerb uint32) string {
 }
 
 func httpMethodToStr(httpMethod uint32) string {
-	if httpMethod >= methodMaximum {
+	if httpMethod >= uint32(transaction.MethodMaximum) {
 		return "<UNKNOWN>"
 	}
 
