@@ -4,20 +4,24 @@
 #include "kafka-types.h"
 
 static __inline int32_t read_big_endian_int32(const char* buf) {
-  const int32_t length = *((int32_t*)buf);
-  return bpf_ntohl(length);
+//  const int32_t length = *((int32_t*)buf);
+//  return bpf_ntohl(length);
+    int32_t val;
+    bpf_probe_read_kernel(&val, 4, (void*)buf);
+    return bpf_ntohs(val);
 }
 
 //#define MINIMUM_API_VERSION_FOR_CLIENT_ID 1
 //#define MAX_LENGTH_FOR_CLIENT_ID_STRING 50
 
-static __inline int16_t read_big_endian_int16(const char* buf) {
-//    const int16_t length = *((int16_t*)buf);
-//    return bpf_ntohs(length);
-    int16_t val;
-    bpf_probe_read_kernel(&val, 2, (void*)buf);
-    return bpf_ntohs(val);
-}
+    static __inline int16_t read_big_endian_int16(const char* buf) {
+    //    const int16_t length = *((int16_t*)buf);
+    //    return bpf_ntohs(length);
+        int16_t val;
+        // De-Referencing buf causes misalignment verifier error for unknown reason
+        bpf_probe_read_kernel(&val, 2, (void*)buf);
+        return bpf_ntohs(val);
+    }
 
 // Checking if the buffer represents kafka message
 //static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
@@ -114,12 +118,12 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
     if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }
-    log_debug("current_bytes: %d", request_fragment[kafka_transaction->current_offset_in_request_fragment]);
+//    log_debug("current_bytes: %d", request_fragment[kafka_transaction->current_offset_in_request_fragment]);
 //    log_debug("current_bytes + 1:s %d", request_fragment[kafka_transaction->current_offset_in_request_fragment + 1]);
 //    log_debug("current_bytes + 2: %d", request_fragment[kafka_transaction->current_offset_in_request_fragment + 2]);
 //    (void)request_fragment;
     int16_t transactional_id_size = read_big_endian_int16(request_fragment + kafka_transaction->current_offset_in_request_fragment);
-    log_debug("transactional_id_size: %d", transactional_id_size);
+//    log_debug("transactional_id_size: %d", transactional_id_size);
     kafka_transaction->current_offset_in_request_fragment += 2;
     if (transactional_id_size > 0) {
         kafka_transaction->current_offset_in_request_fragment += transactional_id_size;
@@ -134,15 +138,32 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
     // Skipping number of entries for now
     kafka_transaction->current_offset_in_request_fragment += 4;
 
+    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+        return false;
+    }
+
     // TODO: Taking only the first topic for now
     const int16_t topic_name_size = read_big_endian_int16(request_fragment + kafka_transaction->current_offset_in_request_fragment);
-    (void)topic_name_size;
-    log_debug("topic_name_size: %d", topic_name_size);
-    if (topic_name_size <= 0) {
+//    log_debug("topic_name_size: %d", topic_name_size);
+        if (topic_name_size <= 0) {
         log_debug("topic_name_size <= 0");
         return false;
     }
     kafka_transaction->current_offset_in_request_fragment += 2;
+    __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
+//    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+//            return false;
+//    }
+    if (topic_name_size > sizeof(kafka_transaction->topic_name)) {
+        return false;
+    }
+    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+        return false;
+    }
+    bpf_probe_read_kernel_with_telemetry(
+        kafka_transaction->topic_name,
+        topic_name_size,
+        (void*)(request_fragment + kafka_transaction->current_offset_in_request_fragment));
     log_debug("topic_name: %s", request_fragment + kafka_transaction->current_offset_in_request_fragment);
 
     return true;

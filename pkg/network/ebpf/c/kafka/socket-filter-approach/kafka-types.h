@@ -20,7 +20,8 @@
 //#define HTTP_BUFFER_SIZE (8 * 20)
 #define KAFKA_BUFFER_SIZE (8 * 20)
 
-#define CLIENT_ID_MAX_STRING_SIZE 50
+#define CLIENT_ID_MAX_STRING_SIZE (8 * 8)
+#define TOPIC_NAME_MAX_STRING_SIZE (8 * 8)
 
 //// This controls the number of HTTP transactions read from userspace at a time
 //#define HTTP_BATCH_SIZE 15
@@ -86,6 +87,8 @@ typedef struct {
     uint32_t current_offset_in_request_fragment;
     char request_fragment[KAFKA_BUFFER_SIZE] __attribute__ ((aligned (8)));
     char client_id[CLIENT_ID_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
+    // TODO: Support UTF8
+    char topic_name[TOPIC_NAME_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
 
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
