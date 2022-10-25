@@ -875,6 +875,9 @@ func ownerTags(kind, name string) []string {
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
 func (k *KSMCheck) labelsMapperOverride(metricName string) map[string]string {
+	// KSM metrics are named, `kube_<RESOURCE_KIND>_<METRIC_NAME>` like for ex.:
+	// kube_pod_info, kube_pod_status_ready, or kube_pod_container_resource_requests_memory_bytes
+	// Splitting by underscores and getting the second token returns the resource kind.
 	tok := strings.SplitN(metricName, "_", 3)
 	if len(tok) < 2 {
 		return nil
