@@ -30,8 +30,6 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.ProtocolClassifierSocketFilter: "socket__classifier",
 	probes.TCPSendMsg:                     "kprobe__tcp_sendmsg",
 	probes.TCPSendMsgReturn:               "kretprobe__tcp_sendmsg",
-	probes.TCPRecvMsg:                     "kprobe__tcp_recvmsg",
-	probes.TCPRecvMsgReturn:               "kretprobe__tcp_recvmsg",
 	probes.TCPCleanupRBuf:                 "kprobe__tcp_cleanup_rbuf",
 	probes.TCPClose:                       "kprobe__tcp_close",
 	probes.TCPCloseReturn:                 "kretprobe__tcp_close",

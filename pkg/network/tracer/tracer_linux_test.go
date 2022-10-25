@@ -1710,26 +1710,6 @@ func TestProtocolClassification(t *testing.T) {
 	})
 }
 
-// rerunPolicy - Unfortunately, on the CI, the tests can run into "statical" failure, which happens due to races between the test and
-// the system-probe. To be able to distinguish between a flaky test and a real bug, we should succeed successThreshold times
-// out of totalTries tries.
-func rerunPolicy(t *testing.T, totalTries, successThreshold int, testImpl func(t *testing.T) error) error {
-	var err error
-	successRate := 0
-	for i := 0; i < totalTries && successRate < successThreshold; i++ {
-		err = testImpl(t)
-		if err != nil {
-			continue
-		}
-		successRate++
-	}
-
-	if successThreshold == successRate {
-		return nil
-	}
-	return fmt.Errorf("test succeeded %d times out of %d tries, while we needed %d successions", successRate, totalTries, successThreshold)
-}
-
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
 	dialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
@@ -1740,85 +1720,67 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 
 	tests := []struct {
 		name      string
-		clientRun func(serverAddr string) error
-		serverRun func(serverAddr string, done chan struct{}) (string, error)
+		clientRun func(t *testing.T, serverAddr string)
+		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
 		want      network.ProtocolType
 	}{
 		{
 			name: "udp client",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				c, err := net.DialTimeout("udp", serverAddr, time.Second)
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				defer c.Close()
 
 				for i := 0; i < 5; i++ {
 					_, err = c.Write(genPayload(clientMessageSize))
-					if err != nil {
-						return err
-					}
+					require.NoError(t, err)
 
 					buf := make([]byte, serverMessageSize)
 					_, err = c.Read(buf)
-					if err != nil {
-						return err
-					}
+					require.NoError(t, err)
 				}
-
-				return nil
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				udpServer := &UDPServer{
 					address: serverAddr,
 					onMessage: func(b []byte, n int) []byte {
 						return genPayload(serverMessageSize)
 					},
 				}
-				if err := udpServer.Run(done, 10); err != nil {
-					return "", err
-				}
-				return udpServer.address, nil
+				require.NoError(t, udpServer.Run(done, 10))
+				return udpServer.address
 			},
 			want: network.ProtocolUnclassified,
 		},
 		{
 			name: "tcp client without sending data",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
 				cancel()
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				defer c.Close()
-				return nil
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					c.Close()
 				})
-				if err := server.Run(done); err != nil {
-					return "", err
-				}
-				return server.address, nil
+				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolUnclassified,
 		},
 		{
 			name: "tcp client with sending random data",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
 				cancel()
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("hello\n"))
-				return nil
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -1827,34 +1789,27 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					}
 					c.Close()
 				})
-				if err := server.Run(done); err != nil {
-					return "", err
-				}
-				return server.address, nil
+				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolUnknown,
 		},
 		{
 			name: "tcp client with sending HTTP request",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						DialContext: dialer.DialContext,
 					},
 				}
 				resp, err := client.Get("http://" + serverAddr + "/test")
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				io.Copy(ioutil.Discard, resp.Body)
 				resp.Body.Close()
-				return nil
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				ln, err := net.Listen("tcp", serverAddr)
-				if err != nil {
-					return "", err
-				}
+				require.NoError(t, err)
 
 				srv := &nethttp.Server{
 					Addr: ln.Addr().String(),
@@ -1873,92 +1828,51 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					<-done
 					srv.Shutdown(context.Background())
 				}()
-				return srv.Addr, nil
-			},
-			want: network.ProtocolHTTP,
-		},
-		{
-			// Although it seems weird to test it, it is a real use-case.
-			// Consider a keep alive connection already established between a client and a server.
-			// Then the agent is being started, and able to capture the last response sent, and then the connection
-			// is terminated. Although we won't capture that HTTP traffic, it is still (as far as we know) a HTTP connection.
-			name: "tcp client with sending HTTP response",
-			clientRun: func(serverAddr string) error {
-				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
-				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
-				cancel()
-				if err != nil {
-					return err
-				}
-				defer c.Close()
-				c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
-				return nil
-			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
-				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
-					r := bufio.NewReader(c)
-					input, err := r.ReadBytes(byte('\n'))
-					if err == nil {
-						c.Write(input)
-					}
-					c.Close()
-				})
-				if err := server.Run(done); err != nil {
-					return "", err
-				}
-				return server.address, nil
+				return srv.Addr
 			},
 			want: network.ProtocolHTTP,
 		},
 		{
 			name: "gRPC traffic - unary call",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				c, err := grpc.NewClient(serverAddr, grpc.Options{
 					CustomDialer: dialer,
 				})
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				defer c.Close()
-				return c.HandleUnary(context.Background(), "test")
+				require.NoError(t, c.HandleUnary(context.Background(), "test"))
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server, err := grpc.NewServer(serverAddr)
-				if err != nil {
-					return "", err
-				}
+				require.NoError(t, err)
 				server.Run()
 				go func() {
 					<-done
 					server.Stop()
 				}()
-				return server.Address, nil
+				return server.Address
 			},
 			want: network.ProtocolHTTP2,
 		},
 		{
 			name: "gRPC traffic - stream call",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				c, err := grpc.NewClient(serverAddr, grpc.Options{
 					CustomDialer: dialer,
 				})
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				defer c.Close()
-				return c.HandleStream(context.Background(), 5)
+				require.NoError(t, c.HandleStream(context.Background(), 5))
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server, err := grpc.NewServer(serverAddr)
-				if err != nil {
-					return "", err
-				}
+				require.NoError(t, err)
 				server.Run()
 				go func() {
 					<-done
 					server.Stop()
 				}()
-				return server.Address, nil
+				return server.Address
 			},
 			want: network.ProtocolHTTP2,
 		},
@@ -1966,20 +1880,17 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
 			// with the first protocol we've found.
 			name: "mixed protocols",
-			clientRun: func(serverAddr string) error {
+			clientRun: func(t *testing.T, serverAddr string) {
 				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
 				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
 				cancel()
-				if err != nil {
-					return err
-				}
+				require.NoError(t, err)
 				defer c.Close()
-				c.Write([]byte("HTTP/1.1 404 NOT FOUND\r\n"))
+				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
 				// http2 prefix.
 				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
-				return nil
 			},
-			serverRun: func(serverAddr string, done chan struct{}) (string, error) {
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -1988,138 +1899,112 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					}
 					c.Close()
 				})
-				if err := server.Run(done); err != nil {
-					return "", err
-				}
-				return server.address, nil
+				require.NoError(t, server.Run(done))
+				return server.address
 			},
 			want: network.ProtocolHTTP,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := rerunPolicy(t, 3, 2, func(t *testing.T) error {
-				tr, err := NewTracer(cfg)
-				if err != nil {
-					return err
-				}
-				defer tr.Stop()
-				done := make(chan struct{})
-				defer close(done)
+			tr, err := NewTracer(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tr.Stop()
+			done := make(chan struct{})
+			defer close(done)
 
-				initTracerState(t, tr)
-				serverAddr, err := tt.serverRun(serverHost, done)
-				if err != nil {
-					return err
-				}
-				_, port, err := net.SplitHostPort(serverAddr)
-				if err != nil {
-					return err
-				}
-				targetAddr := net.JoinHostPort(targetHost, port)
-
-				// Letting the server time to start
-				time.Sleep(500 * time.Millisecond)
-				if err := tt.clientRun(targetAddr); err != nil {
-					return err
-				}
-
-				return waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, tt.want)
-			})
-
+			initTracerState(t, tr)
 			require.NoError(t, err)
+			serverAddr := tt.serverRun(t, serverHost, done)
+			_, port, err := net.SplitHostPort(serverAddr)
+			require.NoError(t, err)
+			targetAddr := net.JoinHostPort(targetHost, port)
+
+			// Letting the server time to start
+			time.Sleep(500 * time.Millisecond)
+			tt.clientRun(t, targetAddr)
+
+			waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, tt.want)
 		})
 	}
 }
 
 func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
-		err := rerunPolicy(t, 3, 2, func(t *testing.T) error {
-			dialer := &net.Dialer{
-				LocalAddr: &net.TCPAddr{
-					IP:   net.ParseIP(clientHost),
-					Port: 0,
-				},
-				Control: func(network, address string, c syscall.RawConn) error {
-					var opErr error
-					err := c.Control(func(fd uintptr) {
-						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
-						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
-					})
-					if err != nil {
-						return err
-					}
-					return opErr
-				},
-			}
-
-			tr, err := NewTracer(cfg)
-			if err != nil {
-				return err
-			}
-			defer tr.Stop()
-
-			initTracerState(t, tr)
-			if err != nil {
-				return err
-			}
-			done := make(chan struct{})
-			server := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
-				r := bufio.NewReader(c)
-				input, err := r.ReadBytes(byte('\n'))
-				if err == nil {
-					c.Write(input)
+		dialer := &net.Dialer{
+			LocalAddr: &net.TCPAddr{
+				IP:   net.ParseIP(clientHost),
+				Port: 0,
+			},
+			Control: func(network, address string, c syscall.RawConn) error {
+				var opErr error
+				err := c.Control(func(fd uintptr) {
+					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+				})
+				if err != nil {
+					return err
 				}
-				c.Close()
-			})
-			if err := server.Run(done); err != nil {
-				return err
-			}
-			_, port, err := net.SplitHostPort(server.address)
-			if err != nil {
-				return err
-			}
-			targetAddr := net.JoinHostPort(targetHost, port)
+				return opErr
+			},
+		}
 
-			// Letting the server time to start
-			time.Sleep(500 * time.Millisecond)
+		tr, err := NewTracer(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tr.Stop()
 
-			// Running a HTTP client
-			client := nethttp.Client{
-				Transport: &nethttp.Transport{
-					DialContext: dialer.DialContext,
-				},
-			}
-			resp, err := client.Get("http://" + targetAddr + "/test")
+		initTracerState(t, tr)
+		require.NoError(t, err)
+		done := make(chan struct{})
+		server := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
+			r := bufio.NewReader(c)
+			input, err := r.ReadBytes(byte('\n'))
 			if err == nil {
-				resp.Body.Close()
+				c.Write(input)
 			}
+			c.Close()
+		})
+		require.NoError(t, server.Run(done))
+		_, port, err := net.SplitHostPort(server.address)
+		require.NoError(t, err)
+		targetAddr := net.JoinHostPort(targetHost, port)
 
-			client.CloseIdleConnections()
-			if err := waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP); err != nil {
-				return err
-			}
+		// Letting the server time to start
+		time.Sleep(500 * time.Millisecond)
 
-			time.Sleep(2 * time.Second)
-			grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
-				CustomDialer: dialer,
-			})
-			if err != nil {
-				return err
-			}
-			defer grpcClient.Close()
-			_ = grpcClient.HandleUnary(context.Background(), "test")
-			return waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP2)
+		// Running a HTTP client
+		client := nethttp.Client{
+			Transport: &nethttp.Transport{
+				DialContext: dialer.DialContext,
+			},
+		}
+		resp, err := client.Get("http://" + targetAddr + "/test")
+		if err == nil {
+			resp.Body.Close()
+		}
+
+		client.CloseIdleConnections()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP)
+
+		time.Sleep(2 * time.Second)
+		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
+			CustomDialer: dialer,
 		})
 		require.NoError(t, err)
+		defer grpcClient.Close()
+		_ = grpcClient.HandleUnary(context.Background(), "test")
+		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP2)
 	})
 }
 
-func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) error {
-	foundIncoming := false
-	foundOutgoing := false
-	for start := time.Now(); time.Since(start) < 3*time.Second; {
+func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
+	foundIncomingWithProtocol := false
+	foundOutgoingWithProtocol := false
+	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
 		outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
 			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
@@ -2129,23 +2014,20 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 		})
 
 		for _, conn := range outgoingConns {
+			t.Logf("Found outgoing connection %v", conn)
 			if conn.Protocol == expectedProtocol {
-				foundOutgoing = true
+				foundOutgoingWithProtocol = true
 				break
 			}
 		}
 		for _, conn := range incomingConns {
+			t.Logf("Found incmoing connection %v", conn)
 			if conn.Protocol == expectedProtocol {
-				foundIncoming = true
+				foundIncomingWithProtocol = true
 				break
 			}
 		}
 
-		if foundOutgoing && foundIncoming {
-			return nil
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-	return fmt.Errorf("couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+		return foundOutgoingWithProtocol && foundIncomingWithProtocol
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find incoming and outgoing connections with protocol %d for server address %s and target address %s", expectedProtocol, serverAddr, targetAddr)
 }

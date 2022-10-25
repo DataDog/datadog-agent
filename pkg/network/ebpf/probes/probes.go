@@ -57,11 +57,6 @@ const (
 	// TCPSetState traces the tcp_set_state() kernel function
 	TCPSetState ProbeName = "kprobe/tcp_set_state"
 
-	// TCPRecvMsg traces the tcp_recvmsg() kernel function
-	TCPRecvMsg ProbeName = "kprobe/tcp_recvmsg"
-	// TCPRecvMsgReturn traces the return for the tcp_recvmsg() kernel function
-	TCPRecvMsgReturn ProbeName = "kretprobe/tcp_recvmsg"
-
 	// TCPCleanupRBuf traces the tcp_cleanup_rbuf() system call
 	TCPCleanupRBuf ProbeName = "kprobe/tcp_cleanup_rbuf"
 	// TCPClose traces the tcp_close() system call

@@ -107,52 +107,8 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
-}
-
-SEC("kprobe/tcp_recvmsg")
-int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-    struct sock *parm = (struct sock *)PT_REGS_PARM2(ctx);
-    int flags = (int)PT_REGS_PARM6(ctx);
-#else
-    struct sock *parm = (struct sock *)PT_REGS_PARM1(ctx);
-    int flags = (int)PT_REGS_PARM5(ctx);
-#endif
-    if (flags & MSG_PEEK) {
-        return 0;
-    }
-
-    struct sock *skp = parm;
-    bpf_map_update_with_telemetry(tcp_recvmsg_args, &pid_tgid, &skp, BPF_ANY);
-    return 0;
-}
-
-SEC("kretprobe/tcp_recvmsg")
-int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock **skpp = (struct sock**) bpf_map_lookup_elem(&tcp_recvmsg_args, &pid_tgid);
-    if (!skpp) {
-        return 0;
-    }
-
-    struct sock *skp = *skpp;
-    bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
-    if (!skp) {
-        return 0;
-    }
-
-    int recv = PT_REGS_RC(ctx);
-    if (recv < 0) {
-        return 0;
-    }
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    return handle_message(&t, 0, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_ABSOLUTE, skp);
+    protocol_t protocol = get_protocol(&t);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, protocol, skp);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
@@ -175,7 +131,8 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
     }
 
     handle_tcp_stats(&t, sk, 0);
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
+    protocol_t protocol = get_protocol(&t);
+    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, protocol, sk);
 }
 
 SEC("kprobe/tcp_close")
@@ -291,7 +248,7 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, PROTOCOL_UNCLASSIFIED, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -357,7 +314,7 @@ int kretprobe__ip_make_skb(struct pt_regs *ctx) {
     }
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, PROTOCOL_UNCLASSIFIED, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -382,7 +339,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
     u64 pid_tgid = bpf_get_current_pid_tgid();
     t.pid = pid_tgid >> 32;
     t.netns = get_netns(&sk->sk_net);
-    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
+    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, PROTOCOL_UNCLASSIFIED, sk);
 }
 
 static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
@@ -542,7 +499,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
     }
 
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
+    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, PROTOCOL_UNCLASSIFIED, skp);
 
     log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
@@ -564,7 +521,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx) {
         return 0;
     }
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
+    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, PROTOCOL_UNCLASSIFIED, sk);
 
     port_binding_t pb = {};
     pb.netns = t.netns;
@@ -837,7 +794,7 @@ int kretprobe__do_sendfile(struct pt_regs *ctx) {
         __u32 packets_in = 0;
         __u32 packets_out = 0;
         get_tcp_segment_counts(*sock, &packets_in, &packets_out);
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, *sock);
+        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, PROTOCOL_UNCLASSIFIED, *sock);
     }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
