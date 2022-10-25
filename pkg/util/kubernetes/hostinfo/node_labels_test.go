@@ -31,13 +31,14 @@ func (m *kubeUtilMock) GetNodename(ctx context.Context) (string, error) {
 
 func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 	tests := []struct {
-		name           string
-		ctx            context.Context
-		mockClientFunc func(*kubeUtilMock)
-		mockConfFunc   func(conf *config.MockConfig)
-		nodeLabels     map[string]string
-		want           string
-		wantErr        bool
+		name               string
+		ctx                context.Context
+		currentClusterName string
+		mockClientFunc     func(*kubeUtilMock)
+		mockConfFunc       func(conf *config.MockConfig)
+		nodeLabels         map[string]string
+		want               string
+		wantErr            bool
 	}{
 		{
 			name: "cluster-name not set",
@@ -92,6 +93,48 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			want:    "bar",
 			wantErr: false,
 		},
+		{
+			name: "a clusterName already discover, EKS label should not override the current clusterName",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			currentClusterName: "bar",
+			nodeLabels: map[string]string{
+				"alpha.eksctl.io/cluster-name": "foo",
+			},
+			ctx:     context.Background(),
+			want:    "bar",
+			wantErr: false,
+		},
+		{
+			name: "a clusterName already discover, AD label should override the current clusterName",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			currentClusterName: "bar",
+			nodeLabels: map[string]string{
+				"ad.datadoghq.com/cluster-name": "foo",
+			},
+			ctx:     context.Background(),
+			want:    "foo",
+			wantErr: false,
+		},
+		{
+			name: "cluster-name if custom label set, custom label should override the current clusterName",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			mockConfFunc: func(conf *config.MockConfig) {
+				conf.Set("kubernetes_node_label_as_cluster_name", "custom-label")
+			},
+			currentClusterName: "bar",
+			nodeLabels: map[string]string{
+				"custom-label": "foo",
+			},
+			ctx:     context.Background(),
+			want:    "foo",
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +156,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				},
 			}
 
-			got, err := nodeInfo.GetNodeClusterNameLabel(tt.ctx)
+			got, err := nodeInfo.GetNodeClusterNameLabel(tt.ctx, tt.currentClusterName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NodeInfo.GetNodeClusterNameLabel() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -65,29 +65,49 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 	return n.apiserverNodeLabelsFunc(ctx, nodeName)
 }
 
+// clusterNameLabelType this struct is used to attach to the label key the information if this label should
+// override cluster-name previously detected.
+type clusterNameLabelType struct {
+	key string
+	// shouldOverride if set to true override previous cluster-name
+	shouldOverride bool
+}
+
+var (
+	// We use a slice to define the default Node label key to keep the ordering
+	defaultClusterNameLabelKeyConfigs = []clusterNameLabelType{
+		{key: eksClusterNameLabelKey, shouldOverride: false},
+		{key: datadogADClusterNameLabelKey, shouldOverride: true},
+	}
+)
+
 // GetNodeClusterNameLabel returns clustername by fetching a node label
-func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context) (string, error) {
+func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName string) (string, error) {
 	nodeLabels, err := n.GetNodeLabels(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	var clusterNameLabels []string
+	var clusterNameLabelKeys []clusterNameLabelType
 	// check if a node label has been added on the config
 	if customLabels := config.Datadog.GetString("kubernetes_node_label_as_cluster_name"); customLabels != "" {
-		clusterNameLabels = append(clusterNameLabels, customLabels)
+		clusterNameLabelKeys = append(clusterNameLabelKeys, clusterNameLabelType{key: customLabels, shouldOverride: true})
 	} else {
 		// Use default configuration
-		clusterNameLabels = []string{
-			eksClusterNameLabelKey,       // EKS cluster-name label
-			datadogADClusterNameLabelKey, // Generic Datadog AD cluster-name label
-		}
+		clusterNameLabelKeys = defaultClusterNameLabelKeyConfigs
 	}
 
-	for _, l := range clusterNameLabels {
-		if v, ok := nodeLabels[l]; ok {
-			return v, nil
+	for _, labelConfig := range clusterNameLabelKeys {
+		if v, ok := nodeLabels[labelConfig.key]; ok {
+			if clusterName == "" {
+				clusterName = v
+				continue
+			}
+
+			if labelConfig.shouldOverride {
+				clusterName = v
+			}
 		}
 	}
-	return "", nil
+	return clusterName, nil
 }
