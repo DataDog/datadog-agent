@@ -27,7 +27,7 @@ require (
 	go.opentelemetry.io/collector/pdata v0.59.0
 	go.opentelemetry.io/collector/semconv v0.59.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
+	golang.org/x/sys v0.1.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.49.0
 	k8s.io/apimachinery v0.21.5
@@ -53,8 +53,8 @@ require (
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/net v0.1.0 // indirect
+	golang.org/x/text v0.4.0 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
