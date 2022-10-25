@@ -118,7 +118,6 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
-	assertConnectionProtocol(t, config, network.ProtocolUnknown, conn.Protocol)
 	m := conn.MonotonicSum()
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 0, int(m.RecvBytes))
@@ -128,9 +127,8 @@ func TestTCPRemoveEntries(t *testing.T) {
 }
 
 func TestTCPRetransmit(t *testing.T) {
-	cfg := testConfig()
 	// Enable BPF-based system probe
-	tr, err := NewTracer(cfg)
+	tr, err := NewTracer(testConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +173,6 @@ func TestTCPRetransmit(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 
 	m := conn.MonotonicSum()
 	assert.Equal(t, 100*clientMessageSize, int(m.SentBytes))
@@ -1448,9 +1445,8 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 }
 
 func TestSendfileRegression(t *testing.T) {
-	cfg := testConfig()
 	// Start tracer
-	tr, err := NewTracer(cfg)
+	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
 
@@ -1509,7 +1505,6 @@ func TestSendfileRegression(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
 	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSum().SentBytes), "sendfile data wasn't properly traced")
-	assertConnectionProtocol(t, cfg, network.ProtocolUnknown, conn.Protocol)
 }
 
 func TestSendfileError(t *testing.T) {
