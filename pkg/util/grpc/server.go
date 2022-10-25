@@ -24,12 +24,13 @@ var connContextKey = &contextKey{"http-connection"}
 
 // NewMuxedGRPCServer returns an http.Server that multiplexes connections
 // between a gRPC server and an HTTP handler.
-func NewMuxedGRPCServer(tlsConfig *tls.Config, grpcServer *grpc.Server, httpHandler http.Handler) *http.Server {
+func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer *grpc.Server, httpHandler http.Handler) *http.Server {
 	// our gRPC clients do not handle protocol negotiation, so we need to force
 	// HTTP/2
 	tlsConfig.NextProtos = []string{"h2"}
 
 	return &http.Server{
+		Addr:      addr,
 		Handler:   handlerWithFallback(grpcServer, httpHandler),
 		TLSConfig: tlsConfig,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
