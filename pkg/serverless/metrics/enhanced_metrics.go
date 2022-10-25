@@ -52,20 +52,29 @@ func getOutOfMemorySubstrings() []string {
 	}
 }
 
-// GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, tags []string, demux aggregator.Demultiplexer) {
+// GenerateEnhancedMetricsFromRuntimeDoneLogArgs are the arguments required for
+// the GenerateEnhancedMetricsFromRuntimeDoneLog func
+type GenerateEnhancedMetricsFromRuntimeDoneLogArgs struct {
+	Start time.Time
+	End   time.Time
+	Tags  []string
+	Demux aggregator.Demultiplexer
+}
+
+// GenerateEnhancedMetricsFromRuntimeDoneLog generates the runtime duration metric
+func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromRuntimeDoneLogArgs) {
 	// first check if both date are set
-	if start.IsZero() || end.IsZero() {
+	if args.Start.IsZero() || args.End.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
-		duration := end.Sub(start).Milliseconds()
-		demux.AggregateSample(metrics.MetricSample{
+		duration := args.End.Sub(args.Start).Milliseconds()
+		args.Demux.AggregateSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       args.Tags,
 			SampleRate: 1,
-			Timestamp:  float64(end.UnixNano()) / float64(time.Second),
+			Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
 		})
 	}
 }

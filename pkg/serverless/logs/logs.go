@@ -351,7 +351,13 @@ func processMessage(
 			message.stringRecord = createStringRecordForReportLog(message, ecs)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, tags, demux)
+			args := serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+				Start: ecs.StartTime,
+				End:   message.time,
+				Tags:  tags,
+				Demux: demux,
+			}
+			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(args)
 			ec.UpdateFromRuntimeDoneLog(message.time)
 			ecs = ec.GetCurrentState()
 		}

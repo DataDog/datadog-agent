@@ -322,37 +322,55 @@ func TestCalculateEstimatedCost(t *testing.T) {
 	assert.InDelta(t, 10.47, estimatedCost-freeTierArmCostAdjustment, 0.01)
 }
 
-func TestGenerateRuntimeDurationMetricNoStartDate(t *testing.T) {
+func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Time{}
 	endTime := time.Now()
-	go GenerateRuntimeDurationMetric(startTime, endTime, tags, demux)
+	args := GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+		Start: startTime,
+		End:   endTime,
+		Tags:  tags,
+		Demux: demux,
+	}
+	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 }
 
-func TestGenerateRuntimeDurationMetricNoEndDate(t *testing.T) {
+func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Now()
 	endTime := time.Time{}
-	go GenerateRuntimeDurationMetric(startTime, endTime, tags, demux)
+	args := GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+		Start: startTime,
+		End:   endTime,
+		Tags:  tags,
+		Demux: demux,
+	}
+	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 }
 
-func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
+func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	endTime := time.Date(2020, 01, 01, 01, 01, 01, 653000000, time.UTC) //153 ms later
-	go GenerateRuntimeDurationMetric(startTime, endTime, tags, demux)
+	args := GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+		Start: startTime,
+		End:   endTime,
+		Tags:  tags,
+		Demux: demux,
+	}
+	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       runtimeDurationMetric,
