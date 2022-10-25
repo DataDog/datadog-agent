@@ -80,7 +80,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     const int16_t MINIMUM_API_VERSION_FOR_CLIENT_ID = 1;
 //    const uint32_t MAX_LENGTH_FOR_CLIENT_ID_STRING = 50;
     //char client_id[MAX_LENGTH_FOR_CLIENT_ID_STRING] = {0};
-    __builtin_memset(kafka_transaction->client_id, 0, sizeof(kafka_transaction->client_id));
+    bpf_memset(kafka_transaction->client_id, 0, sizeof(kafka_transaction->client_id));
     uint16_t client_id_size_final = 0;
     if (request_api_version >= MINIMUM_API_VERSION_FOR_CLIENT_ID) {
         const int16_t client_id_size = read_big_endian_int16(request_fragment + 12);
@@ -150,7 +150,7 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
         return false;
     }
     kafka_transaction->current_offset_in_request_fragment += 2;
-    __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
+    bpf_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
 //    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
 //            return false;
 //    }
