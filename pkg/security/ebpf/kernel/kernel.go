@@ -205,7 +205,7 @@ func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
-	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
+	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && strings.HasPrefix(k.OsRelease["VERSION_ID"], "7")
 }
 
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
