@@ -82,7 +82,7 @@
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
 
-.kitchen_test_windows_ng_installer_agent:
+.kitchen_test_ng_windows_installer_agent:
   extends:
     - .kitchen_test_ng_windows_installer
     - .kitchen_datadog_agent_flavor
