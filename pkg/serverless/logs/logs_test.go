@@ -873,7 +873,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 	})
-	assert.Equal(t, generatedMetrics[4], metrics.MetricSample{
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
@@ -881,7 +881,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 	})
-	assert.Equal(t, generatedMetrics[6], metrics.MetricSample{
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,

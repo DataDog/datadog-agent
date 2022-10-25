@@ -195,12 +195,17 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 							}
 						}
 					}
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the spans object")
 				}
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
 					if v, ok := metrics["producedBytes"].(float64); ok {
 						l.objectRecord.runtimeDoneItem.producedBytes = v
 					}
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
+				log.Debugf("Runtime done metrics: %+v\n", l.objectRecord.runtimeDoneItem)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -352,10 +357,13 @@ func processMessage(
 		}
 		if message.logType == logTypePlatformRuntimeDone {
 			args := serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
-				Start: ecs.StartTime,
-				End:   message.time,
-				Tags:  tags,
-				Demux: demux,
+				Start:            ecs.StartTime,
+				End:              message.time,
+				ResponseLatency:  message.objectRecord.runtimeDoneItem.responseLatency,
+				ResponseDuration: message.objectRecord.runtimeDoneItem.responseDuration,
+				ProducedBytes:    message.objectRecord.runtimeDoneItem.producedBytes,
+				Tags:             tags,
+				Demux:            demux,
 			}
 			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(args)
 			ec.UpdateFromRuntimeDoneLog(message.time)
