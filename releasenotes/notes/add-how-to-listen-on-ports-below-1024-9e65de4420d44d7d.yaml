@@ -1,3 +1,4 @@
 other:
   - |
-    Add the comment to explain how to listen on the port under 1024.
+    Add the comment to explain how to listen on the port under
+    1024 in pkg/config/config_template.yaml.
