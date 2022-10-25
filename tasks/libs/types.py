@@ -49,6 +49,7 @@ class FailedJobReason(Enum):
     K8S_RUNNER = 3
     KITCHEN_AZURE = 4
     FAILED_JOB_SCRIPT = 5
+    GITLAB = 6
 
 
 class SlackMessage:

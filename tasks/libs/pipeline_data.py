@@ -80,12 +80,23 @@ infra_failure_logs = [
         ),
         FailedJobReason.K8S_RUNNER,
     ),
+    (
+        re.compile(
+            r'Job failed \(system failure\): prepare environment: setting up build pod: Internal error occurred: failed calling webhook'
+        ),
+        FailedJobReason.K8S_RUNNER,
+    ),
     # kitchen tests Azure VM allocation failures
     (
         re.compile(
             r'Allocation failed\. We do not have sufficient capacity for the requested VM size in this region\.'
         ),
         FailedJobReason.KITCHEN_AZURE,
+    ),
+    # Gitlab 5xx errors
+    (
+        re.compile(r'fatal: unable to access \'.*\': The requested URL returned error: 5..'),
+        FailedJobReason.GITLAB,
     ),
 ]
 
