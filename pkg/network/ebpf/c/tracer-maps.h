@@ -37,8 +37,8 @@ BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1024)
 BPF_HASH_MAP(tcp_sendmsg_args, __u64, struct sock *, 1024)
 
 /*
- * Map to hold struct sock parameter for tcp_recvmsg calls
- * to be used in kretprobe/tcp_recvmsg
+ * Map to hold struct sock parameter for tcp_recvmsg/tcp_read_sock calls
+ * to be used in kretprobe/tcp_recvmsg/tcp_read_sock
  */
 BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 1024)
 
