@@ -66,10 +66,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    if (val->protocol == PROTOCOL_UNCLASSIFIED) {
-        log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
-        val->protocol = protocol;
-    } else if (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
+    if ((val->protocol == PROTOCOL_UNCLASSIFIED) || (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED)) {
         log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
         val->protocol = protocol;
     }
