@@ -936,7 +936,7 @@ func acceptHandler(l net.Listener) {
 
 		_, _ = io.Copy(ioutil.Discard, conn)
 		if tcpc, ok := conn.(*net.TCPConn); ok {
-			tcpc.SetLinger(0)
+			_ = tcpc.SetLinger(0)
 		}
 		conn.Close()
 	}
