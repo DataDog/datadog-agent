@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -20,8 +21,9 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
-func init() {
-	SecurityAgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
+func ConfigCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cmd := cmdconfig.Config(getSettingsClient)
+	return []*cobra.Command{cmd}
 }
 
 func setupConfig(cmd *cobra.Command) error {
