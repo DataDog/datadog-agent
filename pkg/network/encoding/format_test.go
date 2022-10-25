@@ -92,7 +92,7 @@ func BenchmarkConnectionReset(b *testing.B) {
 	runtime.KeepAlive(c)
 }
 
-func Test_formatProtocols(t *testing.T) {
+func TestFormatProtocols(t *testing.T) {
 	tests := []struct {
 		name     string
 		protocol network.ProtocolType

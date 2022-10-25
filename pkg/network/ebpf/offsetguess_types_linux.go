@@ -47,6 +47,8 @@ type TracerStatus struct {
 	Dport                           uint16
 	Sport_via_sk                    uint16
 	Dport_via_sk                    uint16
+	Sport_via_sk_via_sk_buf         uint16
+	Dport_via_sk_via_sk_buf         uint16
 	Family                          uint16
 	Saddr_fl4                       uint32
 	Daddr_fl4                       uint32
@@ -62,7 +64,7 @@ type TracerStatus struct {
 	Ipv6_enabled                    uint8
 	Fl4_offsets                     uint8
 	Fl6_offsets                     uint8
-	Pad_cgo_0                       [7]byte
+	Pad_cgo_0                       [3]byte
 }
 
 type TracerState uint8

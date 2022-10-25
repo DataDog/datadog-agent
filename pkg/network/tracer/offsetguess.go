@@ -561,7 +561,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 		}
 		status.Offset_socket_sk++
 	case netebpf.GuessSKBuffSock:
-		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
+		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
 			logAndAdvance(status, status.Offset_sk_buff_sock, netebpf.GuessSKBuffTransportHeader)
 			break
 		}
@@ -575,7 +575,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 		}
 		status.Offset_sk_buff_transport_header++
 	case netebpf.GuessSKBuffHead:
-		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
+		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
 			logAndAdvance(status, status.Offset_sk_buff_head, netebpf.GuessDAddrIPv6)
 			break
 		}
@@ -759,13 +759,11 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 }
 
 type eventGenerator struct {
-	listener    net.Listener
-	conn        net.Conn
-	udpConn     net.Conn
-	udp6Conn    *net.UDPConn
-	udpDone     func()
-	tcpListener net.Listener
-	tcpConn     net.Conn
+	listener net.Listener
+	conn     net.Conn
+	udpConn  net.Conn
+	udp6Conn *net.UDPConn
+	udpDone  func()
 }
 
 func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
@@ -801,28 +799,7 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 		return nil, err
 	}
 
-	netDevQueueTestListener, err := net.Listen("tcp4", fmt.Sprintf("%s:0", listenIPv4))
-	if err != nil {
-		return nil, err
-	}
-
-	go acceptHandler(netDevQueueTestListener)
-	// Establish connection that will be used in the offset guessing
-	netDevQueueTestConn, err := net.Dial(netDevQueueTestListener.Addr().Network(), netDevQueueTestListener.Addr().String())
-	if err != nil {
-		_ = netDevQueueTestListener.Close()
-		return nil, err
-	}
-
-	return &eventGenerator{
-		listener:    l,
-		conn:        c,
-		udpConn:     udpConn,
-		udp6Conn:    udp6Conn,
-		udpDone:     udpDone,
-		tcpListener: netDevQueueTestListener,
-		tcpConn:     netDevQueueTestConn,
-	}, nil
+	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
 }
 
 func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
@@ -865,7 +842,10 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessDAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSPortFl4 ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 {
+		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
 		payload := []byte("test")
 		_, err := e.udpConn.Write(payload)
 
@@ -889,25 +869,6 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 		expected.dportFl6 = uint16(remoteAddr.Port)
 
 		return nil
-	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
-		_, sportString, err := net.SplitHostPort(e.tcpConn.LocalAddr().String())
-		if err != nil {
-			return err
-		}
-
-		sport, _ := strconv.Atoi(sportString)
-		expected.sport = uint16(sport)
-		_, dportString, err := net.SplitHostPort(e.tcpConn.RemoteAddr().String())
-		if err != nil {
-			return err
-		}
-		dport, _ := strconv.Atoi(dportString)
-		expected.dport = uint16(dport)
-
-		_, err = e.tcpConn.Write([]byte("GET /request\r\n"))
-		return err
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
@@ -956,14 +917,6 @@ func (e *eventGenerator) Close() {
 
 	if e.udpDone != nil {
 		e.udpDone()
-	}
-
-	if e.tcpListener != nil {
-		_ = e.tcpListener.Close()
-	}
-
-	if e.tcpConn != nil {
-		_ = e.tcpConn.Close()
 	}
 }
 

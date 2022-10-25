@@ -82,6 +82,8 @@ typedef struct {
     __u16 dport;
     __u16 sport_via_sk;
     __u16 dport_via_sk;
+    __u16 sport_via_sk_via_sk_buf;
+    __u16 dport_via_sk_via_sk_buf;
     __u16 family;
     __u32 saddr_fl4;
     __u32 daddr_fl4;
