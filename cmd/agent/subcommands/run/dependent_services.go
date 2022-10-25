@@ -6,6 +6,7 @@
 package run
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -13,8 +14,8 @@ import (
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
-	for configKey, cfg := range s.configKeys {
-		if cfg.GetBool(configKey) {
+	for _, configKey := range s.configKeys {
+		if config.Datadog.GetBool(configKey) {
 			return true
 		}
 	}

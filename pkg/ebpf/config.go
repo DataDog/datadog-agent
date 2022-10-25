@@ -70,7 +70,9 @@ func key(pieces ...string) string {
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
-	cfg := aconfig.SystemProbe
+	cfg := aconfig.Datadog
+	aconfig.InitSystemProbeConfig(cfg)
+
 	return &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),

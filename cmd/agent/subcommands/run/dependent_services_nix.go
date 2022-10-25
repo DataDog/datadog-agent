@@ -7,15 +7,13 @@
 
 package run
 
-import "github.com/DataDog/datadog-agent/pkg/config"
-
 // Servicedef defines a service
 type Servicedef struct {
 	name       string
-	configKeys map[string]config.Config
+	configKeys []string
 }
 
-var subservices []Servicedef
+var subservices = []Servicedef{}
 
 // Start starts the service
 func (s *Servicedef) Start() error {

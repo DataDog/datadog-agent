@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -65,8 +64,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
+					ConfFilePath:       globalParams.ConfFilePath,
+					ConfigLoadSecrets:  false,
+					ConfigLoadSysProbe: true,
 				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
@@ -131,7 +131,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
+func statusCmd(log log.Component, config config.Component, cliParams *cliParams) error {
 	return redactError(requestStatus(config, cliParams))
 }
 

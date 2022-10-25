@@ -14,7 +14,6 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +22,7 @@ type serviceInitFunc func() (err error)
 // Servicedef defines a service
 type Servicedef struct {
 	name       string
-	configKeys map[string]config.Config
+	configKeys []string
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -31,39 +30,35 @@ type Servicedef struct {
 
 var subservices = []Servicedef{
 	{
-		name: "apm",
-		configKeys: map[string]config.Config{
-			"apm_config.enabled": config.Datadog,
-		},
+		name:        "apm",
+		configKeys:  []string{"apm_config.enabled"},
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
 	},
 	{
 		name: "process",
-		configKeys: map[string]config.Config{
-			"process_config.enabled":                      config.Datadog,
-			"process_config.process_collection.enabled":   config.Datadog,
-			"process_config.container_collection.enabled": config.Datadog,
-			"process_config.process_discovery.enabled":    config.Datadog,
-			"network_config.enabled":                      config.SystemProbe,
-			"system_probe_config.enabled":                 config.SystemProbe,
+		configKeys: []string{
+			"process_config.enabled",
+			"process_config.process_collection.enabled",
+			"process_config.container_collection.enabled",
+			"process_config.process_discovery.enabled",
+			"network_config.enabled",
+			"system_probe_config.enabled",
 		},
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
 	},
 	{
-		name: "sysprobe",
-		configKeys: map[string]config.Config{
-			"network_config.enabled":      config.SystemProbe,
-			"system_probe_config.enabled": config.SystemProbe,
-		},
+		name:        "sysprobe",
+		configKeys:  []string{"system_probe_config.enabled", "network_config.enabled"},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,
-	},
-}
+	}}
 
 func apmInit() error {
+
 	return nil
+
 }
 
 func processInit() error {
@@ -85,7 +80,7 @@ func (s *Servicedef) Start() error {
 	}
 
 	/*
-	 * default go implementations of mgr.Connect and mgr.OpenService use way too
+	 * default go impolementations of mgr.Connect and mgr.OpenService use way too
 	 * open permissions by default.  Use those structures so the other methods
 	 * work properly, but initialize them here using restrictive enough permissions
 	 * that we can actually open/start the service when running as non-root.
@@ -98,13 +93,7 @@ func (s *Servicedef) Start() error {
 	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
 
-	snptr, err := syscall.UTF16PtrFromString(s.serviceName)
-	if err != nil {
-		log.Warnf("Failed to get service name %v", err)
-		return fmt.Errorf("could not create service name pointer: %s", err)
-	}
-
-	hSvc, err := windows.OpenService(m.Handle, snptr,
+	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(s.serviceName),
 		windows.SERVICE_START|windows.SERVICE_STOP)
 	if err != nil {
 		log.Warnf("Failed to open service %v", err)
