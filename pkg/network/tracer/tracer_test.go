@@ -1424,7 +1424,7 @@ func TestConnectionClobber(t *testing.T) {
 	}
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	defer tr.Stop()
+	t.Cleanup(tr.Stop)
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
 	var serverConns []net.Conn
@@ -1436,7 +1436,7 @@ func TestConnectionClobber(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
-	defer close(doneChan)
+	t.Cleanup(func() { close(doneChan) })
 
 	// we only need 1/4 since both send and recv sides will be registered
 	sendCount := tr.activeBuffer.Capacity()/4 + 1
@@ -1494,18 +1494,23 @@ func TestConnectionClobber(t *testing.T) {
 	// ensure we didn't grow or shrink the buffer
 	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
-	for _, c := range append(conns, serverConns...) {
-		c.Close()
+	closeConns := func(cxs []net.Conn) {
+		for _, c := range cxs {
+			if tcpc, ok := c.(*net.TCPConn); ok {
+				tcpc.SetLinger(0)
+			}
+			c.Close()
+		}
 	}
+
+	closeConns(append(conns, serverConns...))
 
 	// send second batch so that underlying array gets clobbered
 	conns = sendAndRecv()
 	serverConns = serverConns[:0]
-	defer func() {
-		for _, c := range append(conns, serverConns...) {
-			c.Close()
-		}
-	}()
+	t.Cleanup(func() {
+		closeConns(append(conns, serverConns...))
+	})
 
 	time.Sleep(2 * time.Second)
 
