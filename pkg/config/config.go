@@ -1163,7 +1163,6 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Logs)
 
 	setupAPM(config)
-	setupAppSec(config)
 	SetupOTLP(config)
 	setupProcesses(config)
 }
