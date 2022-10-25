@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
-
 package transaction
 
 // Method is the type used to represent HTTP request methods
