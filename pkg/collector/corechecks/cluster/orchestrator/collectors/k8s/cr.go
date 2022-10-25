@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 
@@ -68,7 +69,10 @@ func (c *CRCollector) Informer() cache.SharedInformer {
 }
 
 func (c *CRCollector) getGRV() schema.GroupVersionResource {
-	version, _ := schema.ParseGroupVersion(c.metadata.Version)
+	version, err := schema.ParseGroupVersion(c.metadata.Version)
+	if err != nil {
+		_ = log.Warnf("unable to parse group version out of given cr version: %s", c.metadata.Version)
+	}
 	return version.WithResource(c.metadata.Name)
 }
 

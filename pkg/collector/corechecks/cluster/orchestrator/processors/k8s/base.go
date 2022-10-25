@@ -29,6 +29,7 @@ func (BaseHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, r
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
 }
 
+// ExtractModelManifests creates the model manifest from the given manifests
 func ExtractModelManifests(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) *model.CollectorManifest {
 	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 

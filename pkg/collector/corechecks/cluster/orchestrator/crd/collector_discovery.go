@@ -78,7 +78,7 @@ func (d *DiscoveryCollector) DiscoverCRDResource(grv string) (*k8sCollectors.CRC
 		version: collector.Metadata().Version,
 		name:    collector.Metadata().Name,
 	}]; ok {
-		return collector, nil // maybe re-use cache and seen once or twice
+		return collector, nil
 	}
 	return nil, fmt.Errorf("failed to discover resource collectorName: %s", grv)
 }

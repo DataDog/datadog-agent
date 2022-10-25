@@ -24,6 +24,7 @@ type CRDHandlers struct {
 	BaseHandlers
 }
 
+// BuildManifestMessageBody builds the manifest payload body
 func (crd *CRDHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCRD{
