@@ -1128,3 +1128,102 @@ logs_config:
 
 	assert.NotNil(t, err)
 }
+
+func TestSetupFipsEndpoints(t *testing.T) {
+	datadogYaml := `
+dd_url: https://somehost:1234
+
+apm_config:
+  apm_dd_url: https://somehost:1234
+  profiling_dd_url: https://somehost:1234
+  telemetry:
+    dd_url: https://somehost:1234
+
+process_config:
+  process_dd_url:  https://somehost:1234
+
+logs_config:
+  use_http: false
+  logs_no_ssl: false
+  logs_dd_url: somehost:1234
+
+database_monitoring:
+  metrics:
+    dd_url: somehost:1234
+  activity:
+    dd_url: somehost:1234
+  samples:
+    dd_url: somehost:1234
+
+network_devices:
+  metadata:
+    dd_url: somehost:1234
+
+proxy:
+  http: http://localhost:1234
+  https: https://localhost:1234
+`
+	expectedURL := "somehost:1234"
+	expectedHTTPURL := "https://" + expectedURL
+	testConfig := setupConfFromYAML(datadogYaml)
+	LoadProxyFromEnv(testConfig)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedHTTPURL, testConfig.GetString("dd_url"))
+	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.apm_dd_url"))
+	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.profiling_dd_url"))
+	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.telemetry.dd_url"))
+	assert.Equal(t, expectedHTTPURL, testConfig.GetString("process_config.process_dd_url"))
+	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, expectedURL, testConfig.GetString("logs_config.logs_dd_url"))
+	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.metrics.dd_url"))
+	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.activity.dd_url"))
+	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.samples.dd_url"))
+	assert.Equal(t, expectedURL, testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.NotNil(t, GetProxies())
+	// reseting proxies
+	proxies = nil
+
+	datadogYaml += `
+fips:
+  enabled: true
+  local_address: localhost
+  port_range_start: 5000
+`
+
+	expectedURL = "localhost:50"
+	expectedHTTPURL = "http://" + expectedURL
+	testConfig = setupConfFromYAML(datadogYaml)
+	LoadProxyFromEnv(testConfig)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedHTTPURL+"01", testConfig.GetString("dd_url"))
+	assert.Equal(t, expectedHTTPURL+"02", testConfig.GetString("apm_config.apm_dd_url"))
+	assert.Equal(t, expectedHTTPURL+"03", testConfig.GetString("apm_config.profiling_dd_url"))
+	assert.Equal(t, expectedHTTPURL+"10", testConfig.GetString("apm_config.telemetry.dd_url"))
+	assert.Equal(t, expectedHTTPURL+"04", testConfig.GetString("process_config.process_dd_url"))
+	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, expectedURL+"05", testConfig.GetString("logs_config.logs_dd_url"))
+	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.metrics.dd_url"))
+	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.activity.dd_url"))
+	assert.Equal(t, expectedURL+"07", testConfig.GetString("database_monitoring.samples.dd_url"))
+	assert.Equal(t, expectedURL+"08", testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.Nil(t, GetProxies())
+}
+
+func TestSetupFipsEndpointsNonLocalAddress(t *testing.T) {
+	datadogYaml := `
+fips:
+  enabled: true
+  local_address: 1.2.3.4
+  port_range_start: 5000
+`
+
+	testConfig := setupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.Error(t, err)
+}

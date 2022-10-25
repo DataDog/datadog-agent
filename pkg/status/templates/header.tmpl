@@ -86,6 +86,15 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{ $key }}: {{ $value }}
   {{- end }}
 
+{{- if eq .config.fips_enabled true }}
+
+  FIPS proxy
+  ==========
+    FIPS proxy is enabled. All communication to Datadog is routed to a local FIPS proxy:
+      - Local address: {{ .config.fips_local_address }}
+      - Starting port: {{ .config.fips_port_range_start }}
+{{- end }}
+
 {{- if .TransportWarnings }}
 
   Transport Proxy Warnings
