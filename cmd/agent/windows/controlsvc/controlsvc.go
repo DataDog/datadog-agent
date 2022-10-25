@@ -34,6 +34,7 @@ var (
 
 type enumServiceState uint32
 
+//nolint:deadcode,unused
 const (
 	enumServiceActive = enumServiceState(0x1) // START_PENDING, STOP_PENDING, RUNNING
 	// continue_pending, pause_pending, paused
@@ -121,7 +122,11 @@ func stopService(serviceName string, withDeps bool) error {
 			for _, dep := range deps {
 				log.Debugf("Stopping service %s", dep.serviceName)
 				// recurse to this service, but only once
-				stopService(dep.serviceName, false)
+				err = stopService(dep.serviceName, false)
+				if err != nil {
+					log.Warnf("Failed to stop service %v: %v", dep.serviceName, err)
+					return fmt.Errorf("could not stop service %v: %v", dep.serviceName, err)
+				}
 			}
 		}
 	}

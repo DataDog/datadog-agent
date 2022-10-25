@@ -43,7 +43,6 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
 import pkg_resources
 try:
@@ -61,7 +60,6 @@ var (
 	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
 	rootDir             string
-	pythonMinorVersion  string
 	reqAgentReleasePath string
 	constraintsPath     string
 )
@@ -197,25 +195,6 @@ func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
 	if _, err := os.Lstat(constraintsPath); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func detectPythonMinorVersion(cliParams *cliParams) error {
-	if pythonMinorVersion == "" {
-		pythonPath, err := getCommandPython(cliParams)
-		if err != nil {
-			return err
-		}
-
-		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
-		minorVersion, err := versionCmd.Output()
-		if err != nil {
-			return err
-		}
-
-		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
 	}
 
 	return nil
