@@ -9,12 +9,13 @@
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "sock.h"
 #include "port_range.h"
 #include "go-tls-types.h"
 #include "go-tls-goid.h"
 #include "go-tls-location.h"
 #include "go-tls-conn.h"
+
+#include "sock.h"
 
 #define SO_SUFFIX_SIZE 3
 
