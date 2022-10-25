@@ -15,6 +15,7 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Py
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
 & inv -e deps
+& inv -e install-tools
 
 & inv -e golangci-lint --build system-probe .\pkg
 
