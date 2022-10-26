@@ -104,3 +104,16 @@ type bufferDestination struct {
 func (b *bufferDestination) Delete() error {
 	return nil
 }
+
+type snapshotCustomData struct {
+	OrgUUID *string `json:"org_uuid"`
+}
+
+func snapshotCustom(rawCustom []byte) (*snapshotCustomData, error) {
+	var custom snapshotCustomData
+	err := json.Unmarshal(rawCustom, &custom)
+	if err != nil {
+		return nil, err
+	}
+	return &custom, nil
+}
