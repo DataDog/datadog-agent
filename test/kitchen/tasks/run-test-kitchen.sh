@@ -158,7 +158,17 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
 
   # Then, destroy the kitchen machines
   # Do not fail on kitchen destroy, it breaks the infra failures filter
-  bundle exec kitchen destroy "$test_suites" --no-log-overwrite || true
+  set +e
+  bundle exec kitchen destroy "$test_suites" --no-log-overwrite
+  destroy_result=$?
+  set -e
+
+  # If the destory operation fails, it is not safe to continue running kitchen
+  # so we just exit with an infrastructure failure message.
+  if [ "$destroy_result" -eq 0 ]; then
+    echo "Failure while destroying kitchen infrastructure, skipping retries"
+    break
+  fi
 
   if [ "$result" -eq 0 ]; then
       # if kitchen test succeeded, exit with 0
