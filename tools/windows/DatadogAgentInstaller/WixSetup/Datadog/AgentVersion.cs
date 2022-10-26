@@ -11,17 +11,24 @@ namespace WixSetup.Datadog
         public string PackageVersion { get; }
 
         public AgentVersion()
+        : this(Environment.GetEnvironmentVariable("PACKAGE_VERSION"))
         {
+
+        }
+
+        public AgentVersion(string packageVersion)
+        {
+            PackageVersion = packageVersion;
             Version = new Version(7, 99, 0, 2);
-            PackageVersion = Environment.GetEnvironmentVariable("PACKAGE_VERSION");
             if (PackageVersion != null)
             {
                 var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)");
                 var versionMatch = versionRegex.Match(PackageVersion);
                 Version = new Version(
-                    versionMatch.Groups["major"].Value.ToInt(),
-                    versionMatch.Groups["minor"].Value.ToInt(),
-                    2 // Use 1 once we replace the main installer with this one.
+                    major: versionMatch.Groups["major"].Value.ToInt(),
+                    minor: versionMatch.Groups["minor"].Value.ToInt(),
+                    build: versionMatch.Groups["build"].Value.ToInt(),
+                    revision: 2 // Use 1 once we replace the main installer with this one.
                 );
             }
             else
