@@ -44,11 +44,6 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
-// TODO: fix this, this is currently a stub for the cluster-agent
-func CheckCmd() *cobra.Command {
-	return Commands(core.BundleParams{})[0]
-}
-
 func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	bp := core.BundleParams{
 		SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
