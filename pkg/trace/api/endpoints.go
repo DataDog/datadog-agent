@@ -114,18 +114,22 @@ var endpoints = []Endpoint{
 	},
 	{
 		Pattern: "/evp_proxy/v1/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler() },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(1) },
 	},
 	{
 		Pattern: "/evp_proxy/v2/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler() },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
 	},
 	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
 	},
 	{
-		Pattern: "/dogstatsd/v1/proxy",
+		Pattern: "/dogstatsd/v1/proxy", // deprecated
+		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
+	},
+	{
+		Pattern: "/dogstatsd/v2/proxy",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
 	},
 }

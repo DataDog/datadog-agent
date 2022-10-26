@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
@@ -195,6 +195,7 @@ func TestHTTPCorrectness(t *testing.T) {
 	t.Run("wrong path format", func(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -210,7 +211,8 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed.Load())
+		tel.log()
+		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
@@ -219,7 +221,7 @@ func TestHTTPCorrectness(t *testing.T) {
 	t.Run("invalid http verb", func(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
-
+		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -236,7 +238,8 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed.Load())
+		tel.log()
+		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
@@ -245,7 +248,7 @@ func TestHTTPCorrectness(t *testing.T) {
 	t.Run("invalid latency", func(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
-
+		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -261,7 +264,8 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed.Load())
+		tel.log()
+		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)

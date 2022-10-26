@@ -328,7 +328,7 @@ func TestMountResolver(t *testing.T) {
 			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
-				_, p, _, err := mr.GetMountPath(testC.mountID)
+				_, p, _, err := mr.GetMountPath(testC.mountID, 0)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())

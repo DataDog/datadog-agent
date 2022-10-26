@@ -379,11 +379,6 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 }
 
 func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if cfg.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
-	}
-
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -397,7 +392,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 					EBPFFuncName: "kprobe___nf_conntrack_hash_insert",
 					UID:          "conntracker",
 				},
-				KprobeAttachMethod: kprobeAttachMethod,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -405,7 +399,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 					EBPFFuncName: "kprobe_ctnetlink_fill_info",
 					UID:          "conntracker",
 				},
-				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
@@ -420,6 +413,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 	}
 
 	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(mgr)
+
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
+
 	opts := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -434,7 +433,8 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			string(probes.ConntrackMap): {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
-		ConstantEditors: telemetryMapKeys,
+		ConstantEditors:           telemetryMapKeys,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}
 	if (mapErrTelemetryMap != nil) || (helperErrTelemetryMap != nil) {
 		opts.MapEditors = make(map[string]*ebpf.Map)

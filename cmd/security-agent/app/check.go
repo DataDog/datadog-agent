@@ -18,7 +18,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
@@ -31,20 +31,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-var (
-	checkArgs = struct {
-		framework         string
-		file              string
-		verbose           bool
-		report            bool
-		overrideRegoInput string
-		dumpRegoInput     string
-		dumpReports       string
-		skipRegoEval      bool
-	}{}
-)
+type checkCliParams struct {
+	*common.GlobalParams
 
-func setupCheckCmd(cmd *cobra.Command) {
+	args []string
+
+	framework         string
+	file              string
+	verbose           bool
+	report            bool
+	overrideRegoInput string
+	dumpRegoInput     string
+	dumpReports       string
+	skipRegoEval      bool
+}
+
+// TODO: fix this, this is currently a stub for the cluster-agent
+func CheckCmd() *cobra.Command {
+	return CheckCommands(&common.GlobalParams{})[0]
+}
+
+// CheckCommands returns a cobra command to run security agent checks
+func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	checkArgs := checkCliParams{
+		GlobalParams: globalParams,
+	}
+
+	cmd := &cobra.Command{
+		Use:   "check",
+		Short: "Run compliance check(s)",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			checkArgs.args = args
+			return runCheck(&checkArgs)
+		},
+	}
+
 	cmd.Flags().StringVarP(&checkArgs.framework, "framework", "", "", "Framework to run the checks from")
 	cmd.Flags().StringVarP(&checkArgs.file, "file", "f", "", "Compliance suite file to read rules from")
 	cmd.Flags().BoolVarP(&checkArgs.verbose, "verbose", "v", false, "Include verbose details")
@@ -53,41 +75,18 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
 	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
+
+	return []*cobra.Command{cmd}
 }
 
-// CheckCmd returns a cobra command to run security agent checks
-func CheckCmd(confPathArrayGetter func() []string) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run compliance check(s)",
-		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, confPathArrayGetter(), args)
-		},
-	}
-	setupCheckCmd(cmd)
-	return cmd
-}
-
-func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
-	err := configureLogger()
+func runCheck(checkArgs *checkCliParams) error {
+	err := configureLogger(checkArgs)
 	if err != nil {
 		return err
 	}
 
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
-	}
-
-	// We need to set before calling `SetupConfig`
-	configName := "datadog"
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		configName = "datadog-cluster"
-	}
-
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles(configName, confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
 	}
 
 	options := []checks.BuilderOption{}
@@ -120,8 +119,8 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	}
 
 	var ruleID string
-	if len(args) != 0 {
-		ruleID = args[0]
+	if len(checkArgs.args) != 0 {
+		ruleID = checkArgs.args[0]
 	}
 
 	hname, err := hostname.Get(context.TODO())
@@ -180,7 +179,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	return nil
 }
 
-func configureLogger() error {
+func configureLogger(checkArgs *checkCliParams) error {
 	var (
 		logFormat = "%LEVEL | %Msg%n"
 		logLevel  = "info"
@@ -217,7 +216,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 		}
 
 		runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-		reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
+		reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, dstContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set up compliance log reporter: %w", err)
 		}
@@ -263,10 +262,4 @@ func (r *RunCheckReporter) dumpReports() error {
 		return os.WriteFile(r.dumpReportsPath, reportsJSON, 0644)
 	}
 	return nil
-}
-
-func init() {
-	complianceCmd.AddCommand(CheckCmd(func() []string {
-		return confPathArray
-	}))
 }

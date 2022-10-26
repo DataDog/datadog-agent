@@ -120,7 +120,7 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	sampled := samplingPriority > 0
 
 	// Short-circuit and return without counting the trace in the sampling rate logic
-	// if its value has not been set automaticallt by the client lib.
+	// if its value has not been set automatically by the client lib.
 	// The feedback loop should be scoped to the values it can act upon.
 	if samplingPriority < 0 {
 		return sampled

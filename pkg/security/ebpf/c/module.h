@@ -123,18 +123,8 @@ SYSCALL_KRETPROBE(init_module) {
     return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx));
 }
 
-SEC("tracepoint/syscalls/sys_exit_init_module")
-int tracepoint_syscalls_sys_exit_init_module(struct tracepoint_syscalls_sys_exit_t *args) {
-    return trace_init_module_ret(args, (int)args->ret);
-}
-
 SYSCALL_KRETPROBE(finit_module) {
     return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx));
-}
-
-SEC("tracepoint/syscalls/sys_exit_finit_module")
-int tracepoint_syscalls_sys_exit_finit_module(struct tracepoint_syscalls_sys_exit_t *args) {
-    return trace_init_module_ret(args, (int)args->ret);
 }
 
 struct delete_module_event_t {
@@ -188,9 +178,14 @@ SYSCALL_KRETPROBE(delete_module) {
     return trace_delete_module_ret(ctx, (int)PT_REGS_RC(ctx));
 }
 
-SEC("tracepoint/syscalls/sys_exit_delete_module")
-int tracepoint_syscalls_sys_exit_delete_module(struct tracepoint_syscalls_sys_exit_t *args) {
-    return trace_delete_module_ret(args, (int)args->ret);
+SEC("tracepoint/handle_sys_init_module_exit")
+int tracepoint_handle_sys_init_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return trace_init_module_ret(args, args->ret);
+}
+
+SEC("tracepoint/handle_sys_delete_module_exit")
+int tracepoint_handle_sys_delete_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return trace_delete_module_ret(args, args->ret);
 }
 
 #endif

@@ -104,8 +104,10 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 }
 ```
 
-If the available subcommands depend on build flags, move the creation of the subcommand factories to the `subcommands` package and create the slice there using source files with `// +build` directives.
-See `cmd/agent/subcommands` for an example.
+If the available subcommands depend on build flags, move the creation of the subcommand factories to the
+`subcommands/<command>` package and create the slice there using source files with `// +build` directives. Your
+factory can return `nil` if your command is not compatible with the current build flag. In all cases, the subcommands
+build logic should be constrained to its package. See `cmd/agent/subcommands/jmx/command_nojmx.go` for an example.
 
 ## Apps
 

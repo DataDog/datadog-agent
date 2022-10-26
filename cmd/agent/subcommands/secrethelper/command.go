@@ -13,11 +13,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/secrets"
+	"github.com/DataDog/datadog-agent/cmd/secrethelper"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	// TODO: move to cmd/common/secrethelper?
-	return []*cobra.Command{secrets.SecretHelperCmd}
+	return secrethelper.Commands()
 }

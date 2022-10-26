@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -30,8 +29,7 @@ var (
 
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
-	rateLimiter *rate.Limiter
-	adm         *ActivityDumpManager
+	adm *ActivityDumpManager
 
 	// eBPF maps
 	activityDumpConfigDefaults *ebpf.Map
@@ -48,8 +46,6 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	}
 
 	return &ActivityDumpLoadController{
-		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
-		rateLimiter:                rate.NewLimiter(rate.Every(adm.probe.config.ActivityDumpCgroupDumpTimeout), 1),
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
 		adm:                        adm,
 	}, nil
@@ -69,15 +65,6 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	defaults.WaitListTimestampRaw = uint64(lc.adm.probe.config.ActivityDumpCgroupWaitListTimeout)
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
-	}
-	return nil
-}
-
-// reduceConfig reduces the configuration of the load controller.
-// nolint: unused
-func (lc *ActivityDumpLoadController) reduceConfig() error {
-	if !lc.rateLimiter.Allow() {
-		return nil
 	}
 	return nil
 }
