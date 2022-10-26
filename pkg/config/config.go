@@ -282,6 +282,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnv("remote_configuration.rc_dd_url")
 	config.BindEnvAndSetDefault("remote_configuration.rc_no_tls", false)
+	config.BindEnvAndSetDefault("remote_configuration.rc_no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnv("remote_configuration.refresh_interval")
