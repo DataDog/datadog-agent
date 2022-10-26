@@ -13,6 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 )
 
-func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return nil
 }
