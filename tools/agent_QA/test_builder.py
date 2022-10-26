@@ -6,7 +6,7 @@ This is made of of 3 parts:
  - Suites
 
 Suites are made up of a collection of test cases and can take a configuration that is
-passed into each test. 
+passed into each test.
 """
 
 from enum import Enum
@@ -36,7 +36,8 @@ class Suite:
         self.tests = tests
 
     def build(self, renderDelegate):
-        for t in self.tests:
+        for test in self.tests:
+            t = test()
             renderDelegate(t.name, t.render(self.config))
 
 
