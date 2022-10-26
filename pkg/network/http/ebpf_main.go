@@ -273,7 +273,7 @@ func (e *ebpfProgram) Close() error {
 
 func (e *ebpfProgram) setupMapCleaner() {
 	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
+	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(transaction.EbpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
