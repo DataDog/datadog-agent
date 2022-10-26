@@ -20,7 +20,13 @@ import (
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
+func setupConfig(
+	confFilePath string,
+	configName string,
+	withoutSecrets bool,
+	failOnMissingFile bool,
+	useDefaultConfigPath bool,
+	defaultConfPath string) (*config.Warnings, error) {
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
 	}
@@ -34,7 +40,13 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}
-	config.Datadog.AddConfigPath(common.DefaultConfPath)
+	if useDefaultConfigPath {
+		if len(defaultConfPath) == 0 {
+			defaultConfPath = common.DefaultConfPath
+		}
+		config.Datadog.AddConfigPath(defaultConfPath)
+	}
+
 	// load the configuration
 	var err error
 	var warnings *config.Warnings
