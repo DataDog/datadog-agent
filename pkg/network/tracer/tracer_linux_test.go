@@ -48,6 +48,13 @@ import (
 	vnetns "github.com/vishvananda/netns"
 )
 
+func init() {
+	unix.Setrlimit(unix.RLIMIT_NOFILE, &unix.Rlimit{
+		Cur: 4096,
+		Max: 4096,
+	})
+}
+
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
