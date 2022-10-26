@@ -1114,3 +1114,17 @@ func TestPrometheusScrapeChecksTransformer(t *testing.T) {
 
 	assert.EqualValues(t, PrometheusScrapeChecksTransformer(input), expected)
 }
+
+func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
+	// If use_podman_logs is true and docker_path_override is set, the config should return an error
+	datadogYaml := `
+logs_config:
+  use_podman_logs: true
+  docker_path_override: "/custom/path"
+`
+
+	config := setupConfFromYAML(datadogYaml)
+	err := checkConflictingOptions(config)
+
+	assert.NotNil(t, err)
+}
