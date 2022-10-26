@@ -13,10 +13,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 	"math"
@@ -32,28 +28,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	vnetns "github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	vnetns "github.com/vishvananda/netns"
 )
-
-func init() {
-	unix.Setrlimit(unix.RLIMIT_NOFILE, &unix.Rlimit{
-		Cur: 4096,
-		Max: 4096,
-	})
-}
 
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
