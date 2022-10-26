@@ -1,5 +1,5 @@
-#ifndef __SKB_H
-#define __SKB_H
+#ifndef __SKB_PREBUILT_H
+#define __SKB_PREBUILT_H
 
 #include <linux/skbuff.h>
 #include <uapi/linux/in.h>
@@ -14,16 +14,29 @@
 #include "bpf_builtins.h"
 #include "ipv6.h"
 
+static __always_inline __u64 offset_sk_buff_head() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_sk_buff_head", val);
+     return val;
+}
+
+static __always_inline __u64 offset_sk_buff_transport_header() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_sk_buff_transport_header", val);
+     return val;
+}
+
 // returns the data length of the skb or a negative value in case of an error
-static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
+// duplication of sk_buff_to_tuple from `runtime/skb.h` but with offset guessing.
+static __always_inline int sk_buff_to_tuple(void *skb, conn_tuple_t *tup) {
     unsigned char *head = NULL;
-    int ret = bpf_probe_read_kernel_with_telemetry(&head, sizeof(head), &skb->head);
+    int ret = bpf_probe_read_kernel_with_telemetry(&head, sizeof(head), skb + offset_sk_buff_head());
     if (ret || !head) {
         log_debug("ERR reading head\n");
         return ret;
     }
     u16 net_head = 0;
-    ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), &skb->network_header);
+    ret = bpf_probe_read_kernel_with_telemetry(&net_head, sizeof(net_head), skb + offset_sk_buff_transport_header() + 2);
     if (ret) {
         log_debug("ERR reading network_header\n");
         return ret;
@@ -54,9 +67,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         trans_len = iph.tot_len - (iph.ihl * 4);
         bpf_probe_read_kernel_with_telemetry(&tup->saddr_l, sizeof(__be32), &iph.saddr);
         bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
-    }
-#ifdef FEATURE_IPV6_ENABLED
-    else if (iph.version == 6) {
+    } else if (is_ipv6_enabled() && iph.version == 6) {
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
         ret = bpf_probe_read_kernel_with_telemetry(&ip6h, sizeof(ip6h), (struct ipv6hdr *)(head + net_head));
@@ -80,15 +91,13 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         trans_len = bpf_ntohs(ip6h.payload_len) - sizeof(struct ipv6hdr);
         read_in6_addr(&tup->saddr_h, &tup->saddr_l, &ip6h.saddr);
         read_in6_addr(&tup->daddr_h, &tup->daddr_l, &ip6h.daddr);
-    }
-#endif
-    else {
+    } else {
         log_debug("unknown IP version: %d\n", iph.version);
         return 0;
     }
 
     u16 trans_head = 0;
-    ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), &skb->transport_header);
+    ret = bpf_probe_read_kernel_with_telemetry(&trans_head, sizeof(trans_head), skb + offset_sk_buff_transport_header());
     if (ret) {
         log_debug("ERR reading trans_head\n");
         return ret;

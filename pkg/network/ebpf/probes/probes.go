@@ -27,6 +27,13 @@ const (
 	// TCPv6ConnectReturn traces the return value for the v6 connect() system call
 	TCPv6ConnectReturn ProbeName = "kretprobe/tcp_v6_connect"
 
+	// ProtocolClassifierSocketFilter runs a classifier algorithm as a socket filer
+	ProtocolClassifierSocketFilter ProbeName = "socket/classifier"
+
+	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
+	// belongs (but hidden) for it.
+	NetDevQueue ProbeName = "tracepoint/net/net_dev_queue"
+
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeName = "kprobe/tcp_sendmsg"
 

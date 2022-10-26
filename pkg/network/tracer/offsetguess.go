@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
@@ -79,7 +80,10 @@ var whatString = map[netebpf.GuessWhat]string{
 	netebpf.GuessSPortFl6: "source port flowi6",
 	netebpf.GuessDPortFl6: "destination port flowi6",
 
-	netebpf.GuessSocketSK: "sk field on struct socket",
+	netebpf.GuessSocketSK:              "sk field on struct socket",
+	netebpf.GuessSKBuffSock:            "sk field on struct sk_buff",
+	netebpf.GuessSKBuffTransportHeader: "transport header field on struct sk_buff",
+	netebpf.GuessSKBuffHead:            "head field on struct sk_buff",
 }
 
 const (
@@ -129,6 +133,7 @@ var offsetProbes = map[probes.ProbeName]string{
 	probes.IP6MakeSkb:         "kprobe__ip6_make_skb",
 	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
+	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
 }
 
 func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
@@ -154,6 +159,7 @@ func newOffsetManager() *manager.Manager {
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
+			{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 		},
 	}
 }
@@ -265,6 +271,9 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
+	if kprobe.ClassificationSupported(c) {
+		enableProbe(p, probes.NetDevQueue)
+	}
 
 	if c.CollectIPv6Conns {
 		enableProbe(p, probes.TCPv6Connect)
@@ -366,7 +375,7 @@ func getIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, expected *fieldValues, maxRetries *int, threshold uint64) error {
+func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, expected *fieldValues, maxRetries *int, threshold uint64, protocolClassificationSupported bool) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
@@ -540,11 +549,37 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 
 	case netebpf.GuessSocketSK:
 		if status.Sport_via_sk == htons(expected.sport) && status.Dport_via_sk == htons(expected.dport) {
-			logAndAdvance(status, status.Offset_socket_sk, netebpf.GuessDAddrIPv6)
+			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
+			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
+			// where `struct sk_buff` have changed, and it does not match our current guessing.
+			next := netebpf.GuessSKBuffSock
+			if !protocolClassificationSupported {
+				next = netebpf.GuessDAddrIPv6
+			}
+			logAndAdvance(status, status.Offset_socket_sk, next)
 			break
 		}
 		status.Offset_socket_sk++
-
+	case netebpf.GuessSKBuffSock:
+		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
+			logAndAdvance(status, status.Offset_sk_buff_sock, netebpf.GuessSKBuffTransportHeader)
+			break
+		}
+		status.Offset_sk_buff_sock++
+	case netebpf.GuessSKBuffTransportHeader:
+		networkDiffFromMac := status.Network_header - status.Mac_header
+		transportDiffFromNetwork := status.Transport_header - status.Network_header
+		if networkDiffFromMac == 14 && transportDiffFromNetwork == 20 {
+			logAndAdvance(status, status.Offset_sk_buff_transport_header, netebpf.GuessSKBuffHead)
+			break
+		}
+		status.Offset_sk_buff_transport_header++
+	case netebpf.GuessSKBuffHead:
+		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
+			logAndAdvance(status, status.Offset_sk_buff_head, netebpf.GuessDAddrIPv6)
+			break
+		}
+		status.Offset_sk_buff_head++
 	case netebpf.GuessDAddrIPv6:
 		if compareIPv6(status.Daddr_ipv6, expected.daddrIPv6) {
 			logAndAdvance(status, status.Offset_rtt, netebpf.GuessNotApplicable)
@@ -666,13 +701,14 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		return nil, errors.Wrap(err, "error retrieving expected value")
 	}
 
+	protocolClassificationSupported := kprobe.ClassificationSupported(cfg)
 	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for netebpf.TracerState(status.State) != netebpf.StateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return nil, err
 		}
 
-		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, threshold); err != nil {
+		if err := checkAndUpdateCurrentOffset(mp, status, expected, &maxRetries, threshold, protocolClassificationSupported); err != nil {
 			return nil, err
 		}
 
@@ -683,7 +719,8 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 			status.Offset_sport >= thresholdInetSock || status.Offset_dport >= threshold ||
 			status.Offset_netns >= threshold || status.Offset_family >= threshold ||
 			status.Offset_daddr_ipv6 >= threshold || status.Offset_rtt >= thresholdInetSock ||
-			status.Offset_socket_sk >= threshold {
+			status.Offset_socket_sk >= threshold || status.Offset_sk_buff_sock >= threshold ||
+			status.Offset_sk_buff_transport_header >= threshold || status.Offset_sk_buff_head >= threshold {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(status.What)])
 		}
 	}
@@ -715,6 +752,9 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 		{Name: "offset_dport_fl6", Value: status.Offset_dport_fl6},
 		{Name: "fl6_offsets", Value: uint64(status.Fl6_offsets)},
 		{Name: "offset_socket_sk", Value: status.Offset_socket_sk},
+		{Name: "offset_sk_buff_sock", Value: status.Offset_sk_buff_sock},
+		{Name: "offset_sk_buff_transport_header", Value: status.Offset_sk_buff_transport_header},
+		{Name: "offset_sk_buff_head", Value: status.Offset_sk_buff_head},
 	}
 }
 
@@ -802,7 +842,10 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessDAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSPortFl4 ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 {
+		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
 		payload := []byte("test")
 		_, err := e.udpConn.Write(payload)
 
