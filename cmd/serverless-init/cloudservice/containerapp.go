@@ -14,6 +14,8 @@ const (
 	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
 
 	ContainerAppDNSSuffix = "CONTAINER_APP_ENV_DNS_SUFFIX"
+
+	ContainerAppRevision = "CONTAINER_APP_REVISION"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -24,9 +26,12 @@ func (c *ContainerApp) GetTags() map[string]string {
 	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
 	region := appDNSSuffixTokens[len(appDNSSuffixTokens)-3]
 
+	revision := os.Getenv(ContainerAppRevision)
+
 	return map[string]string{
 		"app_name": appName,
 		"region":   region,
+		"revision": revision,
 	}
 }
 
