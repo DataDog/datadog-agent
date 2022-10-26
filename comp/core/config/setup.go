@@ -94,7 +94,7 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 			continue
 		}
 		if !loadedConfiguration {
-			w, err := setupConfig(configurationFilename, "", false, true, false, "")
+			w, err := setupConfig(configurationFilename, "", false, true, true, "")
 			if err != nil {
 				if userDefined {
 					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
