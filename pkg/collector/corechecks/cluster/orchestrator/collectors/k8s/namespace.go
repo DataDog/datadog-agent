@@ -41,7 +41,7 @@ func NewNamespaceCollector() *NamespaceCollector {
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
-			IsStable:         false,
+			IsStable:         true,
 			Name:             "namespaces",
 			NodeType:         orchestrator.K8sNamespace,
 			Version:          "v1",

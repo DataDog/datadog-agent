@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add ``Namespace`` collection in the orchestrator check.
+    Add ``Namespace`` collection in the orchestrator check and enable it by default.
