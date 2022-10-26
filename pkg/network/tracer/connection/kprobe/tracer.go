@@ -286,6 +286,9 @@ func (t *kprobeTracer) Stop() {
 	t.closeConsumer.Stop()
 	if t.closeProtocolClassifierSocketFilterFn != nil {
 		t.closeProtocolClassifierSocketFilterFn()
+		// The stop can be called multiple times, by setting the field to nil we ensure it won't close the socket filter
+		// twice (which will lead to a panic).
+		t.closeProtocolClassifierSocketFilterFn = nil
 	}
 }
 
