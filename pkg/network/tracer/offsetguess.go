@@ -903,9 +903,7 @@ func (e *eventGenerator) Close() {
 		e.conn.Close()
 	}
 
-	if e.listener != nil {
-		_ = e.listener.Close()
-	}
+	_ = e.listener.Close()
 
 	if e.udpConn != nil {
 		_ = e.udpConn.Close()
