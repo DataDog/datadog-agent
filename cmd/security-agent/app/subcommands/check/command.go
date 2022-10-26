@@ -48,14 +48,14 @@ func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	bp := core.BundleParams{
 		SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
 		ConfigLoadSecurityAgent:      true,
-	}.LogForOneShot(common.LoggerName, "off", true)
+	}.LogForOneShot(common.LoggerName, "info", true)
 
 	return Commands(bp)
 }
 
 // Commands returns a cobra command to run security agent checks
 func Commands(bundleParams core.BundleParams) []*cobra.Command {
-	checkArgs := checkCliParams{}
+	checkArgs := &checkCliParams{}
 
 	cmd := &cobra.Command{
 		Use:   "check",
