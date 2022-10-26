@@ -238,6 +238,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 			log.Debugf("unable to eval symlink for %s: %s", rd, err)
 			continue
 		}
+		log.Debugf("resolved header dir %s to %s", rd, d)
 		if _, ok := valid[d]; ok {
 			continue
 		}
