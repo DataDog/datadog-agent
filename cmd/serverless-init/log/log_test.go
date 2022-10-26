@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -99,23 +98,19 @@ func TestWriteDisabled(t *testing.T) {
 }
 
 func TestCreateConfig(t *testing.T) {
-	metadata := &helper.GCPMetadata{}
-	config := CreateConfig(metadata)
+	config := CreateConfig("fake-origin")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
-	assert.Equal(t, "cloudrun", config.source)
+	assert.Equal(t, "fake-origin", config.source)
 	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
-	assert.Equal(t, metadata, config.Metadata)
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
 	os.Setenv("DD_SOURCE", "python")
 	defer os.Unsetenv("DD_SOURCE")
-	metadata := &helper.GCPMetadata{}
-	config := CreateConfig(metadata)
+	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
 	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
-	assert.Equal(t, metadata, config.Metadata)
 }
 
 func TestIsEnabledTrue(t *testing.T) {

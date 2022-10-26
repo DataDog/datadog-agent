@@ -7,8 +7,7 @@ type CloudRun struct{}
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	metadata := helper.GetMetaData(helper.GetDefaultConfig())
-
+	return helper.GetMetaData(helper.GetDefaultConfig()).TagMap()
 }
 
 // GetOrigin returns the `origin` attribute type for the given

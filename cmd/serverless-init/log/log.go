@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -23,7 +22,6 @@ import (
 
 const (
 	defaultFlushTimeout = 5 * time.Second
-	defaultSource       = "cloudrun"
 	loggerName          = "DD_LOG_AGENT"
 	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
@@ -34,7 +32,6 @@ const (
 // Config holds the log configuration
 type Config struct {
 	FlushTimeout time.Duration
-	Metadata     *helper.GCPMetadata
 	channel      chan *logConfig.ChannelMessage
 	source       string
 	loggerName   config.LoggerName
@@ -49,14 +46,13 @@ type CustomWriter struct {
 }
 
 // CreateConfig builds and returns a log config
-func CreateConfig(metadata *helper.GCPMetadata) *Config {
+func CreateConfig(origin string) *Config {
 	var source string
 	if source = strings.ToLower(os.Getenv(sourceEnvVar)); source == "" {
-		source = defaultSource
+		source = origin
 	}
 	return &Config{
 		FlushTimeout: defaultFlushTimeout,
-		Metadata:     metadata,
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
 		loggerName:   loggerName,

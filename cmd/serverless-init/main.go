@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/initcontainer"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
@@ -36,8 +35,7 @@ func main() {
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
 
-	metadata := helper.GetMetaData(helper.GetDefaultConfig())
-	logConfig := log.CreateConfig(metadata)
+	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags, origin)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
