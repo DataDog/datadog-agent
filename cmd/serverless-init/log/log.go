@@ -72,7 +72,7 @@ func Write(conf *Config, msgToSend []byte, isError bool) {
 }
 
 // SetupLog creates the log agent and sets the base tags
-func SetupLog(conf *Config, tags map[string]string, origin string) {
+func SetupLog(conf *Config, tags map[string]string) {
 	if err := config.SetupLogger(
 		conf.loggerName,
 		"error", // will be re-set later with the value from the env var
@@ -91,7 +91,7 @@ func SetupLog(conf *Config, tags map[string]string, origin string) {
 		}
 	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
-	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags, origin))
+	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags))
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {

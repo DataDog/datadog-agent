@@ -34,33 +34,34 @@ func main() {
 	cloudService := cloudservice.GetCloudServiceType()
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
+	prefix := cloudService.GetPrefix()
 
 	logConfig := log.CreateConfig(origin)
-	log.SetupLog(logConfig, tags, origin)
+	log.SetupLog(logConfig, tags)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
-	go setupTraceAgent(traceAgent, tags, origin)
+	go setupTraceAgent(traceAgent, tags)
 
-	metricAgent := setupMetricAgent(tags, origin)
-	metric.AddColdStartMetric(metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metricAgent := setupMetricAgent(tags)
+	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	go metricAgent.Flush()
-	initcontainer.Run(logConfig, metricAgent, traceAgent, os.Args[1:])
+	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 }
 
-func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string, origin string) {
+func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
 	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
-	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags, origin))
+	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
 	}
 }
 
-func setupMetricAgent(tags map[string]string, origin string) *metrics.ServerlessMetricAgent {
+func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	delete(tags, "container_id")
-	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags, origin)
+	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent

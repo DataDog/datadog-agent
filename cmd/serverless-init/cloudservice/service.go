@@ -9,6 +9,12 @@ type CloudService interface {
 	// GetOrigin returns the value that will be used for the `origin` attribute for
 	// all logs, traces, and metrics.
 	GetOrigin() string
+
+	// GetPrefix returns the prefix that we're prefixing all
+	// metrics with. For example, for cloudrun, we're using
+	// gcp.run.{metric_name}. In this example, `gcp.run` is the
+	// prefix.
+	GetPrefix() string
 }
 
 func GetCloudServiceType() CloudService {
