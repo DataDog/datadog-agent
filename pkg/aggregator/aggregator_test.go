@@ -114,22 +114,26 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 	agg.deregisterSender(checkID1)
 
-	for tries := 100; tries > 0 && !agg.IsInputQueueEmpty(); tries-- {
-		time.Sleep(100 * time.Millisecond)
+	for tries := 100; tries > 0; tries-- {
+		agg.mu.Lock()
+		ok := agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
+		agg.mu.Unlock()
+		if !ok && tries > 1 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		require.True(t, ok)
 	}
-
-	require.Len(t, agg.checkSamplers, 2)
-
-	assert.True(t, agg.checkSamplers[checkID1].deregistered)
-	assert.False(t, agg.checkSamplers[checkID2].deregistered)
 
 	agg.Flush(testNewFlushTrigger(time.Now(), false))
 
+	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
 	_, ok := agg.checkSamplers[checkID1]
 	assert.False(t, ok)
 	_, ok = agg.checkSamplers[checkID2]
 	assert.True(t, ok)
+	agg.mu.Unlock()
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
