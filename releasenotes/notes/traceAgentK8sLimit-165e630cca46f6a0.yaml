@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Trace-Agent will now set internal CPU rate limiter based on detected Kubernetes CPU Limit. To continue ONLY using the K8S cpu limit you must set `apm_config.max_cpu_percent` or `DD_APM_MAX_CPU_PERCENT` to 0.
+    APM: Trace-Agent now sets the internal CPU rate limiter based on the detected Kubernetes CPU limit. To continue using only the K8S CPU limit, you must set `apm_config.max_cpu_percent` or `DD_APM_MAX_CPU_PERCENT` to 0.
