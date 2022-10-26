@@ -5,8 +5,7 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
-
-static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
+#include "sock-defines.h"
 
 static __always_inline u32 get_sk_cookie(struct sock *sk) {
     u64 t = bpf_ktime_get_ns();
@@ -145,5 +144,19 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
 
     return 0;
 }
+
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
+    u32 rtt = 0;
+    u32 rtt_var = 0;
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), sock_rtt(sk));
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), sock_rtt_var(sk));
+
+    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    if (state > 0) {
+        stats.state_transitions = (1 << state);
+    }
+    update_tcp_stats(t, stats);
+}
+
 
 #endif // __TRACER_STATS_H
