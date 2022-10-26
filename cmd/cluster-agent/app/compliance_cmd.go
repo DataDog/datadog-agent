@@ -23,10 +23,9 @@ var (
 )
 
 func init() {
-	// TODO: this is not yet correct, the config name is not set correctly
 	bundleParams := core.BundleParams{
-		ConfFilePath:      confPath,
-		ConfigLoadSecrets: false,
+		ConfFilePath: confPath,
+		ConfigName:   "datadog-cluster",
 	}.LogForOneShot(string(loggerName), "off", true)
 
 	complianceCmd.AddCommand(check.Commands(bundleParams)...)
