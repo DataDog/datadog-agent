@@ -165,7 +165,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
 
   # If the destory operation fails, it is not safe to continue running kitchen
   # so we just exit with an infrastructure failure message.
-  if [ "$destroy_result" -eq 0 ]; then
+  if [ "$destroy_result" -ne 0 ]; then
     echo "Failure while destroying kitchen infrastructure, skipping retries"
     break
   fi
