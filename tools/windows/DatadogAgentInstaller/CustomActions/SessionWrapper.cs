@@ -32,9 +32,9 @@ namespace Datadog.CustomActions
         public void Log(string msg, string memberName, string filePath, int lineNumber)
         {
 #if DEBUG
-            _session.Log($"[{DateTime.UtcNow:g} - {memberName} - {filePath}:line {lineNumber}] {msg}");
+            _session.Log($"[{DateTime.Now:g} - {memberName} - {filePath}:line {lineNumber}] {msg}");
 #else
-            _session.Log($"[{DateTime.UtcNow:g} - {memberName}] {msg}");
+            _session.Log($"[{DateTime.Now:g} - {memberName}] {msg}");
 #endif
         }
 
