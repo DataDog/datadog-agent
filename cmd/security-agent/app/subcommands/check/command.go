@@ -11,7 +11,6 @@ package check
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
@@ -24,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -183,71 +180,5 @@ func runCheck(log log.Component, config config.Component, checkArgs *checkCliPar
 		return err
 	}
 
-	return nil
-}
-
-// RunCheckReporter represents a reporter used for reporting RunChecks
-type RunCheckReporter struct {
-	reporter        event.Reporter
-	events          map[string][]*event.Event
-	dumpReportsPath string
-}
-
-// NewCheckReporter creates a new RunCheckReporter
-func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
-	r := &RunCheckReporter{}
-
-	if report {
-		endpoints, dstContext, err := newLogContextCompliance()
-		if err != nil {
-			return nil, err
-		}
-
-		runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-		reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, dstContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to set up compliance log reporter: %w", err)
-		}
-
-		r.reporter = reporter
-	}
-
-	r.events = make(map[string][]*event.Event)
-	r.dumpReportsPath = dumpReportsPath
-
-	return r, nil
-}
-
-// Report reports the event
-func (r *RunCheckReporter) Report(event *event.Event) {
-	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
-
-	eventJSON, err := checks.PrettyPrintJSON(event, "  ")
-	if err != nil {
-		log.Errorf("Failed to marshal rule event: %v", err)
-		return
-	}
-
-	r.ReportRaw(eventJSON, "")
-
-	if r.reporter != nil {
-		r.reporter.Report(event)
-	}
-}
-
-// ReportRaw reports the raw content
-func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
-	fmt.Println(string(content))
-}
-
-func (r *RunCheckReporter) dumpReports() error {
-	if r.dumpReportsPath != "" {
-		reportsJSON, err := checks.PrettyPrintJSON(r.events, "\t")
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(r.dumpReportsPath, reportsJSON, 0644)
-	}
 	return nil
 }
