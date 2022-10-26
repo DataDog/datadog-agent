@@ -45,15 +45,15 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.32
 	github.com/DataDog/btf-internals v0.0.0-20220424171854-ebe6bce9afb0
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/quantile v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/trace v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/quantile v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/trace v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.7
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.0.0-20221003133413-0e997fad91c4
@@ -182,10 +182,10 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
+	golang.org/x/net v0.1.1-0.20221020164045-430a433969d0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec
-	golang.org/x/text v0.3.7
+	golang.org/x/sys v0.1.0
+	golang.org/x/text v0.4.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	golang.org/x/tools v0.1.12
 	gomodules.xyz/jsonpatch/v3 v3.0.1
@@ -393,7 +393,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
+	golang.org/x/term v0.1.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.75.0 // indirect
