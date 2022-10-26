@@ -134,30 +134,25 @@ struct tracepoint_module_module_load_t {
     int data_loc_modname;
 };
 
+// only loaded on rhel-7 based kernels
 SEC("tracepoint/module/module_load")
 int module_load(struct tracepoint_module_module_load_t *args) {
-    u64 tracepoint_module_load_sends_event;
-    LOAD_CONSTANT("tracepoint_module_load_sends_event", tracepoint_module_load_sends_event);
-    if (tracepoint_module_load_sends_event) {
-        // check if the tracepoint is hit by a kworker
-        u32 pid = bpf_get_current_pid_tgid();
-        u32 *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
-        if (!is_kworker) {
-            return 0;
-        }
-
-        struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
-        if (!syscall) {
-            return 0;
-        }
-
-        unsigned short modname_offset = args->data_loc_modname & 0xFFFF;
-        char *modname = (char *)args + modname_offset;
-
-        return trace_init_module_ret(args, 0, modname);
+    // check if the tracepoint is hit by a kworker
+    u32 pid = bpf_get_current_pid_tgid();
+    u32 *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
+    if (!is_kworker) {
+        return 0;
     }
 
-    return 0;
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+    if (!syscall) {
+        return 0;
+    }
+
+    unsigned short modname_offset = args->data_loc_modname & 0xFFFF;
+    char *modname = (char *)args + modname_offset;
+
+    return trace_init_module_ret(args, 0, modname);
 }
 
 SYSCALL_KRETPROBE(init_module) {

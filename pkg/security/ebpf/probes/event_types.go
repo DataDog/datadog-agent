@@ -11,6 +11,7 @@ package probes
 import (
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -540,9 +541,6 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "finit_module"}, EntryAndExit),
 				},
-				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/module/module_load", EBPFFuncName: "module_load"}},
-				}},
 			},
 
 			// List of probes required to capture kernel unload_module events
@@ -592,5 +590,13 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			},
 		}
 	}
+
+	kv, err := kernel.NewKernelVersion()
+	if err == nil && kv.IsRH7Kernel() { // the condition may need to be fine-tuned based on the kernel version
+		selectorsPerEventTypeStore["load_module"] = append(selectorsPerEventTypeStore["load_module"], &manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/module/module_load", EBPFFuncName: "module_load"}},
+		}})
+	}
+
 	return selectorsPerEventTypeStore
 }
