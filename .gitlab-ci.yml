@@ -1,4 +1,32 @@
-build-job:
-  stage: build
+kitchen_test:
+  stage: test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+  retry: 1
+  variables:
+    #Do not change this - must be the repository name for Kubernetes runners to work
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
+    DATADOG_AGENT_BUILDIMAGES: v10569882-6a6bd89
+    AZURE_LOCATION: "North Central US"
+    KITCHEN_ARCH: x86_64
+    KITCHEN_PROVIDER: azure
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
+    DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
+    AGENT_MAJOR_VERSION: 7
+    AGENT_FLAVOR: "datadog-agent"
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=pipelines/A7/10731219
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
   script:
-    - echo "Hello, $GITLAB_USER_LOGIN!"
+    - export WINDOWS_AGENT_FILE=datadog-agent-$(inv agent.version --url-safe --major-version 7)-2-x86_64
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
+    - echo $WINDOWS_AGENT_FILE
+    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
