@@ -179,4 +179,5 @@ done
 
 # if we ran out of attempts because of infrastructure/networking issues, exit with 1
 echo "Ran out of retry attempts"
+echo "ERROR: The kitchen tests failed due to infrastructure failures."
 exit 1
