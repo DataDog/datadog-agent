@@ -8,7 +8,7 @@ static __inline int32_t read_big_endian_int32(const char* buf) {
 //  return bpf_ntohl(length);
     int32_t val;
     bpf_probe_read_kernel(&val, 4, (void*)buf);
-    return bpf_ntohs(val);
+    return bpf_ntohl(val);
 }
 
 //#define MINIMUM_API_VERSION_FOR_CLIENT_ID 1
@@ -34,7 +34,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
 //    }
 
     if (request_fragment == NULL) {
-        log_debug("request_fragment == NULL");
+//        log_debug("request_fragment == NULL");
         return false;
     }
 
@@ -49,7 +49,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
 //    if (message_size < 0 || buf_size != (__u32)message_size) {
     if (message_size <= 0) {
 //        log_debug("message_size < 0 || buf_size != (__u32)message_size");
-        //log_debug("message_size <= 0");
+//        log_debug("message_size <= 0");
         return false;
     }
 
@@ -146,7 +146,7 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
     const int16_t topic_name_size = read_big_endian_int16(request_fragment + kafka_transaction->current_offset_in_request_fragment);
 //    log_debug("topic_name_size: %d", topic_name_size);
         if (topic_name_size <= 0) {
-        log_debug("topic_name_size <= 0");
+//        log_debug("topic_name_size <= 0");
         return false;
     }
     kafka_transaction->current_offset_in_request_fragment += 2;
@@ -160,9 +160,11 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
     if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }
+    uint16_t topic_name_size_final = topic_name_size < sizeof(kafka_transaction->topic_name) ? topic_name_size : sizeof(kafka_transaction->topic_name);
     bpf_probe_read_kernel_with_telemetry(
         kafka_transaction->topic_name,
-        topic_name_size,
+//        topic_name_size,
+        topic_name_size_final,
         (void*)(request_fragment + kafka_transaction->current_offset_in_request_fragment));
     log_debug("topic_name: %s", request_fragment + kafka_transaction->current_offset_in_request_fragment);
 

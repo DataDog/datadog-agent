@@ -31,11 +31,11 @@ int socket__kafka_filter_entry(struct __sk_buff *skb) {
 SEC("socket/kafka_filter")
 //int socket__http_filter(struct __sk_buff* skb) {
 int socket__kafka_filter(struct __sk_buff* skb) {
-    //log_debug("In Kafka filter!");
+//    log_debug("In Kafka filter!");
     skb_info_t skb_info;
 //    http_transaction_t http;
     kafka_transaction_t kafka;
-    __builtin_memset(&kafka, 0, sizeof(kafka));
+    bpf_memset(&kafka, 0, sizeof(kafka));
 
     if (!read_conn_tuple_skb(skb, &skb_info, &kafka.tup)) {
         return 0;

@@ -196,16 +196,15 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
     if (kafka_transaction->tup.dport != 9092 && kafka_transaction->tup.sport != 9092) {
         return 0;
     }
-    //log_debug("Kafka port!");
+//    log_debug("Kafka port!");
 
 //    if (!is_kafka(buffer, buffer_size)) {
     if (!try_parse_request_header(kafka_transaction)) {
         //log_debug("Not a Kafka traffic");
         return 0;
     }
-    log_debug("Kafka request found!");
-
     try_parse_request(kafka_transaction);
+    log_debug("kafka_transaction->topic_name: %s", kafka_transaction->topic_name);
 
 //    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
 //    http_method_t method = HTTP_METHOD_UNKNOWN;

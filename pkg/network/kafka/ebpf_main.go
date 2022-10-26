@@ -12,6 +12,7 @@ import (
 	"fmt"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"golang.org/x/sys/unix"
 	"math"
 
@@ -223,6 +224,22 @@ func (e *ebpfProgram) Init() error {
 			//},
 		},
 		ConstantEditors: e.offsets,
+		VerifierOptions: ebpf.CollectionOptions{
+			Maps: ebpf.MapOptions{
+				PinPath: "",
+				LoadPinOptions: ebpf.LoadPinOptions{
+					ReadOnly:  false,
+					WriteOnly: false,
+					Flags:     0,
+				},
+			},
+			Programs: ebpf.ProgramOptions{
+				LogSize:     1024 * 1024 * 20,
+				LogDisabled: false,
+				KernelTypes: &btf.Spec{},
+			},
+			MapReplacements: nil,
+		},
 	}
 
 	for _, s := range e.subprograms {
