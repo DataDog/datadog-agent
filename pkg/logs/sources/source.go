@@ -60,7 +60,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
-		BytesRead:        status.NewCountInfo("Byte Read"),
+		BytesRead:        status.NewCountInfo("Bytes Read"),
 		info:             make(map[string]status.InfoProvider),
 		LatencyStats:     util.NewStatsTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
