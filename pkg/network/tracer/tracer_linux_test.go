@@ -1956,6 +1956,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		initTracerState(t, tr)
 		require.NoError(t, err)
 		done := make(chan struct{})
+		defer close(done)
 		server := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
 			input, err := r.ReadBytes(byte('\n'))
@@ -2017,7 +2018,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			}
 		}
 		for _, conn := range incomingConns {
-			t.Logf("Found incmoing connection %v", conn)
+			t.Logf("Found incoming connection %v", conn)
 			if conn.Protocol == expectedProtocol {
 				foundIncomingWithProtocol = true
 				break
