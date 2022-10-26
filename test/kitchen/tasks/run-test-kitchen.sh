@@ -157,7 +157,8 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   failing_test_suites=$(bundle exec kitchen list --no-log-overwrite --json | jq -cr "[ .[] | select( .last_error != null ) ] | map( .instance ) | .[]")
 
   # Then, destroy the kitchen machines
-  bundle exec kitchen destroy "$test_suites" --no-log-overwrite
+  # Do not fail on kitchen destroy, it breaks the infra failures filter
+  bundle exec kitchen destroy "$test_suites" --no-log-overwrite || true
 
   if [ "$result" -eq 0 ]; then
       # if kitchen test succeeded, exit with 0
