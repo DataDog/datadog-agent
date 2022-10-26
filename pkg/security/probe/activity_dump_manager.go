@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func areCGroupADsEnabled(c *config.Config) bool {
@@ -230,13 +229,12 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 }
 
 func (adm *ActivityDumpManager) prepareContextTags() {
-	var err error
-
 	// add hostname tag
-	adm.hostname, err = hostname.Get(context.TODO())
-	if err != nil {
-		adm.hostname = "unknown"
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
 	}
+	adm.hostname = hostname
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
