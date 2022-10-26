@@ -180,21 +180,11 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.log_file") {
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.env") {
-		c.DefaultEnv = coreconfig.Datadog.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", c.DefaultEnv)
-	} else if coreconfig.Datadog.IsSet("env") {
-		c.DefaultEnv = coreconfig.Datadog.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
-	} else {
-		for _, tag := range coreconfig.GetConfiguredTags(false) {
-			if strings.HasPrefix(tag, "env:") {
-				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
-				break
-			}
-		}
+
+	if env := coreconfig.GetTraceAgentDefaultEnv(); env != "" {
+		c.DefaultEnv = env
 	}
+
 	prevEnv := c.DefaultEnv
 	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {

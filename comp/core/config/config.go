@@ -34,6 +34,11 @@ type dependencies struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
+	if deps.Params.ConfigLoadSecurityAgent {
+		warnings, err := MergeConfigurationFiles("datadog", deps.Params.SecurityAgentConfigFilePaths, true)
+		return &cfg{warnings}, err
+	}
+
 	warnings, err := setupConfig(
 		deps.Params.ConfFilePath,
 		deps.Params.ConfigName,

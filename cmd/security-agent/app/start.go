@@ -9,16 +9,17 @@ import (
 	"context"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/spf13/cobra"
 )
 
 type startCliParams struct {
-	*GlobalParams
+	*common.GlobalParams
 
 	pidfilePath string
 }
 
-func StartCommands(globalParams *GlobalParams) []*cobra.Command {
+func StartCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	cliParams := startCliParams{
 		GlobalParams: globalParams,
 	}

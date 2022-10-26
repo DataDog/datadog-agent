@@ -9,8 +9,10 @@ package app
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 )
 
-func CheckCommands(globalParams *GlobalParams) []*cobra.Command {
+func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return nil
 }
