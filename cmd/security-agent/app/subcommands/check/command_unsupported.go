@@ -5,7 +5,7 @@
 
 //go:build windows || !kubeapiserver
 
-package app
+package check
 
 import (
 	"github.com/spf13/cobra"

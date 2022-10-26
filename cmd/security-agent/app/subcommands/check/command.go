@@ -6,7 +6,7 @@
 //go:build !windows && kubeapiserver
 // +build !windows,kubeapiserver
 
-package app
+package check
 
 import (
 	"context"
@@ -15,25 +15,26 @@ import (
 	"os"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 type checkCliParams struct {
-	*common.GlobalParams
-
 	args []string
 
 	framework         string
@@ -48,14 +49,21 @@ type checkCliParams struct {
 
 // TODO: fix this, this is currently a stub for the cluster-agent
 func CheckCmd() *cobra.Command {
-	return CheckCommands(&common.GlobalParams{})[0]
+	return Commands(core.BundleParams{})[0]
 }
 
-// CheckCommands returns a cobra command to run security agent checks
-func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	checkArgs := checkCliParams{
-		GlobalParams: globalParams,
-	}
+func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	bp := core.BundleParams{
+		SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+		ConfigLoadSecurityAgent:      true,
+	}.LogForOneShot(common.LoggerName, "off", true)
+
+	return Commands(bp)
+}
+
+// Commands returns a cobra command to run security agent checks
+func Commands(bundleParams core.BundleParams) []*cobra.Command {
+	checkArgs := checkCliParams{}
 
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -63,7 +71,11 @@ func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
-			return runCheck(&checkArgs)
+			return fxutil.OneShot(runCheck,
+				fx.Supply(checkArgs),
+				fx.Supply(bundleParams),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -79,12 +91,7 @@ func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func runCheck(checkArgs *checkCliParams) error {
-	err := configureLogger(checkArgs)
-	if err != nil {
-		return err
-	}
-
+func runCheck(log log.Component, config config.Component, checkArgs *checkCliParams) error {
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
@@ -108,7 +115,7 @@ func runCheck(checkArgs *checkCliParams) error {
 			checks.MayFail(checks.WithAudit()),
 		}...)
 
-		if config.IsKubernetes() {
+		if pkgconfig.IsKubernetes() {
 			nodeLabels, err := agent.WaitGetNodeLabels()
 			if err != nil {
 				log.Error(err)
@@ -130,7 +137,7 @@ func runCheck(checkArgs *checkCliParams) error {
 
 	options = append(options, checks.WithHostname(hname))
 
-	stopper = startstop.NewSerialStopper()
+	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
 	reporter, err := NewCheckReporter(stopper, checkArgs.report, checkArgs.dumpReports)
@@ -162,7 +169,7 @@ func runCheck(checkArgs *checkCliParams) error {
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
 	} else {
-		configDir := config.Datadog.GetString("compliance_config.dir")
+		configDir := config.GetString("compliance_config.dir")
 		err = agent.RunChecks(reporter, configDir, options...)
 	}
 
@@ -176,25 +183,6 @@ func runCheck(checkArgs *checkCliParams) error {
 		return err
 	}
 
-	return nil
-}
-
-func configureLogger(checkArgs *checkCliParams) error {
-	var (
-		logFormat = "%LEVEL | %Msg%n"
-		logLevel  = "info"
-	)
-	if checkArgs.verbose {
-		const logDateFormat = "2006-01-02 15:04:05 MST"
-		logFormat = fmt.Sprintf("%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat)
-		logLevel = "trace"
-	}
-	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.DebugLvl, logFormat)
-	if err != nil {
-		return err
-	}
-
-	log.SetupLogger(logger, logLevel)
 	return nil
 }
 
