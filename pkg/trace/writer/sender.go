@@ -104,7 +104,7 @@ type eventData struct {
 	// connectionFill specifies the percentage of allowed connections used.
 	// At 100% (1.0) the writer will become blocking.
 	connectionFill float64
-	// queueFill specifies how flul the queue is. It's a floating point number ranging
+	// queueFill specifies how full the queue is. It's a floating point number ranging
 	// between 0 (0%) and 1 (100%).
 	queueFill float64
 }
