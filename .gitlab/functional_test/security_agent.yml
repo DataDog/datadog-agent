@@ -36,7 +36,7 @@ kitchen_test_security_agent_x64:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-77"
         KITCHEN_CWS_PLATFORM: [host, docker]
-      - KITCHEN_PLATFORM: "rhel"
+      - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "rhel-85"
         KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "ubuntu"
