@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -43,7 +44,7 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(auth Auth) *HTTPClient {
+func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 	header := http.Header{
 		"Content-Type": []string{"application/x-protobuf"},
 		"DD-Api-Key":   []string{auth.ApiKey},
@@ -54,13 +55,19 @@ func NewHTTPClient(auth Auth) *HTTPClient {
 	httpClient := &http.Client{
 		Transport: httputils.CreateHTTPTransport(),
 	}
-
-	baseURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
+	baseRawURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
+	baseURL, err := url.Parse(baseRawURL)
+	if err != nil {
+		return nil, err
+	}
+	if baseURL.Scheme != "https" && !config.Datadog.GetBool("remote_configuration.rc_no_tls") {
+		return nil, fmt.Errorf("Remote Configuration URL %s is invalid as TLS is required by default. While it is not advised, the `remote_configuration.rc_no_tls` config option can be set to `true` to disable this protection.", baseRawURL)
+	}
 	return &HTTPClient{
 		client:  httpClient,
 		header:  header,
-		baseURL: baseURL,
-	}
+		baseURL: baseRawURL,
+	}, nil
 }
 
 // Fetch remote configuration
