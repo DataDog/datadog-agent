@@ -337,14 +337,14 @@ namespace Datadog.CustomActions
             try
             {
                 string yaml;
-                using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml")))
+                using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml.example")))
                 {
                     yaml = input.ReadToEnd();
                 }
 
                 yaml = ReplaceProperties(yaml, session);
 
-                using (var output = new StreamWriter("test.yaml"))
+                using (var output = new StreamWriter(Path.Combine(configFolder, "datadog.yaml.yaml")))
                 {
                     output.Write(yaml);
                 }
