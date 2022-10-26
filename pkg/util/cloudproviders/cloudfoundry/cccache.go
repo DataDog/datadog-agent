@@ -189,7 +189,7 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 
 	if !ok {
 		if !ccc.refreshCacheOnMiss {
-			return resource, fmt.Errorf("refreshCacheOnMiss is disabled, could not find resource '%s' with guid '%s' in cloud controller cache", resourceName, guid)
+			return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
 		}
 
 		ccc.RLock()
