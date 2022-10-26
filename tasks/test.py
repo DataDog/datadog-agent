@@ -138,9 +138,7 @@ def lint_flavor(
             continue
 
         with ctx.cd(module.full_path()):
-            golangci_lint(
-                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
-            )
+            golangci_lint(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
 
 
 def test_flavor(
