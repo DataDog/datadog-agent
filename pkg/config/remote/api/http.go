@@ -52,13 +52,17 @@ func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 	if auth.UseAppKey {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
+	transport := httputils.CreateHTTPTransport()
 	httpClient := &http.Client{
-		Transport: httputils.CreateHTTPTransport(),
+		Transport: transport,
 	}
 	baseRawURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
 	baseURL, err := url.Parse(baseRawURL)
 	if err != nil {
 		return nil, err
+	}
+	if transport.TLSClientConfig.InsecureSkipVerify && !config.Datadog.GetBool("remote_configuration.rc_skip_tls_validation") {
+		return nil, fmt.Errorf("Remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.rc_skip_tls_validation` config option can be set to `true` to disable this protection.")
 	}
 	if baseURL.Scheme != "https" && !config.Datadog.GetBool("remote_configuration.rc_no_tls") {
 		return nil, fmt.Errorf("Remote Configuration URL %s is invalid as TLS is required by default. While it is not advised, the `remote_configuration.rc_no_tls` config option can be set to `true` to disable this protection.", baseRawURL)
