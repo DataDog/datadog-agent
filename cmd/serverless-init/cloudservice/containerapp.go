@@ -1,18 +1,33 @@
 package cloudservice
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 // ContainerApp has helper functions for getting specific Azure Container App data
 type ContainerApp struct{}
 
-// ContainerAppNameEnvVar is the environment variable that is present when we're
-// running in Azure App Container.
-const ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
+const (
+	// ContainerAppNameEnvVar is the environment variable that is present when we're
+	// running in Azure App Container.
+	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
+
+	ContainerAppDNSSuffix = "CONTAINER_APP_ENV_DNS_SUFFIX"
+)
 
 // GetTags returns a map of Azure-related tags
 func (c *ContainerApp) GetTags() map[string]string {
-	// Not implemented
-	return nil
+	appName := os.Getenv(ContainerAppNameEnvVar)
+	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
+
+	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
+	region := appDNSSuffixTokens[len(appDNSSuffixTokens)-3]
+
+	return map[string]string{
+		"app_name": appName,
+		"region":   region,
+	}
 }
 
 // GetOrigin returns the `origin` attribute type for the given
