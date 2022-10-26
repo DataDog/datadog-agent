@@ -25,6 +25,7 @@ type CheckSampler struct {
 	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
+	deregistered    bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler

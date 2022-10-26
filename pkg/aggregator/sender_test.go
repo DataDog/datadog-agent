@@ -121,6 +121,8 @@ func TestDestroySender(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
+	go aggregatorInstance.run()
+	defer aggregatorInstance.Stop()
 
 	_, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
@@ -131,7 +133,23 @@ func TestDestroySender(t *testing.T) {
 
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
 	demux.DestroySender(checkID1)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+
+	for tries := 100; tries > 0 && !aggregatorInstance.IsInputQueueEmpty(); tries-- {
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
+
+	for tries := 100; tries > 0; tries-- {
+		ok := len(aggregatorInstance.checkSamplers) == 1
+		if !ok && tries > 1 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		assert.True(t, ok)
+
+	}
 }
 
 func TestGetAndSetSender(t *testing.T) {

@@ -412,12 +412,9 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 }
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
-	agg.mu.Lock()
-	if cs, ok := agg.checkSamplers[id]; ok {
-		cs.release()
-	}
-	delete(agg.checkSamplers, id)
-	agg.mu.Unlock()
+	// Use the same channel as metrics, so that the drop happens only
+	// after we handle all the metrics sent so far.
+	agg.checkItems <- &deregisterSampler{id}
 }
 
 func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
@@ -511,7 +508,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	for _, checkSampler := range agg.checkSamplers {
+	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {
 			seriesSink.Append(s)
@@ -519,6 +516,11 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 
 		for _, sk := range sketches {
 			sketchesSink.Append(sk)
+		}
+
+		if checkSampler.deregistered {
+			checkSampler.release()
+			delete(agg.checkSamplers, checkId)
 		}
 	}
 }
@@ -876,4 +878,42 @@ func (agg *BufferedAggregator) updateChecksTelemetry() {
 		t.VisitCheckMetrics(&sampler.metrics)
 	}
 	t.Flush()
+}
+
+// deregisterSampler is an item sent internally by the aggregator to
+// signal that the sender will no longer will be used for a given
+// check.ID.
+//
+// 1. A check is unscheduled while running.
+//
+// 2. Check sends metrics, sketches and eventually a commit, using the
+// sender to the senderItems channel.
+//
+// 3. Check collector calls deregisterSampler() immediately as check's
+// Run() completes.
+//
+// 4. Metrics are still in the channel, we can't drop the
+// sampler. Instead we add another message to the channel (this type)
+// to indicate that the sampler will no longer be in use once all the
+// metrics are handled.
+//
+// 5. Aggregator handles metrics and the commit message. Sampler now
+// contains metrics from the check.
+//
+// 6. Aggragator handles this message. We can't drop the sender now
+// since it still contains metrics from the last run. Instead, we set
+// a flag that the sampler can be dropped after the next flush.
+//
+// 7. Aggregator flushes metrics from the sampler and can now remove
+// it: we know for sure that no more metrics will arrive.
+type deregisterSampler struct {
+	id check.ID
+}
+
+func (s *deregisterSampler) handle(agg *BufferedAggregator) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	if cs, ok := agg.checkSamplers[s.id]; ok {
+		cs.deregistered = true
+	}
 }
