@@ -1571,7 +1571,7 @@
           "terminationGracePeriodSeconds": 30,
           "dnsPolicy": "ClusterFirst",
           "nodeSelector": {
-            "beta.kubernetes.io/os": "linux"
+            "kubernetes.io/os": "linux"
           },
           "serviceAccountName": "prometheus-to-sd",
           "serviceAccount": "prometheus-to-sd",
