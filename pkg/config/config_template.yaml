@@ -3148,6 +3148,8 @@ api_key:
     ## @param port - integer - optional - default: 9162
     ## The UDP port to use when listening for incoming trap packets.
     ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    ## However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
+    ## the Datadog Agent can listen on ports below 1024.
     #
     # port: 9162
 
