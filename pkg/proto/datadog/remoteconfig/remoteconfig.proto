@@ -61,6 +61,10 @@ message LatestConfigsResponse {
   repeated File target_files = 3;
 }
 
+message OrgDataResponse {
+  string uuid = 1;
+}
+
 // Client definitions
 
 message Client {
