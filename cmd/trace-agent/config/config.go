@@ -574,7 +574,7 @@ func validate(c *config.AgentConfig) error {
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")
 	}
-	if c.Hostname == "" {
+	if c.Hostname == "" && !coreconfig.Datadog.GetBool("serverless.enabled") {
 		// no user-set hostname, try to acquire
 		if err := acquireHostname(c); err != nil {
 			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
