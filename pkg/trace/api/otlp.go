@@ -119,7 +119,7 @@ func (o *OTLPReceiver) Stop() {
 }
 
 // Export implements ptraceotlp.Server
-func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptraceotlp.Response, error) {
+func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
@@ -203,7 +203,7 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.Request) {
+func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
 		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
