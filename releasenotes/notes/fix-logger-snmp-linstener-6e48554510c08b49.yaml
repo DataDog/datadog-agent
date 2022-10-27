@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Make Agent write logs when snmp trap listener starts and Agent
+    Make Agent write logs when SNMP trap listener starts and Agent
     receives invalid packets.
