@@ -12,6 +12,7 @@ kitchen_test:
     #Do not change this - must be the repository name for Kubernetes runners to work
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
     DATADOG_AGENT_BUILDIMAGES: v10569882-6a6bd89
+    WIN_S3_BUCKET: dd-agent-mstesting
     AZURE_LOCATION: "North Central US"
     KITCHEN_ARCH: x86_64
     KITCHEN_PROVIDER: azure
