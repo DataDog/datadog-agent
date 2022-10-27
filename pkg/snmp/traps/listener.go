@@ -78,7 +78,7 @@ func (t *TrapListener) Stop() {
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	if err := validatePacket(p, t.config); err != nil {
-		log.Warnf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
+		log.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
 		trapsPacketsAuthErrors.Add(1)
 		return
 	}
