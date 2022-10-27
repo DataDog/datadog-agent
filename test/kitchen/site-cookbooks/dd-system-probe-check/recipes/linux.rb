@@ -116,12 +116,7 @@ cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
   action :create
 end
 
-cookbook_file "minimized-btfs.tar.gz" do
-  source "minimized-btfs.tar.gz"
+cookbook_file "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/minimized-btfs.tar.xz" do
+  source "minimized-btfs.tar.xz"
   action :create
-end
-
-execute 'extract minimized btfs' do
-  command 'tar -xf minimized-btfs.tar.gz -C /tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/'
-  action :run
 end
