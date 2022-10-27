@@ -127,7 +127,7 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	log.Debugf("Querying url %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 	req.Header = c.header
 
