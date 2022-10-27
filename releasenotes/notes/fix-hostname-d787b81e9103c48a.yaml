@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    The OTLP ingest now is consistent with the Datadog exporter (v0.56+) when getting a hostname from OTLP resource attributes for metrics and traces.
+    The OTLP ingest is now consistent with the Datadog exporter (v0.56+) when getting a hostname from OTLP resource attributes for metrics and traces.
