@@ -59,11 +59,12 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
             raise Exit(code=2)
         batchfile = "vcvars64.bat"
         if arch == "x86":
-            batchfile = "vcvars32.bat"
+            print("Only 64 bit Windows is supported.")
+            raise Exit(code=3)
         vs_env_bat = f'{vsroot}\\VC\\Auxiliary\\Build\\{batchfile}'
-        cmd = f'call "{vs_env_bat}" && cd {ROOT_DIR} && nuget restore && msbuild /p:Configuration={configuration} /p:Platform="Any CPU"'
+        cmd = f'call "{vs_env_bat}" && cd {ROOT_DIR} && nuget restore && msbuild /p:Configuration={configuration} /p:Platform="x64"'
     else:
-        cmd = f'cd {ROOT_DIR} && nuget restore && msbuild {ROOT_DIR} /p:Configuration={configuration} /p:Platform="Any CPU"'
+        cmd = f'cd {ROOT_DIR} && nuget restore && msbuild {ROOT_DIR} /p:Configuration={configuration} /p:Platform="x64"'
 
     print(f"Build Command: {cmd}")
 
