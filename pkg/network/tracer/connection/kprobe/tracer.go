@@ -473,7 +473,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic:        make(network.StatCountersByCookie, 0, 3),
+		Monotonic:        make(network.StatCountersByCookie, 0, 1),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
 	}

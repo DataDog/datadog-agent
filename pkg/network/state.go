@@ -120,7 +120,11 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[string]StatCountersByCookie, len(active))
+	statsLen := len(c.stats)
+	if len(active) < statsLen {
+		statsLen = len(active)
+	}
+	newStats := make(map[string]StatCountersByCookie, statsLen)
 	for key, st := range c.stats {
 		// Only keep active connections stats
 		if _, isActive := active[key]; isActive {
@@ -572,7 +576,7 @@ func (ns *networkState) createStatsForKey(client *client, key string) {
 			ns.telemetry.connDropped++
 			return
 		}
-		client.stats[key] = make(StatCountersByCookie, 0, 3)
+		client.stats[key] = make(StatCountersByCookie, 0, 1)
 	}
 }
 
