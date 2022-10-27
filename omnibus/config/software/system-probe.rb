@@ -39,7 +39,7 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
-    command "tar -xf #{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.gz -C #{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.gz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.gz"
   end
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
