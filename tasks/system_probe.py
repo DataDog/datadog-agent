@@ -1016,7 +1016,7 @@ def generate_minimized_btfs(
 
     ctx.run(f"mkdir -p {output_dir}")
     for root, dirs, files in os.walk(source_dir):
-        path_from_root = root[len(source_dir)+1:]
+        path_from_root = root[len(source_dir) + 1 :]
 
         for dir in dirs:
             output_subdir = os.path.join(output_dir, path_from_root, dir)
@@ -1026,7 +1026,7 @@ def generate_minimized_btfs(
             if not file.endswith(".tar.xz"):
                 continue
 
-            btf_filename = file[:len(file)-7]
+            btf_filename = file[: len(file) - 7]
             compressed_source_btf_path = os.path.join(root, file)
             output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
             compressed_output_btf_path = output_btf_path + ".tar.xz"
@@ -1041,4 +1041,3 @@ def generate_minimized_btfs(
             tar_working_directory = os.path.join(output_dir, path_from_root)
             ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
             ctx.run(f"rm {output_btf_path}")
-
