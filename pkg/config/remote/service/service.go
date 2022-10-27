@@ -142,7 +142,10 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	http := api.NewHTTPClient(authKeys.apiAuth())
+	http, err := api.NewHTTPClient(authKeys.apiAuth())
+	if err != nil {
+		return nil, err
+	}
 	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err
