@@ -89,11 +89,9 @@ infra_failure_logs = [
     ),
     # kitchen tests general infrastructure issues
     (
-        re.compile(
-            r'ERROR: The kitchen tests failed due to infrastructure failures\.'
-        ),
+        re.compile(r'ERROR: The kitchen tests failed due to infrastructure failures\.'),
         FailedJobReason.KITCHEN,
-    )
+    ),
 ]
 
 
