@@ -63,7 +63,6 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
-	ctx           context.Context
 	clock         clock.Clock
 	hostname      string
 	traceAgentEnv string
