@@ -111,6 +111,9 @@ type snapshotCustomData struct {
 
 func snapshotCustom(rawCustom []byte) (*snapshotCustomData, error) {
 	var custom snapshotCustomData
+	if len(rawCustom) == 0 {
+		return &custom, nil
+	}
 	err := json.Unmarshal(rawCustom, &custom)
 	if err != nil {
 		return nil, err
