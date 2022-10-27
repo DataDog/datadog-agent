@@ -3,19 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package version
+package health
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
+	commands := []*cobra.Command{
+		MakeCommand(func() GlobalParams {
+			return GlobalParams{}
+		}),
+	}
+
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"version"},
-		run,
-		func() {})
+		commands,
+		[]string{"health"},
+		requestHealth,
+		func(coreParams core.BundleParams) {
+			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+		})
 }
