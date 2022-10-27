@@ -280,7 +280,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")
-	config.BindEnv("remote_configuration.rc_dd_url", "")
+	config.BindEnv("remote_configuration.rc_dd_url")
+	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
+	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnv("remote_configuration.refresh_interval")
@@ -363,8 +365,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("server_timeout", 30)
 
 	// Configuration for TLS for outgoing connections
-	config.BindEnvAndSetDefault("force_tls_12", false) // deprecated
-	config.BindEnvAndSetDefault("min_tls_version", "") // default depends on force_tls_12
+	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
@@ -588,6 +589,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
+	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
@@ -882,6 +884,13 @@ func InitConfig(config Config) {
 	// than docker.  This is a temporary configuration parameter to support podman logs until
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
 	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
+
+	// If set, the agent will look in this path for docker container log files.  Use this option if
+	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
+	// order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
+	// See more documentation here:
+	// https://docs.docker.com/engine/reference/commandline/dockerd/.
+	config.BindEnvAndSetDefault("logs_config.docker_path_override", "")
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
@@ -1380,6 +1389,16 @@ func useHostEtc(config Config) {
 	}
 }
 
+func checkConflictingOptions(config Config) error {
+	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
+	if config.GetBool("logs_config.use_podman_logs") && config.IsSet("logs_config.docker_path_override") {
+		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
+		return errors.New("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
+	}
+
+	return nil
+}
+
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
@@ -1426,6 +1445,11 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
 	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
 		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
+	err := checkConflictingOptions(config)
+	if err != nil {
+		return &warnings, err
 	}
 
 	// If this variable is set to true, we'll use DefaultPython for the Python version,
@@ -1888,4 +1912,26 @@ func GetVectorURL(datatype DataType) (string, error) {
 		return vectorURL, nil
 	}
 	return "", nil
+}
+
+// GetTraceAgentDefaultEnv returns the default env for the trace agent
+func GetTraceAgentDefaultEnv() string {
+	defaultEnv := ""
+	if Datadog.IsSet("apm_config.env") {
+		defaultEnv = Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
+	} else if Datadog.IsSet("env") {
+		defaultEnv = Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
+	} else {
+		for _, tag := range GetConfiguredTags(false) {
+			if strings.HasPrefix(tag, "env:") {
+				defaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
+				return defaultEnv
+			}
+		}
+	}
+
+	return defaultEnv
 }

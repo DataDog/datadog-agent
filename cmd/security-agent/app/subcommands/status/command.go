@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package status
 
 import (
 	"bytes"
@@ -12,50 +12,59 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var (
-	statusCmd = &cobra.Command{
+type statusCliParams struct {
+	*common.GlobalParams
+
+	json            bool
+	prettyPrintJSON bool
+	file            string
+}
+
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := &statusCliParams{
+		GlobalParams: globalParams,
+	}
+
+	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Print the current status",
 		Long:  ``,
-		RunE:  runStatus,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(runStatus,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "off", true)),
+				core.Bundle,
+			)
+		},
 	}
 
-	statusArgs = struct {
-		json            bool
-		prettyPrintJSON bool
-		file            string
-	}{}
-)
+	statusCmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	statusCmd.Flags().StringVarP(&cliParams.file, "file", "o", "", "Output the status command to a file")
 
-func init() {
-	SecurityAgentCmd.AddCommand(statusCmd)
-	statusCmd.Flags().BoolVarP(&statusArgs.json, "json", "j", false, "print out raw json")
-	statusCmd.Flags().BoolVarP(&statusArgs.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	statusCmd.Flags().StringVarP(&statusArgs.file, "file", "o", "", "Output the status command to a file")
+	return []*cobra.Command{statusCmd}
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
-	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-	if err != nil {
-		return log.Errorf("Cannot setup logger, exiting: %v", err)
-	}
-
-	return requestStatus()
-}
-
-func requestStatus() error {
+func runStatus(log log.Component, config config.Component, params *statusCliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("security_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.GetInt("security_agent.cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -80,11 +89,11 @@ func requestStatus() error {
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	if statusArgs.prettyPrintJSON {
+	if params.prettyPrintJSON {
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if statusArgs.json {
+	} else if params.json {
 		s = string(r)
 	} else {
 		formattedStatus, err := status.FormatSecurityAgentStatus(r)
@@ -94,8 +103,8 @@ func requestStatus() error {
 		s = formattedStatus
 	}
 
-	if statusArgs.file != "" {
-		os.WriteFile(statusArgs.file, []byte(s), 0644) //nolint:errcheck
+	if params.file != "" {
+		os.WriteFile(params.file, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}

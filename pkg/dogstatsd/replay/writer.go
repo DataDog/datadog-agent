@@ -221,6 +221,7 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		tc.zWriter = zstd.NewWriter(target)
 		tc.writer = bufio.NewWriter(tc.zWriter)
 	} else {
+		tc.zWriter = nil
 		tc.writer = bufio.NewWriter(target)
 	}
 

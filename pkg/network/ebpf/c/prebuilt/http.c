@@ -9,12 +9,13 @@
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "sock.h"
 #include "port_range.h"
 #include "go-tls-types.h"
 #include "go-tls-goid.h"
 #include "go-tls-location.h"
 #include "go-tls-conn.h"
+
+#include "sock.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -54,7 +55,7 @@ SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
     // map connection tuple during SSL_do_handshake(ctx)
-    init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
+    map_ssl_ctx_to_sock((struct sock*)PT_REGS_PARM1(ctx));
     return 0;
 }
 

@@ -19,10 +19,13 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -31,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -41,8 +45,23 @@ import (
 )
 
 var (
+	metaScheduler  *metadata.Scheduler
+	statsd         *dogstatsd.Server
+	dogstatsdStats *http.Server
+)
+
+type cliParams struct {
+	confPath string
+}
+
+const (
+	// loggerName is the name of the dogstatsd logger
+	loggerName pkgconfig.LoggerName = "DSD"
+)
+
+func MakeRootCommand() *cobra.Command {
 	// dogstatsdCmd is the root command
-	dogstatsdCmd = &cobra.Command{
+	dogstatsdCmd := &cobra.Command{
 		Use:   "dogstatsd [command]",
 		Short: "Datadog dogstatsd at your service.",
 		Long: `
@@ -52,14 +71,25 @@ on dashboards. DogStatsD implements the StatsD protocol, along with a few
 extensions for special Datadog features.`,
 	}
 
-	startCmd = &cobra.Command{
+	for _, cmd := range makeCommands() {
+		dogstatsdCmd.AddCommand(cmd)
+	}
+
+	return dogstatsdCmd
+}
+
+func makeCommands() []*cobra.Command {
+	cliParams := &cliParams{}
+	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
-		RunE:  start,
+		RunE: func(*cobra.Command, []string) error {
+			return runDogstatsdFct(cliParams, "", start)
+		},
 	}
 
-	versionCmd = &cobra.Command{
+	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version number",
 		Long:  ``,
@@ -70,32 +100,32 @@ extensions for special Datadog features.`,
 		},
 	}
 
-	confPath   string
-	socketPath string
-
-	metaScheduler  *metadata.Scheduler
-	statsd         *dogstatsd.Server
-	dogstatsdStats *http.Server
-)
-
-const (
-	// loggerName is the name of the dogstatsd logger
-	loggerName config.LoggerName = "DSD"
-)
-
-func init() {
-	// attach the command to the root
-	dogstatsdCmd.AddCommand(startCmd)
-	dogstatsdCmd.AddCommand(versionCmd)
-
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
-	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
+	startCmd.Flags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
+	pkgconfig.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
+	var socketPath string
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+
+	return []*cobra.Command{startCmd, versionCmd}
 }
 
-func start(cmd *cobra.Command, args []string) error {
+func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
+	return fxutil.OneShot(fct,
+		fx.Supply(cliParams),
+		fx.Supply(core.BundleParams{
+			ConfFilePath:           cliParams.confPath,
+			ConfigLoadSecrets:      true,
+			ConfigMissingOK:        true,
+			ConfigName:             "dogstatsd",
+			ExcludeDefaultConfPath: true,
+			DefaultConfPath:        defaultConfPath,
+		}),
+		core.Bundle,
+	)
+}
+
+func start(cliParams *cliParams, config config.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer stopAgent(cancel)
@@ -103,7 +133,7 @@ func start(cmd *cobra.Command, args []string) error {
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx)
+	err := runAgent(ctx, cliParams, config)
 	if err != nil {
 		return err
 	}
@@ -114,28 +144,13 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runAgent(ctx context.Context) (err error) {
-	configFound := false
-
-	// a path to the folder containing the config file was passed
-	if len(confPath) != 0 {
-		// we'll search for a config file named `dogstatsd.yaml`
-		config.Datadog.SetConfigName("dogstatsd")
-		config.Datadog.AddConfigPath(confPath)
-		_, confErr := config.Load()
-		if confErr != nil {
-			log.Error(confErr)
-		} else {
-			configFound = true
-		}
-	}
-
-	if !configFound {
+func runAgent(ctx context.Context, cliParams *cliParams, config config.Component) (err error) {
+	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
 
 	// go_expvar server
-	port := config.Datadog.GetInt("dogstatsd_stats_port")
+	port := config.GetInt("dogstatsd_stats_port")
 	dogstatsdStats = &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: http.DefaultServeMux,
@@ -147,25 +162,25 @@ func runAgent(ctx context.Context) (err error) {
 	}()
 
 	// Setup logger
-	syslogURI := config.GetSyslogURI()
-	logFile := config.Datadog.GetString("log_file")
+	syslogURI := pkgconfig.GetSyslogURI()
+	logFile := config.GetString("log_file")
 	if logFile == "" {
 		logFile = defaultLogFile
 	}
 
-	if config.Datadog.GetBool("disable_file_logging") {
+	if config.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
 		logFile = ""
 	}
 
-	err = config.SetupLogger(
+	err = pkgconfig.SetupLogger(
 		loggerName,
-		config.Datadog.GetString("log_level"),
+		config.GetString("log_level"),
 		logFile,
 		syslogURI,
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
+		config.GetBool("syslog_rfc"),
+		config.GetBool("log_to_console"),
+		config.GetBool("log_format_json"),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -176,13 +191,13 @@ func runAgent(ctx context.Context) (err error) {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !config.Datadog.IsSet("api_key") {
+	if !config.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
 	}
 
 	// Setup healthcheck port
-	var healthPort = config.Datadog.GetInt("health_port")
+	var healthPort = config.GetInt("health_port")
 	if healthPort > 0 {
 		err = healthprobe.Serve(ctx, healthPort)
 		if err != nil {
@@ -193,7 +208,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	// setup the demultiplexer
-	keysPerDomain, err := config.GetMultipleEndpoints()
+	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
@@ -203,7 +218,7 @@ func runAgent(ctx context.Context) (err error) {
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.UseContainerLifecycleForwarder = false
-	opts.EnableNoAggregationPipeline = config.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
+	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
@@ -225,7 +240,7 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	// container tagging initialisation if origin detection is on
-	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+	if config.GetBool("dogstatsd_origin_detection") {
 		store := workloadmeta.GetGlobalStore()
 		store.Start(ctx)
 
