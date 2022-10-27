@@ -19,7 +19,7 @@ import (
 
 func TestConfigurations(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -254,7 +254,7 @@ workers: 30
 
 func TestInlineProfileConfiguration(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
