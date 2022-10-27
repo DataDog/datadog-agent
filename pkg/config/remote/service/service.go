@@ -93,7 +93,6 @@ type uptaneClient interface {
 
 // NewService instantiates a new remote configuration management service
 func NewService() (*Service, error) {
-	ctx := context.Background()
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 	refreshInterval := config.Datadog.GetDuration("remote_configuration.refresh_interval")
 	if refreshInterval == 0 {
@@ -165,7 +164,7 @@ func NewService() (*Service, error) {
 	uptaneClient, err := uptane.NewClient(
 		db,
 		cacheKey,
-		newOrgUUIDProvider(ctx, http),
+		newRCBackendOrgUUIDProvider(http),
 		opt...,
 	)
 	if err != nil {
@@ -180,7 +179,6 @@ func NewService() (*Service, error) {
 	clock := clock.New()
 
 	return &Service{
-		ctx:                            ctx,
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
 		refreshIntervalOverrideAllowed: refreshIntervalOverrideAllowed,
@@ -203,9 +201,10 @@ func NewService() (*Service, error) {
 	}, nil
 }
 
-func newOrgUUIDProvider(ctx context.Context, http api.API) uptane.OrgUUIDProvider {
+func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 	return func() (string, error) {
-		resp, err := http.FetchOrgData(ctx)
+		// XXX: We may want to tune the context timeout here
+		resp, err := http.FetchOrgData(context.Background())
 		return resp.GetUuid(), err
 	}
 }
@@ -271,7 +270,8 @@ func (s *Service) refresh() error {
 	}
 	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
-	response, err := s.api.Fetch(s.ctx, request)
+	ctx := context.Background()
+	response, err := s.api.Fetch(ctx, request)
 	s.Lock()
 	defer s.Unlock()
 	s.lastUpdateErr = nil

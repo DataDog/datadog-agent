@@ -87,7 +87,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	log.Debugf("Querying url %s with %+v", url, request)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 	req.Header = c.header
 
@@ -133,23 +133,18 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to issue request: %w", err)
+		return nil, fmt.Errorf("failed to issue org data request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	var body []byte
 	if resp.StatusCode != 200 {
-		body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response: %w", err)
-		}
-		log.Debugf("Non-200 response. Response body: %s", string(body))
 		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
 	}
 
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	response := &pbgo.OrgDataResponse{}
