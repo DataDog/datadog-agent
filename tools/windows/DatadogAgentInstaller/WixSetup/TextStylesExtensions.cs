@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Xml.Linq;
 
 namespace WixSetup
@@ -9,7 +9,10 @@ namespace WixSetup
         {
             ui.Add(new XElement("TextStyle",
                 new XAttribute("Id", id),
-                new XAttribute("FaceName", font.FontFamily.Name),
+                // font.FontFamily.Name may be substituted by OS with the compatible font name
+                // this can happen when we build in a container.
+                // See: https://github.com/oleg-shilo/wixsharp/commit/7bdbfa30ed13d1f2c319ee4c42d374f7ac2c9134
+                new XAttribute("FaceName", font.OriginalFontName),
                 new XAttribute("Size", font.Size),
                 new XAttribute("Red", color.R),
                 new XAttribute("Green", color.G),
