@@ -10,7 +10,6 @@ package probes
 
 import (
 	"bytes"
-	"errors"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -37,18 +36,6 @@ func resolveRuntimeArch() {
 	default:
 		RuntimeArch = "ia32"
 	}
-}
-
-// currentKernelVersion is the current kernel version
-var currentKernelVersion *kernel.Version
-
-func resolveCurrentKernelVersion() error {
-	var err error
-	currentKernelVersion, err = kernel.NewKernelVersion()
-	if err != nil {
-		return errors.New("couldn't resolve kernel version")
-	}
-	return nil
 }
 
 // cache of the syscall prefix depending on kernel version
@@ -88,6 +75,11 @@ func getCompatSyscallFnName(name string) string {
 // ShouldUseSyscallExitTracepoints returns true if the kernel version is old and we need to use tracepoints to handle syscall exits
 // instead of kretprobes
 func ShouldUseSyscallExitTracepoints() bool {
+	currentKernelVersion, err := kernel.NewKernelVersion()
+	if err != nil || currentKernelVersion == nil {
+		return false
+	}
+
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
 
@@ -159,10 +151,6 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 		resolveRuntimeArch()
 	}
 
-	if currentKernelVersion == nil {
-		_ = resolveCurrentKernelVersion()
-	}
-
 	if flag&ExpandTime32 == ExpandTime32 {
 		// check if _time32 should be expanded
 		if getSyscallPrefix() == "sys_" {
@@ -187,10 +175,6 @@ func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, c
 
 	if len(RuntimeArch) == 0 {
 		resolveRuntimeArch()
-	}
-
-	if currentKernelVersion == nil {
-		_ = resolveCurrentKernelVersion()
 	}
 
 	if flag&ExpandTime32 == ExpandTime32 {

@@ -98,18 +98,23 @@ func (k *Version) String() string {
 }
 
 var kernelVersionCache struct {
-	sync.Mutex
+	sync.RWMutex
 	*Version
 }
 
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
-	kernelVersionCache.Lock()
-	defer kernelVersionCache.Unlock()
-
+	// fast read path
+	kernelVersionCache.RLock()
 	if kernelVersionCache.Version != nil {
+		kernelVersionCache.RUnlock()
 		return kernelVersionCache.Version, nil
 	}
+	kernelVersionCache.RUnlock()
+
+	// slow write path
+	kernelVersionCache.Lock()
+	defer kernelVersionCache.Unlock()
 
 	var err error
 	kernelVersionCache.Version, err = newKernelVersion()
