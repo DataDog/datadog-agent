@@ -99,7 +99,7 @@ func NewOTLPSpan(s *OTLPSpan) ptrace.Span {
 }
 
 // NewOTLPTracesRequest creates a new TracesRequest based on the given definitions.
-func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.Request {
+func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.ExportRequest {
 	td := ptrace.NewTraces()
 	rspans := td.ResourceSpans()
 
@@ -115,7 +115,7 @@ func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.Request {
 		}
 	}
 
-	tr := ptraceotlp.NewRequestFromTraces(td)
+	tr := ptraceotlp.NewExportRequestFromTraces(td)
 	return tr
 }
 
@@ -125,7 +125,7 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 		case string:
 			_, ok := attr.Get(k)
 			if !ok {
-				attr.PutString(k, v)
+				attr.PutStr(k, v)
 			}
 		case bool:
 			_, ok := attr.Get(k)
@@ -150,7 +150,7 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 		default:
 			_, ok := attr.Get(k)
 			if !ok {
-				attr.PutString(k, fmt.Sprint(v))
+				attr.PutStr(k, fmt.Sprint(v))
 			}
 		}
 	}

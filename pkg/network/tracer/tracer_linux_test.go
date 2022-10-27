@@ -11,12 +11,18 @@ package tracer
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
+	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net"
+	nethttp "net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -26,24 +32,28 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sys/unix"
-
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
-
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+func init() {
+	unix.Setrlimit(unix.RLIMIT_NOFILE, &unix.Rlimit{
+		Cur: 4096,
+		Max: 4096,
+	})
+}
 
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
@@ -53,6 +63,10 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
+}
+
+func classificationSupported(config *config.Config) bool {
+	return kprobe.ClassificationSupported(config)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -166,6 +180,7 @@ func TestTCPRetransmit(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
+
 	m := conn.MonotonicSum()
 	assert.Equal(t, 100*clientMessageSize, int(m.SentBytes))
 	assert.True(t, int(m.Retransmits) > 0)
@@ -396,7 +411,6 @@ func TestConnectionExpirationRegression(t *testing.T) {
 
 func TestConntrackExpiration(t *testing.T) {
 	setupDNAT(t)
-	defer teardownDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -453,7 +467,6 @@ func TestConntrackExpiration(t *testing.T) {
 // connections when the first lookup fails
 func TestConntrackDelays(t *testing.T) {
 	setupDNAT(t)
-	defer teardownDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -495,7 +508,6 @@ func TestConntrackDelays(t *testing.T) {
 
 func TestTranslationBindingRegression(t *testing.T) {
 	setupDNAT(t)
-	defer teardownDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -731,7 +743,9 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	defer tr.Stop()
 
 	require.NotNil(t, tr.gwLookup)
+
 	// setup two network namespaces
+	state := testutil.IptablesSave(t)
 	cmds := []string{
 		"ip link add br0 type bridge",
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
@@ -757,18 +771,17 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
-	defer func() {
+	t.Cleanup(func() {
+		testutil.IptablesRestore(t, state)
 		testutil.RunCommands(t, []string{
-			"iptables -D FORWARD -o br0 -j ACCEPT",
-			"iptables -D FORWARD -i br0 -j ACCEPT",
-			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 			"ip link del veth1",
 			"ip link del veth3",
 			"ip link del br0",
 			"ip netns del test1",
 			"ip netns del test2",
 		}, true)
-	}()
+	})
+
 	testutil.RunCommands(t, cmds, false)
 
 	ifs, err := net.Interfaces()
@@ -973,8 +986,8 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 
 func TestDNATIntraHostIntegration(t *testing.T) {
 	t.SkipNow()
+
 	setupDNAT(t)
-	defer teardownDNAT(t)
 
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -1347,14 +1360,14 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 }
 
 func TestDNSStatsWithNAT(t *testing.T) {
+	state := testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-	nettestutil.RunCommands(t, cmds, true)
+	testutil.RunCommands(t, cmds, true)
 
-	defer func() {
-		cmds = []string{"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-		nettestutil.RunCommands(t, cmds, true)
-	}()
+	t.Cleanup(func() {
+		testutil.IptablesRestore(t, state)
+	})
 
 	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
 }
@@ -1366,8 +1379,8 @@ func iptablesWrapper(t *testing.T, f func()) {
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
 	create := strings.Fields(fmt.Sprintf("-I %s", rule))
-	remove := strings.Fields(fmt.Sprintf("-D %s", rule))
 
+	state := testutil.IptablesSave(t)
 	createCmd := exec.Command(iptables, create...)
 	err = createCmd.Start()
 	assert.Nil(t, err)
@@ -1375,12 +1388,7 @@ func iptablesWrapper(t *testing.T, f func()) {
 	assert.Nil(t, err)
 
 	defer func() {
-		// Remove the iptable rule
-		removeCmd := exec.Command(iptables, remove...)
-		err = removeCmd.Start()
-		assert.Nil(t, err)
-		err = removeCmd.Wait()
-		assert.Nil(t, err)
+		testutil.IptablesRestore(t, state)
 	}()
 
 	f()
@@ -1392,6 +1400,8 @@ func setupDNAT(t *testing.T) {
 		return
 	}
 
+	state := testutil.IptablesSave(t)
+	t.Cleanup(func() { teardownDNAT(t, state) })
 	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
 	cmds := []string{
 		"ip link add dummy1 type dummy",
@@ -1402,11 +1412,14 @@ func setupDNAT(t *testing.T) {
 	testutil.RunCommands(t, cmds, false)
 }
 
-func teardownDNAT(t *testing.T) {
+func teardownDNAT(t *testing.T, state []byte) {
+	if len(state) > 0 {
+		testutil.IptablesRestore(t, state)
+	}
+
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
 		"ip link del dummy1",
-		"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 		// clear out the conntrack table
 		"conntrack -F",
 	}
@@ -1650,4 +1663,413 @@ func TestShortWrite(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
 
 	assert.Equal(t, sent, conn.MonotonicSum().SentBytes)
+}
+
+func TestKprobeAttachWithKprobeEvents(t *testing.T) {
+	cfg := config.New()
+	cfg.AttachKprobesWithKprobeEventsABI = true
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	cmd := []string{"curl", "-k", "-o/dev/null", "facebook.com"}
+	exec.Command(cmd[0], cmd[1:]...).Run()
+
+	stats := ddebpf.GetProbeStats()
+	require.NotNil(t, stats)
+
+	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]
+	require.True(t, ok)
+	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
+
+	assert.Greater(t, p_tcp_sendmsg, int64(0))
+}
+
+func TestProtocolClassification(t *testing.T) {
+	cfg := testConfig()
+	if !classificationSupported(cfg) {
+		t.Skip("Classification is not supported")
+	}
+
+	t.Run("with dnat", func(t *testing.T) {
+		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+		netlink.SetupDNAT(t)
+		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+	})
+
+	t.Run("with snat", func(t *testing.T) {
+		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
+		netlink.SetupSNAT(t)
+		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+	})
+
+	t.Run("without nat", func(t *testing.T) {
+		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+	})
+}
+
+func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	dialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP:   net.ParseIP(clientHost),
+			Port: 0,
+		},
+	}
+
+	tests := []struct {
+		name      string
+		clientRun func(t *testing.T, serverAddr string)
+		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
+		want      network.ProtocolType
+	}{
+		{
+			name: "udp client",
+			clientRun: func(t *testing.T, serverAddr string) {
+				c, err := net.DialTimeout("udp", serverAddr, time.Second)
+				require.NoError(t, err)
+				defer c.Close()
+
+				for i := 0; i < 5; i++ {
+					_, err = c.Write(genPayload(clientMessageSize))
+					require.NoError(t, err)
+
+					buf := make([]byte, serverMessageSize)
+					_, err = c.Read(buf)
+					require.NoError(t, err)
+				}
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				udpServer := &UDPServer{
+					address: serverAddr,
+					onMessage: func(b []byte, n int) []byte {
+						return genPayload(serverMessageSize)
+					},
+				}
+				require.NoError(t, udpServer.Run(done, 10))
+				return udpServer.address
+			},
+			want: network.ProtocolUnclassified,
+		},
+		{
+			name: "tcp client without sending data",
+			clientRun: func(t *testing.T, serverAddr string) {
+				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
+				cancel()
+				require.NoError(t, err)
+				defer c.Close()
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
+					c.Close()
+				})
+				require.NoError(t, server.Run(done))
+				return server.address
+			},
+			want: network.ProtocolUnclassified,
+		},
+		{
+			name: "tcp client with sending random data",
+			clientRun: func(t *testing.T, serverAddr string) {
+				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
+				cancel()
+				require.NoError(t, err)
+				defer c.Close()
+				c.Write([]byte("hello\n"))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
+					r := bufio.NewReader(c)
+					input, err := r.ReadBytes(byte('\n'))
+					if err == nil {
+						c.Write(input)
+					}
+					c.Close()
+				})
+				require.NoError(t, server.Run(done))
+				return server.address
+			},
+			want: network.ProtocolUnknown,
+		},
+		{
+			name: "tcp client with sending HTTP request",
+			clientRun: func(t *testing.T, serverAddr string) {
+				client := nethttp.Client{
+					Transport: &nethttp.Transport{
+						DialContext: dialer.DialContext,
+					},
+				}
+				resp, err := client.Get("http://" + serverAddr + "/test")
+				require.NoError(t, err)
+				io.Copy(ioutil.Discard, resp.Body)
+				resp.Body.Close()
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				ln, err := net.Listen("tcp", serverAddr)
+				require.NoError(t, err)
+
+				srv := &nethttp.Server{
+					Addr: ln.Addr().String(),
+					Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+						io.Copy(ioutil.Discard, req.Body)
+						w.WriteHeader(200)
+					}),
+					ReadTimeout:  time.Second,
+					WriteTimeout: time.Second,
+				}
+				srv.SetKeepAlivesEnabled(false)
+				go func() {
+					_ = srv.Serve(ln)
+				}()
+				go func() {
+					<-done
+					srv.Shutdown(context.Background())
+				}()
+				return srv.Addr
+			},
+			want: network.ProtocolHTTP,
+		},
+		{
+			name: "gRPC traffic - unary call",
+			clientRun: func(t *testing.T, serverAddr string) {
+				c, err := grpc.NewClient(serverAddr, grpc.Options{
+					CustomDialer: dialer,
+				})
+				require.NoError(t, err)
+				defer c.Close()
+				require.NoError(t, c.HandleUnary(context.Background(), "test"))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server, err := grpc.NewServer(serverAddr)
+				require.NoError(t, err)
+				server.Run()
+				go func() {
+					<-done
+					server.Stop()
+				}()
+				return server.Address
+			},
+			want: network.ProtocolHTTP2,
+		},
+		{
+			name: "gRPC traffic - stream call",
+			clientRun: func(t *testing.T, serverAddr string) {
+				c, err := grpc.NewClient(serverAddr, grpc.Options{
+					CustomDialer: dialer,
+				})
+				require.NoError(t, err)
+				defer c.Close()
+				require.NoError(t, c.HandleStream(context.Background(), 5))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server, err := grpc.NewServer(serverAddr)
+				require.NoError(t, err)
+				server.Run()
+				go func() {
+					<-done
+					server.Stop()
+				}()
+				return server.Address
+			},
+			want: network.ProtocolHTTP2,
+		},
+		{
+			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
+			// with the first protocol we've found.
+			name: "mixed protocols",
+			clientRun: func(t *testing.T, serverAddr string) {
+				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				c, err := dialer.DialContext(timedContext, "tcp", serverAddr)
+				cancel()
+				require.NoError(t, err)
+				defer c.Close()
+				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
+				// http2 prefix.
+				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
+					r := bufio.NewReader(c)
+					input, err := r.ReadBytes(byte('\n'))
+					if err == nil {
+						c.Write(input)
+					}
+					c.Close()
+				})
+				require.NoError(t, server.Run(done))
+				return server.address
+			},
+			want: network.ProtocolHTTP,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr, err := NewTracer(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tr.Stop()
+			done := make(chan struct{})
+			defer close(done)
+
+			initTracerState(t, tr)
+			require.NoError(t, err)
+			serverAddr := tt.serverRun(t, serverHost, done)
+			_, port, err := net.SplitHostPort(serverAddr)
+			require.NoError(t, err)
+			targetAddr := net.JoinHostPort(targetHost, port)
+
+			// Letting the server time to start
+			time.Sleep(500 * time.Millisecond)
+			tt.clientRun(t, targetAddr)
+
+			waitForConnectionsWithProtocol(t, tr, targetAddr, serverAddr, tt.want)
+		})
+	}
+}
+
+func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	t.Run("protocol cleanup", func(t *testing.T) {
+		dialer := &net.Dialer{
+			LocalAddr: &net.TCPAddr{
+				IP:   net.ParseIP(clientHost),
+				Port: 0,
+			},
+			Control: func(network, address string, c syscall.RawConn) error {
+				var opErr error
+				err := c.Control(func(fd uintptr) {
+					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+				})
+				if err != nil {
+					return err
+				}
+				return opErr
+			},
+		}
+
+		tr, err := NewTracer(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tr.Stop()
+
+		initTracerState(t, tr)
+		require.NoError(t, err)
+		done := make(chan struct{})
+		server := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
+			r := bufio.NewReader(c)
+			input, err := r.ReadBytes(byte('\n'))
+			if err == nil {
+				c.Write(input)
+			}
+			c.Close()
+		})
+		require.NoError(t, server.Run(done))
+		_, port, err := net.SplitHostPort(server.address)
+		require.NoError(t, err)
+		targetAddr := net.JoinHostPort(targetHost, port)
+
+		// Letting the server time to start
+		time.Sleep(500 * time.Millisecond)
+
+		// Running a HTTP client
+		client := nethttp.Client{
+			Transport: &nethttp.Transport{
+				DialContext: dialer.DialContext,
+			},
+		}
+		resp, err := client.Get("http://" + targetAddr + "/test")
+		if err == nil {
+			resp.Body.Close()
+		}
+
+		client.CloseIdleConnections()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP)
+
+		time.Sleep(2 * time.Second)
+		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
+			CustomDialer: dialer,
+		})
+		require.NoError(t, err)
+		defer grpcClient.Close()
+		_ = grpcClient.HandleUnary(context.Background(), "test")
+		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP2)
+	})
+}
+
+func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
+	foundIncomingWithProtocol := false
+	foundOutgoingWithProtocol := false
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
+		})
+		incomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+		})
+
+		for _, conn := range outgoingConns {
+			t.Logf("Found outgoing connection %v", conn)
+			if conn.Protocol == expectedProtocol {
+				foundOutgoingWithProtocol = true
+				break
+			}
+		}
+		for _, conn := range incomingConns {
+			t.Logf("Found incmoing connection %v", conn)
+			if conn.Protocol == expectedProtocol {
+				foundIncomingWithProtocol = true
+				break
+			}
+		}
+
+		return foundOutgoingWithProtocol && foundIncomingWithProtocol
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find incoming and outgoing connections with protocol %d for server address %s and target address %s", expectedProtocol, serverAddr, targetAddr)
+}
+
+func TestBlockingReadCounts(t *testing.T) {
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	_ = getConnections(t, tr)
+
+	server := NewTCPServer(func(c net.Conn) {
+		c.Write([]byte("foo"))
+		time.Sleep(time.Second)
+		c.Write([]byte("foo"))
+	})
+
+	done := make(chan struct{})
+	server.Run(done)
+	defer func() { close(done) }()
+
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	f, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+
+	buf := make([]byte, 6)
+	n, _, err := syscall.Recvfrom(int(f.Fd()), buf, syscall.MSG_WAITALL)
+	require.NoError(t, err)
+
+	assert.Equal(t, 6, n)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var found bool
+		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), getConnections(t, tr))
+		return found
+	}, 3*time.Second, 500*time.Millisecond)
+
+	assert.Equal(t, uint64(n), conn.MonotonicSum().RecvBytes)
 }

@@ -73,7 +73,7 @@ linters-settings:
       - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
   errcheck:
     # Disable warnings for `fmt` and `log` packages. Also ignore `Write` functions from `net/http` package.
-    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,net/http:Write,github.com/DataDog/datadog-agent/pkg/trace/metrics:.*
+    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,github.com/DataDog/datadog-agent/comp/core/log:.*,net/http:Write,github.com/DataDog/datadog-agent/pkg/trace/metrics:.*
   staticcheck:
     go: "1.17"
     checks: ["all",

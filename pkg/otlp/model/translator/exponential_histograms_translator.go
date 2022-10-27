@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
 
-func toStore(b pmetric.Buckets) store.Store {
+func toStore(b pmetric.ExponentialHistogramDataPointBuckets) store.Store {
 	offset := b.Offset()
 	bucketCounts := b.BucketCounts()
 

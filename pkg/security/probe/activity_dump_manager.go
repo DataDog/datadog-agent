@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func areCGroupADsEnabled(c *config.Config) bool {
@@ -230,13 +229,12 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 }
 
 func (adm *ActivityDumpManager) prepareContextTags() {
-	var err error
-
 	// add hostname tag
-	adm.hostname, err = hostname.Get(context.TODO())
-	if err != nil {
-		adm.hostname = "unknown"
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
 	}
+	adm.hostname = hostname
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
@@ -608,7 +606,7 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 
-		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize) {
+		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true

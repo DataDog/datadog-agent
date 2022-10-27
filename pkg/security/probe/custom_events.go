@@ -143,96 +143,68 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 		})
 }
 
-// RuleIgnored defines a ignored
-// easyjson:json
-type RuleIgnored struct {
-	ID         string `json:"id"`
-	Version    string `json:"version,omitempty"`
-	Expression string `json:"expression"`
-	Reason     string `json:"reason"`
-}
-
-// PoliciesIgnored holds the errors
-type PoliciesIgnored struct {
-	Errors *multierror.Error
-}
-
-type policiesIgnoredReason struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason"`
-}
-
-// MarshalJSON custom marshaller
-func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
-	if r.Errors == nil {
-		return nil, nil
-	}
-
-	var errs []policiesIgnoredReason
-
-	for _, err := range r.Errors.Errors {
-		if perr, ok := err.(*rules.ErrPolicyLoad); ok {
-			errs = append(errs, policiesIgnoredReason{
-				Name:   perr.Name,
-				Reason: perr.Err.Error(),
-			})
-		}
-	}
-
-	return json.Marshal(errs)
-}
-
-// UnmarshalJSON empty unmarshaller
-func (r *PoliciesIgnored) UnmarshalJSON(data []byte) error {
-	return nil
-}
-
 // RuleLoaded defines a loaded rule
 // easyjson:json
-type RuleLoaded struct {
+type RuleState struct {
 	ID         string `json:"id"`
 	Version    string `json:"version,omitempty"`
 	Expression string `json:"expression"`
+	Status     string `json:"status"`
+	Message    string `json:"message,omitempty"`
 }
 
-// PolicyLoaded is used to report policy was loaded
+// PolicyState is used to report policy was loaded
 // easyjson:json
-type PolicyLoaded struct {
-	Version      string
-	Source       string
-	RulesLoaded  []*RuleLoaded  `json:"rules_loaded"`
-	RulesIgnored []*RuleIgnored `json:"rules_ignored,omitempty"`
+type PolicyState struct {
+	Name    string       `json:"name"`
+	Version string       `json:"version"`
+	Source  string       `json:"source"`
+	Rules   []*RuleState `json:"rules"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp       time.Time        `json:"date"`
-	PoliciesLoaded  []*PolicyLoaded  `json:"policies"`
-	PoliciesIgnored *PoliciesIgnored `json:"policies_ignored,omitempty"`
-	MacrosLoaded    []rules.MacroID  `json:"macros_loaded"`
+	Timestamp time.Time      `json:"date"`
+	Policies  []*PolicyState `json:"policies"`
+}
+
+func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
+	return &PolicyState{
+		Name:    def.Policy.Name,
+		Version: def.Policy.Version,
+		Source:  def.Policy.Source,
+	}
+}
+
+func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message string) *RuleState {
+	return &RuleState{
+		ID:         def.ID,
+		Version:    def.Version,
+		Expression: def.Expression,
+		Status:     status,
+		Message:    message,
+	}
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
 func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *CustomEvent) {
-	mp := make(map[string]*PolicyLoaded)
+	mp := make(map[string]*PolicyState)
 
-	var policy *PolicyLoaded
+	var policyState *PolicyState
 	var exists bool
 
-	// rule successfully loaded
-	for _, rule := range rs.GetRules() {
-		policyName := rule.Definition.Policy.Name
+	for _, policy := range rs.GetPolicies() {
+		// rule successfully loaded
+		for _, ruleDef := range policy.Rules {
+			policyName := ruleDef.Policy.Name
 
-		if policy, exists = mp[policyName]; !exists {
-			policy = &PolicyLoaded{Version: rule.Definition.Policy.Version, Source: rule.Definition.Policy.Source}
-			mp[policyName] = policy
+			if policyState, exists = mp[policyName]; !exists {
+				policyState = PolicyStateFromRuleDefinition(ruleDef)
+				mp[policyName] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 		}
-		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{
-			ID:         rule.ID,
-			Version:    rule.Definition.Version,
-			Expression: rule.Definition.Expression,
-		})
 	}
 
 	// rules ignored due to errors
@@ -241,21 +213,16 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
 				policyName := rerr.Definition.Policy.Name
 
-				if policy, exists = mp[policyName]; !exists {
-					policy = &PolicyLoaded{}
-					mp[policyName] = policy
+				if _, exists := mp[policyName]; !exists {
+					policyState = PolicyStateFromRuleDefinition(rerr.Definition)
+					mp[policyName] = policyState
 				}
-				policy.RulesIgnored = append(policy.RulesIgnored, &RuleIgnored{
-					ID:         rerr.Definition.ID,
-					Version:    rerr.Definition.Version,
-					Expression: rerr.Definition.Expression,
-					Reason:     rerr.Err.Error(),
-				})
+				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
 
-	var policies []*PolicyLoaded
+	var policies []*PolicyState
 	for _, policy := range mp {
 		policies = append(policies, policy)
 	}
@@ -263,10 +230,8 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 	return newRule(&rules.RuleDefinition{
 			ID: RulesetLoadedRuleID,
 		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-			Timestamp:       time.Now(),
-			PoliciesLoaded:  policies,
-			PoliciesIgnored: &PoliciesIgnored{Errors: err},
-			MacrosLoaded:    rs.ListMacroIDs(),
+			Timestamp: time.Now(),
+			Policies:  policies,
 		})
 }
 

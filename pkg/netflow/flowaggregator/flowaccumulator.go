@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"go.uber.org/atomic"
 	"sync"
 	"time"
 
@@ -36,6 +37,9 @@ type flowAccumulator struct {
 
 	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
+	portRollupDisabled  bool
+
+	hashCollisionFlowCount *atomic.Uint64
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -46,13 +50,15 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool) *flowAccumulator {
 	return &flowAccumulator{
-		flows:               make(map[uint64]flowContext),
-		flowFlushInterval:   aggregatorFlushInterval,
-		flowContextTTL:      aggregatorFlowContextTTL,
-		portRollup:          portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
-		portRollupThreshold: portRollupThreshold,
+		flows:                  make(map[uint64]flowContext),
+		flowFlushInterval:      aggregatorFlushInterval,
+		flowContextTTL:         aggregatorFlowContextTTL,
+		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
+		portRollupThreshold:    portRollupThreshold,
+		portRollupDisabled:     portRollupDisabled,
+		hashCollisionFlowCount: atomic.NewUint64(0),
 	}
 }
 
@@ -96,14 +102,16 @@ func (f *flowAccumulator) flush() []*common.Flow {
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	log.Tracef("Add new flow: %+v", flowToAdd)
 
-	// Handle port rollup
-	f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-	ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-	switch ephemeralStatus {
-	case portrollup.IsEphemeralSourcePort:
-		flowToAdd.SrcPort = portrollup.EphemeralPort
-	case portrollup.IsEphemeralDestPort:
-		flowToAdd.DstPort = portrollup.EphemeralPort
+	if !f.portRollupDisabled {
+		// Handle port rollup
+		f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+		ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+		switch ephemeralStatus {
+		case portrollup.IsEphemeralSourcePort:
+			flowToAdd.SrcPort = portrollup.EphemeralPort
+		case portrollup.IsEphemeralDestPort:
+			flowToAdd.DstPort = portrollup.EphemeralPort
+		}
 	}
 
 	f.flowsMutex.Lock()
@@ -118,6 +126,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	if aggFlow.flow == nil {
 		aggFlow.flow = flowToAdd
 	} else {
+		// use go routine for has collision detection to avoid blocking critical path
+		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
@@ -133,4 +144,11 @@ func (f *flowAccumulator) getFlowContextCount() int {
 	defer f.flowsMutex.Unlock()
 
 	return len(f.flows)
+}
+
+func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
+	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
+		log.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
+		f.hashCollisionFlowCount.Inc()
+	}
 }

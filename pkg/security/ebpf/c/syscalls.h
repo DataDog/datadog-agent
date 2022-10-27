@@ -243,9 +243,8 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
-    u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
     if (!syscall) {
         return NULL;
     }
@@ -253,6 +252,11 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
         return syscall;
     }
     return NULL;
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
+    u64 key = bpf_get_current_pid_tgid();
+    return peek_task_syscall(key, type);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
@@ -280,17 +284,21 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*pr
     return NULL;
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
-    u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_tgid, u64 type) {
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
     if (!syscall) {
         return NULL;
     }
     if (!type || syscall->type == type) {
-        bpf_map_delete_elem(&syscalls, &key);
+        bpf_map_delete_elem(&syscalls, &pid_tgid);
         return syscall;
     }
     return NULL;
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
+    u64 key = bpf_get_current_pid_tgid();
+    return pop_task_syscall(key, type);
 }
 
 int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {

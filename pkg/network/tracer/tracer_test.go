@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -131,7 +132,6 @@ func TestGetStats(t *testing.T) {
       "ebpf": {
         "closed_conn_polling_lost": 0,
         "closed_conn_polling_received": 0,
-        "conn_stats_max_entries_hit": 0,
         "missed_tcp_close": 0,
         "missed_udp_close": 0,
         "pid_collisions": 0,
@@ -143,16 +143,18 @@ func TestGetStats(t *testing.T) {
         "udp_sends_missed": 0,
         "udp_sends_processed": 162
       },
-      "http": {
-        "aggregations": 0,
-        "dropped": 0,
-        "hits1_xx": 0,
-        "hits2_xx": 0,
-        "hits3_xx": 0,
-        "hits4_xx": 0,
-        "hits5_xx": 0,
-        "misses": 0,
-        "rejected": 0
+      "usm": {
+        "http": {
+          "aggregations": 0,
+          "dropped": 0,
+          "hits1xx": 0,
+          "hits2xx": 0,
+          "hits3xx": 0,
+          "hits4xx": 0,
+          "hits5xx": 0,
+          "misses": 0,
+          "rejected": 0
+        }
       },
       "kprobes": {},
       "state": {
@@ -199,7 +201,7 @@ func TestGetStats(t *testing.T) {
 	actual, _ := tr.GetStats()
 
 	for section, entries := range expected {
-		if section == "http" && !httpSupported {
+		if section == "usm" && !httpSupported {
 			// HTTP stats not supported on some systems
 			continue
 		}
@@ -1880,4 +1882,210 @@ func skipIfWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test unavailable on windows")
 	}
+}
+
+const (
+	numberOfRequests = 100
+)
+
+// TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
+func TestOpenSSLVersions(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
+	}
+
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
+	cfg := testConfig()
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	initTracerState(t, tr)
+	defer tr.Stop()
+
+	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+		EnableTLS: true,
+	})
+	require.NoError(t, err)
+	defer closer()
+
+	// Giving the tracer time to install the hooks
+	time.Sleep(time.Second)
+	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
+	var requests []*nethttp.Request
+	for i := 0; i < numberOfRequests; i++ {
+		requests = append(requests, requestFn())
+	}
+	// At the moment, there is a bug in the SSL hooks which cause us to miss (statistically) the last request.
+	// So I'm sending another request and not expecting to capture it.
+	requestFn()
+
+	client.CloseIdleConnections()
+	requestsExist := make([]bool, len(requests))
+
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+
+		if len(conns.HTTP) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, time.Second, "connection not found")
+}
+
+// TestOpenSSLVersionsSlowStart check we are able to capture TLS traffic even if we haven't captured the TLS handshake.
+// It can happen if the agent starts after connections have been made, or agent restart (OOM/upgrade).
+// Unfortunately, this is only a best-effort mechanism and it relies on some assumptions that are not always necessarily true
+// such as having SSL_read/SSL_write calls in the same call-stack/execution-context as the kernel function tcp_sendmsg. Force
+// this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
+func TestOpenSSLVersionsSlowStart(t *testing.T) {
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
+	cfg := testConfig()
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+
+	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+		EnableTLS: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
+	// Send a couple of requests we won't capture.
+	var missedRequests []*nethttp.Request
+	for i := 0; i < 5; i++ {
+		missedRequests = append(missedRequests, requestFn())
+	}
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	initTracerState(t, tr)
+
+	// Giving the tracer time to install the hooks
+	time.Sleep(time.Second)
+
+	// Send a warmup batch of requests to trigger the fallback behavior
+	for i := 0; i < numberOfRequests; i++ {
+		requestFn()
+	}
+
+	var requests []*nethttp.Request
+	for i := 0; i < numberOfRequests; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	// At the moment, there is a bug in the SSL hooks which cause us to miss (statistically) the last request.
+	// So I'm sending another request and not expecting to capture it.
+	requestFn()
+
+	client.CloseIdleConnections()
+	requestsExist := make([]bool, len(requests))
+	expectedMissingRequestsCaught := make([]bool, len(missedRequests))
+
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+
+		if len(conns.HTTP) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
+		}
+
+		for reqIndex, req := range missedRequests {
+			if !expectedMissingRequestsCaught[reqIndex] {
+				expectedMissingRequestsCaught[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, time.Second, "connection not found")
+
+	// Here we intend to check if we catch requests we should not have caught
+	// Thus, if an expected missing requests - exists, thus there is a problem.
+	for reqIndex, exist := range expectedMissingRequestsCaught {
+		require.Falsef(t, exist, "request %d was not meant to be captured found (req %v) but we captured it", reqIndex+1, requests[reqIndex])
+	}
+}
+
+var (
+	statusCodes = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
+)
+
+func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Client, func() *nethttp.Request) {
+	var (
+		random = rand.New(rand.NewSource(time.Now().Unix()))
+		idx    = 0
+		client = &nethttp.Client{
+			Transport: &nethttp.Transport{
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+				DisableKeepAlives: false,
+			},
+		}
+	)
+
+	return client, func() *nethttp.Request {
+		idx++
+		status := statusCodes[random.Intn(len(statusCodes))]
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", targetAddr, status, idx), nil)
+		require.NoError(t, err)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, status, resp.StatusCode)
+		io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return req
+	}
+}
+
+func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
+	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	for key, stats := range allStats {
+		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			return true
+		}
+	}
+
+	return false
 }

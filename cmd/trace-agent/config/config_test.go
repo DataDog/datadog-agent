@@ -248,9 +248,7 @@ func TestConfigHostname(t *testing.T) {
 		defer cleanConfig()()
 		// hostname from env
 		assert := assert.New(t)
-		err := os.Setenv("DD_HOSTNAME", "onlyenv")
-		defer os.Unsetenv("DD_HOSTNAME")
-		assert.NoError(err)
+		t.Setenv("DD_HOSTNAME", "onlyenv")
 		cfg, err := LoadConfigFile("./testdata/site_override.yaml")
 		assert.NoError(err)
 		assert.Equal("onlyenv", cfg.Hostname)
@@ -260,12 +258,19 @@ func TestConfigHostname(t *testing.T) {
 		defer cleanConfig()()
 		// hostname from file, overwritten from env
 		assert := assert.New(t)
-		err := os.Setenv("DD_HOSTNAME", "envoverride")
-		defer os.Unsetenv("DD_HOSTNAME")
-		assert.NoError(err)
+		t.Setenv("DD_HOSTNAME", "envoverride")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("envoverride", cfg.Hostname)
+	})
+
+	t.Run("serverless", func(t *testing.T) {
+		defer cleanConfig()()
+		coreconfig.Datadog.Set("serverless.enabled", true)
+		assert := assert.New(t)
+		cfg, err := LoadConfigFile("./testdata/site_default.yaml")
+		assert.NoError(err)
+		assert.Equal("", cfg.Hostname)
 	})
 
 	t.Run("external", func(t *testing.T) {
@@ -510,7 +515,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(0.33, c.ExtraSampleRate)
 	assert.Equal(100.0, c.TargetTPS)
 	assert.Equal(37.0, c.ErrorTPS)
-	assert.Equal(true, c.RareSamplerDisabled)
+	assert.Equal(true, c.RareSamplerEnabled)
 	assert.Equal(127.0, c.MaxRemoteTPS)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
@@ -555,9 +560,7 @@ func TestNormalizeEnvFromDDEnv(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			defer cleanConfig()()
-			err := os.Setenv("DD_ENV", in)
-			defer os.Unsetenv("DD_ENV")
-			assert.NoError(err)
+			t.Setenv("DD_ENV", in)
 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
 			assert.Equal(out, cfg.DefaultEnv)
@@ -576,9 +579,7 @@ func TestNormalizeEnvFromDDTags(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			defer cleanConfig()()
-			err := os.Setenv("DD_TAGS", in)
-			defer os.Unsetenv("DD_TAGS")
-			assert.NoError(err)
+			t.Setenv("DD_TAGS", in)
 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
 			assert.Equal(out, cfg.DefaultEnv)
@@ -620,13 +621,9 @@ func TestLoadEnv(t *testing.T) {
 			{"DD_IGNORE_RESOURCE", "DD_APM_IGNORE_RESOURCES", "apm_config.ignore_resources"},
 		} {
 			assert := assert.New(t)
-			err := os.Setenv(tt.envOld, "1,2,3")
-			assert.NoError(err)
-			defer os.Unsetenv(tt.envOld)
-			err = os.Setenv(tt.envNew, "4,5,6")
-			assert.NoError(err)
-			defer os.Unsetenv(tt.envNew)
-			_, err = LoadConfigFile("./testdata/full.yaml")
+			t.Setenv(tt.envOld, "1,2,3")
+			t.Setenv(tt.envNew, "4,5,6")
+			_, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
 				assert.Equal([]string{"4", "5", "6"}, coreconfig.Datadog.GetStringSlice(tt.key))
@@ -640,9 +637,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "123")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "123")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("123", cfg.Endpoints[0].APIKey)
@@ -652,9 +647,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-site.com")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "my-site.com")
 		cfg, err := LoadConfigFile("./testdata/undocumented.yaml")
 		assert.NoError(err)
 		assert.Equal(apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
@@ -664,9 +657,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "true")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "true")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.True(cfg.Enabled)
@@ -676,9 +667,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-site.com")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "my-site.com")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-site.com", cfg.Endpoints[0].Host)
@@ -688,9 +677,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-proxy.url")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "my-proxy.url")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-proxy.url", cfg.ProxyURL.String())
@@ -700,9 +687,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-proxy.url")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "my-proxy.url")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-proxy.url", cfg.ProxyURL.String())
@@ -712,9 +697,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "local.host")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "local.host")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("local.host", cfg.Hostname)
@@ -724,9 +707,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "bindhost.com")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "bindhost.com")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("bindhost.com", cfg.StatsdHost)
@@ -739,9 +720,7 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "1234")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "1234")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			assert.Equal(1234, cfg.ReceiverPort)
@@ -752,9 +731,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "4321")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "4321")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(4321, cfg.StatsdPort)
@@ -764,9 +741,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "true")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "true")
 		cfg, err := LoadConfigFile("./testdata/undocumented.yaml")
 		assert.NoError(err)
 		assert.Equal("0.0.0.0", cfg.ReceiverHost)
@@ -779,9 +754,7 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "1,2,3")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "1,2,3")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			assert.Equal([]string{"1", "2", "3"}, cfg.Ignore["resource"])
@@ -792,9 +765,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "web|http.request=1,db|sql.query=0.5")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "web|http.request=1,db|sql.query=0.5")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(map[string]map[string]float64{
@@ -807,9 +778,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		rule1 := &config.ReplaceRule{
@@ -831,9 +800,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `important1 important2:value1`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, `important1 important2:value1`)
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
@@ -842,9 +809,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `["important1:value with a space"]`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, `["important1:value with a space"]`)
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
@@ -854,9 +819,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `bad1:value1`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, `bad1:value1`)
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
@@ -865,9 +828,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `["bad1:value with a space"]`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, `["bad1:value with a space"]`)
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
@@ -880,9 +841,7 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "50")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "50")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			assert.Equal(50, cfg.ConnectionLimit)
@@ -896,9 +855,7 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "6")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "6")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			assert.Equal(6., cfg.TargetTPS)
@@ -911,9 +868,7 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "12")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "12")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			assert.Equal(12., cfg.ErrorTPS)
@@ -921,17 +876,15 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	for _, envKey := range []string{
-		"DD_APM_DISABLE_RARE_SAMPLER",
+		"DD_APM_ENABLE_RARE_SAMPLER",
 	} {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "true")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "true")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(true, cfg.RareSamplerDisabled)
+			assert.Equal(true, cfg.RareSamplerEnabled)
 		})
 	}
 
@@ -942,9 +895,7 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
 			assert := assert.New(t)
-			err := os.Setenv(envKey, "7")
-			assert.NoError(err)
-			defer os.Unsetenv(envKey)
+			t.Setenv(envKey, "7")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
 			assert.Equal(7., cfg.MaxEPS)
@@ -955,9 +906,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "337.41")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, "337.41")
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal(337.41, cfg.MaxRemoteTPS)
@@ -967,9 +916,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Contains(cfg.Endpoints, &config.Endpoint{APIKey: "key1", Host: "url1"})
@@ -981,10 +928,8 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-site.com")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, "my-site.com")
+		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-site.com", coreconfig.Datadog.GetString("apm_config.profiling_dd_url"))
 	})
@@ -993,10 +938,8 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-site.com")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, "my-site.com")
+		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-site.com", coreconfig.Datadog.GetString("apm_config.debugger_dd_url"))
 	})
@@ -1005,10 +948,8 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "my-key")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, "my-key")
+		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
 	})
@@ -1017,10 +958,8 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "false")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, "false")
+		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.False(coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
 	})
@@ -1029,10 +968,8 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, "false")
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, "false")
+		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.False(coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
@@ -1041,10 +978,8 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		err := os.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
-		assert.NoError(err)
-		defer os.Unsetenv(env)
-		_, err = LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		expected := map[string][]string{
 			"url1": {"key1", "key2"},

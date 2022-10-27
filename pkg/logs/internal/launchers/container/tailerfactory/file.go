@@ -139,6 +139,13 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 
 // findDockerLogPath returns a path for the given container.
 func (tf *factory) findDockerLogPath(containerID string) string {
+	// if the user has set a custom docker data root, this will pick it up
+	// and set it in place of the usual docker base path
+	overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
+	if len(overridePath) > 0 {
+		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
+	}
+
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(

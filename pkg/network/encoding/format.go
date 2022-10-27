@@ -76,6 +76,7 @@ func FormatConnection(
 	c.IntraHost = conn.IntraHost
 	c.LastTcpEstablished = conn.Last.TCPEstablished
 	c.LastTcpClosed = conn.Last.TCPClosed
+	c.Protocol = formatProtocol(conn.Protocol)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
@@ -101,7 +102,6 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		t := &model.RuntimeCompilationTelemetry{}
 		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
 		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
-		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
 		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 		ret[asset] = t
 	}
@@ -262,4 +262,23 @@ func unsafeStringSlice(key string) []byte {
 	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
 	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
+}
+
+// formatProtocol converts a single protocol into a protobuf representation of protocol stack.
+// i.e: the input is ProtocolHTTP2 and the output should be:
+// &model.ProtocolStack{
+//		Stack: []model.ProtocolType{
+//			model.ProtocolType_protocolHTTP2,
+//		},
+//	}
+func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
+	if protocol == network.ProtocolUnclassified {
+		return nil
+	}
+
+	return &model.ProtocolStack{
+		Stack: []model.ProtocolType{
+			model.ProtocolType(protocol),
+		},
+	}
 }

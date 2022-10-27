@@ -1,11 +1,11 @@
 #ifndef __TRACER_STATS_H
 #define __TRACER_STATS_H
 
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
-
-static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
+#include "sock-defines.h"
 
 static __always_inline u32 get_sk_cookie(struct sock *sk) {
     u64 t = bpf_ktime_get_ns();
@@ -15,7 +15,7 @@ static __always_inline u32 get_sk_cookie(struct sock *sk) {
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
-    __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
+    bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
@@ -42,13 +42,32 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
+static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
+    conn_tuple_t conn_tuple_copy = *t;
+    // The classifier is a socket filter and there we are not accessible for pid and netns.
+    // The key is based of the source & dest addresses and ports, and the metadata.
+    conn_tuple_copy.netns = 0;
+    conn_tuple_copy.pid = 0;
+    protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+
+    if (cached_protocol_ptr != NULL) {
+       return *cached_protocol_ptr;
+    }
+    return PROTOCOL_UNCLASSIFIED;
+}
+
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
-    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
+    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, protocol_t protocol, struct sock *sk) {
     conn_stats_ts_t *val;
 
     val = get_conn_stats(t, sk);
     if (!val) {
         return;
+    }
+
+    if ((val->protocol == PROTOCOL_UNCLASSIFIED) || (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED)) {
+        log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
+        val->protocol = protocol;
     }
 
     // If already in our map, increment size in-place
@@ -96,7 +115,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     __u32 pid = t->pid;
     t->pid = 0;
 
-    // initialize-if-no-exist the connetion state, and load it
+    // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
     bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST);
 
@@ -123,10 +142,10 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
-    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
+    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, protocol_t protocol, struct sock *sk) {
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, sk);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, protocol, sk);
 
     return 0;
 }
@@ -144,5 +163,19 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
 
     return 0;
 }
+
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
+    u32 rtt = 0;
+    u32 rtt_var = 0;
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), sock_rtt(sk));
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), sock_rtt_var(sk));
+
+    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    if (state > 0) {
+        stats.state_transitions = (1 << state);
+    }
+    update_tcp_stats(t, stats);
+}
+
 
 #endif // __TRACER_STATS_H

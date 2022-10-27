@@ -18,6 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+type ProtocolType uint16
+
+const (
+	ProtocolUnclassified ProtocolType = iota
+	ProtocolUnknown
+	ProtocolHTTP
+	ProtocolHTTP2
+	ProtocolTLS
+	MaxProtocols
+)
+
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
 
@@ -121,6 +132,7 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	KernelHeaderFetchResult     int32
 	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
@@ -146,8 +158,6 @@ const (
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
 	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
-	HTTPRequestsDropped             ConnTelemetryType = "http_requests_dropped"
-	HTTPRequestsMissed              ConnTelemetryType = "http_requests_missed"
 )
 
 //revive:enable
@@ -160,8 +170,6 @@ var (
 		ConntrackSamplingPercent,
 		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
-		HTTPRequestsDropped,
-		HTTPRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
@@ -185,7 +193,6 @@ var (
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
-	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
@@ -290,6 +297,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	Protocol  ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -447,6 +455,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", protocol: %v", c.Protocol)
 
 	return str
 }

@@ -35,31 +35,13 @@ from .utils import (
 )
 
 BIN_DIR = os.path.join(".", "bin")
-BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
-
-
-def get_go_env(ctx, go_version):
-    goenv = {}
-    if go_version:
-        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
-
-    # extend PATH from gimme with the one from get_build_flags
-    if "PATH" in os.environ and "PATH" in goenv:
-        goenv["PATH"] += ":" + os.environ["PATH"]
-
-    return goenv
+BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 
 
 @task
 def build(
     ctx,
     race=False,
-    go_version=None,
     incremental_build=True,
     major_version='7',
     # arch is never used here; we keep it to have a
@@ -94,13 +76,12 @@ def build(
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
-        "GoVersion": go_version if go_version else get_go_version(),
+        "GoVersion": get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    env.update(get_go_env(ctx, go_version))
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(
         build="security-agent"
@@ -310,7 +291,6 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
 def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
@@ -334,9 +314,6 @@ def build_functional_tests(
     ldflags, _, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
-
-    goenv = get_go_env(ctx, go_version)
-    env.update(goenv)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -380,7 +357,6 @@ def build_functional_tests(
 def build_stress_tests(
     ctx,
     output='pkg/security/tests/stresssuite',
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
@@ -391,7 +367,6 @@ def build_stress_tests(
     build_functional_tests(
         ctx,
         output=output,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         build_tags='stresstests',
@@ -405,7 +380,6 @@ def build_stress_tests(
 def stress_tests(
     ctx,
     verbose=False,
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/stresssuite',
@@ -416,7 +390,6 @@ def stress_tests(
 ):
     build_stress_tests(
         ctx,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         output=output,
@@ -438,7 +411,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
@@ -449,7 +421,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         output=output,
@@ -471,7 +442,6 @@ def functional_tests(
 def kitchen_functional_tests(
     ctx,
     verbose=False,
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
@@ -481,7 +451,6 @@ def kitchen_functional_tests(
         functional_tests(
             ctx,
             verbose=verbose,
-            go_version=go_version,
             arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
@@ -501,41 +470,44 @@ def kitchen_functional_tests(
 def docker_functional_tests(
     ctx,
     verbose=False,
-    go_version=None,
+    race=False,
     arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
-    static=False,
     bundle_ebpf=True,
     skip_linters=False,
     kernel_release=None,
 ):
     build_functional_tests(
         ctx,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
-        static=static,
+        static=True,
         skip_linters=skip_linters,
+        race=race,
         kernel_release=kernel_release,
     )
 
-    dockerfile = """
-FROM debian:bullseye
+    add_arch_line = ""
+    if arch == "x86":
+        add_arch_line = "RUN dpkg --add-architecture i386"
+
+    dockerfile = f"""
+FROM ubuntu:22.04
 
 ENV DOCKER_DD_AGENT=yes
 
-RUN dpkg --add-architecture i386
+{add_arch_line}
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
+RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"

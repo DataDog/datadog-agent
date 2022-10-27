@@ -11,13 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/stretchr/testify/assert"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -118,10 +116,8 @@ func TestGetFallbackHost(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	// Prepare envvars for test
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(t, err)
+	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	testCases := []struct {
 		testName    string
@@ -768,10 +764,8 @@ func newFakeContainerPorts() []listeners.ContainerPort {
 
 func BenchmarkResolve(b *testing.B) {
 	// Prepare envvars for test
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(b, err)
+	b.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	testCases := []struct {
 		testName    string

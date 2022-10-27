@@ -1,0 +1,84 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "ruleset_loaded.json",
+    "type": "object",
+    "properties": {
+        "policies": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/policy"
+            }
+        },
+        "date": {
+            "$ref": "/schemas/datetime.json"
+        }
+    },
+    "required": [
+        "policies",
+        "date"
+    ],
+    "$defs": {
+        "policy": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "file",
+                        "remote_config"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/rule"
+                    }
+                }
+            },
+            "required": [
+                "source",
+                "name",
+                "version",
+                "rules"
+            ]
+        },
+        "rule": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "expression": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "loaded",
+                        "agent_version_error",
+                        "event_type_disabled",
+                        "syntax_error",
+                        "error"
+                    ]
+                },
+                "message": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "status",
+                "expression"
+            ]
+        }
+    }
+}
