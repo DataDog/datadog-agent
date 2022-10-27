@@ -283,6 +283,9 @@ func (c *Client) verifyOrg() error {
 	if err != nil {
 		return fmt.Errorf("could not parse snapshot custom: %v", err)
 	}
+	// Another safeguard here: if we ever get locked out of agents,
+	// we can remove the orgUUID from the snapshot and they'll work
+	// again. This being said, this is last resort.
 	if custom.OrgUUID != nil {
 		orgUUID, err := c.storedOrgUUID()
 		if err != nil {
