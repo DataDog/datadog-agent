@@ -133,7 +133,7 @@ type Connections struct {
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	KernelHeaderFetchResult     int32
-	CoReTelemetryByAsset        map[string]int32
+	CORETelemetryByAsset        map[string]int32
 	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }

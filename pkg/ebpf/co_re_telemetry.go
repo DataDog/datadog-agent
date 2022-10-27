@@ -12,11 +12,11 @@ import (
 	"sync"
 )
 
-// CoReResult enumerates CO-RE success & failure modes
-type CoReResult int
+// COREResult enumerates CO-RE success & failure modes
+type COREResult int
 
 const (
-	successCustomBTF CoReResult = iota
+	successCustomBTF COREResult = iota
 	successEmbeddedBTF
 	successDefaultBTF
 	btfNotFound
@@ -24,26 +24,26 @@ const (
 	VerifierError
 )
 
-// coReTelemetryByAsset is a global object which is responsible for storing CO-RE telemetry for all ebpf assets
-var coReTelemetryByAsset = make(map[string]CoReResult)
+// coreTelemetryByAsset is a global object which is responsible for storing CO-RE telemetry for all ebpf assets
+var coreTelemetryByAsset = make(map[string]COREResult)
 var telemetrymu sync.Mutex
 
-// StoreCoReTelemetryForAsset stores CO-RE telemetry for a particular asset.
+// StoreCORETelemetryForAsset stores CO-RE telemetry for a particular asset.
 // If NPM is enabled, all stored telemetry will be sent to the backend as part of the agent payload & emitted internally.
-func StoreCoReTelemetryForAsset(assetName string, result CoReResult) {
+func StoreCORETelemetryForAsset(assetName string, result COREResult) {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 
-	coReTelemetryByAsset[assetName] = result
+	coreTelemetryByAsset[assetName] = result
 }
 
-// GetCoReTelemetryByAsset returns the stored CO-RE telemetry
-func GetCoReTelemetryByAsset() map[string]int32 {
+// GetCORETelemetryByAsset returns the stored CO-RE telemetry
+func GetCORETelemetryByAsset() map[string]int32 {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 
 	result := make(map[string]int32)
-	for assetName, tm := range coReTelemetryByAsset {
+	for assetName, tm := range coreTelemetryByAsset {
 		result[assetName] = int32(tm)
 	}
 	return result

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func GetBTF(userProvidedBtfPath, collectionPath string) (*btf.Spec, CoReResult) {
+func GetBTF(userProvidedBtfPath, collectionPath string) (*btf.Spec, COREResult) {
 	var btfSpec *btf.Spec
 	var err error
 

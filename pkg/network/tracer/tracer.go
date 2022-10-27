@@ -364,7 +364,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
-	coretm := ddebpf.GetCoReTelemetryByAsset()
+	coretm := ddebpf.GetCORETelemetryByAsset()
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -375,7 +375,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
-		CoReTelemetryByAsset:        coretm,
+		CORETelemetryByAsset:        coretm,
 	}, nil
 }
 

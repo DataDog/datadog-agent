@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCoReTelemetry(t *testing.T) {
-	StoreCoReTelemetryForAsset("exampleAsset1", successCustomBTF)
-	StoreCoReTelemetryForAsset("exampleAsset2", VerifierError)
+func TestCORETelemetry(t *testing.T) {
+	StoreCORETelemetryForAsset("exampleAsset1", successCustomBTF)
+	StoreCORETelemetryForAsset("exampleAsset2", VerifierError)
 
-	actual := GetCoReTelemetryByAsset()
+	actual := GetCORETelemetryByAsset()
 	expected := map[string]int32{
 		"exampleAsset1": int32(successCustomBTF),
 		"exampleAsset2": int32(VerifierError),
