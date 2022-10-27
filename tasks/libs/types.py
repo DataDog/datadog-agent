@@ -44,9 +44,7 @@ class FailedJobType(Enum):
 
 
 class FailedJobReason(Enum):
-    MAIN_RUNNER = 1
-    DOCKER_RUNNER = 2
-    K8S_RUNNER = 3
+    RUNNER = 1
     KITCHEN_AZURE = 4
     FAILED_JOB_SCRIPT = 5
     GITLAB = 6
