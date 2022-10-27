@@ -42,6 +42,10 @@ var (
 		AgentVersion:         version.AgentVersion,
 		CloudProvider:        "some_cloud_provider",
 		OsVersion:            "testOS",
+		HypervisorGuestUUID:  "",
+		DmiProductUUID:       "",
+		DmiBoardAssetTag:     "",
+		DmiBoardVendor:       "",
 	}
 )
 
@@ -102,6 +106,7 @@ func setupHostMetadataMock() func() {
 		memoryGet = memory.Get
 		networkGet = network.Get
 		platformGet = platform.Get
+		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
 
 		inventoryMutex.Lock()
 		delete(agentMetadata, string(AgentCloudProvider))
@@ -113,6 +118,7 @@ func setupHostMetadataMock() func() {
 	memoryGet = memoryMock
 	networkGet = networkMock
 	platformGet = platformMock
+	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
 
 	SetAgentMetadata(AgentCloudProvider, "some_cloud_provider")
 	SetHostMetadata(HostOSVersion, "testOS")
@@ -139,12 +145,14 @@ func setupHostMetadataErrorMock() func() {
 		memoryGet = memory.Get
 		networkGet = network.Get
 		platformGet = platform.Get
+		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
 	}
 
 	cpuGet = cpuErrorMock
 	memoryGet = memoryErrorMock
 	networkGet = networkErrorMock
 	platformGet = platformErrorMock
+	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
 	return reset
 }
 

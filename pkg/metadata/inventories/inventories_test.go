@@ -296,7 +296,11 @@ func TestGetPayload(t *testing.T) {
 			"mac_address": "00:0c:29:b6:d2:32",
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
-			"os_version": "testOS"
+			"os_version": "testOS",
+			"hypervisor_guest_uuid": "",
+			"dmi_product_uuid": "",
+			"dmi_board_asset_tag": "",
+			"dmi_board_vendor": ""
 		}
 	}`
 	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)
