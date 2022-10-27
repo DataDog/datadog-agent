@@ -1014,6 +1014,12 @@ def generate_minimized_btfs(
     bpf program(s).
     """
 
+    # If there are no input programs, we don't need to actually do anything; however, in order to
+    # prevent CI jobs from failing, we'll create a dummy output directory
+    if input_bpf_programs == "":
+        ctx.run(f"mkdir -p {output_dir}/dummy_data")
+        return
+
     ctx.run(f"mkdir -p {output_dir}")
     for root, dirs, files in os.walk(source_dir):
         path_from_root = os.path.relpath(root, source_dir)
@@ -1030,10 +1036,6 @@ def generate_minimized_btfs(
             compressed_source_btf_path = os.path.join(root, file)
             output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
             compressed_output_btf_path = output_btf_path + ".tar.xz"
-
-            if input_bpf_programs == "":
-                ctx.run(f"mv {compressed_source_btf_path} {compressed_output_btf_path}")
-                continue
 
             ctx.run(f"tar -xf {compressed_source_btf_path}")
             ctx.run(f"bpftool gen min_core_btf {btf_filename} {output_btf_path} {input_bpf_programs}")
