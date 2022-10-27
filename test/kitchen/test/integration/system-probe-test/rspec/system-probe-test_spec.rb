@@ -4,6 +4,13 @@ require 'open3'
 
 GOLANG_TEST_FAILURE = /FAIL:/
 
+runtime_compiled_tests = Array.[](
+  "/pkg/network/tracer"
+)
+
+co_re_tests = Array.[](
+)
+
 def check_output(output, wait_thr)
   test_failures = []
 
@@ -48,23 +55,27 @@ Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
     end
   end
 
-  describe "runtime compiled system-probe tests for #{pkg}" do
-    it 'successfully runs' do
-      Dir.chdir(File.dirname(f)) do
-        Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
-          test_failures = check_output(output, wait_thr)
-          expect(test_failures).to be_empty, test_failures.join("\n")
+  if runtime_compiled_tests.include? pkg
+    describe "runtime compiled system-probe tests for #{pkg}" do
+      it 'successfully runs' do
+        Dir.chdir(File.dirname(f)) do
+          Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
+            test_failures = check_output(output, wait_thr)
+            expect(test_failures).to be_empty, test_failures.join("\n")
+          end
         end
       end
     end
   end
 
-  describe "CO-RE system-probe tests for #{pkg}" do
-    it 'successfully runs' do
-      Dir.chdir(File.dirname(f)) do
-        Open3.popen2e({"DD_TESTS_CO_RE"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
-          test_failures = check_output(output, wait_thr)
-          expect(test_failures).to be_empty, test_failures.join("\n")
+  if co_re_tests.include? pkg
+    describe "CO-RE system-probe tests for #{pkg}" do
+      it 'successfully runs' do
+        Dir.chdir(File.dirname(f)) do
+          Open3.popen2e({"DD_TESTS_CO_RE"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
+            test_failures = check_output(output, wait_thr)
+            expect(test_failures).to be_empty, test_failures.join("\n")
+          end
         end
       end
     end
