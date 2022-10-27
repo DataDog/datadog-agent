@@ -93,6 +93,7 @@ type uptaneClient interface {
 
 // NewService instantiates a new remote configuration management service
 func NewService() (*Service, error) {
+	ctx := context.Background()
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 	refreshInterval := config.Datadog.GetDuration("remote_configuration.refresh_interval")
 	if refreshInterval == 0 {
@@ -161,7 +162,12 @@ func NewService() (*Service, error) {
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
-	uptaneClient, err := uptane.NewClient(db, cacheKey, opt...)
+	uptaneClient, err := uptane.NewClient(
+		db,
+		cacheKey,
+		newOrgUUIDProvider(ctx, http),
+		opt...,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -172,8 +178,9 @@ func NewService() (*Service, error) {
 		clientsTTL = defaultClientsTTL
 	}
 	clock := clock.New()
+
 	return &Service{
-		ctx:                            context.Background(),
+		ctx:                            ctx,
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
 		refreshIntervalOverrideAllowed: refreshIntervalOverrideAllowed,
@@ -194,6 +201,13 @@ func NewService() (*Service, error) {
 			until:    time.Now().UTC(),
 		},
 	}, nil
+}
+
+func newOrgUUIDProvider(ctx context.Context, http api.API) uptane.OrgUUIDProvider {
+	return func() (string, error) {
+		resp, err := http.FetchOrgData(ctx)
+		return resp.GetUuid(), err
+	}
 }
 
 // Start the remote configuration management service
