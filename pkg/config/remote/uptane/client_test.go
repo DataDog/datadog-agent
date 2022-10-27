@@ -295,6 +295,38 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestOrgStore(t *testing.T) {
+	db := getTestDB(t)
+	client, err := NewClient(db, "testcachekey", getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	assert.NoError(t, err)
+
+	// Store key
+	err = client.orgStore.storeOrgUUID(0, "abc")
+	assert.NoError(t, err)
+
+	// Get stored key
+	uuid, exists, err := client.orgStore.getOrgUUID(0)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, "abc", uuid)
+
+	// Get non stored key
+	uuid, exists, err = client.orgStore.getOrgUUID(1)
+	assert.NoError(t, err) // Should not error except when store fails
+	assert.False(t, exists)
+	assert.Equal(t, "", uuid)
+
+	// Root rotation!
+	err = client.orgStore.storeOrgUUID(1, "def")
+	assert.NoError(t, err)
+
+	// Possibility to get new UUID
+	uuid, exists, err = client.orgStore.getOrgUUID(1)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	assert.Equal(t, "def", uuid)
+}
+
 func generateKey() keys.Signer {
 	key, _ := keys.GenerateEd25519Key()
 	return key
