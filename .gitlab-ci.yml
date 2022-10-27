@@ -707,6 +707,10 @@ variables:
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
+.on_main_or_testing_cleanup:
+  - <<: *if_main_branch
+  - <<: *if_testing_cleanup
+
 .on_testing_cleanup:
   - <<: *if_testing_cleanup
 
