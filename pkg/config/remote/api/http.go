@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -43,7 +44,7 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(auth Auth) *HTTPClient {
+func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 	header := http.Header{
 		"Content-Type": []string{"application/x-protobuf"},
 		"DD-Api-Key":   []string{auth.ApiKey},
@@ -51,16 +52,26 @@ func NewHTTPClient(auth Auth) *HTTPClient {
 	if auth.UseAppKey {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
+	transport := httputils.CreateHTTPTransport()
 	httpClient := &http.Client{
-		Transport: httputils.CreateHTTPTransport(),
+		Transport: transport,
 	}
-
-	baseURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
+	baseRawURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
+	baseURL, err := url.Parse(baseRawURL)
+	if err != nil {
+		return nil, err
+	}
+	if baseURL.Scheme != "https" && !config.Datadog.GetBool("remote_configuration.no_tls") {
+		return nil, fmt.Errorf("Remote Configuration URL %s is invalid as TLS is required by default. While it is not advised, the `remote_configuration.no_tls` config option can be set to `true` to disable this protection.", baseRawURL)
+	}
+	if transport.TLSClientConfig.InsecureSkipVerify && !config.Datadog.GetBool("remote_configuration.no_tls_validation") {
+		return nil, fmt.Errorf("Remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection.")
+	}
 	return &HTTPClient{
 		client:  httpClient,
 		header:  header,
-		baseURL: baseURL,
-	}
+		baseURL: baseRawURL,
+	}, nil
 }
 
 // Fetch remote configuration
