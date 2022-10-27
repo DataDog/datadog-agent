@@ -248,6 +248,11 @@ func (c *Client) verify() error {
 }
 
 func (c *Client) storedOrgUUID() (string, error) {
+	// This is an important block of code : to avoid being locked out
+	// of the agent in case of a wrong uuid being stored, we link an
+	// org UUID storage to a root version. What this means in practice
+	// is that if we ever get locked out due to a problem in the orgUUID
+	// storage, we can issue a root rotation to unlock ourselves.
 	rootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
 	if err != nil {
 		return "", err
@@ -263,7 +268,7 @@ func (c *Client) storedOrgUUID() (string, error) {
 		}
 		err := c.orgStore.storeOrgUUID(rootVersion, orgUUID)
 		if err != nil {
-			return "", fmt.Errorf("could not store orgUUID in the org store", err)
+			return "", fmt.Errorf("could not store orgUUID in the org store: %v", err)
 		}
 	}
 	return orgUUID, nil
