@@ -184,5 +184,4 @@ func (o *OrchestratorCheck) Run() error {
 func (o *OrchestratorCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", o.ID())
 	close(o.stopCh)
-	o.CommonCancel()
 }
