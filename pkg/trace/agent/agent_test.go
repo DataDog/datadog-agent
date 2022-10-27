@@ -334,9 +334,7 @@ func TestProcess(t *testing.T) {
 		span2 := &pb.Span{TraceID: 1, SpanID: 2, Service: "a"}
 		span3 := &pb.Span{TraceID: 1, SpanID: 3, Service: "a"}
 
-		c := spansToChunk(span1, span2, span3)
-		c.Priority = 1
-		tp := testutil.TracerPayloadWithChunk(c)
+		tp := testutil.TracerPayloadWithChunk(spansToChunk(span1, span2, span3))
 
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -598,7 +596,6 @@ func TestConcentratorInput(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
-			cfg.RareSamplerEnabled = true
 			agent := NewAgent(context.TODO(), cfg)
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
@@ -811,8 +808,8 @@ func TestSampling(t *testing.T) {
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
@@ -944,67 +941,8 @@ func TestSampling(t *testing.T) {
 	}
 }
 
-func TestSample(t *testing.T) {
-	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10}
-	a := &Agent{
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-		RareSampler:       sampler.NewRareSampler(config.New()),
-		EventProcessor:    newEventProcessor(cfg),
-		conf:              cfg,
-	}
-	genSpan := func(decisionMaker string, priority sampler.SamplingPriority) traceutil.ProcessedTrace {
-		root := &pb.Span{
-			Service:  "serv1",
-			Start:    time.Now().UnixNano(),
-			Duration: (100 * time.Millisecond).Nanoseconds(),
-			Metrics:  map[string]float64{"_top_level": 1},
-			Error:    1,
-			Meta:     map[string]string{},
-		}
-		if decisionMaker != "" {
-			root.Meta["_dd.p.dm"] = decisionMaker
-		}
-		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
-		pt.TraceChunk.Priority = int32(priority)
-		return pt
-	}
-	tests := map[string]struct {
-		trace       traceutil.ProcessedTrace
-		wantSampled bool
-	}{
-		"userdrop-error-no-dm-sampled": {
-			trace:       genSpan("", sampler.PriorityUserDrop),
-			wantSampled: true,
-		},
-		"userdrop-error-manual-dm-unsampled": {
-			trace:       genSpan("-4", sampler.PriorityUserDrop),
-			wantSampled: false,
-		},
-		"userdrop-error-agent-dm-sampled": {
-			trace:       genSpan("-1", sampler.PriorityUserDrop),
-			wantSampled: true,
-		},
-		"userkeep-error-no-dm-sampled": {
-			trace:       genSpan("", sampler.PriorityUserKeep),
-			wantSampled: true,
-		},
-		"userkeep-error-agent-dm-sampled": {
-			trace:       genSpan("-1", sampler.PriorityUserKeep),
-			wantSampled: true,
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
-			assert.Equal(t, tt.wantSampled, keep)
-		})
-	}
-}
-
 func TestPartialSamplingFree(t *testing.T) {
-	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
+	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
@@ -1899,7 +1837,7 @@ func TestSpanSampling(t *testing.T) {
 			// priority==0 chunk as rare. Instead, we use the error sampler to
 			// cover the case where non-span samplers decide to keep a priority==0
 			// chunk.
-			cfg.RareSamplerEnabled = false
+			cfg.RareSamplerDisabled = true
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			traceAgent := NewAgent(ctx, cfg)

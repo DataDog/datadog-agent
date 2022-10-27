@@ -211,8 +211,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.errors_per_second") {
 		c.ErrorTPS = coreconfig.Datadog.GetFloat64("apm_config.errors_per_second")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.enable_rare_sampler") {
-		c.RareSamplerEnabled = coreconfig.Datadog.GetBool("apm_config.enable_rare_sampler")
+	if coreconfig.Datadog.IsSet("apm_config.disable_rare_sampler") {
+		c.RareSamplerDisabled = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
 	}
 	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.tps") {
 		c.RareSamplerTPS = coreconfig.Datadog.GetInt("apm_config.rare_sampler.tps")
@@ -360,7 +360,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			log.Warn("analyzed_rate_by_service is deprecated, please use analyzed_spans instead")
 		}
 	}
-	// undocumented
+	// undocumeted
 	if k := "apm_config.analyzed_spans"; coreconfig.Datadog.IsSet(k) {
 		for key, rate := range coreconfig.Datadog.GetStringMap("apm_config.analyzed_spans") {
 			serviceName, operationName, err := parseServiceAndOp(key)
@@ -469,9 +469,6 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 	if cfg.IsSet("apm_config.watchdog_check_delay") {
 		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
 		c.WatchdogInterval = d * time.Second
-	}
-	if cfg.IsSet("apm_config.disable_rare_sampler") {
-		log.Warn("apm_config.disable_rare_sampler/DD_APM_DISABLE_RARE_SAMPLER is deprecated and the rare sampler is now disabled by default. To enable the rare sampler use apm_config.enable_rare_sampler or DD_APM_ENABLE_RARE_SAMPLER")
 	}
 	return nil
 }

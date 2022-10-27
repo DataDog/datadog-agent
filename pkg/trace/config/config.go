@@ -325,8 +325,8 @@ type AgentConfig struct {
 	MaxEPS          float64
 	MaxRemoteTPS    float64
 
-	// Rare Sampler configuration
-	RareSamplerEnabled        bool
+	// Rare Sampler configuation
+	RareSamplerDisabled       bool
 	RareSamplerTPS            int
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
@@ -464,7 +464,7 @@ func New() *AgentConfig {
 		MaxEPS:          200,
 		MaxRemoteTPS:    100,
 
-		RareSamplerEnabled:        false,
+		RareSamplerDisabled:       false,
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,

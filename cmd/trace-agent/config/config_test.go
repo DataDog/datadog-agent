@@ -506,7 +506,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(0.33, c.ExtraSampleRate)
 	assert.Equal(100.0, c.TargetTPS)
 	assert.Equal(37.0, c.ErrorTPS)
-	assert.Equal(true, c.RareSamplerEnabled)
+	assert.Equal(true, c.RareSamplerDisabled)
 	assert.Equal(127.0, c.MaxRemoteTPS)
 	assert.Equal(1000.0, c.MaxEPS)
 	assert.Equal(25, c.ReceiverPort)
@@ -867,7 +867,7 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	for _, envKey := range []string{
-		"DD_APM_ENABLE_RARE_SAMPLER",
+		"DD_APM_DISABLE_RARE_SAMPLER",
 	} {
 		t.Run(envKey, func(t *testing.T) {
 			defer cleanConfig()()
@@ -875,7 +875,7 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "true")
 			cfg, err := LoadConfigFile("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(true, cfg.RareSamplerEnabled)
+			assert.Equal(true, cfg.RareSamplerDisabled)
 		})
 	}
 
