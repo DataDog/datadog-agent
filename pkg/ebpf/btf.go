@@ -9,6 +9,8 @@
 package ebpf
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -19,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func GetBTF(userProvidedBtfPath, collectionPath string) (*btf.Spec, COREResult) {
+func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 	var btfSpec *btf.Spec
 	var err error
 
@@ -31,7 +33,7 @@ func GetBTF(userProvidedBtfPath, collectionPath string) (*btf.Spec, COREResult) 
 		}
 	}
 
-	btfSpec, err = checkEmbeddedCollection(collectionPath)
+	btfSpec, err = checkEmbeddedCollection(filepath.Join(bpfDir, "co-re/btf/"))
 	if err == nil {
 		log.Debugf("loaded BTF from embedded collection")
 		return btfSpec, successEmbeddedBTF
@@ -54,21 +56,40 @@ func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
 	platformVersion := si.PlatformVersion
 	kernelVersion := si.KernelVersion
 
-	btfFolder := filepath.Join(collectionPath, platform)
+	btfSubdirectory := filepath.Join(platform)
 	if platform == "ubuntu" {
-		btfFolder = filepath.Join(btfFolder, platformVersion)
+		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
+		// This is because we have BTFs for different versions of ubuntu with the exact same
+		// kernel name, so kernel name alone is not a unique identifier.
+		btfSubdirectory = filepath.Join(platform, platformVersion)
 	}
-	btfPath := filepath.Join(btfFolder, kernelVersion+".btf")
-	compressedBtfPath := btfPath + ".tar.xz"
 
-	log.Debugf("checking embedded collection for btf at %s", compressedBtfPath)
+	// If we've previously extracted the BTF file in question, we can just load it
+	extractedBtfPath := filepath.Join(collectionPath, btfSubdirectory, kernelVersion+".btf")
+	if _, err := os.Stat(extractedBtfPath); err == nil {
+		return loadBTFFrom(extractedBtfPath)
+	}
+	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", extractedBtfPath)
 
-	// All embedded BTFs must first be decompressed
-	if err := archiver.NewTarXz().Unarchive(compressedBtfPath, btfFolder); err != nil {
+	// The embedded BTFs are compressed twice: the individual BTFs themselves are compressed, and the collection
+	// of BTFs as a whole is also compressed.
+	// This means that we'll need to first extract the specific BTF which  we're looking for from the collection
+	// tarball, and then unarchive it.
+	btfTarball := filepath.Join(collectionPath, btfSubdirectory, kernelVersion+".btf.tar.xz")
+	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
+		collectionTarball := filepath.Join(collectionPath, "minimized-btfs.tar.xz")
+		targetBtfFile := filepath.Join(btfSubdirectory, kernelVersion+".btf.tar.xz")
+
+		if err := archiver.NewTarXz().Extract(collectionTarball, targetBtfFile, collectionPath); err != nil {
+			return nil, err
+		}
+	}
+
+	destinationFolder := filepath.Join(collectionPath, btfSubdirectory)
+	if err := archiver.NewTarXz().Unarchive(btfTarball, destinationFolder); err != nil {
 		return nil, err
 	}
-
-	return loadBTFFrom(btfPath)
+	return loadBTFFrom(filepath.Join(destinationFolder, kernelVersion+".btf"))
 }
 
 func loadBTFFrom(path string) (*btf.Spec, error) {
