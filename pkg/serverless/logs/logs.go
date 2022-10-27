@@ -51,11 +51,12 @@ type platformObjectRecord struct {
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
 type reportLogMetrics struct {
-	durationMs       float64
-	billedDurationMs int
-	memorySizeMB     int
-	maxMemoryUsedMB  int
-	initDurationMs   float64
+	durationMs            float64
+	billedDurationMs      int
+	memorySizeMB          int
+	maxMemoryUsedMB       int
+	initDurationMs        float64
+	initDurationTelemetry int64
 }
 
 type runtimeDoneItem struct {
@@ -88,6 +89,8 @@ const (
 	logTypePlatformExtension = "platform.extension"
 	// logTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
+	// logTypePlatformInitReport is received when init finishes
+	logTypePlatformInitReport = "platform.initReport"
 )
 
 // logMessage is a log message sent by the AWS API.
@@ -123,7 +126,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 			l.time = time
 		}
 	}
-
 	// the rest
 
 	switch typ {
@@ -132,7 +134,7 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 	case logTypeFunction, logTypeExtension:
 		l.logType = typ
 		l.stringRecord = j["record"].(string)
-	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone:
+	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone, logTypePlatformInitReport:
 		l.logType = typ
 		if objectRecord, ok := j["record"].(map[string]interface{}); ok {
 			// all of these have the requestId
@@ -179,6 +181,13 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				} else {
 					log.Debug("Can't read the status from runtimeDone log message")
 				}
+			case logTypePlatformInitReport:
+				log.Debugf("[ASTUYVE] - INIT REPORT IS %v", objectRecord)
+				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+					if v, ok := metrics["durationMs"].(float64); ok {
+						l.objectRecord.reportLogItem.initDurationTelemetry = int64(v)
+					}
+				}
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -201,7 +210,7 @@ func shouldProcessLog(ecs *executioncontext.State, message *logMessage) bool {
 		return false
 	}
 	// Making sure that empty logs are not uselessly sent
-	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 {
+	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 && message.logType != logTypePlatformInitReport {
 		return false
 	}
 
@@ -291,6 +300,10 @@ func processMessage(
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	if !shouldProcessLog(&ecs, message) {
 		return
+	}
+	if message.logType == logTypePlatformInitReport {
+		log.Debugf("[ASTUYVE] set coldstart duration to %v", message.objectRecord.reportLogItem.initDurationTelemetry)
+		ec.SetColdStartDuration(message.objectRecord.reportLogItem.initDurationTelemetry)
 	}
 
 	if message.logType == logTypePlatformStart {
