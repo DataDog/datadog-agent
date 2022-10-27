@@ -21,14 +21,25 @@ namespace WixSetup.Datadog
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
             ReadConfig = new CustomAction<ConfigCustomActions>(
                     new Id("ReadConfigCustomAction"),
-                    ConfigCustomActions.ReadConfig
+                    ConfigCustomActions.ReadConfig,
+                    Return.ignore,
+                    When.Before,
+                    Step.InstallInitialize,
+                    Condition.NOT_BeingRemoved
                 )
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                     new Id("WriteConfigCustomAction"),
-                    ConfigCustomActions.WriteConfig
+                    ConfigCustomActions.WriteConfig,
+                    Return.check,
+                    When.Before,
+                    Step.StartServices,
+                    Condition.NOT_BeingRemoved
                 )
+                {
+                    Execute = Execute.deferred
+                }
                 .SetProperties(
                     "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                     "PROJECTLOCATION=[PROJECTLOCATION], " +

@@ -344,7 +344,7 @@ namespace Datadog.CustomActions
 
                 yaml = ReplaceProperties(yaml, session);
 
-                using (var output = new StreamWriter(Path.Combine(configFolder, "datadog.yaml.yaml")))
+                using (var output = new StreamWriter(Path.Combine(configFolder, "datadog.yaml")))
                 {
                     output.Write(yaml);
                 }
@@ -353,6 +353,7 @@ namespace Datadog.CustomActions
             catch (Exception e)
             {
                 session.Log($"User config could not be written: {e}");
+                return ActionResult.Failure;
             }
 
             return ActionResult.Success;
