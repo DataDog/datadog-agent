@@ -83,6 +83,12 @@ func ShouldUseSyscallExitTracepoints() bool {
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
 
+func ShouldUseModuleLoadTracepoint() bool {
+	currentKernelVersion, err := kernel.NewKernelVersion()
+	// the condition may need to be fine-tuned based on the kernel version
+	return err == nil && currentKernelVersion != nil && currentKernelVersion.IsRH7Kernel()
+}
+
 func expandKprobe(hookpoint string, flag int) []string {
 	var sections []string
 	if flag&Entry == Entry {
