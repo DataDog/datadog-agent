@@ -87,7 +87,7 @@ func TestStringError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -102,7 +102,7 @@ func TestIntError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -117,7 +117,7 @@ func TestBoolError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
 	}
