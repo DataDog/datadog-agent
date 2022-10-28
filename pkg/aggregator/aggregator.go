@@ -911,9 +911,13 @@ type deregisterSampler struct {
 }
 
 func (s *deregisterSampler) handle(agg *BufferedAggregator) {
+	agg.handleDeregisterSampler(s.id)
+}
+
+func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
-	if cs, ok := agg.checkSamplers[s.id]; ok {
+	if cs, ok := agg.checkSamplers[id]; ok {
 		cs.deregistered = true
 	}
 }
