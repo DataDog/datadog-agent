@@ -106,6 +106,10 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
+              agent:
+                env:
+                  - name:  DD_USE_V2_API_SERIES
+                    value: "false"
               systemProbe:
                 logLevel: TRACE
                 env:
