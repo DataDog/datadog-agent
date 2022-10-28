@@ -12,13 +12,11 @@
 #include "ipv6.h"
 #include "sock.h"
 
-#ifndef TASK_COMM_LEN
-#define TASK_COMM_LEN 16
-#endif
-
-typedef struct {
-    char comm[TASK_COMM_LEN];
-} proc_t;
+static __always_inline __u32 systemprobe_pid() {
+    __u64 val = 0;
+    LOAD_CONSTANT("systemprobe_pid", val);
+    return (__u32)val;
+}
 
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
@@ -138,19 +136,6 @@ static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, connt
     print_translation(reply);
 
     return 0;
-}
-
-static __always_inline bool proc_t_comm_prefix_equals(const char* prefix, int prefix_len, proc_t c) {
-    if (prefix_len > TASK_COMM_LEN) {
-        return false;
-    }
-
-    for (int i = 0; i < prefix_len; i++) {
-        if (c.comm[i] != prefix[i]) {
-            return false;
-        }
-    }
-    return true;
 }
 
 #endif

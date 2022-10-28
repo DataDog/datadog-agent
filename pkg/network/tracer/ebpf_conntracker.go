@@ -14,6 +14,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 	"unsafe"
@@ -430,6 +433,11 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
+	constants = append(constants, manager.ConstantEditor{
+		Name:  "systemprobe_pid",
+		Value: uint64(getpid()),
+	})
+
 	opts := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -467,4 +475,15 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		return nil, err
 	}
 	return mgr, nil
+}
+
+// getpid returns the current process ID in the host namespace
+func getpid() int32 {
+	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
+	if err == nil {
+		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
+			return int32(pid)
+		}
+	}
+	return int32(os.Getpid())
 }
