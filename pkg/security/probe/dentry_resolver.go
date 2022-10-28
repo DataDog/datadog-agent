@@ -132,7 +132,7 @@ type PathEntry struct {
 
 // GetName returns the path value as a string
 func (pv *PathLeaf) GetName() string {
-	return model.NullTerminatedString(pv.Name)
+	return model.NullTerminatedString(pv.Name[:])
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -498,7 +498,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		if path.Name[0] == '/' {
 			name = "/"
 		} else {
-			name = model.NullTerminatedString(path.Name)
+			name = model.NullTerminatedString(path.Name[:])
 			filenameParts = append(filenameParts, name)
 		}
 

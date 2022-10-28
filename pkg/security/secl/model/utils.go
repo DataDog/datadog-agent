@@ -47,11 +47,11 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 
 		if i+n > len {
 			// truncated
-			arg := nullTerminatedString(data[i:len])
+			arg := NullTerminatedString(data[i:len])
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		arg := nullTerminatedString(data[i : i+n])
+		arg := NullTerminatedString(data[i : i+n])
 		i += n
 
 		result = append(result, arg)
