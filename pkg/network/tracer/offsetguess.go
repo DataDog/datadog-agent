@@ -767,39 +767,46 @@ type eventGenerator struct {
 }
 
 func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
+	eg := &eventGenerator{}
+
 	// port 0 means we let the kernel choose a free port
+	var err error
 	addr := fmt.Sprintf("%s:0", listenIPv4)
-	l, err := net.Listen("tcp4", addr)
+	eg.listener, err = net.Listen("tcp4", addr)
 	if err != nil {
 		return nil, err
 	}
 
-	go acceptHandler(l)
+	go acceptHandler(eg.listener)
 
 	// Spin up UDP server
-	udpAddr, udpDone, err := newUDPServer(addr)
+	var udpAddr string
+	udpAddr, eg.udpDone, err = newUDPServer(addr)
 	if err != nil {
+		eg.Close()
 		return nil, err
 	}
 
 	// Establish connection that will be used in the offset guessing
-	c, err := net.Dial(l.Addr().Network(), l.Addr().String())
+	eg.conn, err = net.Dial(eg.listener.Addr().Network(), eg.listener.Addr().String())
 	if err != nil {
-		_ = l.Close()
+		eg.Close()
 		return nil, err
 	}
 
-	udpConn, err := net.Dial("udp", udpAddr)
+	eg.udpConn, err = net.Dial("udp", udpAddr)
 	if err != nil {
+		eg.Close()
 		return nil, err
 	}
 
-	udp6Conn, err := getUDP6Conn(ipv6)
+	eg.udp6Conn, err = getUDP6Conn(ipv6)
 	if err != nil {
+		eg.Close()
 		return nil, err
 	}
 
-	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
+	return eg, nil
 }
 
 func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
@@ -903,7 +910,9 @@ func (e *eventGenerator) Close() {
 		e.conn.Close()
 	}
 
-	_ = e.listener.Close()
+	if e.listener != nil {
+		_ = e.listener.Close()
+	}
 
 	if e.udpConn != nil {
 		_ = e.udpConn.Close()
@@ -926,6 +935,9 @@ func acceptHandler(l net.Listener) {
 		}
 
 		_, _ = io.Copy(ioutil.Discard, conn)
+		if tcpc, ok := conn.(*net.TCPConn); ok {
+			_ = tcpc.SetLinger(0)
+		}
 		conn.Close()
 	}
 }
@@ -938,22 +950,24 @@ func acceptHandler(l net.Listener) {
 func tcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
-		return nil, errors.New("not a TCPConn")
+		return nil, fmt.Errorf("not a TCPConn")
 	}
 
-	file, err := tcpConn.File()
+	sysc, err := tcpConn.SyscallConn()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting syscall connection: %w", err)
 	}
-	defer func() {
-		_ = file.Close()
-	}()
 
-	tcpInfo, err := unix.GetsockoptTCPInfo(int(file.Fd()), syscall.SOL_TCP, syscall.TCP_INFO)
+	var tcpInfo *unix.TCPInfo
+	ctrlErr := sysc.Control(func(fd uintptr) {
+		tcpInfo, err = unix.GetsockoptTCPInfo(int(fd), syscall.SOL_TCP, syscall.TCP_INFO)
+	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error calling syscall.SYS_GETSOCKOPT")
+		return nil, fmt.Errorf("error calling syscall.SYS_GETSOCKOPT: %w", err)
 	}
-
+	if ctrlErr != nil {
+		return nil, fmt.Errorf("error controlling TCP connection: %w", ctrlErr)
+	}
 	return tcpInfo, nil
 }
 

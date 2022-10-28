@@ -334,6 +334,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
+	}
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
