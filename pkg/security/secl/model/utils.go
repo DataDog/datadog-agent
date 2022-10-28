@@ -66,10 +66,10 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	return nullTerminatedString(data[:size]), nil
+	return NullTerminatedString(data[:size]), nil
 }
 
-func nullTerminatedString(d []byte) string {
+func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {
 		return string(d)
