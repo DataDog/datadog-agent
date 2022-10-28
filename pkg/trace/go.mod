@@ -22,7 +22,6 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.1.2
-	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil/v3 v3.22.9
 	github.com/stretchr/testify v1.8.1
 	github.com/tinylib/msgp v1.1.6
@@ -58,6 +57,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect
