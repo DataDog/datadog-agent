@@ -19,7 +19,7 @@ const fileHandlesCheckName = "file_handle"
 
 type fhCheck struct {
 	core.CheckBase
-	counter *pdhutil.PdhMultiInstanceCounterSet
+	counter *pdhutil.PdhSingleInstanceCounterSet
 }
 
 // Run executes the check
@@ -30,19 +30,18 @@ func (c *fhCheck) Run() error {
 		return err
 	}
 
-	var vals map[string]float64
+	var val float64
 
 	// counter ("Process", "Handle count")
 	if c.counter == nil {
-		c.counter, err = pdhutil.GetMultiInstanceCounter("Process", "Handle Count", &[]string{"_Total"}, nil)
+		c.counter, err = pdhutil.GetEnglishCounterInstance("Process", "Handle Count", "_Total")
 	}
 	if c.counter != nil {
-		vals, err = c.counter.GetAllValues()
+		val, err = c.counter.GetValue()
 	}
 	if err != nil {
 		c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
 	} else {
-		val := vals["_Total"]
 		log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
 		sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
 	}

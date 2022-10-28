@@ -9,6 +9,7 @@ package pdhutil
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"unsafe"
 	"time"
@@ -30,17 +31,12 @@ var (
 	procPdhEnumObjectItems          = modPdhDll.NewProc("PdhEnumObjectItemsW")
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")
 	procPdhGetFormattedCounterValue = modPdhDll.NewProc("PdhGetFormattedCounterValue")
-	procPdhAddCounterW              = modPdhDll.NewProc("PdhAddCounterW")
 	procPdhAddEnglishCounterW       = modPdhDll.NewProc("PdhAddEnglishCounterW")
 	procPdhCollectQueryData         = modPdhDll.NewProc("PdhCollectQueryData")
 	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
 	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")
 	procPdhRemoveCounter            = modPdhDll.NewProc("PdhRemoveCounter")
 	procPdhGetFormattedCounterArray = modPdhDll.NewProc("PdhGetFormattedCounterArrayW")
-)
-
-var (
-	counterToIndex map[string][]int
 )
 
 const (
@@ -320,41 +316,114 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 	return pValue.DoubleValue, nil
 }
 
-func makeCounterSetIndexes() error {
-	counterToIndex = make(map[string][]int)
+// Enum enumerates performance counter values for a wildcard instance counter (e.g. `\Process(*)\% Processor Time`)
+//
+// Will append '#<INDEX>' to duplicate instance names to ensure their uniqueness.
+// Instance uniqueness is normally done by the PDH provider, except in the case of the Process class where it is NOT
+// handled in order to maintain backwards compatability.
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/handling-duplicate-instance-names
+func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_items []PdhCounterValueItem, err error) {
+	var buf []uint8
+	var bufLen uint32
+	var itemCount uint32
 
-	bufferIncrement := uint32(1024)
-	bufferSize := bufferIncrement
-	var counterlist []uint16
-	for {
-		var regtype uint32
-		counterlist = make([]uint16, bufferSize)
-		var sz uint32
-		sz = bufferSize
-		regerr := windows.RegQueryValueEx(windows.HKEY_PERFORMANCE_DATA,
-			windows.StringToUTF16Ptr("Counter 009"),
-			nil, // reserved
-			&regtype,
-			(*byte)(unsafe.Pointer(&counterlist[0])),
-			&sz)
-		if regerr == error(windows.ERROR_MORE_DATA) {
-			// buffer's not big enough
-			bufferSize += bufferIncrement
-			continue
-		} else if regerr != nil {
-			return regerr
+	if format == PDH_FMT_DOUBLE {
+		format |= PDH_FMT_NOCAP100
+	}
+
+	r, _, _ := procPdhGetFormattedCounterArray.Call(
+		uintptr(hCounter),
+		uintptr(format),
+		uintptr(unsafe.Pointer(&bufLen)),
+		uintptr(unsafe.Pointer(&itemCount)),
+		uintptr(0),
+	)
+
+	if r != PDH_MORE_DATA {
+		return nil, fmt.Errorf("Failed to get formatted counter array buffer size %#x", r)
+	}
+
+	buf = make([]uint8, bufLen)
+
+	r, _, _ = procPdhGetFormattedCounterArray.Call(
+		uintptr(hCounter),
+		uintptr(format),
+		uintptr(unsafe.Pointer(&bufLen)),
+		uintptr(unsafe.Pointer(&itemCount)),
+		uintptr(unsafe.Pointer(&buf[0])),
+	)
+	if r != ERROR_SUCCESS {
+		return nil, fmt.Errorf("Error getting formatted counter array %#x", r)
+	}
+
+	var items []PDH_FMT_COUNTERVALUE_ITEM_DOUBLE
+	// Accessing the `SliceHeader` to manipulate the `items` slice
+	// In the future we can use unsafe.Slice instead https://pkg.go.dev/unsafe@master#Slice
+	hdrItems := (*reflect.SliceHeader)(unsafe.Pointer(&items))
+	hdrItems.Data = uintptr(unsafe.Pointer(&buf[0]))
+	hdrItems.Len = int(itemCount)
+	hdrItems.Cap = int(itemCount)
+
+	var (
+		prevName    string
+		instanceIdx int
+	)
+
+	// Instance names are packed in the buffer following the items structs
+	strBufLen := int(bufLen - uint32(unsafe.Sizeof(PDH_FMT_COUNTERVALUE_ITEM_DOUBLE{}))*itemCount)
+	for _, item := range items {
+		var u []uint16
+
+		// Accessing the `SliceHeader` to manipulate the `u` slice
+		hdrU := (*reflect.SliceHeader)(unsafe.Pointer(&u))
+		hdrU.Data = uintptr(unsafe.Pointer(item.szName))
+		hdrU.Len = strBufLen / 2
+		hdrU.Cap = strBufLen / 2
+
+		// Scan for terminating NUL char
+		for i, v := range u {
+			if v == 0 {
+				u = u[:i]
+				// subtract from the instance names buffer space
+				strBufLen -= (i + 1) * 2 // in bytes including terminating NUL char
+				break
+			}
 		}
-		// must set the length of the slice to the actual amount of data
-		// sz is in bytes, but it's a slice of uint16s, so divide the returned
-		// buffer size by two.
 
-		counterlist = counterlist[:(sz / 2)]
-		break
+		name := windows.UTF16ToString(u)
+		if name != prevName {
+			instanceIdx = 0
+			prevName = name
+		} else {
+			instanceIdx++
+		}
+
+		instance := name
+		if instanceIdx != 0 {
+			// To match same instance ID as in perfmon on Windows
+			instance += "#" + strconv.Itoa(instanceIdx)
+		}
+
+		var value PdhCounterValue
+		value.CStatus = item.value.CStatus
+
+		switch format {
+		case PDH_FMT_DOUBLE:
+		case PDH_FMT_DOUBLE | PDH_FMT_NOCAP100:
+			value.Double = item.value.DoubleValue
+		case PDH_FMT_LONG:
+			from := (*PDH_FMT_COUNTERVALUE_ITEM_LONG)(unsafe.Pointer(&item))
+			value.Long = from.value.LongValue
+		case PDH_FMT_LARGE:
+			from := (*PDH_FMT_COUNTERVALUE_ITEM_LARGE)(unsafe.Pointer(&item))
+			value.Large = from.value.LargeValue
+		}
+
+		value_item := PdhCounterValueItem{
+			instance: instance,
+			value: value,
+		}
+		out_items = append(out_items, value_item)
 	}
-	clist := winutil.ConvertWindowsStringList(counterlist)
-	for i := 0; (i + 1) < len(clist); i += 2 {
-		ndx, _ := strconv.Atoi(clist[i])
-		counterToIndex[clist[i+1]] = append(counterToIndex[clist[i+1]], ndx)
-	}
-	return nil
+	return out_items, nil
 }
