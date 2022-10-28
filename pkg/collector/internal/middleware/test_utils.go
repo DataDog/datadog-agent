@@ -16,3 +16,9 @@ import (
 func (c *CheckWrapper) Inner() check.Check {
 	return c.inner
 }
+
+// Wait blocks until Run() finishes execution in another
+// goroutine. Does not block if Run() is not executing.
+func (c *CheckWrapper) Wait() {
+	c.wg.Wait()
+}
