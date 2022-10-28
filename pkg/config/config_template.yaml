@@ -2045,6 +2045,7 @@ api_key:
 ## @param autoconf_config_files_poll_interval - integer - optional - default: 60
 ## @env DD_AUTOCONF_CONFIG_FILES_POLL_INTERVAL - integer - optional - default: 60
 ## How frequently should the Agent check for new/updated integration configuration files (in seconds).
+## This value must be >= 1 (i.e. 1 second).
 ## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
 #
 # autoconf_config_files_poll_interval: 60
