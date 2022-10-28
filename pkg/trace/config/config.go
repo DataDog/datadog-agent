@@ -109,18 +109,6 @@ type ObfuscationConfig struct {
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
 }
 
-// AppSecConfig ...
-type AppSecConfig struct {
-	// Enabled reports whether AppSec is enabled.
-	Enabled bool
-	// MaxPayloadSize ...
-	MaxPayloadSize int64
-	// APIKey ...
-	APIKey string
-	// DDURL ...
-	DDURL string
-}
-
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export() obfuscate.Config {
 	return obfuscate.Config{
@@ -406,9 +394,6 @@ type AgentConfig struct {
 	// Telemetry settings
 	TelemetryConfig *TelemetryConfig
 
-	// AppSec contains AppSec configuration.
-	AppSec AppSecConfig
-
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
 
@@ -502,10 +487,6 @@ func New() *AgentConfig {
 		ContainerTags: noopContainerTagsFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
-		},
-		AppSec: AppSecConfig{
-			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
