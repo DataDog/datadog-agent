@@ -80,6 +80,16 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     )
 
 
+def ninja_define_co_re_compiler(nw):
+    nw.variable("ebpfcoreflags", get_co_re_build_flags())
+
+    nw.rule(
+        name="ebpfcoreclang",
+        command="clang -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        depfile="$out.d",
+    )
+
+
 def ninja_define_exe_compiler(nw):
     nw.rule(
         name="execlang",
@@ -96,6 +106,23 @@ def ninja_ebpf_program(nw, infile, outfile, variables=None):
         inputs=[infile],
         outputs=[f"{out_base}.bc"],
         rule="ebpfclang",
+        variables=variables,
+    )
+    nw.build(
+        inputs=[f"{out_base}.bc"],
+        outputs=[f"{out_base}.o"],
+        rule="llc",
+    )
+
+
+def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
+    outdir, basefile = os.path.split(outfile)
+    basename = os.path.basename(os.path.splitext(basefile)[0])
+    out_base = f"{outdir}/{basename}"
+    nw.build(
+        inputs=[infile],
+        outputs=[f"{out_base}.bc"],
+        rule="ebpfcoreclang",
         variables=variables,
     )
     nw.build(
@@ -168,17 +195,43 @@ def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
-def ninja_network_ebpf_programs(nw, build_dir):
+def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+    root, ext = os.path.splitext(outfile)
+    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+
+
+def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+    network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
+    network_co_re_flags = f"-I{network_co_re_dir}"
     network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_co_re_programs = []
+
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{prog}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
+
+    for prog in network_co_re_programs:
+        infile = os.path.join(network_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
+
+
+def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
+    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "co-re")
+    container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
+    container_integrations_co_re_programs = []
+
+    for prog in container_integrations_co_re_programs:
+        infile = os.path.join(container_integrations_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
 
 
 def ninja_runtime_compilation_files(nw):
@@ -281,6 +334,7 @@ def ninja_generate(
     kernel_release=None,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
+    co_re_build_dir = os.path.join(build_dir, "co-re")
 
     with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
@@ -297,8 +351,10 @@ def ninja_generate(
             nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release)
-            ninja_network_ebpf_programs(nw, build_dir)
+            ninja_define_co_re_compiler(nw)
+            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
+            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw)
 
         ninja_cgo_type_files(nw, windows)
@@ -819,6 +875,27 @@ def get_ebpf_build_flags():
     return flags
 
 
+def get_co_re_build_flags():
+    flags = get_ebpf_build_flags()
+
+    flags.remove('-DCONFIG_64BIT')
+    flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
+    flags.remove('-Ipkg/ebpf/c')
+
+    arch = get_kernel_arch()
+    co_re_dir = os.path.join(".", "pkg", "ebpf", "c", "co-re")
+    flags.extend(
+        [
+            f"-D__TARGET_ARCH_{arch}",
+            '-emit-llvm',
+            '-g',
+            f"-I{co_re_dir}",
+        ]
+    )
+
+    return flags
+
+
 def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
     return [
         f"-isystem{d}"
@@ -907,6 +984,7 @@ def build_object_files(
 
         check_for_inline(ctx)
         ctx.run(f"mkdir -p {build_dir}/runtime")
+        ctx.run(f"mkdir -p {build_dir}/co-re")
 
     run_ninja(
         ctx,
