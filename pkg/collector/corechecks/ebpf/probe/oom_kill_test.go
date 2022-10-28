@@ -10,7 +10,6 @@ package probe
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )

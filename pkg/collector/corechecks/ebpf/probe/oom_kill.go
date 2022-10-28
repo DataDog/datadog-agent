@@ -13,7 +13,6 @@ package probe
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"math"
 	"path/filepath"
 	"unsafe"
@@ -28,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +54,7 @@ func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 		if !cfg.AllowRuntimeCompiledFallback {
 			return nil, fmt.Errorf("error loading CO-RE oom-kill probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation.", err)
 		}
-		log.Warnf("error loading CO-RE oom-kill probe: %s", err)
+		log.Warnf("error loading CO-RE oom-kill probe: %s. falling back to runtime compiled probe", err)
 	}
 
 	return loadRuntimeCompiledProbe(cfg)
