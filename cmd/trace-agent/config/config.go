@@ -274,11 +274,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		BindHost:                c.ReceiverHost,
+		GRPCPort:                grpcPort,
+		UsePreviewHostnameLogic: true,
+		MaxRequestBytes:         c.MaxRequestBytes,
+		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
