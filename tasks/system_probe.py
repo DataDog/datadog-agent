@@ -757,10 +757,6 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
         else:
             linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
 
-    # fallback to /usr as a last report
-    if len(linux_headers) == 0:
-        linux_headers = ["/usr"]
-
     # deduplicate
     linux_headers = list(dict.fromkeys(linux_headers))
     arch = get_kernel_arch()
