@@ -51,7 +51,7 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
     *addr = bpf_ntohll(*addr) >> 32;
 }
 
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
     bpf_memset(info, 0, sizeof(skb_info_t));
@@ -112,7 +112,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     return 1;
 }
 
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void flip_tuple(conn_tuple_t *t) {
     // TODO: we can probably replace this by swap operations
@@ -129,14 +129,28 @@ __maybe_unused static __always_inline void flip_tuple(conn_tuple_t *t) {
     t->daddr_h = tmp_ip_part;
 }
 
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
+// support for %pI4 and %pI6 added in https://github.com/torvalds/linux/commit/d9c9e4db186ab4d81f84e6f22b225d333b9424e3
+#if defined(LINUX_VERSION_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+    if (metadata & CONN_V6) {
+        struct in6_addr addr;
+        addr.in6_u.u6_addr32[0] = ip_h & 0xFFFFFFFF;
+        addr.in6_u.u6_addr32[1] = (ip_h >> 32) & 0xFFFFFFFF;
+        addr.in6_u.u6_addr32[2] = ip_l & 0xFFFFFFFF;
+        addr.in6_u.u6_addr32[3] = (ip_l >> 32) & 0xFFFFFFFF;
+        log_debug("v6 %pI6:%u\n", &addr, port);
+    } else {
+        log_debug("v4 %pI4:%u\n", &ip_l, port);
+    }
+#else
     if (metadata & CONN_V6) {
         log_debug("v6 %llx%llx:%u\n", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
     } else {
         log_debug("v4 %x:%u\n", bpf_ntohl((u32)ip_l), port);
     }
+#endif
 }
 
 #endif
