@@ -20,6 +20,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	libnetlink "github.com/mdlayher/netlink"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
@@ -103,7 +104,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		helperErr = bpfTelemetry.HelperErrMap
 	}
 
-	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr, constants)
+	m, err := getManager(cfg, buf, mapErr, helperErr, constants)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +389,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map, constants []manager.ConstantEditor) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map, constants []manager.ConstantEditor) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -445,9 +446,13 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 		},
 		ConstantEditors:           append(telemetryMapKeys, constants...),
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
+		MapEditors:                make(map[string]*ebpf.Map),
 	}
-	if (mapErrTelemetryMap != nil) || (helperErrTelemetryMap != nil) {
-		opts.MapEditors = make(map[string]*ebpf.Map)
+
+	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
+		me := opts.MapSpecEditors[string(probes.ConntrackMap)]
+		me.Type = ebpf.LRUHash
+		me.EditorFlag |= manager.EditType
 	}
 
 	if mapErrTelemetryMap != nil {

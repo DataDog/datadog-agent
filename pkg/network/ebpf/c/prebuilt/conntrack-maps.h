@@ -8,7 +8,6 @@
 
 /* This map is used for tracking conntrack entries
  */
-// TODO see if we can substitute LRU at runtime :)
 BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1024)
 
 /* This map is used for conntrack telemetry in kernelspace
