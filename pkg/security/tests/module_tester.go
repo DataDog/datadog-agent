@@ -1000,7 +1000,7 @@ func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, eventType ...model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1039,7 +1039,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	message <- Continue
 
 	select {
-	case <-time.After(getEventTimeout):
+	case <-time.After(timeout):
 		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
 		return nil
