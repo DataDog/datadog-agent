@@ -1077,3 +1077,47 @@ def tempdir():
         yield dirpath
     finally:
         shutil.rmtree(dirpath)
+
+
+@task
+def generate_minimized_btfs(
+    ctx,
+    source_dir,
+    output_dir,
+    input_bpf_programs,
+):
+    """
+    Given an input directory containing compressed full-sized BTFs, generates an identically-structured
+    output directory containing compressed minimized versions of those BTFs, tailored to the given
+    bpf program(s).
+    """
+
+    # If there are no input programs, we don't need to actually do anything; however, in order to
+    # prevent CI jobs from failing, we'll create a dummy output directory
+    if input_bpf_programs == "":
+        ctx.run(f"mkdir -p {output_dir}/dummy_data")
+        return
+
+    ctx.run(f"mkdir -p {output_dir}")
+    for root, dirs, files in os.walk(source_dir):
+        path_from_root = os.path.relpath(root, source_dir)
+
+        for dir in dirs:
+            output_subdir = os.path.join(output_dir, path_from_root, dir)
+            ctx.run(f"mkdir -p {output_subdir}")
+
+        for file in files:
+            if not file.endswith(".tar.xz"):
+                continue
+
+            btf_filename = file[: -len(".tar.xz")]
+            compressed_source_btf_path = os.path.join(root, file)
+            output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
+            compressed_output_btf_path = output_btf_path + ".tar.xz"
+
+            ctx.run(f"tar -xf {compressed_source_btf_path}")
+            ctx.run(f"bpftool gen min_core_btf {btf_filename} {output_btf_path} {input_bpf_programs}")
+
+            tar_working_directory = os.path.join(output_dir, path_from_root)
+            ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
+            ctx.run(f"rm {output_btf_path}")

@@ -40,7 +40,7 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
+    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re
     - !reference [.retrieve_sysprobe_deps]
   script:
     - inv -e install-tools
