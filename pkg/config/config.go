@@ -1366,6 +1366,7 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_DOTNET_TRACER_HOME": {},
 		// these variables are used by system-probe, but not via the Config struct
 		"DD_TESTS_RUNTIME_COMPILED": {},
+		"DD_TESTS_CO_RE":            {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

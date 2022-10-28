@@ -470,6 +470,7 @@ def test(
     bundle_ebpf=False,
     output_path=None,
     runtime_compiled=False,
+    co_re=False,
     skip_linters=False,
     skip_object_files=False,
     run=None,
@@ -520,6 +521,8 @@ def test(
     env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
+    if co_re:
+        env['DD_TESTS_CO_RE'] = "1"
 
     go_root = os.getenv("GOROOT")
     if go_root:
