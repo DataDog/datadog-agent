@@ -241,7 +241,7 @@ def ninja_runtime_compilation_files(nw):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/http/compile.go": "http",
+        "pkg/network/protocols/http/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/security/ebpf/compile.go": "runtime-security",
@@ -288,12 +288,11 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
-                "pkg/network/ebpf/c/tags-types.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
-            "pkg/network/http/http_types.go": [
+            "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
-                "pkg/network/ebpf/c/http-types.h",
+                "pkg/network/ebpf/c/protocols/http-types.h",
             ],
         }
         nw.rule(
@@ -1049,7 +1048,7 @@ def generate_lookup_tables(ctx, windows=is_windows):
 
     lookup_table_generate_files = [
         "./pkg/network/go/goid/main.go",
-        "./pkg/network/http/gotls/lookup/main.go",
+        "./pkg/network/protocols/http/gotls/lookup/main.go",
     ]
     for file in lookup_table_generate_files:
         ctx.run(f"go generate {file}")

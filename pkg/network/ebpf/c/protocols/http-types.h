@@ -1,7 +1,7 @@
 #ifndef __HTTP_TYPES_H
 #define __HTTP_TYPES_H
 
-#include "tracer.h"
+#include "../tracer.h"
 
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP_BUFFER_SIZE (8 * 20)

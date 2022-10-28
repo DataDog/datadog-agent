@@ -2,7 +2,7 @@
 #define __HTTP_H
 
 #include "bpf_builtins.h"
-#include "tracer.h"
+#include "../tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
 #include "https.h"
