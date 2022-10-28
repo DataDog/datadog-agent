@@ -463,8 +463,14 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 		ts.TracesPriorityNone.Inc()
 	}
 
-	if isManualUserDrop(priority, pt) {
-		return 0, false, nil
+	if features.Has("error_rare_sample_tracer_drop") {
+		if isManualUserDrop(priority, pt) {
+			return 0, false, nil
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return 0, false, nil
+		}
 	}
 
 	sampled := a.runSamplers(now, pt, hasPriority)

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -971,32 +972,47 @@ func TestSample(t *testing.T) {
 		return pt
 	}
 	tests := map[string]struct {
-		trace       traceutil.ProcessedTrace
-		wantSampled bool
+		trace               traceutil.ProcessedTrace
+		wantSampled         bool
+		sampleTracerDropped bool
 	}{
 		"userdrop-error-no-dm-sampled": {
-			trace:       genSpan("", sampler.PriorityUserDrop),
-			wantSampled: true,
+			trace:               genSpan("", sampler.PriorityUserDrop),
+			wantSampled:         true,
+			sampleTracerDropped: true,
 		},
 		"userdrop-error-manual-dm-unsampled": {
-			trace:       genSpan("-4", sampler.PriorityUserDrop),
-			wantSampled: false,
+			trace:               genSpan("-4", sampler.PriorityUserDrop),
+			wantSampled:         false,
+			sampleTracerDropped: true,
 		},
 		"userdrop-error-agent-dm-sampled": {
-			trace:       genSpan("-1", sampler.PriorityUserDrop),
-			wantSampled: true,
+			trace:               genSpan("-1", sampler.PriorityUserDrop),
+			wantSampled:         true,
+			sampleTracerDropped: true,
 		},
 		"userkeep-error-no-dm-sampled": {
-			trace:       genSpan("", sampler.PriorityUserKeep),
-			wantSampled: true,
+			trace:               genSpan("", sampler.PriorityUserKeep),
+			wantSampled:         true,
+			sampleTracerDropped: true,
 		},
 		"userkeep-error-agent-dm-sampled": {
-			trace:       genSpan("-1", sampler.PriorityUserKeep),
-			wantSampled: true,
+			trace:               genSpan("-1", sampler.PriorityUserKeep),
+			wantSampled:         true,
+			sampleTracerDropped: true,
+		},
+		"error-agent-no-feat-not-sampled": {
+			trace:               genSpan("", sampler.PriorityUserDrop),
+			wantSampled:         false,
+			sampleTracerDropped: false,
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			if tt.sampleTracerDropped {
+				features.Set("error_rare_sample_tracer_drop")
+				defer features.Set("")
+			}
 			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
 			assert.Equal(t, tt.wantSampled, keep)
 		})
