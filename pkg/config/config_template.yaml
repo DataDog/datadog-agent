@@ -467,6 +467,15 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
+## @param inventories_configuration_enabled - boolean - optional - default: false
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
+## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
+##
+## The Agent configuration is scrubbed of any sensitive information.
+#
+# inventories_configuration_enabled: false
+
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
 #
