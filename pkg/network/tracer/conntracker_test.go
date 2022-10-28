@@ -97,17 +97,19 @@ func getOffsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
 }
 
 func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	cfg.BPFDebug = true
-	//cfg.OffsetGuessThreshold = 200
 	consts, err := getOffsets(cfg)
 	if err != nil {
 		return nil, err
+	}
+	for _, c := range consts {
+		if c.Name == "offset_ino" {
+			t.Logf("ino offset: %d", c.Value)
+		}
 	}
 	return NewEBPFConntracker(cfg, nil, consts)
 }
 
 func setupRuntimeEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	cfg.BPFDebug = true
 	cfg.EnableRuntimeCompiler = true
 	cfg.AllowPrecompiledFallback = false
 	return NewEBPFConntracker(cfg, nil, nil)
@@ -130,66 +132,65 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 	defer srv3.Close()
 
 	localAddr := nettestutil.PingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
-	time.Sleep(1 * time.Second)
-
 	curNs, err := util.GetCurrentIno()
 	require.NoError(t, err)
+	t.Logf("ns: %d", curNs)
 
 	family := network.AFINET
 	if len(localAddr.IP) == net.IPv6len {
 		family = network.AFINET6
 	}
 
-	trans := ct.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromNetIP(localAddr.IP),
-			SPort:  uint16(localAddr.Port),
-			Dest:   util.AddressFromNetIP(clientIP),
-			DPort:  uint16(natPort),
-			Type:   network.TCP,
-			Family: family,
-			NetNS:  curNs,
-		},
-	)
-	require.NotNil(t, trans)
+	var trans *network.IPTranslation
+	cs := network.ConnectionStats{
+		Source: util.AddressFromNetIP(localAddr.IP),
+		SPort:  uint16(localAddr.Port),
+		Dest:   util.AddressFromNetIP(clientIP),
+		DPort:  uint16(natPort),
+		Type:   network.TCP,
+		Family: family,
+		NetNS:  curNs,
+	}
+	require.Eventually(t, func() bool {
+		trans = ct.GetTranslationForConn(cs)
+		return trans != nil
+	}, 5*time.Second, 1*time.Second, "timed out waiting for TCP NAT conntrack entry for %s", cs.String())
 	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
 	localAddrUDP := nettestutil.PingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
-	time.Sleep(time.Second)
 
 	family = network.AFINET
 	if len(localAddrUDP.IP) == net.IPv6len {
 		family = network.AFINET6
 	}
 
-	trans = ct.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromNetIP(localAddrUDP.IP),
-			SPort:  uint16(localAddrUDP.Port),
-			Dest:   util.AddressFromNetIP(clientIP),
-			DPort:  uint16(natPort),
-			Type:   network.UDP,
-			Family: family,
-			NetNS:  curNs,
-		},
-	)
-	require.NotNil(t, trans)
+	cs = network.ConnectionStats{
+		Source: util.AddressFromNetIP(localAddrUDP.IP),
+		SPort:  uint16(localAddrUDP.Port),
+		Dest:   util.AddressFromNetIP(clientIP),
+		DPort:  uint16(natPort),
+		Type:   network.UDP,
+		Family: family,
+		NetNS:  curNs,
+	}
+	require.Eventually(t, func() bool {
+		trans = ct.GetTranslationForConn(cs)
+		return trans != nil
+	}, 5*time.Second, 1*time.Second, "timed out waiting for UDP NAT conntrack entry for %s", cs.String())
 	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
 	// now dial TCP directly
 	localAddr = nettestutil.PingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
-	time.Sleep(time.Second)
 
-	trans = ct.GetTranslationForConn(
-		network.ConnectionStats{
-			Source: util.AddressFromNetIP(localAddr.IP),
-			SPort:  uint16(localAddr.Port),
-			Dest:   util.AddressFromNetIP(serverIP),
-			DPort:  uint16(nonNatPort),
-			Type:   network.TCP,
-			NetNS:  curNs,
-		},
-	)
+	cs = network.ConnectionStats{
+		Source: util.AddressFromNetIP(localAddr.IP),
+		SPort:  uint16(localAddr.Port),
+		Dest:   util.AddressFromNetIP(serverIP),
+		DPort:  uint16(nonNatPort),
+		Type:   network.TCP,
+		NetNS:  curNs,
+	}
+	trans = ct.GetTranslationForConn(cs)
 	assert.Nil(t, trans)
 }
 
@@ -205,22 +206,21 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	defer testNs.Close()
 	testIno, err := util.GetInoForNs(testNs)
 	require.NoError(t, err)
+	t.Logf("test ns: %d", testIno)
 
 	var trans *network.IPTranslation
+	cs := network.ConnectionStats{
+		Source: util.AddressFromNetIP(laddr.IP),
+		SPort:  uint16(laddr.Port),
+		Dest:   util.AddressFromString("2.2.2.4"),
+		DPort:  uint16(80),
+		Type:   network.TCP,
+		NetNS:  testIno,
+	}
 	require.Eventually(t, func() bool {
-		trans = ct.GetTranslationForConn(
-			network.ConnectionStats{
-				Source: util.AddressFromNetIP(laddr.IP),
-				SPort:  uint16(laddr.Port),
-				Dest:   util.AddressFromString("2.2.2.4"),
-				DPort:  uint16(80),
-				Type:   network.TCP,
-				NetNS:  testIno,
-			},
-		)
-
+		trans = ct.GetTranslationForConn(cs)
 		return trans != nil
-	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry")
+	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry for %s", cs.String())
 
 	assert.Equal(t, uint16(8080), trans.ReplSrcPort)
 }
@@ -263,20 +263,18 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 	require.NotNil(t, laddr)
 
 	var trans *network.IPTranslation
+	cs := network.ConnectionStats{
+		Source: util.AddressFromNetIP(laddr.IP),
+		SPort:  uint16(laddr.Port),
+		Dest:   util.AddressFromString("3.3.3.3"),
+		DPort:  uint16(80),
+		Type:   network.TCP,
+		NetNS:  testIno,
+	}
 	require.Eventually(t, func() bool {
-		trans = ct.GetTranslationForConn(
-			network.ConnectionStats{
-				Source: util.AddressFromNetIP(laddr.IP),
-				SPort:  uint16(laddr.Port),
-				Dest:   util.AddressFromString("3.3.3.3"),
-				DPort:  uint16(80),
-				Type:   network.TCP,
-				NetNS:  testIno,
-			},
-		)
-
+		trans = ct.GetTranslationForConn(cs)
 		return trans != nil
-	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry")
+	}, 5*time.Second, 1*time.Second, "timed out waiting for conntrack entry for %s", cs.String())
 
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 }

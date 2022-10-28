@@ -457,6 +457,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 
 	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
 	str += fmt.Sprintf(", protocol: %v", c.Protocol)
+	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str
 }

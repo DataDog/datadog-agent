@@ -239,7 +239,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
 		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("looking up in conntrack (tuple): %s", src)
+			log.Tracef("looking up in conntrack (tuple,netns): %s", src)
 		}
 		dst = e.get(src)
 	}
