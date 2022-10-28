@@ -16,10 +16,11 @@ import (
 
 // for testing purpose
 var (
-	cpuGet      = cpu.Get
-	memoryGet   = memory.Get
-	networkGet  = network.Get
-	platformGet = platform.Get
+	cpuGet                         = cpu.Get
+	memoryGet                      = memory.Get
+	networkGet                     = network.Get
+	platformGet                    = platform.Get
+	systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
 )
 
 // HostMetadata contains metadata about the host
@@ -55,6 +56,12 @@ type HostMetadata struct {
 	AgentVersion  string `json:"agent_version"`
 	CloudProvider string `json:"cloud_provider"`
 	OsVersion     string `json:"os_version"`
+
+	// From file system
+	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
+	DmiProductUUID      string `json:"dmi_product_uuid"`
+	DmiBoardAssetTag    string `json:"dmi_board_asset_tag"`
+	DmiBoardVendor      string `json:"dmi_board_vendor"`
 }
 
 // For now we simply logs warnings from gohai.
@@ -140,5 +147,8 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logErrorf("OS version not found in agent metadata cache") //nolint:errcheck
 	}
+
+	systemSpecificHosttMetadataGet(metadata)
+
 	return metadata
 }

@@ -48,7 +48,8 @@ class FailedJobReason(Enum):
     DOCKER_RUNNER = 2
     K8S_RUNNER = 3
     KITCHEN_AZURE = 4
-    FAILED_JOB_SCRIPT = 5
+    KITCHEN = 5
+    FAILED_JOB_SCRIPT = 6
 
 
 class SlackMessage:

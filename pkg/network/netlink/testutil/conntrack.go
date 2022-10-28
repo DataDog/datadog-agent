@@ -48,6 +48,28 @@ func SetupDNAT(t *testing.T) {
 	nettestutil.RunCommands(t, cmds, false)
 }
 
+// SetupSNAT sets up a NAT translation from:
+// * 6.6.6.6 to 7.7.7.7 (POSTROUTING Chain)
+func SetupSNAT(t *testing.T) string {
+	linkName := "dummy-2-" + strconv.Itoa(rand.Intn(98)+1)
+	state := nettestutil.IptablesSave(t)
+	t.Cleanup(func() {
+		nettestutil.IptablesRestore(t, state)
+		teardownDNAT(t, linkName)
+	})
+
+	cmds := []string{
+		fmt.Sprintf("ip link add %s type dummy", linkName),
+		fmt.Sprintf("ip address add 7.7.7.7 broadcast + dev %s", linkName),
+		fmt.Sprintf("ip address add 6.6.6.6 broadcast + dev %s", linkName),
+		fmt.Sprintf("ip link set %s up", linkName),
+		"iptables -t nat -A POSTROUTING -s 6.6.6.6/32 -j SNAT --to-source 7.7.7.7",
+	}
+	nettestutil.RunCommands(t, cmds, false)
+
+	return linkName
+}
+
 // teardownDNAT cleans up the resources created by SetupDNAT
 func teardownDNAT(t *testing.T, linkName string) {
 	cmds := []string{

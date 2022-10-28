@@ -1206,34 +1206,7 @@ api_key:
     #
     # enabled: false
 
-  {{ end }}
-
-####################################
-## AppSec Configuration           ##
-####################################
-
-## @param appsec_config - custom object - optional
-## Enter specific configurations for your AppSec collection.
-## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
-#
-# appsec_config:
-
-  ## @param enabled - boolean - optional - default: true
-  ## Enable the AppSec proxy in the APM Agent.
-  #
-  # enabled: true
-
-  ## @param appsec_dd_url - string - optional
-  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
-  ## therefore, the proxy must be able to handle TCP connections.
-  #
-  # appsec_dd_url: <ENDPOINT>:<PORT>
-
-  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
-  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
-  #
-  # max_payload_size: 5242880
-
+  {{ end -}}
 {{ end -}}
 {{- if .ProcessAgent }}
 
@@ -3148,6 +3121,8 @@ api_key:
     ## @param port - integer - optional - default: 9162
     ## The UDP port to use when listening for incoming trap packets.
     ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    ## However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
+    ## the Datadog Agent can listen on ports below 1024.
     #
     # port: 9162
 

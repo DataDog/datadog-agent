@@ -311,7 +311,7 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, _, env = get_build_flags(
+    ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
 
@@ -339,11 +339,12 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
     args = {
         "output": output,
+        "gcflags": gcflags,
         "ldflags": ldflags,
         "build_flags": build_flags,
         "build_tags": build_tags,

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const registerLogsTimeout = 10 * time.Millisecond
+const registerLogsTimeout = 100 * time.Millisecond
 
 func TestBuildLogRegistrationPayload(t *testing.T) {
 	payload := buildLogRegistrationPayload("myUri", "platform function", 10, 100, 1000)
@@ -80,7 +80,6 @@ func TestSubscribeLogsSuccess(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-	time.Sleep(100 * time.Millisecond)
 	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
 	assert.Nil(t, err)
 }

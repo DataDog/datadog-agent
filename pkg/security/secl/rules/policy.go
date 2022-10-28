@@ -78,6 +78,9 @@ MACROS:
 
 RULES:
 	for _, ruleDef := range def.Rules {
+		// set the policy so that when we parse the errors we can get the policy associated
+		ruleDef.Policy = policy
+
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
@@ -116,8 +119,6 @@ LOOP:
 				continue LOOP
 			}
 		}
-		// set the policy so that when we parse the errors we can get the policy associated
-		s.Policy = policy
 
 		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s, Err: ErrRuleAgentVersion})
 	}
