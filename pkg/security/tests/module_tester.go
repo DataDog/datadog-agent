@@ -94,6 +94,12 @@ runtime_security_config:
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}
+    local_storage:
+      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
+      compression: {{ .ActivityDumpLocalStorageCompression }}
+      formats: {{range .ActivityDumpLocalStorageFormats}}
+      - {{.}}
+      {{end}}
 {{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
@@ -171,18 +177,21 @@ const (
 )
 
 type testOpts struct {
-	testDir                      string
-	disableFilters               bool
-	disableApprovers             bool
-	enableActivityDump           bool
-	activityDumpRateLimiter      int
-	activityDumpTracedEventTypes []string
-	disableDiscarders            bool
-	eventsCountThreshold         int
-	disableERPCDentryResolution  bool
-	disableMapDentryResolution   bool
-	envsWithValue                []string
-	disableAbnormalPathCheck     bool
+	testDir                             string
+	disableFilters                      bool
+	disableApprovers                    bool
+	enableActivityDump                  bool
+	activityDumpRateLimiter             int
+	activityDumpTracedEventTypes        []string
+	activityDumpLocalStorageDirectory   string
+	activityDumpLocalStorageCompression bool
+	activityDumpLocalStorageFormats     []string
+	disableDiscarders                   bool
+	eventsCountThreshold                int
+	disableERPCDentryResolution         bool
+	disableMapDentryResolution          bool
+	envsWithValue                       []string
+	disableAbnormalPathCheck            bool
 }
 
 func (s *stringSlice) String() string {
@@ -200,6 +209,9 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
+		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
+		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
+		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -553,11 +565,15 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 	}
 
 	if opts.activityDumpRateLimiter == 0 {
-		opts.activityDumpRateLimiter = 100
+		opts.activityDumpRateLimiter = 500
 	}
 
 	if len(opts.activityDumpTracedEventTypes) == 0 {
 		opts.activityDumpTracedEventTypes = []string{"exec", "open", "bind", "dns", "syscalls"}
+	}
+
+	if opts.activityDumpLocalStorageDirectory == "" {
+		opts.activityDumpLocalStorageDirectory = "/tmp/activity_dumps"
 	}
 
 	erpcDentryResolutionEnabled := true
@@ -572,17 +588,20 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":              dir,
-		"DisableApprovers":             opts.disableApprovers,
-		"EnableActivityDump":           opts.enableActivityDump,
-		"ActivityDumpRateLimiter":      opts.activityDumpRateLimiter,
-		"ActivityDumpTracedEventTypes": opts.activityDumpTracedEventTypes,
-		"EventsCountThreshold":         opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled":  erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":   mapDentryResolutionEnabled,
-		"LogPatterns":                  logPatterns,
-		"LogTags":                      logTags,
-		"EnvsWithValue":                opts.envsWithValue,
+		"TestPoliciesDir":                     dir,
+		"DisableApprovers":                    opts.disableApprovers,
+		"EnableActivityDump":                  opts.enableActivityDump,
+		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
+		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
+		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
+		"ActivityDumpLocalStorageCompression": opts.activityDumpLocalStorageCompression,
+		"ActivityDumpLocalStorageFormats":     opts.activityDumpLocalStorageFormats,
+		"EventsCountThreshold":                opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled":         erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":          mapDentryResolutionEnabled,
+		"LogPatterns":                         logPatterns,
+		"LogTags":                             logTags,
+		"EnvsWithValue":                       opts.envsWithValue,
 	}); err != nil {
 		return nil, err
 	}
@@ -1488,10 +1507,48 @@ func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
 	}
 	_, err := monitor.StopActivityDump(p)
 	if err != nil {
-		t.Errorf("failed to start activity dump: %s", err)
+		t.Errorf("failed to stop activity dump: %s", err)
 		return err
 	}
 	return nil
+}
+
+type activityDumpIdentifier struct {
+	Name        string
+	ContainerID string
+	OutputFiles []string
+}
+
+func (tm *testModule) ListActivityDumps() ([]activityDumpIdentifier, error) {
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return nil, errors.New("No monitor")
+	}
+	p := &api.ActivityDumpListParams{}
+	mess, err := monitor.ListActivityDumps(p)
+	if err != nil || mess == nil {
+		return nil, err
+	}
+
+	var dumps []activityDumpIdentifier
+	for _, dump := range mess.Dumps {
+		var files []string
+		for _, storage := range dump.Storage {
+			if storage.Type == "local_storage" {
+				files = append(files, storage.File)
+			}
+		}
+		if len(files) == 0 {
+			continue // do not add activity dumps without any local storage files
+		}
+
+		dumps = append(dumps, activityDumpIdentifier{
+			Name:        dump.Metadata.Name,
+			ContainerID: dump.Metadata.ContainerID,
+			OutputFiles: files,
+		})
+	}
+	return dumps, nil
 }
 
 func (tm *testModule) DecodeActivityDump(t *testing.T, path string) (*sprobe.ActivityDump, error) {
@@ -1515,4 +1572,46 @@ func (tm *testModule) DecodeActivityDump(t *testing.T, path string) (*sprobe.Act
 	}
 
 	return ad, nil
+}
+
+func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
+	docker, err := newDockerCmdWrapper(tm.st.Root(), "alpine")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = docker.start()
+	if err != nil {
+		return nil, err
+	}
+
+	return docker, nil
+}
+
+func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
+	dockerInstance, err := tm.StartADocker()
+	if err != nil {
+		return nil, nil, err
+	}
+	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+	dumps, err := tm.ListActivityDumps()
+	if err != nil {
+		_, _ = dockerInstance.stop()
+		return nil, nil, err
+	}
+	dump := findLearningContainer(dumps, dockerInstance.containerID)
+	if dump == nil {
+		_, _ = dockerInstance.stop()
+		return nil, nil, errors.New("ContainerID not found on activity dump list")
+	}
+	return dockerInstance, dump, nil
+}
+
+func findLearningContainer(dumps []activityDumpIdentifier, containerID string) *activityDumpIdentifier {
+	for _, dump := range dumps {
+		if dump.ContainerID == containerID {
+			return &dump
+		}
+	}
+	return nil
 }
