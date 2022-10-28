@@ -2,6 +2,7 @@
 #define __NETNS_H
 
 #include <net/net_namespace.h>
+#include <net/sock.h>
 
 // depending on the kernel version p_net may be a struct net** or possible_net_t*
 static __always_inline u32 get_netns(void *p_net) {
