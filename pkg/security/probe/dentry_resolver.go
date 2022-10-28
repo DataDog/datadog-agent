@@ -559,10 +559,6 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	dr.erpcSegment[6*os.Getpagesize()] = 0
 }
 
-func (dr *DentryResolver) markSegmentAsZero() {
-	model.ByteOrder.PutUint64(dr.erpcSegment[0:8], 0)
-}
-
 func (dr *DentryResolver) requestResolve(op uint8, mountID uint32, inode uint64, pathID uint32) (uint32, error) {
 	// create eRPC request
 	challenge := rand.Uint32()
