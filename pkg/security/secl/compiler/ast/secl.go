@@ -37,6 +37,9 @@ alpha = "a"…"z" | "A"…"Z" .
 digit = "0"…"9" .
 any = "\u0000"…"\uffff" .
 `))
+
+	ruleParser  = buildParser(&Rule{})
+	macroParser = buildParser(&Macro{})
 )
 
 func unquotePattern(t lexer.Token) (lexer.Token, error) {
@@ -57,26 +60,24 @@ func parseDuration(t lexer.Token) (lexer.Token, error) {
 	return t, nil
 }
 
-func buildParser(obj interface{}) (*participle.Parser, error) {
-	return participle.Build(obj,
+func buildParser(obj interface{}) *participle.Parser {
+	parser, err := participle.Build(obj,
 		participle.Lexer(seclLexer),
 		participle.Elide("Whitespace", "Comment"),
 		participle.Unquote("String"),
 		participle.Map(parseDuration, "Duration"),
 		participle.Map(unquotePattern, "Pattern", "Regexp"),
 	)
+	if err != nil {
+		panic(err)
+	}
+	return parser
 }
 
 // ParseRule parses a SECL rule.
 func ParseRule(expr string) (*Rule, error) {
-	parser, err := buildParser(&Rule{})
-	if err != nil {
-		return nil, err
-	}
-
 	rule := &Rule{}
-
-	err = parser.Parse(bytes.NewBufferString(expr), rule)
+	err := ruleParser.Parse(bytes.NewBufferString(expr), rule)
 	if err != nil {
 		return nil, err
 	}
@@ -95,14 +96,8 @@ type Rule struct {
 
 // ParseMacro parses a SECL macro
 func ParseMacro(expr string) (*Macro, error) {
-	parser, err := buildParser(&Macro{})
-	if err != nil {
-		return nil, err
-	}
-
 	macro := &Macro{}
-
-	err = parser.Parse(bytes.NewBufferString(expr), macro)
+	err := macroParser.Parse(bytes.NewBufferString(expr), macro)
 	if err != nil {
 		return nil, err
 	}
