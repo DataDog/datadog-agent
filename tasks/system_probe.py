@@ -299,7 +299,7 @@ def ninja_cgo_type_files(nw, windows):
             name="godefs",
             pool="cgo_pool",
             command="cd $in_dir && "
-            + "CC=clang go tool cgo -godefs -- -fsigned-char $in_file | "
+            + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
             + "go run $script_path > $out_file",
         )
 
@@ -308,6 +308,7 @@ def ninja_cgo_type_files(nw, windows):
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
+        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)}"
         nw.build(
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
@@ -318,6 +319,7 @@ def ninja_cgo_type_files(nw, windows):
                 "in_file": in_file,
                 "out_file": out_file,
                 "script_path": script_path,
+                "rel_import": rel_import,
             },
         )
 
