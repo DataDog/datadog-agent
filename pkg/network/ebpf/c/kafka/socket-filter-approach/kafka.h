@@ -203,7 +203,9 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
         //log_debug("Not a Kafka traffic");
         return 0;
     }
-    try_parse_request(kafka_transaction);
+    if (!try_parse_request(kafka_transaction)) {
+        return 0;
+    }
     log_debug("kafka_transaction->topic_name: %s", kafka_transaction->topic_name);
 
 //    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
