@@ -122,7 +122,8 @@ func (r *Rule) GetAst() *ast.Rule {
 
 // Parse - Transforms the SECL `Expression` into its AST representation
 func (r *Rule) Parse() error {
-	astRule, err := ast.ParseRule(r.Expression)
+	pc := ast.NewParsingContext()
+	astRule, err := pc.ParseRule(r.Expression)
 	if err != nil {
 		return err
 	}

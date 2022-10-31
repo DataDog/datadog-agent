@@ -83,7 +83,9 @@ func (m *Macro) GetAst() *ast.Macro {
 
 // Parse - Transforms the SECL `Expression` into its AST representation
 func (m *Macro) Parse(expression string) error {
-	astMacro, err := ast.ParseMacro(expression)
+	parsingContext := ast.NewParsingContext()
+
+	astMacro, err := parsingContext.ParseMacro(expression)
 	if err != nil {
 		return err
 	}
