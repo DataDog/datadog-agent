@@ -960,20 +960,11 @@ def setup_runtime_clang(ctx):
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-def setup_system_clang(ctx):
-    sudo = "sudo" if not is_root() else ""
-    clang_res = ctx.run(f"clang --version", warn=True)
+def verify_system_clang_version(ctx):
+    clang_res = ctx.run("clang --version", warn=True)
     clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
-    if clang_version_str == CLANG_VERSION:
-        return
-    
-    ctx.run(f"{sudo} rm -r /opt/clang", warn=True)
-    ctx.run(f"{sudo} mkdir /opt/clang")
-    ctx.run(f"{sudo} chmod 755 /opt/clang")
-    
-    arch = platform.machine()
-    ctx.run(f"wget 'https://github.com/llvm/llvm-project/releases/download/llvmorg-{CLANG_VERSION}/clang+llvm-{CLANG_VERSION}-{arch}-linux-gnu-ubuntu-16.04.tar.xz' -O /tmp/clang.tar.xz  -o /dev/null")
-    ctx.run(f"{sudo} tar xf /tmp/clang.tar.xz --no-same-owner -C /opt/clang --strip-components=1")
+    if clang_version_str != CLANG_VERSION:
+        raise UnexpectedExit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
 
 
 def build_object_files(
@@ -987,9 +978,8 @@ def build_object_files(
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
-    setup_system_clang(ctx)
-
     if not windows:
+        verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
         print("checking for clang executable...")
