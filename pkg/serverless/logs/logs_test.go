@@ -786,6 +786,31 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 	assert.Equal(t, expectedLogMessage, message)
 }
 
+func TestUnmarshalPlatformRuntimeDoneLogWithTelemetry(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid_with_telemetry.json")
+	require.NoError(t, err)
+	var message logMessage
+	err = json.Unmarshal(raw, &message)
+	require.NoError(t, err)
+
+	expectedTime := time.Date(2021, 05, 19, 18, 11, 22, 478000000, time.UTC)
+
+	expectedLogMessage := logMessage{
+		logType:      logTypePlatformRuntimeDone,
+		time:         expectedTime,
+		stringRecord: "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9",
+		objectRecord: platformObjectRecord{
+			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
+			runtimeDoneItem: runtimeDoneItem{
+				responseDuration: 0.1,
+				responseLatency:  6.0,
+				producedBytes:    53,
+			},
+		},
+	}
+	assert.Equal(t, expectedLogMessage, message)
+}
+
 func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_runtime_done_log.json")
@@ -848,7 +873,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 	})
-	assert.Equal(t, generatedMetrics[4], metrics.MetricSample{
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
@@ -856,7 +881,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 	})
-	assert.Equal(t, generatedMetrics[6], metrics.MetricSample{
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
