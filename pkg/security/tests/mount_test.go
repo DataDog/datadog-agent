@@ -494,10 +494,12 @@ func TestMountEvent(t *testing.T) {
 		err = test.GetSignal(t, func() error {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			t.Errorf("shouldn't get an event: got event: %s", event)
+			t.Errorf("shouldn't get an event: event %s matched rule %s", event, rule.Expression)
 		})
 		if err == nil {
-			t.Fatal("shouldn't get an event")
+			t.Error("shouldn't get an event")
+		} else if otherErr, ok := err.(ErrTimeout); !ok {
+			t.Fatal(otherErr)
 		}
 	})
 }
