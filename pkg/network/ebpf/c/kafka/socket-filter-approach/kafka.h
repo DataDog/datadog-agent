@@ -131,25 +131,25 @@
 //    }
 //}
 //
-//static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_t *skb_info) {
-//    if (!skb_info || !skb_info->tcp_seq) {
-//        return false;
-//    }
+static __always_inline bool kafka_seen_before(kafka_transaction_t *kafka, skb_info_t *skb_info) {
+    if (!skb_info || !skb_info->tcp_seq) {
+        return false;
+    }
+
+    // check if we've seen this TCP segment before. this can happen in the
+    // context of localhost traffic where the same TCP segment can be seen
+    // multiple times coming in and out from different interfaces
+    return kafka->tcp_seq == skb_info->tcp_seq;
+}
 //
-//    // check if we've seen this TCP segment before. this can happen in the
-//    // context of localhost traffic where the same TCP segment can be seen
-//    // multiple times coming in and out from different interfaces
-//    return http->tcp_seq == skb_info->tcp_seq;
-//}
-//
-//static __always_inline void http_update_seen_before(http_transaction_t *http, skb_info_t *skb_info) {
-//    if (!skb_info || !skb_info->tcp_seq) {
-//        return;
-//    }
-//
-//    log_debug("http_update_seen_before: htx=%llx old_seq=%d seq=%d\n", http, http->tcp_seq, skb_info->tcp_seq);
-//    http->tcp_seq = skb_info->tcp_seq;
-//}
+static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info) {
+    if (!skb_info || !skb_info->tcp_seq) {
+        return;
+    }
+
+    log_debug("kafka_update_seen_before: ktx=%llx old_seq=%llu seq=%llu\n", kafka_transaction, kafka_transaction->tcp_seq, skb_info->tcp_seq);
+    kafka_transaction->tcp_seq = skb_info->tcp_seq;
+}
 //
 //
 //static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, http_packet_t packet_type) {
@@ -192,10 +192,17 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
 //    // TODO: read 4 bytes as size
 //    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
 
+//    if (!kafka_transaction || kafka_seen_before(kafka_transaction, skb_info)) {
+//        return 0;
+//    }
+
     // Temporary hack for debugging
     if (kafka_transaction->tup.dport != 9092 && kafka_transaction->tup.sport != 9092) {
         return 0;
     }
+
+//    kafka_update_seen_before(kafka_transaction, skb_info);
+
 //    log_debug("Kafka port!");
 
 //    if (!is_kafka(buffer, buffer_size)) {

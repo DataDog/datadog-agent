@@ -58,6 +58,13 @@
 //    HTTP_OPTIONS,
 //    HTTP_PATCH
 //} http_method_t;
+
+typedef enum
+{
+    KAFKA_PRODUCE = 0,
+    KAFKA_FETCH
+} kafka_operation_t;
+
 //
 //// This struct is used in the map lookup that returns the active batch for a certain CPU core
 //typedef struct {
@@ -92,7 +99,7 @@ typedef struct {
 
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
-//    __u32 tcp_seq;
+    __u32 tcp_seq;
 //
 //    __u64 tags;
 //} http_transaction_t;
