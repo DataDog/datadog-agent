@@ -70,7 +70,7 @@ require (
 	github.com/Microsoft/hcsshim v0.9.4
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1
-	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/alecthomas/repr v0.1.0
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/avast/retry-go/v4 v4.3.0
 	github.com/aws/aws-lambda-go v1.32.0
@@ -420,6 +420,8 @@ require (
 require google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 
 require github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
+
+require github.com/alecthomas/participle/v2 v2.0.0-beta.5 // indirect
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 

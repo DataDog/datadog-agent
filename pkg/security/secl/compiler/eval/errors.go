@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 )
 
 // ErrNonStaticPattern when pattern operator is used on a non static value

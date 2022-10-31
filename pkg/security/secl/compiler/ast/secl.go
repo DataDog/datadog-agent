@@ -12,14 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/participle"
-	"github.com/alecthomas/participle/lexer"
-	"github.com/alecthomas/participle/lexer/regex"
+	"github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
 )
 
 type ParsingContext struct {
-	ruleParser  *participle.Parser
-	macroParser *participle.Parser
+	ruleParser  *participle.Parser[Rule]
+	macroParser *participle.Parser[Macro]
 }
 
 func NewParsingContext() *ParsingContext {
@@ -27,43 +26,40 @@ func NewParsingContext() *ParsingContext {
 	ipv6 := `([[:xdigit:]]*(:|\.)){2,7}[[:xdigit:]]*`
 	ip := fmt.Sprintf("(%s)|(%s)", ipv4, ipv6)
 
-	seclLexer := lexer.Must(regex.New(fmt.Sprintf(`
-Comment = (#|//)[^\n]*
-Whitespace = \s+
-CIDR = (%s)/[[:digit:]]+
-IP = %s
+	seclLexer := lexer.MustSimple([]lexer.SimpleRule{
+		{Name: "Comment", Pattern: `(#|//)[^\n]*`},
+		{Name: "Whitespace", Pattern: `\s+`},
 
-Variable = \${([[:alpha:]]|_)([[:alnum:]]|[_\.])*}
-Duration = [[:digit:]]+(ms|s|m|h|d)
+		{Name: "CIDR", Pattern: fmt.Sprintf(`(%s)/[[:digit:]]+`, ip)},
+		{Name: "IP", Pattern: ip},
 
-Pattern = ~"([^\\"]|\\.)*"
-Regexp = r"([^\\"]|\\.)*"
-String = "([^\\"]|\\.)*"
+		{Name: "Variable", Pattern: `\${([[:alpha:]]|_)([[:alnum:]]|[_\.])*}`},
+		{Name: "Duration", Pattern: `[[:digit:]]+(ms|s|m|h|d)`},
 
-Ident = ([[:alpha:]]|_)([[:alnum:]]|[_\.\[\]])*
-Int = [+-]?[[:digit:]]+
+		{Name: "Pattern", Pattern: `~"([^\\"]|\\.)*"`},
+		{Name: "Regexp", Pattern: `r"([^\\"]|\\.)*"`},
+		{Name: "String", Pattern: `"([^\\"]|\\.)*"`},
 
-Punct = [[:punct:]]
-`, ip, ip)))
+		{Name: "Ident", Pattern: `([[:alpha:]]|_)([[:alnum:]]|[_\.\[\]])*`},
+		{Name: "Int", Pattern: `[+-]?[[:digit:]]+`},
+
+		{Name: "Punct", Pattern: `[[:punct:]]`},
+	})
 
 	return &ParsingContext{
-		ruleParser:  buildParser(&Rule{}, seclLexer),
-		macroParser: buildParser(&Macro{}, seclLexer),
+		ruleParser:  buildParser[Rule](seclLexer),
+		macroParser: buildParser[Macro](seclLexer),
 	}
 }
 
-func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
-	parser, err := participle.Build(obj,
+func buildParser[T any](lexer lexer.Definition) *participle.Parser[T] {
+	return participle.MustBuild[T](
 		participle.Lexer(lexer),
 		participle.Elide("Whitespace", "Comment"),
 		participle.Unquote("String"),
 		participle.Map(parseDuration, "Duration"),
 		participle.Map(unquotePattern, "Pattern", "Regexp"),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return parser
 }
 
 func unquotePattern(t lexer.Token) (lexer.Token, error) {
@@ -86,8 +82,7 @@ func parseDuration(t lexer.Token) (lexer.Token, error) {
 
 // ParseRule parses a SECL rule.
 func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
-	rule := &Rule{}
-	err := pc.ruleParser.Parse(bytes.NewBufferString(expr), rule)
+	rule, err := pc.ruleParser.Parse("", bytes.NewBufferString(expr))
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +101,7 @@ type Rule struct {
 
 // ParseMacro parses a SECL macro
 func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
-	macro := &Macro{}
-	err := pc.macroParser.Parse(bytes.NewBufferString(expr), macro)
+	macro, err := pc.macroParser.Parse("", bytes.NewBufferString(expr))
 	if err != nil {
 		return nil, err
 	}
