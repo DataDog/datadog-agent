@@ -44,7 +44,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
-| `mount` | File | A filesystem was mounted | 7.40 |
+| `mount` | File | A filesystem was mounted | 7.42 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |

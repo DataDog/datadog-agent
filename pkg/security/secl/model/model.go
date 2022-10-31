@@ -175,7 +175,7 @@ type Event struct {
 	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
-	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.40] [File] A filesystem was mounted
+	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] A filesystem was mounted
 
 	// process events
 	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
