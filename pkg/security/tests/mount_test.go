@@ -150,6 +150,12 @@ func TestMount(t *testing.T) {
 }
 
 func TestMountPropagated(t *testing.T) {
+	// - testroot
+	// 		/ dir1
+	// 			/ test-drive (xfs mount)
+	// 		/ dir-bind-mounted (bind mount de testroot/dir1)
+	// 			/ test-drive (propagated)
+
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
 		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`),
@@ -167,7 +173,6 @@ func TestMountPropagated(t *testing.T) {
 	}
 
 	testDrivePath := path.Join(dir1Path, "test-drive")
-
 	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +182,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDrive.Close()
+	defer testDrive.cleanup()
 
 	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
 	if err != nil {
@@ -188,7 +193,13 @@ func TestMountPropagated(t *testing.T) {
 	}
 	defer os.RemoveAll(dir1BindMntPath)
 
-	if err := syscall.Mount(dir1Path, dir1BindMntPath, "bind", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
+	bindMnt := newTestMount(
+		dir1BindMntPath,
+		withSource(dir1Path),
+		withFlags(syscall.MS_BIND|syscall.MS_REC),
+	)
+
+	if err := bindMnt.mount(); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -197,8 +208,8 @@ func TestMountPropagated(t *testing.T) {
 			t.Logf("Failed to unmount %s", testDrivePath)
 		}
 
-		if err := syscall.Unmount(dir1BindMntPath, syscall.MNT_FORCE); err != nil {
-			t.Logf("Failed to unmount %s", dir1BindMntPath)
+		if err := bindMnt.unmount(syscall.MNT_FORCE); err != nil {
+			t.Logf("Failed to umount %s", bindMnt.target)
 		}
 	}()
 
