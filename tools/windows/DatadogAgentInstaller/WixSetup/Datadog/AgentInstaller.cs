@@ -191,7 +191,8 @@ namespace WixSetup.Datadog
             project.UI = WUI.WixUI_Common;
             project.CustomUI = _agentInstallerUi.CustomUI;
             project.AddXmlInclude("dialogs/apikeydlg.wxi")
-                   .AddXmlInclude("dialogs/sitedlg.wxi");
+                   .AddXmlInclude("dialogs/sitedlg.wxi")
+                   .AddXmlInclude("dialogs/ddagentuserdlg.wxi");
 
             return project;
         }
