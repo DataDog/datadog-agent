@@ -406,7 +406,7 @@ func Test_batchPayloads(t *testing.T) {
 	for i := 0; i < 350; i++ {
 		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, Index: int32(i)})
 	}
-	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces)
+	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces, nil)
 
 	assert.Equal(t, 4, len(payloads))
 

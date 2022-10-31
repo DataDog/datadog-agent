@@ -63,6 +63,23 @@ func (s Store) GetColumnAsString(field string, index string) string {
 	return strVal
 }
 
+// GetColumnAsByteArray get column value as []byte
+func (s Store) GetColumnAsByteArray(field string, index string) []byte {
+	column, ok := s.columnValues[field]
+	if !ok {
+		return nil
+	}
+	value, ok := column[index]
+	if !ok {
+		return nil
+	}
+	switch value.Value.(type) {
+	case string, []byte:
+		return value.Value.([]byte)
+	}
+	return nil
+}
+
 // GetColumnAsFloat get column value as float
 func (s Store) GetColumnAsFloat(field string, index string) float64 {
 	column, ok := s.columnValues[field]
