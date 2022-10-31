@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -175,7 +174,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	if cliParams.statusFilePath != "" {
-		ioutil.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
+		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
@@ -238,7 +237,7 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	}
 
 	if cliParams.statusFilePath != "" {
-		ioutil.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
+		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
