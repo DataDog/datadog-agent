@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -83,6 +84,13 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
 			httpEncoder.orphanEntries,
 		)
+
+		telemetry.NewMetric(
+			"usm.http.orphan_aggregations",
+			telemetry.OptMonotonic,
+			telemetry.OptExpvar,
+			telemetry.OptStatsd,
+		).Add(int64(httpEncoder.orphanEntries))
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -97,6 +105,8 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Dns = dnsFormatter.DNS()
 	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
+	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
+	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 

@@ -69,6 +69,10 @@ infra_failure_logs = [
         ),
         FailedJobReason.DOCKER_RUNNER,
     ),
+    (
+        re.compile(r'WARNING: Failed to pull image with policy "always":.*:.*\(.*\)'),
+        FailedJobReason.DOCKER_RUNNER,
+    ),
     # k8s Gitlab runner init failures
     (
         re.compile(
@@ -82,6 +86,11 @@ infra_failure_logs = [
             r'Allocation failed\. We do not have sufficient capacity for the requested VM size in this region\.'
         ),
         FailedJobReason.KITCHEN_AZURE,
+    ),
+    # kitchen tests general infrastructure issues
+    (
+        re.compile(r'ERROR: The kitchen tests failed due to infrastructure failures\.'),
+        FailedJobReason.KITCHEN,
     ),
 ]
 

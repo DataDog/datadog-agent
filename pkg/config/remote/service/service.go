@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -62,12 +63,12 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
-	ctx      context.Context
-	clock    clock.Clock
-	hostname string
-	db       *bbolt.DB
-	uptane   uptaneClient
-	api      api.API
+	clock         clock.Clock
+	hostname      string
+	traceAgentEnv string
+	db            *bbolt.DB
+	uptane        uptaneClient
+	api           api.API
 
 	products         map[rdata.Product]struct{}
 	newProducts      map[rdata.Product]struct{}
@@ -130,30 +131,41 @@ func NewService() (*Service, error) {
 	backoffPolicy := backoff.NewPolicy(minBackoffFactor, baseBackoffTime,
 		maxBackoffTime.Seconds(), recoveryInterval, recoveryReset)
 
-	rawRemoteConfigKey := config.Datadog.GetString("remote_configuration.key")
-	remoteConfigKey, err := parseRemoteConfigKey(rawRemoteConfigKey)
-	if err != nil {
-		return nil, err
-	}
-
 	apiKey := config.Datadog.GetString("api_key")
 	if config.Datadog.IsSet("remote_configuration.api_key") {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
 	}
 	apiKey = config.SanitizeAPIKey(apiKey)
+	rcKey := config.Datadog.GetString("remote_configuration.key")
+	authKeys, err := getRemoteConfigAuthKeys(apiKey, rcKey)
+	if err != nil {
+		return nil, err
+	}
+	http, err := api.NewHTTPClient(authKeys.apiAuth())
+	if err != nil {
+		return nil, err
+	}
 	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	http := api.NewHTTPClient(apiKey, remoteConfigKey.AppKey)
-
 	dbPath := path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	db, err := openCacheDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%s/%d/", remoteConfigKey.Datacenter, remoteConfigKey.OrgID)
-	uptaneClient, err := uptane.NewClient(db, cacheKey, remoteConfigKey.OrgID)
+	apiKeyHash := sha256.Sum256([]byte(apiKey))
+	cacheKey := fmt.Sprintf("%s/", apiKeyHash)
+	opt := []uptane.ClientOption{}
+	if authKeys.rcKeySet {
+		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
+	}
+	uptaneClient, err := uptane.NewClient(
+		db,
+		cacheKey,
+		newRCBackendOrgUUIDProvider(http),
+		opt...,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +176,8 @@ func NewService() (*Service, error) {
 		clientsTTL = defaultClientsTTL
 	}
 	clock := clock.New()
+
 	return &Service{
-		ctx:                            context.Background(),
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
 		refreshIntervalOverrideAllowed: refreshIntervalOverrideAllowed,
@@ -174,6 +186,7 @@ func NewService() (*Service, error) {
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hname,
+		traceAgentEnv:                  config.GetTraceAgentDefaultEnv(),
 		clock:                          clock,
 		db:                             db,
 		api:                            http,
@@ -185,6 +198,14 @@ func NewService() (*Service, error) {
 			until:    time.Now().UTC(),
 		},
 	}, nil
+}
+
+func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
+	return func() (string, error) {
+		// XXX: We may want to tune the context timeout here
+		resp, err := http.FetchOrgData(context.Background())
+		return resp.GetUuid(), err
+	}
 }
 
 // Start the remote configuration management service
@@ -246,9 +267,10 @@ func (s *Service) refresh() error {
 	if err != nil {
 		log.Warnf("could not get previous backend client state: %v", err)
 	}
-	request := buildLatestConfigsRequest(s.hostname, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	request := buildLatestConfigsRequest(s.hostname, s.traceAgentEnv, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
-	response, err := s.api.Fetch(s.ctx, request)
+	ctx := context.Background()
+	response, err := s.api.Fetch(ctx, request)
 	s.Lock()
 	defer s.Unlock()
 	s.lastUpdateErr = nil

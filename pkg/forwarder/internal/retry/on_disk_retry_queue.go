@@ -29,23 +29,26 @@ type onDiskRetryQueue struct {
 	filenames          []string
 	currentSizeInBytes int64
 	telemetry          onDiskRetryQueueTelemetry
+	pointDroppedSender *PointDroppedSender
 }
 
 func newOnDiskRetryQueue(
 	serializer *HTTPTransactionsSerializer,
 	storagePath string,
 	diskUsageLimit *DiskUsageLimit,
-	telemetry onDiskRetryQueueTelemetry) (*onDiskRetryQueue, error) {
+	telemetry onDiskRetryQueueTelemetry,
+	pointDroppedSender *PointDroppedSender) (*onDiskRetryQueue, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
 
 	storage := &onDiskRetryQueue{
-		serializer:     serializer,
-		storagePath:    storagePath,
-		diskUsageLimit: diskUsageLimit,
-		telemetry:      telemetry,
+		serializer:         serializer,
+		storagePath:        storagePath,
+		diskUsageLimit:     diskUsageLimit,
+		telemetry:          telemetry,
+		pointDroppedSender: pointDroppedSender,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -59,8 +62,8 @@ func newOnDiskRetryQueue(
 	return storage, err
 }
 
-// Serialize serializes transactions to the file system.
-func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) error {
+// Store stores transactions to the file system.
+func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	s.telemetry.addSerializeCount()
 
 	// Reset the serializer in case some transactions were serialized
@@ -103,8 +106,8 @@ func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) err
 	return nil
 }
 
-// Deserialize deserializes transactions from the file system.
-func (s *onDiskRetryQueue) Deserialize() ([]transaction.Transaction, error) {
+// ExtractLast extracts the last transactions stored.
+func (s *onDiskRetryQueue) ExtractLast() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}
@@ -162,9 +165,11 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 		if err != nil {
 			log.Errorf("Cannot read the file %v: %v", filename, err)
 		} else if transactions, _, errDeserialize := s.serializer.Deserialize(bytes); errDeserialize == nil {
+			pointDroppedCount := 0
 			for _, tr := range transactions {
-				s.telemetry.addPointDroppedCount(tr.GetPointCount())
+				pointDroppedCount += tr.GetPointCount()
 			}
+			s.onPointDropped(pointDroppedCount)
 		} else {
 			log.Errorf("Cannot deserialize the content of file %v: %v", filename, errDeserialize)
 		}
@@ -176,6 +181,11 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 	}
 
 	return nil
+}
+
+func (s *onDiskRetryQueue) onPointDropped(count int) {
+	s.telemetry.addPointDroppedCount(count)
+	s.pointDroppedSender.AddDroppedPointCount(count)
 }
 
 func (s *onDiskRetryQueue) removeFileAt(index int) error {

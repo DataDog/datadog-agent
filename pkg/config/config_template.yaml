@@ -67,19 +67,11 @@ api_key:
 ## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.0"
 ## This option defines the minimum TLS version that will be used when
 ## submitting data to the Datadog intake specified in "site" or "dd_url".
-## This parameter defaults to "tlsv1.0" (but see `force_tls_12`, below).
+## This parameter defaults to "tlsv1.2".
 ## Possible values are: tlsv1.0, tlsv1.1, tlsv1.2, tlsv1.3; values are case-
 ## insensitive.
 #
-# min_tls_version: "tlsv1.0"
-
-## @param force_tls_12 - boolean - optional - default: false
-## @env DD_FORCE_TLS_12 - boolean - optional - default: false
-## Setting this option to "true" is equivalent to setting the default for
-## `min_tls_version` to `tlsv1.2`.  This parameter is deprecated in favor of
-## `min_tls_version`.
-#
-# force_tls_12: false
+# min_tls_version: "tlsv1.2"
 
 ## @param hostname - string - optional - default: auto-detected
 ## @env DD_HOSTNAME - string - optional - default: auto-detected
@@ -1214,34 +1206,7 @@ api_key:
     #
     # enabled: false
 
-  {{ end }}
-
-####################################
-## AppSec Configuration           ##
-####################################
-
-## @param appsec_config - custom object - optional
-## Enter specific configurations for your AppSec collection.
-## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
-#
-# appsec_config:
-
-  ## @param enabled - boolean - optional - default: true
-  ## Enable the AppSec proxy in the APM Agent.
-  #
-  # enabled: true
-
-  ## @param appsec_dd_url - string - optional
-  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
-  ## therefore, the proxy must be able to handle TCP connections.
-  #
-  # appsec_dd_url: <ENDPOINT>:<PORT>
-
-  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
-  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
-  #
-  # max_payload_size: 5242880
-
+  {{ end -}}
 {{ end -}}
 {{- if .ProcessAgent }}
 
@@ -2069,6 +2034,21 @@ api_key:
 ## Directory containing configuration templates for Autoconfig.
 #
 # autoconf_template_dir: /datadog/check_configs
+
+## @param autoconf_config_files_poll - boolean - optional - default: false
+## @env DD_AUTOCONF_CONFIG_FILES_POLL - boolean - optional - default: false
+## Should the we check for new/updated integration configuration files on disk.
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+#
+# autoconf_config_files_poll: false
+
+## @param autoconf_config_files_poll_interval - integer - optional - default: 60
+## @env DD_AUTOCONF_CONFIG_FILES_POLL_INTERVAL - integer - optional - default: 60
+## How frequently should the Agent check for new/updated integration configuration files (in seconds).
+## This value must be >= 1 (i.e. 1 second).
+## WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
+#
+# autoconf_config_files_poll_interval: 60
 
 ## @param config_providers - List of custom object - optional
 ## @env DD_CONFIG_PROVIDERS - List of custom object - optional
@@ -3142,6 +3122,8 @@ api_key:
     ## @param port - integer - optional - default: 9162
     ## The UDP port to use when listening for incoming trap packets.
     ## Because the Datadog Agent does not run as root, the port cannot be below 1024.
+    ## However, if you run `sudo setcap 'cap_net_bind_service=+ep' /opt/datadog-agent/bin/agent/agent`,
+    ## the Datadog Agent can listen on ports below 1024.
     #
     # port: 9162
 
@@ -3419,13 +3401,24 @@ api_key:
 
   ## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
+  ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
+  ## for a full list of available settings:
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
   #
   # debug:
 
-    ## @param loglevel - string - optional - default: info
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: info
-    ## Loglevel for logs when Datadog Agent receives otlp traces/metrics.
-    ## Options are disabled, debug, info, error, warn.
+    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
+    ## @param loglevel - string - optional - default: none
+    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
+    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
+    ## Valid values are disabled, debug, info, error, warn.
     #
     # loglevel: info
+
+    ## @param verbosity - string - optional - default: normal
+    ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
+    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
+    ## Valid values are basic, normal, detailed.
+    #
+    # verbosity: normal
 {{end -}}

@@ -46,13 +46,37 @@ func TestDisablingDNSInspection(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
-		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
+		t.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
 		assert.False(t, cfg.DNSInspection)
+	})
+}
+
+func TestDisablingProtocolClassification(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-NoPRTCLClassifying.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.ProtocolClassificationEnabled)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
+		defer os.Unsetenv("DD_ENABLE_PROTOCOL_CLASSIFICATION")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.ProtocolClassificationEnabled)
 	})
 }
 
@@ -72,8 +96,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -133,8 +156,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -159,8 +181,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -186,9 +207,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		defer os.Unsetenv("DD_COLLECT_DNS_STATS")
-
-		os.Setenv("DD_COLLECT_DNS_STATS", "false")
+		t.Setenv("DD_COLLECT_DNS_STATS", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -196,7 +215,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 		assert.False(t, cfg.CollectDNSStats)
 
 		newConfig()
-		os.Setenv("DD_COLLECT_DNS_STATS", "true")
+		t.Setenv("DD_COLLECT_DNS_STATS", "true")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
 		cfg = New()
@@ -221,9 +240,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		defer os.Unsetenv("DD_COLLECT_DNS_DOMAINS")
-
-		os.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
+		t.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -231,7 +248,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 		assert.False(t, cfg.CollectDNSDomains)
 
 		newConfig()
-		os.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
+		t.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
 		cfg = New()
@@ -265,7 +282,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 		assert.Equal(t, 20000, cfg.MaxDNSStats) // default value
 
 		newConfig()
-		os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
 		cfg = New()
@@ -310,7 +327,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
         [
           {
             "pattern": "/users/(.*)",
@@ -344,13 +361,7 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		v := os.Getenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED")
-		defer func() {
-			os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", v)
-		}()
-
-		err := os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
-		require.NoError(t, err)
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
 
 		cfg := New()
 		require.Equal(t, int(maxTrackedConnections-1), cfg.MaxClosedConnectionsBuffered)
@@ -370,13 +381,7 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		newConfig()
 		t.Cleanup(restoreGlobalConfig)
 
-		v := os.Getenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
-		defer func() {
-			os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", v)
-		}()
-
-		err := os.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
-		require.NoError(t, err)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
 
 		cfg := New()
 		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
@@ -414,18 +419,14 @@ func TestNetworkConfigEnabled(t *testing.T) {
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			if tc.sysIn != nil {
-				os.Setenv("DD_SYSTEM_PROBE_ENABLED", strconv.FormatBool(*tc.sysIn))
+				t.Setenv("DD_SYSTEM_PROBE_ENABLED", strconv.FormatBool(*tc.sysIn))
 			}
 			if tc.npmIn != nil {
-				os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(*tc.npmIn))
+				t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(*tc.npmIn))
 			}
 			if tc.usmIn != nil {
-				os.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
+				t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
 			}
-
-			defer os.Unsetenv("DD_SYSTEM_PROBE_ENABLED")
-			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
-			defer os.Unsetenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 
 			newConfig()
 			t.Cleanup(restoreGlobalConfig)

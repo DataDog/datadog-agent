@@ -104,7 +104,7 @@ func (c *IOCheck) Run() error {
 	// Try to initialize any nil counters
 	for name := range c.counternames {
 		if c.counters[name] == nil {
-			c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
+			c.counters[name], err = pdhutil.GetEnglishMultiInstanceCounter("LogicalDisk", name, isDrive)
 			if err != nil {
 				c.Warnf("io.Check: could not establish LogicalDisk '%v' counter: %v", name, err)
 			}

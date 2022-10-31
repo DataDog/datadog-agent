@@ -6,7 +6,6 @@
 package tag
 
 import (
-	"os"
 	"sort"
 	"testing"
 
@@ -18,16 +17,11 @@ func TestGetBaseTagsArrayNoEnvNoMetadata(t *testing.T) {
 }
 
 func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
-	os.Setenv("K_SERVICE", "myService")
-	defer os.Unsetenv("K_SERVICE")
-	os.Setenv("K_REVISION", "FDGF34")
-	defer os.Unsetenv("K_REVISION")
-	os.Setenv("DD_ENV", "myEnv")
-	defer os.Unsetenv("DD_ENV")
-	os.Setenv("DD_SERVICE", "superService")
-	defer os.Unsetenv("DD_SERVICE")
-	os.Setenv("DD_VERSION", "123.4")
-	defer os.Unsetenv("DD_VERSION")
+	t.Setenv("K_SERVICE", "myService")
+	t.Setenv("K_REVISION", "FDGF34")
+	t.Setenv("DD_ENV", "myEnv")
+	t.Setenv("DD_SERVICE", "superService")
+	t.Setenv("DD_VERSION", "123.4")
 	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))
 	sort.Strings(tags)
 	assert.Equal(t, 3, len(tags))
@@ -37,8 +31,7 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 }
 
 func TestGetTagFound(t *testing.T) {
-	os.Setenv("TOTO", "coucou")
-	defer os.Unsetenv("TOTO")
+	t.Setenv("TOTO", "coucou")
 	value, found := getTag("TOTO")
 	assert.Equal(t, true, found)
 	assert.Equal(t, "coucou", value)
@@ -55,16 +48,11 @@ func TestGetBaseTagsMapNoEnvNoMetadata(t *testing.T) {
 }
 
 func TestGetBaseTagsMapNoMetadata(t *testing.T) {
-	os.Setenv("K_SERVICE", "myService")
-	defer os.Unsetenv("K_SERVICE")
-	os.Setenv("K_REVISION", "FDGF34")
-	defer os.Unsetenv("K_REVISION")
-	os.Setenv("DD_ENV", "myEnv")
-	defer os.Unsetenv("DD_ENV")
-	os.Setenv("DD_SERVICE", "superService")
-	defer os.Unsetenv("DD_SERVICE")
-	os.Setenv("DD_VERSION", "123.4")
-	defer os.Unsetenv("DD_VERSION")
+	t.Setenv("K_SERVICE", "myService")
+	t.Setenv("K_REVISION", "FDGF34")
+	t.Setenv("DD_ENV", "myEnv")
+	t.Setenv("DD_SERVICE", "superService")
+	t.Setenv("DD_VERSION", "123.4")
 	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0))
 	assert.Equal(t, 3, len(tags))
 	assert.Equal(t, "myenv", tags["env"])
@@ -73,8 +61,7 @@ func TestGetBaseTagsMapNoMetadata(t *testing.T) {
 }
 
 func TestGetBaseTagsMapWithMetadata(t *testing.T) {
-	os.Setenv("K_SERVICE", "myService")
-	defer os.Unsetenv("K_SERVICE")
+	t.Setenv("K_SERVICE", "myService")
 	tags := GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
@@ -85,8 +72,7 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 }
 
 func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
-	os.Setenv("K_REVISION", "FDGF34")
-	defer os.Unsetenv("K_REVISION")
+	t.Setenv("K_REVISION", "FDGF34")
 	tags := GetBaseTagsArrayWithMetadataTags(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",

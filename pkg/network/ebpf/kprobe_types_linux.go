@@ -27,9 +27,11 @@ type ConnStats struct {
 	Timestamp    uint64
 	Flags        uint32
 	Cookie       uint32
-	Direction    uint8
 	Sent_packets uint64
 	Recv_packets uint64
+	Direction    uint8
+	Protocol     uint8
+	Pad_cgo_0    [6]byte
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -87,17 +89,3 @@ const (
 )
 
 const BatchSize = 0x4
-
-type ConnTag = uint64
-
-const (
-	GnuTLS  ConnTag = 0x1
-	OpenSSL ConnTag = 0x2
-)
-
-var (
-	StaticTags = map[ConnTag]string{
-		GnuTLS:  "tls.library:gnutls",
-		OpenSSL: "tls.library:openssl",
-	}
-)

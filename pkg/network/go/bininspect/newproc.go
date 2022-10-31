@@ -102,7 +102,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 		}
 
 		var returnLocations []uint64
-		if funcConfig.includeReturnLocations {
+		if funcConfig.IncludeReturnLocations {
 			symbol, ok := i.symbols[funcName]
 			if !ok {
 				return nil, fmt.Errorf("could not find function %q in symbols", funcName)
@@ -116,7 +116,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 			returnLocations = locations
 		}
 
-		parameters, err := funcConfig.paramLookupFunction(i.goVersion, string(i.elf.arch))
+		parameters, err := funcConfig.ParamLookupFunction(i.goVersion, string(i.elf.arch))
 		if err != nil {
 			return nil, fmt.Errorf("failed finding parameters of function %q: %w", funcName, err)
 		}

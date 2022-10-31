@@ -7,7 +7,6 @@ package log
 
 import (
 	"bytes"
-	"os"
 	"testing"
 	"time"
 
@@ -105,7 +104,7 @@ func TestCreateConfig(t *testing.T) {
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
-	os.Setenv("DD_SOURCE", "python")
+	t.Setenv("DD_SOURCE", "python")
 	defer os.Unsetenv("DD_SOURCE")
 	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)

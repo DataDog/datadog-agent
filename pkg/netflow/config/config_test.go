@@ -36,6 +36,7 @@ network_devices:
     aggregator_port_rollup_threshold: 20
     aggregator_rollup_tracker_refresh_interval: 60
     log_payloads: true
+    aggregator_port_rollup_disabled: true
     listeners:
       - flow_type: netflow9
         bind_host: 127.0.0.1
@@ -46,7 +47,9 @@ network_devices:
         bind_host: 127.0.0.2
         port: 2222
         workers: 15
-        namespace: my-ns2
+        namespace: |
+          my-ns2<abc
+          zz
 `,
 			expectedConfig: NetflowConfig{
 				StopTimeout:                            10,
@@ -55,6 +58,7 @@ network_devices:
 				AggregatorFlowContextTTL:               40,
 				AggregatorPortRollupThreshold:          20,
 				AggregatorRollupTrackerRefreshInterval: 60,
+				AggregatorPortRollupDisabled:           true,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -68,7 +72,7 @@ network_devices:
 						BindHost:  "127.0.0.2",
 						Port:      uint16(2222),
 						Workers:   15,
-						Namespace: "my-ns2",
+						Namespace: "my-ns2-abczz",
 					},
 				},
 			},
@@ -84,11 +88,11 @@ network_devices:
 `,
 			expectedConfig: NetflowConfig{
 				StopTimeout:                            5,
-				AggregatorBufferSize:                   100,
+				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                300,
 				AggregatorFlowContextTTL:               300,
 				AggregatorPortRollupThreshold:          10,
-				AggregatorRollupTrackerRefreshInterval: 3600,
+				AggregatorRollupTrackerRefreshInterval: 300,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -112,11 +116,11 @@ network_devices:
 `,
 			expectedConfig: NetflowConfig{
 				StopTimeout:                            5,
-				AggregatorBufferSize:                   100,
+				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                50,
 				AggregatorFlowContextTTL:               50,
 				AggregatorPortRollupThreshold:          10,
-				AggregatorRollupTrackerRefreshInterval: 3600,
+				AggregatorRollupTrackerRefreshInterval: 300,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -138,6 +142,18 @@ network_devices:
       - flow_type: invalidType
 `,
 			expectedError: "the provided flow type `invalidType` is not valid",
+		},
+		{
+			name: "invalid namespace with >100 chars",
+			configYaml: `
+network_devices:
+  namespace: abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefg
+  netflow:
+    enabled: true
+    listeners:
+      - flow_type: netflow9
+`,
+			expectedError: "invalid namespace `abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefg` error: namespace is too long, should contain less than 100 characters",
 		},
 	}
 	for _, tt := range tests {

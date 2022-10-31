@@ -22,14 +22,6 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
-// MonitorStats is used for holding two kinds of stats:
-// * requestsStats which are the http data stats
-// * telemetry which are telemetry stats
-type MonitorStats struct {
-	requestStats map[Key]*RequestStats
-	telemetry    telemetry
-}
-
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
 // * Polling a perf buffer that contains notifications about HTTP transaction batches ready to be read;
@@ -42,9 +34,9 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
-	telemetrySnapshot      *telemetry
-	pollRequests           chan chan MonitorStats
-	statkeeper             *httpStatKeeper
+
+	pollRequests chan chan map[Key]*RequestStats
+	statkeeper   *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -76,6 +68,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	batchMap, _, err := mgr.GetMap(httpBatchesMap)
 	if err != nil {
+		closeFilterFn()
 		return nil, err
 	}
 
@@ -84,6 +77,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	telemetry, err := newTelemetry()
 	if err != nil {
+		closeFilterFn()
 		return nil, err
 	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
@@ -96,6 +90,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	batchManager, err := newBatchManager(batchMap, numCPUs)
 	if err != nil {
+		closeFilterFn()
 		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
 	}
 
@@ -105,8 +100,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		telemetrySnapshot:      nil,
-		pollRequests:           make(chan chan MonitorStats),
+		pollRequests:           make(chan chan map[Key]*RequestStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
 	}, nil
@@ -149,16 +143,8 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				delta := m.telemetry.reset()
-
-				// For now, we still want to report the telemetry as it contains more information than what
-				// we're extracting via network tracer.
-				delta.report()
-
-				reply <- MonitorStats{
-					requestStats: m.statkeeper.GetAndResetAllStats(),
-					telemetry:    delta,
-				}
+				m.telemetry.log()
+				reply <- m.statkeeper.GetAndResetAllStats()
 			}
 		}
 	}()
@@ -179,32 +165,10 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	reply := make(chan MonitorStats, 1)
+	reply := make(chan map[Key]*RequestStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
-	stats := <-reply
-	m.telemetrySnapshot = &stats.telemetry
-	return stats.requestStats
-}
-
-// GetStats returns the telemetry
-func (m *Monitor) GetStats() map[string]interface{} {
-	empty := map[string]interface{}{}
-	if m == nil {
-		return empty
-	}
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.stopped {
-		return empty
-	}
-
-	if m.telemetrySnapshot == nil {
-		return empty
-	}
-
-	return m.telemetrySnapshot.report()
+	return <-reply
 }
 
 // Stop HTTP monitoring

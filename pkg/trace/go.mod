@@ -21,17 +21,17 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/gofuzz v1.2.0
-	github.com/pkg/errors v0.9.1
-	github.com/shirou/gopsutil/v3 v3.22.6
-	github.com/stretchr/testify v1.8.0
+	github.com/google/uuid v1.1.2
+	github.com/shirou/gopsutil/v3 v3.22.9
+	github.com/stretchr/testify v1.8.1
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v0.61.0
-	go.opentelemetry.io/collector/semconv v0.61.0
+	go.opentelemetry.io/collector/pdata v0.63.0
+	go.opentelemetry.io/collector/semconv v0.63.0
 	go.uber.org/atomic v1.10.0
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	google.golang.org/grpc v1.49.0
+	google.golang.org/grpc v1.50.1
 	k8s.io/apimachinery v0.23.8
 )
 
@@ -57,6 +57,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect

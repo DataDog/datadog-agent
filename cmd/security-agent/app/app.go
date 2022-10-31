@@ -28,7 +28,9 @@ import (
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -37,7 +39,6 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -55,80 +56,60 @@ import (
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName coreconfig.LoggerName = "SECURITY"
+	loggerName coreconfig.LoggerName = common.LoggerName
 )
 
 var (
-	// SecurityAgentCmd is the entry point for security agent CLI commands
-	SecurityAgentCmd = &cobra.Command{
+	srv          *api.Server
+	expvarServer *http.Server
+	stopper      startstop.Stopper
+)
+
+func CreateSecurityAgentCmd() *cobra.Command {
+	globalParams := common.GlobalParams{}
+	var flagNoColor bool
+
+	SecurityAgentCmd := &cobra.Command{
 		Use:   "datadog-security-agent [command]",
 		Short: "Datadog Security Agent at your service.",
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-		},
-	}
-
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Security Agent",
-		Long:  `Runs Datadog Security agent in the foreground`,
-		RunE:  start,
-	}
-
-	versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version info",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.Agent()
-			meta := ""
-			if av.Meta != "" {
-				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
-			}
-			fmt.Fprintln(
-				color.Output,
-				fmt.Sprintf("Security agent %s %s- Commit: '%s' - Serialization version: %s",
-					color.BlueString(av.GetNumberAndPre()),
-					meta,
-					color.GreenString(version.Commit),
-					color.MagentaString(serializer.AgentPayloadVersion),
-				),
-			)
+
+			// TODO(paulcacheux): remove this once all subcommands have been converted to use config component
+			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			return err
 		},
 	}
 
-	pidfilePath   string
-	confPathArray []string
-	flagNoColor   bool
-
-	srv          *api.Server
-	expvarServer *http.Server
-	stopper      startstop.Stopper
-)
-
-func init() {
 	defaultConfPathArray := []string{
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
-	SecurityAgentCmd.AddCommand(versionCmd)
-	SecurityAgentCmd.AddCommand(complianceCmd)
-
-	if runtimeCmd != nil {
-		SecurityAgentCmd.AddCommand(runtimeCmd)
+	factories := []common.SubcommandFactory{
+		status.Commands,
+		FlareCommands,
+		ConfigCommands,
+		ComplianceCommands,
+		RuntimeCommands,
+		VersionCommands,
+		StartCommands,
 	}
 
-	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	SecurityAgentCmd.AddCommand(startCmd)
+	for _, factory := range factories {
+		for _, subcmd := range factory(&globalParams) {
+			SecurityAgentCmd.AddCommand(subcmd)
+		}
+	}
+
+	return SecurityAgentCmd
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {
@@ -155,33 +136,10 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, int
 	return endpoints, destinationsCtx, nil
 }
 
-func start(cmd *cobra.Command, args []string) error {
-	// Main context passed to components
-	ctx, cancel := context.WithCancel(context.Background())
-	defer StopAgent(cancel)
-
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	go handleSignals(stopCh)
-
-	err := RunAgent(ctx)
-	if errors.Is(err, errAllComponentsDisabled) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	// Block here until we receive a stop signal
-	<-stopCh
-
-	return nil
-}
-
 var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context) (err error) {
+func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
 	logFile := coreconfig.Datadog.GetString("security_agent.log_file")

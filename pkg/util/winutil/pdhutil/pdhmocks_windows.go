@@ -11,24 +11,18 @@ package pdhutil
 import (
 	"fmt"
 	"strings"
+	"regexp"
 )
 
 var activeCounterStrings CounterStrings
 var activeAvailableCounters AvailableCounters
 
-func mockmakeCounterSetIndexes() error {
-	if !activeCounterStrings.initialized {
-		return fmt.Errorf("Counter strings not initialized")
-	}
-	counterToIndex = make(map[string][]int)
-	for k, v := range activeCounterStrings.counterIndex {
-		counterToIndex[v] = append(counterToIndex[v], k)
-	}
-	return nil
-}
-
 type mockCounter struct {
-	name string
+	path string
+	machine string
+	class string
+	instance string
+	counter string
 }
 
 type mockQuery struct {
@@ -40,7 +34,22 @@ var openQueriesIndex = 0
 var counterIndex = 0 // index of counter into the query must be global, because
 // RemoveCounter can be called on just a counter index
 
-var countervalues = make(map[string][]float64)
+// class -> counter -> instance -> values
+var counterValues = make(map[string]map[string]map[string][]float64)
+
+func mockCounterFromString(path string) mockCounter {
+	// Example: \\.\LogicalDisk(HarddiskVolume2)\Current Disk Queue Length
+	// Example: \\.\Memory\Available Bytes
+	r := regexp.MustCompile(`\\\\([^\\]+)\\([^\\\(]+)(?:\(([^\\\)]+)\))?\\(.+)`)
+	res := r.FindStringSubmatch(path)
+	return mockCounter{
+		path: path,
+		machine: res[1],
+		class: res[2],
+		instance: res[3],
+		counter: res[4],
+	}
+}
 
 func mockPdhOpenQuery(szDataSource uintptr, dwUserData uintptr, phQuery *PDH_HQUERY) uint32 {
 	var mq mockQuery
@@ -61,22 +70,8 @@ func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUse
 	}
 	counterIndex++
 
-	thisQuery.counters[counterIndex] = mockCounter{name: szFullCounterPath}
-	*phCounter = PDH_HCOUNTER(uintptr(counterIndex))
-
-	return 0
-}
-
-func mockPdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
-	ndx := int(hQuery)
-	var thisQuery mockQuery
-	var ok bool
-	if thisQuery, ok = openQueries[ndx]; ok == false {
-		return uint32(PDH_INVALID_PATH)
-	}
-	counterIndex++
-
-	thisQuery.counters[counterIndex] = mockCounter{name: szFullCounterPath}
+	mc := mockCounterFromString(szFullCounterPath)
+	thisQuery.counters[counterIndex] = mc
 	*phCounter = PDH_HCOUNTER(uintptr(counterIndex))
 
 	return 0
@@ -107,17 +102,7 @@ func mockPdhRemoveCounter(hCounter PDH_HCOUNTER) uint32 {
 	return PDH_INVALID_HANDLE
 }
 
-func mockpdhLookupPerfNameByIndex(ndx int) (string, error) {
-	if !activeCounterStrings.initialized {
-		return "", fmt.Errorf("Counter strings not initialized")
-	}
-	if name, ok := activeCounterStrings.counterIndex[ndx]; ok {
-		return name, nil
-	}
-	return "", fmt.Errorf("Index not found")
-}
-
-func mockpdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err error) {
+func mockCounterFromHandle(hCounter PDH_HCOUNTER) (mockCounter, error){
 	// check to see that it's a valid counter
 	ndx := int(hCounter)
 	var ctr mockCounter
@@ -128,16 +113,56 @@ func mockpdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, e
 		}
 	}
 	if !ok {
-		return 0, fmt.Errorf("Invalid handle")
+		return ctr, fmt.Errorf("Invalid handle")
 	}
-	if _, ok = countervalues[ctr.name]; ok {
-		if len(countervalues[ctr.name]) > 0 {
-			val, countervalues[ctr.name] = countervalues[ctr.name][0], countervalues[ctr.name][1:]
-			return val, nil
+	return ctr, nil
+
+}
+func mockPdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (out_items []PdhCounterValueItem, err error) {
+	ctr, err := mockCounterFromHandle(hCounter)
+	if err != nil {
+		return nil, err
+	}
+	if classMap, ok := counterValues[ctr.class]; ok {
+		if instMap, ok := classMap[ctr.counter]; ok {
+			for inst,vals := range instMap {
+				if len(vals) > 0 {
+					out_items = append(out_items,
+						PdhCounterValueItem{
+							instance: inst,
+							value: PdhCounterValue{
+								CStatus: PDH_CSTATUS_NEW_DATA,
+								Double: vals[0],
+							},
+						},
+					)
+					instMap[inst] = vals[1:]
+				}
+			}
+			return out_items, nil
+		}
+	}
+	return nil, NewErrPdhInvalidInstance("Invalid counter instance")
+}
+
+func mockpdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err error) {
+	ctr, err := mockCounterFromHandle(hCounter)
+	if err != nil {
+		return 0, err
+	}
+	if classMap, ok := counterValues[ctr.class]; ok {
+		if instMap, ok := classMap[ctr.counter]; ok {
+			if vals, ok := instMap[ctr.instance]; ok {
+				if len(vals) > 0 {
+					val, instMap[ctr.instance] = vals[0], vals[1:]
+					return val, nil
+				}
+			}
 		}
 	}
 	return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 }
+
 func mockpdhMakeCounterPath(machine string, object string, instance string, counter string) (path string, err error) {
 	var inst string
 	if len(instance) != 0 {
@@ -150,26 +175,17 @@ func mockpdhMakeCounterPath(machine string, object string, instance string, coun
 	return
 }
 
-func mockpdhEnumObjectItems(className string) (counters []string, instances []string, err error) {
-	counters = activeAvailableCounters.countersByClass[className]
-	instances = activeAvailableCounters.instancesByClass[className]
-	return
-}
-
 // SetupTesting initializes the PDH libarary with the mock functions rather than the real thing
 func SetupTesting(counterstringsfile, countersfile string) {
 	activeCounterStrings, _ = ReadCounterStrings(counterstringsfile)
 	activeAvailableCounters, _ = ReadCounters(countersfile)
 	// For testing
-	pfnMakeCounterSetInstances = mockmakeCounterSetIndexes
 	pfnPdhOpenQuery = mockPdhOpenQuery
-	pfnPdhAddCounter = mockPdhAddCounter
 	pfnPdhAddEnglishCounter = mockPdhAddEnglishCounter
 	pfnPdhCollectQueryData = mockPdhCollectQueryData
-	pfnPdhEnumObjectItems = mockpdhEnumObjectItems
 	pfnPdhRemoveCounter = mockPdhRemoveCounter
-	pfnPdhLookupPerfNameByIndex = mockpdhLookupPerfNameByIndex
 	pfnPdhGetFormattedCounterValueFloat = mockpdhGetFormattedCounterValueFloat
+	pfnPdhGetFormattedCounterArray = mockPdhGetFormattedCounterArray
 	pfnPdhCloseQuery = mockPdhCloseQuery
 	pfnPdhMakeCounterPath = mockpdhMakeCounterPath
 
@@ -178,9 +194,23 @@ func SetupTesting(counterstringsfile, countersfile string) {
 // SetQueryReturnValue provides an entry point for tests to set expected values for a
 // given counter
 func SetQueryReturnValue(counter string, val float64) {
-	countervalues[counter] = append(countervalues[counter], val)
-
+	mc := mockCounterFromString(counter)
+	// class -> counter
+	counterMap, ok := counterValues[mc.class]
+	if !ok {
+		counterMap = make(map[string]map[string][]float64)
+		counterValues[mc.class] = counterMap
+	}
+	// counter -> instance
+	instMap, ok := counterMap[mc.counter]
+	if !ok {
+		instMap = make(map[string][]float64)
+		counterMap[mc.counter] = instMap
+	}
+	// instance -> value list
+	instMap[mc.instance] = append(instMap[mc.instance], val)
 }
+
 
 // RemoveCounterInstance removes a specific instance from the table of available instances
 func RemoveCounterInstance(clss, inst string) {

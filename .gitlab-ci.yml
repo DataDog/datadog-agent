@@ -3,6 +3,7 @@ include:
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
@@ -58,6 +59,7 @@ stages:
   - source_test
   - source_test_junit_upload
   - binary_build
+  - package_deps_build
   - integration_test
   - package_build
   - internal_deploy
@@ -112,14 +114,12 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  ANDROID_S3_BUCKET: dd-agent-androidtesting
   BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
@@ -139,12 +139,13 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_BUILDIMAGES: v10726529-3c98072
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_ARMBUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10215382-be21540
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10215382-be21540
+  DATADOG_AGENT_WINBUILDIMAGES: v10726529-3c98072
+  DATADOG_AGENT_ARMBUILDIMAGES: v10726529-3c98072
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10726529-3c98072
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10726529-3c98072
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -166,7 +167,7 @@ variables:
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   USE_CACHING_PROXY_RUBY: "true"
-  CLANG_LLVM_VER: 14.0.6
+  CLANG_LLVM_VER: 12.0.1
 
 #
 # Condition mixins for simplification of rules
@@ -708,6 +709,10 @@ variables:
     when: always
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_main_or_testing_cleanup:
+  - <<: *if_main_branch
+  - <<: *if_testing_cleanup
 
 .on_testing_cleanup:
   - <<: *if_testing_cleanup

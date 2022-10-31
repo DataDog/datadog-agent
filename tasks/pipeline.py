@@ -328,7 +328,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/agent-security": "#security-and-compliance-agent-ops",
     "@DataDog/agent-apm": "#apm-agent",
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
-    "@DataDog/processes": "#processes",
+    "@DataDog/processes": "#process-agent-ops",
     "@DataDog/agent-core": "#agent-core",
     "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
     "@DataDog/agent-shared-components": "#agent-shared-components",
@@ -341,6 +341,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/Networks": "#networks",
     "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
     "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
+    "@DataDog/opentelemetry": "#opentelemetry-ops",
 }
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.

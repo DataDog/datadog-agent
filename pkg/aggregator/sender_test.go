@@ -21,10 +21,9 @@ import (
 )
 
 type senderWithChans struct {
-	senderMetricSampleChan   chan senderMetricSample
+	itemChan                 chan senderItem
 	serviceCheckChan         chan metrics.ServiceCheck
 	eventChan                chan metrics.Event
-	bucketChan               chan senderHistogramBucket
 	orchestratorChan         chan senderOrchestratorMetadata
 	orchestratorManifestChan chan senderOrchestratorManifest
 	eventPlatformEventChan   chan senderEventPlatformEvent
@@ -33,15 +32,14 @@ type senderWithChans struct {
 }
 
 func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
-	s.senderMetricSampleChan = make(chan senderMetricSample, 10)
+	s.itemChan = make(chan senderItem, 10)
 	s.serviceCheckChan = make(chan metrics.ServiceCheck, 10)
 	s.eventChan = make(chan metrics.Event, 10)
-	s.bucketChan = make(chan senderHistogramBucket, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
 	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
 	s.contlcycleOut = make(chan senderContainerLifecycleEvent, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut)
+	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut)
 	return s
 }
 
@@ -123,6 +121,8 @@ func TestDestroySender(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
+	go aggregatorInstance.run()
+	defer aggregatorInstance.Stop()
 
 	_, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
@@ -131,9 +131,33 @@ func TestDestroySender(t *testing.T) {
 	_, err = demux.GetSender(checkID2)
 	assert.Nil(t, err)
 
+	aggregatorInstance.mu.Lock()
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	aggregatorInstance.mu.Unlock()
+
 	demux.DestroySender(checkID1)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+
+	aggregatorInstance.mu.Lock()
+	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	aggregatorInstance.mu.Unlock()
+
+	for tries := 100; tries > 0 && !aggregatorInstance.IsInputQueueEmpty(); tries-- {
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
+
+	for tries := 100; tries > 0; tries-- {
+		aggregatorInstance.mu.Lock()
+		ok := len(aggregatorInstance.checkSamplers) == 1
+		aggregatorInstance.mu.Unlock()
+		if !ok && tries > 1 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		assert.True(t, ok)
+
+	}
 }
 
 func TestGetAndSetSender(t *testing.T) {
@@ -142,15 +166,14 @@ func TestGetAndSetSender(t *testing.T) {
 
 	demux := testDemux()
 
-	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	itemChan := make(chan senderItem, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
 	eventChan := make(chan metrics.Event, 10)
-	bucketChan := make(chan senderHistogramBucket, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
 	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
 	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan)
+	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan)
 
 	err := demux.SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)
@@ -192,16 +215,17 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	// only tags added by the check
 	s.sender.SetCheckService("")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
-	sms := <-s.senderMetricSampleChan
+
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	sms := (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, checkTags, sms.metricSample.Tags)
 
 	// only last call is added as a tag
 	s.sender.SetCheckService("service1")
 	s.sender.SetCheckService("service2")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
-	sms = <-s.senderMetricSampleChan
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, append(checkTags, "service:service2"), sms.metricSample.Tags)
 }
 
@@ -265,14 +289,15 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 
 	s := initSender(checkID1, "")
 	// no custom tags
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false)
-	sms := <-s.senderMetricSampleChan
+
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+	sms := (<-s.itemChan).(*senderMetricSample)
 	assert.Nil(t, sms.metricSample.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
-	sms = <-s.senderMetricSampleChan
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, checkTags, sms.metricSample.Tags)
 
 	// simulate tags in the configuration file
@@ -281,13 +306,13 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false)
-	sms = <-s.senderMetricSampleChan
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, customTags, sms.metricSample.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false)
-	sms = <-s.senderMetricSampleChan
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
 }
 
@@ -376,13 +401,13 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 
 	// no custom tags
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
-	bucketSample := <-s.bucketChan
+	bucketSample := (<-s.itemChan).(*senderHistogramBucket)
 	assert.Nil(t, bucketSample.bucket.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
-	bucketSample = <-s.bucketChan
+	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, checkTags, bucketSample.bucket.Tags)
 
 	// simulate tags in the configuration file
@@ -392,12 +417,12 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 
 	// only tags coming from the configuration file
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
-	bucketSample = <-s.bucketChan
+	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, customTags, bucketSample.bucket.Tags)
 
 	// tags added by the check + tags coming from the configuration file
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
-	bucketSample = <-s.bucketChan
+	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
 }
 
@@ -430,44 +455,54 @@ func TestCheckSenderInterface(t *testing.T) {
 	}
 	s.sender.Event(submittedEvent)
 
-	gaugeSenderSample := <-s.senderMetricSampleChan
+	gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
 	assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
 	assert.Equal(t, "my-hostname", gaugeSenderSample.metricSample.Host)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
-	rateSenderSample := <-s.senderMetricSampleChan
+	rateSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, rateSenderSample.id)
 	assert.Equal(t, metrics.RateType, rateSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, rateSenderSample.commit)
 
-	countSenderSample := <-s.senderMetricSampleChan
+	countSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, countSenderSample.id)
 	assert.Equal(t, metrics.CountType, countSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, countSenderSample.commit)
 
-	monotonicCountSenderSample := <-s.senderMetricSampleChan
+	monotonicCountSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
 	assert.Equal(t, metrics.MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, monotonicCountSenderSample.commit)
 
-	monotonicCountWithFlushFirstValueSenderSample := <-s.senderMetricSampleChan
+	monotonicCountWithFlushFirstValueSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, monotonicCountWithFlushFirstValueSenderSample.id)
 	assert.Equal(t, metrics.MonotonicCountType, monotonicCountWithFlushFirstValueSenderSample.metricSample.Mtype)
 	assert.Equal(t, true, monotonicCountWithFlushFirstValueSenderSample.metricSample.FlushFirstValue)
 	assert.Equal(t, false, monotonicCountWithFlushFirstValueSenderSample.commit)
 
-	CounterSenderSample := <-s.senderMetricSampleChan
+	CounterSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, CounterSenderSample.id)
 	assert.Equal(t, metrics.CounterType, CounterSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, CounterSenderSample.commit)
 
-	histoSenderSample := <-s.senderMetricSampleChan
+	histoSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, histoSenderSample.id)
 	assert.Equal(t, metrics.HistogramType, histoSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, histoSenderSample.commit)
 
-	commitSenderSample := <-s.senderMetricSampleChan
+	histogramBucket := (<-s.itemChan).(*senderHistogramBucket)
+	assert.Equal(t, "my.histogram_bucket", histogramBucket.bucket.Name)
+	assert.Equal(t, int64(42), histogramBucket.bucket.Value)
+	assert.Equal(t, 1.0, histogramBucket.bucket.LowerBound)
+	assert.Equal(t, 2.0, histogramBucket.bucket.UpperBound)
+	assert.Equal(t, true, histogramBucket.bucket.Monotonic)
+	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
+	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
+	assert.Equal(t, true, histogramBucket.bucket.FlushFirstValue)
+
+	commitSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, commitSenderSample.id)
 	assert.Equal(t, true, commitSenderSample.commit)
 
@@ -480,16 +515,6 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	event := <-s.eventChan
 	assert.Equal(t, submittedEvent, event)
-
-	histogramBucket := <-s.bucketChan
-	assert.Equal(t, "my.histogram_bucket", histogramBucket.bucket.Name)
-	assert.Equal(t, int64(42), histogramBucket.bucket.Value)
-	assert.Equal(t, 1.0, histogramBucket.bucket.LowerBound)
-	assert.Equal(t, 2.0, histogramBucket.bucket.UpperBound)
-	assert.Equal(t, true, histogramBucket.bucket.Monotonic)
-	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
-	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
-	assert.Equal(t, true, histogramBucket.bucket.FlushFirstValue)
 
 	eventPlatformEvent := <-s.eventPlatformEventChan
 	assert.Equal(t, checkID1, eventPlatformEvent.id)
@@ -549,7 +574,7 @@ func TestCheckSenderHostname(t *testing.T) {
 			}
 			s.sender.Event(submittedEvent)
 
-			gaugeSenderSample := <-s.senderMetricSampleChan
+			gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)
 			assert.EqualValues(t, checkID1, gaugeSenderSample.id)
 			assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
 			assert.Equal(t, tc.expectedHostname, gaugeSenderSample.metricSample.Host)
@@ -581,16 +606,16 @@ func TestChangeAllSendersDefaultHostname(t *testing.T) {
 	demux.SetSender(s.sender, checkID1)
 
 	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample := <-s.senderMetricSampleChan
+	gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
 
 	demux.ChangeAllSendersDefaultHostname("hostname2")
 	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample = <-s.senderMetricSampleChan
+	gaugeSenderSample = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, "hostname2", gaugeSenderSample.metricSample.Host)
 
 	demux.ChangeAllSendersDefaultHostname("hostname1")
 	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample = <-s.senderMetricSampleChan
+	gaugeSenderSample = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
 }

@@ -1,5 +1,5 @@
 ---
-title: Agent Expressions
+title: Creating Custom Agent Rules
 kind: documentation
 description: "Agent expression attributes and operators for Cloud Workload Security Rules"
 disable_edit: true
@@ -408,6 +408,7 @@ A DNS request was sent
 
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
+| `dns.id` | int | [Experimental] the DNS request ID |  |
 | `dns.question.class` | int | the class looked up by the DNS question | DNS qclasses |
 | `dns.question.count` | int | the total count of questions in the DNS request |  |
 | `dns.question.length` | int | the total DNS request size in bytes |  |

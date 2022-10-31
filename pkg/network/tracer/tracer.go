@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -54,7 +54,7 @@ type Tracer struct {
 	reverseDNS   dns.ReverseDNS
 	httpMonitor  *http.Monitor
 	ebpfTracer   connection.Tracer
-	bpfTelemetry *errtelemetry.EBPFTelemetry
+	bpfTelemetry *telemetry.EBPFTelemetry
 
 	// Telemetry
 	skippedConns *atomic.Int64 `stats:""`
@@ -144,9 +144,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	var bpfTelemetry *errtelemetry.EBPFTelemetry
+	var bpfTelemetry *telemetry.EBPFTelemetry
 	if usmSupported {
-		bpfTelemetry = errtelemetry.NewEBPFTelemetry()
+		bpfTelemetry = telemetry.NewEBPFTelemetry()
 	}
 	ebpfTracer, err := kprobe.New(config, constantEditors, bpfTelemetry)
 	if err != nil {
@@ -207,7 +207,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -334,6 +334,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
+	}
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
@@ -363,6 +366,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
+	khfr := int32(kernel.HeaderProvider.GetResult())
+	coretm := ddebpf.GetCORETelemetryByAsset()
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -371,7 +376,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
+		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
+		CORETelemetryByAsset:        coretm,
 	}, nil
 }
 
@@ -412,15 +419,6 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.DNSStatsDropped] = ds
 	}
 
-	httpStats := stats["http"].(map[string]interface{})
-	if ds, ok := httpStats["dropped"]; ok {
-		tm[network.HTTPRequestsDropped] = ds.(int64)
-	}
-
-	if ms, ok := httpStats["misses"]; ok {
-		tm[network.HTTPRequestsMissed] = ms.(int64)
-	}
-
 	ebpfStats := stats["ebpf"].(map[string]int64)
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
 		tm[network.MonotonicUDPSendsProcessed] = usp
@@ -444,7 +442,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 }
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
-	telemetryByAsset := map[string]map[string]int64{
+	telemetryByAsset := map[string]runtime.CompilationTelemetry{
 		"tracer":          runtime.Tracer.GetTelemetry(),
 		"conntrack":       runtime.Conntrack.GetTelemetry(),
 		"http":            runtime.Http.GetTelemetry(),
@@ -455,18 +453,10 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 	result := make(map[string]network.RuntimeCompilationTelemetry)
 	for assetName, telemetry := range telemetryByAsset {
-		tm := network.RuntimeCompilationTelemetry{}
-		if enabled, ok := telemetry["runtime_compilation_enabled"]; ok {
-			tm.RuntimeCompilationEnabled = enabled == 1
-		}
-		if result, ok := telemetry["runtime_compilation_result"]; ok {
-			tm.RuntimeCompilationResult = int32(result)
-		}
-		if result, ok := telemetry["kernel_header_fetch_result"]; ok {
-			tm.KernelHeaderFetchResult = int32(result)
-		}
-		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
-			tm.RuntimeCompilationDuration = duration
+		tm := network.RuntimeCompilationTelemetry{
+			RuntimeCompilationEnabled:  telemetry.CompilationEnabled(),
+			RuntimeCompilationResult:   telemetry.CompilationResult(),
+			RuntimeCompilationDuration: telemetry.CompilationDurationNS(),
 		}
 		result[assetName] = tm
 	}
@@ -608,7 +598,6 @@ var allStats = []statsComp{
 	dnsStats,
 	epbfStats,
 	gatewayLookupStats,
-	httpStats,
 	kprobesStats,
 	stateStats,
 	tracerStats,
@@ -636,8 +625,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
 		case gatewayLookupStats:
 			ret["gateway_lookup"] = t.gwLookup.GetStats()
-		case httpStats:
-			ret["http"] = t.httpMonitor.GetStats()
 		case kprobesStats:
 			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
@@ -651,6 +638,11 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case bpfHelperStats:
 			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
 		}
+	}
+
+	// merge with components already migrated to `network/telemetry`
+	for k, v := range telemetry.ReportExpvar() {
+		ret[k] = v
 	}
 
 	return ret, nil
@@ -793,7 +785,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *errtelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}

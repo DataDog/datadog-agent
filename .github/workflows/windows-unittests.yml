@@ -56,4 +56,4 @@ jobs:
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
           inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          codecov -f profile.cov -F windows
+          inv -e codecov

@@ -11,9 +11,9 @@
         "JMXFETCH_VERSION": "0.47.1",
         "JMXFETCH_HASH": "4cbbff73abfa0e6baaa1e3cad57497abcbb0e1570a022eecb7828dce3a14a3d9",
         "MACOS_BUILD_VERSION": "master",
-        "WINDOWS_DDNPM_DRIVER": "release-signed",
-        "WINDOWS_DDNPM_VERSION": "2.0.5",
-        "WINDOWS_DDNPM_SHASUM": "2df99754d1fb1bd1d7d33c125a9303faf9d35423545123589985e186d499d9dd",
+        "WINDOWS_DDNPM_DRIVER": "testsigned",
+        "WINDOWS_DDNPM_VERSION": "2.1.1",
+        "WINDOWS_DDNPM_SHASUM": "a799dbe56f47a682d99e7b0463628ac486603d44ad59f7ceeb1f9c307135ca0f",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
@@ -23,9 +23,9 @@
         "JMXFETCH_VERSION": "0.47.1",
         "JMXFETCH_HASH": "4cbbff73abfa0e6baaa1e3cad57497abcbb0e1570a022eecb7828dce3a14a3d9",
         "MACOS_BUILD_VERSION": "master",
-        "WINDOWS_DDNPM_DRIVER": "release-signed",
-        "WINDOWS_DDNPM_VERSION": "2.0.5",
-        "WINDOWS_DDNPM_SHASUM": "2df99754d1fb1bd1d7d33c125a9303faf9d35423545123589985e186d499d9dd",
+        "WINDOWS_DDNPM_DRIVER": "testsigned",
+        "WINDOWS_DDNPM_VERSION": "2.1.1",
+        "WINDOWS_DDNPM_SHASUM": "a799dbe56f47a682d99e7b0463628ac486603d44ad59f7ceeb1f9c307135ca0f",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "release-a6": {
@@ -34,7 +34,7 @@
         "OMNIBUS_RUBY_VERSION": "7.40.0-rc.1",
         "JMXFETCH_VERSION": "0.47.1",
         "JMXFETCH_HASH": "4cbbff73abfa0e6baaa1e3cad57497abcbb0e1570a022eecb7828dce3a14a3d9",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.29.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.41.0",
         "MACOS_BUILD_VERSION": "6.40.0-rc.1",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.0.5",
@@ -46,7 +46,7 @@
         "OMNIBUS_RUBY_VERSION": "7.40.0-rc.1",
         "JMXFETCH_VERSION": "0.47.1",
         "JMXFETCH_HASH": "4cbbff73abfa0e6baaa1e3cad57497abcbb0e1570a022eecb7828dce3a14a3d9",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.29.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.41.0",
         "MACOS_BUILD_VERSION": "7.40.0-rc.1",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.0.5",

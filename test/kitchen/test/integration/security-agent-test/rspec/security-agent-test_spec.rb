@@ -23,16 +23,19 @@ end
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
 
-describe 'functional test running directly on host' do
-  it 'successfully runs' do
-    Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode"}, "sudo", "-E", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics") do |_, output, wait_thr|
-      test_failures = check_output(output, wait_thr, "h")
-      expect(test_failures).to be_empty, test_failures.join("\n")
+cws_platform = File.read('/tmp/security-agent/cws_platform').strip
+
+case cws_platform
+when "host"
+  describe 'functional test running directly on host' do
+    it 'successfully runs' do
+      Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode"}, "sudo", "-E", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics") do |_, output, wait_thr|
+        test_failures = check_output(output, wait_thr, "h")
+        expect(test_failures).to be_empty, test_failures.join("\n")
+      end
     end
   end
-end
-
-if File.readlines("/etc/os-release").grep(/SUSE/).size == 0 and !File.exists?('/etc/rhsm')
+when "docker"
   describe 'functional test running inside a container' do
     it 'successfully runs' do
       Open3.popen2e("sudo", "docker", "exec", "-e", "DD_SYSTEM_PROBE_BPF_DIR=/tmp/security-agent/ebpf_bytecode", "docker-testsuite", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics", "--env", "docker") do |_, output, wait_thr|
@@ -41,4 +44,6 @@ if File.readlines("/etc/os-release").grep(/SUSE/).size == 0 and !File.exists?('/
       end
     end
   end
+else
+  raise "no CWS platform provided"
 end

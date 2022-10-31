@@ -960,11 +960,7 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 
 	matchedProcesses := processes.findProcessesByName(name)
 	if len(matchedProcesses) != 0 {
-		cmdLine, err := matchedProcesses[0].CmdlineSlice()
-		if err != nil {
-			return "", fmt.Errorf("unable to fetch command line: %w", err)
-		}
-
+		cmdLine := matchedProcesses[0].CmdlineSlice()
 		flagValues := parseProcessCmdLine(cmdLine)
 		return flagValues[flag], nil
 	}
