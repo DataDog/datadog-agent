@@ -17,7 +17,6 @@ import (
 )
 
 type ParsingContext struct {
-	seclLexer   lexer.Definition
 	ruleParser  *participle.Parser
 	macroParser *participle.Parser
 }
@@ -45,8 +44,6 @@ any = "\u0000"…"\uffff" .
 `))
 
 	return &ParsingContext{
-		seclLexer: seclLexer,
-
 		ruleParser:  buildParser(&Rule{}, seclLexer),
 		macroParser: buildParser(&Macro{}, seclLexer),
 	}
