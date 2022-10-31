@@ -234,7 +234,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
 				status:  metrics.ServiceCheckOK,
-				tags:    []string{"namespace:foo", "kube_cronjob:bar"},
+				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},
 		},
@@ -271,7 +271,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
 				status:  metrics.ServiceCheckCritical,
-				tags:    []string{"namespace:foo", "kube_cronjob:bar"},
+				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},
 		},

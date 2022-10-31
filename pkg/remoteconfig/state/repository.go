@@ -33,9 +33,10 @@ type RepositoryState struct {
 
 // ConfigState describes an applied config by the agent client.
 type ConfigState struct {
-	Product string
-	ID      string
-	Version uint64
+	Product     string
+	ID          string
+	Version     uint64
+	ApplyStatus ApplyStatus
 }
 
 // CachedFile describes a cached file stored by the agent client
@@ -69,6 +70,10 @@ type Repository struct {
 	tufRootsClient     *tufRootsClient
 	opaqueBackendState []byte
 
+	// Unverified mode
+	tufVerificationEnabled bool
+	latestRootVersion      int64
+
 	// Config file storage
 	metadata map[string]Metadata
 	configs  map[string]map[string]interface{}
@@ -92,36 +97,61 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 	}
 
 	return &Repository{
-		latestTargets:  data.NewTargets(),
-		tufRootsClient: tufRootsClient,
-		metadata:       make(map[string]Metadata),
-		configs:        configs,
+		latestTargets:          data.NewTargets(),
+		tufRootsClient:         tufRootsClient,
+		metadata:               make(map[string]Metadata),
+		configs:                configs,
+		tufVerificationEnabled: true,
+	}, nil
+}
+
+// NewUnverifiedRepository creates a new remote config repository that will
+// track config files for a client WITHOUT verifying any TUF related metadata.
+func NewUnverifiedRepository() (*Repository, error) {
+	configs := make(map[string]map[string]interface{})
+	for _, product := range allProducts {
+		configs[product] = make(map[string]interface{})
+	}
+
+	return &Repository{
+		latestTargets:          data.NewTargets(),
+		metadata:               make(map[string]Metadata),
+		configs:                configs,
+		tufVerificationEnabled: false,
 	}, nil
 }
 
 // Update processes the ClientGetConfigsResponse from the Agent and updates the
 // configuration state
 func (r *Repository) Update(update Update) ([]string, error) {
-	// TUF: Update the roots
-	//
-	// NWe don't want to partially update the state, so we need a temporary client to hold the new root
-	// data until we know it's valid
-	tmpRootClient, err := r.tufRootsClient.clone()
-	if err != nil {
-		return nil, err
-	}
-	err = tmpRootClient.updateRoots(update.TUFRoots)
-	if err != nil {
-		return nil, err
-	}
+	var err error
+	var updatedTargets *data.Targets
+	var tmpRootClient *tufRootsClient
 
-	// 1: Validate and Deserialize the TUF Targets
+	// TUF: Update the roots and verify the TUF Targets file (optional)
 	//
-	// Note: This goes further than the RFC requires and validates the TUF targets metadata's signatures.
-	// This is NOT required for most clients per the RFC.
-	updatedTargets, err := tmpRootClient.validateTargets(update.TUFTargets)
-	if err != nil {
-		return nil, err
+	// We don't want to partially update the state, so we need a temporary client to hold the new root
+	// data until we know it's valid. Since verification is optional, if the repository was configured
+	// to not do TUF verification we only deserialize the TUF targets file.
+	if r.tufVerificationEnabled {
+		tmpRootClient, err = r.tufRootsClient.clone()
+		if err != nil {
+			return nil, err
+		}
+		err = tmpRootClient.updateRoots(update.TUFRoots)
+		if err != nil {
+			return nil, err
+		}
+
+		updatedTargets, err = tmpRootClient.validateTargets(update.TUFTargets)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		updatedTargets, err = unsafeUnmarshalTargets(update.TUFTargets)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	clientConfigsMap := make(map[string]struct{})
@@ -191,8 +221,16 @@ func (r *Repository) Update(update Update) ([]string, error) {
 
 	// 4.a: Store the new targets.signed.custom.opaque_client_state
 	// TUF: Store the updated roots now that everything has validated
+	if r.tufVerificationEnabled {
+		r.tufRootsClient = tmpRootClient
+	} else if update.TUFRoots != nil && len(update.TUFRoots) > 0 {
+		v, err := extractRootVersion(update.TUFRoots[len(update.TUFRoots)-1])
+		if err != nil {
+			return nil, err
+		}
+		r.latestRootVersion = v
+	}
 	r.latestTargets = updatedTargets
-	r.tufRootsClient = tmpRootClient
 	if r.latestTargets.Custom != nil {
 		r.opaqueBackendState = extractOpaqueBackendState(*r.latestTargets.Custom)
 	}
@@ -214,6 +252,17 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	r.applyUpdateResult(update, result)
 
 	return changedProducts, nil
+}
+
+// UpdateApplyStatus updates the config's metadata to reflect its processing state
+// Can be used after a call to Update() in order to tell the repository which config was acked, which
+// wasn't and which errors occurred while processing.
+// Note: it is the responsibility of the caller to ensure that no new Update() call was made between
+// the first Update() call and the call to UpdateApplyStatus() so as to keep the repository state accurate.
+func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
+	if m, ok := r.metadata[cfgPath]; ok {
+		m.ApplyStatus = status
+	}
 }
 
 func (r *Repository) getConfigs(product string) map[string]interface{} {
@@ -261,16 +310,22 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 		cached = append(cached, cachedFileFromMetadata(path, metadata))
 	}
 
-	latestRoot, err := r.tufRootsClient.latestRoot()
-	if err != nil {
-		return RepositoryState{}, err
+	var latestRootVersion int64
+	if r.tufVerificationEnabled {
+		root, err := r.tufRootsClient.latestRoot()
+		if err != nil {
+			return RepositoryState{}, err
+		}
+		latestRootVersion = root.Version
+	} else {
+		latestRootVersion = r.latestRootVersion
 	}
 
 	return RepositoryState{
 		Configs:            configs,
 		CachedFiles:        cached,
 		TargetsVersion:     r.latestTargets.Version,
-		RootsVersion:       latestRoot.Version,
+		RootsVersion:       latestRootVersion,
 		OpaqueBackendState: r.opaqueBackendState,
 	}, nil
 }
@@ -317,9 +372,10 @@ func (ur updateResult) isEmpty() bool {
 
 func configStateFromMetadata(m Metadata) ConfigState {
 	return ConfigState{
-		Product: m.Product,
-		ID:      m.ID,
-		Version: m.Version,
+		Product:     m.Product,
+		ID:          m.ID,
+		Version:     m.Version,
+		ApplyStatus: m.ApplyStatus,
 	}
 }
 

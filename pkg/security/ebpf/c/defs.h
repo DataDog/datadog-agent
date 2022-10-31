@@ -426,12 +426,11 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
 })
 
 // implemented in the discarder.h file
-int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id);
+int __attribute__((always_inline)) bump_inode_discarder_revision(u32 mount_id);
 
 struct mount_released_event_t {
     struct kevent_t event;
     u32 mount_id;
-    u32 discarder_revision;
 };
 
 struct mount_ref_t {
@@ -472,9 +471,10 @@ static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u3
         return;
     }
 
+    bump_inode_discarder_revision(mount_id);
+
     struct mount_released_event_t event = {
         .mount_id = mount_id,
-        .discarder_revision = bump_discarder_revision(mount_id),
     };
 
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
@@ -492,10 +492,12 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
         }
     }
 
+    bump_inode_discarder_revision(mount_id);
+
     struct mount_released_event_t event = {
         .mount_id = mount_id,
-        .discarder_revision = bump_discarder_revision(mount_id),
     };
+
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 

@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.etcd.io/bbolt"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
@@ -31,8 +33,19 @@ type AgentMetadata struct {
 
 func recreate(path string) (*bbolt.DB, error) {
 	log.Infof("Clear remote configuration database")
-	if err := os.Remove(path); err != nil {
-		return nil, fmt.Errorf("failed to remove corrupted database: %w", err)
+	_, err := os.Stat(path)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("could not check if rc db exists: (%s): %v", path, err)
+	}
+	if err == nil {
+		err := os.Remove(path)
+		if err != nil {
+			return nil, fmt.Errorf("could not remote existing rc db (%s): %v", path, err)
+		}
+	}
+	err = os.MkdirAll(filepath.Dir(path), 0700)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rc db dir: (%s): %v", path, err)
 	}
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
 	if err != nil {
@@ -96,25 +109,52 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 	return db, nil
 }
 
-func parseRemoteConfigKey(serializedKey string) (*msgpgo.RemoteConfigKey, error) {
-	serializedKey = strings.TrimPrefix(serializedKey, "DDRCM_")
+type remoteConfigAuthKeys struct {
+	apiKey string
+
+	rcKeySet bool
+	rcKey    *msgpgo.RemoteConfigKey
+}
+
+func (k *remoteConfigAuthKeys) apiAuth() api.Auth {
+	auth := api.Auth{
+		ApiKey: k.apiKey,
+	}
+	if k.rcKeySet {
+		auth.UseAppKey = true
+		auth.AppKey = k.rcKey.AppKey
+	}
+	return auth
+}
+
+func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys, error) {
+	if rcKey == "" {
+		return remoteConfigAuthKeys{
+			apiKey: apiKey,
+		}, nil
+	}
+	rcKey = strings.TrimPrefix(rcKey, "DDRCM_")
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
-	rawKey, err := encoding.DecodeString(serializedKey)
+	rawKey, err := encoding.DecodeString(rcKey)
 	if err != nil {
-		return nil, err
+		return remoteConfigAuthKeys{}, err
 	}
 	var key msgpgo.RemoteConfigKey
 	_, err = key.UnmarshalMsg(rawKey)
 	if err != nil {
-		return nil, err
+		return remoteConfigAuthKeys{}, err
 	}
 	if key.AppKey == "" || key.Datacenter == "" || key.OrgID == 0 {
-		return nil, fmt.Errorf("invalid remote config key")
+		return remoteConfigAuthKeys{}, fmt.Errorf("invalid remote config key")
 	}
-	return &key, nil
+	return remoteConfigAuthKeys{
+		apiKey:   apiKey,
+		rcKeySet: true,
+		rcKey:    &key,
+	}, nil
 }
 
-func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, traceAgentEnv string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -144,6 +184,7 @@ func buildLatestConfigsRequest(hostname string, state uptane.TUFVersions, active
 		BackendClientState:           clientState,
 		HasError:                     lastUpdateErr != nil,
 		Error:                        lastUpdateErrString,
+		TraceAgentEnv:                traceAgentEnv,
 	}
 }
 

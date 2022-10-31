@@ -14,11 +14,9 @@ import (
 	"os/exec"
 	"path"
 	"strings"
-	"syscall"
 	"testing"
-	"unsafe"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/freddierice/go-losetup"
 )
 
@@ -32,19 +30,15 @@ func (td *testDrive) Root() string {
 	return td.mountPoint
 }
 
-func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
+func (td *testDrive) Path(filename ...string) string {
 	components := []string{td.mountPoint}
 	components = append(components, filename...)
 	path := path.Join(components...)
-	filenamePtr, err := syscall.BytePtrFromString(path)
-	if err != nil {
-		return "", nil, err
-	}
-	return path, unsafe.Pointer(filenamePtr), nil
+	return path
 }
 
-func newTestDrive(tb testing.TB, fsType string, mountOpts []string) (*testDrive, error) {
-	return newTestDriveWithMountPoint(tb, fsType, mountOpts, "")
+func newTestDrive(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
+	return newTestDriveWithMountPoint(tb, fsType, mountOpts, mountPoint)
 }
 
 func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {

@@ -495,16 +495,14 @@ func (e *FileEvent) GetPathResolutionError() string {
 // InvalidateDentryEvent defines a invalidate dentry event
 //msgp:ignore InvalidateDentryEvent
 type InvalidateDentryEvent struct {
-	Inode             uint64
-	MountID           uint32
-	DiscarderRevision uint32
+	Inode   uint64
+	MountID uint32
 }
 
 // MountReleasedEvent defines a mount released event
 //msgp:ignore MountReleasedEvent
 type MountReleasedEvent struct {
-	MountID           uint32
-	DiscarderRevision uint32
+	MountID uint32
 }
 
 // LinkEvent represents a link event
@@ -702,17 +700,15 @@ type PIDContext struct {
 //msgp:ignore RenameEvent
 type RenameEvent struct {
 	SyscallEvent
-	Old               FileEvent `field:"file"`
-	New               FileEvent `field:"file.destination"`
-	DiscarderRevision uint32    `field:"-" json:"-"`
+	Old FileEvent `field:"file"`
+	New FileEvent `field:"file.destination"`
 }
 
 // RmdirEvent represents a rmdir event
 //msgp:ignore RmdirEvent
 type RmdirEvent struct {
 	SyscallEvent
-	File              FileEvent `field:"file"`
-	DiscarderRevision uint32    `field:"-" json:"-"`
+	File FileEvent `field:"file"`
 }
 
 // SetXAttrEvent represents an extended attributes event
@@ -735,9 +731,8 @@ type SyscallEvent struct {
 //msgp:ignore UnlinkEvent
 type UnlinkEvent struct {
 	SyscallEvent
-	File              FileEvent `field:"file"`
-	Flags             uint32    `field:"flags" constants:"Unlink flags"`
-	DiscarderRevision uint32    `field:"-" json:"-"`
+	File  FileEvent `field:"file"`
+	Flags uint32    `field:"flags" constants:"Unlink flags"`
 }
 
 // UmountEvent represents an umount event
@@ -913,7 +908,7 @@ type NetworkContext struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"-" msg:"-" json:"-"`
+	ID    uint16 `field:"id" msg:"-" json:"-"`                                                // [Experimental] the DNS request ID
 	Name  string `field:"question.name,opts:length" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
 	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`                    // a two octet code which specifies the DNS question type
 	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`                // the class looked up by the DNS question

@@ -10,6 +10,7 @@ package http
 
 /*
 #include "../ebpf/c/tracer.h"
+#include "../ebpf/c/tags-types.h"
 #include "../ebpf/c/http-types.h"
 */
 import "C"
@@ -33,4 +34,20 @@ const (
 	httpProg = C.HTTP_PROG
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
+)
+
+type ConnTag = uint64
+
+const (
+	GnuTLS  ConnTag = C.LIBGNUTLS
+	OpenSSL ConnTag = C.LIBSSL
+	Go      ConnTag = C.GO
+)
+
+var (
+	StaticTags = map[ConnTag]string{
+		GnuTLS:  "tls.library:gnutls",
+		OpenSSL: "tls.library:openssl",
+		Go:      "tls.library:go",
+	}
 )

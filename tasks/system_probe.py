@@ -18,12 +18,11 @@ from .libs.ninja_syntax import NinjaWriter
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
+BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
 DNF_TAG = "dnf"
 
 CHECK_SOURCE_CMD = "grep -v '^//' {src_file} | if grep -q ' inline ' ; then echo -e '\u001b[7mPlease use __always_inline instead of inline in {src_file}\u001b[0m';exit 1;fi"
@@ -47,7 +46,7 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "14.0.6"
+CLANG_VERSION = "12.0.1"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -81,6 +80,16 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     )
 
 
+def ninja_define_co_re_compiler(nw):
+    nw.variable("ebpfcoreflags", get_co_re_build_flags())
+
+    nw.rule(
+        name="ebpfcoreclang",
+        command="clang -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        depfile="$out.d",
+    )
+
+
 def ninja_define_exe_compiler(nw):
     nw.rule(
         name="execlang",
@@ -97,6 +106,23 @@ def ninja_ebpf_program(nw, infile, outfile, variables=None):
         inputs=[infile],
         outputs=[f"{out_base}.bc"],
         rule="ebpfclang",
+        variables=variables,
+    )
+    nw.build(
+        inputs=[f"{out_base}.bc"],
+        outputs=[f"{out_base}.o"],
+        rule="llc",
+    )
+
+
+def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
+    outdir, basefile = os.path.split(outfile)
+    basename = os.path.basename(os.path.splitext(basefile)[0])
+    out_base = f"{outdir}/{basename}"
+    nw.build(
+        inputs=[infile],
+        outputs=[f"{out_base}.bc"],
+        rule="ebpfcoreclang",
         variables=variables,
     )
     nw.build(
@@ -169,17 +195,43 @@ def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
-def ninja_network_ebpf_programs(nw, build_dir):
+def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+    root, ext = os.path.splitext(outfile)
+    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+
+
+def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
+    network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
+    network_co_re_flags = f"-I{network_co_re_dir}"
     network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_co_re_programs = []
+
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{prog}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
+
+    for prog in network_co_re_programs:
+        infile = os.path.join(network_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
+
+
+def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
+    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "co-re")
+    container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
+    container_integrations_co_re_programs = ["oom-kill"]
+
+    for prog in container_integrations_co_re_programs:
+        infile = os.path.join(container_integrations_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
 
 
 def ninja_runtime_compilation_files(nw):
@@ -282,6 +334,7 @@ def ninja_generate(
     kernel_release=None,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
+    co_re_build_dir = os.path.join(build_dir, "co-re")
 
     with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
@@ -298,8 +351,10 @@ def ninja_generate(
             nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release)
-            ninja_network_ebpf_programs(nw, build_dir)
+            ninja_define_co_re_compiler(nw)
+            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
+            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw)
 
         ninja_cgo_type_files(nw, windows)
@@ -415,6 +470,7 @@ def test(
     bundle_ebpf=False,
     output_path=None,
     runtime_compiled=False,
+    co_re=False,
     skip_linters=False,
     skip_object_files=False,
     run=None,
@@ -465,6 +521,8 @@ def test(
     env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
+    if co_re:
+        env['DD_TESTS_CO_RE'] = "1"
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -758,10 +816,6 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
         else:
             linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
 
-    # fallback to /usr as a last report
-    if len(linux_headers) == 0:
-        linux_headers = ["/usr"]
-
     # deduplicate
     linux_headers = list(dict.fromkeys(linux_headers))
     arch = get_kernel_arch()
@@ -820,6 +874,27 @@ def get_ebpf_build_flags():
     return flags
 
 
+def get_co_re_build_flags():
+    flags = get_ebpf_build_flags()
+
+    flags.remove('-DCONFIG_64BIT')
+    flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
+    flags.remove('-Ipkg/ebpf/c')
+
+    arch = get_kernel_arch()
+    co_re_dir = os.path.join(".", "pkg", "ebpf", "c", "co-re")
+    flags.extend(
+        [
+            f"-D__TARGET_ARCH_{arch}",
+            '-emit-llvm',
+            '-g',
+            f"-I{co_re_dir}",
+        ]
+    )
+
+    return flags
+
+
 def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
     return [
         f"-isystem{d}"
@@ -861,11 +936,10 @@ def run_ninja(
 def setup_runtime_clang(ctx):
     # check if correct version is already present
     sudo = "sudo" if not is_root() else ""
-    res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
-    if res.ok:
-        version_str = res.stdout.split("\n")[0].split(" ")[2].strip()
-        if version_str == CLANG_VERSION:
-            return
+    clang_res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
+    llc_res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/llc-bpf --version", warn=True)
+    clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
+    llc_version_str = llc_res.stdout.split("\n")[1].strip().split(" ")[2].strip() if llc_res.ok else ""
 
     if not os.path.exists("/opt/datadog-agent/embedded/bin"):
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
@@ -874,14 +948,16 @@ def setup_runtime_clang(ctx):
     if arch == "x64":
         arch = "amd64"
 
-    # download correct version from dd-agent-omnibus S3 bucket
-    clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
-    ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
-    ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+    if clang_version_str != CLANG_VERSION:
+        # download correct version from dd-agent-omnibus S3 bucket
+        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
+        ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
+        ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
 
-    llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
-    ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
-    ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+    if llc_version_str != CLANG_VERSION:
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+        ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
+        ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 def build_object_files(
@@ -907,6 +983,7 @@ def build_object_files(
 
         check_for_inline(ctx)
         ctx.run(f"mkdir -p {build_dir}/runtime")
+        ctx.run(f"mkdir -p {build_dir}/co-re")
 
     run_ninja(
         ctx,
@@ -999,3 +1076,47 @@ def tempdir():
         yield dirpath
     finally:
         shutil.rmtree(dirpath)
+
+
+@task
+def generate_minimized_btfs(
+    ctx,
+    source_dir,
+    output_dir,
+    input_bpf_programs,
+):
+    """
+    Given an input directory containing compressed full-sized BTFs, generates an identically-structured
+    output directory containing compressed minimized versions of those BTFs, tailored to the given
+    bpf program(s).
+    """
+
+    # If there are no input programs, we don't need to actually do anything; however, in order to
+    # prevent CI jobs from failing, we'll create a dummy output directory
+    if input_bpf_programs == "":
+        ctx.run(f"mkdir -p {output_dir}/dummy_data")
+        return
+
+    ctx.run(f"mkdir -p {output_dir}")
+    for root, dirs, files in os.walk(source_dir):
+        path_from_root = os.path.relpath(root, source_dir)
+
+        for dir in dirs:
+            output_subdir = os.path.join(output_dir, path_from_root, dir)
+            ctx.run(f"mkdir -p {output_subdir}")
+
+        for file in files:
+            if not file.endswith(".tar.xz"):
+                continue
+
+            btf_filename = file[: -len(".tar.xz")]
+            compressed_source_btf_path = os.path.join(root, file)
+            output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
+            compressed_output_btf_path = output_btf_path + ".tar.xz"
+
+            ctx.run(f"tar -xf {compressed_source_btf_path}")
+            ctx.run(f"bpftool gen min_core_btf {btf_filename} {output_btf_path} {input_bpf_programs}")
+
+            tar_working_directory = os.path.join(output_dir, path_from_root)
+            ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
+            ctx.run(f"rm {output_btf_path}")

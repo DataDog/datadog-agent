@@ -538,6 +538,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
+	case "dns.id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).DNS.ID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "dns.question.class":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9965,6 +9973,7 @@ func (e *Event) GetFields() []eval.Field {
 		"chown.retval",
 		"container.id",
 		"container.tags",
+		"dns.id",
 		"dns.question.class",
 		"dns.question.count",
 		"dns.question.length",
@@ -10903,6 +10912,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ResolveContainerID(&e.ContainerContext), nil
 	case "container.tags":
 		return e.ResolveContainerTags(&e.ContainerContext), nil
+	case "dns.id":
+		return int(e.DNS.ID), nil
 	case "dns.question.class":
 		return int(e.DNS.Class), nil
 	case "dns.question.count":
@@ -14602,6 +14613,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "container.tags":
 		return "*", nil
+	case "dns.id":
+		return "dns", nil
 	case "dns.question.class":
 		return "dns", nil
 	case "dns.question.count":
@@ -16351,6 +16364,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "container.tags":
 		return reflect.String, nil
+	case "dns.id":
+		return reflect.Int, nil
 	case "dns.question.class":
 		return reflect.Int, nil
 	case "dns.question.count":
@@ -18366,6 +18381,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
 		}
 		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
+		return nil
+	case "dns.id":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.ID"}
+		}
+		e.DNS.ID = uint16(v)
 		return nil
 	case "dns.question.class":
 		v, ok := value.(int)

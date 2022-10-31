@@ -157,12 +157,6 @@ LOOP:
 	return nil
 }
 
-// Event is the interface that an event must implement to be sent to the backend
-type Event interface {
-	GetTags() []string
-	GetType() string
-}
-
 // RuleEvent is a wrapper used to send an event to the backend
 type RuleEvent struct {
 	RuleID string `json:"rule_id"`

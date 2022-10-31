@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,11 +28,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
+	"golang.org/x/sys/unix"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -471,6 +473,159 @@ func TestProcessContext(t *testing.T) {
 			}
 			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", execArgs.(string))
+			}
+		}))
+	})
+
+	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		// size overflow
+		var long string
+		for i := 0; i != 1024; i++ {
+			long += "a"
+		}
+		long += "="
+		envs = append(envs, long)
+
+		if kind == dockerWrapperType {
+			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
+		}
+
+		test.WaitSignal(t, func() error {
+			bin := "ls"
+			if kind == dockerWrapperType {
+				bin = "env"
+			}
+			cmd := cmdFunc(bin, args, envs)
+			return cmd.Run()
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execEnvp, err := event.GetFieldValue("exec.envp")
+			if err != nil {
+				t.Errorf("not able to get exec.envp")
+			}
+
+			envp := (execEnvp.([]string))
+			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 255, len(envp[1]), "wrong env length")
+			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
+
+			// truncated is reported if a single environment variable is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.envs_truncated")
+			if err != nil {
+				t.Errorf("not able to get envs truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("envs not truncated: %s", execEnvp.([]string))
+			}
+
+			assert.Equal(t, envs[0], envp[0], "expected first env variable")
+		}))
+	})
+
+	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
+
+		// number of envs overflow
+		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var buf bytes.Buffer
+		buf.Grow(50)
+		for i := 0; i != nEnvs; i++ {
+			buf.Reset()
+			fmt.Fprintf(&buf, "%s=%s", eval.RandString(19), eval.RandString(30))
+			envs = append(envs, buf.String())
+		}
+
+		if kind == dockerWrapperType {
+			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
+		}
+
+		test.WaitSignal(t, func() error {
+			bin := "ls"
+			if kind == dockerWrapperType {
+				bin = "env"
+			}
+			cmd := cmdFunc(bin, args, envs)
+			return cmd.Run()
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execEnvp, err := event.GetFieldValue("exec.envp")
+			if err != nil {
+				t.Errorf("not able to get exec.envp")
+			}
+
+			envp := (execEnvp.([]string))
+			assert.Equal(t, 57, len(envp), "incorrect number of envs: %s", envp)
+
+			for i := 0; i != 57; i++ {
+				assert.Equal(t, envs[i], envp[i], "expected env not found")
+			}
+
+			// truncated is reported if a single environment variable is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.envs_truncated")
+			if err != nil {
+				t.Errorf("not able to get envs truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("envs not truncated: %s", execEnvp.([]string))
+			}
+		}))
+	})
+
+	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+
+		// force seed to have something we can reproduce
+		rand.Seed(1)
+
+		// number of envs overflow
+		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		var buf bytes.Buffer
+		buf.Grow(500)
+		for i := 0; i != nEnvs; i++ {
+			buf.Reset()
+			fmt.Fprintf(&buf, "%s=%s", eval.RandString(199), eval.RandString(300))
+			envs = append(envs, buf.String())
+		}
+
+		if kind == dockerWrapperType {
+			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
+		}
+
+		test.WaitSignal(t, func() error {
+			bin := "ls"
+			if kind == dockerWrapperType {
+				bin = "env"
+			}
+			cmd := cmdFunc(bin, args, envs)
+			return cmd.Run()
+		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+			execEnvp, err := event.GetFieldValue("exec.envp")
+			if err != nil {
+				t.Errorf("not able to get exec.envp")
+			}
+
+			envp := (execEnvp.([]string))
+			assert.Equal(t, 68, len(envp), "incorrect number of envs: %s", envp)
+
+			for i := 0; i != 68; i++ {
+				expected := envs[i]
+				if len(expected) > model.MaxArgEnvSize {
+					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+				}
+				assert.Equal(t, expected, envp[i], "expected env not found")
+			}
+
+			// truncated is reported if a single environment variable is truncated or if the list is truncated
+			truncated, err := event.GetFieldValue("exec.envs_truncated")
+			if err != nil {
+				t.Errorf("not able to get envs truncated")
+			}
+			if !truncated.(bool) {
+				t.Errorf("envs not truncated: %s", execEnvp.([]string))
 			}
 		}))
 	})
@@ -960,14 +1115,31 @@ func TestProcessExec(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
-		cmd := exec.Command("sh", "-c", executable+" /dev/null")
-		return cmd.Run()
-	}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
-		assertFieldEqual(t, event, "exec.file.path", executable)
-		// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
-		assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
-	}))
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("exec", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command("sh", "-c", executable+" /dev/null")
+			return cmd.Run()
+		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
+			assertFieldEqual(t, event, "exec.file.path", executable)
+			// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
+		}))
+	})
+
+	t.Run("exec-in-pthread", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"exec-in-pthread", executable, "/dev/null"}
+			cmd := exec.Command(syscallTester, args...)
+			return cmd.Run()
+		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
+			assertFieldEqual(t, event, "exec.file.path", executable)
+		}))
+	})
 }
 
 func TestProcessMetadata(t *testing.T) {
@@ -1294,15 +1466,14 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 }
 
 func TestProcessIsThread(t *testing.T) {
-	const openTriggerFilename = "test-isthread"
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_process_fork_is_thread",
-			Expression: fmt.Sprintf(`open.file.name == "%s" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`, openTriggerFilename),
+			Expression: fmt.Sprintf(`(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`),
 		},
 		{
 			ID:         "test_process_exec_is_not_thread",
-			Expression: fmt.Sprintf(`open.file.name == "%s" && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`, openTriggerFilename),
+			Expression: fmt.Sprintf(`(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`),
 		},
 	}
 
@@ -1319,13 +1490,13 @@ func TestProcessIsThread(t *testing.T) {
 
 	t.Run("fork-isthread", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"fork", openTriggerFilename}
+			args := []string{"fork"}
 			cmd := exec.Command(syscallTester, args...)
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_process_fork_is_thread")
-			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
+			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
@@ -1334,13 +1505,13 @@ func TestProcessIsThread(t *testing.T) {
 
 	t.Run("exec-isnotthread", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"fork", "exec", openTriggerFilename}
+			args := []string{"fork", "exec"}
 			cmd := exec.Command(syscallTester, args...)
 			_ = cmd.Run()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
-			assert.Equal(t, openTriggerFilename, event.Open.File.BasenameStr, "wrong opened file basename")
+			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")

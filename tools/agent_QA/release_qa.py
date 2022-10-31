@@ -1,4 +1,5 @@
 import sys
+from functools import partial
 
 from board import finish, setup
 from test_builder import LinuxConfig, MacConfig, Suite, WindowsConfig
@@ -42,22 +43,22 @@ board = setup(version)
 
 # Test that apply to all host platforms
 xplatHostTests = [
-    TailFile(),
-    TailFileWildcard(),
-    TailFileStartPosition(),
+    TailFile,
+    TailFileWildcard,
+    TailFileStartPosition,
 ]
 
 misc = board.add_list("Misc (any platform)")
 Suite(
     LinuxConfig(),
     [
-        TailFileMultiLine(),
-        TailFileUTF16(),
-        TailTCPUDP(),
-        EndpointTests(),
-        DualShipping(),
-        Serverless(),
-        StreamLogs(),
+        TailFileMultiLine,
+        TailFileUTF16,
+        TailTCPUDP,
+        EndpointTests,
+        DualShipping,
+        Serverless,
+        StreamLogs,
     ],
 ).build(misc.add_card)
 
@@ -65,11 +66,11 @@ kube = board.add_list("Kubernetes")
 Suite(
     LinuxConfig(),
     [
-        K8CollectAllDocker(),
-        K8DockerContainerLabels(),
-        K8CollectAll(),
-        K8PodAnnotation(),
-        K8FileTailingAnnotation(),
+        K8CollectAllDocker,
+        K8DockerContainerLabels,
+        K8CollectAll,
+        K8PodAnnotation,
+        K8FileTailingAnnotation,
     ],
 ).build(kube.add_card)
 
@@ -86,17 +87,17 @@ containers = board.add_list("Container Runtimes")
 Suite(
     LinuxConfig(),
     [
-        ContainerTailJounald(),
-        ContainerCollectAll(),
-        AgentUsesAdLabels(),
-        DockerMaxFile(),
-        DockerFileTailingAD(),
-        DockerFileTail(),
-        PodmanFileTail(),
-        PodmanSocketTail(),
+        ContainerTailJounald,
+        ContainerCollectAll,
+        AgentUsesAdLabels,
+        DockerMaxFile,
+        DockerFileTailingAD,
+        DockerFileTail,
+        PodmanFileTail,
+        PodmanSocketTail,
     ]
     + [
-        ContainerScenario(k8s, cfgsource, cca, kcuf, dcuf)
+        partial(ContainerScenario, k8s, cfgsource, cca, kcuf, dcuf)
         for k8s in ('docker', 'containerd', 'none')
         for cfgsource in ('label' if k8s == 'docker' else 'annotation', 'file', 'none')
         for cca in (True, False)
@@ -111,7 +112,7 @@ Suite(
     WindowsConfig(),
     xplatHostTests
     + [
-        TestEventLog(),
+        TestEventLog,
     ],
 ).build(windows.add_card)
 
@@ -123,9 +124,9 @@ Suite(
     LinuxConfig(),
     xplatHostTests
     + [
-        TailJounald(),
-        TailJournaldStartPosition(),
-        SNMPTraps(),
+        TailJounald,
+        TailJournaldStartPosition,
+        SNMPTraps,
     ],
 ).build(linux.add_card)
 

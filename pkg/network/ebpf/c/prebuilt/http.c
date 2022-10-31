@@ -1,6 +1,7 @@
 #include "kconfig.h"
 #include "tracer.h"
-#include "bpf_helpers.h"
+#include "bpf_telemetry.h"
+#include "bpf_builtins.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "http.h"
@@ -8,8 +9,13 @@
 #include "http-buffer.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "sock.h"
 #include "port_range.h"
+#include "go-tls-types.h"
+#include "go-tls-goid.h"
+#include "go-tls-location.h"
+#include "go-tls-conn.h"
+
+#include "sock.h"
 
 #define SO_SUFFIX_SIZE 3
 
@@ -25,7 +31,7 @@ SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
     http_transaction_t http;
-    __builtin_memset(&http, 0, sizeof(http));
+    bpf_memset(&http, 0, sizeof(http));
 
     if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
         return 0;
@@ -49,7 +55,7 @@ SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
     // map connection tuple during SSL_do_handshake(ctx)
-    init_ssl_sock_from_do_handshake((struct sock*)PT_REGS_PARM1(ctx));
+    map_ssl_ctx_to_sock((struct sock*)PT_REGS_PARM1(ctx));
     return 0;
 }
 
@@ -68,7 +74,7 @@ int uprobe__SSL_do_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
-    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -85,7 +91,7 @@ int uprobe__SSL_connect(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
     log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%llx\n", pid_tgid, ssl_ctx);
-    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -112,7 +118,7 @@ int uprobe__BIO_new_socket(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 socket_fd = (u32)PT_REGS_PARM1(ctx);
     log_debug("uprobe/BIO_new_socket: pid_tgid=%llx fd=%d\n", pid_tgid, socket_fd);
-    bpf_map_update_elem(&bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
+    bpf_map_update_with_telemetry(bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
     return 0;
 }
 
@@ -130,7 +136,7 @@ int uretprobe__BIO_new_socket(struct pt_regs* ctx) {
         goto cleanup;
     }
     u32 fd = *socket_fd; // copy map value into stack (required by older Kernels)
-    bpf_map_update_elem(&fd_by_ssl_bio, &bio, &fd, BPF_ANY);
+    bpf_map_update_with_telemetry(fd_by_ssl_bio, &bio, &fd, BPF_ANY);
 cleanup:
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
     return 0;
@@ -157,7 +163,7 @@ int uprobe__SSL_read(struct pt_regs* ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -196,7 +202,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -225,6 +231,107 @@ cleanup:
     return 0;
 }
 
+SEC("uprobe/SSL_read_ex")
+int uprobe__SSL_read_ex(struct pt_regs* ctx) {
+    ssl_read_ex_args_t args = {0};
+    args.ctx = (void *)PT_REGS_PARM1(ctx);
+    args.buf = (void *)PT_REGS_PARM2(ctx);
+    args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
+    bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_read_ex")
+int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    const int return_code = (int)PT_REGS_RC(ctx);
+    if (return_code != 1) {
+        log_debug("uretprobe/SSL_read_ex: failed pid_tgid=%llx ret=%d\n", pid_tgid, return_code);
+        goto cleanup;
+    }
+
+    ssl_read_ex_args_t *args = bpf_map_lookup_elem(&ssl_read_ex_args, &pid_tgid);
+    if (args == NULL) {
+        log_debug("uretprobe/SSL_read_ex: no args pid_tgid=%llx\n", pid_tgid);
+        return 0;
+    }
+
+    if (args->size_out_param == NULL) {
+        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx buffer size out param is null\n", pid_tgid);
+        goto cleanup;
+    }
+
+    size_t bytes_count = 0;
+    bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
+    if ( bytes_count <= 0) {
+        log_debug("uretprobe/SSL_read_ex: read non positive number of bytes (pid_tgid=%llx len=%d)\n", pid_tgid, bytes_count);
+        goto cleanup;
+    }
+
+    void *ssl_ctx = args->ctx;
+    conn_tuple_t *conn_tuple = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
+    if (conn_tuple == NULL) {
+        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx: no conn tuple\n", pid_tgid, ssl_ctx);
+        goto cleanup;
+    }
+
+    https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+cleanup:
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    return 0;
+}
+
+SEC("uprobe/SSL_write_ex")
+int uprobe__SSL_write_ex(struct pt_regs* ctx) {
+    ssl_write_ex_args_t args = {0};
+    args.ctx = (void *)PT_REGS_PARM1(ctx);
+    args.buf = (void *)PT_REGS_PARM2(ctx);
+    args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%llx\n", pid_tgid, args.ctx);
+    bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+SEC("uretprobe/SSL_write_ex")
+int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    const int return_code = (int)PT_REGS_RC(ctx);
+    if (return_code != 1) {
+        log_debug("uretprobe/SSL_write_ex: failed pid_tgid=%llx len=%d\n", pid_tgid, return_code);
+        goto cleanup;
+    }
+
+    ssl_write_ex_args_t *args = bpf_map_lookup_elem(&ssl_write_ex_args, &pid_tgid);
+    if (args == NULL) {
+        return 0;
+    }
+
+    if (args->size_out_param == NULL) {
+        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx buffer size out param is null\n", pid_tgid);
+        goto cleanup;
+    }
+
+    size_t bytes_count = 0;
+    bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
+    if ( bytes_count <= 0) {
+        log_debug("uretprobe/SSL_write_ex: wrote non positive number of bytes (pid_tgid=%llx len=%d)\n", pid_tgid, bytes_count);
+        goto cleanup;
+    }
+
+    conn_tuple_t *conn_tuple = tup_from_ssl_ctx(args->ctx, pid_tgid);
+    if (conn_tuple == NULL) {
+        goto cleanup;
+    }
+
+    https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+cleanup:
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    return 0;
+}
+
 SEC("uprobe/SSL_shutdown")
 int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
@@ -244,7 +351,7 @@ SEC("uprobe/gnutls_handshake")
 int uprobe__gnutls_handshake(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *ssl_ctx = (void *)PT_REGS_PARM1(ctx);
-    bpf_map_update_elem(&ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
 
@@ -313,7 +420,7 @@ int uprobe__gnutls_record_recv(struct pt_regs *ctx) {
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("gnutls_record_recv: pid=%llu ctx=%llx\n", pid_tgid, ssl_session);
-    bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -353,7 +460,7 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -425,7 +532,7 @@ static __always_inline int fill_path_safe(lib_path_t *path, char *path_argument)
 static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
     char *path_argument = (char *)PT_REGS_PARM2(ctx);
     lib_path_t path = {0};
-    if (bpf_probe_read_user(path.buf, sizeof(path.buf), path_argument) >= 0) {
+    if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), path_argument) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
@@ -446,7 +553,7 @@ static __always_inline int do_sys_open_helper_enter(struct pt_regs* ctx) {
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     path.pid = pid_tgid >> 32;
-    bpf_map_update_elem(&open_at_args, &pid_tgid, &path, BPF_ANY);
+    bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     return 0;
 }
 
@@ -489,7 +596,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
 
     // Copy map value into eBPF stack
     lib_path_t lib_path;
-    __builtin_memcpy(&lib_path, path, sizeof(lib_path));
+    bpf_memcpy(&lib_path, path, sizeof(lib_path));
 
     u32 cpu = bpf_get_smp_processor_id();
     bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
@@ -512,3 +619,253 @@ int kretprobe__do_sys_openat2(struct pt_regs* ctx) {
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
 
 char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+
+// GO TLS PROBES
+
+// func (c *Conn) Write(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Write")
+int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+    tls_offsets_data_t* pd = bpf_map_lookup_elem(&offsets_data, &pid);
+    if (pd == NULL) {
+        log_debug("[go-tls-write] no probe data in map for pid %d\n", pid);
+        return 1;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid;
+    if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+        log_debug("[go-tls-write] failed reading go routine id for pid %d\n", pid);
+        return 1;
+    }
+
+    // Read the parameters to make the partial call data
+    // (since the parameters might not be live by the time the return probe is hit).
+    go_tls_write_args_data_t call_data = {0};
+    if (read_location(ctx, &pd->write_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
+        log_debug("[go-tls-write] failed reading conn pointer for pid %d\n", pid);
+        return 1;
+    }
+
+    if (read_location(ctx, &pd->write_buffer.ptr, sizeof(uint64_t), &call_data.b_len)) {
+        log_debug("[go-tls-write] failed reading buffer pointer for pid %d\n", pid);
+        return 1;
+    }
+
+    if (read_location(ctx, &pd->write_buffer.len, sizeof(call_data.b_data), &call_data.b_data)) {
+        log_debug("[go-tls-write] failed reading buffer length for pid %d\n", pid);
+        return 1;
+    }
+
+    bpf_map_update_elem(&go_tls_read_args, &call_key, &call_data, BPF_ANY);
+    return 0;
+}
+
+// func (c *Conn) Write(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Write/return")
+int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+    tls_offsets_data_t* pd = bpf_map_lookup_elem(&offsets_data, &pid);
+    if (pd == NULL) {
+        log_debug("[go-tls-write-return] no probe data in map for pid %d\n", pid);
+        return 1;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid;
+
+    uint64_t bytes_written = 0;
+    if (read_location(ctx, &pd->write_return_bytes, sizeof(bytes_written), &bytes_written)) {
+        log_debug("[go-tls-write-return] failed reading write return bytes location for pid %d\n", pid);
+        return 1;
+    }
+
+    if (bytes_written <= 0) {
+        log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %d\n", pid);
+        return 1;
+    }
+
+    uint64_t err_ptr = 0;
+    if (read_location(ctx, &pd->write_return_error, sizeof(err_ptr), &err_ptr)) {
+        log_debug("[go-tls-write-return] failed reading write return error location for pid %d\n", pid);
+        return 1;
+    }
+
+    // check if err != nil
+    if (err_ptr != 0) {
+        log_debug("[go-tls-write-return] error in write for pid %d: data will be ignored\n", pid);
+        return 1;
+    }
+
+    if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
+        return 1;
+    }
+
+
+    go_tls_write_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
+    if (call_data_ptr == NULL) {
+        log_debug("[go-tls-write-return] no write information in write-return for pid %d\n", pid);
+        return 1;
+    }
+
+    bpf_map_delete_elem(&go_tls_write_args, &call_key);
+
+    conn_tuple_t* t = conn_tup_from_tls_conn(pd, (void*) call_data_ptr->conn_pointer, pid_tgid);
+    if (t == NULL) {
+        return 1;
+    }
+
+    https_process(t, (void*) call_data_ptr->b_data, call_data_ptr->b_len, GO);
+    return 0;
+}
+
+// func (c *Conn) Read(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Read")
+int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+    tls_offsets_data_t* pd = bpf_map_lookup_elem(&offsets_data, &pid);
+    if (pd == NULL) {
+        log_debug("[go-tls-read] no probe data in map for pid %d\n", pid);
+        return 1;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid;
+    if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+        log_debug("[go-tls-read] failed reading go routine id for pid %d\n", pid);
+        return 1;
+    }
+
+    // Read the parameters to make the partial call data
+    // (since the parameters might not be live by the time the return probe is hit).
+    go_tls_read_args_data_t call_data = {0};
+    if (read_location(ctx, &pd->read_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
+        log_debug("[go-tls-read] failed reading conn pointer for pid %d\n", pid);
+        return 1;
+    }
+    if (read_location(ctx, &pd->read_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
+        log_debug("[go-tls-read] failed reading buffer pointer for pid %d\n", pid);
+        return 1;
+    }
+
+    bpf_map_update_elem(&go_tls_read_args, &call_key, &call_data, BPF_ANY);
+    return 0;
+}
+
+// func (c *Conn) Read(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Read/return")
+int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+    tls_offsets_data_t* pd = bpf_map_lookup_elem(&offsets_data, &pid);
+    if (pd == NULL) {
+        log_debug("[go-tls-read-return] no probe data in map for pid %d\n", pid);
+        return 1;
+    }
+
+    // Read the PID and goroutine ID to make the partial call key
+    go_tls_function_args_key_t call_key = {0};
+    call_key.pid = pid;
+
+    uint64_t bytes_read = 0;
+    if (read_location(ctx, &pd->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
+        return 1;
+    }
+
+    if (bytes_read <= 0) {
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        return 1;
+    }
+
+    // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
+    // Therefore, if we choose to ignore data if read had returned these errors we may have accuracy issues.
+    // For now for success validation we chose to check only the amount of bytes read
+    // and make sure it's greater than zero.
+
+    if (read_goroutine_id(ctx, &pd->goroutine_id, &call_key.goroutine_id)) {
+        log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
+        return 1;
+    }
+
+    go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
+    if (call_data_ptr == NULL) {
+        log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
+        return 1;
+    }
+
+    bpf_map_delete_elem(&go_tls_read_args, &call_key);
+
+    conn_tuple_t* t = conn_tup_from_tls_conn(pd, (void*) call_data_ptr->conn_pointer, pid_tgid);
+    if (t == NULL) {
+        return 1;
+    }
+
+    https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
+    return 0;
+}
+
+// func (c *Conn) Close(b []byte) (int, error)
+SEC("uprobe/crypto/tls.(*Conn).Close")
+int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid = pid_tgid >> 32;
+    tls_offsets_data_t* pd = bpf_map_lookup_elem(&offsets_data, &pid);
+    if (pd == NULL) {
+        log_debug("[go-tls-close] no probe data in map for pid %d\n", pid);
+        return 1;
+    }
+
+    void* conn_pointer = NULL;
+    if (read_location(ctx, &pd->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
+        log_debug("[go-tls-close] failed reading close conn pointer for pid %d\n", pid);
+        return 1;
+    }
+
+    conn_tuple_t* t = conn_tup_from_tls_conn(pd, conn_pointer, pid_tgid);
+    if (t == NULL) {
+        log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %d\n", pid);
+        return 1;
+    }
+
+    https_finish(t);
+
+    // Clear the element in the map since this connection is closed
+    bpf_map_delete_elem(&conn_tup_by_tls_conn, &conn_pointer);
+
+    return 0;
+}
+
+static __always_inline void* get_tls_base(struct task_struct* task) {
+    u32 key = 0;
+    struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
+    if (t == NULL) {
+            return NULL;
+    }
+    if (bpf_probe_read_kernel(t, sizeof(struct thread_struct), &task->thread)) {
+        return NULL;
+    }
+
+    #if defined(__x86_64__)
+        #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+            return (void*) t->fs;
+        #else
+            return (void*) t->fsbase;
+        #endif
+    #elif defined(__aarch64__)
+        #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+            return (void*) t->tp_value;
+        #else
+            return (void*) t->uw.tp_value;
+        #endif
+    #else
+        #error "Unsupported platform"
+    #endif
+}
