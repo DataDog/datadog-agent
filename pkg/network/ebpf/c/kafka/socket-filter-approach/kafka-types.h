@@ -18,6 +18,7 @@
 
 //// This determines the size of the payload fragment that is captured for each HTTP request
 //#define HTTP_BUFFER_SIZE (8 * 20)
+// TODO: This is too small, but I cannot enlarge the stack
 #define KAFKA_BUFFER_SIZE (8 * 20)
 
 #define CLIENT_ID_MAX_STRING_SIZE (8 * 8)

@@ -9,9 +9,12 @@
 package kafka
 
 import (
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 const (
@@ -39,6 +42,22 @@ func TestSanity(t *testing.T) {
 	err = monitor.Start()
 	require.NoError(t, err)
 	defer monitor.Stop()
+
+	// to produce messages
+	topic := "my-topic"
+	partition := 0
+
+	conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
+	require.NoError(t, err)
+
+	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	_, err = conn.WriteMessages(
+		kafka.Message{Value: []byte("one!")},
+		kafka.Message{Value: []byte("two!")},
+		kafka.Message{Value: []byte("three!")},
+	)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
 }
 
 //// TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
