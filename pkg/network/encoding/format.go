@@ -121,6 +121,18 @@ func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[stri
 	return ret
 }
 
+func FormatCORETelemetry(telByAsset map[string]int32) map[string]model.COREResult {
+	if telByAsset == nil {
+		return nil
+	}
+
+	ret := make(map[string]model.COREResult)
+	for asset, tel := range telByAsset {
+		ret[asset] = model.COREResult(tel)
+	}
+	return ret
+}
+
 func returnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {

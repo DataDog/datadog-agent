@@ -3,6 +3,7 @@ include:
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
@@ -58,6 +59,7 @@ stages:
   - source_test
   - source_test_junit_upload
   - binary_build
+  - package_deps_build
   - integration_test
   - package_build
   - internal_deploy
@@ -143,6 +145,7 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES: v10726529-3c98072
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10726529-3c98072
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v10726529-3c98072
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -706,6 +709,10 @@ variables:
     when: always
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_main_or_testing_cleanup:
+  - <<: *if_main_branch
+  - <<: *if_testing_cleanup
 
 .on_testing_cleanup:
   - <<: *if_testing_cleanup

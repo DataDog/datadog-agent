@@ -123,11 +123,11 @@ func (c *Check) Run() error {
 // Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
 // you visibility about other applications running on the same processor as you
 func getProcessorPDHCounter(counterName, instance string) (*pdhutil.PdhSingleInstanceCounterSet, error) {
-	counter, err := pdhutil.GetUnlocalizedCounter("Processor Information", counterName, instance)
+	counter, err := pdhutil.GetEnglishCounterInstance("Processor Information", counterName, instance)
 	if err != nil {
-		counter, err = pdhutil.GetUnlocalizedCounter("Processor", counterName, instance)
+		counter, err = pdhutil.GetEnglishCounterInstance("Processor", counterName, instance)
 	}
-	return &counter, err
+	return counter, err
 }
 
 // Configure the CPU check doesn't need configuration

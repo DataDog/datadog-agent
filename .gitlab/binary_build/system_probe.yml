@@ -44,8 +44,6 @@ build_system-probe-x64:
     ARCH: amd64
 
 build_system-probe-arm64:
-  rules:
-    !reference [.on_all_builds]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["go_deps"]

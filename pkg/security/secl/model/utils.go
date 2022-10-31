@@ -47,11 +47,11 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 
 		if i+n > len {
 			// truncated
-			arg := nullTerminatedString(data[i:len])
+			arg := NullTerminatedString(data[i:len])
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		arg := nullTerminatedString(data[i : i+n])
+		arg := NullTerminatedString(data[i : i+n])
 		i += n
 
 		result = append(result, arg)
@@ -66,10 +66,10 @@ func UnmarshalString(data []byte, size int) (string, error) {
 		return "", ErrNotEnoughData
 	}
 
-	return nullTerminatedString(data[:size]), nil
+	return NullTerminatedString(data[:size]), nil
 }
 
-func nullTerminatedString(d []byte) string {
+func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {
 		return string(d)

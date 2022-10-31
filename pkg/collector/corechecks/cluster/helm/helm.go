@@ -171,7 +171,6 @@ func (hc *HelmCheck) Run() error {
 
 func (hc *HelmCheck) Cancel() {
 	close(hc.informersStopCh)
-	hc.CommonCancel()
 }
 
 func (hc *HelmCheck) setupInformers() error {

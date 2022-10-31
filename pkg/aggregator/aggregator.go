@@ -196,16 +196,6 @@ func init() {
 	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
 }
 
-// InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, DefaultFlushInterval)
-}
-
-// InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
-	return NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
-}
-
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
@@ -214,8 +204,7 @@ type BufferedAggregator struct {
 	eventIn        chan metrics.Event
 	serviceCheckIn chan metrics.ServiceCheck
 
-	checkMetricIn          chan senderMetricSample
-	checkHistogramBucketIn chan senderHistogramBucket
+	checkItems             chan senderItem
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	orchestratorManifestIn chan senderOrchestratorManifest
 	eventPlatformIn        chan senderEventPlatformEvent
@@ -293,8 +282,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
 		eventIn:        make(chan metrics.Event, bufferSize),
 
-		checkMetricIn:          make(chan senderMetricSample, bufferSize),
-		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
+		checkItems: make(chan senderItem, bufferSize),
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		orchestratorManifestIn: make(chan senderOrchestratorManifest, bufferSize),
@@ -379,7 +367,7 @@ func AddRecurrentSeries(newSerie *metrics.Serie) {
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.checkHistogramBucketIn)+len(agg.eventPlatformIn) == 0 {
+	if len(agg.checkItems)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.eventPlatformIn) == 0 {
 		return true
 	}
 	return false
@@ -414,17 +402,17 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 }
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
-	agg.mu.Lock()
-	if cs, ok := agg.checkSamplers[id]; ok {
-		cs.release()
-	}
-	delete(agg.checkSamplers, id)
-	agg.mu.Unlock()
+	// Use the same channel as metrics, so that the drop happens only
+	// after we handle all the metrics sent so far.
+	agg.checkItems <- &deregisterSampler{id}
 }
 
 func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
+
+	aggregatorChecksMetricSample.Add(1)
+	tlmProcessed.Inc("metrics")
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
@@ -441,6 +429,9 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBucket) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
+
+	aggregatorCheckHistogramBucketMetricSample.Add(1)
+	tlmProcessed.Inc("histogram_bucket")
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = util.SortUniqInPlace(checkBucket.bucket.Tags)
@@ -507,7 +498,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	for _, checkSampler := range agg.checkSamplers {
+	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {
 			seriesSink.Append(s)
@@ -515,6 +506,11 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 
 		for _, sk := range sketches {
 			sketchesSink.Append(sk)
+		}
+
+		if checkSampler.deregistered {
+			checkSampler.release()
+			delete(agg.checkSamplers, checkId)
 		}
 	}
 }
@@ -749,14 +745,8 @@ func (agg *BufferedAggregator) run() {
 
 			aggregatorEventPlatformErrorLogged = false
 		case <-agg.health.C:
-		case checkMetric := <-agg.checkMetricIn:
-			aggregatorChecksMetricSample.Add(1)
-			tlmProcessed.Inc("metrics")
-			agg.handleSenderSample(checkMetric)
-		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
-			aggregatorCheckHistogramBucketMetricSample.Add(1)
-			tlmProcessed.Inc("histogram_bucket")
-			agg.handleSenderBucket(checkHistogramBucket)
+		case checkItem := <-agg.checkItems:
+			checkItem.handle(agg)
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
 			tlmProcessed.Inc("events")
@@ -878,4 +868,46 @@ func (agg *BufferedAggregator) updateChecksTelemetry() {
 		t.VisitCheckMetrics(&sampler.metrics)
 	}
 	t.Flush()
+}
+
+// deregisterSampler is an item sent internally by the aggregator to
+// signal that the sender will no longer will be used for a given
+// check.ID.
+//
+// 1. A check is unscheduled while running.
+//
+// 2. Check sends metrics, sketches and eventually a commit, using the
+// sender to the senderItems channel.
+//
+// 3. Check collector calls deregisterSampler() immediately as check's
+// Run() completes.
+//
+// 4. Metrics are still in the channel, we can't drop the
+// sampler. Instead we add another message to the channel (this type)
+// to indicate that the sampler will no longer be in use once all the
+// metrics are handled.
+//
+// 5. Aggregator handles metrics and the commit message. Sampler now
+// contains metrics from the check.
+//
+// 6. Aggragator handles this message. We can't drop the sender now
+// since it still contains metrics from the last run. Instead, we set
+// a flag that the sampler can be dropped after the next flush.
+//
+// 7. Aggregator flushes metrics from the sampler and can now remove
+// it: we know for sure that no more metrics will arrive.
+type deregisterSampler struct {
+	id check.ID
+}
+
+func (s *deregisterSampler) handle(agg *BufferedAggregator) {
+	agg.handleDeregisterSampler(s.id)
+}
+
+func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	if cs, ok := agg.checkSamplers[id]; ok {
+		cs.deregistered = true
+	}
 }

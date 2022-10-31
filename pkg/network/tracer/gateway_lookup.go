@@ -192,6 +192,12 @@ func (g *gatewayLookup) GetStats() map[string]interface{} {
 	return report
 }
 
+func (g *gatewayLookup) Close() {
+	g.rootNetNs.Close()
+	g.routeCache.Close()
+	g.purge()
+}
+
 func (g *gatewayLookup) purge() {
 	g.subnetCache.Purge()
 	g.subnetCacheSize.Store(0)

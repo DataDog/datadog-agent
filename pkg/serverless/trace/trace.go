@@ -56,10 +56,10 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 // Start starts the agent
 func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	if enabled {
-		// during hostname resolution the first step is to make a GRPC call which is timeboxed to a 2 seconds deadline
-		// in the serverless mode, we don't start the GRPC server so this call will fail and cause a 2 seconds delay
-		// by setting cmd_port to -1, this will cause the GRPC client to fail instantly
-		ddConfig.Datadog.Set("cmd_port", "-1")
+		// Set the serverless config option which will be used to determine if
+		// hostname should be resolved. Skipping hostname resolution saves >1s
+		// in load time between gRPC calls and agent commands.
+		ddConfig.Datadog.Set("serverless.enabled", true)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
