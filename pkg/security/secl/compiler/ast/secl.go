@@ -7,13 +7,14 @@ package ast
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
-	"github.com/alecthomas/participle/lexer/ebnf"
+	"github.com/alecthomas/participle/lexer/regex"
 )
 
 type ParsingContext struct {
@@ -22,26 +23,28 @@ type ParsingContext struct {
 }
 
 func NewParsingContext() *ParsingContext {
-	seclLexer := lexer.Must(ebnf.New(`
-Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-CIDR = IP "/" digit { digit } .
-IP = (ipv4 | ipv6) .
-Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
-Duration = digit { digit } ("ms" | "s" | "m" | "h" | "d") .
-Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
-String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Int = [ "-" | "+" ] digit { digit } .
-Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
-Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
-ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
-ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
-hex = "a"…"f" | "A"…"F" | "0"…"9" .
-alpha = "a"…"z" | "A"…"Z" .
-digit = "0"…"9" .
-any = "\u0000"…"\uffff" .
-`))
+	ipv4 := `([[:digit:]]+\.){3}[[:digit:]]+`
+	ipv6 := `([[:xdigit:]]*(:|\.)){2,7}[[:xdigit:]]*`
+	ip := fmt.Sprintf("(%s)|(%s)", ipv4, ipv6)
+
+	seclLexer := lexer.Must(regex.New(fmt.Sprintf(`
+Comment = (#|//)[^\n]*
+Whitespace = \s+
+CIDR = (%s)/[[:digit:]]+
+IP = %s
+
+Variable = \${([[:alpha:]]|_)([[:alnum:]]|[_\.])*}
+Duration = [[:digit:]]+(ms|s|m|h|d)
+
+Pattern = ~"([^\\"]|\\.)*"
+Regexp = r"([^\\"]|\\.)*"
+String = "([^\\"]|\\.)*"
+
+Ident = ([[:alpha:]]|_)([[:alnum:]]|[_\.\[\]])*
+Int = [+-]?[[:digit:]]+
+
+Punct = [[:punct:]]
+`, ip, ip)))
 
 	return &ParsingContext{
 		ruleParser:  buildParser(&Rule{}, seclLexer),
