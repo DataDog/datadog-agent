@@ -7,7 +7,6 @@ package retry
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -87,7 +86,7 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	}
 
 	filename := time.Now().UTC().Format(retryFileFormat)
-	file, err := ioutil.TempFile(s.storagePath, filename+"*"+retryTransactionsExtension)
+	file, err := os.CreateTemp(s.storagePath, filename+"*"+retryTransactionsExtension)
 	if err != nil {
 		return err
 	}
@@ -114,7 +113,7 @@ func (s *onDiskRetryQueue) ExtractLast() ([]transaction.Transaction, error) {
 	s.telemetry.addDeserializeCount()
 	index := len(s.filenames) - 1
 	path := s.filenames[index]
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 
 	// Remove the file even in case of a read failure.
 	if errRemoveFile := s.removeFileAt(index); errRemoveFile != nil {
@@ -161,7 +160,7 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 		filename := s.filenames[index]
 		log.Errorf("Maximum disk space for retry transactions is reached. Removing %s", filename)
 
-		bytes, err := ioutil.ReadFile(filename)
+		bytes, err := os.ReadFile(filename)
 		if err != nil {
 			log.Errorf("Cannot read the file %v: %v", filename, err)
 		} else if transactions, _, errDeserialize := s.serializer.Deserialize(bytes); errDeserialize == nil {
@@ -229,16 +228,21 @@ func (s *onDiskRetryQueue) reloadExistingRetryFiles() error {
 }
 
 func (s *onDiskRetryQueue) getExistingRetryFiles() ([]os.FileInfo, int64, error) {
-	entries, err := ioutil.ReadDir(s.storagePath)
+	entries, err := os.ReadDir(s.storagePath)
 	if err != nil {
 		return nil, 0, err
 	}
 	var files []os.FileInfo
 	currentSizeInBytes := int64(0)
 	for _, entry := range entries {
-		if entry.Mode().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
-			currentSizeInBytes += entry.Size()
-			files = append(files, entry)
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if info.Mode().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
+			currentSizeInBytes += info.Size()
+			files = append(files, info)
 		}
 	}
 	return files, currentSizeInBytes, nil
