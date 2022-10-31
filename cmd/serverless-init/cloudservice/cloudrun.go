@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package cloudservice
 
 import (
@@ -11,22 +16,24 @@ const (
 	serviceNameEnvVar  = "K_SERVICE"
 )
 
+var metadataHelperFunc = helper.GetMetaData
+
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct{}
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	tags := helper.GetMetaData(helper.GetDefaultConfig()).TagMap()
+	tags := metadataHelperFunc(helper.GetDefaultConfig()).TagMap()
 
 	revisionName := os.Getenv(revisionNameEnvVar)
 	serviceName := os.Getenv(serviceNameEnvVar)
 
 	if revisionName != "" {
-		tags["service_name"] = revisionName
+		tags["revision_name"] = revisionName
 	}
 
 	if serviceName != "" {
-		tags["revision_name"] = serviceName
+		tags["service_name"] = serviceName
 	}
 
 	tags["origin"] = c.GetOrigin()

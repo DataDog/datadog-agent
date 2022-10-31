@@ -105,7 +105,6 @@ func TestCreateConfig(t *testing.T) {
 
 func TestCreateConfigWithSource(t *testing.T) {
 	t.Setenv("DD_SOURCE", "python")
-	defer os.Unsetenv("DD_SOURCE")
 	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
