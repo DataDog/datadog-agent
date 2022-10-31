@@ -12,9 +12,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +54,7 @@ func TestGetSecurityCreds(t *testing.T) {
 			io.WriteString(w, "test-role")
 		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
-			content, err := ioutil.ReadFile("payloads/security_cred.json")
+			content, err := os.ReadFile("payloads/security_cred.json")
 			require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
 			io.WriteString(w, string(content))
 		} else {
@@ -77,7 +77,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		content, err := ioutil.ReadFile("payloads/instance_indentity.json")
+		content, err := os.ReadFile("payloads/instance_indentity.json")
 		require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
 		io.WriteString(w, string(content))
 	}))
