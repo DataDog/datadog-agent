@@ -1721,9 +1721,10 @@ func TestBlockingReadCounts(t *testing.T) {
 
 // GoTLS test
 
+// Test that we can capture HTTPS traffic from Go processes started after the
+// tracer.
 func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	const (
-		ClientBin           = "./testutil/cmd/gotls_client/gotls_client"
 		ServerAddr          = "localhost:8081"
 		ExpectedOccurrences = 10
 	)
@@ -1759,11 +1760,12 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request", ServerAddr, nethttp.StatusOK), nil)
 	require.NoError(t, err)
 
+	clientBin := buildGoTLSClientBin(t)
+
 	// Test
-	clientBuildCmd := fmt.Sprintf("go build -o %s ./testutil/cmd/gotls_client", ClientBin)
-	clientCmd := fmt.Sprintf("%s %s %d", ClientBin, ServerAddr, ExpectedOccurrences)
-	t.Cleanup(func() { os.RemoveAll(ClientBin) })
-	_ = testutil.RunCommands(t, []string{clientBuildCmd, clientCmd}, false)
+	clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
+	_, err = testutil.RunCommand(clientCmd)
+	require.NoError(t, err)
 
 	occurrences := 0
 	require.Eventually(t, func() bool {
@@ -1772,6 +1774,31 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 		occurrences += countRequestOccurrences(t, stats, req)
 		return occurrences == ExpectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured", ExpectedOccurrences, occurrences)
+}
+
+func buildGoTLSClientBin(t *testing.T) string {
+	const ClientSrcPath = "testutil/cmd/gotls_client"
+
+	t.Helper()
+
+	cur, err := httptest.CurDir()
+	require.NoError(t, err)
+
+	clientSrcDir := fmt.Sprintf("%s/%s", cur, ClientSrcPath)
+	clientBuildDir, err := ioutil.TempDir("/tmp", "gotls_client_build-")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		os.RemoveAll(clientBuildDir)
+	})
+
+	clientBinPath := fmt.Sprintf("%s/gotls_client", clientBuildDir)
+
+	clientBuildCmd := fmt.Sprintf("go build -o %s %s", clientBinPath, clientSrcDir)
+	_, err = testutil.RunCommand(clientBuildCmd)
+	require.NoError(t, err, "could not build client test binary: %s", err)
+
+	return clientBinPath
 }
 
 func countRequestOccurrences(t *testing.T, conns *network.Connections, req *nethttp.Request) (occurrences int) {
