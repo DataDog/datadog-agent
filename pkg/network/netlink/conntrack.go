@@ -12,8 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/mdlayher/netlink"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 )
 
@@ -34,19 +36,26 @@ type Conntrack interface {
 // NewConntrack creates an implementation of the Conntrack interface.
 // `netNS` is the network namespace for the conntrack operations.
 // A value of `0` will use the current thread's network namespace
-func NewConntrack(netNS int) (Conntrack, error) {
-	conn, err := netlink.Dial(unix.NETLINK_NETFILTER, &netlink.Config{NetNS: netNS})
+func NewConntrack(netNS netns.NsHandle) (Conntrack, error) {
+	conn, err := NewSocket(netNS)
 	if err != nil {
 		return nil, err
 	}
+
 	return &conntrack{conn: conn}, nil
 }
 
 type conntrack struct {
-	conn *netlink.Conn
+	sync.Mutex
+	conn *Socket
 }
 
 func (c *conntrack) Exists(conn *Con) (bool, error) {
+	data, err := EncodeConn(conn)
+	if err != nil {
+		return false, err
+	}
+
 	var family byte = unix.AF_INET
 	if (!conn.Origin.IsZero() && !AddrPortIsZero(conn.Origin.Src) && conn.Origin.Src.Addr().Is6() && !conn.Origin.Src.Addr().Is4In6()) ||
 		(!conn.Reply.IsZero() && !AddrPortIsZero(conn.Reply.Src) && conn.Reply.Src.Addr().Is6() && !conn.Reply.Src.Addr().Is4In6()) {
@@ -58,17 +67,26 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
 			Flags: netlink.Request | netlink.Acknowledge,
 		},
-		Data: []byte{family, unix.NFNETLINK_V0, 0, 0},
 	}
 
-	data, err := EncodeConn(conn)
-	if err != nil {
-		return false, err
-	}
-
+	msg.Data = make([]byte, 0, 4+len(data))
+	msg.Data = append(msg.Data, []byte{family, unix.NFNETLINK_V0, 0, 0}...)
 	msg.Data = append(msg.Data, data...)
 
-	replies, err := c.conn.Execute(msg)
+	c.Lock()
+	defer c.Unlock()
+
+	if err = c.conn.Send(msg); err != nil {
+		return false, fmt.Errorf("error sending conntrack exists query: %w", err)
+	}
+
+	var buf []byte
+	replies, _, err := c.conn.ReceiveInto(buf)
+	for _, r := range replies {
+		if err = checkMessage(r); err != nil {
+			break
+		}
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) {
 			return false, nil
