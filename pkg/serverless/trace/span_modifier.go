@@ -6,15 +6,18 @@
 package trace
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+)
+
 type spanModifier struct {
-	tags map[string]string
-	ec   *executioncontext.ExecutionContext
+	tags                 map[string]string
+	coldStartSpanCreator *ColdStartSpanCreator
 }
 
 // Process applies extra logic to the given span
@@ -22,13 +25,9 @@ func (s *spanModifier) ModifySpan(span *pb.Span) {
 	if span.Service == "aws.lambda" && s.tags["service"] != "" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		span.Service = s.tags["service"]
-	}
-	if span.Name == "aws.lambda.cold_start" {
-		ecs := s.ec.GetCurrentState()
-		duration := ecs.ColdstartDuration * 1000000 // ms to ns
-		log.Debugf("[ASTUYVE] remapping coldstart span with new duration %v", duration)
-		span.Start = (span.Start + span.Duration) - duration
-		span.Duration = duration
+		if span.Name != "aws.lambda.cold_start" {
+			s.coldStartSpanCreator.create(span)
+		}
 	}
 	if inferredspan.CheckIsInferredSpan(span) {
 		log.Debug("Detected a managed service span, filtering out function tags")

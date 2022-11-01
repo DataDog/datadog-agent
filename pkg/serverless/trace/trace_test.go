@@ -22,7 +22,7 @@ import (
 
 func TestStartEnabledFalse(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	agent.Start(false, nil)
+	agent.Start(false, nil, nil)
 	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
@@ -39,7 +39,7 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfigMocked{})
+	agent.Start(true, &LoadConfigMocked{}, nil)
 	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
@@ -51,7 +51,7 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 
 	os.Setenv("DD_API_KEY", "x")
 	defer os.Unsetenv("DD_API_KEY")
-	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
+	agent.Start(true, &LoadConfig{Path: "invalid.yml"}, nil)
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
@@ -61,7 +61,7 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, nil)
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
@@ -71,7 +71,7 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 func TestLoadConfigShouldBeFast(t *testing.T) {
 	startTime := time.Now()
 	agent := &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, nil)
 	defer agent.Stop()
 	assert.True(t, time.Since(startTime) < time.Second)
 }
