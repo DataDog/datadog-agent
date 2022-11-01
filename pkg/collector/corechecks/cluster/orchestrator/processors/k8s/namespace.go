@@ -20,22 +20,14 @@ import (
 )
 
 // NamespaceHandlers implements the Handlers interface for Kubernetes Namespace.
-type NamespaceHandlers struct{}
+type NamespaceHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *NamespaceHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Namespace)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *NamespaceHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *NamespaceHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -62,19 +54,6 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 func (h *NamespaceHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (namespaceModel interface{}) {
 	r := resource.(*corev1.Namespace)
 	return k8sTransformers.ExtractNamespace(r)
-}
-
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *NamespaceHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*corev1.Namespace)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

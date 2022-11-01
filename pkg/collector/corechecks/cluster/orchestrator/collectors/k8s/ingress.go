@@ -39,7 +39,7 @@ type IngressCollector struct {
 	informer    netv1Informers.IngressInformer
 	lister      netv1Listers.IngressLister
 	metadata    *collectors.CollectorMetadata
-	processor   *processors.Processor
+	processor   *processors.Processor[netv1.Ingress]
 	retryLister func(ctx context.Context, opts metav1.ListOptions) (*netv1.IngressList, error)
 }
 
@@ -54,7 +54,7 @@ func NewIngressCollector() *IngressCollector {
 			NodeType:         orchestrator.K8sIngress,
 			Version:          "networking.k8s.io/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers), netv1.Ingress{}),
 	}
 }
 
