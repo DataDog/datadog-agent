@@ -18,7 +18,7 @@ from tasks.utils import get_version
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
 AGENT_TAG = "datadog/agent:master"
 SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentInstaller")
-BUILD_ROOT_DIR  = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
+BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")
 BUILD_OUTPUT_DIR = os.path.join(BUILD_ROOT_DIR, "output")
 
@@ -68,8 +68,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
     # source into the container, build on the container FS, then copy the output
     # back to the mount.
     try:
-        ctx.run(f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF packages',
-            hide=True)
+        ctx.run(f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF packages', hide=True)
     except UnexpectedExit as e:
         # robocopy can return non-zero success codes
         # Per https://ss64.com/nt/robocopy-exit.html
