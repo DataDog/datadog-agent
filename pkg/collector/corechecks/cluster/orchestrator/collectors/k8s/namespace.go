@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/core/v1"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
 
@@ -32,7 +33,7 @@ type NamespaceCollector struct {
 	informer  corev1Informers.NamespaceInformer
 	lister    corev1Listers.NamespaceLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.Namespace]
 }
 
 // NewNamespaceCollector creates a new collector for the Kubernetes
@@ -46,7 +47,7 @@ func NewNamespaceCollector() *NamespaceCollector {
 			NodeType:         orchestrator.K8sNamespace,
 			Version:          "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers), v1.Namespace{}),
 	}
 }
 

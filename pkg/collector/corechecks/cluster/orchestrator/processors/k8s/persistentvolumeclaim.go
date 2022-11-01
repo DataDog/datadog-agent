@@ -56,19 +56,6 @@ func (h *PersistentVolumeClaimHandlers) ExtractResource(ctx *processors.Processo
 	return k8sTransformers.ExtractPersistentVolumeClaim(r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *PersistentVolumeClaimHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*corev1.PersistentVolumeClaim)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
 // ResourceUID is a handler called to retrieve the resource UID.
 func (h *PersistentVolumeClaimHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*corev1.PersistentVolumeClaim).UID

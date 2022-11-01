@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/batch/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1"
@@ -25,7 +26,7 @@ type CronJobV1Collector struct {
 	informer  batchv1Informers.CronJobInformer
 	lister    batchv1Listers.CronJobLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.CronJob]
 }
 
 // NewCronJobV1Collector creates a new collector for the Kubernetes Job resource.
@@ -38,7 +39,7 @@ func NewCronJobV1Collector() *CronJobV1Collector {
 			NodeType:         orchestrator.K8sCronJob,
 			Version:          "batch/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Handlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Handlers), v1.CronJob{}),
 	}
 }
 

@@ -72,8 +72,3 @@ func (h *NodeHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, r
 	r := resource.(*corev1.Node)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *NodeHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
-}

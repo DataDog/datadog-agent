@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -32,7 +33,7 @@ type ServiceCollector struct {
 	informer  corev1Informers.ServiceInformer
 	lister    corev1Listers.ServiceLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.Service]
 }
 
 // NewServiceCollector creates a new collector for the Kubernetes Service
@@ -46,7 +47,7 @@ func NewServiceCollector() *ServiceCollector {
 			NodeType:         orchestrator.K8sService,
 			Version:          "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers), v1.Service{}),
 	}
 }
 

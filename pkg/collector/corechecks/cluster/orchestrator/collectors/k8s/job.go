@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/batch/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1"
@@ -32,7 +33,7 @@ type JobCollector struct {
 	informer  batchv1Informers.JobInformer
 	lister    batchv1Listers.JobLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.Job]
 }
 
 // NewJobCollector creates a new collector for the Kubernetes Job resource.
@@ -45,7 +46,7 @@ func NewJobCollector() *JobCollector {
 			NodeType:         orchestrator.K8sJob,
 			Version:          "batch/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers), v1.Job{}),
 	}
 }
 

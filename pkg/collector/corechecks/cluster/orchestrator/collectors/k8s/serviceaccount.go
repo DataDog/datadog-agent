@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -32,7 +33,7 @@ type ServiceAccountCollector struct {
 	informer  corev1Informers.ServiceAccountInformer
 	lister    corev1Listers.ServiceAccountLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.ServiceAccount]
 }
 
 // NewServiceAccountCollector creates a new collector for the Kubernetes
@@ -46,7 +47,7 @@ func NewServiceAccountCollector() *ServiceAccountCollector {
 			NodeType:         orchestrator.K8sServiceAccount,
 			Version:          "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers), v1.ServiceAccount{}),
 	}
 }
 

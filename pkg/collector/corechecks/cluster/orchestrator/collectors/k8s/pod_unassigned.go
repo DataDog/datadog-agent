@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -33,7 +34,7 @@ type UnassignedPodCollector struct {
 	informer  corev1Informers.PodInformer
 	lister    corev1Listers.PodLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.Pod]
 }
 
 // NewUnassignedPodCollector creates a new collector for the Kubernetes Pod
@@ -47,7 +48,7 @@ func NewUnassignedPodCollector() *UnassignedPodCollector {
 			NodeType:         orchestrator.K8sPod,
 			Version:          "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers), v1.Pod{}),
 	}
 }
 

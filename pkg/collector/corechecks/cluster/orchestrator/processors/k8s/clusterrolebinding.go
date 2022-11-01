@@ -56,19 +56,6 @@ func (h *ClusterRoleBindingHandlers) ExtractResource(ctx *processors.ProcessorCo
 	return k8sTransformers.ExtractClusterRoleBinding(r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *ClusterRoleBindingHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*rbacv1.ClusterRoleBinding)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
 // ResourceUID is a handler called to retrieve the resource UID.
 func (h *ClusterRoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*rbacv1.ClusterRoleBinding).UID

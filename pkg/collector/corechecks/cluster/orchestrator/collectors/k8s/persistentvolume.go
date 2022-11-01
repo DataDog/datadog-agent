@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -32,7 +33,7 @@ type PersistentVolumeCollector struct {
 	informer  corev1Informers.PersistentVolumeInformer
 	lister    corev1Listers.PersistentVolumeLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.PersistentVolume]
 }
 
 // NewPersistentVolumeCollector creates a new collector for the Kubernetes
@@ -46,7 +47,7 @@ func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 			NodeType:         orchestrator.K8sPersistentVolume,
 			Version:          "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers), v1.PersistentVolume{}),
 	}
 }
 

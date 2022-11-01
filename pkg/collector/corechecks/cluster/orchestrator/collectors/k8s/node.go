@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -32,7 +33,7 @@ type NodeCollector struct {
 	informer  corev1Informers.NodeInformer
 	lister    corev1Listers.NodeLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.Node]
 }
 
 // NewNodeCollector creates a new collector for the Kubernetes Node resource.
@@ -45,7 +46,7 @@ func NewNodeCollector() *NodeCollector {
 			NodeType:         orchestrator.K8sNode,
 			Version:          "v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers), v1.Node{}),
 	}
 }
 

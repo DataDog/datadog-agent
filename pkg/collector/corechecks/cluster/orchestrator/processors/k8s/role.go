@@ -56,19 +56,6 @@ func (h *RoleHandlers) ExtractResource(ctx *processors.ProcessorContext, resourc
 	return k8sTransformers.ExtractRole(r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *RoleHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*rbacv1.Role)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
 // ResourceUID is a handler called to retrieve the resource UID.
 func (h *RoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*rbacv1.Role).UID

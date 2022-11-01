@@ -31,7 +31,7 @@ import (
 // This is why that processor is custom and not following the generic logic like
 // other resources.
 type ClusterProcessor struct {
-	processors.Processor
+	processors.Processor[corev1.Node]
 	nodeHandlers processors.Handlers
 }
 
@@ -44,7 +44,7 @@ func NewClusterProcessor() *ClusterProcessor {
 }
 
 // Process is used to process a list of node resources forming a cluster.
-func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
+func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list []corev1.Node) (processResult processors.ProcessResult, processed int, err error) {
 	processed = -1
 
 	defer processors.RecoverOnPanic()
@@ -60,11 +60,9 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		podCapacity       uint32
 	)
 
-	resourceList := p.nodeHandlers.ResourceList(ctx, list)
-	nodeCount := int32(len(resourceList))
+	nodeCount := int32(len(list))
 
-	for _, resource := range resourceList {
-		r := resource.(*corev1.Node)
+	for _, r := range list {
 
 		// Kubelet versions.
 		kubeletVersions[r.Status.NodeInfo.KubeletVersion]++
@@ -141,12 +139,12 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 
 func fillClusterResourceVersion(c *model.Cluster) error {
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
-	jsonClustermodel, err := marshaller.Marshal(c)
+	jsonClusterModel, err := marshaller.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("could not marshal model to JSON: %s", err)
 	}
 
-	version := murmur3.Sum64(jsonClustermodel)
+	version := murmur3.Sum64(jsonClusterModel)
 	c.ResourceVersion = fmt.Sprint(version)
 
 	return nil

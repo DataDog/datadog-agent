@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/apps/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
@@ -32,7 +33,7 @@ type DaemonSetCollector struct {
 	informer  appsv1Informers.DaemonSetInformer
 	lister    appsv1Listers.DaemonSetLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.DaemonSet]
 }
 
 // NewDaemonSetCollector creates a new collector for the Kubernetes DaemonSet
@@ -46,7 +47,7 @@ func NewDaemonSetCollector() *DaemonSetCollector {
 			NodeType:         orchestrator.K8sDaemonSet,
 			Version:          "apps/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers), v1.DaemonSet{}),
 	}
 }
 

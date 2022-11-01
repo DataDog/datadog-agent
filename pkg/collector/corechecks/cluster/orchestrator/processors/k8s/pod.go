@@ -112,19 +112,6 @@ func (h *PodHandlers) ExtractResource(ctx *processors.ProcessorContext, resource
 	return k8sTransformers.ExtractPod(r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *PodHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*corev1.Pod)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
 // ResourceUID is a handler called to retrieve the resource UID.
 func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*corev1.Pod).UID

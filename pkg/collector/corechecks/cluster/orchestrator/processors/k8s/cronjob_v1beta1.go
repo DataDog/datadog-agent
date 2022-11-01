@@ -56,19 +56,6 @@ func (h *CronJobV1Beta1Handlers) ExtractResource(ctx *processors.ProcessorContex
 	return k8sTransformers.ExtractCronJobV1Beta1(r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *CronJobV1Beta1Handlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*batchv1beta1.CronJob)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
 // ResourceUID is a handler called to retrieve the resource UID.
 func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*batchv1beta1.CronJob).UID

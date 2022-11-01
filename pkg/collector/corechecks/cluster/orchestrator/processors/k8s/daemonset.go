@@ -56,19 +56,6 @@ func (h *DaemonSetHandlers) ExtractResource(ctx *processors.ProcessorContext, re
 	return k8sTransformers.ExtractDaemonSet(r)
 }
 
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-func (h *DaemonSetHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*appsv1.DaemonSet)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
 // ResourceUID is a handler called to retrieve the resource UID.
 func (h *DaemonSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*appsv1.DaemonSet).UID

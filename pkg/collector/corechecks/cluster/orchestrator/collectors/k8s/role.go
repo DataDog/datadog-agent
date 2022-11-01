@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	v1 "k8s.io/api/rbac/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
@@ -32,7 +33,7 @@ type RoleCollector struct {
 	informer  rbacv1Informers.RoleInformer
 	lister    rbacv1Listers.RoleLister
 	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	processor *processors.Processor[v1.Role]
 }
 
 // NewRoleCollector creates a new collector for the Kubernetes Role resource.
@@ -45,7 +46,7 @@ func NewRoleCollector() *RoleCollector {
 			NodeType:         orchestrator.K8sRole,
 			Version:          "rbac.authorization.k8s.io/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers), v1.Role{}),
 	}
 }
 
