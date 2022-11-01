@@ -126,12 +126,12 @@ func (h *PodHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Pod).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *PodHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *PodHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
 }
 

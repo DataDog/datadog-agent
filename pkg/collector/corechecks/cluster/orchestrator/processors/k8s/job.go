@@ -70,12 +70,12 @@ func (h *JobHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *JobHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *JobHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*batchv1.Job).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *JobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *JobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resource.(*batchv1.Job).ResourceVersion
 }
 

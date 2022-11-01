@@ -70,12 +70,12 @@ func (h *RoleBindingHandlers) ResourceList(ctx *processors.ProcessorContext, lis
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *RoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *RoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*rbacv1.RoleBinding).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *RoleBindingHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *RoleBindingHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
 	return resource.(*rbacv1.RoleBinding).ResourceVersion
 }
 
