@@ -34,10 +34,8 @@ type ColdStartSpanCreator struct {
 
 func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 	if c.spanCreated {
-		log.Debugf("[ASTUYVE] bailing because span is already created")
 		return
 	}
-	log.Debugf("[ASTUYVE] creating a coldstart span")
 	ecs := c.executionContext.GetCurrentState()
 	if ecs.ColdstartDuration == 0 {
 		return
