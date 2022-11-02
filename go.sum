@@ -149,8 +149,8 @@ github.com/DataDog/go-tuf v0.3.0--fix-localmeta h1:lM/fRQNIaJpsnLU7edjV3jYHylCym
 github.com/DataDog/go-tuf v0.3.0--fix-localmeta/go.mod h1:E5XP0wXitrFUHe4b8cUcAAdxBW4LbfnqF4WXXGLgWNo=
 github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda h1:0xPsvJrSNeob7C1fvh0i47XBX76HedF3LOFKsY/cqUM=
 github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda/go.mod h1:MsW+WM5jOyvzu7KUfg5DB4nmTBYFdm4g0Bq3JhGy1oQ=
-github.com/DataDog/gopsutil v1.2.1 h1:FO3AZvwBUWlJZ0TL4T5/fsEoWxsGz0DFtaIB2bHn/OQ=
-github.com/DataDog/gopsutil v1.2.1/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
+github.com/DataDog/gopsutil v1.2.2-0.20221102174240-9f518111f45c h1:6izdgVny3ymM5aaXUnUUPH9s30tOa8I1e/J1y5NUhOI=
+github.com/DataDog/gopsutil v1.2.2-0.20221102174240-9f518111f45c/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gostackparse v0.5.0 h1:jb72P6GFHPHz2W0onsN51cS3FkaMDcjb0QzgxxA4gDk=
 github.com/DataDog/gostackparse v0.5.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
