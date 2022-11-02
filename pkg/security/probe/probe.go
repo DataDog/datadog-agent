@@ -660,12 +660,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
 
 		event.Exec.Process = &event.ProcessCacheEntry.Process
-
-		// Exec events triggered by the memfd_create do not trigger "open" syscalls, but have an open fd
-		// Because an open event technically happened, we enrich the event with "open" fields
-		if strings.HasPrefix(event.Exec.Process.FileEvent.BasenameStr, model.FilelessExecutionFilenamePrefix) {
-			event.Open.File = event.Exec.Process.FileEvent
-		}
 	case model.ExitEventType:
 		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
