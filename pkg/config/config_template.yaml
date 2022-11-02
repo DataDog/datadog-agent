@@ -1416,13 +1416,13 @@ api_key:
   ## @env DD_APM_FILTER_TAG_REQUIRE - object - optional
   ## @env DD_APM_FILTER_TAG_REJECT - object - optional
   ## Defines rules by which to filter traces based on tags.
-  ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
-  ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
+  ##  * require - list of key or key/value regex pattern strings - traces must have those tags in order to be sent to Datadog
+  ##  * reject - list of key or key/value regex pattern strings - traces with these tags are dropped by the Agent
   ## Note: Rules take into account the intersection of tags defined.
   #
   # filter_tags:
-  #     require: [<LIST_OF_KEY_VALUE_TAGS>]
-  #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
+  #     require: [<LIST_OF_KEY_VALUE_REGEX_PATTERN_TAGS>]
+  #     reject: [<LIST_OF_KEY_VALUE_REGEX_PATTERN_TAGS>]
 
   ## @param replace_tags - list of objects - optional
   ## @env DD_APM_REPLACE_TAGS  - list of objects - optional
