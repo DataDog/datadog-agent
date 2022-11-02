@@ -97,6 +97,7 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
 }
