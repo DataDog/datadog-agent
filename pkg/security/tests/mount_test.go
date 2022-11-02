@@ -214,6 +214,10 @@ func TestMountPropagated(t *testing.T) {
 	}()
 
 	file, _, err := test.Path("dir1-bind-mounted/test-drive/test-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if err := os.WriteFile(file, []byte{}, 0700); err != nil {
 		t.Fatal(err)
 	}
