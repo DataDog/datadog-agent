@@ -92,9 +92,7 @@ Enhancement Notes
   The new option is ``by_modification_time`` which prioritizes more recently
   modified files, but using it can result in slower performance compared to using ``by_name``.
 
-- Agents are now built with Go 1.18.7.
-
-- Agents are now built with Go 1.18.6.  This version of Go brings `changes to
+- Agents are now built with Go 1.18.7.  This version of Go brings `changes to
   the garbage collection runtime <https://go.dev/doc/go1.18#runtime>`_ that
   may change the Agent's memory usage.  In internal testing, the RSS of Agent
   processes showed a minor increase of a few MiB, while CPU usage remained
