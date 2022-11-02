@@ -337,10 +337,10 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 
 	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
 		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
-	} else if coreconfig.Datadog.IsSet("apm_config.k8s_max_milli_cpu") {
-		if mc := coreconfig.Datadog.GetInt("apm_config.k8s_max_milli_cpu"); mc > 0 {
-			c.MaxCPU = float64(mc) / 1000.0 * 0.8
-			log.Infof("Kubernetes CPU limit detected, setting max_cpu_percent to 80%% of %d milli-cpu: %f", mc, c.MaxCPU)
+	} else if cgLim, err := getCgroupCPULimit(); err != nil {
+		if cgLim > 0 {
+			c.MaxCPU = cgLim * 0.9
+			log.Infof("Cgroups CPU limit detected, setting max_cpu_percent to 90%% of %d cpu: %f", cgLim, c.MaxCPU)
 		}
 	}
 
