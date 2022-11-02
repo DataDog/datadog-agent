@@ -118,6 +118,7 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 		f.SetPathnameStr(path)
 	}
 
+	// We decided on using `exec.file.path == ""` in fileless execution cases
 	if strings.HasPrefix(f.PathnameStr, model.FilelessExecutionFilenamePrefix) {
 		return ""
 	}

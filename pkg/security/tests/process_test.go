@@ -2040,29 +2040,30 @@ func TestProcessFilelessExecution(t *testing.T) {
 			name: "fileless",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless",
-				Expression: `exec.file.name == "memfd:" && exec.file.mount_id == 0 && process.file.name == "memfd:" && process.ancestors.file.name == "syscall_tester"`,
+				Expression: `exec.file.name == "memfd:" && exec.file.path == "" && process.ancestors.file.name == "syscall_tester"`,
 			},
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.file.path", "")
-				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"})
-				assertFieldEqual(t, event, "open.file.name", "")
-				assertFieldEqual(t, event, "open.file.path", "")
+				assertFieldEqual(t, event, "exec.file.mount_id", 0, "exec.file.mount_id not matching")
+				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
+				assertFieldEqual(t, event, "open.file.name", "", "open.file.name not matching")
+				assertFieldEqual(t, event, "open.file.path", "", "open.file.path not matching")
 			},
 		},
 		{
 			name: "fileless with script name",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless_with_interpreter",
-				Expression: `exec.file.name == "memfd:script" && exec.file.mount_id == 0 && exec.interpreter.file.name == "bash"`,
+				Expression: `exec.file.name == "memfd:script" && exec.file.path == "" && exec.interpreter.file.name == "bash"`,
 			},
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.file.path", "")
-				assertFieldEqual(t, event, "open.file.name", "")
-				assertFieldEqual(t, event, "open.file.path", "")
+				assertFieldEqual(t, event, "exec.file.mount_id", 0, "exec.file.mount_id not matching")
+				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
+				assertFieldEqual(t, event, "open.file.name", "", "open.file.name not matching")
+				assertFieldEqual(t, event, "open.file.path", "", "open.file.path not matching")
 			},
 		},
 	}
