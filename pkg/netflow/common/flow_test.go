@@ -88,3 +88,73 @@ func TestFlow_AggregationHash(t *testing.T) {
 	// Should contain expected number of different hashes
 	assert.Equal(t, 10, len(allHash))
 }
+
+func TestFlow_IsEqualFlowContext(t *testing.T) {
+	origFlow := Flow{
+		Namespace:      "default",
+		DeviceAddr:     []byte{127, 0, 0, 1},
+		SrcAddr:        []byte{1, 2, 3, 4},
+		DstAddr:        []byte{2, 3, 4, 5},
+		IPProtocol:     6,
+		SrcPort:        2000,
+		DstPort:        80,
+		InputInterface: 1,
+		Tos:            0,
+		Bytes:          5,
+	}
+
+	otherFlow := Flow{
+		Namespace:      "default",
+		DeviceAddr:     []byte{127, 0, 0, 1},
+		SrcAddr:        []byte{1, 2, 3, 4},
+		DstAddr:        []byte{2, 3, 4, 5},
+		IPProtocol:     6,
+		SrcPort:        2000,
+		DstPort:        80,
+		InputInterface: 1,
+		Tos:            0,
+		Bytes:          10,
+	}
+
+	assert.True(t, IsEqualFlowContext(origFlow, otherFlow))
+
+	flow := origFlow
+	flow.Namespace = "abc"
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.DeviceAddr = []byte{127, 0, 0, 2}
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.SrcAddr = []byte{1, 2, 3, 5}
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.DstAddr = []byte{2, 3, 4, 6}
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.IPProtocol = 7
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.SrcPort = 2001
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.DstPort = 81
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.InputInterface = 2
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.Tos = 1
+	assert.False(t, IsEqualFlowContext(origFlow, flow))
+
+	flow = origFlow
+	flow.Bytes = 999
+	assert.True(t, IsEqualFlowContext(origFlow, flow))
+}

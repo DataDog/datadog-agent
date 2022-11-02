@@ -162,15 +162,15 @@ func TestEnableTelemetryCollection(t *testing.T) {
 
 	err := EnableTelemetryCollection(
 		EnableTelemetryCollectionArgs{
-			id:                  "myId",
-			registrationURL:     ts.URL,
-			registrationTimeout: registerLogsTimeout,
-			logsType:            "platform function",
-			port:                1234,
-			collectionRoute:     "/route",
-			timeout:             10,
-			maxBytes:            100,
-			maxItems:            1000,
+			ID:                  "myId",
+			RegistrationURL:     ts.URL,
+			RegistrationTimeout: registerLogsTimeout,
+			LogsType:            "platform function",
+			Port:                1234,
+			CollectionRoute:     "/route",
+			Timeout:             10,
+			MaxBytes:            100,
+			MaxItems:            1000,
 		})
 	assert.Nil(t, err)
 }

@@ -13,6 +13,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/fsuid.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -452,35 +453,25 @@ int test_bind(int argc, char** argv) {
 }
 
 int test_forkexec(int argc, char **argv) {
-    if (argc == 3) {
+    if (argc == 2) {
         char *subcmd = argv[1];
-        char *open_trigger_filename = argv[2];
         if (strcmp(subcmd, "exec") == 0) {
             int child = fork();
             if (child == 0) {
-                char *const args[] = {"syscall_tester", "fork", "open", open_trigger_filename, NULL};
+                char *const args[] = {"syscall_tester", "fork", "mmap", NULL};
                 execv("/proc/self/exe", args);
             } else if (child > 0) {
                 wait(NULL);
             }
             return EXIT_SUCCESS;
-        } else if (strcmp(subcmd, "open") == 0) {
-            int fd = open(open_trigger_filename, O_RDONLY|O_CREAT, 0444);
-            if (fd >= 0) {
-                close(fd);
-                unlink(open_trigger_filename);
-            }
+        } else if (strcmp(subcmd, "mmap") == 0) {
+            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
             return EXIT_SUCCESS;
         }
-    } else if (argc == 2) {
-        char *open_trigger_filename = argv[1];
+    } else if (argc == 1) {
         int child = fork();
         if (child == 0) {
-            int fd = open(open_trigger_filename, O_RDONLY|O_CREAT, 0444);
-            if (fd >= 0) {
-                close(fd);
-                unlink(open_trigger_filename);
-            }
+            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
             return EXIT_SUCCESS;
         } else if (child > 0) {
             wait(NULL);
@@ -572,6 +563,34 @@ int test_wait_signal(int argc, char** argv) {
     return sigwait(&set, sigptr);
 }
 
+void *thread_exec(void *arg) {
+    char **argv = (char **) arg;
+    if (argv == NULL || argv[0] == NULL) {
+        return NULL;
+    }
+
+    char *path_cpy = strdup(argv[0]);
+    char *progname = basename(argv[0]);
+    argv[0] = progname;
+
+    execv(path_cpy, argv);
+    return NULL;
+}
+
+int test_exec_in_pthread(int argc, char **argv) {
+    if (argc <= 1) {
+        return EXIT_FAILURE;
+    }
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_exec, &argv[1]) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -633,6 +652,8 @@ int main(int argc, char **argv) {
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
             exit_code = test_unlink(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "exec-in-pthread") == 0) {
+            exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;

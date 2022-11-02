@@ -172,7 +172,7 @@ func (w *noAggregationStreamWorker) run() {
 
 					// receiving samples
 					case samples := <-w.samplesChan:
-						log.Debugf("Streaming %d metrics from the no-aggregation pipeline", len(samples))
+						log.Tracef("Streaming %d metrics from the no-aggregation pipeline", len(samples))
 						countProcessed := 0
 						countUnsupportedType := 0
 

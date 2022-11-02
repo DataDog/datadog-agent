@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -69,15 +68,13 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		{
 			name: "no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
-				bucketCounts := pcommon.NewUInt64Slice()
-				bucketCounts.FromRaw([]uint64{100})
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts(bucketCounts)
+				h.BucketCounts().FromRaw([]uint64{100})
 				h.SetCount(100)
 				h.SetSum(0)
 
 				n := pmetric.NewNumberDataPoint()
-				n.SetIntVal(777)
+				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
@@ -86,23 +83,21 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		{
 			name: "metric tags and extra tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
-				bucketCounts := pcommon.NewUInt64Slice()
-				bucketCounts.FromRaw([]uint64{100})
 				h := pmetric.NewHistogramDataPoint()
-				h.SetBucketCounts(bucketCounts)
+				h.BucketCounts().FromRaw([]uint64{100})
 				h.SetCount(100)
 				h.SetSum(0)
 				hAttrs := h.Attributes()
-				hAttrs.PutString("histogram_1_id", "value1")
-				hAttrs.PutString("histogram_2_id", "value2")
-				hAttrs.PutString("histogram_3_id", "value3")
+				hAttrs.PutStr("histogram_1_id", "value1")
+				hAttrs.PutStr("histogram_2_id", "value2")
+				hAttrs.PutStr("histogram_3_id", "value3")
 
 				n := pmetric.NewNumberDataPoint()
-				n.SetIntVal(777)
+				n.SetIntValue(777)
 				nAttrs := n.Attributes()
-				nAttrs.PutString("gauge_1_id", "value1")
-				nAttrs.PutString("gauge_2_id", "value2")
-				nAttrs.PutString("gauge_3_id", "value3")
+				nAttrs.PutStr("gauge_1_id", "value1")
+				nAttrs.PutStr("gauge_2_id", "value2")
+				nAttrs.PutStr("gauge_3_id", "value3")
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			setConfig: func(t *testing.T) {
@@ -189,13 +184,13 @@ func newMetrics(
 	met := metricsArray.AppendEmpty()
 	met.SetName(histogramMetricName)
 	met.SetEmptyHistogram()
-	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	hdps := met.Histogram().DataPoints()
 	hdp := hdps.AppendEmpty()
 	hdp.SetCount(histogramDataPoint.Count())
 	hdp.SetSum(histogramDataPoint.Sum())
-	hdp.SetBucketCounts(histogramDataPoint.BucketCounts())
-	hdp.SetExplicitBounds(histogramDataPoint.ExplicitBounds())
+	histogramDataPoint.BucketCounts().CopyTo(hdp.BucketCounts())
+	histogramDataPoint.ExplicitBounds().CopyTo(hdp.ExplicitBounds())
 	hdp.SetTimestamp(histogramDataPoint.Timestamp())
 	hdpAttrs := hdp.Attributes()
 	histogramDataPoint.Attributes().CopyTo(hdpAttrs)
@@ -207,7 +202,7 @@ func newMetrics(
 	gdps := met.Gauge().DataPoints()
 	gdp := gdps.AppendEmpty()
 	gdp.SetTimestamp(numberDataPoint.Timestamp())
-	gdp.SetIntVal(numberDataPoint.IntVal())
+	gdp.SetIntValue(numberDataPoint.IntValue())
 	gdpAttrs := gdp.Attributes()
 	numberDataPoint.Attributes().CopyTo(gdpAttrs)
 

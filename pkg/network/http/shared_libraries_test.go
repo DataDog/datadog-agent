@@ -22,6 +22,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -115,8 +116,10 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 	}
 
 	probe := "do_sys_open"
+	excludeSysOpen := "kprobe__do_sys_openat2"
 	if sysOpenAt2Supported(c) {
 		probe = "do_sys_openat2"
+		excludeSysOpen = "kprobe__do_sys_open"
 	}
 
 	perfHandler := ddebpf.NewPerfHandler(10)
@@ -187,6 +190,36 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 				},
 			},
 		},
+	}
+
+	exclude := []string{
+		"socket__http_filter",
+		"socket__http_filter_entry",
+		"kprobe__tcp_sendmsg",
+		"kretprobe__security_sock_rcv_skb",
+		excludeSysOpen,
+	}
+
+	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
+		for _, singleProbe := range sslProbeList {
+			for _, identifier := range singleProbe.GetProbesIdentificationPairList() {
+				options.ExcludedFunctions = append(options.ExcludedFunctions, identifier.EBPFFuncName)
+			}
+		}
+	}
+	for _, probeInfo := range functionToProbes {
+		if probeInfo.functionInfo != nil {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.functionInfo.ebpfFunctionName)
+		}
+		if probeInfo.returnInfo != nil {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.returnInfo.ebpfFunctionName)
+		}
+
+	}
+	options.ExcludedFunctions = append(options.ExcludedFunctions, exclude...)
+
+	mgr.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, false, nil)
 	}
 
 	bc, err := getBytecode(c)

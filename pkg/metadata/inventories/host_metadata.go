@@ -40,7 +40,6 @@ type HostMetadata struct {
 	KernelRelease   string `json:"kernel_release"`
 	KernelVersion   string `json:"kernel_version"`
 	OS              string `json:"os"`
-	PythonVersion   string `json:"python_version"`
 	CPUArchitecture string `json:"cpu_architecture"`
 
 	// from gohai/memory
@@ -96,7 +95,6 @@ func getHostMetadata() *HostMetadata {
 		metadata.KernelRelease = platformInfo.KernelRelease
 		metadata.KernelVersion = platformInfo.KernelVersion
 		metadata.OS = platformInfo.OS
-		metadata.PythonVersion = platformInfo.PythonVersion
 		metadata.CPUArchitecture = platformInfo.HardwarePlatform
 	}
 

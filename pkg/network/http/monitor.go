@@ -19,15 +19,8 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
-
-// MonitorStats is used for holding two kinds of stats:
-// * requestsStats which are the http data stats
-// * telemetry which are telemetry stats
-type MonitorStats struct {
-	requestStats map[Key]*RequestStats
-	telemetry    telemetry
-}
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -41,9 +34,9 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
-	telemetrySnapshot      *telemetry
-	pollRequests           chan chan MonitorStats
-	statkeeper             *httpStatKeeper
+
+	pollRequests chan chan map[Key]*RequestStats
+	statkeeper   *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -53,8 +46,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c, offsets, sockFD)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
@@ -104,8 +97,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		telemetrySnapshot:      nil,
-		pollRequests:           make(chan chan MonitorStats),
+		pollRequests:           make(chan chan map[Key]*RequestStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
 	}, nil
@@ -148,16 +140,8 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				delta := m.telemetry.reset()
-
-				// For now, we still want to report the telemetry as it contains more information than what
-				// we're extracting via network tracer.
-				delta.report()
-
-				reply <- MonitorStats{
-					requestStats: m.statkeeper.GetAndResetAllStats(),
-					telemetry:    delta,
-				}
+				m.telemetry.log()
+				reply <- m.statkeeper.GetAndResetAllStats()
 			}
 		}
 	}()
@@ -178,32 +162,10 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	reply := make(chan MonitorStats, 1)
+	reply := make(chan map[Key]*RequestStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
-	stats := <-reply
-	m.telemetrySnapshot = &stats.telemetry
-	return stats.requestStats
-}
-
-// GetStats returns the telemetry
-func (m *Monitor) GetStats() map[string]interface{} {
-	empty := map[string]interface{}{}
-	if m == nil {
-		return empty
-	}
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.stopped {
-		return empty
-	}
-
-	if m.telemetrySnapshot == nil {
-		return empty
-	}
-
-	return m.telemetrySnapshot.report()
+	return <-reply
 }
 
 // Stop HTTP monitoring
@@ -235,5 +197,5 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
-	return m.ebpfProgram.Manager.DumpMaps(maps...)
+	return m.ebpfProgram.DumpMaps(maps...)
 }

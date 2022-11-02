@@ -2,6 +2,32 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.10.0:
+
+1.10.0
+================
+
+.. _Release Notes_installscript-1.10.0_New Features:
+
+New Features
+------------
+
+- Add FIPS mode.
+  
+  When the ``DD_FIPS_MODE`` environment variable is set, the install script
+  installs an additional FIPS proxy package and configures Agent to direct
+  all traffic to the backend through the FIPS proxy.
+
+
+.. _Release Notes_installscript-1.10.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Permissions and ownership of the Agent configuration file are now set
+  even if it existed before the script was executed.
+
+
 .. _Release Notes_installscript-1.9.0:
 
 installscript-1.9.0

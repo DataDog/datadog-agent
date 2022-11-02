@@ -75,32 +75,32 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
         "cis-kubernetes-1.5.1-1.3.2": [
             {
-                "result": "error",
+                "result": "failed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.3": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.4": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.5": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.6": [
             {
-                "result": "error",
+                "result": "failed",
             }
         ],
         "cis-kubernetes-1.5.1-1.3.7": [
             {
-                "result": "error",
+                "result": "passed",
             }
         ],
         "cis-kubernetes-1.5.1-1.4.1": [
@@ -115,14 +115,6 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
     }
     expectedFindingsWorkerNode = {
-        "cis-kubernetes-1.5.1-4.2.6": [
-            {
-                "agent_rule_id": "cis-kubernetes-1.5.1-4.2.6",
-                "agent_framework_id": "cis-kubernetes",
-                "result": "failed",
-                "resource_type": "kubernetes_worker_node",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.1.1": [
             {
                 "result": "error",
@@ -158,16 +150,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 "result": "failed",
             }
         ],
-        "cis-kubernetes-1.5.1-4.2.10": [
-            {
-                "result": "failed",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.2.12": [
-            {
-                "result": "failed",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.2.3": [
             {
                 "result": "failed",
@@ -179,6 +161,21 @@ class TestE2EKubernetes(unittest.TestCase):
             }
         ],
         "cis-kubernetes-1.5.1-4.2.5": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.6": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.10": [
+            {
+                "result": "failed",
+            }
+        ],
+        "cis-kubernetes-1.5.1-4.2.12": [
             {
                 "result": "failed",
             }

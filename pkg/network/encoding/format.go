@@ -101,7 +101,6 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		t := &model.RuntimeCompilationTelemetry{}
 		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
 		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
-		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
 		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 		ret[asset] = t
 	}

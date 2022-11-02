@@ -7,7 +7,11 @@ package config
 
 import (
 	"fmt"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
+
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
 
@@ -19,6 +23,7 @@ type NetflowConfig struct {
 	AggregatorFlushInterval       int              `mapstructure:"aggregator_flush_interval"`
 	AggregatorFlowContextTTL      int              `mapstructure:"aggregator_flow_context_ttl"`
 	AggregatorPortRollupThreshold int              `mapstructure:"aggregator_port_rollup_threshold"`
+	AggregatorPortRollupDisabled  bool             `mapstructure:"aggregator_port_rollup_disabled"`
 
 	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
@@ -64,6 +69,11 @@ func ReadConfig() (*NetflowConfig, error) {
 		if listenerConfig.Namespace == "" {
 			listenerConfig.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 		}
+		normalizedNamespace, err := utils.NormalizeNamespace(listenerConfig.Namespace)
+		if err != nil {
+			return nil, fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
+		}
+		listenerConfig.Namespace = normalizedNamespace
 	}
 
 	if mainConfig.StopTimeout == 0 {

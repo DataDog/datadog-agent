@@ -64,7 +64,7 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 	} else {
 		span.SetSpanID(pcommon.SpanID(s.SpanID))
 	}
-	span.SetTraceState(ptrace.TraceState(s.TraceState))
+	span.TraceState().FromRaw(s.TraceState)
 	span.SetParentSpanID(pcommon.SpanID(s.ParentID))
 	span.SetName(s.Name)
 	span.SetKind(s.Kind)
@@ -125,7 +125,7 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 		case string:
 			_, ok := attr.Get(k)
 			if !ok {
-				attr.PutString(k, v)
+				attr.PutStr(k, v)
 			}
 		case bool:
 			_, ok := attr.Get(k)
@@ -150,7 +150,7 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 		default:
 			_, ok := attr.Get(k)
 			if !ok {
-				attr.PutString(k, fmt.Sprint(v))
+				attr.PutStr(k, fmt.Sprint(v))
 			}
 		}
 	}

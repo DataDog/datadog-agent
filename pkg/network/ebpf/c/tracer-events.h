@@ -8,6 +8,7 @@
 #include "tcp_states.h"
 
 #include "bpf_helpers.h"
+#include "bpf_builtins.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
@@ -92,7 +93,7 @@ static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
         // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
         // since you can't directly write a map entry to the perf buffer.
         batch_t batch_copy = {};
-        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+        bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
         batch_ptr->len = 0;
         batch_ptr->id++;
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));

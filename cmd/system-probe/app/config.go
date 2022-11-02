@@ -54,5 +54,15 @@ func getSettingsClient(cmd *cobra.Command, _ []string) (settings.Client, error) 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
 func initRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigKey: config.Namespace + ".log_level"})
+	err := settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigKey: config.Namespace + ".log_level"})
+	if err != nil {
+		return err
+	}
+
+	err = settings.RegisterRuntimeSetting(settings.ActivityDumpRuntimeSetting{ConfigKey: settings.MaxDumpSizeConfKey})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

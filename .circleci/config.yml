@@ -102,11 +102,12 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
+          no_output_timeout: 20m
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: codecov -f profile.cov -F linux || true
+          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
@@ -204,6 +205,15 @@ jobs:
           name: lint python files
           command: inv -e lint-python
 
+  component_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run component linting
+          command: inv -e lint-components
+
   docker_tests:
     <<: *job_template
     steps:
@@ -298,6 +308,9 @@ workflows:
           requires:
             - dependencies
       - python_linting:
+          requires:
+            - dependencies
+      - component_linting:
           requires:
             - dependencies
       - docker_tests:

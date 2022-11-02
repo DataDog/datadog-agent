@@ -78,7 +78,7 @@ last-change
 .gradle
 cmd/agent/android/app/src/main/assets/conf.d
 
-# android studio
+# android studio (no longer supported, but files remain in working copies)
 cmd/agent/android/local.properties
 cmd/agent/android/gradlew*
 cmd/agent/android/gradle

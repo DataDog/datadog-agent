@@ -31,11 +31,15 @@ import (
 // "agents.image.tag" and "agents.image.pullPolicy" are valid keys, but
 // "agents.image" is not.
 func getValue(m map[string]interface{}, dotSeparatedKey string) (string, error) {
+	if dotSeparatedKey == "" {
+		return "", fmt.Errorf("not found")
+	}
+
 	keys := strings.Split(dotSeparatedKey, ".")
 	var obj interface{} = m
 
 	for _, key := range keys {
-		if reflect.TypeOf(obj).Kind() != reflect.Map {
+		if obj == nil || reflect.TypeOf(obj).Kind() != reflect.Map {
 			return "", fmt.Errorf("not found")
 		}
 
@@ -50,7 +54,7 @@ func getValue(m map[string]interface{}, dotSeparatedKey string) (string, error) 
 		obj = objValue.Interface()
 	}
 
-	if reflect.TypeOf(obj).Kind() == reflect.Map {
+	if obj == nil || reflect.TypeOf(obj).Kind() == reflect.Map {
 		return "", fmt.Errorf("not found")
 	}
 

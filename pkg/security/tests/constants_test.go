@@ -28,6 +28,10 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
 }
 
+var BTFHubVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameNFConnStructCTNet,
+}
+
 func TestOctogonConstants(t *testing.T) {
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
@@ -76,6 +80,20 @@ func TestOctogonConstants(t *testing.T) {
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubVsRcPossiblyMissingConstants)
+	})
+
+	t.Run("btfhub-vs-fallback", func(t *testing.T) {
+		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
+		if err != nil {
+			t.Skipf("btfhub constant fetcher is not available: %v", err)
+		}
+		if !btfhubFetcher.HasConstantsInStore() {
+			t.Skip("btfhub has no constant for this OS")
+		}
+
+		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
+
+		assertConstantsEqual(t, btfhubFetcher, fallbackFetcher, kv, BTFHubVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("btf-vs-fallback", func(t *testing.T) {

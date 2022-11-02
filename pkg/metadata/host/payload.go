@@ -57,8 +57,9 @@ type InstallMethod struct {
 
 // ProxyMeta is metatdata about the proxy configuration
 type ProxyMeta struct {
-	NoProxyNonexactMatch bool `json:"no-proxy-nonexact-match"`
-	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
+	NoProxyNonexactMatch              bool `json:"no-proxy-nonexact-match"`
+	ProxyBehaviorChanged              bool `json:"proxy-behavior-changed"`
+	NoProxyNonexactMatchExplicitlySet bool `json:"no-proxy-nonexact-match-explicitly-set"`
 }
 
 // OtlpMeta is metadata about the otlp pipeline

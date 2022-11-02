@@ -19,13 +19,14 @@ import (
 	"strings"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -115,10 +116,16 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
-
-	// PrometheusScrapeChecksTransformer decodes the `prometheus_scrape.checks` parameter
-	PrometheusScrapeChecksTransformer func(string) interface{}
 )
+
+// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
+func PrometheusScrapeChecksTransformer(in string) interface{} {
+	var promChecks []*types.PrometheusCheck
+	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+	}
+	return promChecks
+}
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -207,21 +214,6 @@ const (
 	Logs DataType = "logs"
 )
 
-// prometheusScrapeChecksTransformer is a trampoline function that delays the
-// resolution of `PrometheusScrapeChecksTransformer` from `InitConfig` (invoked
-// from an `init()` function to `cobra.(*Command).Execute` (invoked from `main.main`)
-//
-// Without it, the issue is that `config.PrometheusScrapeChecksTransformer` would be:
-// * written from an `init` function from `pkg/autodiscovery/common/types` and
-// * read from an `init` function here.
-// This would result in an undefined behaviour
-//
-// With this intermediate function, it’s read from `cobra.(*Command).Execute`
-// which is called from `main.main` which is guaranteed to be called after all `init`.
-func prometheusScrapeChecksTransformer(s string) interface{} {
-	return PrometheusScrapeChecksTransformer(s)
-}
-
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -291,7 +283,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.rc_dd_url", "")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 1*time.Minute)
+	config.BindEnv("remote_configuration.refresh_interval")
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
 	// Remote config products
@@ -328,7 +320,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
+	config.BindEnv("no_proxy_nonexact_match")
 
 	// Python 3 linter timeout, in seconds
 	// NOTE: linter is notoriously slow, in the absence of a better solution we
@@ -371,8 +363,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("server_timeout", 30)
 
 	// Configuration for TLS for outgoing connections
-	config.BindEnvAndSetDefault("force_tls_12", false) // deprecated
-	config.BindEnvAndSetDefault("min_tls_version", "") // default depends on force_tls_12
+	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
@@ -509,13 +500,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	// Control how long we keep dogstatsd contexts in memory. This should
-	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
-	// is 10s), otherwise we won't be able to sample unseen counter as
-	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
-	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory.
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
+	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
@@ -533,7 +522,7 @@ func InitConfig(config Config) {
 	// Enable the no-aggregation pipeline.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
-	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 256)
+	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -564,6 +553,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
+	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
@@ -639,7 +630,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", prometheusScrapeChecksTransformer)
+	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Network Devices Monitoring
@@ -1023,6 +1014,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
+	config.BindEnv("orchestrator_explorer.max_message_bytes")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
@@ -1118,6 +1110,8 @@ func InitConfig(config Config) {
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
+	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
 	config.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
@@ -1168,7 +1162,6 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 
-	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
 	SetupOTLP(config)
@@ -1894,4 +1887,26 @@ func GetVectorURL(datatype DataType) (string, error) {
 		return vectorURL, nil
 	}
 	return "", nil
+}
+
+// GetTraceAgentDefaultEnv returns the default env for the trace agent
+func GetTraceAgentDefaultEnv() string {
+	defaultEnv := ""
+	if Datadog.IsSet("apm_config.env") {
+		defaultEnv = Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
+	} else if Datadog.IsSet("env") {
+		defaultEnv = Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
+	} else {
+		for _, tag := range GetConfiguredTags(false) {
+			if strings.HasPrefix(tag, "env:") {
+				defaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
+				return defaultEnv
+			}
+		}
+	}
+
+	return defaultEnv
 }

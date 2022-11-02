@@ -51,11 +51,11 @@ func TestShouldProcessLog(t *testing.T) {
 	}
 
 	invalidLog0 := &logMessage{
-		logType: logTypePlatformTelemetrySubscription,
+		logType: "platform.logsSubscription",
 	}
 
 	invalidLog1 := &logMessage{
-		logType: logTypePlatformExtension,
+		logType: "platform.extension",
 	}
 
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
@@ -289,9 +289,6 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 		time:    messageTime,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
@@ -324,9 +321,6 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
 			requestID: previousRequestID,
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
@@ -462,6 +456,53 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
+	}
+}
+
+// Verify sorting result, and request ID overwrite
+func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
+	logCollection := &LambdaLogsCollector{
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		ExecutionContext: mockExecutionContext,
+	}
+
+	logMessages := []logMessage{
+		{
+			stringRecord: "hi, log 3", time: time.UnixMilli(12345678), objectRecord: platformObjectRecord{requestID: "3th ID"},
+		},
+		{
+			stringRecord: "hi, log 1", time: time.UnixMilli(123456), logType: logTypePlatformStart, objectRecord: platformObjectRecord{requestID: "2nd ID"},
+		},
+		{
+			stringRecord: "hi, log 2", time: time.UnixMilli(1234567),
+		},
+		{
+			stringRecord: "hi, log 0", time: time.UnixMilli(12345), objectRecord: platformObjectRecord{requestID: "1st ID"},
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	expectedRequestIDs := [4]string{"1st ID", "2nd ID", "myRequestID", "3th ID"}
+
+	for i := 0; i < 4; i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			assert.Equal(t, expectedRequestIDs[i], received.Lambda.RequestID)
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
+		}
 	}
 }
 
@@ -644,6 +685,18 @@ func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
 	assert.Equal(t, "", logMessage.logType)
 }
 
+func TestUnmarshalJSONLogTypePlatformFault(t *testing.T) {
+	// platform.fault events are not processed by the extension
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_fault.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
+}
+
 func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
 	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
@@ -653,7 +706,19 @@ func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-	assert.Equal(t, "platform.telemetrySubscription", logMessage.logType)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformExtension(t *testing.T) {
+	// platform.extension events are not processed by the extension
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_extension.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
 }
 
 func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
@@ -716,8 +781,30 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 		stringRecord: "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9",
 		objectRecord: platformObjectRecord{
 			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
+		},
+	}
+	assert.Equal(t, expectedLogMessage, message)
+}
+
+func TestUnmarshalPlatformRuntimeDoneLogWithTelemetry(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid_with_telemetry.json")
+	require.NoError(t, err)
+	var message logMessage
+	err = json.Unmarshal(raw, &message)
+	require.NoError(t, err)
+
+	expectedTime := time.Date(2021, 05, 19, 18, 11, 22, 478000000, time.UTC)
+
+	expectedLogMessage := logMessage{
+		logType:      logTypePlatformRuntimeDone,
+		time:         expectedTime,
+		stringRecord: "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9",
+		objectRecord: platformObjectRecord{
+			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
 			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
+				responseDuration: 0.1,
+				responseLatency:  6.0,
+				producedBytes:    53,
 			},
 		},
 	}
@@ -758,8 +845,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
 		objectRecord: platformObjectRecord{
-			requestID:       requestID,
-			runtimeDoneItem: runtimeDoneItem{},
+			requestID: requestID,
 		},
 	}
 	reportMessage := &logMessage{
@@ -787,7 +873,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
 	})
-	assert.Equal(t, generatedMetrics[4], metrics.MetricSample{
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      durationMs / 1000, // in seconds
 		Mtype:      metrics.DistributionType,
@@ -795,7 +881,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 	})
-	assert.Equal(t, generatedMetrics[6], metrics.MetricSample{
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,

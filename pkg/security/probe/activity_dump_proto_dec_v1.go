@@ -26,7 +26,8 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 	dest.Source = ad.Source
 	dest.DumpMetadata = protoMetadataToDumpMetadata(ad.Metadata)
 
-	dest.Tags = ad.Tags
+	dest.Tags = make([]string, len(ad.Tags))
+	copy(dest.Tags, ad.Tags)
 	dest.ProcessActivityTree = make([]*ProcessActivityNode, 0, len(ad.Tree))
 	dest.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
 
@@ -107,7 +108,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		return model.Process{}
 	}
 
-	return model.Process{
+	mp := model.Process{
 		PIDContext: model.PIDContext{
 			Pid: p.Pid,
 			Tid: p.Tid,
@@ -128,13 +129,17 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 
 		Credentials: protoDecodeCredentials(p.Credentials),
 
-		ScrubbedArgv:  p.Args,
+		ScrubbedArgv:  make([]string, len(p.Args)),
 		Argv0:         p.Argv0,
 		ArgsTruncated: p.ArgsTruncated,
 
-		Envs:          p.Envs,
+		Envs:          make([]string, len(p.Envs)),
 		EnvsTruncated: p.EnvsTruncated,
 	}
+
+	copy(mp.ScrubbedArgv, p.Args)
+	copy(mp.Envs, p.Envs)
+	return mp
 }
 
 func protoDecodeCredentials(creds *adproto.Credentials) model.Credentials {
