@@ -101,6 +101,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     // TODO: should be done in a more clean way
     kafka_transaction->current_offset_in_request_fragment += 14;
 
+    // TODO: Support request header v0
     // TODO: need to check what is TAG_BUFFER that can appear in a v2 request header
 
     return true;
@@ -190,20 +191,28 @@ static __always_inline bool try_parse_produce_request(char *request_fragment, ka
 
 static __always_inline bool try_parse_fetch_request(char *request_fragment, kafka_transaction_t *kafka_transaction) {
     log_debug("Trying to parse fetch request");
-    if (kafka_transaction->request_api_version != 4) {
-        // TODO: Support all protocol versions, currently supporting only version 4 for the testing env
-        log_debug("request_api_version != 4");
+    if (kafka_transaction->request_api_version != 4 && kafka_transaction->request_api_version < 7) {
+        // TODO: Support all protocol versions, currently supporting only version 4, 7+ for the testing env
+        log_debug("request_api_version != 4 and < 7 not supported: %d", kafka_transaction->request_api_version);
         return false;
     }
 
     // Skipping all fields that we don't need to parse at the moment:
-    //  replica_id - INT32
-    //  max_wait_ms - INT32
-    //  min_bytes - INT32
-    //  max_bytes - INT32
-    //  isolation_level - INT8
-    //  number_of_topics - INT32
+    //  replica_id => INT32
+    //  max_wait_ms => INT32
+    //  min_bytes => INT32
+    //  max_bytes => INT32
+    //  isolation_level => INT8
+    //  number_of_topics => INT32
     kafka_transaction->current_offset_in_request_fragment += 21;
+
+    if (kafka_transaction->request_api_version >= 7)
+    {
+        // On api version 7+, need to skip:
+        //  session_id => INT32
+        //  session_epoch => INT32
+        kafka_transaction->current_offset_in_request_fragment += 8;
+    }
 
     // TODO: Taking only the first topic for now
     return extract_and_set_first_topic_name(request_fragment, kafka_transaction);

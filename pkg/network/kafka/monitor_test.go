@@ -10,6 +10,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,8 @@ var (
 //}
 
 func TestSanity(t *testing.T) {
+	// Assuming a kafka cluster up
+
 	cfg := config.New()
 	cfg.BPFDebug = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
@@ -43,7 +46,7 @@ func TestSanity(t *testing.T) {
 	require.NoError(t, err)
 	defer monitor.Stop()
 
-	// to produce messages
+	// to produce/consume messages
 	topic := "my-topic"
 	partition := 0
 
@@ -57,6 +60,25 @@ func TestSanity(t *testing.T) {
 		kafka.Message{Value: []byte("three!")},
 	)
 	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+
+	// Now consume the messages
+	conn, err = kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
+	require.NoError(t, err)
+
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	batch := conn.ReadBatch(10e3, 1e6) // fetch 10KB min, 1MB max
+
+	b := make([]byte, 10e3) // 10KB max per message
+	for {
+		n, err := batch.Read(b)
+		if err != nil {
+			break
+		}
+		fmt.Println(string(b[:n]))
+	}
+
+	require.NoError(t, batch.Close())
 	require.NoError(t, conn.Close())
 }
 

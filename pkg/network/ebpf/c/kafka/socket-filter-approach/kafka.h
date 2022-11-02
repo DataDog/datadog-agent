@@ -187,7 +187,7 @@ static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_
 //
 static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info, __u64 tags) {
     //log_debug("in kafka_process");
-//    char *buffer = (char *)kafka_stack->request_fragment;
+//    char *buffer = (char *)kafka_stack->request_frag[ment;
 ////    log_debug("Buffer: %s", buffer);
 //    // TODO: read 4 bytes as size
 //    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
