@@ -494,6 +494,7 @@ core,github.com/iovisor/gobpf/pkg/cpupossible,Apache-2.0,Copyright 2016 Kinvolk 
 core,github.com/iovisor/gobpf/pkg/cpurange,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
 core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2022 itchyny
 core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
+core,github.com/jellydator/ttlcache/v3,MIT,Copyright (c) 2022 Jellydator
 core,github.com/jlaffaye/ftp,ISC,"Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>"
 core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinnie
 core,github.com/josharian/intern,MIT,Copyright (c) 2019 Josh Bleecher Snyder
