@@ -71,11 +71,13 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
 			s.spanModifier = &spanModifier{}
-			s.spanModifier.coldStartSpanCreator = &ColdStartSpanCreator{
-				executionContext: executionContext,
-				traceAgent:       s,
-				spanCreated:      false,
+			if executionContext != nil {
+				s.spanModifier.coldStartSpanCreator = &ColdStartSpanCreator{
+					executionContext: executionContext,
+					traceAgent:       s,
+				}
 			}
+
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel

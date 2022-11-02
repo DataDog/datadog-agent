@@ -36,6 +36,9 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 	if c.spanCreated {
 		return
 	}
+	if lambdaSpan.Name != "aws.lambda.cold_start" {
+		return
+	}
 	ecs := c.executionContext.GetCurrentState()
 	if ecs.ColdstartDuration == 0 {
 		return

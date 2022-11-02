@@ -49,7 +49,7 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 
 	t.Setenv("DD_API_KEY", "x")
-	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
+	agent.Start(true, &LoadConfig{Path: "invalid.yml"}, nil)
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())

@@ -25,7 +25,7 @@ func (s *spanModifier) ModifySpan(span *pb.Span) {
 	if span.Service == "aws.lambda" && s.tags["service"] != "" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		span.Service = s.tags["service"]
-		if span.Name != "aws.lambda.cold_start" {
+		if s.coldStartSpanCreator != nil {
 			s.coldStartSpanCreator.create(span)
 		}
 	}
