@@ -682,9 +682,13 @@ func splitTag(tag string) *config.Tag {
 		K: strings.TrimSpace(parts[0]),
 	}
 	if len(parts) > 1 {
-		if v := strings.TrimSpace(parts[1]); v != "" {
-			kv.V = v
+		v := strings.TrimSpace(parts[1])
+		re, err := regexp.Compile(v)
+		if err != nil {
+			log.Errorf("Invalid tag filter: %q:%q", kv.K, v)
+			return nil
 		}
+		kv.V = re
 	}
 	return kv
 }

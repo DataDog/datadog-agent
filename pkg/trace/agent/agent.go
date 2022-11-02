@@ -582,13 +582,13 @@ func traceContainsError(trace pb.Trace) bool {
 
 func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 	for _, tag := range reject {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == "" || v == tag.V) {
+		if v, ok := root.Meta[tag.K]; ok && (tag.V == nil || tag.V.MatchString(v)) {
 			return true
 		}
 	}
 	for _, tag := range require {
 		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != "" && v != tag.V) {
+		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
 			return true
 		}
 	}

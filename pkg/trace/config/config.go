@@ -432,7 +432,8 @@ type RemoteClient interface {
 
 // Tag represents a key/value pair.
 type Tag struct {
-	K, V string
+	K string
+	V *regexp.Regexp
 }
 
 // New returns a configuration with the default values.
