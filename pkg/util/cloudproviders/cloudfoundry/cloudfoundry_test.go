@@ -50,7 +50,6 @@ func TestHostAlias(t *testing.T) {
 	assert.Nil(t, err)
 
 	hostname, _ := os.Hostname()
-	mockHostname := "hostname"
 
 	assert.Len(t, aliases, 2)
 	assert.Contains(t, aliases, "ID_CF")
@@ -58,14 +57,14 @@ func TestHostAlias(t *testing.T) {
 
 	// mock Fqdn returning something different
 	getFqdn = func(hostname string) string {
-		return mockHostname
+		return hostname + "suffix"
 	}
 	aliases, err = GetHostAliases(ctx)
 	assert.Nil(t, err)
 	assert.Len(t, aliases, 3)
 	assert.Contains(t, aliases, "ID_CF")
 	assert.Contains(t, aliases, hostname)
-	assert.Contains(t, aliases, mockHostname)
+	assert.Contains(t, aliases, hostname+"suffix")
 
 }
 
