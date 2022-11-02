@@ -234,10 +234,10 @@ def integration_freeze
   end
 end
 
-def json_info
+def json_info(command)
   tmpfile = Tempfile.new('agent-status')
   begin
-    `#{agent_command} status -j -o #{tmpfile.path}`
+    `#{command} status -j -o #{tmpfile.path}`
     info_output = File.read(tmpfile.path)
 
     JSON.parse(info_output)
@@ -297,6 +297,27 @@ def agent_processes_running?
   false
 end
 
+def security_agent_running?
+  %w(security-agent security-agent.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
+def system_probe_running?
+  %w(system-probe system-probe.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
+def process_agent_running?
+  %w(process-agent process-agent.exe).each do |p|
+    return true if is_process_running?(p)
+  end
+  false
+end
+
 def dogstatsd_processes_running?
   %w(dogstatsd dogstatsd.exe).each do |p|
       return true if is_process_running?(p)
@@ -340,13 +361,17 @@ def is_port_bound(port)
   end
 end
 
+def get_conf_file(conf_path)
+  if os == :windows
+    return "#{ENV['ProgramData']}\\Datadog\\#{conf_path}"
+  else
+    return "/etc/datadog-agent/#{conf_path}"
+  end
+end
 
-def read_conf_file
-    conf_path = ""
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
+def read_conf_file(conf_path = "")
+    if conf_path == ""
+      conf_path = get_conf_file("datadog.yaml")
     end
     puts "cp is #{conf_path}"
     f = File.read(conf_path)
@@ -358,7 +383,7 @@ def fetch_python_version(timeout = 15)
   # Fetch the python_version from the Agent status
   # Timeout after the given number of seconds
   for _ in 1..timeout do
-    json_info_output = json_info
+    json_info_output = json_info(agent_command())
     if json_info_output.key?('python_version') &&
       ! json_info_output['python_version'].nil? && # nil is considered a correct version by Gem::Version
       Gem::Version.correct?(json_info_output['python_version']) # Check that we do have a version number
@@ -399,6 +424,9 @@ shared_examples_for 'Agent behavior' do
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
+  if os != :windows
+    it_behaves_like 'a running Agent with CWS enabled'
+  end
 end
 
 shared_examples_for 'Agent uninstall' do
@@ -501,11 +529,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'has a config file' do
-    if os == :windows
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    else
-      conf_path = '/etc/datadog-agent/datadog.yaml'
-    end
+    conf_path = get_conf_file("datadog.yaml")
     expect(File).to exist(conf_path)
   end
 
@@ -514,7 +538,7 @@ shared_examples_for "a running Agent with no errors" do
     # Wait for the collector to do its first run
     # Timeout after 30 seconds
     for _ in 1..30 do
-      json_info_output = json_info
+      json_info_output = json_info(agent_command())
       if json_info_output.key?('runnerStats') &&
         json_info_output['runnerStats'].key?('Checks') &&
         !json_info_output['runnerStats']['Checks'].empty?
@@ -570,12 +594,7 @@ end
 
 shared_examples_for "a running Agent with APM manually disabled" do
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
-    conf_path = ""
-    if os != :windows
-      conf_path = "/etc/datadog-agent/datadog.yaml"
-    else
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    end
+    conf_path = get_conf_file("datadog.yaml")
 
     f = File.read(conf_path)
     confYaml = YAML.load(f)
@@ -657,12 +676,7 @@ end
 
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set to 3' do
-    conf_path = ""
-    if os != :windows
-      conf_path = "/etc/datadog-agent/datadog.yaml"
-    else
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    end
+    conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
     confYaml = YAML.load(f)
     confYaml["python_version"] = 3
@@ -683,12 +697,7 @@ shared_examples_for 'an Agent with python3 enabled' do
 
   it 'restarts after python_version is set back to 2' do
     skip if info.include? "v7."
-    conf_path = ""
-    if os != :windows
-      conf_path = "/etc/datadog-agent/datadog.yaml"
-    else
-      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-    end
+    conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
     confYaml = YAML.load(f)
     confYaml["python_version"] = 2
@@ -880,6 +889,40 @@ shared_examples_for 'an Agent with process enabled' do
   end
 end
 
+shared_examples_for 'a running Agent with CWS enabled' do
+  it 'has CWS enabled' do
+    enable_cws(get_conf_file("system-probe.yaml"), true)
+    enable_cws(get_conf_file("security-agent.yaml"), true)
+
+    output = restart "datadog-agent"
+    expect(output).to be_truthy
+  end
+
+  it 'has the security agent running' do
+    expect(security_agent_running?).to be_truthy
+    expect(is_service_running?("datadog-agent-security")).to be_truthy
+  end
+
+  it 'has system-probe running' do
+    expect(system_probe_running?).to be_truthy
+    expect(is_service_running?("datadog-agent-sysprobe")).to be_truthy
+  end
+
+  it 'has security-agent and system-probe communicating' do
+    for _ in 1..10 do
+      json_info_output = json_info("sudo /opt/datadog-agent/embedded/bin/security-agent")
+      if json_info_output.key?('runtimeSecurityStatus') &&
+        json_info_output['runtimeSecurityStatus'].key?('connected') &&
+        json_info_output['runtimeSecurityStatus']['connected']
+        result = true
+        break
+      end
+      sleep 3
+    end
+    expect(result).to be_truthy
+  end
+end
+
 shared_examples_for 'an upgraded Agent with the expected version' do
   # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
@@ -907,6 +950,21 @@ shared_examples_for 'an upgraded Agent with the expected version' do
     expect(File).to exist(version_manifest_file)
     # Match the first line of the manifest file
     expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
+  end
+end
+
+def enable_cws(conf_path, state)
+  begin
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    if !confYaml.key("runtime_security_config")
+      confYaml["runtime_security_config"] = {}
+    end
+    confYaml["runtime_security_config"]["enabled"] = state
+  rescue
+    confYaml = {'runtime_security_config' => {'enabled' => state}}
+  ensure
+    File.write(conf_path, confYaml.to_yaml)
   end
 end
 
