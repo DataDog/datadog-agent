@@ -53,6 +53,9 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 		if err != nil {
 			fmt.Printf("unable to get snmp config: %v", err)
 		}
+
+		fmt.Printf("ParseConfigSnmp Inst: %+v\n", inst)
+		fmt.Printf("ParseConfigSnmp instance: %+v\n", instance)
 		// add the instance(type SNMPConfig) to the array snmpconfigs
 		snmpconfigs = append(snmpconfigs, instance)
 	}
@@ -69,6 +72,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
@@ -83,6 +87,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("cr.Configs: %+v\n", cr.Configs)
 	//Store the SNMP config in an array (snmpconfigs)
 	//c is of type config while the cr is the config check response including the instances
 	for _, c := range cr.Configs {
