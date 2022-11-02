@@ -50,6 +50,7 @@ func TestHostAlias(t *testing.T) {
 	assert.Nil(t, err)
 
 	hostname, _ := os.Hostname()
+	mockHostname := "hostname"
 
 	assert.Len(t, aliases, 2)
 	assert.Contains(t, aliases, "ID_CF")
@@ -57,20 +58,26 @@ func TestHostAlias(t *testing.T) {
 
 	// mock Fqdn returning something different
 	getFqdn = func(hostname string) string {
-		return hostname + "suffix"
+		return mockHostname
 	}
 	aliases, err = GetHostAliases(ctx)
 	assert.Nil(t, err)
 	assert.Len(t, aliases, 3)
 	assert.Contains(t, aliases, "ID_CF")
 	assert.Contains(t, aliases, hostname)
-	assert.Contains(t, aliases, hostname+"suffix")
+	assert.Contains(t, aliases, mockHostname)
 
 }
 
 func TestHostAliasDefault(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockHostname := "hostname"
+
+	// mock getFqdn to avoid flakes in CI runners
+	getFqdn = func(hostname string) string {
+		return mockHostname
+	}
 
 	mockConfig.Set("cloud_foundry", true)
 	mockConfig.Set("bosh_id", nil)
@@ -79,6 +86,5 @@ func TestHostAliasDefault(t *testing.T) {
 	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
 
-	hostname, _ := os.Hostname()
-	assert.Equal(t, []string{util.Fqdn(hostname)}, aliases)
+	assert.Equal(t, []string{mockHostname}, aliases)
 }
