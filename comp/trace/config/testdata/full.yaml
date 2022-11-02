@@ -50,8 +50,8 @@ apm_config:
     - /500
 
   filter_tags:
-    require: ["env:prod", "db:mongodb"]
-    reject: ["outcome:success"]
+    require: ["env:^prod$", "db:mongodb"]
+    reject: ["outcome:^success$"]
 
   replace_tags:
     - name: "http.method"

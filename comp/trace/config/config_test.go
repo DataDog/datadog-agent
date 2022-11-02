@@ -6,6 +6,8 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"html/template"
@@ -20,6 +22,7 @@ import (
 
 	"testing"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -29,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // team: agent-apm
@@ -62,25 +66,47 @@ func TestSplitTag(t *testing.T) {
 		},
 		{
 			tag: "key:value",
-			kv:  &config.Tag{K: "key", V: "value"},
+			kv:  &config.Tag{K: "key", V: regexp.MustCompile("value")},
 		},
 		{
 			tag: "env:prod",
-			kv:  &config.Tag{K: "env", V: "prod"},
+			kv:  &config.Tag{K: "env", V: regexp.MustCompile("prod")},
 		},
 		{
 			tag: "env:staging:east",
-			kv:  &config.Tag{K: "env", V: "staging:east"},
+			kv:  &config.Tag{K: "env", V: regexp.MustCompile("staging:east")},
 		},
 		{
 			tag: "key",
 			kv:  &config.Tag{K: "key"},
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("normal", func(t *testing.T) {
 			assert.Equal(t, splitTag(tt.tag), tt.kv)
 		})
 	}
+
+	bad := struct {
+		tag string
+		kv  *config.Tag
+	}{
+
+		tag: "key:[value",
+		kv:  nil,
+	}
+
+	t.Run("error", func(t *testing.T) {
+		var b bytes.Buffer
+		w := bufio.NewWriter(&b)
+
+		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
+		assert.Nil(t, err)
+		seelog.ReplaceLogger(logger) //nolint:errcheck
+		log.SetupLogger(logger, "debug")
+		assert.Nil(t, splitTag(bad.tag))
+		w.Flush()
+		assert.Contains(t, b.String(), "[ERROR] Invalid tag filter: \"key\":\"[value\"")
+	})
 }
 
 func TestTelemetryEndpointsConfig(t *testing.T) {
@@ -625,8 +651,8 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, cfg.Endpoints)
 
-	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
-	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}}, cfg.RejectTags)
+	assert.ElementsMatch([]*config.Tag{{K: "env", V: regexp.MustCompile("^prod$")}, {K: "db", V: regexp.MustCompile("mongodb")}}, c.RequireTags)
+	assert.ElementsMatch([]*config.Tag{{K: "outcome", V: regexp.MustCompile("^success$")}}, c.RejectTags)
 
 	assert.ElementsMatch(t, []*traceconfig.ReplaceRule{
 		{
@@ -1169,7 +1195,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: nil}, {K: "important2", V: regexp.MustCompile("value1")}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1187,7 +1213,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: regexp.MustCompile("value with a space")}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REJECT"
@@ -1206,7 +1232,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: regexp.MustCompile("value1")}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1224,7 +1250,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: regexp.MustCompile("value with a space")}})
 	})
 
 	t.Run(env, func(t *testing.T) {

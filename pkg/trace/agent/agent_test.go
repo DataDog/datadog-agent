@@ -789,39 +789,39 @@ func TestFilteredByTags(t *testing.T) {
 		drop    bool
 	}{
 		{
-			require: []*config.Tag{{K: "key", V: "val"}},
+			require: []*config.Tag{{K: "key", V: regexp.MustCompile("val")}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    false,
 		},
 		{
-			reject: []*config.Tag{{K: "key", V: "val"}},
+			reject: []*config.Tag{{K: "key", V: regexp.MustCompile("^val$")}},
 			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
 			drop:   false,
 		},
 		{
-			reject: []*config.Tag{{K: "something", V: "else"}},
+			reject: []*config.Tag{{K: "something", V: regexp.MustCompile("else")}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   false,
 		},
 		{
-			require: []*config.Tag{{K: "something", V: "else"}},
-			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			require: []*config.Tag{{K: "something", V: regexp.MustCompile("else")}},
+			reject:  []*config.Tag{{K: "bad-key", V: regexp.MustCompile("bad-value")}},
 			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
 			drop:    false,
 		},
 		{
-			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
-			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			require: []*config.Tag{{K: "key", V: regexp.MustCompile("value")}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: regexp.MustCompile("^bad-value$")}},
 			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
 			drop:    false,
 		},
 		{
-			require: []*config.Tag{{K: "key", V: "val"}},
+			require: []*config.Tag{{K: "key", V: regexp.MustCompile("^val$")}},
 			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
 			drop:    true,
 		},
 		{
-			require: []*config.Tag{{K: "something", V: "else"}},
+			require: []*config.Tag{{K: "something", V: regexp.MustCompile("else")}},
 			span:    pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:    true,
 		},
@@ -832,19 +832,19 @@ func TestFilteredByTags(t *testing.T) {
 			drop:    true,
 		},
 		{
-			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
-			reject:  []*config.Tag{{K: "test"}},
+			require: []*config.Tag{{K: "valid-key", V: regexp.MustCompile("valid-value")}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test", V: regexp.MustCompile("")}},
 			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
 			drop:    true,
 		},
 		{
-			reject: []*config.Tag{{K: "key", V: "val"}},
+			reject: []*config.Tag{{K: "key", V: regexp.MustCompile("val")}},
 			span:   pb.Span{Meta: map[string]string{"key": "val"}},
 			drop:   true,
 		},
 		{
-			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
-			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
+			require: []*config.Tag{{K: "something", V: regexp.MustCompile("else")}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: regexp.MustCompile("bad-value")}, {K: "bad-key-only"}},
 			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
 			drop:    true,
 		},
