@@ -42,9 +42,9 @@ func TestAdd(t *testing.T) {
 		release:                 &rel,
 		commonTags:              genericTags,
 		tagsForMetricsAndEvents: tagsForMetricsAndEvents,
-	}, store.get("default/my_datadog", 1, k8sSecrets))
+	}, store.get(k8sSecrets, "default/my_datadog", 1))
 
-	assert.Nil(t, store.get("default/my_datadog", 1, k8sConfigmaps)) // Different storage
+	assert.Nil(t, store.get(k8sConfigmaps, "default/my_datadog", 1)) // Different storage
 }
 
 func TestGetAll(t *testing.T) {

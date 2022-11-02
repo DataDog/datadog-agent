@@ -155,8 +155,7 @@ func (hc *HelmCheck) Run() error {
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
-			tags := append(rel.commonTags, rel.tagsForMetricsAndEvents...)
-			sender.Gauge("helm.release", 1, "", tags)
+			sender.Gauge("helm.release", 1, "", hc.store.getAllTagsForRelease(storageDriver, rel.release.namespacedName(), rel.release.revision(), true))
 		}
 	}
 
@@ -209,20 +208,7 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 	)
 }
 
-func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
-	return append(
-		commonTags(release, storageDriver),
-		hc.tagsForMetricsAndEvents(release, includeRevision)...,
-	)
-}
-
-func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision bool) []string {
-	var tags []string
-
-	if includeRevision {
-		tags = append(tags, fmt.Sprintf("helm_revision:%d", release.Version))
-	}
-
+func (hc *HelmCheck) tagsForMetricsAndEvents(release *release) (tags []string) {
 	// I've found releases without a chart reference. Not sure if it's due to
 	// failed deployments, bugs in Helm, etc.
 	if release.Chart != nil && release.Chart.Metadata != nil {
@@ -230,6 +216,7 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 		// https://helm.sh/docs/chart_best_practices/labels/
 		escapedVersion := strings.ReplaceAll(release.Chart.Metadata.Version, "+", "_")
 		helmChartTag := fmt.Sprintf("helm_chart:%s-%s", release.Chart.Metadata.Name, escapedVersion)
+
 		tags = append(
 			tags,
 			fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
@@ -251,16 +238,16 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))
 	}
 
-	return tags
+	return
 }
 
 // commonTags returns the common tags that are included in service checks, the
 // metrics, and the events. These are the tags that don't change between
 // revisions
-func commonTags(release *release, storageDriver helmStorage) []string {
-	tags := []string{
-		fmt.Sprintf("helm_release:%s", release.Name),
+func commonTags(release *release, storageDriver helmStorage) (tags []string) {
+	tags = []string{
 		fmt.Sprintf("helm_storage:%s", storageDriver),
+		fmt.Sprintf("helm_release:%s", release.Name),
 		fmt.Sprintf("kube_namespace:%s", release.Namespace),
 
 		// "helm_namespace" is just an alias for "kube_namespace".
@@ -274,7 +261,7 @@ func commonTags(release *release, storageDriver helmStorage) []string {
 		tags = append(tags, fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name))
 	}
 
-	return tags
+	return
 }
 
 func (hc *HelmCheck) addSecret(obj interface{}) {
@@ -400,14 +387,18 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 		return
 	}
 
-	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
-
 	genericTags := commonTags(decodedRelease, storageDriver)
-	tagsMetricsAndEvents := hc.tagsForMetricsAndEvents(decodedRelease, true)
-	allTags := append(genericTags, tagsMetricsAndEvents...)
+	tagsMetricsAndEvents := hc.tagsForMetricsAndEvents(decodedRelease)
 
+	// If we need to collect the event
+	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
 	if needToEmitEvent {
-		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
+		allTags := append(genericTags, tagsMetricsAndEvents...)
+
+		// TODO: Find a better way to include this tag
+		allTags = append(allTags, fmt.Sprintf("helm_revision:%d", decodedRelease.Version))
+
+		if previous := hc.store.get(storageDriver, decodedRelease.namespacedName(), decodedRelease.revision()); previous != nil {
 			hc.eventsManager.addEventForUpdatedRelease(previous.release, decodedRelease, allTags)
 		} else {
 			hc.eventsManager.addEventForNewRelease(decodedRelease, allTags)
@@ -424,7 +415,13 @@ func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, s
 		decodedRelease.Chart.Values = nil
 	}
 
-	hc.store.add(decodedRelease, storageDriver, genericTags, tagsMetricsAndEvents)
+	// Store the release in memory
+	hc.store.add(
+		decodedRelease,
+		storageDriver,
+		genericTags,
+		tagsMetricsAndEvents,
+	)
 }
 
 func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
@@ -434,14 +431,17 @@ func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStor
 		return
 	}
 
+	allTags := hc.store.getAllTagsForRelease(storageDriver, decodedRelease.namespacedName(), decodedRelease.revision(), false)
 	moreRevisionsLeft := hc.store.delete(decodedRelease, storageDriver)
 
 	// When a release is deleted, all its revisions are deleted at the same
 	// time. To avoid generating many events with the same info, we just emit
 	// one when there are no more revisions left.
 	if hc.instance.CollectEvents && !moreRevisionsLeft {
-		tags := hc.allTags(decodedRelease, storageDriver, false)
-		hc.eventsManager.addEventForDeletedRelease(decodedRelease, tags)
+		hc.eventsManager.addEventForDeletedRelease(
+			decodedRelease,
+			allTags,
+		)
 	}
 }
 

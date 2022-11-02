@@ -145,62 +145,68 @@ func TestRun(t *testing.T) {
 			"helm_chart_name:datadog",
 			"kube_namespace:default",
 			"helm_namespace:default",
-			"helm_revision:1",
 			"helm_status:deployed",
 			"helm_chart_version:2.30.5",
 			"helm_app_version:7",
 			"helm_chart:datadog-2.30.5",
+			"helm_revision:1",
+			"helm_revision_is_most_recent:true",
 		},
 		{
 			"helm_release:my_app",
 			"helm_chart_name:some_app",
 			"kube_namespace:app",
 			"helm_namespace:app",
-			"helm_revision:2",
 			"helm_status:deployed",
 			"helm_chart_version:1.1.0",
 			"helm_app_version:1",
 			"helm_chart:some_app-1.1.0",
+			"helm_revision:2",
+			"helm_revision_is_most_recent:true",
 		},
 		{
 			"helm_release:release_without_chart",
 			"kube_namespace:default",
 			"helm_namespace:default",
-			"helm_revision:1",
 			"helm_status:deployed",
+			"helm_revision:1",
+			"helm_revision_is_most_recent:true",
 		},
 		{
 			"helm_release:release_without_info",
 			"helm_chart_name:example_app",
 			"kube_namespace:default",
 			"helm_namespace:default",
-			"helm_revision:1",
 			"helm_chart_version:2.0.0",
 			"helm_app_version:1",
 			"helm_chart:example_app-2.0.0",
+			"helm_revision:1",
+			"helm_revision_is_most_recent:true",
 		},
 		{
 			"helm_release:foo",
 			"helm_chart_name:foo",
 			"kube_namespace:default",
 			"helm_namespace:default",
-			"helm_revision:1",
 			"helm_status:deployed",
 			"helm_chart_version:2+30+5",
 			"helm_app_version:7",
 			"helm_chart:foo-2_30_5",
+			"helm_revision:1",
+			"helm_revision_is_most_recent:true",
 		},
 		{
 			"helm_release:with_helm_values",
 			"helm_chart_name:with_helm_values",
 			"kube_namespace:default",
 			"helm_namespace:default",
-			"helm_revision:1",
 			"helm_status:deployed",
 			"helm_chart_version:1.0.0",
 			"helm_app_version:1",
 			"helm_chart:with_helm_values-1.0.0",
 			"option_value:2", // Because "HelmValuesAsTags" is set with "option" => "option_value" in the test check
+			"helm_revision:1",
+			"helm_revision_is_most_recent:true",
 		},
 	}
 
@@ -322,7 +328,20 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
-		expectedTags := check.allTags(&rel, k8sSecrets, true)
+
+		expectedTags := []string{
+			"helm_storage:secret",
+			"helm_release:my_datadog",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_chart_name:datadog",
+			"helm_chart_version:2.30.5",
+			"helm_app_version:7",
+			"helm_chart:datadog-2.30.5",
+			"helm_status:deployed",
+			"helm_revision:1",
+		}
+
 		return mockedSender.AssertEvent(
 			t,
 			eventForRelease(&rel, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", expectedTags),
@@ -340,7 +359,20 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
-		expectedTags := check.allTags(&rel, k8sSecrets, true)
+
+		expectedTags := []string{
+			"helm_storage:secret",
+			"helm_release:my_datadog",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_chart_name:datadog",
+			"helm_chart_version:2.30.5",
+			"helm_app_version:7",
+			"helm_chart:datadog-2.30.5",
+			"helm_status:deployed",
+			"helm_revision:2",
+		}
+
 		return mockedSender.AssertEvent(
 			t,
 			eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", expectedTags),
@@ -357,7 +389,18 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
-		expectedTags := check.allTags(&rel, k8sSecrets, false)
+
+		expectedTags := []string{
+			"helm_storage:secret",
+			"helm_release:my_datadog",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_chart_name:datadog",
+			"helm_chart_version:2.30.5",
+			"helm_app_version:7",
+			"helm_chart:datadog-2.30.5",
+		}
+
 		return mockedSender.AssertEvent(
 			t,
 			eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", expectedTags),
@@ -525,7 +568,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			check.runLeaderElection = false
 
 			for _, rel := range releases {
-				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
+				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel))
 			}
 
 			mockedSender := mocksender.NewMockSender(checkName)
@@ -586,7 +629,6 @@ func TestRun_ServiceCheck(t *testing.T) {
 			)
 		})
 	}
-
 }
 
 // secretForRelease returns a Kubernetes secret that contains the info of the

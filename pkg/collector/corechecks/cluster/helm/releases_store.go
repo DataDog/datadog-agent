@@ -8,7 +8,10 @@
 
 package helm
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type taggedRelease struct {
 	release                 *release
@@ -37,28 +40,32 @@ func newReleasesStore() *releasesStore {
 }
 
 // add stores a release
-func (rs *releasesStore) add(rel *release, storage helmStorage, commonTags []string, tagsForMetricsAndEvents []string) {
+func (rs *releasesStore) add(rel *release, storage helmStorage, commonTags []string, tagsForMetricsAndEvents []string) (tr *taggedRelease) {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
-	if rs.store[storage][rel.namespacedName()] == nil {
-		rs.store[storage][rel.namespacedName()] = make(map[revision]*taggedRelease)
-	}
-
-	rs.store[storage][rel.namespacedName()][rel.revision()] = &taggedRelease{
+	tr = &taggedRelease{
 		release:                 rel,
 		commonTags:              commonTags,
 		tagsForMetricsAndEvents: tagsForMetricsAndEvents,
 	}
 
+	if rs.store[storage][rel.namespacedName()] == nil {
+		rs.store[storage][rel.namespacedName()] = make(map[revision]*taggedRelease)
+	}
+
+	rs.store[storage][rel.namespacedName()][rel.revision()] = tr
+
 	if rel.revision() > rs.latestRevisions[storage][rel.namespacedName()] {
 		rs.latestRevisions[storage][rel.namespacedName()] = rel.revision()
 	}
+
+	return
 }
 
 // get returns the release stored with the given namespacedName, revision and
 // storage. Returns nil when it does not exist.
-func (rs *releasesStore) get(namespacedName namespacedName, revision revision, storage helmStorage) *taggedRelease {
+func (rs *releasesStore) get(storage helmStorage, namespacedName namespacedName, revision revision) *taggedRelease {
 	rs.mutex.Lock()
 	defer rs.mutex.Unlock()
 
@@ -67,6 +74,20 @@ func (rs *releasesStore) get(namespacedName namespacedName, revision revision, s
 	}
 
 	return rs.store[storage][namespacedName][revision]
+}
+
+func (rs *releasesStore) getAllTagsForRelease(storage helmStorage, namespacedName namespacedName, revision revision, includeRevision bool) (tags []string) {
+	if tr := rs.get(storage, namespacedName, revision); tr != nil {
+		tags = append(tr.commonTags, tr.tagsForMetricsAndEvents...)
+
+		if includeRevision {
+			tags = append(tags, fmt.Sprintf("helm_revision:%d", revision))
+		}
+
+		tags = append(tags, fmt.Sprintf("helm_revision_is_most_recent:%t", revision == rs.latestRevision(storage, namespacedName)))
+	}
+
+	return
 }
 
 // getAll returns all the releases stored for the given helmStorage
@@ -113,7 +134,11 @@ func (rs *releasesStore) delete(rel *release, storage helmStorage) bool {
 	delete(rs.store[storage][rel.namespacedName()], rel.revision())
 
 	if len(rs.store[storage][rel.namespacedName()]) > 0 {
-		rs.latestRevisions[storage][rel.namespacedName()] = rs.latestRevision(rel, storage)
+		rs.mutex.Unlock()
+		latestRevision := rs.latestRevision(storage, rel.namespacedName())
+		rs.mutex.Lock()
+
+		rs.latestRevisions[storage][rel.namespacedName()] = latestRevision
 		return true
 	}
 
@@ -123,13 +148,13 @@ func (rs *releasesStore) delete(rel *release, storage helmStorage) bool {
 	return false
 }
 
-func (rs *releasesStore) latestRevision(rel *release, storage helmStorage) revision {
-	// Notice that we don't take the lock here. It's because this function is
-	// only meant to be called by delete() which already holds the lock.
+func (rs *releasesStore) latestRevision(storage helmStorage, releaseNamespacedName namespacedName) revision {
+	rs.mutex.Lock()
+	defer rs.mutex.Unlock()
 
 	latest := revision(0)
 
-	for rev := range rs.store[storage][rel.namespacedName()] {
+	for rev := range rs.store[storage][releaseNamespacedName] {
 		if rev > latest {
 			latest = rev
 		}
