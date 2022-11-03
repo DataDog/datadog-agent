@@ -104,8 +104,11 @@ func TestTraces(t *testing.T) {
 	t.Run("filter_tags", func(t *testing.T) {
 		if err := r.RunAgent([]byte(`apm_config:
   filter_tags:
-    require: ["env:^prod$", "db:mysql"]
-    reject: ["outcome:^success$"]`)); err != nil {
+    require: ["env:prod", "db:mysql"]
+    reject: ["outcome:success"]
+  filter_tags_regex:
+    require: ["env:^prod[0-9]{1}$", "priority:^high$"]
+    reject: ["outcome:^success[0-9]{1}$", "bad-key:^bad-value$"]`)); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
@@ -116,22 +119,33 @@ func TestTraces(t *testing.T) {
 		}, nil)
 		for _, span := range p[0] {
 			span.Meta = map[string]string{
-				"env": "prod",
-				"db":  "mysql",
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
 			}
 		}
 		for _, span := range p[1] {
 			span.Meta = map[string]string{
-				"env":     "prod",
-				"db":      "mysql",
-				"outcome": "success123",
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
+				"outcome":  "success1",
+			}
+		}
+		for _, span := range p[2] {
+			span.Meta = map[string]string{
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
+				"outcome":  "success",
 			}
 		}
 		for _, span := range p[3] {
 			span.Meta = map[string]string{
-				"outcome": "success",
-				"db":      "mysql",
-				"env":     "prod",
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
+				"bad-key":  "bad-value",
 			}
 		}
 		if err := r.Post(p); err != nil {

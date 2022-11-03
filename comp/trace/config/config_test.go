@@ -66,26 +66,57 @@ func TestSplitTag(t *testing.T) {
 		},
 		{
 			tag: "key:value",
-			kv:  &config.Tag{K: "key", V: regexp.MustCompile("value")},
+			kv:  &config.Tag{K: "key", V: "value"},
 		},
 		{
 			tag: "env:prod",
-			kv:  &config.Tag{K: "env", V: regexp.MustCompile("prod")},
+			kv:  &config.Tag{K: "env", V: "prod"},
 		},
 		{
 			tag: "env:staging:east",
-			kv:  &config.Tag{K: "env", V: regexp.MustCompile("staging:east")},
+			kv:  &config.Tag{K: "env", V: "staging:east"},
 		},
 		{
 			tag: "key",
 			kv:  &config.Tag{K: "key"},
 		},
 	} {
-		t.Run("normal", func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			assert.Equal(t, splitTag(tt.tag), tt.kv)
 		})
 	}
+}
 
+func TestSplitTagRegex(t *testing.T) {
+	for _, tt := range []struct {
+		tag string
+		kv  *config.TagRegex
+	}{
+		{
+			tag: "",
+			kv:  &config.TagRegex{K: ""},
+		},
+		{
+			tag: "key:^value$",
+			kv:  &config.TagRegex{K: "key", V: regexp.MustCompile("^value$")},
+		},
+		{
+			tag: "env:^prod123$",
+			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^prod123$")},
+		},
+		{
+			tag: "env:^staging:east.*$",
+			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^staging:east.*$")},
+		},
+		{
+			tag: "key",
+			kv:  &config.TagRegex{K: "key"},
+		},
+	} {
+		t.Run("normal", func(t *testing.T) {
+			assert.Equal(t, splitTagRegex(tt.tag), tt.kv)
+		})
+	}
 	bad := struct {
 		tag string
 		kv  *config.Tag
@@ -103,9 +134,9 @@ func TestSplitTag(t *testing.T) {
 		assert.Nil(t, err)
 		seelog.ReplaceLogger(logger) //nolint:errcheck
 		log.SetupLogger(logger, "debug")
-		assert.Nil(t, splitTag(bad.tag))
+		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
-		assert.Contains(t, b.String(), "[ERROR] Invalid tag filter: \"key\":\"[value\"")
+		assert.Contains(t, b.String(), "[ERROR] Invalid regex pattern in tag filter: \"key\":\"[value\"")
 	})
 }
 
@@ -651,8 +682,10 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, cfg.Endpoints)
 
-	assert.ElementsMatch([]*config.Tag{{K: "env", V: regexp.MustCompile("^prod$")}, {K: "db", V: regexp.MustCompile("mongodb")}}, c.RequireTags)
-	assert.ElementsMatch([]*config.Tag{{K: "outcome", V: regexp.MustCompile("^success$")}}, c.RejectTags)
+	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
+	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}, {K: "bad-key", V: "bad-value"}}, cfg.RejectTags)
+	assert.ElementsMatch(t, []*traceconfig.TagRegex{{K: "type", V: regexp.MustCompile("^internal$")}}, cfg.RequireTagsRegex)
+	assert.ElementsMatch(t, []*traceconfig.TagRegex{{K: "filter", V: regexp.MustCompile("^true$")}}, cfg.RejectTagsRegex)
 
 	assert.ElementsMatch(t, []*traceconfig.ReplaceRule{
 		{
@@ -1195,7 +1228,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: nil}, {K: "important2", V: regexp.MustCompile("value1")}})
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1"}, {K: "important2", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1213,7 +1246,46 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: regexp.MustCompile("value with a space")}})
+		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
+	})
+
+	env = "DD_APM_FILTER_TAGS_REGEX_REQUIRE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `important1 important2:^value1$`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1"}, {K: "important2", V: regexp.MustCompile("^value1$")}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["important1:^value with a space$"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1", V: regexp.MustCompile("^value with a space$")}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REJECT"
@@ -1232,7 +1304,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: regexp.MustCompile("value1")}})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1250,7 +1322,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: regexp.MustCompile("value with a space")}})
+		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1272,6 +1344,41 @@ func TestLoadEnv(t *testing.T) {
 			{K: "bad1", V: "value with a space"},
 			{K: "bad2", V: "value with spaces"},
 		})
+	})
+
+	env = "DD_APM_FILTER_TAGS_REGEX_REJECT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `bad1:^value1$`)
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("^value1$")}})
+	})
+
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["bad1:value with a space"]`)
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("value with a space")}})
 	})
 
 	for _, envKey := range []string{
