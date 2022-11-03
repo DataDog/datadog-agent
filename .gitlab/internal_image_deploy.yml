@@ -14,7 +14,7 @@ docker_trigger_internal:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   variables:
-    IMAGE_VERSION: tmpl-v5
+    IMAGE_VERSION: tmpl-v6
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx

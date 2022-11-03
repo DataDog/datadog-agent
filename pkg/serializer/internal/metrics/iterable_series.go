@@ -113,10 +113,14 @@ func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buffe
 	const seriesType = 5
 	const seriesSourceTypeName = 7
 	const seriesInterval = 8
+	const serieMetadata = 9
 	const resourceType = 1
 	const resourceName = 2
 	const pointValue = 1
 	const pointTimestamp = 2
+	const serieMetadataOrigin = 1
+	const serieMetadataOriginMetricType = 3
+	const metryTypeNotIndexed = 9
 
 	// Prepare to write the next payload
 	startPayload := func() error {
@@ -260,6 +264,13 @@ func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buffe
 				}
 			}
 
+			if serie.NoIndex {
+				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
+						return ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
+					})
+				})
+			}
 			return nil
 		})
 		if err != nil {

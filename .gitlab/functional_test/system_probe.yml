@@ -19,16 +19,24 @@
   script:
     - bash -l tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
 
+
+.retrieve_minimized_btfs:
+  - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
+  - cp /tmp/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
+
+
 kitchen_test_system_probe_linux_x64:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: [ "tests_ebpf_x64" ]
+  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64" ]
   variables:
+    ARCH: amd64
     KITCHEN_ARCH: x86_64
     KITCHEN_IMAGE_SIZE: Standard_D2_v2
   before_script:
+    - !reference [.retrieve_minimized_btfs]
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   parallel:
@@ -46,11 +54,13 @@ kitchen_test_system_probe_linux_x64_ec2:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64" ]
+  needs: [ "tests_ebpf_x64", "generate_minimized_btfs_x64" ]
   variables:
+    ARCH: amd64
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
   before_script:
+    - !reference [.retrieve_minimized_btfs]
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   parallel:
@@ -64,11 +74,13 @@ kitchen_test_system_probe_linux_arm64:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
-  needs: [ "tests_ebpf_arm64" ]
+  needs: [ "tests_ebpf_arm64", "generate_minimized_btfs_arm64" ]
   variables:
+    ARCH: arm64
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
   before_script:
+    - !reference [.retrieve_minimized_btfs]
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   parallel:

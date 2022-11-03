@@ -43,19 +43,19 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.36
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/quantile v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2
+	github.com/DataDog/agent-payload/v5 v5.0.39
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52
+	github.com/DataDog/ebpf-manager v0.1.0
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
 	github.com/DataDog/gopsutil v1.2.1
 	github.com/DataDog/nikos v1.9.0
@@ -92,7 +92,7 @@ require (
 	github.com/containernetworking/cni v1.1.1
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
-	github.com/cri-o/ocicni v0.3.0
+	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v20.10.17+incompatible

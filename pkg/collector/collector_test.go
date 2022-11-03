@@ -12,9 +12,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // FIXTURE
@@ -109,7 +113,7 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
-	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
+	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"].Inner())
 
 	// schedule the same check twice
 	_, err = suite.c.RunCheck(ch)
@@ -147,7 +151,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = NewCheck()
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
@@ -237,6 +241,108 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	assert.Zero(suite.T(), len(suite.c.checks))
 }
 
+func (suite *CollectorTestSuite) TestCancelledCheckCanSendMetrics() {
+	// Test that a long running check can send metrics using
+	// correct sender after it was cancelled, and destroys a
+	// sender at the end.
+
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
+	defer demux.Stop(false)
+
+	flip := make(chan struct{})
+	flop := make(chan struct{})
+
+	ch := &cancelledCheck{
+		flip: flip,
+		flop: flop,
+	}
+
+	sender, _ := aggregator.GetSender(ch.ID())
+	sender.DisableDefaultHostname(true)
+
+	suite.c.RunCheck(ch)
+
+	// Wait for Check#Run to start before cancelling the check: otherwise it may not run at all.
+	_ = <-flip
+
+	err := suite.c.StopCheck(ch.ID())
+	assert.NoError(suite.T(), err)
+
+	flop <- struct{}{}
+
+	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+
+	newSender, err := aggregator.GetSender(ch.ID())
+	assert.Nil(suite.T(), err)
+	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
+}
+
+func (suite *CollectorTestSuite) waitForCancelledCheckMetrics(agg *aggregator.BufferedAggregator) {
+	require.Eventually(suite.T(), func() bool {
+		series, _ := agg.GetSeriesAndSketches(time.Time{})
+		for _, serie := range series {
+			if serie.Name == "test.metric" {
+				assert.Empty(suite.T(), serie.Host)
+				assert.Equal(suite.T(), serie.MType, metrics.APIGaugeType)
+				return true
+			}
+		}
+		return false
+	}, time.Second, 10*time.Millisecond)
+}
+
+func (suite *CollectorTestSuite) TestCancelledCheckDestroysSender() {
+	// Test that a check destroys a sender if it is not running when it is cancelled.
+
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
+	defer demux.Stop(false)
+
+	flip := make(chan struct{})
+	flop := make(chan struct{})
+
+	ch := &cancelledCheck{
+		flip: flip,
+		flop: flop,
+	}
+
+	sender, _ := aggregator.GetSender(ch.ID())
+	sender.DisableDefaultHostname(true)
+
+	suite.c.RunCheck(ch)
+	<-flip
+	flop <- struct{}{}
+	suite.c.checks[ch.ID()].Wait()
+	err := suite.c.StopCheck(ch.ID())
+	assert.NoError(suite.T(), err)
+
+	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+
+	newSender, err := aggregator.GetSender(ch.ID())
+	assert.Nil(suite.T(), err)
+	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
+}
+
 func TestCollectorSuite(t *testing.T) {
 	suite.Run(t, new(CollectorTestSuite))
+}
+
+type cancelledCheck struct {
+	check.StubCheck
+	flip chan struct{}
+	flop chan struct{}
+}
+
+func (c *cancelledCheck) Run() error {
+	c.flip <- struct{}{}
+
+	<-c.flop
+	s, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
+	s.Gauge("test.metric", 1, "", []string{})
+	s.Commit()
+
+	return nil
 }
