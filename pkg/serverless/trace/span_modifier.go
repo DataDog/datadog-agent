@@ -11,12 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type spanModifier struct {
-	tags map[string]string
+type SpanModifier struct {
+	tags   map[string]string
+	Origin string
 }
 
 // Process applies extra logic to the given span
-func (s *spanModifier) ModifySpan(span *pb.Span) {
+func (s *SpanModifier) ModifySpan(span *pb.Span) {
 	if span.Service == "aws.lambda" && s.tags["service"] != "" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		span.Service = s.tags["service"]
@@ -30,5 +31,12 @@ func (s *spanModifier) ModifySpan(span *pb.Span) {
 			spanMetadataTags = inferredspan.FilterFunctionTags(spanMetadataTags)
 			span.Meta = spanMetadataTags
 		}
+	}
+	// For agent-in-container, add root spans
+	if s.Origin == "cloudrun" || s.Origin == "containerapp" {
+		if span.ParentID != 0 {
+			return
+		}
+		span.Meta["root_span"] = "true"
 	}
 }

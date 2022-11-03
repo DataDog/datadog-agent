@@ -20,9 +20,8 @@ import (
 // ServerlessTraceAgent represents a trace agent in a serverless context
 type ServerlessTraceAgent struct {
 	ta           *agent.Agent
-	spanModifier *spanModifier
+	SpanModifier *SpanModifier
 	cancel       context.CancelFunc
-	WrapSpans    func([]*pb.Span) []*pb.Span
 }
 
 // Load abstracts the file configuration loading
@@ -55,7 +54,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 }
 
 // Start starts the agent
-func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
+func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, spanModifier *SpanModifier) {
 	if enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
@@ -70,9 +69,9 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
-			s.spanModifier = &spanModifier{}
-			s.ta.ModifySpan = s.spanModifier.ModifySpan
-			s.ta.WrapSpans = s.WrapSpans
+			s.SpanModifier = spanModifier
+			log.Infof("ORIGIN IS %+v", spanModifier.Origin)
+			s.ta.ModifySpan = spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel
 			go s.ta.Run()
@@ -96,7 +95,7 @@ func (s *ServerlessTraceAgent) Get() *agent.Agent {
 func (s *ServerlessTraceAgent) SetTags(tagMap map[string]string) {
 	if s.Get() != nil {
 		s.ta.SetGlobalTagsUnsafe(tagMap)
-		s.spanModifier.tags = tagMap
+		s.SpanModifier.tags = tagMap
 	} else {
 		log.Debug("could not set tags as the trace agent has not been initialized")
 	}

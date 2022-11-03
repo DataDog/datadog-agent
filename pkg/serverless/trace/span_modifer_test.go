@@ -28,7 +28,7 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg)
-	spanModifier := &spanModifier{
+	spanModifier := &SpanModifier{
 		tags: cfg.GlobalTags,
 	}
 	agnt.ModifySpan = spanModifier.ModifySpan
@@ -59,7 +59,7 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := agent.NewAgent(ctx, cfg)
-	spanModifier := &spanModifier{
+	spanModifier := &SpanModifier{
 		tags: cfg.GlobalTags,
 	}
 	agnt.ModifySpan = spanModifier.ModifySpan
