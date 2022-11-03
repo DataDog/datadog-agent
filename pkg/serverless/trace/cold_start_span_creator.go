@@ -29,18 +29,17 @@ import (
 type ColdStartSpanCreator struct {
 	executionContext *executioncontext.ExecutionContext
 	traceAgent       *ServerlessTraceAgent
-	spanCreated      bool
 }
 
 func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
-	if c.spanCreated {
-		return
-	}
-	if lambdaSpan.Name != "aws.lambda.cold_start" {
+	// Prevent infinite loop from SpanModifier call
+	if lambdaSpan.Name == "aws.lambda.cold_start" {
 		return
 	}
 	ecs := c.executionContext.GetCurrentState()
-	if ecs.ColdstartDuration == 0 {
+	if !ecs.Coldstart || ecs.ColdstartDuration == 0 {
+
+		log.Debugf("[ColdStartSpanCreator] Skipping span creation - not cold start")
 		return
 	}
 
@@ -57,6 +56,11 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 		Duration: durationNs,
 	}
 
+	log.Debugf("[ColdStartSpanCreator] Creating cold start span %v", coldStartSpan)
+	c.processSpan(coldStartSpan)
+}
+
+func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
 	traceChunk := &pb.TraceChunk{
 		Origin:   "lambda",
 		Priority: int32(1),
@@ -66,10 +70,7 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 	tracerPayload := &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
-	log.Debugf("[ASTUYVE] lambda span %v", lambdaSpan)
-	log.Debugf("[ASTUYVE] calling process with span %v", coldStartSpan)
 
-	c.spanCreated = true
 	c.traceAgent.ta.Process(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
