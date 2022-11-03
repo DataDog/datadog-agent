@@ -638,7 +638,6 @@ int test_memfd_create(int argc, char **argv) {
         }
 
         fclose(stream);
-        close(fd);
     }
 
     return EXIT_SUCCESS;
