@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    APM: Add regex support for filtering tags by apm_config.filter_tags or environment
-    variables DD_APM_FILTER_TAGS_REQUIRE and DD_APM_FILTER_TAGS_REJECT.
+    APM: Add regex support for filtering tags by apm_config.filter_tags_regex or environment
+    variables DD_APM_FILTER_TAGS_REGEX_REQUIRE and DD_APM_FILTER_TAGS_REGEX_REJECT.
