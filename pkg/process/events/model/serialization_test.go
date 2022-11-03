@@ -26,13 +26,13 @@ func newBenchmarkProcessEvent(argCount int) *ProcessEvent {
 // Benchmark between JSON and messagePack serialization changing the command-line length of the collected event
 func BenchmarkProcessEventsJSON10(b *testing.B) { benchmarkProcessEventsJSON(b, 10) }
 
-// func BenchmarkProcessEventsMsgPack10(b *testing.B)   { benchmarkProcessEventsMsgPack(b, 10) }
-func BenchmarkProcessEventsJSON100(b *testing.B) { benchmarkProcessEventsJSON(b, 100) }
+func BenchmarkProcessEventsMsgPack10(b *testing.B) { benchmarkProcessEventsMsgPack(b, 10) }
+func BenchmarkProcessEventsJSON100(b *testing.B)   { benchmarkProcessEventsJSON(b, 100) }
 
-// func BenchmarkProcessEventsMsgPack100(b *testing.B)  { benchmarkProcessEventsMsgPack(b, 100) }
-func BenchmarkProcessEventsJSON1000(b *testing.B) { benchmarkProcessEventsJSON(b, 1000) }
+func BenchmarkProcessEventsMsgPack100(b *testing.B) { benchmarkProcessEventsMsgPack(b, 100) }
+func BenchmarkProcessEventsJSON1000(b *testing.B)   { benchmarkProcessEventsJSON(b, 1000) }
 
-// func BenchmarkProcessEventsMsgPack1000(b *testing.B) { benchmarkProcessEventsMsgPack(b, 1000) }
+func BenchmarkProcessEventsMsgPack1000(b *testing.B) { benchmarkProcessEventsMsgPack(b, 1000) }
 
 func benchmarkProcessEventsJSON(b *testing.B, argCount int) {
 	evt := newBenchmarkProcessEvent(argCount)
@@ -46,7 +46,6 @@ func benchmarkProcessEventsJSON(b *testing.B, argCount int) {
 	}
 }
 
-/*
 func benchmarkProcessEventsMsgPack(b *testing.B, argCount int) {
 	evt := newBenchmarkProcessEvent(argCount)
 	for i := 0; i < b.N; i++ {
@@ -58,4 +57,3 @@ func benchmarkProcessEventsMsgPack(b *testing.B, argCount int) {
 		require.NoError(b, err)
 	}
 }
-*/
