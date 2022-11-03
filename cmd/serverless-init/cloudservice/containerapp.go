@@ -53,7 +53,7 @@ func (c *ContainerApp) GetPrefix() string {
 
 // WrapSpans adds a top-level azure.containerapps span
 func (c *ContainerApp) WrapSpans(spans []*pb.Span) []*pb.Span {
-	return WrapSpans("azure.containerapp", spans)
+	return WrapSpans(c.GetOrigin(), spans)
 }
 
 func isContainerAppService() bool {

@@ -56,5 +56,5 @@ func (c *CloudRun) GetPrefix() string {
 
 // WrapSpans adds a top-level gcp.cloudrun span
 func (c *CloudRun) WrapSpans(spans []*pb.Span) []*pb.Span {
-	return WrapSpans("gcp.cloudrun", spans)
+	return WrapSpans(c.GetOrigin(), spans)
 }
