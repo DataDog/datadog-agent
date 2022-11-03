@@ -245,10 +245,6 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		if a.WrapSpans != nil {
-			chunk.Spans = a.WrapSpans(chunk.Spans)
-		}
-
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
 
@@ -267,6 +263,10 @@ func (a *Agent) Process(p *api.Payload) {
 			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
+		}
+
+		if a.WrapSpans != nil {
+			chunk.Spans = a.WrapSpans(chunk.Spans)
 		}
 
 		// Extra sanitization steps of the trace.
