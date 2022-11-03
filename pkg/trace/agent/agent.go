@@ -244,7 +244,6 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
-
 		normalizeChunk(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
