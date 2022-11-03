@@ -10,7 +10,6 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"testing"
@@ -56,7 +55,7 @@ func TestProcessEventFiltering(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, e := range rawEvents {
-		data, err := json.Marshal(e)
+		data, err := e.MarshalMsg(nil)
 		require.NoError(t, err)
 		l.consumeData(data)
 	}
@@ -78,7 +77,7 @@ func TestProcessEventHandling(t *testing.T) {
 	events = append(events, model.NewMockedExitEvent(time.Now().Add(-5*time.Second), 32, "/usr/bin/ls", []string{"ls", "invalid-path"}, 2))
 
 	for _, e := range events {
-		data, err := json.Marshal(e)
+		data, err := e.MarshalMsg(nil)
 		require.NoError(t, err)
 
 		stream.On("Recv").Once().Return(&api.SecurityProcessEventMessage{Data: data}, nil)
@@ -118,7 +117,7 @@ func TestSecurityModuleClientReconnect(t *testing.T) {
 	client := mocks.NewSecurityModuleClient(t)
 	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
 
-	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) { return })
+	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) {})
 	require.NoError(t, err)
 
 	l.retryInterval = 10 * time.Millisecond // force a fast retry for tests

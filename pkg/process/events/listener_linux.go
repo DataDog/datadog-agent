@@ -10,7 +10,6 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -149,9 +148,8 @@ func (l *SysProbeListener) run() {
 // consumeData unmarshals the serialized process event received from the SecurityModule server, filters it and applies the
 // EventHandler
 func (l *SysProbeListener) consumeData(data []byte) {
-	sysEvent := &model.ProcessEvent{}
-
-	if err := json.Unmarshal(data, sysEvent); err != nil {
+	var sysEvent model.ProcessEvent
+	if _, err := sysEvent.UnmarshalMsg(data); err != nil {
 		log.Errorf("Could not unmarshal process event: %v", err)
 		return
 	}
@@ -163,7 +161,7 @@ func (l *SysProbeListener) consumeData(data []byte) {
 			log.Error("No EventHandler set to consume event, dropping it")
 			return
 		}
-		l.handler(sysEvent)
+		l.handler(&sysEvent)
 	default: // drop unexpected event
 	}
 }

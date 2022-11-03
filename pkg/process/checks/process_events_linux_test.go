@@ -10,7 +10,6 @@ package checks
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"testing"
 	"time"
@@ -225,7 +224,7 @@ func TestProcessEventsCheck(t *testing.T) {
 	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil)
 
 	for _, test := range tests {
-		data, err := json.Marshal(test.rawEvent)
+		data, err := test.rawEvent.MarshalMsg(nil)
 		require.NoError(t, err)
 
 		stream.On("Recv").Once().Return(&api.SecurityProcessEventMessage{Data: data}, nil)

@@ -9,8 +9,6 @@
 package module
 
 import (
-	json "encoding/json"
-
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -56,7 +54,7 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 		ExitCode:       event.Exit.Code,
 	}
 
-	data, err := json.Marshal(e)
+	data, err := e.MarshalMsg(nil)
 	if err != nil {
 		log.Error("Failed to marshal Process Lifecycle Event: ", err)
 		return
