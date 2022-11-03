@@ -112,7 +112,7 @@ func (f *RemoteRuntime) StopPodSandbox(ctx context.Context, req *kubeapi.StopPod
 // This call is idempotent, and must not return an error if the sandbox has
 // already been removed.
 func (f *RemoteRuntime) RemovePodSandbox(ctx context.Context, req *kubeapi.RemovePodSandboxRequest) (*kubeapi.RemovePodSandboxResponse, error) {
-	err := f.RuntimeService.StopPodSandbox(req.PodSandboxId)
+	err := f.RuntimeService.RemovePodSandbox(req.PodSandboxId)
 	if err != nil {
 		return nil, err
 	}
@@ -123,12 +123,12 @@ func (f *RemoteRuntime) RemovePodSandbox(ctx context.Context, req *kubeapi.Remov
 // PodSandboxStatus returns the status of the PodSandbox. If the PodSandbox is not
 // present, returns an error.
 func (f *RemoteRuntime) PodSandboxStatus(ctx context.Context, req *kubeapi.PodSandboxStatusRequest) (*kubeapi.PodSandboxStatusResponse, error) {
-	podStatus, err := f.RuntimeService.PodSandboxStatus(req.PodSandboxId)
+	podStatus, err := f.RuntimeService.PodSandboxStatus(req.PodSandboxId, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return &kubeapi.PodSandboxStatusResponse{Status: podStatus}, nil
+	return podStatus, nil
 }
 
 // ListPodSandbox returns a list of PodSandboxes.
@@ -199,12 +199,12 @@ func (f *RemoteRuntime) ListContainers(ctx context.Context, req *kubeapi.ListCon
 // ContainerStatus returns status of the container. If the container is not
 // present, returns an error.
 func (f *RemoteRuntime) ContainerStatus(ctx context.Context, req *kubeapi.ContainerStatusRequest) (*kubeapi.ContainerStatusResponse, error) {
-	status, err := f.RuntimeService.ContainerStatus(req.ContainerId)
+	status, err := f.RuntimeService.ContainerStatus(req.ContainerId, false)
 	if err != nil {
 		return nil, err
 	}
 
-	return &kubeapi.ContainerStatusResponse{Status: status}, nil
+	return status, nil
 }
 
 // ExecSync runs a command in a container synchronously.
@@ -295,17 +295,20 @@ func (f *RemoteRuntime) UpdateRuntimeConfig(ctx context.Context, req *kubeapi.Up
 
 // Status returns the status of the runtime.
 func (f *RemoteRuntime) Status(ctx context.Context, req *kubeapi.StatusRequest) (*kubeapi.StatusResponse, error) {
-	status, err := f.RuntimeService.Status()
+	status, err := f.RuntimeService.Status(false)
 	if err != nil {
 		return nil, err
 	}
 
-	return &kubeapi.StatusResponse{Status: status}, nil
+	return status, nil
 }
 
 // UpdateContainerResources updates ContainerConfig of the container.
 func (f *RemoteRuntime) UpdateContainerResources(ctx context.Context, req *kubeapi.UpdateContainerResourcesRequest) (*kubeapi.UpdateContainerResourcesResponse, error) {
-	err := f.RuntimeService.UpdateContainerResources(req.ContainerId, req.Linux)
+	containerResource := &kubeapi.ContainerResources{
+		Linux: req.Linux,
+	}
+	err := f.RuntimeService.UpdateContainerResources(req.ContainerId, containerResource)
 	if err != nil {
 		return nil, err
 	}
@@ -321,4 +324,19 @@ func (f *RemoteRuntime) ReopenContainerLog(ctx context.Context, req *kubeapi.Reo
 	}
 
 	return &kubeapi.ReopenContainerLogResponse{}, nil
+}
+
+// CheckpointContainer checkpoints a container
+func (f *RemoteRuntime) CheckpointContainer(ctx context.Context, req *kubeapi.CheckpointContainerRequest) (*kubeapi.CheckpointContainerResponse, error) {
+	err := f.RuntimeService.CheckpointContainer(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kubeapi.CheckpointContainerResponse{}, nil
+}
+
+// GetContainerEvents gets container events from the CRI runtime
+func (f *RemoteRuntime) GetContainerEvents(req *kubeapi.GetEventsRequest, srv kubeapi.RuntimeService_GetContainerEventsServer) error {
+	return f.RuntimeService.GetContainerEvents(nil)
 }
