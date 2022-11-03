@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (
@@ -51,4 +52,9 @@ func (c *CloudRun) GetOrigin() string {
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
 	return "gcp.run"
+}
+
+// WrapSpans adds a top-level gcp.cloudrun span
+func (c *CloudRun) WrapSpans(spans []*pb.Span) []*pb.Span {
+	return WrapSpans("gcp.cloudrun", spans)
 }

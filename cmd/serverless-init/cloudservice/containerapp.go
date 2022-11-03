@@ -8,6 +8,8 @@ package cloudservice
 import (
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
@@ -47,6 +49,11 @@ func (c *ContainerApp) GetOrigin() string {
 // metrics with.
 func (c *ContainerApp) GetPrefix() string {
 	return "azure.containerapp"
+}
+
+// WrapSpans adds a top-level azure.containerapps span
+func (c *ContainerApp) WrapSpans(spans []*pb.Span) []*pb.Span {
+	return WrapSpans("azure.containerapp", spans)
 }
 
 func isContainerAppService() bool {

@@ -35,12 +35,13 @@ func main() {
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
+	wrapSpans := cloudService.WrapSpans
 
 	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags)
 
 	traceAgent := &trace.ServerlessTraceAgent{
-		ModifyTraceFunc: trace.ModifyTrace,
+		WrapSpans: wrapSpans,
 	}
 	go setupTraceAgent(traceAgent, tags)
 

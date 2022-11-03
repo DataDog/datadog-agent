@@ -66,8 +66,8 @@ type Agent struct {
 	// ModifySpan will be called on all spans, if non-nil.
 	ModifySpan func(*pb.Span)
 
-	// ModifyTraceFunc will be called on all traces, if non-nil.
-	ModifyTrace func([]*pb.Span) []*pb.Span
+	// WrapSpans will add a new top-level span to a list of spans, if non-nil.
+	WrapSpans func([]*pb.Span) []*pb.Span
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -245,8 +245,8 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		if a.ModifyTrace != nil {
-			chunk.Spans = a.ModifyTrace(chunk.Spans)
+		if a.WrapSpans != nil {
+			chunk.Spans = a.WrapSpans(chunk.Spans)
 		}
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
