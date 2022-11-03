@@ -201,7 +201,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 					log.Error("LogMessage.UnmarshalJSON: can't read the spans object")
 				}
 			case logTypePlatformInitReport:
-				log.Debugf("[ASTUYVE] - INIT REPORT IS %v", objectRecord)
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
 					if v, ok := metrics["durationMs"].(float64); ok {
 						l.objectRecord.reportLogItem.initDurationTelemetry = int64(v)
@@ -334,7 +333,6 @@ func processMessage(
 		return
 	}
 	if message.logType == logTypePlatformInitReport {
-		log.Debugf("[ASTUYVE] set coldstart duration to %v", message.objectRecord.reportLogItem.initDurationTelemetry)
 		ec.SetColdStartDuration(message.objectRecord.reportLogItem.initDurationTelemetry)
 	}
 
