@@ -80,10 +80,10 @@ Enhancement Notes
 Bug Fixes
 ---------
 
-- Fix the DCA `leader_election_is_leader` metric that could sometimes report ``is_leader="false"`` on the leader instance
+- Fix the DCA ``leader_election_is_leader`` metric that could sometimes report ``is_leader="false"`` on the leader instance
 
-- Fixed an error when running `datadog-cluster-agent status` with
-  `DD_EXTERNAL_METRICS_PROVIDER_ENABLED=true` and no app key set.
+- Fixed an error when running ``datadog-cluster-agent status`` with
+  ``DD_EXTERNAL_METRICS_PROVIDER_ENABLED=true`` and no app key set.
 
 - The KSM Core check now handles cron job schedules with time zones.
 
