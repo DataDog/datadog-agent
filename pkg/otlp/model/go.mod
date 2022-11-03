@@ -9,8 +9,8 @@ require (
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.8.1
-	go.opentelemetry.io/collector/pdata v0.63.0
-	go.opentelemetry.io/collector/semconv v0.63.0
+	go.opentelemetry.io/collector/pdata v0.63.2-0.20221102221454-bfc45c16c979
+	go.opentelemetry.io/collector/semconv v0.63.2-0.20221102221454-bfc45c16c979
 	go.uber.org/zap v1.23.0
 )
 
