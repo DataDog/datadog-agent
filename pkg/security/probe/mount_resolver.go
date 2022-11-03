@@ -435,6 +435,8 @@ func getMountIDOffset(probe *Probe) uint64 {
 	switch {
 	case probe.kernelVersion.IsSuseKernel() || probe.kernelVersion.Code >= skernel.Kernel5_12:
 		offset = 292
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code <= skernel.Kernel5_0 && probe.kernelVersion.Code >= skernel.Kernel4_13:
+		offset = 298
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_13:
 		offset = 268
 	}
