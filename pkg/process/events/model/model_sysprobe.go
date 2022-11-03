@@ -21,34 +21,9 @@ type ProcessMonitoringEvent struct {
 	ExitCode       uint32    `json:"ExitCode" msg:"exit_code"`
 }
 
-// ProcessMonitoringToProcessEvent converts a ProcessMonitoringEvent to a generic ProcessEvent
-func ProcessMonitoringToProcessEvent(e *ProcessMonitoringEvent) *ProcessEvent {
-	var cmdline []string
-	if e.ArgsEntry != nil {
-		cmdline = e.ArgsEntry.Values
-	}
-
-	return &ProcessEvent{
-		EventType:      NewEventType(e.EventType),
-		CollectionTime: e.CollectionTime,
-		Pid:            e.Pid,
-		ContainerID:    e.ContainerID,
-		Ppid:           e.PPid,
-		UID:            e.UID,
-		GID:            e.GID,
-		Username:       e.User,
-		Group:          e.Group,
-		Exe:            e.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
-		Cmdline:        cmdline,
-		ForkTime:       e.ForkTime,
-		ExecTime:       e.ExecTime,
-		ExitTime:       e.ExitTime,
-		ExitCode:       e.ExitCode,
-	}
-}
-
 // ProcessEventToProcessMonitoringEvent converts a ProcessEvent to a ProcessMonitoringEvent
 // It's used during tests to mock a ProcessMonitoringEvent message
+// TODO(paulcacheux): remove this and associated tests/benchmarks
 func ProcessEventToProcessMonitoringEvent(e *ProcessEvent) *ProcessMonitoringEvent {
 	return &ProcessMonitoringEvent{
 		EventType:      e.EventType.String(),

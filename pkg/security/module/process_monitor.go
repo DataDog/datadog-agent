@@ -9,6 +9,8 @@
 package module
 
 import (
+	json "encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -31,14 +33,30 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 		return
 	}
 
-	e := &model.ProcessMonitoringEvent{
-		ProcessCacheEntry: entry,
-		EventType:         event.GetEventType().String(),
-		CollectionTime:    event.Timestamp,
-		ExitCode:          event.Exit.Code,
+	var cmdline []string
+	if entry.ArgsEntry != nil {
+		cmdline = entry.ArgsEntry.Values
 	}
 
-	data, err := e.MarshalMsg(nil)
+	e := &model.ProcessEvent{
+		EventType:      model.NewEventType(event.GetEventType().String()),
+		CollectionTime: event.Timestamp,
+		Pid:            entry.Pid,
+		ContainerID:    entry.ContainerID,
+		Ppid:           entry.PPid,
+		UID:            entry.UID,
+		GID:            entry.GID,
+		Username:       entry.User,
+		Group:          entry.Group,
+		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
+		Cmdline:        cmdline,
+		ForkTime:       entry.ForkTime,
+		ExecTime:       entry.ExecTime,
+		ExitTime:       entry.ExitTime,
+		ExitCode:       event.Exit.Code,
+	}
+
+	data, err := json.Marshal(e)
 	if err != nil {
 		log.Error("Failed to marshal Process Lifecycle Event: ", err)
 		return
