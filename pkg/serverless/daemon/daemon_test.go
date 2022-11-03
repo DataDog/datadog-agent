@@ -170,7 +170,7 @@ func TestSetTraceTagOk(t *testing.T) {
 	}
 	var agent = &trace.ServerlessTraceAgent{}
 	t.Setenv("DD_API_KEY", "x")
-	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"})
+	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, &trace.SpanModifier{})
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent: agent,
