@@ -22,12 +22,14 @@ import (
 )
 
 const (
-	pollEndpoint = "/api/v0.1/configurations"
+	pollEndpoint    = "/api/v0.1/configurations"
+	orgDataEndpoint = "/api/v0.1/org"
 )
 
 // API is the interface to implement for a configuration fetcher
 type API interface {
 	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
+	FetchOrgData(context.Context) (*pbgo.OrgDataResponse, error)
 }
 
 type Auth struct {
@@ -85,7 +87,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	log.Debugf("Querying url %s with %+v", url, request)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
 	req.Header = c.header
 
@@ -110,6 +112,42 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	}
 
 	response := &pbgo.LatestConfigsResponse{}
+	err = proto.Unmarshal(body, response)
+	if err != nil {
+		log.Debugf("Error decoding response, %v, response body: %s", err, string(body))
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return response, err
+}
+
+// FetchOrgData org data
+func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, error) {
+	url := c.baseURL + orgDataEndpoint
+	log.Debugf("Querying url %s", url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create org data request: %w", err)
+	}
+	req.Header = c.header
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to issue org data request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var body []byte
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
+	}
+
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	response := &pbgo.OrgDataResponse{}
 	err = proto.Unmarshal(body, response)
 	if err != nil {
 		log.Debugf("Error decoding response, %v, response body: %s", err, string(body))

@@ -87,6 +87,11 @@ infra_failure_logs = [
         ),
         FailedJobReason.KITCHEN_AZURE,
     ),
+    # kitchen tests general infrastructure issues
+    (
+        re.compile(r'ERROR: The kitchen tests failed due to infrastructure failures\.'),
+        FailedJobReason.KITCHEN,
+    ),
 ]
 
 

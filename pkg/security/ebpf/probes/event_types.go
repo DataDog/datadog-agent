@@ -589,5 +589,12 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			},
 		}
 	}
+
+	if ShouldUseModuleLoadTracepoint() {
+		selectorsPerEventTypeStore["load_module"] = append(selectorsPerEventTypeStore["load_module"], &manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/module/module_load", EBPFFuncName: "module_load"}},
+		}})
+	}
+
 	return selectorsPerEventTypeStore
 }

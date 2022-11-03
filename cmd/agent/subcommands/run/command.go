@@ -196,30 +196,27 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
 func StartAgentWithDefaults() error {
-	return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
+	// run startAgent in an app, so that the log and config components get initialized
+	return fxutil.OneShot(func(log log.Component, config config.Component) error {
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
+	},
+		fx.Supply(core.BundleParams{
+			ConfFilePath:      "", // no config file path specification in this situation
+			ConfigLoadSecrets: true,
+		}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
+		core.Bundle,
+	)
 }
 
 // startAgent Initializes the agent process
 func startAgent(cliParams *cliParams) error {
-	var (
-		err            error
-		configSetupErr error
-		loggerSetupErr error
-	)
+	var err error
 
 	// Main context passed to components
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
-	// Global Agent configuration
-	configSetupErr = common.SetupConfig(cliParams.GlobalParams.ConfFilePath)
-
 	// Setup logger
 	syslogURI := pkgconfig.GetSyslogURI()
-	logFile := pkgconfig.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
-
 	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
 	if jmxLogFile == "" {
 		jmxLogFile = common.DefaultJmxLogFile
@@ -227,38 +224,20 @@ func startAgent(cliParams *cliParams) error {
 
 	if pkgconfig.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
-		logFile = ""
 		jmxLogFile = ""
 	}
 
-	loggerSetupErr = pkgconfig.SetupLogger(
-		pkgconfig.CoreLoggerName,
-		pkgconfig.Datadog.GetString("log_level"),
-		logFile,
+	// Setup JMX logger
+	jmxLoggerSetupErr := pkgconfig.SetupJMXLogger(
+		jmxLogFile,
 		syslogURI,
 		pkgconfig.Datadog.GetBool("syslog_rfc"),
 		pkgconfig.Datadog.GetBool("log_to_console"),
 		pkgconfig.Datadog.GetBool("log_format_json"),
 	)
 
-	// Setup JMX logger
-	if loggerSetupErr == nil {
-		loggerSetupErr = pkgconfig.SetupJMXLogger(
-			jmxLogFile,
-			syslogURI,
-			pkgconfig.Datadog.GetBool("syslog_rfc"),
-			pkgconfig.Datadog.GetBool("log_to_console"),
-			pkgconfig.Datadog.GetBool("log_format_json"),
-		)
-	}
-
-	if configSetupErr != nil {
-		pkglog.Errorf("Failed to setup config %v", configSetupErr)
-		return fmt.Errorf("unable to set up global agent configuration: %v", configSetupErr)
-	}
-
-	if loggerSetupErr != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", loggerSetupErr)
+	if jmxLoggerSetupErr != nil {
+		return fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
 	}
 
 	if flavor.GetFlavor() == flavor.IotAgent {

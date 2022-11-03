@@ -34,7 +34,9 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	agnt.ModifySpan = spanModifier.ModifySpan
 	defer cancel()
 
-	tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+	tc := testutil.RandomTraceChunk(1, 1)
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
 	tp.Chunks[0].Spans[0].Service = "aws.lambda"
 	go agnt.Process(&api.Payload{
 		TracerPayload: tp,
@@ -63,7 +65,9 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	agnt.ModifySpan = spanModifier.ModifySpan
 	defer cancel()
 
-	tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(2, 1))
+	tc := testutil.RandomTraceChunk(2, 1)
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
 	tp.Chunks[0].Spans[0].Meta["_inferred_span.tag_source"] = "self"
 	tp.Chunks[0].Spans[1].Meta["_dd_origin"] = "lambda"
 	go agnt.Process(&api.Payload{

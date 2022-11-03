@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"C"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -24,13 +23,14 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
-import "strings"
 
 var (
 	fakeInodeMSW = uint64(0xdeadc001)
@@ -132,7 +132,7 @@ type PathEntry struct {
 
 // GetName returns the path value as a string
 func (pv *PathLeaf) GetName() string {
-	return C.GoString((*C.char)(unsafe.Pointer(&pv.Name)))
+	return model.NullTerminatedString(pv.Name[:])
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -498,7 +498,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		if path.Name[0] == '/' {
 			name = "/"
 		} else {
-			name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
+			name = model.NullTerminatedString(path.Name[:])
 			filenameParts = append(filenameParts, name)
 		}
 
@@ -559,10 +559,6 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	dr.erpcSegment[6*os.Getpagesize()] = 0
 }
 
-func (dr *DentryResolver) markSegmentAsZero() {
-	model.ByteOrder.PutUint64(dr.erpcSegment[0:8], 0)
-}
-
 func (dr *DentryResolver) requestResolve(op uint8, mountID uint32, inode uint64, pathID uint32) (uint32, error) {
 	// create eRPC request
 	challenge := rand.Uint32()
@@ -598,7 +594,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 		return "", errERPCRequestNotProcessed
 	}
 
-	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
+	seg := model.NullTerminatedString(dr.erpcSegment[16:])
 	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
 		dr.missCounters[entry].Inc()
 		return "", fmt.Errorf("couldn't resolve segment (len: %d)", len(seg))
@@ -684,7 +680,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		}
 
 		if dr.erpcSegment[i] != '/' {
-			segment = C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[i])))
+			segment = model.NullTerminatedString(dr.erpcSegment[i:])
 			filenameParts = append(filenameParts, segment)
 			i += len(segment) + 1
 		} else {

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/mholt/archiver/v3"
+	"golang.org/x/exp/maps"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -42,7 +43,6 @@ const kernelModulesPath = "/lib/modules/%s/build"
 const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 const centosKernelModulesPath = "/usr/src/kernels/%s"
-const fedoraKernelModulesPath = "/usr"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
@@ -226,9 +226,19 @@ func (h *headerProvider) downloadHeaders(hv Version) ([]string, headerFetchResul
 // validateHeaderDirs checks all the given directories and returns the directories containing kernel
 // headers matching the kernel version of the running host
 func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool) []string {
-	var valid []string
-	for _, d := range dirs {
-		if _, err := os.Stat(d); errors.Is(err, fs.ErrNotExist) {
+	valid := make(map[string]struct{})
+	for _, rd := range dirs {
+		if _, err := os.Stat(rd); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+
+		d, err := filepath.EvalSymlinks(rd)
+		if err != nil {
+			log.Debugf("unable to eval symlink for %s: %s", rd, err)
+			continue
+		}
+		log.Debugf("resolved header dir %s to %s", rd, d)
+		if _, ok := valid[d]; ok {
 			continue
 		}
 
@@ -238,7 +248,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 				// version.h is not found in this directory; we'll consider it valid, in case
 				// it contains necessary files
 				log.Debugf("found non-versioned kernel headers at %s", d)
-				valid = append(valid, d)
+				valid[d] = struct{}{}
 				continue
 			}
 			log.Debugf("error validating %s: error validating headers version: %v", d, err)
@@ -250,15 +260,15 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 			continue
 		}
 		log.Debugf("found valid kernel headers at %s", d)
-		valid = append(valid, d)
+		valid[d] = struct{}{}
 	}
 
-	if checkForCriticalHeaders && len(valid) != 0 && !containsCriticalHeaders(valid) {
-		log.Debugf("error validating %s: missing critical headers", valid)
+	dirlist := maps.Keys(valid)
+	if checkForCriticalHeaders && len(dirlist) != 0 && !containsCriticalHeaders(dirlist) {
+		log.Debugf("error validating %s: missing critical headers", dirlist)
 		return nil
 	}
-
-	return valid
+	return dirlist
 }
 
 func containsCriticalHeaders(dirs []string) bool {
@@ -349,7 +359,6 @@ func getDefaultHeaderDirs() []string {
 		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
 		fmt.Sprintf(centosKernelModulesPath, hi.KernelVersion),
-		fedoraKernelModulesPath,
 	}
 	return dirs
 }

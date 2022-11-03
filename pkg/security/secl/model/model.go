@@ -901,7 +901,7 @@ type NetworkContext struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"-" msg:"-" json:"-"`
+	ID    uint16 `field:"id" msg:"-" json:"-"`                                                // [Experimental] the DNS request ID
 	Name  string `field:"question.name,opts:length" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
 	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`                    // a two octet code which specifies the DNS question type
 	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`                // the class looked up by the DNS question

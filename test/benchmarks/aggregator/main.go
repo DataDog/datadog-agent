@@ -205,7 +205,7 @@ func main() {
 	f := &forwarderBenchStub{}
 	s := serializer.NewSerializer(f, nil)
 
-	agg = aggregator.InitAggregatorWithFlushInterval(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
+	agg = aggregator.NewBufferedAggregator(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(check.ID("benchmark check"))

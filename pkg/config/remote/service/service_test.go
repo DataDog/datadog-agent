@@ -42,6 +42,11 @@ func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest)
 	return args.Get(0).(*pbgo.LatestConfigsResponse), args.Error(1)
 }
 
+func (m *mockAPI) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(*pbgo.OrgDataResponse), args.Error(1)
+}
+
 type mockUptane struct {
 	mock.Mock
 }

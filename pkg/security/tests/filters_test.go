@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -132,11 +133,11 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -204,8 +205,8 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}
@@ -268,11 +269,11 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -412,11 +413,11 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -496,11 +497,11 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -635,8 +636,8 @@ func TestFilterDiscarderRetention(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}
