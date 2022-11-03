@@ -1421,15 +1421,15 @@ api_key:
   ## Please note that:
   ##   1. Rules take into account the intersection of tags defined.
   ##   2. When `filter_tags` and `filter_tags_regex` are used at the same time, all rules are united for filtering.
-  ##      In the case when rule in `filter_tags` and `filter_tags_regex` have the same key, rule from `filter_tags`
-  ##      have precendence over the `filter_tags_regex`.
+  ##      In cases where rules in `filter_tags` and `filter_tags_regex` have the same key, the rule from `filter_tags`
+  ##      takes precendence over the rule from `filter_tags_regex`.
   ##
   ##      In the case of the following configuration:
   ##        filter_tags:
   ##          require: ["foo:bar"]
   ##        filter_tags_regex:
   ##          require: ["foo:^bar[0-9]{1}$"]
-  ##      resulting combined rule will match `foo:bar` and not `foo:bar1`
+  ##      The resulting combined rule will match `foo:bar` and not `foo:bar1`
   #
   # filter_tags:
   #     require: [<LIST_OF_KEY_VALUE_TAGS>]
