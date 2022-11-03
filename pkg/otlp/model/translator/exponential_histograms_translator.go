@@ -149,11 +149,9 @@ func (t *Translator) mapExponentialHistogramMetrics(
 			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
 		}
 		if delta && p.HasMin() {
-			// override min if available and delta.
 			agentSketch.Basic.Min = p.Min()
 		}
 		if delta && p.HasMax() {
-			// override max if available and delta.
 			agentSketch.Basic.Max = p.Max()
 		}
 
