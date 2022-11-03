@@ -44,7 +44,8 @@ func TestIsParentDiscarder(t *testing.T) {
 	var evalOpts eval.Opts
 	evalOpts.
 		WithConstants(model.SECLConstants).
-		WithLegacyFields(model.SECLLegacyFields)
+		WithLegacyFields(model.SECLLegacyFields).
+		WithVariables(model.SECLVariables)
 
 	var opts rules.Opts
 	opts.
@@ -207,6 +208,28 @@ func TestIsParentDiscarder(t *testing.T) {
 	addRuleExpr(t, rs, `open.file.path =~ "/etc/**"`)
 
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/etc/conf.d/dir/aaa", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
+	addRuleExpr(t, rs, `open.file.path == "/proc/${process.pid}/maps"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/proc/1/maps", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	// test basename conflict, a basename based rule matches the parent discarder
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
+	addRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**"`, `open.file.name == "token"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); !is {
+		t.Error("should be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
+	addRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**"`, `open.file.name == "test1"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 }

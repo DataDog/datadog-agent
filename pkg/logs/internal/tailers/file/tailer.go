@@ -46,11 +46,6 @@ type Tailer struct {
 	// ends.
 	decodedOffset *atomic.Int64
 
-	// bytesRead is the number of bytes successfully read from the file by this
-	// tailer.  This may be smaller than lastReadOffset if the tailer did not
-	// begin at the start of the file.
-	bytesRead int64
-
 	// file contains the logs configuration for the file to parse (path, source, ...)
 	// If you are looking for the os.file use to read on the FS, see osFile.
 	file *File
@@ -214,8 +209,18 @@ func (t *Tailer) Stop() {
 // This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
+	bytesReadAtRotationTime := t.Source().BytesRead.Load()
 	go func() {
 		time.Sleep(t.closeTimeout)
+		if newBytesRead := t.Source().BytesRead.Load() - bytesReadAtRotationTime; newBytesRead > 0 {
+			log.Infof("After rotation close timeout (%ds), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
+			fileStat, err := t.osFile.Stat()
+			if err != nil {
+				log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
+			} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
+				log.Warnf("After rotation close timeout (%ds), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+			}
+		}
 		t.stopForward()
 		t.stop <- struct{}{}
 	}()
@@ -228,7 +233,7 @@ func (t *Tailer) readForever() {
 	defer func() {
 		t.osFile.Close()
 		t.decoder.Stop()
-		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
+		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Load(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
 	for {
@@ -315,7 +320,6 @@ func (t *Tailer) wait() {
 }
 
 func (t *Tailer) recordBytes(n int64) {
-	t.bytesRead += n
 	t.file.Source.RecordBytes(n)
 }
 

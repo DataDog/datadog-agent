@@ -10,6 +10,5 @@ security_go_generate_check:
     - !reference [.retrieve_linux_go_tools_deps]
     - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
     - inv -e install-tools
-    - export PATH=$PATH:$GOPATH/bin
   script:
     - inv -e security-agent.go-generate-check

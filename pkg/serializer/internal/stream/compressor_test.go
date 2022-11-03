@@ -11,9 +11,11 @@ package stream
 import (
 	"bytes"
 	"compress/zlib"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -76,11 +78,11 @@ func TestOnePayloadSimple(t *testing.T) {
 	}
 
 	builder := NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
-	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
+	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
 }
 
 func TestMaxCompressedSizePayload(t *testing.T) {
@@ -93,11 +95,11 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	defer resetDefaults()
 
 	builder := NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
-	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
+	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
 }
 
 func TestTwoPayload(t *testing.T) {
@@ -110,12 +112,12 @@ func TestTwoPayload(t *testing.T) {
 	defer resetDefaults()
 
 	builder := NewJSONPayloadBuilder(true)
-	payloads, err := builder.Build(m)
+	payloads, err := BuildJSONPayload(builder, m)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
 
-	require.Equal(t, "{[A,B,C]}", payloadToString(*payloads[0]))
-	require.Equal(t, "{[D,E,F]}", payloadToString(*payloads[1]))
+	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
+	require.Equal(t, "{[D,E,F]}", payloadToString(payloads[1].GetContent()))
 }
 
 func TestLockedCompressorProducesSamePayloads(t *testing.T) {
@@ -128,10 +130,50 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 
 	builderLocked := NewJSONPayloadBuilder(true)
 	builderUnLocked := NewJSONPayloadBuilder(false)
-	payloads1, err := builderLocked.Build(m)
+	payloads1, err := BuildJSONPayload(builderLocked, m)
 	require.NoError(t, err)
-	payloads2, err := builderUnLocked.Build(m)
+	payloads2, err := BuildJSONPayload(builderUnLocked, m)
 	require.NoError(t, err)
 
-	require.Equal(t, payloadToString(*payloads1[0]), payloadToString(*payloads2[0]))
+	require.Equal(t, payloadToString(payloads1[0].GetContent()), payloadToString(payloads2[0].GetContent()))
+}
+
+func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
+	config.Datadog.Set("serializer_max_uncompressed_payload_size", 40)
+	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", nil)
+	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
+	builder := NewJSONPayloadBuilder(false)
+	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
+		marshaler,
+		DropItemOnErrItemTooBig)
+	r := require.New(t)
+	r.NoError(err)
+
+	// Make sure there are at least few payloads
+	r.Greater(len(payloads), 3)
+
+	pointCount := 0
+	for _, payload := range payloads {
+		pointCount += payload.GetPointCount()
+	}
+	maxValue := marshaler.maxIndex - 1
+	r.Equal((maxValue*(maxValue+1))/2, pointCount)
+}
+
+type IterableStreamJSONMarshalerMock struct {
+	index    int
+	maxIndex int
+}
+
+func (i *IterableStreamJSONMarshalerMock) WriteHeader(stream *jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteFooter(stream *jsoniter.Stream) error { return nil }
+func (i *IterableStreamJSONMarshalerMock) WriteCurrentItem(stream *jsoniter.Stream) error {
+	stream.WriteString(fmt.Sprintf("Item%v", i.index))
+	return nil
+}
+func (i *IterableStreamJSONMarshalerMock) DescribeCurrentItem() string   { return "" }
+func (i *IterableStreamJSONMarshalerMock) GetCurrentItemPointCount() int { return i.index }
+func (i *IterableStreamJSONMarshalerMock) MoveNext() bool {
+	i.index++
+	return i.index < i.maxIndex
 }

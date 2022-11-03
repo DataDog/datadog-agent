@@ -130,44 +130,43 @@ type Server struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
-	packetsIn                 chan packets.Packets
-	serverlessFlushChan       chan bool
-	sharedPacketPool          *packets.Pool
-	sharedPacketPoolManager   *packets.PoolManager
-	sharedFloat64List         *float64ListPool
-	Statistics                *util.Stats
-	Started                   bool
-	stopChan                  chan bool
-	health                    *health.Handle
-	metricPrefix              string
-	metricPrefixBlacklist     []string
-	metricBlocklist           []string
-	defaultHostname           string
-	histToDist                bool
-	histToDistPrefix          string
-	extraTags                 []string
-	Debug                     *dsdServerDebug
-	debugTagsAccumulator      *tagset.HashingTagsAccumulator
-	TCapture                  *replay.TrafficCapture
-	mapper                    *mapper.MetricMapper
-	eolTerminationUDP         bool
-	eolTerminationUDS         bool
-	eolTerminationNamedPipe   bool
-	entityIDPrecedenceEnabled bool
+	packetsIn               chan packets.Packets
+	serverlessFlushChan     chan bool
+	sharedPacketPool        *packets.Pool
+	sharedPacketPoolManager *packets.PoolManager
+	sharedFloat64List       *float64ListPool
+	Statistics              *util.Stats
+	Started                 bool
+	stopChan                chan bool
+	health                  *health.Handle
+	histToDist              bool
+	histToDistPrefix        string
+	extraTags               []string
+	Debug                   *dsdServerDebug
+	debugTagsAccumulator    *tagset.HashingTagsAccumulator
+	TCapture                *replay.TrafficCapture
+	mapper                  *mapper.MetricMapper
+	eolTerminationUDP       bool
+	eolTerminationUDS       bool
+	eolTerminationNamedPipe bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
 	// of flooding the logger output (e.g. parsing messages error).
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
-	// package (pkg/trace/logutils) for a possible throttler implemetation.
+	// package (pkg/trace/log/throttled.go) for a possible throttler implementation.
 	disableVerboseLogs bool
 
-	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
-	// to avoid escaping these in the heap in this hot path.
+	// cachedTlmLock must be held when accessing cachedTlmOriginIds and cachedOrder
+	cachedTlmLock sync.Mutex
+	// cachedTlmOriginIds stores per-origin metric parse stats
+	// (when dogstatsd debugging is enabled)
 	cachedTlmOriginIds map[string]cachedTagsOriginMap
 	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode     bool
 	UdsListenerRunning bool
+
+	enrichConfig enrichConfig
 }
 
 // metricStat holds how many times a metric has been
@@ -339,34 +338,38 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 	}
 
 	s := &Server{
-		Started:                   true,
-		Statistics:                stats,
-		packetsIn:                 packetsChannel,
-		sharedPacketPool:          sharedPacketPool,
-		sharedPacketPoolManager:   sharedPacketPoolManager,
-		sharedFloat64List:         newFloat64ListPool(),
-		demultiplexer:             demultiplexer,
-		listeners:                 tmpListeners,
-		stopChan:                  make(chan bool),
-		serverlessFlushChan:       make(chan bool),
-		health:                    health.RegisterLiveness("dogstatsd-main"),
-		metricPrefix:              metricPrefix,
-		metricPrefixBlacklist:     metricPrefixBlacklist,
-		metricBlocklist:           metricBlocklist,
-		defaultHostname:           defaultHostname,
-		histToDist:                histToDist,
-		histToDistPrefix:          histToDistPrefix,
-		extraTags:                 extraTags,
-		eolTerminationUDP:         eolTerminationUDP,
-		eolTerminationUDS:         eolTerminationUDS,
-		eolTerminationNamedPipe:   eolTerminationNamedPipe,
-		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
-		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
-		Debug:                     newDSDServerDebug(),
-		TCapture:                  capture,
-		UdsListenerRunning:        udsListenerRunning,
-		cachedTlmOriginIds:        make(map[string]cachedTagsOriginMap),
-		ServerlessMode:            serverless,
+		Started:                 true,
+		Statistics:              stats,
+		packetsIn:               packetsChannel,
+		sharedPacketPool:        sharedPacketPool,
+		sharedPacketPoolManager: sharedPacketPoolManager,
+		sharedFloat64List:       newFloat64ListPool(),
+		demultiplexer:           demultiplexer,
+		listeners:               tmpListeners,
+		stopChan:                make(chan bool),
+		serverlessFlushChan:     make(chan bool),
+		health:                  health.RegisterLiveness("dogstatsd-main"),
+		histToDist:              histToDist,
+		histToDistPrefix:        histToDistPrefix,
+		extraTags:               extraTags,
+		eolTerminationUDP:       eolTerminationUDP,
+		eolTerminationUDS:       eolTerminationUDS,
+		eolTerminationNamedPipe: eolTerminationNamedPipe,
+		disableVerboseLogs:      config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
+		Debug:                   newDSDServerDebug(),
+		TCapture:                capture,
+		UdsListenerRunning:      udsListenerRunning,
+		cachedTlmOriginIds:      make(map[string]cachedTagsOriginMap),
+		ServerlessMode:          serverless,
+		enrichConfig: enrichConfig{
+			metricPrefix:              metricPrefix,
+			metricPrefixBlacklist:     metricPrefixBlacklist,
+			metricBlocklist:           metricBlocklist,
+			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
+			defaultHostname:           defaultHostname,
+			serverlessMode:            serverless,
+			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
+		},
 	}
 
 	// packets forwarding
@@ -618,8 +621,17 @@ func (s *Server) errLog(format string, params ...interface{}) {
 }
 
 // createOriginTagMaps  keeps these in a cache to avoid a lot of heap escape
-// that we can't avoid in this hot path
-func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
+// that we can't avoid in this hot path.
+//
+// Returned values are thread safe.
+func (s *Server) createOriginTagMaps(origin string) (okCnt telemetry.SimpleCounter, errorCnt telemetry.SimpleCounter) {
+	s.cachedTlmLock.Lock()
+	defer s.cachedTlmLock.Unlock()
+
+	if maps, ok := s.cachedTlmOriginIds[origin]; ok {
+		return maps.okCnt, maps.errCnt
+	}
+
 	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
 	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
 	okMap["origin"] = origin
@@ -645,7 +657,7 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 		tlmProcessed.DeleteWithTags(pop.err)
 	}
 
-	return maps
+	return maps.okCnt, maps.errCnt
 }
 
 // NOTE(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
@@ -657,13 +669,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && telemetry {
-		var maps cachedTagsOriginMap // errorMap and okMap for this origin
-		var exists bool
-		if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
-			maps = s.createOriginTagMaps(origin)
-		}
-		okCnt = maps.okCnt
-		errorCnt = maps.errCnt
+		okCnt, errorCnt = s.createOriginTagMaps(origin)
 	}
 
 	sample, err := parser.parseMetricSample(message)
@@ -682,7 +688,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, s.enrichConfig)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
@@ -709,7 +715,7 @@ func (s *Server) parseEventMessage(parser *parser, message []byte, origin string
 		tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
-	event := enrichEvent(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
+	event := enrichEvent(sample, origin, s.enrichConfig)
 	event.Tags = append(event.Tags, s.extraTags...)
 	tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
@@ -723,7 +729,7 @@ func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, origin
 		tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
-	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
+	serviceCheck := enrichServiceCheck(sample, origin, s.enrichConfig)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	tlmProcessed.Inc("service_checks", "ok", "")

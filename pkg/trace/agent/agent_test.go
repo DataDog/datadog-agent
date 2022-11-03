@@ -35,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -293,6 +295,7 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -331,7 +334,9 @@ func TestProcess(t *testing.T) {
 		span2 := &pb.Span{TraceID: 1, SpanID: 2, Service: "a"}
 		span3 := &pb.Span{TraceID: 1, SpanID: 3, Service: "a"}
 
-		tp := testutil.TracerPayloadWithChunk(spansToChunk(span1, span2, span3))
+		c := spansToChunk(span1, span2, span3)
+		c.Priority = 1
+		tp := testutil.TracerPayloadWithChunk(c)
 
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -593,6 +598,7 @@ func TestConcentratorInput(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
+			cfg.RareSamplerEnabled = true
 			agent := NewAgent(context.TODO(), cfg)
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
@@ -805,8 +811,8 @@ func TestSampling(t *testing.T) {
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
@@ -938,8 +944,67 @@ func TestSampling(t *testing.T) {
 	}
 }
 
+func TestSample(t *testing.T) {
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10}
+	a := &Agent{
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		EventProcessor:    newEventProcessor(cfg),
+		conf:              cfg,
+	}
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority) traceutil.ProcessedTrace {
+		root := &pb.Span{
+			Service:  "serv1",
+			Start:    time.Now().UnixNano(),
+			Duration: (100 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_top_level": 1},
+			Error:    1,
+			Meta:     map[string]string{},
+		}
+		if decisionMaker != "" {
+			root.Meta["_dd.p.dm"] = decisionMaker
+		}
+		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt.TraceChunk.Priority = int32(priority)
+		return pt
+	}
+	tests := map[string]struct {
+		trace       traceutil.ProcessedTrace
+		wantSampled bool
+	}{
+		"userdrop-error-no-dm-sampled": {
+			trace:       genSpan("", sampler.PriorityUserDrop),
+			wantSampled: true,
+		},
+		"userdrop-error-manual-dm-unsampled": {
+			trace:       genSpan("-4", sampler.PriorityUserDrop),
+			wantSampled: false,
+		},
+		"userdrop-error-agent-dm-sampled": {
+			trace:       genSpan("-1", sampler.PriorityUserDrop),
+			wantSampled: true,
+		},
+		"userkeep-error-no-dm-sampled": {
+			trace:       genSpan("", sampler.PriorityUserKeep),
+			wantSampled: true,
+		},
+		"userkeep-error-agent-dm-sampled": {
+			trace:       genSpan("-1", sampler.PriorityUserKeep),
+			wantSampled: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
+			assert.Equal(t, tt.wantSampled, keep)
+		})
+	}
+}
+
 func TestPartialSamplingFree(t *testing.T) {
-	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
+	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
@@ -1550,4 +1615,305 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	})
 	assert.True(t, keep) // Score Sampler should keep the trace.
 	assert.EqualValues(t, numEvents, 0)
+}
+
+// TestSpanSampling verifies that an incoming trace chunk that contains spans
+// with "span sampling" tags results in those spans being sent to the trace
+// writer in a sampled (kept) chunk. In other words, if a tracer marks spans as
+// "span sampled," then the trace agent will not discard those spans.
+//
+// There are multiple cases to consider:
+//
+//  1. When the chunk would have been kept anyway (sampling priority > 0). In
+//     this case, the tracer should not have added the span sampling tag.
+//     Regardless, verify that the chunk is kept as expected.
+//  2. When the chunk is dropped by the user, i.e. PriorityUserDrop sampling
+//     priority. In this case, other samplers do not run at all, but the span
+//     sampler still runs. The resulting trace chunk, if any, contains only
+//     the spans that were tagged for span sampling, and the sampling priority
+//     of the resulting chunk overall is PriorityUserKeep.
+//  2a. Same as (2), except that only the local root span specifically is tagged
+//       for span sampling. Verify that only the local root span is kept.
+//  2b. Same as (2), except that only a non-local-root span specifically is
+//      tagged for span sampling. Verify that only one span is kept.
+//  3. When the chunk is dropped due to an agent-provided sample rate, i.e. with
+//     PriorityAutoDrop priority. In this case, other samplers will run. Only if the
+//     resulting decision is to drop the chunk, expect that the span sampler
+//     will run and yield the same result as in case (2).
+//  4. When the chunk is dropped due to an agent-provided sample rate, i.e. with
+//     PriorityAutoDrop priority, but then the error sampler decides the keep
+//     the chunk anyway. In this case, expect that the span sampler will _not_
+//     run, and so the resulting chunk will contain all of its spans, even if
+//     only some of them are tagged for span sampling.
+func TestSpanSampling(t *testing.T) {
+	// spanSamplingMetrics returns a map of numeric tags that contains the span
+	// sampling metric (numeric tag) that tracers use to indicate that the span
+	// should be kept by the span sampler.
+	spanSamplingMetrics := func() map[string]float64 {
+		metrics := make(map[string]float64, 1)
+		// The value of this metric does not matter to the trace agent, but per
+		// the single span ingestion control RFC it will be 8.
+		metrics[sampler.KeySpanSamplingMechanism] = 8
+		return metrics
+	}
+
+	tests := []struct {
+		name    string
+		payload *pb.TracerPayload
+		// The payload is the input, the trace chunks are the output.
+		checks func(*testing.T, *pb.TracerPayload, []*pb.TraceChunk)
+	}{
+		{
+			name: "case 1: would have been kept anyway",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Service:  "testsvc",
+								Name:     "parent",
+								TraceID:  1,
+								SpanID:   1,
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+							{
+								Service:  "testsvc",
+								Name:     "child",
+								TraceID:  1,
+								SpanID:   2,
+								Metrics:  spanSamplingMetrics(),
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+						},
+						// Span sampling metrics are included above, but it
+						// doesn't matter because we're keeping this trace
+						// anyway.
+						Priority: int32(sampler.PriorityUserKeep),
+					},
+				},
+			},
+			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+				assert.Len(t, chunks, 1)
+				chunk := chunks[0]
+				assert.Equal(t, chunk.Priority, payload.Chunks[0].Priority)
+				assert.Len(t, chunk.Spans, len(payload.Chunks[0].Spans))
+				for i, after := range chunk.Spans {
+					before := payload.Chunks[0].Spans[i]
+					assert.Equal(t, before.TraceID, after.TraceID)
+					assert.Equal(t, before.SpanID, after.SpanID)
+					assert.Equal(t, before.Name, after.Name)
+				}
+			},
+		},
+		{
+			name: "case 2a: keep one span: local root",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Service:  "testsvc",
+								Name:     "parent",
+								TraceID:  1,
+								SpanID:   1,
+								Metrics:  spanSamplingMetrics(),
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+							{
+								Service:  "testsvc",
+								Name:     "child",
+								TraceID:  1,
+								SpanID:   2,
+								ParentID: 1,
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+						},
+						// The tracer wants to drop the trace, but keep the parent span.
+						Priority: int32(sampler.PriorityUserDrop),
+					},
+				},
+			},
+			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+				assert.Len(t, chunks, 1)
+				chunk := chunks[0]
+				// The span sampler kept the chunk.
+				assert.False(t, chunk.DroppedTrace)
+				assert.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+				// The span sampler discarded all but the sampled spans.
+				assert.Len(t, chunk.Spans, 1)
+				span := chunk.Spans[0]
+				assert.Equal(t, uint64(1), span.TraceID)
+				assert.Equal(t, uint64(1), span.SpanID)
+				assert.Equal(t, "parent", span.Name)
+			},
+		},
+		{
+			name: "case 2b: keep one span: not local root",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Service:  "testsvc",
+								Name:     "parent",
+								TraceID:  1,
+								SpanID:   1,
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+							{
+								Service:  "testsvc",
+								Name:     "child",
+								TraceID:  1,
+								SpanID:   2,
+								ParentID: 1,
+								Metrics:  spanSamplingMetrics(),
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+						},
+						// The tracer wants to drop the trace, but keep the child span.
+						Priority: int32(sampler.PriorityUserDrop),
+					},
+				},
+			},
+			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+				assert.Len(t, chunks, 1)
+				chunk := chunks[0]
+				// The span sampler kept the chunk.
+				assert.False(t, chunk.DroppedTrace)
+				assert.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+				// The span sampler discarded all but the sampled spans.
+				assert.Len(t, chunk.Spans, 1)
+				span := chunk.Spans[0]
+				assert.Equal(t, uint64(1), span.TraceID)
+				assert.Equal(t, uint64(2), span.SpanID)
+				assert.Equal(t, "child", span.Name)
+			},
+		},
+		{
+			name: "case 3: keep spans from auto dropped trace",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Service:  "testsvc",
+								Name:     "parent",
+								TraceID:  1,
+								SpanID:   1,
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+							{
+								Service:  "testsvc",
+								Name:     "child",
+								TraceID:  1,
+								SpanID:   2,
+								ParentID: 1,
+								Metrics:  spanSamplingMetrics(),
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+						},
+						// The tracer wants to drop the trace, but keep the child span.
+						Priority: int32(sampler.PriorityAutoDrop),
+					},
+				},
+			},
+			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+				assert.Len(t, chunks, 1)
+				chunk := chunks[0]
+				// The span sampler kept the chunk.
+				assert.False(t, chunk.DroppedTrace)
+				assert.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+				// The span sampler discarded all but the sampled spans.
+				assert.Len(t, chunk.Spans, 1)
+				span := chunk.Spans[0]
+				assert.Equal(t, uint64(1), span.TraceID)
+				assert.Equal(t, uint64(2), span.SpanID)
+				assert.Equal(t, "child", span.Name)
+			},
+		},
+		{
+			name: "case 4: keep all spans from error sampler kept trace",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Service:  "testsvc",
+								Name:     "parent",
+								TraceID:  1,
+								SpanID:   1,
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+							{
+								Service:  "testsvc",
+								Name:     "child",
+								TraceID:  1,
+								SpanID:   2,
+								ParentID: 1,
+								Metrics:  spanSamplingMetrics(),
+								// The error sampler will keep this trace because
+								// this span has an error.
+								Error:    1,
+								Start:    time.Now().Add(-time.Second).UnixNano(),
+								Duration: time.Millisecond.Nanoseconds(),
+							},
+						},
+						// The tracer wants to drop the trace, but keep the child span.
+						// However, there's an error in one of the spans ("child"), and
+						// so all of the spans will be kept anyway.
+						Priority: int32(sampler.PriorityAutoDrop),
+					},
+				},
+			},
+			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+				assert.Len(t, chunks, 1)
+				chunk := chunks[0]
+				// The error sampler kept the chunk.
+				assert.False(t, chunk.DroppedTrace)
+				// The span sampler did not discard any spans.
+				assert.Len(t, chunk.Spans, len(payload.Chunks[0].Spans))
+				for i, after := range chunk.Spans {
+					before := payload.Chunks[0].Spans[i]
+					assert.Equal(t, before.TraceID, after.TraceID)
+					assert.Equal(t, before.SpanID, after.SpanID)
+					assert.Equal(t, before.Name, after.Name)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			// Disable the rare sampler. Otherwise, it would consider every first
+			// priority==0 chunk as rare. Instead, we use the error sampler to
+			// cover the case where non-span samplers decide to keep a priority==0
+			// chunk.
+			cfg.RareSamplerEnabled = false
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			traceAgent := NewAgent(ctx, cfg)
+			traceAgent.Process(&api.Payload{
+				// The payload might get modified in-place, so first deep copy it so
+				// that we have the original for comparison later.
+				TracerPayload: proto.Clone(tc.payload).(*pb.TracerPayload),
+				// a nil Source would trigger a panic
+				Source: traceAgent.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+			assert.Len(t, traceAgent.TraceWriter.In, 1)
+			sampledChunks := <-traceAgent.TraceWriter.In
+			chunks := sampledChunks.TracerPayload.Chunks
+			tc.checks(t, tc.payload, chunks)
+		})
+	}
 }

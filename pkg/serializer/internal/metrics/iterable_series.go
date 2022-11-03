@@ -15,6 +15,7 @@ import (
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -72,6 +73,11 @@ func (series IterableSeries) DescribeCurrentItem() string {
 	return describeItem(current)
 }
 
+// GetCurrentItemPointCount gets the number of points in the current serie
+func (series IterableSeries) GetCurrentItemPointCount() int {
+	return len(series.Current().Points)
+}
+
 func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
@@ -79,19 +85,12 @@ func describeItem(serie *metrics.Serie) string {
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	return marshalSplitCompress(series, bufferContext)
-}
-
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+func (series IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
-	payloads := []*[]byte{}
+	payloads := transaction.BytesPayloads{}
 
 	var pointsThisPayload int
 	var seriesThisPayload int
@@ -114,10 +113,14 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 	const seriesType = 5
 	const seriesSourceTypeName = 7
 	const seriesInterval = 8
+	const serieMetadata = 9
 	const resourceType = 1
 	const resourceName = 2
 	const pointValue = 1
 	const pointTimestamp = 2
+	const serieMetadataOrigin = 1
+	const serieMetadataOriginMetricType = 3
+	const metryTypeNotIndexed = 9
 
 	// Prepare to write the next payload
 	startPayload := func() error {
@@ -158,7 +161,7 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 		}
 
 		if seriesThisPayload > 0 {
-			payloads = append(payloads, &payload)
+			payloads = append(payloads, transaction.NewBytesPayload(payload, pointsThisPayload))
 		}
 
 		return nil
@@ -170,8 +173,8 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 		return nil, err
 	}
 
-	for iterator.MoveNext() {
-		serie = iterator.Current()
+	for series.MoveNext() {
+		serie = series.Current()
 
 		buf.Reset()
 		err = ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
@@ -192,6 +195,25 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 			})
 			if err != nil {
 				return err
+			}
+
+			if serie.Device != "" {
+				err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
+					err = ps.String(resourceType, "device")
+					if err != nil {
+						return err
+					}
+
+					err = ps.String(resourceName, serie.Device)
+					if err != nil {
+						return err
+					}
+
+					return nil
+				})
+				if err != nil {
+					return err
+				}
 			}
 
 			err = ps.String(seriesMetric, serie.Name)
@@ -242,6 +264,13 @@ func marshalSplitCompress(iterator metrics.SerieSource, bufferContext *marshaler
 				}
 			}
 
+			if serie.NoIndex {
+				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
+						return ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
+					})
+				})
+			}
 			return nil
 		})
 		if err != nil {

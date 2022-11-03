@@ -171,7 +171,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
     ddUserExists = data.DoesUserExist();
 
-    if (!canInstall(data.GetTargetMachine()->IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
+    if (!canInstall(data, bResetPassword, NULL))
     {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;

@@ -18,6 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+type ProtocolType uint16
+
+const (
+	ProtocolUnclassified ProtocolType = iota
+	ProtocolUnknown
+	ProtocolHTTP
+	ProtocolHTTP2
+	ProtocolTLS
+	MaxProtocols
+)
+
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
 
@@ -121,6 +132,8 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	KernelHeaderFetchResult     int32
+	CORETelemetryByAsset        map[string]int32
 	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
@@ -146,8 +159,6 @@ const (
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
 	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
-	HTTPRequestsDropped             ConnTelemetryType = "http_requests_dropped"
-	HTTPRequestsMissed              ConnTelemetryType = "http_requests_missed"
 )
 
 //revive:enable
@@ -160,8 +171,6 @@ var (
 		ConntrackSamplingPercent,
 		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
-		HTTPRequestsDropped,
-		HTTPRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled
@@ -185,7 +194,6 @@ var (
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
-	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
@@ -204,6 +212,11 @@ type StatCounters struct {
 	//   are established with the same tuple between two agent checks;
 	TCPEstablished uint32
 	TCPClosed      uint32
+}
+
+// IsZero returns whether all the stat counter values are zeroes
+func (s StatCounters) IsZero() bool {
+	return s == StatCounters{}
 }
 
 // StatCountersByCookie stores StatCounters by unique cookie
@@ -285,6 +298,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	Protocol  ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -442,6 +456,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", protocol: %v", c.Protocol)
 
 	return str
 }
@@ -460,27 +475,19 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	return b.String()
 }
 
-// HTTPKeyTupleFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTupleFromConn(c ConnectionStats) http.KeyTuple {
+// HTTPKeyTuplesFromConn build the key for the http map based on whether the local or remote side is http.
+func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
 	// Retrieve translated addresses
 	laddr, lport := GetNATLocalAddress(c)
 	raddr, rport := GetNATRemoteAddress(c)
-	return HTTPKeyTupleFromConnTuple(laddr, raddr, lport, rport)
-}
 
-// HTTPKeyTupleFromConnTuple builds the key for an http connection from a
-// connection tuple of (laddr, raddr, lport, rport)
-func HTTPKeyTupleFromConnTuple(laddr, raddr util.Address, lport, rport uint16) http.KeyTuple {
-	// HTTP data is always indexed as (client, server), so we account for that when generating the
-	// the lookup key using the port range heuristic.
-	// In the rare cases where both ports are within the same range we ensure that sport > dport
-	// to mimic the normalization heuristic done in the eBPF side (see `port_range.h`)
-	if (IsEphemeralPort(int(lport)) && !IsEphemeralPort(int(rport))) ||
-		(IsEphemeralPort(int(lport)) == IsEphemeralPort(int(rport)) && lport > rport) {
-		return http.NewKeyTuple(laddr, raddr, lport, rport)
+	// HTTP data is always indexed as (client, server), but we don't know which is the remote
+	// and which is the local address. To account for this, we'll construct 2 possible
+	// http keys and check for both of them in our http aggregations map.
+	return [2]http.KeyTuple{
+		http.NewKeyTuple(laddr, raddr, lport, rport),
+		http.NewKeyTuple(raddr, laddr, rport, lport),
 	}
-
-	return http.NewKeyTuple(raddr, laddr, rport, lport)
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {

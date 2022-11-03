@@ -460,7 +460,7 @@ func (p *probe) parseStatus(pidPath string) *statusInfo {
 // parseStatusLine takes each line in "status" file and parses info from it
 func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	for i := range line {
-		// the fields are all having format "field_name:\tfield_value", so we always
+		// the fields are all having format "field_name:\s+field_value", so we always
 		// look for ":\t" and skip them
 		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
@@ -517,19 +517,22 @@ func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
 			sInfo.ctxSwitches.Involuntary = v
 		}
 	case "VmRSS":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.RSS = v * 1024
 		}
 	case "VmSize":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.VMS = v * 1024
 		}
 	case "VmSwap":
-		value := strings.Trim(value, " kB") // trim spaces and suffix "kB"
+		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
+		value = strings.Trim(value, " ")
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			sInfo.memInfo.Swap = v * 1024

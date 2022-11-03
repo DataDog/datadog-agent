@@ -6,17 +6,24 @@
 package main
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -337,6 +344,7 @@ func TestIgnoreResponseBody(t *testing.T) {
 		{checkName: checks.Container.Name(), ignore: false},
 		{checkName: checks.RTContainer.Name(), ignore: false},
 		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: config.PodCheckManifestName, ignore: true},
 		{checkName: checks.Connections.Name(), ignore: false},
 		{checkName: checks.ProcessEvents.Name(), ignore: true},
 	} {
@@ -344,4 +352,250 @@ func TestIgnoreResponseBody(t *testing.T) {
 			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
 		})
 	}
+}
+
+func TestCollectorRunCheckWithRealTime(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	check := mocks.NewCheckWithRealTime(t)
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	results := api.NewWeightedQueue(1, 1024)
+	rtResults := api.NewWeightedQueue(1, 1024)
+
+	standardOption := checks.RunOptions{
+		RunStandard: true,
+	}
+
+	result := &checks.RunResult{
+		Standard: []model.MessageBody{
+			&model.CollectorProc{},
+		},
+	}
+
+	check.On("RunWithOptions", mock.Anything, mock.Anything, standardOption).Once().Return(result, nil)
+	check.On("Name").Return("foo")
+	check.On("RealTimeName").Return("bar")
+
+	c.runCheckWithRealTime(
+		check,
+		results,
+		rtResults,
+		standardOption,
+	)
+
+	assert.Equal(t, results.Len(), 1)
+	item, ok := results.Poll()
+	assert.True(t, ok)
+	assert.Equal(t, item.Type(), "foo")
+
+	assert.Equal(t, rtResults.Len(), 0)
+
+	rtResult := &checks.RunResult{
+		RealTime: []model.MessageBody{
+			&model.CollectorProc{},
+		},
+	}
+
+	rtOption := checks.RunOptions{
+		RunRealTime: true,
+	}
+
+	check.On("RunWithOptions", mock.Anything, mock.Anything, rtOption).Once().Return(rtResult, nil)
+
+	c.runCheckWithRealTime(
+		check,
+		results,
+		rtResults,
+		rtOption,
+	)
+
+	assert.Equal(t, results.Len(), 0)
+	assert.Equal(t, rtResults.Len(), 1)
+	item, ok = rtResults.Poll()
+	assert.True(t, ok)
+	assert.Equal(t, item.Type(), "bar")
+}
+
+func TestCollectorRunCheck(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	check := mocks.NewCheck(t)
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	results := api.NewWeightedQueue(1, 1024)
+
+	result := []model.MessageBody{
+		&model.CollectorProc{},
+	}
+
+	check.On("Run", mock.Anything, mock.Anything).Return(result, nil)
+	check.On("Name").Return("foo")
+	check.On("RealTime").Return(false)
+	check.On("ShouldSaveLastRun").Return(true)
+
+	c.runCheck(
+		check,
+		results,
+	)
+
+	assert.Equal(t, results.Len(), 1)
+	item, ok := results.Poll()
+	assert.True(t, ok)
+	assert.Equal(t, item.Type(), "foo")
+}
+
+func TestCollectorMessagesToCheckResult(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	cfg.HostName = "host"
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	now := time.Now()
+	agentVersion, _ := version.Agent()
+
+	requestID := c.getRequestID(now, 0)
+
+	tests := []struct {
+		name          string
+		message       model.MessageBody
+		expectHeaders map[string]string
+	}{
+		{
+			name: "process",
+			message: &model.CollectorProc{
+				Containers: []*model.Container{
+					{}, {}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "3",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+				headers.RequestIDHeader:      requestID,
+			},
+		},
+		{
+			name: "rt_process",
+			message: &model.CollectorRealTime{
+				ContainerStats: []*model.ContainerStat{
+					{}, {}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "3",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name: "container",
+			message: &model.CollectorContainer{
+				Containers: []*model.Container{
+					{}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "2",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name: "rt_container",
+			message: &model.CollectorContainerRealTime{
+				Stats: []*model.ContainerStat{
+					{}, {}, {}, {}, {},
+				},
+			},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "5",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name:    "process_discovery",
+			message: &model.CollectorProcDiscovery{},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:           "host",
+				headers.ProcessVersionHeader: agentVersion.GetNumber(),
+				headers.ContainerCountHeader: "0",
+				headers.ContentTypeHeader:    headers.ProtobufContentType,
+			},
+		},
+		{
+			name:    "process_events",
+			message: &model.CollectorProcEvent{},
+			expectHeaders: map[string]string{
+				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:             "host",
+				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
+				headers.ContainerCountHeader:   "0",
+				headers.ContentTypeHeader:      headers.ProtobufContentType,
+				headers.EVPOriginHeader:        "process-agent",
+				headers.EVPOriginVersionHeader: version.AgentVersion,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			messages := []model.MessageBody{
+				test.message,
+			}
+			result := c.messagesToCheckResult(now, test.name, messages)
+			assert.Equal(t, test.name, result.name)
+			assert.Len(t, result.payloads, 1)
+			payload := result.payloads[0]
+			assert.Len(t, payload.headers, len(test.expectHeaders))
+			for k, v := range test.expectHeaders {
+				assert.Equal(t, v, payload.headers.Get(k))
+			}
+		})
+	}
+}
+
+func Test_getRequestID(t *testing.T) {
+	cfg := config.NewDefaultAgentConfig()
+	cfg.HostName = "host"
+
+	c, err := NewCollector(cfg, []checks.Check{})
+	assert.NoError(t, err)
+
+	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
+	id1 := c.getRequestID(fixedDate1, 1)
+	id2 := c.getRequestID(fixedDate1, 1)
+	// The calculation should be deterministic, so making sure the parameters generates the same id.
+	assert.Equal(t, id1, id2)
+	fixedDate2 := time.Date(2022, 9, 1, 0, 0, 2, 0, time.Local)
+	id3 := c.getRequestID(fixedDate2, 1)
+
+	// The request id is based on time, so if the difference it only the time, then the new ID should be greater.
+	id1Num, _ := strconv.ParseUint(id1, 10, 64)
+	id3Num, _ := strconv.ParseUint(id3, 10, 64)
+	assert.Greater(t, id3Num, id1Num)
+
+	// Increasing the chunk index should increase the id.
+	id4 := c.getRequestID(fixedDate2, 3)
+	id4Num, _ := strconv.ParseUint(id4, 10, 64)
+	assert.Equal(t, id3Num+2, id4Num)
+
+	// Changing the host -> changing the hash.
+	cfg.HostName = "host2"
+	c.requestIDCachedHash = nil
+	id5 := c.getRequestID(fixedDate1, 1)
+	assert.NotEqual(t, id1, id5)
 }

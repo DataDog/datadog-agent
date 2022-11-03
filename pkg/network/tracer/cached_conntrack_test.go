@@ -51,17 +51,17 @@ func TestEnsureConntrack(t *testing.T) {
 	// remaining conntrack instance is closed
 	m.EXPECT().Close().Times(2)
 
-	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
+	_, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	// call again, should get the cached Conntrack
-	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
+	_, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 
 	// evict the lone conntrack in the cache
-	ctrk, err = cache.ensureConntrack(1235, os.Getpid())
+	_, err = cache.ensureConntrack(1235, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
 }

@@ -100,24 +100,16 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_dca_changelog(ctx, new_version):
-    """
-    Quick task to generate the new CHANGELOG-DCA using reno when releasing a minor
-    version (linux/macOS only).
-    """
-    return update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
-
-
-@task
-def update_changelog(ctx, new_version):
-    return update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
-
-
-def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
+def update_changelog(ctx, new_version, target="all"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
+    By default generates Agent and Cluster Agent changelogs.
+    Use target == "agent" or target == "cluster-agent" to only generate one or the other.
     """
+    generate_agent = target in ["all", "agent"]
+    generate_cluster_agent = target in ["all", "cluster-agent"]
+
     new_version_int = list(map(int, new_version.split(".")))
 
     if len(new_version_int) != 3:
@@ -141,6 +133,15 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
         raise
 
+    if generate_agent:
+        update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+    if generate_cluster_agent:
+        update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+
+
+def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
+    new_version_int = list(map(int, new_version.split(".")))
+
     # removing releasenotes from bugfix on the old minor.
     branching_point = f"{new_version_int[0]}.{new_version_int[1]}.0-devel"
     previous_minor = f"{new_version_int[0]}.{new_version_int[1] - 1}"
@@ -155,17 +156,17 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
 
     # generate the new changelog
     ctx.run(
-        f"reno report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
+        f"reno --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
     )
 
-    # reseting git
-    ctx.run("git reset --hard HEAD")
+    ctx.run(f"git checkout HEAD -- {changelog_dir}")
 
     # mac's `sed` has a different syntax for the "-i" paramter
     # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
-    if ctx.run("sed --version", hide='both'):
+    try:
+        ctx.run("sed --version", hide='both')
         sed_i_arg = "-i"
-    else:
+    except Failure:
         sed_i_arg = "-i ''"
     # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
     v6_tag = ""
@@ -180,10 +181,10 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
     ctx.run(f"cat {changelog_file} >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst {changelog_file}")
 
     # commit new CHANGELOG
-    ctx.run(f"git add {changelog_file}.rst")
+    ctx.run(f"git add {changelog_file}")
 
     print("\nCommit this with:")
-    print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
+    print(f"git commit -m \"Update {changelog_file} for {new_version}\"")
 
 
 @task

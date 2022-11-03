@@ -181,6 +181,11 @@ type isolationSegmentRelationshipResponse struct {
 	} `json:"links"`
 }
 
+type listProcessesByAppGUIDResponse struct {
+	Pagination cfclient.Pagination `json:"pagination"`
+	Resources  []cfclient.Process  `json:"resources"`
+}
+
 // CFOrgQuota defines a Cloud Foundry Organization quota
 type CFOrgQuota struct {
 	GUID        string
@@ -647,4 +652,42 @@ func (c *CFClient) GetIsolationSegmentSpaceGUID(guid string) (string, error) {
 // GetIsolationSegmentOrganizationGUID return an isolation segment GUID given an organization GUID
 func (c *CFClient) GetIsolationSegmentOrganizationGUID(guid string) (string, error) {
 	return c.getIsolationSegmentRelationship("organizations", guid)
+}
+
+// ListProcessByAppGUID returns a list of processes for the given application GUID
+func (c *CFClient) ListProcessByAppGUID(query url.Values, appGUID string) ([]cfclient.Process, error) {
+	var processes []cfclient.Process
+
+	requestURL := "/v3/apps/" + appGUID + "/processes"
+	for page := 1; ; page++ {
+		query.Set("page", strconv.Itoa(page))
+		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
+		resp, err := c.DoRequest(r)
+		if err != nil {
+			return nil, fmt.Errorf("Error requesting processes for app: %s", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Error listing processes, response code: %d", resp.StatusCode)
+		}
+
+		defer resp.Body.Close()
+		resBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading processes response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		var data listProcessesByAppGUIDResponse
+		err = json.Unmarshal(resBody, &data)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshalling processes response for app %s for page %d: %s", appGUID, page, err)
+		}
+
+		processes = append(processes, data.Resources...)
+
+		if data.Pagination.TotalPages <= page {
+			break
+		}
+	}
+	return processes, nil
 }

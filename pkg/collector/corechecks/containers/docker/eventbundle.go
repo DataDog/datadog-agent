@@ -55,7 +55,7 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 		b.maxTimestamp = event.Timestamp
 	}
 
-	if event.Action == "oom" || event.Action == "kill" {
+	if isAlertTypeError(event.Action) {
 		b.alertType = metrics.EventAlertTypeError
 	}
 
@@ -102,4 +102,12 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 	}
 
 	return output, nil
+}
+
+func formatStringIntMap(input map[string]int) string {
+	var parts []string
+	for k, v := range input {
+		parts = append(parts, fmt.Sprintf("%d %s", v, k))
+	}
+	return strings.Join(parts, " ")
 }

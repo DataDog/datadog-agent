@@ -19,12 +19,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 )
 
-var BTFHubPossiblyMissingConstants = []string{
+var BTFHubVsRcPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
+	constantfetch.OffsetNameIoKiocbStructCtx,
 }
 
-var RCMissingConstants = []string{
+var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
+}
+
+var BTFHubVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameNFConnStructCTNet,
 }
 
 func TestOctogonConstants(t *testing.T) {
@@ -56,7 +61,7 @@ func TestOctogonConstants(t *testing.T) {
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCMissingConstants)
+		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
@@ -74,7 +79,21 @@ func TestOctogonConstants(t *testing.T) {
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
 
-		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubPossiblyMissingConstants)
+		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubVsRcPossiblyMissingConstants)
+	})
+
+	t.Run("btfhub-vs-fallback", func(t *testing.T) {
+		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
+		if err != nil {
+			t.Skipf("btfhub constant fetcher is not available: %v", err)
+		}
+		if !btfhubFetcher.HasConstantsInStore() {
+			t.Skip("btfhub has no constant for this OS")
+		}
+
+		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
+
+		assertConstantsEqual(t, btfhubFetcher, fallbackFetcher, kv, BTFHubVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("btf-vs-fallback", func(t *testing.T) {

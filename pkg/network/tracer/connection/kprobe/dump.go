@@ -98,7 +98,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.TcpStatsMap): // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
+	case string(probes.TCPStatsMap): // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'TCPStats'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.ConnTuple
@@ -143,7 +143,7 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case string(probes.UdpPortBindingsMap): // maps/udp_port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
+	case string(probes.UDPPortBindingsMap): // maps/udp_port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
 		output.WriteString("Map: '" + mapName + "', key: 'portBindingTuple', value: 'C.__u8'\n")
 		iter := currentMap.Iterate()
 		var key ddebpf.PortBinding

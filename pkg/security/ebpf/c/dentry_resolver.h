@@ -16,8 +16,8 @@
 
 #define FAKE_INODE_MSW 0xdeadc001UL
 
-#define DR_MAX_TAIL_CALL          30
-#define DR_MAX_ITERATION_DEPTH    45
+#define DR_MAX_TAIL_CALL          29
+#define DR_MAX_ITERATION_DEPTH    47
 #define DR_MAX_SEGMENT_LENGTH     255
 
 struct path_leaf_t {
@@ -82,21 +82,23 @@ struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_callbacks") dentry_resol
 #define DR_ERPC_PARENT_KEY                 1
 #define DR_ERPC_SEGMENT_KEY                2
 #define DR_KPROBE_DENTRY_RESOLVER_KERN_KEY 3
+#define DR_KPROBE_AD_FILTER_KEY            4
 
 struct bpf_map_def SEC("maps/dentry_resolver_kprobe_progs") dentry_resolver_kprobe_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
-    .max_entries = 4,
+    .max_entries = 5,
 };
 
 #define DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY 0
+#define DR_TRACEPOINT_AD_FILTER_KEY            1
 
 struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_progs") dentry_resolver_tracepoint_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
-    .max_entries = 1,
+    .max_entries = 2,
 };
 
 struct bpf_map_def SEC("maps/is_discarded_by_inode_gen") is_discarded_by_inode_gen = {
@@ -122,12 +124,11 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_ERROR;
     }
     *params = (struct is_discarded_by_inode_t){
-        .event_type = input->discarder_type,
+        .discarder_type = input->discarder_type,
         .tgid = bpf_get_current_pid_tgid() >> 32,
         .now = bpf_ktime_get_ns(),
+        .ad_state = input->ad_state,
     };
-    // check if we should ignore the normal discarder check because of an activity dump
-    fill_activity_dump_discarder_state(ctx, params);
 
     if (key.ino == 0 || key.mount_id == 0) {
         return DENTRY_INVALID;
@@ -702,11 +703,39 @@ exit:
     return 0;
 }
 
+SEC("kprobe/dentry_resolver_ad_filter")
+int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall) {
+        return 0;
+    }
+
+    // get the activity dump state
+    syscall->resolver.ad_state = get_activity_dump_state(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type);
+
+    bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
+    return 0;
+}
+
+SEC("tracepoint/dentry_resolver_ad_filter")
+int tracepoint_dentry_resolver_ad_filter(void *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall) {
+        return 0;
+    }
+
+    // get the activity dump state
+    syscall->resolver.ad_state = get_activity_dump_state(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type);
+
+    bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+    return 0;
+}
+
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
     if (dr_type == DR_KPROBE) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
+        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_AD_FILTER_KEY);
     } else if (dr_type == DR_TRACEPOINT) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_AD_FILTER_KEY);
     }
     return 0;
 }

@@ -67,11 +67,25 @@ var doOnce sync.Once
 // It reads all configs and caches them in memory for 5 minutes.
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
+	fileCacheExpiration := 5 * time.Minute
+	if config.Datadog.GetBool("autoconf_config_files_poll") {
+		// Removing some time (1s) to avoid races with polling interval.
+		// If cache expiration is set to be == ticker interval the cache may be used if t1B (cache read time) - t0B (ticker time) < t1A (cache store time) - t0A (ticker time).
+		// Which is likely to be the case because the code path on a cache write is slower.
+		configExpSeconds := config.Datadog.GetInt("autoconf_config_files_poll_interval") - 1
+		// If we are below < 1, cache is basically disabled, we cannot put 0 as it's considered no expiration by cache.Cache
+		if configExpSeconds < 1 {
+			fileCacheExpiration = time.Nanosecond
+		} else {
+			fileCacheExpiration = time.Duration(configExpSeconds) * time.Second
+		}
+	}
+
 	doOnce.Do(func() {
 		if reader == nil {
 			reader = &configFilesReader{
 				paths: paths,
-				cache: cache.New(5*time.Minute, 30*time.Second),
+				cache: cache.New(fileCacheExpiration, 30*time.Second),
 			}
 		}
 
@@ -103,21 +117,26 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 	reader.Lock()
 	defer reader.Unlock()
 
+	var configs []integration.Config
+	var errs map[string]string
+
 	cachedConfigs, foundConfigs := reader.cache.Get("configs")
 	cachedErrors, foundErrors := reader.cache.Get("errors")
-	if !foundConfigs || !foundErrors {
-		// Cache expired
-		reader.readAndCacheAll()
-	}
+	if foundConfigs && foundErrors {
+		// Cache hit
+		var ok bool
+		configs, ok = cachedConfigs.([]integration.Config)
+		if !ok {
+			return nil, nil, errors.New("couldn't cast cached configs from cache")
+		}
 
-	configs, ok := cachedConfigs.([]integration.Config)
-	if !ok {
-		return nil, nil, errors.New("couldn't cast cached configs from cache")
-	}
-
-	errs, ok := cachedErrors.(map[string]string)
-	if !ok {
-		return nil, nil, errors.New("couldn't cast cached config errors from cache")
+		errs, ok = cachedErrors.(map[string]string)
+		if !ok {
+			return nil, nil, errors.New("couldn't cast cached config errors from cache")
+		}
+	} else {
+		// Cache miss, read again
+		configs, errs = reader.readAndCacheAll()
 	}
 
 	return filterConfigs(configs, keep), errs, nil
@@ -134,10 +153,11 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 	return filteredConfigs
 }
 
-func (r *configFilesReader) readAndCacheAll() {
+func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]string) {
 	configs, errors := r.read(GetAll)
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
+	return configs, errors
 }
 
 // read scans paths searching for configuration files. When found,
@@ -151,7 +171,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
-		entries, err := readDirPtr(path)
+		entries, err := ioutil.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -331,7 +351,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := readFilePtr(fpath)
+	yamlFile, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return conf, err
 	}
@@ -402,10 +422,13 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		return conf, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
 
-	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
+	// Interpolate env vars. Returns an error a variable wasn't substituted, ignore it.
 	e := configresolver.SubstituteTemplateEnvVars(&conf)
 	if e != nil {
-		log.Errorf("Failed to substitute template var %s", e)
+		// Ignore NoServiceError since service is always nil for integration configs from files.
+		if _, ok := e.(*configresolver.NoServiceError); !ok {
+			log.Errorf("Failed to substitute template var %s", e)
+		}
 	}
 
 	conf.Source = "file:" + fpath
@@ -424,10 +447,8 @@ func containsString(slice []string, str string) bool {
 
 // ResetReader is only for unit tests
 func ResetReader(paths []string) {
-	reader = &configFilesReader{
-		paths: paths,
-		cache: cache.New(5*time.Minute, 30*time.Second),
-	}
+	reader = nil
+	doOnce = sync.Once{}
 
-	reader.readAndCacheAll()
+	InitConfigFilesReader(paths)
 }

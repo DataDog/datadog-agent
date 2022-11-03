@@ -21,13 +21,9 @@ func TestMinUint64(t *testing.T) {
 	assert.Equal(t, uint64(5), MinUint64(uint64(5), uint64(10)))
 }
 
-func TestUint32ToBytes(t *testing.T) {
-	const MinUint = uint32(0)
-	const MaxUint = ^uint32(0)
-
-	assert.Equal(t, Uint32ToBytes(MinUint), []byte{0, 0, 0, 0})
-	assert.Equal(t, Uint32ToBytes(MaxUint), []byte{255, 255, 255, 255})
-	assert.Equal(t, Uint32ToBytes(300), []byte{0x2c, 0x1, 0x0, 0x0})
+func TestMaxUint16(t *testing.T) {
+	assert.Equal(t, uint16(10), MaxUint16(uint16(10), uint16(5)))
+	assert.Equal(t, uint16(10), MaxUint16(uint16(5), uint16(10)))
 }
 
 func TestIPBytesToString(t *testing.T) {

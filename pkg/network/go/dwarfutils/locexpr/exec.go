@@ -32,7 +32,7 @@ type LocationPiece struct {
 // for debugging/error reporting purposes
 func Format(expression []byte) string {
 	buf := bytes.NewBufferString("")
-	op.PrettyPrint(buf, expression)
+	op.PrettyPrint(buf, expression, nil)
 	return buf.String()
 }
 

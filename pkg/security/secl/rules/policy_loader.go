@@ -51,6 +51,10 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 			errs = multierror.Append(errs, err)
 		}
 
+		if policies == nil {
+			continue
+		}
+
 		for _, policy := range policies {
 			if policy.Name == DefaultPolicyName {
 				defaultPolicy = policy

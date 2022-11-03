@@ -40,13 +40,10 @@ def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
-def bin_name(name, android=False):
+def bin_name(name):
     """
     Generate platform dependent names for binaries
     """
-    if android:
-        return f"{name}.aar"
-
     if sys.platform == 'win32':
         return f"{name}.exe"
     return name
@@ -118,7 +115,7 @@ def get_nikos_linker_flags(nikos_libs_path):
         'zstd',
     ]
     # hardcode the path to each library to ensure we link against the version which was built by omnibus-nikos
-    linker_flags = map(lambda lib: nikos_libs_path + '/lib' + lib + '.a', nikos_libs)
+    linker_flags = [nikos_libs_path + '/lib' + lib + '.a' for lib in nikos_libs]
 
     return ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -static-libstdc++ -pthread -ldl -lm'
 
@@ -222,10 +219,13 @@ def get_build_flags(
 
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
-        if sys.platform == 'win32':
-            # On windows, need to build with the extra argument -ldflags="-linkmode internal"
-            # if you want to be able to use the delve debugger.
-            ldflags += "-linkmode internal "
+        # if sys.platform == 'win32':
+        # On windows, need to build with the extra argument -ldflags="-linkmode internal"
+        # if you want to be able to use the delve debugger.
+        #
+        # Currently the presense of "-linkmode internal " actually causes link error which
+        # is contrary to the assertions stated above and the line is temporary commented out.
+        # ldflags += "-linkmode internal "
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 

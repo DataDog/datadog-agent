@@ -1,9 +1,15 @@
-FROM ubuntu:18.04
+# We cannot use Ubuntu 22.04 because the E2E tests
+# are currently using a Docker Compose v1 imaged based on Debian.
+# The glibc version is too old to allow running CGO binaries built on Ubuntu 22.04
+# We'll be able to migrate when we get rid of Docker Compose or use Docker Compose v2
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND noninteractive
 
 # Pre-requisites
-# python3.7-dev is required by rtloader
+# Python 3 dev is required for rtloader
 RUN set -ex \
-    && apt-get update \
+    && apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         curl \
         doxygen \
@@ -20,16 +26,18 @@ RUN set -ex \
         libsystemd-dev \
         make \
         pkg-config \
-        python3.7-dev \
+        python3 \
+        python3-dev \
         python3-distutils \
         python3-pip \
         python3-setuptools \
         python3-yaml \
         snmp-mibs-downloader \
-        ssh
+        ssh \
+        xz-utils
 
 # Golang
-ENV GIMME_GO_VERSION 1.18.5
+ENV GIMME_GO_VERSION 1.18.7
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH
@@ -51,12 +59,12 @@ RUN set -ex \
 
 # Other dependencies
 RUN set -ex \
-    # clang-format v8
-    && echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main" >> /etc/apt/sources.list \
+    # clang-format
+    && echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal main" >> /etc/apt/sources.list \
     && curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
     && apt-get update \
-    && apt-get -t llvm-toolchain-bionic-8 install -y --no-install-recommends \
-        clang-format-8
+    && apt-get -t llvm-toolchain-focal install -y --no-install-recommends \
+        clang-format
 
 # Setup entrypoint
 WORKDIR $GOPATH

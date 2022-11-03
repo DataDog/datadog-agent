@@ -25,7 +25,9 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 
@@ -276,9 +278,6 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
-	if p.config.AgentMonitoringEvents {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
-	}
 
 	if err := p.manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -539,7 +538,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID)
+			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID, event.PIDContext.Pid)
 			mountNetNSPath := utils.NetNSPathFromPath(mountPath)
 			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
 		}
@@ -549,7 +548,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		mount := p.resolvers.MountResolver.Get(event.Umount.MountID)
+		mount := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -955,11 +954,11 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
+func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) || p.isNeededForActivityDump(eventType) {
+		if eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -982,8 +981,13 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	activatedProbes = append(activatedProbes, p.selectTCProbes())
 
 	// Add syscall monitor probes
-	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1009,7 +1013,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}
 
 	enabledEvents := uint64(0)
-	for _, eventName := range rs.GetEventTypes() {
+	for _, eventName := range eventTypes {
 		if eventName != "*" {
 			eventType := model.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
@@ -1073,7 +1077,7 @@ Discarder Count: Discardee Parameters
 		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
 			discardedInodeCount++
 			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
-			path, err := p.resolvers.resolveFileFieldsPath(&fields)
+			path, err := p.resolvers.resolveFileFieldsPath(&fields, &model.PIDContext{Pid: 1, Tid: 1})
 			if err != nil {
 				path = err.Error()
 			}
@@ -1305,6 +1309,8 @@ func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netn
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
+		newProbe.TCFilterPrio = p.config.NetworkClassifierPriority
+		newProbe.TCFilterHandle = netlink.MakeHandle(0, p.config.NetworkClassifierHandle)
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -1427,7 +1433,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
 		numCPU,
-		p.config.ActivityDumpCgroupWaitListSize,
+		p.config.ActivityDumpTracedCgroupsCount,
 		useMmapableMaps,
 		useRingBuffers,
 		uint32(p.config.EventStreamBufferSize),
@@ -1437,9 +1443,14 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
-	if p.config.ActivityDumpSyscallMonitor && p.config.ActivityDumpEnabled {
-		// Add syscall monitor probes
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+	if p.config.ActivityDumpEnabled {
+		for _, e := range p.config.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				// Add syscall monitor probes
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
 	}
 
 	p.constantOffsets, err = p.GetOffsetConstants()

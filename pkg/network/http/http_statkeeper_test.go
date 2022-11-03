@@ -3,36 +3,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
 import (
-	"encoding/binary"
-	"fmt"
 	"regexp"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
-	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	tel, err := newTelemetry()
 	require.NoError(t, err)
 	sk := newHTTPStatkeeper(cfg, tel)
 	txs := make([]httpTX, 100)
 
-	sourceIP := util.AddressFromString("1.1.1.1")
+	srcString := "1.1.1.1"
+	dstString := "2.2.2.2"
+	sourceIP := util.AddressFromString(srcString)
 	sourcePort := 1234
-	destIP := util.AddressFromString("2.2.2.2")
+	destIP := util.AddressFromString(dstString)
 	destPort := 8080
 
 	const numPaths = 10
@@ -70,25 +71,6 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	}
 }
 
-func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
-	var tx httpTX
-
-	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := _Ctype_ulonglong(uint64(latency))
-	tx.request_started = 1
-	tx.request_method = 1
-	tx.response_last_seen = tx.request_started + latencyNS
-	tx.response_status_code = _Ctype_ushort(code)
-	tx.request_fragment = requestFragment([]byte(reqFragment))
-	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
-	tx.tup.sport = _Ctype_ushort(sourcePort)
-	tx.tup.daddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))
-	tx.tup.dport = _Ctype_ushort(destPort)
-	tx.tup.metadata = 1
-
-	return tx
-}
-
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	tel, err := newTelemetry()
@@ -121,12 +103,11 @@ func TestPathProcessing(t *testing.T) {
 		statusCode = 200
 		latency    = time.Second
 	)
-
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	setupStatKeeper := func(rules []*config.ReplaceRule) *httpStatKeeper {
-		c := &config.Config{
-			MaxHTTPStatsBuffered: 1000,
-			HTTPReplaceRules:     rules,
-		}
+		c := cfg
+		c.HTTPReplaceRules = rules
 
 		tel, err := newTelemetry()
 		require.NoError(t, err)
@@ -212,7 +193,9 @@ func TestPathProcessing(t *testing.T) {
 
 func TestHTTPCorrectness(t *testing.T) {
 	t.Run("wrong path format", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -228,14 +211,17 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed.Load())
+		tel.log()
+		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
 	})
 
 	t.Run("invalid http verb", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -248,18 +234,21 @@ func TestHTTPCorrectness(t *testing.T) {
 			404,
 			30*time.Millisecond,
 		)
-		tx.request_method = 0 /* This is MethodUnknown */
+		tx.SetRequestMethod(0) /* This is MethodUnknown */
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed.Load())
+		tel.log()
+		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
 	})
 
 	t.Run("invalid latency", func(t *testing.T) {
-		cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
 		tel, err := newTelemetry()
 		require.NoError(t, err)
 		sk := newHTTPStatkeeper(cfg, tel)
@@ -275,7 +264,8 @@ func TestHTTPCorrectness(t *testing.T) {
 		transactions := []httpTX{tx}
 
 		sk.Process(transactions)
-		require.Equal(t, int64(1), tel.malformed.Load())
+		tel.log()
+		require.Equal(t, int64(1), tel.malformed.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)

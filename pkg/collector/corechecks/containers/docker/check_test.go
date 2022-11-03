@@ -196,7 +196,8 @@ func TestDockerCustomPart(t *testing.T) {
 			CollectVolumeCount: true,
 			CollectEvent:       true,
 		},
-		dockerHostname: "testhostname",
+		eventTransformer: newBundledTransformer("testhostname", []string{}),
+		dockerHostname:   "testhostname",
 		containerFilter: &containers.Filter{
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},

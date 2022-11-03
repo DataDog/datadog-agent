@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1185
+      - image: datadog/datadog-agent-runner-circle:go1187
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-main-
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-main-
     - save_cache: &save_deps
-        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/images/runner/Dockerfile" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -91,7 +91,7 @@ jobs:
             - /go/pkg/mod
             - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /usr/local/lib/python3.6/dist-packages
+            - /usr/local/lib/python3.8/dist-packages
             - /usr/local/bin
 
   unit_tests:
@@ -102,19 +102,19 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
+          no_output_timeout: 20m
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: codecov -f profile.cov -F linux || true
+          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker:
-          version: 17.09.0-ce
+      - setup_remote_docker
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
@@ -204,6 +204,15 @@ jobs:
       - run:
           name: lint python files
           command: inv -e lint-python
+
+  component_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run component linting
+          command: inv -e lint-components
 
   docker_tests:
     <<: *job_template
@@ -299,6 +308,9 @@ workflows:
           requires:
             - dependencies
       - python_linting:
+          requires:
+            - dependencies
+      - component_linting:
           requires:
             - dependencies
       - docker_tests:

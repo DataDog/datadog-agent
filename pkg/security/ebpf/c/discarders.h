@@ -29,7 +29,7 @@ struct bpf_map_def SEC("maps/discarder_stats_bb") discarder_stats_bb = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
+struct bpf_map_def SEC("maps/inode_discarder_revisions") inode_discarder_revisions = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
@@ -72,16 +72,16 @@ int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
     return 0;
 }
 
-int __attribute__((always_inline)) get_discarder_revision(u32 mount_id) {
+int __attribute__((always_inline)) get_inode_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
-    u32 *revision = bpf_map_lookup_elem(&discarder_revisions, &i);
+    u32 *revision = bpf_map_lookup_elem(&inode_discarder_revisions, &i);
 
     return revision ? *revision : 0;
 }
 
-int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
+int __attribute__((always_inline)) bump_inode_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
-    u32 *revision = bpf_map_lookup_elem(&discarder_revisions, &i);
+    u32 *revision = bpf_map_lookup_elem(&inode_discarder_revisions, &i);
     if (!revision) {
         return 0;
     }
@@ -200,7 +200,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 
     u64 *discarder_timestamp;
     u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
-    int revision = get_discarder_revision(mount_id);
+    int revision = get_inode_discarder_revision(mount_id);
 
     struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
     if (inode_params) {
@@ -246,18 +246,18 @@ typedef enum discard_check_state {
 discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type, params->now);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
     if (!inode_params) {
         return NOT_DISCARDED;
     }
 
-    bool is_discarded = inode_params->revision == get_discarder_revision(params->discarder.path_key.mount_id);
+    bool is_discarded = inode_params->revision == get_inode_discarder_revision(params->discarder.path_key.mount_id);
     if (!is_discarded) {
         return NOT_DISCARDED;
     }
 
     // should we ignore the discarder check because of an activity dump ?
-    if (params->activity_dump_state == IGNORE_DISCARDER_CHECK) {
+    if (params->ad_state == ACTIVITY_DUMP_RUNNING) {
         // do not discard this event
         return SAVED_BY_AD;
     }
@@ -286,7 +286,7 @@ void __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 in
             .is_retained = 1,
             .expire_at = expire_at,
         },
-        .revision = get_discarder_revision(mount_id),
+        .revision = get_inode_discarder_revision(mount_id),
     };
 
     #pragma unroll

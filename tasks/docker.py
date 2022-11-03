@@ -54,7 +54,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
-            """FROM docker/compose:debian-1.28.3
+            """FROM docker/compose:debian-1.29.2
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 CMD /test.bin
@@ -74,6 +74,7 @@ COPY test.bin /test.bin
         test_image.id,
         detach=True,
         pid_mode="host",  # For origin detection
+        cgroupns="host",  # To allow proper network mode detection in integration tests
         environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},

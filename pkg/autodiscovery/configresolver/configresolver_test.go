@@ -11,13 +11,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/stretchr/testify/assert"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -118,10 +116,8 @@ func TestGetFallbackHost(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	// Prepare envvars for test
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(t, err)
+	t.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	testCases := []struct {
 		testName    string
@@ -532,101 +528,6 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "unable to add tags for service 'a5901276aed1', err: invalid %%FOO%% tag",
 		},
-		//// check overrides
-		{
-			testName: "same check: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{"redis"},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another config is defined for the check redis",
-		},
-		{
-			testName: "empty check name defined: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{""},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
-		},
-		{
-			testName: "empty check names list defined: override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: %%host%%")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			errorString: "ignoring config from file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml: another empty config is defined with the same AD identifier: [redis]",
-		},
-		{
-			testName: "different checks: don't override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    []string{"tcp_check", "http_check"},
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			out: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				ServiceID:     "a5901276aed1",
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-		},
-		{
-			testName: "not annotated: don't override check from file",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				CheckNames:    nil,
-			},
-			tpl: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost")},
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-			out: integration.Config{
-				Name:          "redis",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				ServiceID:     "a5901276aed1",
-				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
-				Provider:      "file",
-			},
-		},
 		{
 			testName: "SNMP testing",
 			svc: &dummyService{
@@ -863,10 +764,8 @@ func newFakeContainerPorts() []listeners.ContainerPort {
 
 func BenchmarkResolve(b *testing.B) {
 	// Prepare envvars for test
-	err := os.Setenv("test_envvar_key", "test_value")
-	require.NoError(b, err)
+	b.Setenv("test_envvar_key", "test_value")
 	os.Unsetenv("test_envvar_not_set")
-	defer os.Unsetenv("test_envvar_key")
 
 	testCases := []struct {
 		testName    string

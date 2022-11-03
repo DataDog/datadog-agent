@@ -26,23 +26,23 @@ type eventsManager struct {
 	eventsMutex sync.Mutex
 }
 
-func (em *eventsManager) addEventForNewRelease(rel *release, storage helmStorage) {
-	event := eventForRelease(rel, storage, textForAddEvent(rel), false)
+func (em *eventsManager) addEventForNewRelease(rel *release, tags []string) {
+	event := eventForRelease(rel, textForAddEvent(rel), tags)
 	em.storeEvent(event)
 }
 
-func (em *eventsManager) addEventForDeletedRelease(rel *release, storage helmStorage) {
-	event := eventForRelease(rel, storage, textForDeleteEvent(rel), true)
+func (em *eventsManager) addEventForDeletedRelease(rel *release, tags []string) {
+	event := eventForRelease(rel, textForDeleteEvent(rel), tags)
 	em.storeEvent(event)
 }
 
-func (em *eventsManager) addEventForUpdatedRelease(old *release, updated *release, storage helmStorage) {
+func (em *eventsManager) addEventForUpdatedRelease(old *release, updated *release, tags []string) {
 	// nil Info should not happen, so let's ignore those at least for now.
 	if (old.Info == nil || updated.Info == nil) || (old.Info.Status == updated.Info.Status) {
 		return
 	}
 
-	event := eventForRelease(updated, storage, textForChangedStatus(old.Info.Status, updated), false)
+	event := eventForRelease(updated, textForChangedStatus(old.Info.Status, updated), tags)
 	em.storeEvent(event)
 }
 
@@ -63,7 +63,7 @@ func (em *eventsManager) storeEvent(event coreMetrics.Event) {
 	em.events = append(em.events, event)
 }
 
-func eventForRelease(rel *release, storage helmStorage, text string, isDelete bool) coreMetrics.Event {
+func eventForRelease(rel *release, text string, tags []string) coreMetrics.Event {
 	return coreMetrics.Event{
 		Title:          eventTitle,
 		Text:           text,
@@ -72,9 +72,7 @@ func eventForRelease(rel *release, storage helmStorage, text string, isDelete bo
 		SourceTypeName: checkName,
 		EventType:      checkName,
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
-
-		// The revision tag is not included in delete events, because we generate a single event for all the revisions.
-		Tags: tagsForMetricsAndEvents(rel, storage, !isDelete),
+		Tags:           tags,
 	}
 }
 

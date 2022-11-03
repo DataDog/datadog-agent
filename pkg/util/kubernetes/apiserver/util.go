@@ -57,8 +57,8 @@ func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutos
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
-// UnstructuredFromWPA converts a WPA object into an Unstructured
-func UnstructuredFromWPA(structIn *v1alpha1.WatermarkPodAutoscaler, unstructOut *unstructured.Unstructured) error {
+// UnstructuredFromAutoscaler converts a WPA object into an Unstructured
+func UnstructuredFromAutoscaler(structIn runtime.Object, unstructOut *unstructured.Unstructured) error {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {
 		return fmt.Errorf("Unable to convert WatermarkPodAutoscaler %v: %w", structIn, err)

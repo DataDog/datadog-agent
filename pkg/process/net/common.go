@@ -48,6 +48,8 @@ var (
 	globalSocketPath string
 )
 
+var _ SysProbeUtil = &RemoteSysProbeUtil{}
+
 // RemoteSysProbeUtil wraps interactions with a remote system probe service
 type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe

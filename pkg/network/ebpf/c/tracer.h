@@ -3,6 +3,8 @@
 
 #include <linux/types.h>
 
+#include "protocol-classification-defs.h"
+
 #define bool _Bool
 #define true 1
 #define false 0
@@ -29,9 +31,10 @@ typedef struct {
     __u64 timestamp;
     __u32 flags;
     __u32 cookie;
-    __u8 direction;
     __u64 sent_packets;
     __u64 recv_packets;
+    __u8 direction;
+    protocol_t protocol;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -128,7 +131,6 @@ typedef struct {
     __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
-    __u64 conn_stats_max_entries_hit;
 } telemetry_t;
 
 typedef struct {

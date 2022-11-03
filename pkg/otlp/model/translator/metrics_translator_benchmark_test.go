@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -52,9 +51,9 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -66,11 +65,11 @@ func createBenchmarkGaugeMetrics(n int, additionalAttributes map[string]string) 
 		// IntGauge
 		met := metricsArray.AppendEmpty()
 		met.SetName(fmt.Sprintf("int.gauge.%d", i))
-		met.SetDataType(pmetric.MetricDataTypeGauge)
+		met.SetEmptyGauge()
 		dpsInt := met.Gauge().DataPoints()
 		dpInt := dpsInt.AppendEmpty()
 		dpInt.SetTimestamp(seconds(0))
-		dpInt.SetIntVal(1)
+		dpInt.SetIntValue(1)
 	}
 
 	return md
@@ -84,9 +83,9 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 	rm := rms.AppendEmpty()
 
 	resourceAttrs := rm.Resource().Attributes()
-	resourceAttrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	resourceAttrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		resourceAttrs.InsertString(attr, val)
+		resourceAttrs.PutStr(attr, val)
 	}
 
 	ilms := rm.ScopeMetrics()
@@ -96,8 +95,8 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 	for i := 0; i < n; i++ {
 		met := metricsArray.AppendEmpty()
 		met.SetName("expHist.test")
-		met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
-		met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+		met.SetEmptyExponentialHistogram()
+		met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 		points := met.ExponentialHistogram().DataPoints()
 		point := points.AppendEmpty()
 
@@ -111,13 +110,12 @@ func createBenchmarkDeltaExponentialHistogramMetrics(n int, b int, additionalAtt
 		for i := 0; i < b; i++ {
 			buckets[i] = 10
 		}
-		immutableBuckets := pcommon.NewImmutableUInt64Slice(buckets)
 
 		point.Negative().SetOffset(2)
-		point.Negative().SetBucketCounts(immutableBuckets)
+		point.Negative().BucketCounts().FromRaw(buckets)
 
 		point.Positive().SetOffset(3)
-		point.Positive().SetBucketCounts(immutableBuckets)
+		point.Positive().BucketCounts().FromRaw(buckets)
 
 		point.SetTimestamp(seconds(0))
 	}
@@ -132,9 +130,9 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -145,12 +143,12 @@ func createBenchmarkDeltaSumMetrics(n int, additionalAttributes map[string]strin
 	for i := 0; i < n; i++ {
 		met := metricsArray.AppendEmpty()
 		met.SetName("double.delta.monotonic.sum")
-		met.SetDataType(pmetric.MetricDataTypeSum)
-		met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+		met.SetEmptySum()
+		met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 		dpsDouble := met.Sum().DataPoints()
 		dpDouble := dpsDouble.AppendEmpty()
 		dpDouble.SetTimestamp(seconds(0))
-		dpDouble.SetDoubleVal(math.E)
+		dpDouble.SetDoubleValue(math.E)
 	}
 
 	return md

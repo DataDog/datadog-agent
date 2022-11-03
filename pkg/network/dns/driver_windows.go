@@ -16,10 +16,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 const (

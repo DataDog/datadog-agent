@@ -57,7 +57,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := ptraceotlp.NewClient(conn)
+		client := ptraceotlp.NewGRPCClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -111,7 +111,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := ptraceotlp.NewClient(conn)
+		client := ptraceotlp.NewGRPCClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -120,16 +120,16 @@ apm_config:
 				Attributes: map[string]interface{}{"service.name": "pylons"},
 				Spans: []*testutil.OTLPSpan{
 					{
-						TraceID: testutil.OTLPFixedTraceID.Bytes(),
-						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						TraceID: testutil.OTLPFixedTraceID,
+						SpanID:  testutil.OTLPFixedSpanID,
 						Name:    "/path",
 						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},
 					{
-						TraceID: testutil.OTLPFixedTraceID.Bytes(),
-						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						TraceID: testutil.OTLPFixedTraceID,
+						SpanID:  testutil.OTLPFixedSpanID,
 						Name:    "/path",
 						Kind:    ptrace.SpanKindServer,
 						Start:   now,

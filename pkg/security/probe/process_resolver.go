@@ -407,7 +407,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID)
+	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -476,6 +476,12 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
 			entry.LinuxBinprm.FileEvent = entry.FileEvent
 		}
+	}
+
+	if !entry.HasInterpreter() {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	// add netns
@@ -616,7 +622,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, error) {
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.PIDContext) (string, error) {
 
 	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
 		fileEvent.SetPathnameStr("")
@@ -626,7 +632,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent) (string, er
 		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields)
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, ctx)
 	if err != nil {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -663,7 +669,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
 	if entry.FileEvent.MountID != 0 {
-		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID)
+		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
 	}
 
 	return entry.FileEvent.Filesystem
@@ -697,14 +703,18 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent); err != nil {
+	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent); err != nil {
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
+	} else {
+		// mark it as resolved to avoid abnormal path later in the call flow
+		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	p.SetProcessArgs(entry)
@@ -802,34 +812,28 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	}
 
 	var ppid uint32
-	inserted := false
-	entry := p.entryCache[pid]
-	if entry == nil {
-		proc, err := process.NewProcess(int32(pid))
-		if err != nil {
-			return nil
-		}
-
-		filledProc := utils.GetFilledProcess(proc)
-		if filledProc == nil {
-			return nil
-		}
-
-		// ignore kthreads
-		if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-			return nil
-		}
-
-		entry, inserted = p.syncCache(proc, filledProc)
-		if entry != nil {
-			// consider kworker processes with 0 as ppid
-			entry.IsKworker = filledProc.Ppid == 0
-		}
-
-		ppid = uint32(filledProc.Ppid)
-	} else {
-		ppid = entry.PPid
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		return nil
 	}
+
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return nil
+	}
+
+	// ignore kthreads
+	if IsKThread(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
+		return nil
+	}
+
+	entry, inserted := p.syncCache(proc, filledProc)
+	if entry != nil {
+		// consider kworker processes with 0 as ppid
+		entry.IsKworker = filledProc.Ppid == 0
+	}
+
+	ppid = uint32(filledProc.Ppid)
 
 	parent := p.resolveFromProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
@@ -946,7 +950,7 @@ func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
 
 	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
 
-	return keys, pr.ArgsTruncated || truncated
+	return keys, pr.EnvsTruncated || truncated
 }
 
 // GetProcessEnvp returns the envs of the event with their values
@@ -957,7 +961,7 @@ func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 
 	envp, truncated := pr.EnvsEntry.ToArray()
 
-	return envp, pr.ArgsTruncated || truncated
+	return envp, pr.EnvsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
@@ -1123,7 +1127,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process, filledProc *process.F
 	if entry != nil {
 		p.setAncestor(entry)
 
-		return nil, false
+		return entry, false
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
@@ -1252,11 +1256,7 @@ func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewProcessVariables returns a provider for variables attached to a process cache entry
-func (p *ProcessResolver) NewProcessVariables() rules.VariableProvider {
-	scoper := func(ctx *eval.Context) unsafe.Pointer {
-		return unsafe.Pointer((*Event)(ctx.Object).ProcessCacheEntry)
-	}
-
+func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) unsafe.Pointer) rules.VariableProvider {
 	var variables *eval.ScopedVariables
 	variables = eval.NewScopedVariables(scoper, func(key unsafe.Pointer) {
 		(*model.ProcessCacheEntry)(key).SetReleaseCallback(func() {
