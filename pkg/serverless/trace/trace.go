@@ -70,7 +70,6 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, spanModifier
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
 			s.SpanModifier = spanModifier
-			log.Infof("ORIGIN IS %+v", spanModifier.Origin)
 			s.ta.ModifySpan = spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel
