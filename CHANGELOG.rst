@@ -14,7 +14,7 @@ Prelude
 
 Release on: 2022-11-02
 
-- Please refer to the `7.40.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7400>`_ for the list of changes on the Core Checks
+- Please refer to the ``7.40.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7400>``_ for the list of changes on the Core Checks
 
 
 .. _Release Notes_7.40.0_Upgrade Notes:
@@ -49,9 +49,9 @@ New Features
 
 - Enable the new DogStatsD no-aggregation pipeline, capable of processing metrics
   with timestamps.
-  Set `dogstatsd_no_aggregation_pipeline` to `false` to disable it.
+  Set ``dogstatsd_no_aggregation_pipeline`` to ``false`` to disable it.
 
-- Adds ability to identify the interpreter of a script inside a script via the shebang. Example rule would be `exec.interpreter.file.name == ~"python*"`. This feature is currently limited to one layer of nested script. For example, a python script in a shell script will be caught, but a perl script inside a python script inside a shell script will not be caught.
+- Adds ability to identify the interpreter of a script inside a script via the shebang. Example rule would be ``exec.interpreter.file.name == ~"python*"``. This feature is currently limited to one layer of nested script. For example, a python script in a shell script will be caught, but a perl script inside a python script inside a shell script will not be caught.
 
 
 .. _Release Notes_7.40.0_Enhancement Notes:
@@ -61,16 +61,16 @@ Enhancement Notes
 
 - JMXFetch now supports ZGC Cycles and ZGC Pauses beans support out of the box.
 
-- Adds new `aws.lambda.enhanced.post_runtime_duration` metric for AWS Lambda
+- Adds new ``aws.lambda.enhanced.post_runtime_duration`` metric for AWS Lambda
   functions. This gauge metric measures the elapsed milliseconds from when
   the function returns the response to when the extensions finishes. This
   includes performing activities like sending telemetry data to a preferred
   destination after the function's response is returned. Note that
-  `aws.lambda.enhanced.duration` is equivalent to the sum of
-  `aws.lambda.enhanced.runtime_duration` and
-  `aws.lambda.enhanced.post_runtime_duration`.
+  ``aws.lambda.enhanced.duration`` is equivalent to the sum of
+  ``aws.lambda.enhanced.runtime_duration`` and
+  ``aws.lambda.enhanced.post_runtime_duration``.
 
-- Add the `flare` command to the Cloud Foundry `cluster agent` to improve support
+- Add the ``flare`` command to the Cloud Foundry ``cluster agent`` to improve support
   experience.
 
 - Add ``CreateContainerError`` and ``InvalidImageName`` to waiting reasons
@@ -109,17 +109,17 @@ Enhancement Notes
 - Improve CCCache performance on cache miss, significantly reducing
   the number of API calls to the CAPI.
 
-- Add more flags to increase control over the CCCache, such as `refresh_on_cache_miss`, `sidecars_tags`,
-  and `isolation_segments_tags` flags under `cluster_agent` properties.
+- Add more flags to increase control over the CCCache, such as ``refresh_on_cache_miss``, ``sidecars_tags``,
+  and ``isolation_segments_tags`` flags under ``cluster_agent`` properties.
 
 - Windows: Add a config option to control how often the agent refreshes performance counters.
 
-- Introduces an `unbundle_events` config to the `docker` integration. When
-  set to `true`, Docker events are no longer bundled together by image name,
+- Introduces an ``unbundle_events`` config to the ``docker`` integration. When
+  set to ``true``, Docker events are no longer bundled together by image name,
   and instead generate separate Datadog events.
 
-- Introduces an `unbundle_events` config to the `kubernetes_apiserver`
-  integration. When set to `true`, Kubernetes events are no longer bundled
+- Introduces an ``unbundle_events`` config to the ``kubernetes_apiserver``
+  integration. When set to ``true``, Kubernetes events are no longer bundled
   together by InvolvedObject, and instead generate separate Datadog events.
 
 - On Windows the Agent now uses high-resolution icon where possible.
@@ -167,7 +167,7 @@ Bug Fixes
 
 - Fixed issue with CPU count on MacOS
 
-- The container CPU limit that is reported by `docker` and `container` checks on ECS was not defaulting to the task limit when no CPU limit is set at container level.
+- The container CPU limit that is reported by ``docker`` and ``container`` checks on ECS was not defaulting to the task limit when no CPU limit is set at container level.
 
 - Fix potential panic when removing a service that the log agent is currently tailing.
 
@@ -189,7 +189,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- JMXFetch upgraded to `0.47.1 https://github.com/DataDog/jmxfetch/releases/0.47.1`
+- JMXFetch upgraded to ``0.47.1 https://github.com/DataDog/jmxfetch/releases/0.47.1``
 
 - The ``logs_config.cca_in_ad`` feature flag now defaults to true.  This
   selects updated codepaths in Autodiscovery and the Logs Agent.  No behavior
