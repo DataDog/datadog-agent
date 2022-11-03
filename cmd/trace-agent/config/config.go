@@ -342,6 +342,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			c.MaxCPU = cgLim * 0.9
 			log.Infof("Cgroups CPU limit detected, setting max_cpu_percent to 90%% of %d cpu: %f", cgLim, c.MaxCPU)
 		}
+	} else {
+		log.Infof("No CPU limit set for trace-agent err: %v", err)
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
