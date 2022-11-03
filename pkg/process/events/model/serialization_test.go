@@ -40,7 +40,7 @@ func benchmarkProcessEventsJSON(b *testing.B, argCount int) {
 		data, err := json.Marshal(evt)
 		require.NoError(b, err)
 
-		var desEvt ProcessMonitoringEvent
+		var desEvt ProcessEvent
 		err = json.Unmarshal(data, &desEvt)
 		require.NoError(b, err)
 	}
