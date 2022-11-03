@@ -335,10 +335,8 @@ func (p *Process) GetPathResolutionError() string {
 
 // HasInterpreter returns whether the process uses an interpreter
 func (p *Process) HasInterpreter() bool {
-	// Cases in which the file event has an interpreter (given there's an inode):
-	// 1) There's a mount ID
-	// 2) There's no mount ID but it's fileless
-	return p.LinuxBinprm.FileEvent.Inode != 0 && (p.LinuxBinprm.FileEvent.MountID != 0 || strings.HasPrefix(p.LinuxBinprm.FileEvent.BasenameStr, FilelessExecutionFilenamePrefix))
+	// there can be an error case in which inode != 0 && mount_id == 0 && !fileless (if path resolution fails), but this boolean drops that case
+	return p.LinuxBinprm.FileEvent.Inode != 0 || p.LinuxBinprm.FileEvent.isFileless()
 }
 
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
@@ -490,6 +488,14 @@ func (e *FileEvent) GetPathResolutionError() string {
 		return e.PathResolutionError.Error()
 	}
 	return ""
+}
+
+// GetPathResolutionError returns the path resolution error as a string if there is one
+func (e *FileEvent) isFileless() bool {
+	if strings.HasPrefix(e.BasenameStr, FilelessExecutionFilenamePrefix) && e.MountID == 0 {
+		return true
+	}
+	return false
 }
 
 // InvalidateDentryEvent defines a invalidate dentry event
