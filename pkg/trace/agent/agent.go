@@ -66,9 +66,6 @@ type Agent struct {
 	// ModifySpan will be called on all spans, if non-nil.
 	ModifySpan func(*pb.Span)
 
-	// WrapSpans will add a new top-level span to a list of spans, if non-nil.
-	WrapSpans func([]*pb.Span) []*pb.Span
-
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -263,10 +260,6 @@ func (a *Agent) Process(p *api.Payload) {
 			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
-		}
-
-		if a.WrapSpans != nil {
-			chunk.Spans = a.WrapSpans(chunk.Spans)
 		}
 
 		// Extra sanitization steps of the trace.
