@@ -35,15 +35,14 @@ func main() {
 	tags := cloudService.GetTags()
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
-	wrapSpans := cloudService.WrapSpans
 
 	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags)
 
-	traceAgent := &trace.ServerlessTraceAgent{
-		WrapSpans: wrapSpans,
-	}
-	go setupTraceAgent(traceAgent, tags)
+	traceAgent := &trace.ServerlessTraceAgent{}
+	go setupTraceAgent(traceAgent, tags, &trace.SpanModifier{
+		Origin: origin,
+	})
 
 	metricAgent := setupMetricAgent(tags)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
@@ -52,8 +51,8 @@ func main() {
 	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, os.Args[1:])
 }
 
-func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string, spanModifier *trace.SpanModifier) {
+	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, spanModifier)
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()

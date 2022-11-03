@@ -90,6 +90,10 @@ func handleSignals(cloudService cloudservice.CloudService, process *os.Process, 
 					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
 				}
 			}
+			// For local development, allow us to ctrl+c to kill the process
+			if sig == syscall.SIGINT {
+				os.Exit(0)
+			}
 			if sig == syscall.SIGTERM {
 				metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 				flush(config.FlushTimeout, metricAgent, traceAgent)
