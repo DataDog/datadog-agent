@@ -6,13 +6,14 @@ package config
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func getCgroupCPULimit() (float64, error) {
-	reader, err := cgroups.NewSelfReader("/proc", true)
+	reader, err := cgroups.NewSelfReader("/proc", config.IsContainerized())
 	if err != nil {
 		return 0, err
 	}
