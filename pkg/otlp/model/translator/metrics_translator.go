@@ -229,6 +229,15 @@ func (t *Translator) getSketchBuckets(
 			sketch.Basic.Sum = histInfo.sum
 			sketch.Basic.Avg = sketch.Basic.Sum / float64(sketch.Basic.Cnt)
 		}
+		if delta && p.HasMin() {
+			// override min if available and delta.
+			sketch.Basic.Min = p.Min()
+		}
+		if delta && p.HasMax() {
+			// override max if available and delta.
+			sketch.Basic.Max = p.Max()
+		}
+
 		consumer.ConsumeSketch(ctx, pointDims, ts, sketch)
 	}
 }
