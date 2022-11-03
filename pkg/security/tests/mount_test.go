@@ -171,12 +171,12 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir1Path)
 
 	testDrivePath := path.Join(dir1Path, "test-drive")
 	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(testDrivePath)
 
 	testDrive, err := newTestDrive(t, "xfs", []string{}, testDrivePath)
 	if err != nil {
@@ -191,7 +191,6 @@ func TestMountPropagated(t *testing.T) {
 	if err := os.MkdirAll(dir1BindMntPath, 0755); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir1BindMntPath)
 
 	bindMnt := newTestMount(
 		dir1BindMntPath,
@@ -203,9 +202,9 @@ func TestMountPropagated(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		testDrivePath := path.Join(dir1BindMntPath, "test-drive")
-		if err := syscall.Unmount(testDrivePath, syscall.MNT_FORCE); err != nil {
-			t.Logf("Failed to unmount %s", testDrivePath)
+		testPropagatedDrivePath := path.Join(dir1BindMntPath, "test-drive")
+		if err := syscall.Unmount(testPropagatedDrivePath, syscall.MNT_FORCE); err != nil {
+			t.Logf("Failed to unmount %s", testPropagatedDrivePath)
 		}
 
 		if err := bindMnt.unmount(syscall.MNT_FORCE); err != nil {

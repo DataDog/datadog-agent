@@ -134,7 +134,7 @@ func (td *testDrive) cleanup() {
 		}
 	}
 	os.Remove(td.file.Name())
-	os.Remove(td.Root())
+	os.RemoveAll(td.Root())
 }
 
 func (td *testDrive) Close() {
