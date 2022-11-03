@@ -53,7 +53,7 @@ func benchmarkProcessEventsMsgPack(b *testing.B, argCount int) {
 		data, err := evt.MarshalMsg(nil)
 		require.NoError(b, err)
 
-		var desEvt ProcessMonitoringEvent
+		var desEvt ProcessEvent
 		_, err = desEvt.UnmarshalMsg(data)
 		require.NoError(b, err)
 	}
