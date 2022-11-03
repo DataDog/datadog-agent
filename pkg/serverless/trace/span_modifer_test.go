@@ -87,3 +87,96 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	_, tagOriginSelfSpanHasGlobalTags := tp.Chunks[0].Spans[0].GetMeta()["function_arn"]
 	assert.False(t, tagOriginSelfSpanHasGlobalTags, "A span with meta._inferred_span.tag_origin = self should not get global tags")
 }
+
+func TestRootAttributeExistsOnCloudRun(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg)
+	spanModifier := &SpanModifier{
+		Origin: "cloudrun",
+	}
+	agnt.ModifySpan = spanModifier.ModifySpan
+	defer cancel()
+	tc := testutil.RandomTraceChunk(1, 1)
+	tc.Spans[0].ParentID = 0
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
+	go agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	timeout := time.After(2 * time.Second)
+	var span *pb.Span
+	select {
+	case ss := <-agnt.TraceWriter.In:
+		span = ss.TracerPayload.Chunks[0].Spans[0]
+	case <-timeout:
+		t.Fatal("timed out")
+	}
+	assert.Equal(t, "true", span.Meta["root_span"])
+}
+
+func TestRootAttributeExistsOnContainerApp(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg)
+	spanModifier := &SpanModifier{
+		Origin: "containerapp",
+	}
+	agnt.ModifySpan = spanModifier.ModifySpan
+	defer cancel()
+	tc := testutil.RandomTraceChunk(1, 1)
+	tc.Spans[0].ParentID = 0
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
+	go agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	timeout := time.After(2 * time.Second)
+	var span *pb.Span
+	select {
+	case ss := <-agnt.TraceWriter.In:
+		span = ss.TracerPayload.Chunks[0].Spans[0]
+	case <-timeout:
+		t.Fatal("timed out")
+	}
+	assert.Equal(t, "true", span.Meta["root_span"])
+}
+
+func TestRootAttributeOnlyAddedToRootSpan(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := agent.NewAgent(ctx, cfg)
+	spanModifier := &SpanModifier{
+		Origin: "containerapp",
+	}
+	agnt.ModifySpan = spanModifier.ModifySpan
+	defer cancel()
+	tc := testutil.RandomTraceChunk(1, 10)
+	tc.Spans[0].ParentID = 0
+	tc.Priority = 1 // ensure trace is never sampled out
+	tp := testutil.TracerPayloadWithChunk(tc)
+	go agnt.Process(&api.Payload{
+		TracerPayload: tp,
+		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+	})
+	timeout := time.After(2 * time.Second)
+	var chunk *pb.TraceChunk
+	select {
+	case ss := <-agnt.TraceWriter.In:
+		chunk = ss.TracerPayload.Chunks[0]
+	case <-timeout:
+		t.Fatal("timed out")
+	}
+	numRootSpans := 0
+	for _, span := range chunk.Spans {
+		if span.Meta["root_span"] == "true" {
+			numRootSpans++
+		}
+	}
+	assert.Equal(t, 1, numRootSpans)
+}
