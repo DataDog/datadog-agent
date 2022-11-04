@@ -31,9 +31,9 @@ func TestGetEnvOrUnknown(t *testing.T) {
 }
 
 func TestGetRuntime(t *testing.T) {
-	dotnet := getRuntime(mockDotnetRuntime)
-	node := getRuntime(mockGetEnvVar)
-	unknown := getRuntime(mockUnknownRuntime)
+	dotnet := getRuntime(func(s string) string { return "dotnet" })
+	node := getRuntime(func(s string) string { return "node" })
+	unknown := getRuntime(func(s string) string { return "hahaha" })
 	assert.Equal(t, ".NET", dotnet)
 	assert.Equal(t, "Node.js", node)
 	assert.Equal(t, "unknown", unknown)
@@ -70,12 +70,4 @@ func mockAzureAppServiceMetadata() map[string]string {
 func mockGetEnvVar(key string) string {
 	aasMetadata := mockAzureAppServiceMetadata()
 	return aasMetadata[key]
-}
-
-func mockDotnetRuntime(key string) string {
-	return "dotnet"
-}
-
-func mockUnknownRuntime(key string) string {
-	return "not_a_runtime"
 }
