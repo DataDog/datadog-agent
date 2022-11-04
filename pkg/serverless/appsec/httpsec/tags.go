@@ -1,0 +1,240 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016 Datadog, Inc.
+
+package httpsec
+
+import (
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"sort"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// envClientIPHeader is the name of the env var used to specify the IP header to be used for client IP collection.
+const envClientIPHeader = "DD_TRACE_CLIENT_IP_HEADER"
+
+var (
+	ipv6SpecialNetworks = []*netaddrIPPrefix{
+		ippref("fec0::/10"), // site local
+	}
+	clientIPHeader string
+
+	defaultIPHeaders = []string{
+		"x-forwarded-for",
+		"x-real-ip",
+		"x-client-ip",
+		"x-forwarded",
+		"x-cluster-client-ip",
+		"forwarded-for",
+		"forwarded",
+		"via",
+		"true-client-ip",
+	}
+
+	// List of HTTP headers we collect and send.
+	collectedHTTPHeaders = append(defaultIPHeaders,
+		"host",
+		"content-length",
+		"content-type",
+		"content-encoding",
+		"content-language",
+		"forwarded",
+		"user-agent",
+		"accept",
+		"accept-encoding",
+		"accept-language")
+)
+
+func init() {
+	// Required by sort.SearchStrings
+	sort.Strings(collectedHTTPHeaders[:])
+	// Read the IP-parsing configuration
+	clientIPHeader = os.Getenv(envClientIPHeader)
+}
+
+// Span interface expected by this package to set span tags.
+type Span interface {
+	SetMeta(tag string, value string)
+	SetMetrics(tag string, value float64)
+}
+
+// SetAppSecEnabledTags sets the AppSec-specific span tags that are expected to
+// be in service entry span when AppSec is enabled.
+func SetAppSecEnabledTags(span Span) {
+	span.SetMetrics("_dd.appsec.enabled", 1)
+}
+
+// SetEventSpanTags sets the security event span tags into the service entry span.
+func SetEventSpanTags(span Span, events []json.RawMessage) error {
+	// Set the appsec event span tag
+	val, err := makeEventsTagValue(events)
+	if err != nil {
+		return err
+	}
+	span.SetMeta("_dd.appsec.json", string(val))
+	// TODO: can this span be sampled out and should we enforce the priority to avoid it?
+	// Set the appsec.event tag needed by the appsec backend
+	span.SetMeta("appsec.event", "true")
+	return nil
+}
+
+// Create the value of the security events tag.
+// TODO(Julio-Guerra): a future libddwaf version should return something
+// avoiding us the following events concatenation logic which currently
+// involves unserializing the top-level JSON arrays to concatenate them
+// together.
+// TODO(Julio-Guerra): avoid serializing the json in the request hot path
+func makeEventsTagValue(events []json.RawMessage) (json.RawMessage, error) {
+	var v interface{}
+	if l := len(events); l == 1 {
+		// eventTag is the structure to use in the `_dd.appsec.json` span tag.
+		// In this case of 1 event, it already is an array as expected.
+		type eventTag struct {
+			Triggers json.RawMessage `json:"triggers"`
+		}
+		v = eventTag{Triggers: events[0]}
+	} else {
+		// eventTag is the structure to use in the `_dd.appsec.json` span tag.
+		// With more than one event, we need to concatenate the arrays together
+		// (ie. convert [][]json.RawMessage into []json.RawMessage).
+		type eventTag struct {
+			Triggers []json.RawMessage `json:"triggers"`
+		}
+		concatenated := make([]json.RawMessage, 0, l) // at least len(events)
+		for _, event := range events {
+			// Unmarshal the top level array
+			var tmp []json.RawMessage
+			if err := json.Unmarshal(event, &tmp); err != nil {
+				return nil, fmt.Errorf("unexpected error while unserializing the appsec event `%s`: %v", string(event), err)
+			}
+			concatenated = append(concatenated, tmp...)
+		}
+		v = eventTag{Triggers: concatenated}
+	}
+
+	tag, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error while serializing the appsec event span tag: %v", err)
+	}
+	return tag, nil
+}
+
+// SetSecurityEventsTags sets the AppSec-specific span tags when security events were found.
+func SetSecurityEventsTags(span Span, events []json.RawMessage, headers, respHeaders map[string][]string) {
+	if err := SetEventSpanTags(span, events); err != nil {
+		log.Error("appsec: unexpected error while creating the appsec event tags: %v", err)
+		return
+	}
+	for h, v := range NormalizeHTTPHeaders(headers) {
+		span.SetMeta("http.request.headers."+h, v)
+	}
+	for h, v := range NormalizeHTTPHeaders(respHeaders) {
+		span.SetMeta("http.response.headers."+h, v)
+	}
+}
+
+// NormalizeHTTPHeaders returns the HTTP headers following Datadog's
+// normalization format.
+func NormalizeHTTPHeaders(headers map[string][]string) (normalized map[string]string) {
+	if len(headers) == 0 {
+		return nil
+	}
+	normalized = make(map[string]string)
+	for k, v := range headers {
+		k = strings.ToLower(k)
+		if i := sort.SearchStrings(collectedHTTPHeaders[:], k); i < len(collectedHTTPHeaders) && collectedHTTPHeaders[i] == k {
+			normalized[k] = strings.Join(v, ",")
+		}
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+// ippref returns the IP network from an IP address string s. If not possible, it returns nil.
+func ippref(s string) *netaddrIPPrefix {
+	if prefix, err := netaddrParseIPPrefix(s); err == nil {
+		return &prefix
+	}
+	return nil
+}
+
+// SetIPTags sets the IP related span tags for a given request
+// See https://docs.datadoghq.com/tracing/configure_data_security#configuring-a-client-ip-header for more information.
+func SetIPTags(span Span, r *http.Request) {
+	ipHeaders := defaultIPHeaders
+	if len(clientIPHeader) > 0 {
+		ipHeaders = []string{clientIPHeader}
+	}
+
+	var (
+		headers []string
+		ips     []string
+	)
+	for _, hdr := range ipHeaders {
+		if v := r.Header.Get(hdr); v != "" {
+			headers = append(headers, hdr)
+			ips = append(ips, v)
+		}
+	}
+
+	remoteIP := parseIP(r.RemoteAddr)
+	if remoteIP.IsValid() {
+		span.SetMeta("network.client.ip", remoteIP.String())
+	}
+
+	if l := len(ips); l == 0 {
+		if remoteIP.IsValid() && isGlobal(remoteIP) {
+			span.SetMeta("http.client_ip", remoteIP.String())
+		}
+	} else if l == 1 {
+		for _, ipstr := range strings.Split(ips[0], ",") {
+			ip := parseIP(strings.TrimSpace(ipstr))
+			if ip.IsValid() && isGlobal(ip) {
+				span.SetMeta("http.client_ip", ip.String())
+				break
+			}
+		}
+	} else {
+		for i := range ips {
+			span.SetMeta("http.request.headers."+headers[i], ips[i])
+		}
+		span.SetMeta("_dd.multiple-ip-headers", strings.Join(headers, ","))
+	}
+}
+
+func parseIP(s string) netaddrIP {
+	if ip, err := netaddrParseIP(s); err == nil {
+		return ip
+	}
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		if ip, err := netaddrParseIP(h); err == nil {
+			return ip
+		}
+	}
+	return netaddrIP{}
+}
+
+func isGlobal(ip netaddrIP) bool {
+	// IsPrivate also checks for ipv6 ULA.
+	// We care to check for these addresses are not considered public, hence not global.
+	// See https://www.rfc-editor.org/rfc/rfc4193.txt for more details.
+	isGlobal := !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast()
+	if !isGlobal || !ip.Is6() {
+		return isGlobal
+	}
+	for _, n := range ipv6SpecialNetworks {
+		if n.Contains(ip) {
+			return false
+		}
+	}
+	return isGlobal
+}

@@ -13,6 +13,8 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
@@ -30,6 +32,8 @@ type LifecycleProcessor struct {
 	Demux                aggregator.Demultiplexer
 	DetectLambdaLibrary  func() bool
 	InferredSpansEnabled bool
+	AppSec               *appsec.AppSec
+	AppSecContext        *appsec.Context
 
 	requestHandler *RequestHandler
 }
@@ -38,9 +42,10 @@ type LifecycleProcessor struct {
 // inferred span, and tags about the current invocation
 // inferred spans may contain a secondary inferred span in certain cases like SNS from SQS
 type RequestHandler struct {
-	executionInfo *ExecutionStartInfo
-	inferredSpans [2]*inferredspan.InferredSpan
-	triggerTags   map[string]string
+	executionInfo  *ExecutionStartInfo
+	inferredSpans  [2]*inferredspan.InferredSpan
+	triggerTags    map[string]string
+	triggerMetrics map[string]float64
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -49,6 +54,13 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
+
+	// Create a new appsec execution context for this invocation
+	if lp.AppSec != nil {
+		log.Debug("appsec: creating a new invocation context")
+		lp.AppSecContext = appsec.NewContext(lp.AppSec)
+		httpsec.SetAppSecEnabledTags((*spanTagSetter)(lp.requestHandler))
+	}
 
 	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
 
@@ -78,6 +90,9 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		var event events.APIGatewayProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromAPIGatewayEvent(event, region)
+		}
+		if lp.AppSec != nil {
+			lp.AppSecContext.AddAddress("server.request.body", event.Body)
 		}
 	case trigger.APIGatewayV2Event:
 		var event events.APIGatewayV2HTTPRequest
@@ -174,6 +189,18 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			endDetails.IsError = true
 		}
 
+		if lp.AppSec != nil {
+			// Clean the AppSec execution context which shouldn't be used out of an invocation.
+			defer func() {
+				lp.AppSecContext = nil
+			}()
+
+			lp.AppSecContext.AddAddress("server.response.status", statusCode)
+			if events := lp.AppSecContext.Run(); len(events) > 0 {
+				httpsec.SetSecurityEventsTags((*spanTagSetter)(lp.requestHandler), events, nil, nil)
+			}
+		}
+
 		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails)
 
 		if lp.InferredSpansEnabled {
@@ -261,4 +288,14 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
+}
+
+type spanTagSetter RequestHandler
+
+func (s *spanTagSetter) SetMeta(tag string, value string) {
+	s.triggerTags[tag] = value
+}
+
+func (s *spanTagSetter) SetMetrics(tag string, value float64) {
+	s.triggerMetrics[tag] = value
 }
