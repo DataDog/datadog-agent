@@ -14,8 +14,8 @@ import (
 	"go.uber.org/atomic"
 )
 
-// PointDroppedSender sends the number of points dropped
-type PointDroppedSender struct {
+// PointCountTelemetry sends the number of points successfully sent and the number of points dropped.
+type PointCountTelemetry struct {
 	tags              []string
 	provider          *telemetry.StatsTelemetryProvider
 	droppedPointCount atomic.Int64
@@ -23,16 +23,16 @@ type PointDroppedSender struct {
 	startStopAction   *util.StartStopAction
 }
 
-// NewPointDroppedSender creates a new instance of PointDroppedSender.
-func NewPointDroppedSender(domain string, provider *telemetry.StatsTelemetryProvider) *PointDroppedSender {
-	return &PointDroppedSender{
+// NewPointCountTelemetry creates a new instance of PointCountTelemetry.
+func NewPointCountTelemetry(domain string, provider *telemetry.StatsTelemetryProvider) *PointCountTelemetry {
+	return &PointCountTelemetry{
 		tags:            []string{"domain:" + domain},
 		provider:        provider,
 		startStopAction: util.NewStartStopAction()}
 }
 
 // Start starts sending metrics.
-func (t *PointDroppedSender) Start() {
+func (t *PointCountTelemetry) Start() {
 	t.startStopAction.Start(func(context context.Context) {
 		ticker := time.NewTicker(30 * time.Second)
 		for {
@@ -53,16 +53,16 @@ func (t *PointDroppedSender) Start() {
 }
 
 // Stop stops sending metrics.
-func (t *PointDroppedSender) Stop() {
+func (t *PointCountTelemetry) Stop() {
 	t.startStopAction.Stop()
 }
 
 // AddDroppedPointCount increases the telemetry that counts the number of points droppped
-func (t *PointDroppedSender) AddDroppedPointCount(count int) {
+func (t *PointCountTelemetry) AddDroppedPointCount(count int) {
 	t.droppedPointCount.Add(int64(count))
 }
 
 // OnPointSuccessfullySent increases the telemetry that counts the number of points successfully sent.
-func (t *PointDroppedSender) OnPointSuccessfullySent(count int) {
+func (t *PointCountTelemetry) OnPointSuccessfullySent(count int) {
 	t.pointSentCount.Add(int64(count))
 }

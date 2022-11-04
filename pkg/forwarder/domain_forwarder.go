@@ -41,7 +41,7 @@ type domainForwarder struct {
 	m                         sync.Mutex // To control Start/Stop races
 	transactionPrioritySorter retry.TransactionPrioritySorter
 	blockedList               *blockedEndpoints
-	pointDroppedSender        *retry.PointDroppedSender
+	pointCountTelemetry       *retry.PointCountTelemetry
 }
 
 func newDomainForwarder(
@@ -50,7 +50,7 @@ func newDomainForwarder(
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
 	transactionPrioritySorter retry.TransactionPrioritySorter,
-	pointDroppedSender *retry.PointDroppedSender) *domainForwarder {
+	pointCountTelemetry *retry.PointCountTelemetry) *domainForwarder {
 	return &domainForwarder{
 		isRetrying:                atomic.NewBool(false),
 		domain:                    domain,
@@ -60,7 +60,7 @@ func newDomainForwarder(
 		internalState:             Stopped,
 		blockedList:               newBlockedEndpoints(),
 		transactionPrioritySorter: transactionPrioritySorter,
-		pointDroppedSender:        pointDroppedSender,
+		pointCountTelemetry:       pointCountTelemetry,
 	}
 }
 
@@ -201,7 +201,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointDroppedSender)
+		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -210,7 +210,7 @@ func (f *domainForwarder) Start() error {
 		go f.scheduleConnectionResets()
 	}
 
-	f.pointDroppedSender.Start()
+	f.pointCountTelemetry.Start()
 	f.internalState = Started
 	return nil
 }
@@ -226,7 +226,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		return
 	}
 
-	f.pointDroppedSender.Stop()
+	f.pointCountTelemetry.Stop()
 
 	if f.connectionResetInterval != 0 {
 		f.stopConnectionReset <- true
