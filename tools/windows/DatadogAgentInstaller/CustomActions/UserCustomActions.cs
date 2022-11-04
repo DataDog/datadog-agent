@@ -1,4 +1,5 @@
 using System;
+using System.DirectoryServices.ActiveDirectory;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
@@ -18,18 +19,57 @@ namespace Datadog.CustomActions
             return Convert.ToBase64String(rgb);
         }
 
+        private static string GetDefaultDomainPart()
+        {
+            // We default to creating a local account if the domain
+            // part is not specified in DDAGENTUSER_NAME.
+            // However, domain controllers do not have local accounts, so we must
+            // default to a domain account.
+            // We still want to default to local accounts for domain clients
+            // though, so we must also check if this computer is a domain controller
+            // for this domain.
+            string machineName = $"{Environment.MachineName}";
+            try
+            {
+                Domain joinedDomain = Domain.GetComputerDomain();
+                string fqdn = $"{machineName}.{joinedDomain}";
+                foreach (DomainController dc in joinedDomain.DomainControllers)
+                {
+                    if (fqdn.ToLower() == dc.Name.ToLower()) {
+                        return joinedDomain.Name;
+                    }
+                }
+                // Computer is not a DC for its domain, default to machine name
+            }
+            catch (ActiveDirectoryObjectNotFoundException)
+            {
+                // not joined to a domain, use the machine name
+            }
+            return $"{Environment.MachineName}";
+        }
+
         private static ActionResult ProcessDdAgentUserCredentials(ISession session)
         {
             try
             {
+                string domain;
+                if (!string.IsNullOrEmpty(session["DDAGENTUSER_FQ_NAME"])) {
+                  // This function has already executed succesfully
+                  return ActionResult.Success;
+                }
+
                 var ddAgentUserName = session["DDAGENTUSER_NAME"];
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
-                    ddAgentUserName = $"{Environment.MachineName}\\ddagentuser";
+                    // User did not pass a value, use default account name
+                    domain = GetDefaultDomainPart();
+                    ddAgentUserName = $"{domain}\\ddagentuser";
                 }
+
+                // Check if user exists, and parse the full account name
                 var userFound = LookupAccountName(ddAgentUserName,
                     out var userName,
-                    out var domain,
+                    out domain,
                     out var securityIdentifier,
                     out var nameUse);
                 var isServiceAccount = false;
@@ -47,20 +87,17 @@ namespace Datadog.CustomActions
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
+                if (string.IsNullOrEmpty(domain)) {
+                    domain = GetDefaultDomainPart();
+                }
                 session.Log($"Installing with DDAGENTUSER_NAME={userName} and DDAGENTUSER_DOMAIN={domain}");
                 session["DDAGENTUSER_NAME"] = userName;
                 session["DDAGENTUSER_DOMAIN"] = domain;
+                session["DDAGENTUSER_FQ_NAME"] = $"{domain}\\{userName}";
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
-                if (userFound && string.IsNullOrEmpty(ddAgentUserPassword) && !isServiceAccount)
-                {
-                    // Impossible to use an existing user that is not a service account without a password
-                    session.Log($"Provide a password for the user {ddAgentUserName}");
-                    return ActionResult.Failure;
-                }
-
-                if (string.IsNullOrEmpty(ddAgentUserPassword) && !isServiceAccount)
+                if (!userFound && string.IsNullOrEmpty(ddAgentUserPassword) && !isServiceAccount)
                 {
                     ddAgentUserPassword = GetRandomPassword(128);
                 }
@@ -93,7 +130,7 @@ namespace Datadog.CustomActions
                 SecurityIdentifier securityIdentifier;
                 if (string.IsNullOrEmpty(session.Property("DDAGENTUSER_SID")))
                 {
-                    var ddAgentUserName = $"{session.Property("DDAGENTUSER_DOMAIN")}\\{session.Property("DDAGENTUSER_NAME")}";
+                    var ddAgentUserName = $"{session.Property("DDAGENTUSER_FQ_NAME")}";
                     var userFound = LookupAccountName(ddAgentUserName,
                         out _,
                         out _,
