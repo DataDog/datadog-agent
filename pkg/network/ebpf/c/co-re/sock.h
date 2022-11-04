@@ -39,6 +39,16 @@ static __always_inline __u16 read_sport(struct sock* sk) {
     return sport;
 }
 
+static __always_inline __u16 read_dport(struct sock *sk) {
+    __u16 dport = bpf_ntohs(BPF_CORE_READ(sk, sk_dport));
+    if (dport == 0) {
+        dport = BPF_CORE_READ(inet_sk(sk), inet_dport);
+        dport = bpf_ntohs(dport);
+    }
+
+    return dport;
+}
+
 static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
     unsigned short family = BPF_PROBE_READ(sk, sk_family);
     return family == expected_family;
@@ -56,6 +66,8 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
     // sends
     t->netns = get_netns_from_sock(skp);
 
+    int err = 0;
+
     // Retrieve addresses
     if (check_family(skp, __AF_INET)) {
         t->metadata |= CONN_V4;
@@ -68,23 +80,26 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
         if (t->daddr_l == 0) {
             t->daddr_l = BPF_CORE_READ(skp, sk_daddr);
         }
+        if (t->daddr_l == 0) {
+            t->daddr_l = BPF_CORE_READ(inet_sk(skp), inet_daddr);
+        }
 
-        if (!t->saddr_l || !t->daddr_l) {
+        if (t->saddr_l == 0 || t->daddr_l == 0) {
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
-            return 0;
+            err = 1;
         }
     } else if (check_family(skp, __AF_INET6)) {
         if (!is_ipv6_enabled()) {
             return 0;
         }
 
-        if (!(t->saddr_h || t->saddr_l)) {
+        if (t->saddr_h == 0 && t->saddr_l == 0) {
             *(u32*)(&t->saddr_h) = BPF_CORE_READ(skp, sk_v6_rcv_saddr.s6_addr32[0]);
             *(((u32*)(&t->saddr_h))+1) = BPF_CORE_READ(skp, sk_v6_rcv_saddr.s6_addr32[1]);
             *(u32*)(&t->saddr_l) = BPF_CORE_READ(skp, sk_v6_rcv_saddr.s6_addr32[2]);
             *(((u32*)(&t->saddr_l))+1) = BPF_CORE_READ(skp, sk_v6_rcv_saddr.s6_addr32[3]);
         }
-        if (!(t->daddr_h || t->daddr_l)) {
+        if (t->daddr_h == 0 && t->daddr_l == 0) {
             *(u32*)(&t->daddr_h) = BPF_CORE_READ(skp, sk_v6_daddr.s6_addr32[0]);
             *(((u32*)(&t->daddr_h))+1) = BPF_CORE_READ(skp, sk_v6_daddr.s6_addr32[1]);
             *(u32*)(&t->daddr_l) = BPF_CORE_READ(skp, sk_v6_daddr.s6_addr32[2]);
@@ -96,13 +111,13 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
         if (!(t->saddr_h || t->saddr_l)) {
             log_debug("ERR(read_conn_tuple.v6): src addr not set: type=%d, saddr_l=%d, saddr_h=%d\n",
                       type, t->saddr_l, t->saddr_h);
-            return 0;
+            err = 1;
         }
 
         if (!(t->daddr_h || t->daddr_l)) {
             log_debug("ERR(read_conn_tuple.v6): dst addr not set: type=%d, daddr_l=%d, daddr_h=%d\n",
                       type, t->daddr_l, t->daddr_h);
-            return 0;
+            err = 1;
         }
 
         // Check if we can map IPv6 to IPv4
@@ -124,15 +139,15 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
         t->sport = read_sport(skp);
     }
     if (t->dport == 0) {
-        t->dport = bpf_ntohs(BPF_CORE_READ(skp, sk_dport));
+        t->dport = read_dport(skp);
     }
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
-        return 0;
+        err = 1;
     }
 
-    return 1;
+    return err ? 0 : 1;
 }
 
 /**
@@ -151,24 +166,31 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     t->pid = pid_tgid >> 32;
     t->metadata = type;
 
-    t->saddr_l = BPF_CORE_READ(fl4, saddr);
-    t->daddr_l = BPF_CORE_READ(fl4, daddr);
+    if (t->saddr_l == 0) {
+        t->saddr_l = BPF_CORE_READ(fl4, saddr);
+    }
+    if (t->daddr_l == 0) {
+        t->daddr_l = BPF_CORE_READ(fl4, daddr);
+    }
 
-    if (!t->saddr_l || !t->daddr_l) {
+    if (t->saddr_l == 0 || t->daddr_l == 0) {
         log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
         return 0;
     }
 
-    t->sport = BPF_CORE_READ(fl4, fl4_sport);
-    t->dport = BPF_CORE_READ(fl4, fl4_dport);
+    if (t->sport == 0) {
+        t->sport = BPF_CORE_READ(fl4, fl4_sport);
+        t->sport = ntohs(t->sport);
+    }
+    if (t->dport == 0) {
+        t->dport = BPF_CORE_READ(fl4, fl4_dport);
+        t->dport = ntohs(t->dport);
+    }
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
         return 0;
     }
-
-    t->sport = ntohs(t->sport);
-    t->dport = ntohs(t->dport);
 
     return 1;
 }
@@ -178,9 +200,13 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     t->metadata = type;
 
     struct in6_addr addr = BPF_CORE_READ(fl6, saddr);
-    read_in6_addr(&t->saddr_h, &t->saddr_l, &addr);
-    addr = BPF_CORE_READ(fl6, daddr);
-    read_in6_addr(&t->daddr_h, &t->daddr_l, &addr);
+    if (t->saddr_l == 0 || t->saddr_h == 0) {
+        read_in6_addr(&t->saddr_h, &t->saddr_l, &addr);
+    }
+    if (t->daddr_l == 0 || t->daddr_h == 0) {
+        addr = BPF_CORE_READ(fl6, daddr);
+        read_in6_addr(&t->daddr_h, &t->daddr_l, &addr);
+    }
 
     if (!(t->saddr_h || t->saddr_l)) {
         log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t->saddr_l, t->saddr_h);
@@ -202,16 +228,20 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
         t->metadata |= CONN_V6;
     }
 
-    t->sport = BPF_CORE_READ(fl6, fl6_sport);
-    t->dport = BPF_CORE_READ(fl6, fl6_dport);
+    if (t->sport == 0) {
+        t->sport = BPF_CORE_READ(fl6, fl6_sport);
+        t->sport = ntohs(t->sport);
+    }
+    if (t->dport == 0) {
+        t->dport = BPF_CORE_READ(fl6, fl6_dport);
+        t->dport = ntohs(t->dport);
+    }
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
         return 0;
     }
 
-    t->sport = ntohs(t->sport);
-    t->dport = ntohs(t->dport);
 
     return 1;
 }

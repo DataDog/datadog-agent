@@ -9,9 +9,6 @@
 package fentry
 
 import (
-	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -38,20 +35,13 @@ const (
 	// tcpCloseReturn traces the return of tcp_close() system call
 	tcpCloseReturn = "fexit/tcp_close"
 
-	// We use the following two probes for UDP sends
-
-	udpSendSkb = "fentry/udp_send_skb"
-	// udpSendSkbReturn traces the return of udp_send_skb
-	udpSendSkbReturn = "fexit/udp_send_skb"
-	udpV6SendSkb     = "fentry/udp_v6_send_skb"
-	// udpV6SendSkbReturn traces return of udp_v6_send_skb
-	udpV6SendSkbReturn = "fexit/udp_v6_send_skb"
-
-	// udpRecvMsgReturn traces the udp_recvmsg() system call
-	udpRecvMsgReturn = "fexit/udp_recvmsg"
-
-	// udpv6RecvMsgReturn traces the return value for the udpv6_recvmsg() system call
+	// We use the following two probes for UDP
+	udpRecvMsgReturn   = "fexit/udp_recvmsg"
+	udpSendMsgReturn   = "fexit/udp_sendmsg"
+	udpSendSkb         = "kprobe/udp_send_skb"
 	udpv6RecvMsgReturn = "fexit/udpv6_recvmsg"
+	udpv6SendMsgReturn = "fexit/udpv6_sendmsg"
+	udpv6SendSkb       = "kprobe/udp_v6_send_skb"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "fentry/udp_destroy_sock"
@@ -77,12 +67,12 @@ const (
 )
 
 var programs = map[string]string{
-	doSendfileRet:        "do_sendfile_exit",
+	doSendfileRet:        "do_sendfile_exit", // no
 	inet6BindRet:         "inet6_bind_exit",
 	inetBindRet:          "inet_bind_exit",
 	inetCskAcceptReturn:  "inet_csk_accept_exit",
 	inetCskListenStop:    "inet_csk_listen_stop_enter",
-	sockFDLookupRet:      "sockfd_lookup_light_exit",
+	sockFDLookupRet:      "sockfd_lookup_light_exit", // no
 	tcpCleanupRBuf:       "tcp_cleanup_rbuf",
 	tcpClose:             "tcp_close",
 	tcpCloseReturn:       "tcp_close_exit",
@@ -94,11 +84,11 @@ var programs = map[string]string{
 	udpDestroySock:       "udp_destroy_sock",
 	udpDestroySockReturn: "udp_destroy_sock_exit",
 	udpRecvMsgReturn:     "udp_recvmsg_exit",
-	udpSendSkb:           "udp_send_skb",
-	udpSendSkbReturn:     "udp_send_skb_exit",
-	udpV6SendSkb:         "udp_v6_send_skb",
-	udpV6SendSkbReturn:   "udp_v6_send_skb_exit",
+	udpSendMsgReturn:     "udp_sendmsg_exit",
+	udpSendSkb:           "kprobe__udp_send_skb",
 	udpv6RecvMsgReturn:   "udpv6_recvmsg_exit",
+	udpv6SendMsgReturn:   "udpv6_sendmsg_exit",
+	udpv6SendSkb:         "kprobe__udp_v6_send_skb",
 }
 
 func enableProgram(enabled map[string]string, name string) {
@@ -122,30 +112,27 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 		enableProgram(enabled, tcpSetState)
 		enableProgram(enabled, tcpRetransmit)
 
-		ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-		missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
-		if err == nil && len(missing) == 0 {
-			enableProgram(enabled, sockFDLookupRet)
-			enableProgram(enabled, doSendfileRet)
-		}
+		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
+		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
+		// if err == nil && len(missing) == 0 {
+		// 	enableProgram(enabled, sockFDLookupRet)
+		// 	enableProgram(enabled, doSendfileRet)
+		// }
 	}
 
 	if c.CollectUDPConns {
+		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
-		enableProgram(enabled, udpSendSkb)
-		enableProgram(enabled, udpSendSkbReturn)
-		enableProgram(enabled, inetBindRet)
-
-		if c.CollectIPv6Conns {
-			enableProgram(enabled, udpV6SendSkb)
-			enableProgram(enabled, udpV6SendSkbReturn)
-			enableProgram(enabled, inet6BindRet)
-		}
-
 		enableProgram(enabled, udpRecvMsgReturn)
+		enableProgram(enabled, udpSendMsgReturn)
+		enableProgram(enabled, udpSendSkb)
+
 		if c.CollectIPv6Conns {
+			enableProgram(enabled, inet6BindRet)
 			enableProgram(enabled, udpv6RecvMsgReturn)
+			enableProgram(enabled, udpv6SendMsgReturn)
+			enableProgram(enabled, udpv6SendSkb)
 		}
 	}
 

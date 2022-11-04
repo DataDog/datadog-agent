@@ -548,10 +548,10 @@ func TestTCPConnsReported(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	t.Run("v4", func(t *testing.T) {
-		testUDPSendAndReceive(t, "127.0.0.1:8001")
+		testUDPSendAndReceive(t, "127.0.0.1:0")
 	})
 	t.Run("v6", func(t *testing.T) {
-		testUDPSendAndReceive(t, "[::1]:8001")
+		testUDPSendAndReceive(t, "[::1]:0")
 	})
 }
 
@@ -573,6 +573,8 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { close(doneChan) })
 
+	initTracerState(t, tr)
+
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
 	require.NoError(t, err)
@@ -585,13 +587,11 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	_, err = c.Read(make([]byte, serverMessageSize))
 	require.NoError(t, err)
 
-	initTracerState(t, tr)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
 	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	if assert.True(t, ok, "unable to find incoming connection") {
-		t.Logf("%+v", incoming)
 		assert.Equal(t, network.INCOMING, incoming.Direction)
 
 		// make sure the inverse values are seen for the other message
@@ -1361,7 +1361,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
-	conn, err := net.ListenUDP("udp", nil)
+	conn, err := net.ListenUDP("udp4", nil)
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")

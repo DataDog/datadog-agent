@@ -27,8 +27,8 @@
 
 #include "sock.h"
 
-BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
+BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
 static __always_inline void handle_tcp_stats(conn_tuple_t *t, struct sock *sk, u8 state) {
     u32 rtt = BPF_CORE_READ(tcp_sk(sk), srtt_us);
@@ -114,97 +114,80 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     return 0;
 }
 
-static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct flowi6 *fl6) {
-    return 0;
-}
-
-SEC("fentry/udp_v6_send_skb")
-int BPF_PROG(udp_v6_send_skb,
-             struct sk_buff *skb, struct flowi6 *fl6,
-             void *cork, int err) {
+static __always_inline int handle_udp_send(struct sock *sk, int sent) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 len = skb->len - skb_transport_offset(skb) - sizeof(struct udphdr);
-    bpf_map_update_with_telemetry(udp6_send_skb_args, &pid_tgid, &len, BPF_ANY);
-    return 0;
-}
-
-SEC("fexit/udp_v6_send_skb")
-int BPF_PROG(udp_v6_send_skb_exit,
-             struct sk_buff *skb, struct flowi6 *fl6,
-             void *cork, int err) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 *len = bpf_map_lookup_elem(&udp6_send_skb_args, &pid_tgid);
-    if (!len) {
-        return 0;
-    }
-
-    if (err) {
+    if (sent <= 0) {
         goto cleanup;
     }
 
-    conn_tuple_t t = {};
-    struct sock *sk = BPF_CORE_READ(skb, sk);
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
-        !read_conn_tuple_partial_from_flowi6(&t, fl6, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+    conn_tuple_t * t = bpf_map_lookup_elem(&udp_send_skb_args, &pid_tgid);
+    if (!t) {
+        goto miss;
     }
 
-    log_debug("fexit/udp_v6_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, *len);
-    handle_message(&t, *len, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+    log_debug("udp_sendmsg: sent: %d\n", sent);
+    handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
     increment_telemetry_count(udp_send_processed);
+    goto cleanup;
 
- cleanup:
-    bpf_map_delete_elem(&udp6_send_skb_args, &pid_tgid);
-    return 0;
-}
-
-SEC("fentry/udp_send_skb")
-int BPF_PROG(udp_send_skb,
-             struct sk_buff *skb,
-             struct flowi4 *fl4,
-             void *cork) {
-    u64 len = skb->len - skb_transport_offset(skb) - sizeof(struct udphdr);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    bpf_map_update_with_telemetry(udp_send_skb_args, &pid_tgid, &len, BPF_ANY);
-
-    return 0;
-}
-
-SEC("fexit/udp_send_skb")
-int BPF_PROG(udp_send_skb_exit,
-             struct sk_buff *skb,
-             struct flowi4 *fl4,
-             void *cork,
-             int err) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 *len = bpf_map_lookup_elem(&udp_send_skb_args, &pid_tgid);
-    if (!len) {
-        return 0;
-    }
-
-    if (err) {
-        goto cleanup;
-    }
-
-    conn_tuple_t t = {};
-    struct sock *sk = BPF_CORE_READ(skb, sk);
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
-        !read_conn_tuple_partial_from_flowi4(&t, fl4, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
-    }
-
-    log_debug("fexit/udp_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, *len);
-
-    // segment count is not currently enabled on prebuilt.
-    // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, *len, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
-    increment_telemetry_count(udp_send_processed);
+ miss:
+    increment_telemetry_count(udp_send_missed);
 
  cleanup:
     bpf_map_delete_elem(&udp_send_skb_args, &pid_tgid);
+
     return 0;
+
+}
+
+SEC("kprobe/udp_v6_send_skb")
+int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
+    struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
+    struct flowi6 *fl6 = (struct flowi6*) PT_REGS_PARM2(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock *sk = BPF_CORE_READ(skb, sk);
+    conn_tuple_t t;
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
+        !read_conn_tuple_partial_from_flowi6(&t, fl6, pid_tgid, CONN_TYPE_UDP)) {
+        goto miss;
+    }
+
+    bpf_map_update_elem(&udp_send_skb_args, &pid_tgid, &t, BPF_ANY);
+    return 0;
+
+ miss:
+    increment_telemetry_count(udp_send_missed);
+    return 0;
+}
+
+SEC("fexit/udpv6_sendmsg")
+int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
+    return handle_udp_send(sk, sent);
+}
+
+SEC("kprobe/udp_send_skb")
+int kprobe__udp_send_skb(struct pt_regs *ctx) {
+    struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
+    struct flowi4 *fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock *sk = BPF_CORE_READ(skb, sk);
+    conn_tuple_t t;
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
+        !read_conn_tuple_partial_from_flowi4(&t, fl4, pid_tgid, CONN_TYPE_UDP)) {
+        goto miss;
+    }
+
+    bpf_map_update_elem(&udp_send_skb_args, &pid_tgid, &t, BPF_ANY);
+    return 0;
+
+ miss:
+    increment_telemetry_count(udp_send_missed);
+    return 0;
+}
+
+SEC("fexit/udp_sendmsg")
+int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
+    return handle_udp_send(sk, sent);
 }
 
 static __always_inline int handle_ret_udp_recvmsg(struct sock *sk, struct msghdr *msg, int copied, int flags) {
@@ -222,7 +205,7 @@ static __always_inline int handle_ret_udp_recvmsg(struct sock *sk, struct msghdr
 
     conn_tuple_t t = {};
     __bpf_memset_builtin(&t, 0, sizeof(conn_tuple_t));
-    if (msg) {
+    if (msg && msg->msg_name) {
         sockaddr_to_addr(msg->msg_name, &t.daddr_h, &t.daddr_l, &t.dport, &t.metadata);
     }
 
@@ -410,17 +393,19 @@ static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *a
     }
 
     u16 sin_port = 0;
-    sa_family_t family = 0;
-    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
+    sa_family_t family = addr->sa_family;
     if (family == AF_INET) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
+        sin_port = ((struct sockaddr_in *)addr)->sin_port;
     } else if (family == AF_INET6) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
+        sin_port = ((struct sockaddr_in6 *)addr)->sin6_port;
     }
 
     sin_port = ntohs(sin_port);
     if (sin_port == 0) {
-        log_debug("ERR(sys_enter_bind): sin_port is 0\n");
+        sin_port = read_sport(BPF_CORE_READ(sock, sk));
+    }
+    if (sin_port == 0) {
+        log_debug("ERR(sys_exit_bind): sin_port is 0\n");
         return 0;
     }
 
