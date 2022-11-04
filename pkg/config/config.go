@@ -281,6 +281,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("fips.enabled", false)
 	config.BindEnvAndSetDefault("fips.port_range_start", 3833)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
+	config.BindEnvAndSetDefault("fips.https", true)
+	config.BindEnvAndSetDefault("fips.tls_verify", true)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
@@ -1539,7 +1541,16 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTPS_PROXY")
 
 	// HTTP for now, will soon be updated to HTTPS
-	protocol := "http://"
+	var protocol string
+	if config.GetBool("fips.https") {
+		protocol = "https://"
+		// top-level setting takes precedence
+		if config.GetBool("skip_ssl_validation") {
+			config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
+		}
+	} else {
+		protocol = "http://"
+	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
