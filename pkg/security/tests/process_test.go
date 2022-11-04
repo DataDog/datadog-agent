@@ -2045,7 +2045,6 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.file.mount_id", 0, "exec.file.mount_id not matching")
 				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
 				assertFieldEqual(t, event, "open.file.name", "", "open.file.name not matching")
 				assertFieldEqual(t, event, "open.file.path", "", "open.file.path not matching")
@@ -2060,7 +2059,6 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.file.mount_id", 0, "exec.file.mount_id not matching")
 				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
 				assertFieldEqual(t, event, "open.file.name", "", "open.file.name not matching")
 				assertFieldEqual(t, event, "open.file.path", "", "open.file.path not matching")

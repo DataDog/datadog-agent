@@ -492,7 +492,9 @@ func (e *FileEvent) GetPathResolutionError() string {
 
 // isFilelessExecution returns whether an event was executed in memory without a binary being present on disk
 func (e *FileEvent) isFilelessExecution() bool {
-	if strings.HasPrefix(e.BasenameStr, FilelessExecutionFilenamePrefix) && e.MountID == 0 {
+	// this check originally included `&& e.MountID == 0`, but we found that many kernels <= 5.0 were reporting `e.MountID == 4`, with everything else being correct.
+	// ongoing investigation into where the 4 comes from.
+	if strings.HasPrefix(e.BasenameStr, FilelessExecutionFilenamePrefix) && e.PathnameStr == "" {
 		return true
 	}
 	return false
