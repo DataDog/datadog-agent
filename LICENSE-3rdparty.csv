@@ -646,6 +646,7 @@ core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c)
 core,github.com/opencontainers/selinux/pkg/pwalk,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
+core,github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto,MIT,Copyright (c) 2017 Pavel Tetyaev
 core,github.com/patrickmn/go-cache,MIT,Alex Edwards <ajmedwards@gmail.com> | Copyright (c) 2012-2017 Patrick Mylund Nielsen and the go-cache contributors | Dustin Sallings <dustin@spy.net> | Jason Mooberry <jasonmoo@me.com> | Sergey Shepelev <temotor@gmail.com>
 core,github.com/pborman/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com>"
 core,github.com/pelletier/go-toml,MIT,"Copyright (c) 2013 - 2021 Thomas Pelletier, Eric Anderton"
@@ -811,7 +812,6 @@ core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Copyright T
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/converter/expandconverter,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/confmap/converter/overwritepropertiesconverter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/mapstructure,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/envprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/fileprovider,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -868,14 +868,13 @@ core,go.opentelemetry.io/collector/semconv/v1.5.0,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/extensions,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/components,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/grpclog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/pipelines,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/proctelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/runtimeinfo,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -888,6 +887,7 @@ core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Aut
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/internal/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/global,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/metric,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -961,6 +961,7 @@ core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. 
 core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/context,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1084,6 +1085,7 @@ core,google.golang.org/grpc/credentials/oauth,Apache-2.0,Copyright 2014 gRPC aut
 core,google.golang.org/grpc/encoding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/examples/helloworld/helloworld,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal,Apache-2.0,Copyright 2014 gRPC authors.

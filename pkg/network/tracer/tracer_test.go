@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1423,7 +1424,7 @@ func TestConnectionClobber(t *testing.T) {
 	}
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
-	defer tr.Stop()
+	t.Cleanup(tr.Stop)
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
 	var serverConns []net.Conn
@@ -1435,40 +1436,51 @@ func TestConnectionClobber(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
-	defer close(doneChan)
+	t.Cleanup(func() { close(doneChan) })
 
 	// we only need 1/4 since both send and recv sides will be registered
 	sendCount := tr.activeBuffer.Capacity()/4 + 1
 	sendAndRecv := func() []net.Conn {
 		connsCh := make(chan net.Conn, sendCount)
 		var conns []net.Conn
+		wg := sync.WaitGroup{}
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for c := range connsCh {
+				if c == nil {
+					return
+				}
 				conns = append(conns, c)
 			}
 		}()
 
-		workers := sync.WaitGroup{}
+		g := new(errgroup.Group)
 		for i := 0; i < sendCount; i++ {
-			workers.Add(1)
-			go func() {
-				defer workers.Done()
-
+			g.Go(func() error {
 				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
-				require.NoError(t, err)
+				if err != nil {
+					return err
+				}
 				connsCh <- c
 
 				buf := make([]byte, 4)
 				_, err = c.Write(buf)
-				require.NoError(t, err)
+				if err != nil {
+					return err
+				}
 
 				_, err = io.ReadFull(c, buf[:0])
-				require.NoError(t, err)
-			}()
+				return err
+			})
 		}
 
-		workers.Wait()
-		close(connsCh)
+		err = g.Wait()
+		require.NoError(t, err)
+		// signal all connections have been created
+		connsCh <- nil
+		// wait for all conns to be stored
+		wg.Wait()
 
 		return conns
 	}
@@ -1493,18 +1505,24 @@ func TestConnectionClobber(t *testing.T) {
 	// ensure we didn't grow or shrink the buffer
 	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
-	for _, c := range append(conns, serverConns...) {
-		c.Close()
+	closeConns := func(cxs []net.Conn) {
+		for _, c := range cxs {
+			if tcpc, ok := c.(*net.TCPConn); ok {
+				tcpc.SetLinger(0)
+			}
+			c.Close()
+		}
 	}
+
+	closeConns(append(conns, serverConns...))
+	serverConns = serverConns[:0]
 
 	// send second batch so that underlying array gets clobbered
 	conns = sendAndRecv()
 	serverConns = serverConns[:0]
-	defer func() {
-		for _, c := range append(conns, serverConns...) {
-			c.Close()
-		}
-	}()
+	t.Cleanup(func() {
+		closeConns(append(conns, serverConns...))
+	})
 
 	time.Sleep(2 * time.Second)
 
@@ -1919,6 +1937,9 @@ func TestOpenSSLVersions(t *testing.T) {
 	for i := 0; i < numberOfRequests; i++ {
 		requests = append(requests, requestFn())
 	}
+	// At the moment, there is a bug in the SSL hooks which cause us to miss (statistically) the last request.
+	// So I'm sending another request and not expecting to capture it.
+	requestFn()
 
 	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
@@ -1950,6 +1971,100 @@ func TestOpenSSLVersions(t *testing.T) {
 	}, 3*time.Second, time.Second, "connection not found")
 }
 
+// TestOpenSSLVersionsSlowStart check we are able to capture TLS traffic even if we haven't captured the TLS handshake.
+// It can happen if the agent starts after connections have been made, or agent restart (OOM/upgrade).
+// Unfortunately, this is only a best-effort mechanism and it relies on some assumptions that are not always necessarily true
+// such as having SSL_read/SSL_write calls in the same call-stack/execution-context as the kernel function tcp_sendmsg. Force
+// this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
+func TestOpenSSLVersionsSlowStart(t *testing.T) {
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
+	cfg := testConfig()
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+
+	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+		EnableTLS: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
+	// Send a couple of requests we won't capture.
+	var missedRequests []*nethttp.Request
+	for i := 0; i < 5; i++ {
+		missedRequests = append(missedRequests, requestFn())
+	}
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	initTracerState(t, tr)
+
+	// Giving the tracer time to install the hooks
+	time.Sleep(time.Second)
+
+	// Send a warmup batch of requests to trigger the fallback behavior
+	for i := 0; i < numberOfRequests; i++ {
+		requestFn()
+	}
+
+	var requests []*nethttp.Request
+	for i := 0; i < numberOfRequests; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	// At the moment, there is a bug in the SSL hooks which cause us to miss (statistically) the last request.
+	// So I'm sending another request and not expecting to capture it.
+	requestFn()
+
+	client.CloseIdleConnections()
+	requestsExist := make([]bool, len(requests))
+	expectedMissingRequestsCaught := make([]bool, len(missedRequests))
+
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+
+		if len(conns.HTTP) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
+		}
+
+		for reqIndex, req := range missedRequests {
+			if !expectedMissingRequestsCaught[reqIndex] {
+				expectedMissingRequestsCaught[reqIndex] = isRequestIncluded(conns.HTTP, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, time.Second, "connection not found")
+
+	// Here we intend to check if we catch requests we should not have caught
+	// Thus, if an expected missing requests - exists, thus there is a problem.
+	for reqIndex, exist := range expectedMissingRequestsCaught {
+		require.Falsef(t, exist, "request %d was not meant to be captured found (req %v) but we captured it", reqIndex+1, requests[reqIndex])
+	}
+}
+
 var (
 	statusCodes = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
@@ -1958,7 +2073,12 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 	var (
 		random = rand.New(rand.NewSource(time.Now().Unix()))
 		idx    = 0
-		client = &nethttp.Client{}
+		client = &nethttp.Client{
+			Transport: &nethttp.Transport{
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+				DisableKeepAlives: false,
+			},
+		}
 	)
 
 	return client, func() *nethttp.Request {

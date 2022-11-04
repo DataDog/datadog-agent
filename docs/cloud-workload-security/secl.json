@@ -1244,6 +1244,12 @@
       "experimental": false,
       "properties": [
         {
+          "name": "dns.id",
+          "type": "int",
+          "definition": "[Experimental] the DNS request ID",
+          "constants": ""
+        },
+        {
           "name": "dns.question.class",
           "type": "int",
           "definition": "the class looked up by the DNS question",

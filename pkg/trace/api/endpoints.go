@@ -109,16 +109,12 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
 	},
 	{
-		Pattern: "/appsec/proxy/",
-		Handler: func(r *HTTPReceiver) http.Handler { return http.StripPrefix("/appsec/proxy", r.appsecHandler) },
-	},
-	{
 		Pattern: "/evp_proxy/v1/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler() },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(1) },
 	},
 	{
 		Pattern: "/evp_proxy/v2/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler() },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
 	},
 	{
 		Pattern: "/debugger/v1/input",

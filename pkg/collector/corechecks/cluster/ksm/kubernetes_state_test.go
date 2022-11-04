@@ -422,8 +422,11 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:   "phase tag for pod",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			name: "phase tag for pod",
+			config: &KSMConfig{
+				LabelsMapper:               defaultLabelsMapper(),
+				labelsMapperByResourceKind: defaultLabelsMapperByResourceKind(),
+			},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_status_phase": {
 					{
@@ -506,8 +509,11 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:   "ingress metric",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			name: "ingress metric",
+			config: &KSMConfig{
+				LabelsMapper:               defaultLabelsMapper(),
+				labelsMapperByResourceKind: defaultLabelsMapperByResourceKind(),
+			},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_pod_status_phase": {
 					{
@@ -535,16 +541,16 @@ func TestProcessMetrics(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
-		kubeStateMetricsSCheck.metricTransformers = test.metricTransformers
+		kubeStateMetricsCheck.metricTransformers = test.metricTransformers
 		labelJoiner := newLabelJoiner(test.config.LabelJoins)
 		for _, metricFam := range test.metricsToGet {
 			labelJoiner.insertFamily(metricFam)
 		}
-		kubeStateMetricsSCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
+		kubeStateMetricsCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)
@@ -1116,16 +1122,18 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 
 func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 	tests := []struct {
-		name           string
-		config         *KSMConfig
-		expectedJoins  map[string]*JoinsConfig
-		expectedMapper map[string]string
+		name                         string
+		config                       *KSMConfig
+		expectedJoins                map[string]*JoinsConfig
+		expectedMapper               map[string]string
+		expectedMapperByResourceKind map[string]map[string]string
 	}{
 		{
 			name: "Initially empty",
 			config: &KSMConfig{
-				LabelJoins:   map[string]*JoinsConfig{},
-				LabelsMapper: map[string]string{},
+				LabelJoins:                 map[string]*JoinsConfig{},
+				LabelsMapper:               map[string]string{},
+				labelsMapperByResourceKind: map[string]map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod": {"my_pod_label": "my_pod_tag"},
 				},
@@ -1136,8 +1144,11 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 					LabelsToGet:   []string{"label_my_pod_label"},
 				},
 			},
-			expectedMapper: map[string]string{
-				"label_my_pod_label": "my_pod_tag",
+			expectedMapper: map[string]string{},
+			expectedMapperByResourceKind: map[string]map[string]string{
+				"pod": {
+					"label_my_pod_label": "my_pod_tag",
+				},
 			},
 		},
 		{
@@ -1149,7 +1160,8 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 						LabelsToGet:   []string{"standard_pod_label"},
 					},
 				},
-				LabelsMapper: map[string]string{},
+				LabelsMapper:               map[string]string{},
+				labelsMapperByResourceKind: map[string]map[string]string{},
 				LabelsAsTags: map[string]map[string]string{
 					"pod":  {"my_pod_label": "my_pod_tag"},
 					"node": {"my_node_label": "my_node_tag"},
@@ -1165,9 +1177,14 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 					LabelsToGet:   []string{"label_my_node_label"},
 				},
 			},
-			expectedMapper: map[string]string{
-				"label_my_pod_label":  "my_pod_tag",
-				"label_my_node_label": "my_node_tag",
+			expectedMapper: map[string]string{},
+			expectedMapperByResourceKind: map[string]map[string]string{
+				"pod": {
+					"label_my_pod_label": "my_pod_tag",
+				},
+				"node": {
+					"label_my_node_label": "my_node_tag",
+				},
 			},
 		},
 	}
@@ -1177,6 +1194,7 @@ func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 			k.processLabelsAsTags()
 			assert.Equal(t, tt.expectedJoins, k.instance.LabelJoins)
 			assert.Equal(t, tt.expectedMapper, k.instance.LabelsMapper)
+			assert.Equal(t, tt.expectedMapperByResourceKind, k.instance.labelsMapperByResourceKind)
 		})
 	}
 }

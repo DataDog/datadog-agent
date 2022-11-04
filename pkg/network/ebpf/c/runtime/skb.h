@@ -108,9 +108,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
 
         //log_debug("udp recv: udphdr.len=%d\n", bpf_ntohs(udph.len));
         return (int)(bpf_ntohs(udph.len) - sizeof(struct udphdr));
-    }
-
-    if (proto == CONN_TYPE_TCP) {
+    } else if (proto == CONN_TYPE_TCP) {
         struct tcphdr tcph;
         bpf_memset(&tcph, 0, sizeof(struct tcphdr));
         ret = bpf_probe_read_kernel_with_telemetry(&tcph, sizeof(tcph), (struct tcphdr *)(head + trans_head));

@@ -54,6 +54,8 @@ const (
 	K8sServiceAccount
 	// K8sIngress represents a Kubernetes Ingress
 	K8sIngress
+	// K8sNamespace represents a Kubernetes Namespace
+	K8sNamespace
 	// K8sCRD represents a Kubernetes CRD
 	K8sCRD
 	// K8sCR represents a Kubernetes CR
@@ -81,6 +83,7 @@ func NodeTypes() []NodeType {
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
 		K8sIngress,
+		K8sNamespace,
 		K8sCR,
 		K8sCRD,
 	}
@@ -124,6 +127,8 @@ func (n NodeType) String() string {
 		return "ServiceAccount"
 	case K8sIngress:
 		return "Ingress"
+	case K8sNamespace:
+		return "Namespace"
 	case K8sCRD:
 		return "CustomResourceDefinition"
 	case K8sCR:
@@ -154,6 +159,8 @@ func (n NodeType) Orchestrator() string {
 		K8sClusterRole,
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
+		K8sIngress,
+		K8sNamespace:
 		K8sCRD,
 		K8sCR,
 		K8sIngress:
