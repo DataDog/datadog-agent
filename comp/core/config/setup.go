@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/viper"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -42,7 +41,7 @@ func setupConfig(
 	}
 	if useDefaultConfigPath {
 		if len(defaultConfPath) == 0 {
-			defaultConfPath = common.DefaultConfPath
+			defaultConfPath = DefaultConfPath
 		}
 		config.Datadog.AddConfigPath(defaultConfPath)
 	}

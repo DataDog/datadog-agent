@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	coreConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -31,8 +32,6 @@ var (
 )
 
 var (
-	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "c:\\programdata\\datadog"
 	// DefaultLogFile points to the log file that will be used if not configured
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
@@ -48,11 +47,8 @@ var (
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfPath = pd
 		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
 		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
-	} else {
-		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
 	}
 }
 
@@ -118,12 +114,12 @@ func GetViewsPath() string {
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
 // datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
 func CheckAndUpgradeConfig() error {
-	datadogConfPath := filepath.Join(DefaultConfPath, "datadog.conf")
+	datadogConfPath := filepath.Join(coreConfig.DefaultConfPath, "datadog.conf")
 	if _, err := os.Stat(datadogConfPath); os.IsNotExist(err) {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
+	config.Datadog.AddConfigPath(coreConfig.DefaultConfPath)
 	_, err := config.Load()
 	if err == nil {
 		// was able to read config, check for api key
@@ -132,5 +128,5 @@ func CheckAndUpgradeConfig() error {
 			return nil
 		}
 	}
-	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
+	return ImportConfig(coreConfig.DefaultConfPath, coreConfig.DefaultConfPath, false)
 }

@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	coreConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -59,7 +60,7 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
+	config.Datadog.AddConfigPath(coreConfig.DefaultConfPath)
 	// load the configuration
 	var err error
 	var warnings *config.Warnings

@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/opt/datadog-agent/etc"
 	// DefaultLogFile points to the log file that will be used if not configured
 	DefaultLogFile = "/opt/datadog-agent/logs/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
