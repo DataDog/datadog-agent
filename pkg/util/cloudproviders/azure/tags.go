@@ -17,6 +17,16 @@ const (
 	aasSiteName        = "aas.site.name"
 	aasSiteType        = "aas.site.type"
 	aasSubscriptionID  = "aas.subscription.id"
+
+	// this value matches the runtime value set in the Azure Windows Extension
+	dotnetFramework = ".NET"
+	dotnetRuntime   = "dotnet"
+	nodeFramework   = "Node.js"
+	nodeRuntime     = "node"
+	unknown         = "unknown"
+
+	appService = "app"
+	ddRuntime  = "DD_RUNTIME"
 )
 
 var appServicesTags map[string]string
@@ -29,8 +39,6 @@ func GetAppServicesTags() map[string]string {
 }
 
 func getAppServicesTags(getenv func(string) string) map[string]string {
-	// TODO: do not create each time this is called
-
 	siteName := getenv("WEBSITE_SITE_NAME")
 	ownerName := getenv("WEBSITE_OWNER_NAME")
 	resourceGroup := getenv("WEBSITE_RESOURCE_GROUP")
@@ -43,16 +51,15 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
 
 	return map[string]string{
-		// TODO: app as string const
 		aasInstanceID:      instanceID,
 		aasInstanceName:    computerName,
 		aasOperatingSystem: websiteOS,
 		aasRuntime:         runtime,
 		aasResourceGroup:   resourceGroup,
 		aasResourceID:      resourceID,
-		aasSiteKind:        "app",
+		aasSiteKind:        appService,
 		aasSiteName:        siteName,
-		aasSiteType:        "app",
+		aasSiteType:        appService,
 		aasSubscriptionID:  subscriptionID,
 	}
 }
@@ -60,23 +67,20 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 func getEnvOrUnknown(env string, getenv func(string) string) string {
 	val := getenv(env)
 	if len(env) == 0 {
-		val = "unknown"
+		val = unknown
 	}
 	return val
 }
 
 func getRuntime(getenv func(string) string) (rt string) {
-	env := getenv("DD_RUNTIME")
+	env := getenv(ddRuntime)
 	switch env {
-	case "dotnet":
-		// this value matches the runtime value set in the azure extension for
-		// windows
-		// TODO const this
-		rt = ".NET"
-	case "node":
-		rt = "node.js"
+	case dotnetRuntime:
+		rt = dotnetFramework
+	case nodeRuntime:
+		rt = nodeFramework
 	default:
-		rt = "unknown"
+		rt = unknown
 	}
 	return
 }
@@ -84,7 +88,7 @@ func getRuntime(getenv func(string) string) (rt string) {
 func parseAzureSubscriptionID(subID string) (id string) {
 	if len(subID) > 0 {
 		// TODO what if "+" is not in the subID?
-		id = strings.SplitN(subID, "+", 1)[0]
+		id = strings.SplitN(subID, "+", 2)[0]
 	}
 	// TODO: logging
 	return
