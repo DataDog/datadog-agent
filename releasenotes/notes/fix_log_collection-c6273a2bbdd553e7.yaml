@@ -8,4 +8,5 @@
 ---
 fixes:
   - |
-    Fix log collection on Kubernetes distributions using ``cri-o`` like OpenShift when `logs_config.cca_id_ad` is `true`, which is the default value since agent version ``7.40.0``.
+    Fix log collection on Kubernetes distributions using ``cri-o`` like OpenShift, which
+    began failing in 7.40.0.
