@@ -19,6 +19,7 @@ type PointDroppedSender struct {
 	tags              []string
 	provider          *telemetry.StatsTelemetryProvider
 	droppedPointCount atomic.Int64
+	pointSentCount    atomic.Int64
 	startStopAction   *util.StartStopAction
 }
 
@@ -43,6 +44,9 @@ func (t *PointDroppedSender) Start() {
 				// recovers, the gauge gives the total amount of points dropped.
 				count := t.droppedPointCount.Load()
 				t.provider.GaugeNoIndex("datadog.agent.point.dropped", float64(count), t.tags)
+
+				count = t.pointSentCount.Load()
+				t.provider.GaugeNoIndex("datadog.agent.point.sent", float64(count), t.tags)
 			}
 		}
 	})
@@ -56,4 +60,9 @@ func (t *PointDroppedSender) Stop() {
 // AddDroppedPointCount increases the telemetry that counts the number of points droppped
 func (t *PointDroppedSender) AddDroppedPointCount(count int) {
 	t.droppedPointCount.Add(int64(count))
+}
+
+// OnPointSuccessfullySent increases the telemetry that counts the number of points successfully sent.
+func (t *PointDroppedSender) OnPointSuccessfullySent(count int) {
+	t.pointSentCount.Add(int64(count))
 }

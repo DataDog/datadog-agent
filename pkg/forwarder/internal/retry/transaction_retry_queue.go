@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,11 +49,11 @@ func BuildTransactionRetryQueue(
 	optionalDomainFolderPath string,
 	optionalDiskUsageLimit *DiskUsageLimit,
 	dropPrioritySorter TransactionPrioritySorter,
-	resolver resolver.DomainResolver) *TransactionRetryQueue {
+	resolver resolver.DomainResolver,
+	pointDroppedSender *PointDroppedSender) *TransactionRetryQueue {
 	var storage TransactionDiskStorage
 	var err error
 	domain := resolver.GetBaseDomain()
-	pointDroppedSender := NewPointDroppedSender(domain, telemetry.GetStatsTelemetryProvider())
 
 	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
 		serializer := NewHTTPTransactionsSerializer(resolver)
@@ -249,14 +248,4 @@ func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInByte
 	tc.transactions = tc.transactions[i:]
 	tc.currentMemSizeInBytes -= sizeInBytesExtracted
 	return transactionsExtracted
-}
-
-// Start starts pointDroppedSender
-func (tc *TransactionRetryQueue) Start() {
-	tc.pointDroppedSender.Start()
-}
-
-// Stop stops pointDroppedSender
-func (tc *TransactionRetryQueue) Stop() {
-	tc.pointDroppedSender.Stop()
 }
