@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -207,6 +208,17 @@ func getAPMStatus(config config.Component) map[string]interface{} {
 			"error": err.Error(),
 		}
 	}
+
+	if rbs, ok := status["ratebyservice"].(map[string]interface{}); ok {
+		typedRBS := make(map[string]float64, len(rbs))
+		for k, v := range rbs {
+			typedRBS[k] = v.(float64)
+		}
+		fmt.Printf("RUNIN CLEANUP new rbs %v\n", typedRBS)
+		info.CleanEmptyEnv(typedRBS)
+		status["ratebyservice"] = typedRBS
+	}
+
 	return status
 }
 

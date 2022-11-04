@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar" // automatically publish `/debug/vars` on HTTP port
-
 	"fmt"
 	"io"
 	"net/http"
@@ -348,18 +347,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	// display the remote program version, now that we know it
 	program, banner := getProgramBanner(info.Version.Version)
 
-	// Remove the default service and env, as well as any entries with an empty env.
-	// It can be inferred from other values so has little added-value and could be confusing for users.
-	// Besides, if one still really wants it:
-	// curl http://localhost:8126/debug/vars would show it.
-	if info.RateByService != nil {
-		delete(info.RateByService, "service:,env:")
-		for k := range info.RateByService {
-			if strings.HasSuffix(k, ",env:") {
-				delete(info.RateByService, k)
-			}
-		}
-	}
+	CleanEmptyEnv(info.RateByService)
 
 	var buffer bytes.Buffer
 
@@ -381,6 +369,21 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	_, err = w.Write([]byte(cleanInfo))
 
 	return err
+}
+
+// CleanEmptyEnv removes the default service and env, as well as any entries with an empty env.
+// It can be inferred from other values so has little added-value and could be confusing for users.
+// Besides, if one still really wants it:
+// curl http://localhost:8126/debug/vars would show it.
+func CleanEmptyEnv(rateByService map[string]float64) {
+	if rateByService != nil {
+		delete(rateByService, "service:,env:")
+		for k := range rateByService {
+			if strings.HasSuffix(k, ",env:") {
+				delete(rateByService, k)
+			}
+		}
+	}
 }
 
 // CleanInfoExtraLines removes empty lines from template code indentation.
