@@ -160,10 +160,9 @@ func (n NodeType) Orchestrator() string {
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
 		K8sIngress,
-		K8sNamespace:
+		K8sNamespace,
 		K8sCRD,
-		K8sCR,
-		K8sIngress:
+		K8sCR:
 		return "k8s"
 	default:
 		_ = log.Errorf("Unknown NodeType %v", n)
