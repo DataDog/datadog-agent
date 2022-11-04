@@ -16,6 +16,8 @@ package translator
 
 import (
 	"context"
+	"encoding"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
@@ -23,12 +25,41 @@ import (
 // MetricDataType is a timeseries-style metric type.
 type MetricDataType int
 
+var _ encoding.TextUnmarshaler = (*MetricDataType)(nil)
+var _ encoding.TextMarshaler = (MetricDataType)(Gauge)
+
 const (
 	// Gauge is the Datadog Gauge metric type.
 	Gauge MetricDataType = iota
 	// Count is the Datadog Count metric type.
 	Count
 )
+
+// UnmarshalText unmarshals a type into its lowercase type name.
+func (t *MetricDataType) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "gauge":
+		*t = Gauge
+		return nil
+	case "count":
+		*t = Count
+		return nil
+	}
+
+	return fmt.Errorf("invalid metric data type %q", text)
+}
+
+// MarshalText marshals a type into its lowercase type name.
+func (t MetricDataType) MarshalText() ([]byte, error) {
+	switch t {
+	case Gauge:
+		return []byte("gauge"), nil
+	case Count:
+		return []byte("count"), nil
+	}
+
+	return nil, fmt.Errorf("invalid metric data type %d", t)
+}
 
 // TimeSeriesConsumer is timeseries consumer.
 type TimeSeriesConsumer interface {
