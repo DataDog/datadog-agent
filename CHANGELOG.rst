@@ -22,6 +22,10 @@ Release on: 2022-11-02
 Upgrade Notes
 -------------
 
+- Starting Agent 7.40, the Agent will fail to start when unable to determine hostname instead of silently using unrelevant hostname (usually, a container id).
+  Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
+  This change mostly affects Agents running in containerized environments as we cannot rely on OS hostname.
+
 - Universal Service Monitoring now requires a Linux kernel version of 4.14 or greater.
 
 
@@ -195,10 +199,6 @@ Other Notes
   selects updated codepaths in Autodiscovery and the Logs Agent.  No behavior
   change is expected.  Please report any behavior that is "fixed" by setting
   this flag to false.
-
-- Starting Agent 7.40, the Agent will fail to start when unable to determine hostname instead of silently using unrelevant hostname (usually, a container id).
-  Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
-  This change mostly affects Agents running in containerized environments as we cannot rely on OS hostname.
 
 
 .. _Release Notes_7.39.1:
