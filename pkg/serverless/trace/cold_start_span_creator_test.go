@@ -32,8 +32,9 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	}
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
 	testColdStartID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	coldStartDuration := 50 // Given in millis
 	ec := &executioncontext.ExecutionContext{}
-	ec.SetColdStartDuration(50)
+	ec.SetColdStartDuration(int64(coldStartDuration))
 	ec.SetFromInvocation(testArn, testColdStartID)
 
 	coldStartSpanCreator := &ColdStartSpanCreator{
@@ -45,14 +46,15 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 
 	go traceAgent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, nil)
 
+	now := time.Now().UnixNano()
 	lambdaSpan := &pb.Span{
 		Service:  "aws.lambda",
 		Name:     "aws.lambda",
-		Start:    time.Now().Unix(),
+		Start:    now,
 		TraceID:  random.Random.Uint64(),
 		SpanID:   random.Random.Uint64(),
 		ParentID: random.Random.Uint64(),
-		Duration: 500,
+		Duration: 500000000,
 	}
 	coldStartSpanCreator.create(lambdaSpan)
 	timeout := time.After(2 * time.Second)
@@ -65,6 +67,8 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	}
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
+	assert.Equal(t, now-int64(coldStartDuration*1000000), span.Start)
+	assert.Equal(t, int64(coldStartDuration*1000000), span.Duration)
 
 }
 
