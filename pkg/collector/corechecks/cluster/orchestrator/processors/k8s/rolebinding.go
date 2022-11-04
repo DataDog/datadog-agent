@@ -75,7 +75,7 @@ func (h *RoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, reso
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *RoleBindingHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
+func (h *RoleBindingHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
 	return resource.(*rbacv1.RoleBinding).ResourceVersion
 }
 

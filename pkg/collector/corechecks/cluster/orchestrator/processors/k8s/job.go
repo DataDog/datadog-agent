@@ -75,7 +75,7 @@ func (h *JobHandlers) ResourceUID(ctx *processors.ProcessorContext, resource int
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *JobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
+func (h *JobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
 	return resource.(*batchv1.Job).ResourceVersion
 }
 

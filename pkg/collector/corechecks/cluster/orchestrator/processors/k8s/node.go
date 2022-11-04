@@ -75,7 +75,7 @@ func (h *NodeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource in
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *NodeHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
+func (h *NodeHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
 	return resource.(*corev1.Node).ResourceVersion
 }
 

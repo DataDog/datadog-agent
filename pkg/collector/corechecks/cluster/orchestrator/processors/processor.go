@@ -74,7 +74,7 @@ type Handlers interface {
 	ResourceUID(ctx *ProcessorContext, resource interface{}) types.UID
 
 	// ResourceVersion returns the resource Version.
-	ResourceVersion(ctx *ProcessorContext, resource interface{}) string
+	ResourceVersion(ctx *ProcessorContext, resource interface{}, resourceModel interface{}) string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -134,7 +134,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 		// Cache check
 		resourceUID := p.h.ResourceUID(ctx, resource)
-		resourceVersion := p.h.ResourceVersion(ctx, resource)
+		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
 		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
 			continue

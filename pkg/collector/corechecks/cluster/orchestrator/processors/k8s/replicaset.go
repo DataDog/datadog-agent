@@ -75,7 +75,7 @@ func (h *ReplicaSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resou
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *ReplicaSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}) string {
+func (h *ReplicaSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
 	return resource.(*appsv1.ReplicaSet).ResourceVersion
 }
 
