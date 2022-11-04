@@ -75,7 +75,7 @@ func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, r
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *CronJobV1Beta1Handlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *CronJobV1Beta1Handlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*batchv1beta1.CronJob).ResourceVersion
 }
 

@@ -65,7 +65,7 @@ func (cr *CRHandlers) ResourceUID(ctx *processors.ProcessorContext, resource int
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (cr *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (cr *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*unstructured.Unstructured).GetResourceVersion()
 }
 

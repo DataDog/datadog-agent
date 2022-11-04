@@ -131,7 +131,7 @@ func (h *PodHandlers) ResourceUID(ctx *processors.ProcessorContext, resource int
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *PodHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *PodHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
 }
 

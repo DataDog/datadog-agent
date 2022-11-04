@@ -75,7 +75,7 @@ func (h *DeploymentHandlers) ResourceUID(ctx *processors.ProcessorContext, resou
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *DeploymentHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *DeploymentHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*appsv1.Deployment).ResourceVersion
 }
 

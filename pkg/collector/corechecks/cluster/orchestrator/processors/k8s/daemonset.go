@@ -75,7 +75,7 @@ func (h *DaemonSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resour
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *DaemonSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *DaemonSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*appsv1.DaemonSet).ResourceVersion
 }
 

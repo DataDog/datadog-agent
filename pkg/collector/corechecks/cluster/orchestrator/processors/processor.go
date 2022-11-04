@@ -74,7 +74,7 @@ type Handlers interface {
 	ResourceUID(ctx *ProcessorContext, resource interface{}) types.UID
 
 	// ResourceVersion returns the resource Version.
-	ResourceVersion(ctx *ProcessorContext, resource interface{}, resourceModel interface{}) string
+	ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.

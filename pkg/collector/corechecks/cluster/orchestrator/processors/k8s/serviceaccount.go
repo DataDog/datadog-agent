@@ -75,7 +75,7 @@ func (h *ServiceAccountHandlers) ResourceUID(ctx *processors.ProcessorContext, r
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *ServiceAccountHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *ServiceAccountHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.ServiceAccount).ResourceVersion
 }
 

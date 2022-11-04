@@ -75,7 +75,7 @@ func (h *ClusterRoleHandlers) ResourceUID(ctx *processors.ProcessorContext, reso
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *ClusterRoleHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *ClusterRoleHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*rbacv1.ClusterRole).ResourceVersion
 }
 

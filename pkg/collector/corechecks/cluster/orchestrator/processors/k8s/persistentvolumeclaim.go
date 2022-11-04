@@ -75,7 +75,7 @@ func (h *PersistentVolumeClaimHandlers) ResourceUID(ctx *processors.ProcessorCon
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *PersistentVolumeClaimHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *PersistentVolumeClaimHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.PersistentVolumeClaim).ResourceVersion
 }
 

@@ -75,7 +75,7 @@ func (h *IngressHandlers) ResourceUID(ctx *processors.ProcessorContext, resource
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *IngressHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource interface{}, resourceModel interface{}) string {
+func (h *IngressHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*netv1.Ingress).ResourceVersion
 }
 
