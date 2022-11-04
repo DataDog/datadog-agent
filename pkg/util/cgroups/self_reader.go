@@ -35,7 +35,7 @@ func (f *selfReaderFilter) init(inContainer bool, baseController string) error {
 
 	// If we don't run in a container, we expect to be in host cgroup namespace, otherwise this will not work
 	// as the path retrieved from `/proc/self/cgroup` may not be the expected one
-	relativePath, err := IdentiferFromCgroupReferences(f.procPath, "self", baseController, func(path, name string) (string, error) {
+	relativePath, err := IdentiferFromCgroupReferences(f.procPath, SelfCgroupIdentifier, baseController, func(path, name string) (string, error) {
 		return path, nil
 	})
 	if err != nil {

@@ -85,13 +85,14 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	}
 	//Store the SNMP config in an array (snmpconfigs)
 	//c is of type config while the cr is the config check response including the instances
+	snmpconfigs := []SNMPConfig{}
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
-			return ParseConfigSnmp(c), nil
+			snmpconfigs = append(snmpconfigs, ParseConfigSnmp(c)...)
 		}
 	}
 
-	return nil, nil
+	return snmpconfigs, nil
 
 }
 

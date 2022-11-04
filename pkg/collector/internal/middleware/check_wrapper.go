@@ -29,11 +29,6 @@ func NewCheckWrapper(inner check.Check) *CheckWrapper {
 	}
 }
 
-// Inner returns the wrapped check instance.
-func (c *CheckWrapper) Inner() check.Check {
-	return c.inner
-}
-
 // Run implements Check#Run
 func (c *CheckWrapper) Run() error {
 	c.wg.Add(1)

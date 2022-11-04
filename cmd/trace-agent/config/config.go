@@ -274,11 +274,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		BindHost:                c.ReceiverHost,
+		GRPCPort:                grpcPort,
+		UsePreviewHostnameLogic: true,
+		MaxRequestBytes:         c.MaxRequestBytes,
+		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -399,15 +400,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if k := "use_dogstatsd"; coreconfig.Datadog.IsSet(k) {
 		c.StatsdEnabled = coreconfig.Datadog.GetBool(k)
-	}
-	if k := "appsec_config.enabled"; coreconfig.Datadog.IsSet(k) {
-		c.AppSec.Enabled = coreconfig.Datadog.GetBool(k)
-	}
-	if k := "appsec_config.appsec_dd_url"; coreconfig.Datadog.IsSet(k) {
-		c.AppSec.DDURL = coreconfig.Datadog.GetString(k)
-	}
-	if k := "appsec_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
-		c.AppSec.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
 	}
 	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v

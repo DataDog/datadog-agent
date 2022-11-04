@@ -49,6 +49,7 @@ func WithNS(ns netns.NsHandle, fn func() error) error {
 	if err != nil {
 		return err
 	}
+	defer prevNS.Close()
 
 	if ns.Equal(prevNS) {
 		return fn()

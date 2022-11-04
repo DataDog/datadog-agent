@@ -97,6 +97,10 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 }
 
 func (c *routeCache) Close() {
+	c.Lock()
+	defer c.Unlock()
+
+	c.cache.Clear()
 	c.router.Close()
 }
 
@@ -225,6 +229,7 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 }
 
 func (n *netlinkRouter) Close() {
+	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
 	n.nlHandle.Close()
 }
