@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 )
 
 const (
@@ -210,7 +209,7 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	// TODO: add azure specific tags here (at least for now, so chill out and
 	// just do it) "it doesn't have to be pretty it just has to work"
 	if a.conf.InAzureAppServices {
-		for k, v := range azure.GetAppServicesTags() {
+		for k, v := range traceutil.GetAppServicesTags() {
 			traceutil.SetMeta(root, k, v)
 		}
 	}

@@ -1932,6 +1932,7 @@ func TestSpanSampling(t *testing.T) {
 
 func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
 	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
 	cfg.InAzureAppServices = true
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := NewAgent(ctx, cfg)
@@ -1941,5 +1942,5 @@ func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
 
 	agnt.setRootSpanTags(span)
 
-	assert.Equal(t, "", span.Meta)
+	assert.Contains(t, span.Meta, "aas.site.kind")
 }

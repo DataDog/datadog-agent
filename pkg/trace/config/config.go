@@ -501,7 +501,7 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: inAzureAppServices(),
+		InAzureAppServices: inAzureAppServices(os.Getenv),
 	}
 }
 
@@ -548,8 +548,8 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
-func inAzureAppServices() bool {
-	str := os.Getenv(azureAppServices)
+func inAzureAppServices(getenv func(string) string) bool {
+	str := getenv(azureAppServices)
 	if val, err := strconv.ParseBool(str); err == nil {
 		return val
 	} else {

@@ -1,4 +1,4 @@
-package azure
+package traceutil
 
 import (
 	"fmt"
@@ -86,11 +86,10 @@ func getRuntime(getenv func(string) string) (rt string) {
 }
 
 func parseAzureSubscriptionID(subID string) (id string) {
-	if len(subID) > 0 {
-		// TODO what if "+" is not in the subID?
-		id = strings.SplitN(subID, "+", 2)[0]
+	parsedSubID := strings.SplitN(subID, "+", 2)
+	if len(parsedSubID) > 1 {
+		id = parsedSubID[0]
 	}
-	// TODO: logging
 	return
 }
 
@@ -99,6 +98,5 @@ func compileAzureResourceID(subID, resourceGroup, siteName string) (id string) {
 		id = fmt.Sprintf("/subscriptions/%s/resourcegroups/%s/providers/microsoft.web/sites/%s",
 			subID, resourceGroup, siteName)
 	}
-	// TODO: logging
 	return
 }
