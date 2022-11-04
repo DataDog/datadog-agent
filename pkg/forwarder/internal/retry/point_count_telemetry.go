@@ -57,8 +57,8 @@ func (t *PointCountTelemetry) Stop() {
 	t.startStopAction.Stop()
 }
 
-// AddDroppedPointCount increases the telemetry that counts the number of points droppped
-func (t *PointCountTelemetry) AddDroppedPointCount(count int) {
+// OnPointDropped increases the telemetry that counts the number of points droppped
+func (t *PointCountTelemetry) OnPointDropped(count int) {
 	t.droppedPointCount.Add(int64(count))
 }
 

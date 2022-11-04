@@ -185,7 +185,7 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 
 func (s *onDiskRetryQueue) onPointDropped(count int) {
 	s.telemetry.addPointDroppedCount(count)
-	s.pointCountTelemetry.AddDroppedPointCount(count)
+	s.pointCountTelemetry.OnPointDropped(count)
 }
 
 func (s *onDiskRetryQueue) removeFileAt(index int) error {

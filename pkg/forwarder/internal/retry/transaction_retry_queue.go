@@ -152,7 +152,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 
 func (tc *TransactionRetryQueue) onDropPoints(count int) {
 	tc.telemetry.addPointDroppedCount(count)
-	tc.pointCountTelemetry.AddDroppedPointCount(count)
+	tc.pointCountTelemetry.OnPointDropped(count)
 }
 
 // ExtractTransactions extracts transactions from the container.
