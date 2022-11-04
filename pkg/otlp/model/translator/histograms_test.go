@@ -21,16 +21,16 @@ func TestDeltaHistogramOptions(t *testing.T) {
 	}{
 		{
 			name:     "simple histogram distributions",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta-tags.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta-tags_dist-nocountsum.json",
+			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
+			ddogfile: "testdata/datadogdata/histogram/simple-delta_dist-nocs.json",
 			options: []Option{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "simple histogram distributions, with count sum metrics",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta-tags.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta-tags_dist-countsum.json",
+			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
+			ddogfile: "testdata/datadogdata/histogram/simple-delta_dist-cs.json",
 			options: []Option{
 				WithHistogramMode(HistogramModeDistributions),
 				WithCountSumMetrics(),
@@ -38,16 +38,16 @@ func TestDeltaHistogramOptions(t *testing.T) {
 		},
 		{
 			name:     "simple histogram buckets as counts, no count sum metrics",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta-tags.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta-tags_counters-nocountsum.json",
+			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
+			ddogfile: "testdata/datadogdata/histogram/simple-delta_counters-nocs.json",
 			options: []Option{
 				WithHistogramMode(HistogramModeCounters),
 			},
 		},
 		{
 			name:     "simple histogram buckets as counts, with count sum metrics",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta-tags.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta-tags_counters-countsum.json",
+			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
+			ddogfile: "testdata/datadogdata/histogram/simple-delta_counters-cs.json",
 			options: []Option{
 				WithHistogramMode(HistogramModeCounters),
 				WithCountSumMetrics(),
@@ -55,8 +55,8 @@ func TestDeltaHistogramOptions(t *testing.T) {
 		},
 		{
 			name:     "simple histogram no buckets count sum metrics",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta-tags.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta-tags_nobuckets-countsum.json",
+			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
+			ddogfile: "testdata/datadogdata/histogram/simple-delta_nobuckets-cs.json",
 			options: []Option{
 				WithHistogramMode(HistogramModeNoBuckets),
 				WithCountSumMetrics(),
