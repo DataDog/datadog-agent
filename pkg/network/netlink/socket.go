@@ -154,68 +154,98 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 // ReceiveAndDiscard reads netlink messages off the socket & discards them.
 // If the NLMSG_DONE flag is found in one of the messages, returns true.
 func (s *Socket) ReceiveAndDiscard() (bool, error) {
-	n, _, err := s.recvmsg()
-	if err != nil {
-		return false, os.NewSyscallError("recvmsg", err)
-	}
-
-	n = nlmsgAlign(n)
-	i := 0
-	for n >= syscall.NLMSG_HDRLEN {
-		header := (*netlink.Header)(unsafe.Pointer(&s.recvbuf[i]))
-		if header.Type == netlink.Done {
-			return true, nil
+	for {
+		n, _, err := s.recvmsg()
+		if err != nil {
+			return false, os.NewSyscallError("recvmsg", err)
 		}
 
-		msgLen := nlmsgAlign(int(header.Length))
-		if msgLen < syscall.NLMSG_HDRLEN {
-			return false, syscall.EINVAL
-		}
+		n = nlmsgAlign(n)
+		i := 0
+		var multi bool
+		for n >= unix.NLMSG_HDRLEN {
+			header := (*netlink.Header)(unsafe.Pointer(&s.recvbuf[i]))
+			msgLen := nlmsgAlign(int(header.Length))
+			if msgLen < syscall.NLMSG_HDRLEN {
+				return false, syscall.EINVAL
+			}
 
-		if header.Type == netlink.Error {
-			return false, checkMessage(netlink.Message{
+			if err := checkMessage(netlink.Message{
 				Header: *header,
 				Data:   s.recvbuf[i+unix.NLMSG_HDRLEN : i+unix.NLMSG_HDRLEN+msgLen],
-			})
-		}
-		i += msgLen
-		n -= msgLen
-	}
+			}); err != nil {
+				return false, err
+			}
 
-	return false, nil
+			n -= msgLen
+			i += msgLen
+
+			if header.Flags&netlink.Multi == 0 {
+				continue
+			}
+
+			multi = header.Type != netlink.Done
+		}
+
+		if !multi {
+			return true, nil
+		}
+	}
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
-	n, oobn, err := s.recvmsg()
-	if err != nil {
-		return nil, 0, os.NewSyscallError("recvmsg", err)
-	}
-
-	n = nlmsgAlign(n)
-	// If we cannot fit the date into the supplied buffer,  we allocate a slice
-	// with enough capacity. This should happen very rarely.
-	if n > len(b) {
-		b = make([]byte, n)
-	}
-	copy(b, s.recvbuf[:n])
-
-	msgs, err := ParseNetlinkMessage(b[:n])
-	if err != nil {
-		return nil, 0, err
-	}
-
 	var netns uint32
-	if oobn > 0 {
-		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
+	var ret []netlink.Message
+	for {
+		n, oobn, err := s.recvmsg()
+		if err != nil {
+			return nil, 0, os.NewSyscallError("recvmsg", err)
+		}
+
+		n = nlmsgAlign(n)
+		// If we cannot fit the date into the supplied buffer,  we allocate a slice
+		// with enough capacity. This should happen very rarely.
+		if n > len(b) {
+			b = make([]byte, n)
+		}
+		copy(b, s.recvbuf[:n])
+
+		msgs, err := ParseNetlinkMessage(b[:n])
 		if err != nil {
 			return nil, 0, err
 		}
 
-		netns = parseNetNS(scms)
+		var multi bool
+		for _, m := range msgs {
+			if err := checkMessage(m); err != nil {
+				return nil, 0, err
+			}
+
+			if m.Header.Flags&netlink.Multi == 0 {
+				continue
+			}
+
+			multi = m.Header.Type != netlink.Done
+		}
+
+		ret = append(ret, msgs...)
+
+		if oobn > 0 && netns == 0 {
+			scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
+			if err != nil {
+				return nil, 0, err
+			}
+
+			netns = parseNetNS(scms)
+		}
+
+		if !multi {
+			break
+		}
 	}
 
-	return msgs, netns, nil
+	return ret, netns, nil
 }
 
 // ParseNetlinkMessage parses b as an array of netlink messages and
