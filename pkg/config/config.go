@@ -1567,6 +1567,9 @@ func setupFipsEndpoints(config Config) error {
 	// Logs
 	config.Set("logs_config.use_http", true)
 	config.Set("logs_config.logs_no_ssl", true)
+	if config.GetBool("fips.https") {
+		config.Set("logs_config.logs_no_ssl", false)
+	}
 	config.Set("logs_config.logs_dd_url", urlFor(logs))
 
 	// Database monitoring

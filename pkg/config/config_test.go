@@ -1216,7 +1216,7 @@ fips:
 
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
-	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, GetProxies())
 
