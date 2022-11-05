@@ -1541,15 +1541,13 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTPS_PROXY")
 
 	// HTTP for now, will soon be updated to HTTPS
-	var protocol string
+	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
 		// top-level setting takes precedence
 		if config.GetBool("skip_ssl_validation") {
 			config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
 		}
-	} else {
-		protocol = "http://"
 	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
