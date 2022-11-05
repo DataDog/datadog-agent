@@ -33,7 +33,7 @@ type LifecycleProcessor struct {
 	DetectLambdaLibrary  func() bool
 	InferredSpansEnabled bool
 	AppSec               *appsec.AppSec
-	AppSecContext        *appsec.Context
+	AppSecContext        httpsec.Context
 
 	requestHandler *RequestHandler
 }
@@ -56,10 +56,10 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	// Create a new appsec execution context for this invocation
-	if lp.AppSec != nil {
+	appsecEnabled := lp.AppSec != nil
+	if appsecEnabled {
 		log.Debug("appsec: creating a new invocation context")
-		lp.AppSecContext = appsec.NewContext(lp.AppSec)
-		httpsec.SetAppSecEnabledTags((*spanTagSetter)(lp.requestHandler))
+		lp.AppSecContext = httpsec.Context{}
 	}
 
 	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
@@ -92,7 +92,14 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromAPIGatewayEvent(event, region)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext.AddAddress("server.request.body", event.Body)
+			lp.AppSecContext = httpsec.Context{
+				RequestRawURI:     &event.Path,
+				RequestHeaders:    event.MultiValueHeaders, // TODO: use a helper to filter-out the cookies
+				RequestCookies:    nil,                     // TODO
+				RequestQuery:      event.MultiValueQueryStringParameters,
+				RequestPathParams: event.PathParameters,
+				RequestBody:       event.Body,
+			}
 		}
 	case trigger.APIGatewayV2Event:
 		var event events.APIGatewayV2HTTPRequest
@@ -190,14 +197,20 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		}
 
 		if lp.AppSec != nil {
-			// Clean the AppSec execution context which shouldn't be used out of an invocation.
 			defer func() {
-				lp.AppSecContext = nil
+				// Clean the AppSec execution context which shouldn't be used out of an invocation.
+				lp.AppSecContext = httpsec.Context{}
 			}()
 
-			lp.AppSecContext.AddAddress("server.response.status", statusCode)
-			if events := lp.AppSecContext.Run(); len(events) > 0 {
-				httpsec.SetSecurityEventsTags((*spanTagSetter)(lp.requestHandler), events, nil, nil)
+			span := (*spanTagSetter)(lp.requestHandler)
+			httpsec.SetAppSecEnabledTags(span)
+			reqHeaders := lp.AppSecContext.RequestHeaders
+			httpsec.SetIPTags(span, "", reqHeaders)
+			lp.AppSecContext.ResponseStatus = &statusCode
+
+			if events := lp.AppSec.Monitor(lp.AppSecContext.ToAddresses()); len(events) > 0 {
+				// TODO: parse the response headers
+				httpsec.SetSecurityEventsTags(span, events, reqHeaders, nil)
 			}
 		}
 
@@ -267,6 +280,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString string, startTime t
 		},
 	}
 	lp.requestHandler.triggerTags = make(map[string]string)
+	lp.requestHandler.triggerMetrics = make(map[string]float64)
 }
 
 func (lp *LifecycleProcessor) addTags(tagSet map[string]string) {

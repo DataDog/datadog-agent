@@ -63,36 +63,21 @@ func (a *AppSec) Close() error {
 	return nil
 }
 
-// NewContext creates a new execution context of appsec event rules.
-// Security event rules are executed when their input addresses are available.
-func NewContext(a *AppSec) *Context {
-	return &Context{
-		instance:  a,
-		addresses: map[string]interface{}{},
-	}
-}
-
-// AddAddress adds the given address' value to the execution context. It will
-// be provided as input to the security event rules execution when calling
-// Run().
-func (c *Context) AddAddress(name string, value interface{}) {
-	c.addresses[name] = value
-}
-
-// Run the security event rules and return the events as raw JSON byte array.
-func (c *Context) Run() (events []byte) {
-	ctx := waf.NewContext(c.instance.handle)
+// Monitor runs the security event rules and return the events as raw JSON byte
+// array.
+func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
+	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
 		return
 	}
 	defer ctx.Close()
-	timeout := c.instance.cfg.wafTimeout
-	events, _, err := ctx.Run(c.addresses, timeout)
+	timeout := a.cfg.wafTimeout
+	events, _, err := ctx.Run(addresses, timeout)
 	if err != nil {
 		if err == waf.ErrTimeout {
-			log.Debug("appsec: waf timeout value of %s reached", timeout)
+			log.Debugf("appsec: waf timeout value of %s reached", timeout)
 		} else {
-			log.Error("appsec: unexpected waf execution error: %v", err)
+			log.Errorf("appsec: unexpected waf execution error: %v", err)
 			return nil
 		}
 	}

@@ -10,45 +10,40 @@
 // which listens to this package's operation events.
 package httpsec
 
-import (
-	"net/http"
-	"strings"
-)
+type Context struct {
+	RequestRawURI     *string
+	RequestHeaders    map[string][]string
+	RequestCookies    map[string][]string
+	RequestQuery      map[string][]string
+	RequestPathParams map[string]string
+	RequestBody       interface{}
 
-// MakeHandlerOperationArgs creates the HandlerOperationArgs out of a standard
-// http.Request along with the given current span. It returns an empty structure
-// when appsec is disabled.
-func MakeHandlerOperationArgs(r *http.Request, pathParams map[string]string) HandlerOperationArgs {
-	headers := make(http.Header, len(r.Header))
-	for k, v := range r.Header {
-		k := strings.ToLower(k)
-		if k == "cookie" {
-			// Do not include cookies in the request headers
-			continue
-		}
-		headers[k] = v
-	}
-	cookies := makeCookies(r) // TODO(Julio-Guerra): avoid actively parsing the cookies thanks to dynamic instrumentation
-	headers["host"] = []string{r.Host}
-	return HandlerOperationArgs{
-		RequestURI: r.RequestURI,
-		Headers:    headers,
-		Cookies:    cookies,
-		Query:      r.URL.Query(), // TODO(Julio-Guerra): avoid actively parsing the query values thanks to dynamic instrumentation
-		PathParams: pathParams,
-	}
+	ResponseStatus  *string
+	ResponseHeaders map[string][]string
 }
 
-// Return the map of parsed cookies if any and following the specification of
-// the rule address `server.request.cookies`.
-func makeCookies(r *http.Request) map[string][]string {
-	parsed := r.Cookies()
-	if len(parsed) == 0 {
-		return nil
+func (c *Context) ToAddresses() map[string]interface{} {
+	addr := make(map[string]interface{})
+	if c.RequestRawURI != nil {
+		addr["server.request.uri.raw"] = *c.RequestRawURI
 	}
-	cookies := make(map[string][]string, len(parsed))
-	for _, c := range parsed {
-		cookies[c.Name] = append(cookies[c.Name], c.Value)
+	if c.RequestHeaders != nil {
+		addr["server.request.headers.no_cookies"] = c.RequestHeaders
 	}
-	return cookies
+	if c.RequestCookies != nil {
+		addr["server.request.cookies"] = c.RequestCookies
+	}
+	if c.RequestQuery != nil {
+		addr["server.request.query"] = c.RequestQuery
+	}
+	if c.RequestPathParams != nil {
+		addr["server.request.path_params"] = c.RequestPathParams
+	}
+	if c.RequestBody != nil {
+		addr["server.request.body"] = c.RequestBody
+	}
+	if c.ResponseStatus != nil {
+		addr["server.response.status"] = c.ResponseStatus
+	}
+	return addr
 }

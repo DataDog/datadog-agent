@@ -72,7 +72,7 @@ func SetAppSecEnabledTags(span Span) {
 }
 
 // SetEventSpanTags sets the security event span tags into the service entry span.
-func SetEventSpanTags(span Span, events []json.RawMessage) error {
+func SetEventSpanTags(span Span, events json.RawMessage) error {
 	// Set the appsec event span tag
 	val, err := makeEventsTagValue(events)
 	if err != nil {
@@ -86,39 +86,11 @@ func SetEventSpanTags(span Span, events []json.RawMessage) error {
 }
 
 // Create the value of the security events tag.
-// TODO(Julio-Guerra): a future libddwaf version should return something
-// avoiding us the following events concatenation logic which currently
-// involves unserializing the top-level JSON arrays to concatenate them
-// together.
-// TODO(Julio-Guerra): avoid serializing the json in the request hot path
-func makeEventsTagValue(events []json.RawMessage) (json.RawMessage, error) {
-	var v interface{}
-	if l := len(events); l == 1 {
-		// eventTag is the structure to use in the `_dd.appsec.json` span tag.
-		// In this case of 1 event, it already is an array as expected.
-		type eventTag struct {
-			Triggers json.RawMessage `json:"triggers"`
-		}
-		v = eventTag{Triggers: events[0]}
-	} else {
-		// eventTag is the structure to use in the `_dd.appsec.json` span tag.
-		// With more than one event, we need to concatenate the arrays together
-		// (ie. convert [][]json.RawMessage into []json.RawMessage).
-		type eventTag struct {
-			Triggers []json.RawMessage `json:"triggers"`
-		}
-		concatenated := make([]json.RawMessage, 0, l) // at least len(events)
-		for _, event := range events {
-			// Unmarshal the top level array
-			var tmp []json.RawMessage
-			if err := json.Unmarshal(event, &tmp); err != nil {
-				return nil, fmt.Errorf("unexpected error while unserializing the appsec event `%s`: %v", string(event), err)
-			}
-			concatenated = append(concatenated, tmp...)
-		}
-		v = eventTag{Triggers: concatenated}
-	}
-
+func makeEventsTagValue(events json.RawMessage) (json.RawMessage, error) {
+	// Create the structure to use in the `_dd.appsec.json` span tag.
+	v := struct {
+		Triggers json.RawMessage `json:"triggers"`
+	}{Triggers: events}
 	tag, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error while serializing the appsec event span tag: %v", err)
@@ -127,9 +99,9 @@ func makeEventsTagValue(events []json.RawMessage) (json.RawMessage, error) {
 }
 
 // SetSecurityEventsTags sets the AppSec-specific span tags when security events were found.
-func SetSecurityEventsTags(span Span, events []json.RawMessage, headers, respHeaders map[string][]string) {
+func SetSecurityEventsTags(span Span, events json.RawMessage, headers, respHeaders map[string][]string) {
 	if err := SetEventSpanTags(span, events); err != nil {
-		log.Error("appsec: unexpected error while creating the appsec event tags: %v", err)
+		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
 	}
 	for h, v := range NormalizeHTTPHeaders(headers) {
@@ -169,7 +141,7 @@ func ippref(s string) *netaddrIPPrefix {
 
 // SetIPTags sets the IP related span tags for a given request
 // See https://docs.datadoghq.com/tracing/configure_data_security#configuring-a-client-ip-header for more information.
-func SetIPTags(span Span, r *http.Request) {
+func SetIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
 	ipHeaders := defaultIPHeaders
 	if len(clientIPHeader) > 0 {
 		ipHeaders = []string{clientIPHeader}
@@ -180,13 +152,13 @@ func SetIPTags(span Span, r *http.Request) {
 		ips     []string
 	)
 	for _, hdr := range ipHeaders {
-		if v := r.Header.Get(hdr); v != "" {
+		if v := reqHeaders.Get(hdr); v != "" {
 			headers = append(headers, hdr)
 			ips = append(ips, v)
 		}
 	}
 
-	remoteIP := parseIP(r.RemoteAddr)
+	remoteIP := parseIP(remoteAddr)
 	if remoteIP.IsValid() {
 		span.SetMeta("network.client.ip", remoteIP.String())
 	}

@@ -203,6 +203,14 @@ func (m *mockspan) SetTag(tag string, value interface{}) {
 	m.tags[tag] = value
 }
 
+func (m *mockspan) SetMeta(tag string, value string) {
+	m.SetTag(tag, value)
+}
+
+func (m *mockspan) SetMetrics(tag string, value float64) {
+	m.SetTag(tag, value)
+}
+
 func (m *mockspan) Tag(tag string) interface{} {
 	if m.tags == nil {
 		return nil
@@ -215,21 +223,20 @@ func TestIPHeaders(t *testing.T) {
 	defer func(s string) { clientIPHeader = s }(clientIPHeader)
 	for _, tc := range genIPTestCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			header := http.Header{}
+			headers := http.Header{}
 			for k, v := range tc.headers {
-				header.Add(k, v)
+				headers.Add(k, v)
 			}
-			r := http.Request{Header: header, RemoteAddr: tc.remoteAddr}
 			clientIPHeader = tc.clientIPHeader
 			var span mockspan
-			SetIPTags(&span, &r)
+			SetIPTags(&span, tc.remoteAddr, headers)
 			if tc.expectedIP.IsValid() {
 				require.Equal(t, tc.expectedIP.String(), span.Tag(ext.HTTPClientIP))
-				require.Nil(t, span.Tag(multipleIPHeaders))
+				require.Nil(t, span.Tag("_dd.multiple-ip-headers"))
 			} else {
 				require.Nil(t, span.Tag(ext.HTTPClientIP))
 				if tc.multiHeaders != "" {
-					require.Equal(t, tc.multiHeaders, span.Tag(multipleIPHeaders))
+					require.Equal(t, tc.multiHeaders, span.Tag("_dd.multiple-ip-headers"))
 					for hdr, ip := range tc.headers {
 						require.Equal(t, ip, span.Tag(ext.HTTPRequestHeaders+"."+hdr))
 					}

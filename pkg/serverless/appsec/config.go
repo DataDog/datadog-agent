@@ -113,14 +113,14 @@ func readObfuscatorConfig() ObfuscatorConfig {
 func readObfuscatorConfigRegexp(name, defaultValue string) string {
 	val, present := os.LookupEnv(name)
 	if !present {
-		log.Debug("appsec: %s not defined, starting with the default obfuscator regular expression", name)
+		log.Debugf("appsec: %s not defined, starting with the default obfuscator regular expression", name)
 		return defaultValue
 	}
 	if _, err := regexp.Compile(val); err != nil {
-		log.Error("appsec: could not compile the configured obfuscator regular expression `%s=%s`. Using the default value instead", name, val)
+		log.Errorf("appsec: could not compile the configured obfuscator regular expression `%s=%s`. Using the default value instead", name, val)
 		return defaultValue
 	}
-	log.Debug("appsec: starting with the configured obfuscator regular expression %s", name)
+	log.Debugf("appsec: starting with the configured obfuscator regular expression %s", name)
 	return val
 }
 
@@ -134,7 +134,7 @@ func readRulesConfig() (rules []byte, err error) {
 	buf, err := os.ReadFile(filepath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Error("appsec: could not find the rules file in path %s: %v.", filepath, err)
+			log.Errorf("appsec: could not find the rules file in path %s: %v.", filepath, err)
 		}
 		return nil, err
 	}
@@ -143,9 +143,9 @@ func readRulesConfig() (rules []byte, err error) {
 }
 
 func logEnvVarParsingError(name, value string, err error, defaultValue interface{}) {
-	log.Error("appsec: could not parse the env var %s=%s as a duration: %v. Using default value %v.", name, value, err, defaultValue)
+	log.Errorf("appsec: could not parse the env var %s=%s as a duration: %v. Using default value %v.", name, value, err, defaultValue)
 }
 
 func logUnexpectedEnvVarValue(name string, value interface{}, reason string, defaultValue interface{}) {
-	log.Error("appsec: unexpected configuration value of %s=%v: %s. Using default value %v.", name, value, reason, defaultValue)
+	log.Errorf("appsec: unexpected configuration value of %s=%v: %s. Using default value %v.", name, value, reason, defaultValue)
 }
