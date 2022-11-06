@@ -246,26 +246,41 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 }
 
+type PrintableBool bool
+
+func (i *PrintableBool) String() string {
+	if i == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%v", *i)
+}
+
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
-	foundIncomingWithProtocol := false
-	foundOutgoingWithProtocol := false
+	var incomingConns, outgoingConns []network.ConnectionStats
+
+	foundIncomingWithProtocol := PrintableBool(false)
+	foundOutgoingWithProtocol := PrintableBool(false)
 	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
-		outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+		newOutgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
 			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 		})
-		incomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+		newIncomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
 			return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 		})
 
-		for _, conn := range outgoingConns {
+		outgoingConns = append(outgoingConns, newOutgoingConns...)
+		incomingConns = append(incomingConns, newIncomingConns...)
+
+		for _, conn := range newOutgoingConns {
 			t.Logf("Found outgoing connection %v", conn)
 			if conn.Protocol == expectedProtocol {
 				foundOutgoingWithProtocol = true
 				break
 			}
 		}
-		for _, conn := range incomingConns {
+		for _, conn := range newIncomingConns {
 			t.Logf("Found incoming connection %v", conn)
 			if conn.Protocol == expectedProtocol {
 				foundIncomingWithProtocol = true
@@ -273,6 +288,8 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			}
 		}
 
-		return foundOutgoingWithProtocol && foundIncomingWithProtocol
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find incoming and outgoing connections with protocol %d for server address %s and target address %s", expectedProtocol, serverAddr, targetAddr)
+		return bool(foundOutgoingWithProtocol) && bool(foundIncomingWithProtocol)
+	}, 5*time.Second, 500*time.Millisecond, "couldn't find incoming and outgoing connections with protocol %d for "+
+		"server address %s and target address %s.\nIncoming: %v\nOutgoing: %v\nfound incoming with protocol: %s\nfound "+
+		"outgoing with protocol: %s", expectedProtocol, serverAddr, targetAddr, &incomingConns, &outgoingConns, &foundIncomingWithProtocol, &foundOutgoingWithProtocol)
 }
