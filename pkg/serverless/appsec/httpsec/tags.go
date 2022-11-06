@@ -139,9 +139,9 @@ func ippref(s string) *netaddrIPPrefix {
 	return nil
 }
 
-// SetIPTags sets the IP related span tags for a given request
+// SetClientIPTags sets the IP related span tags for a given request
 // See https://docs.datadoghq.com/tracing/configure_data_security#configuring-a-client-ip-header for more information.
-func SetIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
+func SetClientIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
 	ipHeaders := defaultIPHeaders
 	if len(clientIPHeader) > 0 {
 		ipHeaders = []string{clientIPHeader}
@@ -158,9 +158,12 @@ func SetIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
 		}
 	}
 
-	remoteIP := parseIP(remoteAddr)
-	if remoteIP.IsValid() {
-		span.SetMeta("network.client.ip", remoteIP.String())
+	var remoteIP netaddrIP
+	if remoteAddr != "" {
+		remoteIP = parseIP(remoteAddr)
+		if remoteIP.IsValid() {
+			span.SetMeta("network.client.ip", remoteIP.String())
+		}
 	}
 
 	if l := len(ips); l == 0 {

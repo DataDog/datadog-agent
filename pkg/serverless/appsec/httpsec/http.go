@@ -10,7 +10,13 @@
 // which listens to this package's operation events.
 package httpsec
 
+import (
+	"net/http"
+	"strings"
+)
+
 type Context struct {
+	RequestClientIP   string
 	RequestRawURI     *string
 	RequestHeaders    map[string][]string
 	RequestCookies    map[string][]string
@@ -46,4 +52,45 @@ func (c *Context) ToAddresses() map[string]interface{} {
 		addr["server.response.status"] = c.ResponseStatus
 	}
 	return addr
+}
+
+// FilterHeaders copies the given map and filters out the cookie entry. The
+// resulting map of filtered headers is returned, along with the removed cookie
+// entry if any.
+func FilterHeaders(reqHeaders map[string][]string) (headers map[string][]string, rawCookies []string) {
+	if len(reqHeaders) == 0 {
+		return nil, nil
+	}
+	// Walk the map of request headers and filter the cookies out if any
+	headers = make(map[string][]string, len(reqHeaders))
+	for k, v := range reqHeaders {
+		k := strings.ToLower(k)
+		if k == "cookie" {
+			// Do not include cookies in the request headers
+			rawCookies = v
+		}
+		headers[k] = v
+	}
+	if len(headers) == 0 {
+		headers = nil // avoid returning an empty map
+	}
+	return nil, rawCookies
+}
+
+// ParseCookies returns the parsed cookies as a map of the cookie names to their
+// value. Cookies defined more than once have multiple values in their map
+// entry.
+func ParseCookies(rawCookies []string) map[string][]string {
+	// net.http doesn't expose its cookie-parsing function, so we are using the
+	// http.(*Request).Cookies method instead which reads the request headers.
+	r := http.Request{Header: map[string][]string{"Cookie": rawCookies}}
+	parsed := r.Cookies()
+	if len(parsed) == 0 {
+		return nil
+	}
+	cookies := make(map[string][]string, len(parsed))
+	for _, c := range parsed {
+		cookies[c.Name] = append(cookies[c.Name], c.Value)
+	}
+	return cookies
 }

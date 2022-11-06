@@ -33,7 +33,7 @@ type LifecycleProcessor struct {
 	DetectLambdaLibrary  func() bool
 	InferredSpansEnabled bool
 	AppSec               *appsec.AppSec
-	AppSecContext        httpsec.Context
+	AppSecContext        *httpsec.Context
 
 	requestHandler *RequestHandler
 }
@@ -59,7 +59,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	appsecEnabled := lp.AppSec != nil
 	if appsecEnabled {
 		log.Debug("appsec: creating a new invocation context")
-		lp.AppSecContext = httpsec.Context{}
+		lp.AppSecContext = nil
 	}
 
 	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
@@ -92,29 +92,55 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromAPIGatewayEvent(event, region)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext = httpsec.Context{
-				RequestRawURI:     &event.Path,
-				RequestHeaders:    event.MultiValueHeaders, // TODO: use a helper to filter-out the cookies
-				RequestCookies:    nil,                     // TODO
-				RequestQuery:      event.MultiValueQueryStringParameters,
-				RequestPathParams: event.PathParameters,
-				RequestBody:       event.Body,
-			}
+			lp.AppSecContext = makeAppSecContext(
+				&event.Path,
+				event.MultiValueHeaders,
+				event.MultiValueQueryStringParameters,
+				event.PathParameters,
+				event.RequestContext.Identity.SourceIP,
+				event.Body)
 		}
 	case trigger.APIGatewayV2Event:
 		var event events.APIGatewayV2HTTPRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromAPIGatewayV2Event(event, region)
 		}
+		if lp.AppSec != nil {
+			lp.AppSecContext = makeAppSecContext(
+				&event.RawPath,
+				toMultiValueMap(event.Headers),
+				toMultiValueMap(event.QueryStringParameters),
+				event.PathParameters,
+				event.RequestContext.HTTP.SourceIP,
+				event.Body)
+		}
 	case trigger.APIGatewayWebsocketEvent:
 		var event events.APIGatewayWebsocketProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromAPIGatewayWebsocketEvent(event, region)
 		}
+		if lp.AppSec != nil {
+			lp.AppSecContext = makeAppSecContext(
+				&event.Path,
+				event.MultiValueHeaders,
+				event.MultiValueQueryStringParameters,
+				event.PathParameters,
+				event.RequestContext.Identity.SourceIP,
+				event.Body)
+		}
 	case trigger.ALBEvent:
 		var event events.ALBTargetGroupRequest
 		if err := json.Unmarshal(payloadBytes, &event); err == nil {
 			lp.initFromALBEvent(event)
+		}
+		if lp.AppSec != nil {
+			lp.AppSecContext = makeAppSecContext(
+				&event.Path,
+				event.MultiValueHeaders,
+				event.MultiValueQueryStringParameters,
+				nil,
+				"",
+				event.Body)
 		}
 	case trigger.CloudWatchEvent:
 		var event events.CloudWatchEvent
@@ -161,6 +187,15 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
 			lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 		}
+		if lp.AppSec != nil {
+			lp.AppSecContext = makeAppSecContext(
+				&event.RawPath,
+				toMultiValueMap(event.Headers),
+				toMultiValueMap(event.QueryStringParameters),
+				nil,
+				event.RequestContext.HTTP.SourceIP,
+				event.Body)
+		}
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}
@@ -199,16 +234,17 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		if lp.AppSec != nil {
 			defer func() {
 				// Clean the AppSec execution context which shouldn't be used out of an invocation.
-				lp.AppSecContext = httpsec.Context{}
+				lp.AppSecContext = nil
 			}()
 
+			ctx := lp.AppSecContext
 			span := (*spanTagSetter)(lp.requestHandler)
 			httpsec.SetAppSecEnabledTags(span)
-			reqHeaders := lp.AppSecContext.RequestHeaders
-			httpsec.SetIPTags(span, "", reqHeaders)
-			lp.AppSecContext.ResponseStatus = &statusCode
+			reqHeaders := ctx.RequestHeaders
+			httpsec.SetClientIPTags(span, ctx.RequestClientIP, reqHeaders)
+			ctx.ResponseStatus = &statusCode
 
-			if events := lp.AppSec.Monitor(lp.AppSecContext.ToAddresses()); len(events) > 0 {
+			if events := lp.AppSec.Monitor(ctx.ToAddresses()); len(events) > 0 {
 				// TODO: parse the response headers
 				httpsec.SetSecurityEventsTags(span, events, reqHeaders, nil)
 			}
@@ -312,4 +348,36 @@ func (s *spanTagSetter) SetMeta(tag string, value string) {
 
 func (s *spanTagSetter) SetMetrics(tag string, value float64) {
 	s.triggerMetrics[tag] = value
+}
+
+func makeAppSecContext(path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, body string) *httpsec.Context {
+	headers, rawCookies := httpsec.FilterHeaders(headers)
+	cookies := httpsec.ParseCookies(rawCookies)
+	var bodyface interface{}
+	if len(body) > 0 {
+		bodyface = body
+	}
+	return &httpsec.Context{
+		RequestClientIP:   sourceIP,
+		RequestRawURI:     path,
+		RequestHeaders:    headers,
+		RequestCookies:    cookies,
+		RequestQuery:      queryParams,
+		RequestPathParams: pathParams,
+		RequestBody:       bodyface,
+	}
+}
+
+// Helper function to convert a single-value map of event values into a
+// multi-value one.
+func toMultiValueMap(m map[string]string) map[string][]string {
+	l := len(m)
+	if l == 0 {
+		return nil
+	}
+	res := make(map[string][]string, l)
+	for k, v := range m {
+		res[k] = []string{v}
+	}
+	return res
 }

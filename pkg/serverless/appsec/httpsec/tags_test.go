@@ -229,7 +229,7 @@ func TestIPHeaders(t *testing.T) {
 			}
 			clientIPHeader = tc.clientIPHeader
 			var span mockspan
-			SetIPTags(&span, tc.remoteAddr, headers)
+			SetClientIPTags(&span, tc.remoteAddr, headers)
 			if tc.expectedIP.IsValid() {
 				require.Equal(t, tc.expectedIP.String(), span.Tag(ext.HTTPClientIP))
 				require.Nil(t, span.Tag("_dd.multiple-ip-headers"))
