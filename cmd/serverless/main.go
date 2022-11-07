@@ -257,7 +257,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		asm, err = appsec.New() // note that the asm variable is in the parent scope
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-			return
+		} else if asm != nil {
+			log.Info("appsec: started successfully")
 		}
 	}()
 

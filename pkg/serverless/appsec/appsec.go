@@ -8,6 +8,8 @@
 package appsec
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/waf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +38,7 @@ func New() (*AppSec, error) {
 	if enabled, _, err := isEnabled(); err != nil {
 		return nil, err
 	} else if !enabled {
+		log.Debug("appsec: security monitoring is not enabled: DD_APPSEC_ENABLED is not set to true")
 		return nil, nil
 	}
 
@@ -66,6 +69,7 @@ func (a *AppSec) Close() error {
 // Monitor runs the security event rules and return the events as raw JSON byte
 // array.
 func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
+	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
 		return
@@ -82,6 +86,8 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 		}
 	}
 	dt, _ := ctx.TotalRuntime()
-	log.Debug("appsec: waf execution run time: ", dt)
+	if len(events) > 0 {
+		log.Debugf("appsec: security events found in %s: %s", time.Duration(dt), string(events))
+	}
 	return events
 }
