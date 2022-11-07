@@ -21,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// The maximum number of logs that will be buffered during the init phase before the first invocation
+	maxBufferedLogs = 2000
+)
+
 // Tags contains the actual array of Tags (useful for passing it via reference)
 type Tags struct {
 	Tags []string
@@ -51,7 +56,7 @@ type LambdaLogsCollector struct {
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func()) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage, 1000), // Buffered, so we can hold start-up logs before first invocation without blocking
+		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
 		out:                    out,
 		demux:                  demux,
 		extraTags:              extraTags,
