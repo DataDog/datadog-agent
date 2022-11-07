@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
@@ -73,7 +74,7 @@ func TestWorkerStart(t *testing.T) {
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
 
-	assert.Equal(t, mock.pointCount+mock2.pointCount, sender.count)
+	assert.Equal(t, int64(mock.pointCount+mock2.pointCount), sender.count.Load())
 	w.Stop(false)
 }
 
@@ -196,9 +197,9 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 }
 
 type PointSuccessfullySentMock struct {
-	count int
+	count atomic.Int64
 }
 
 func (m *PointSuccessfullySentMock) OnPointSuccessfullySent(count int) {
-	m.count += count
+	m.count.Add(int64(count))
 }
