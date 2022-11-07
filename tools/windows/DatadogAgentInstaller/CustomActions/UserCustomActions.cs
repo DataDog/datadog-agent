@@ -31,11 +31,12 @@ namespace Datadog.CustomActions
             string machineName = $"{Environment.MachineName}";
             try
             {
-                Domain joinedDomain = Domain.GetComputerDomain();
-                string fqdn = $"{machineName}.{joinedDomain}";
-                foreach (DomainController dc in joinedDomain.DomainControllers)
+                var joinedDomain = Domain.GetComputerDomain();
+                var fqdn = $"{machineName}.{joinedDomain}";
+                foreach (var dc in joinedDomain.DomainControllers)
                 {
-                    if (fqdn.ToLower() == dc.Name.ToLower()) {
+                    if (fqdn.ToLower() == dc.Name.ToLower())
+                    {
                         return joinedDomain.Name;
                     }
                 }
@@ -52,8 +53,8 @@ namespace Datadog.CustomActions
         {
             try
             {
-                string domain;
-                if (!string.IsNullOrEmpty(session["DDAGENTUSER_FQ_NAME"])) {
+                if (!string.IsNullOrEmpty(session["DDAGENTUSER_FQ_NAME"]))
+                {
                   // This function has already executed succesfully
                   return ActionResult.Success;
                 }
@@ -62,14 +63,13 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
                     // User did not pass a value, use default account name
-                    domain = GetDefaultDomainPart();
-                    ddAgentUserName = $"{domain}\\ddagentuser";
+                    ddAgentUserName = $"{GetDefaultDomainPart()}\\ddagentuser";
                 }
 
                 // Check if user exists, and parse the full account name
                 var userFound = LookupAccountName(ddAgentUserName,
                     out var userName,
-                    out domain,
+                    out var domain,
                     out var securityIdentifier,
                     out var nameUse);
                 var isServiceAccount = false;
@@ -87,7 +87,8 @@ namespace Datadog.CustomActions
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
-                if (string.IsNullOrEmpty(domain)) {
+                if (string.IsNullOrEmpty(domain))
+                {
                     domain = GetDefaultDomainPart();
                 }
                 session.Log($"Installing with DDAGENTUSER_NAME={userName} and DDAGENTUSER_DOMAIN={domain}");
