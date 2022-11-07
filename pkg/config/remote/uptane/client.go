@@ -292,7 +292,7 @@ func (c *Client) verifyOrg() error {
 			return fmt.Errorf("could not obtain stored/remote orgUUID: %v", err)
 		}
 		if *custom.OrgUUID != orgUUID {
-			return fmt.Errorf("stored/remote OrgUUID and snapshot OrgUUID do not match")
+			return fmt.Errorf("stored/remote OrgUUID and snapshot OrgUUID do not match: stored=%s received=%s", orgUUID, *custom.OrgUUID)
 		}
 	}
 	// skip the orgID check when no orgID was provided to the client
