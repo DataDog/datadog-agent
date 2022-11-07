@@ -1,6 +1,10 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#include <linux/dcache.h>
+#include <linux/mm_types.h>
+#include <linux/fs.h>
+
 #include "bpf_builtins.h"
 #include "http-buffer.h"
 #include "http-types.h"

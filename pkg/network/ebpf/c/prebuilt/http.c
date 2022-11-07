@@ -1,7 +1,4 @@
 #include <linux/kconfig.h>
-#include <linux/mm_types.h>
-#include <linux/dcache.h>
-#include <linux/fs.h>
 
 #include "tracer.h"
 #include "bpf_telemetry.h"
