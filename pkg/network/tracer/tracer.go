@@ -470,6 +470,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
+	now := time.Now()
 	latestTime, err := ddebpf.NowNanoseconds()
 	if err != nil {
 		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
@@ -519,12 +520,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	t.removeEntries(expired)
 
 	// check for expired clients in the state
-	t.state.RemoveExpiredClients(time.Now())
-
-	latestTime, err = ddebpf.NowNanoseconds()
-	if err != nil {
-		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
-	}
+	t.state.RemoveExpiredClients(now)
 	return uint64(latestTime), nil
 }
 
