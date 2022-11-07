@@ -31,16 +31,15 @@ namespace Datadog.CustomActions
             string machineName = $"{Environment.MachineName}";
             try
             {
-                var joinedDomain = Domain.GetComputerDomain();
-                var fqdn = $"{machineName}.{joinedDomain}";
-                foreach (var dc in joinedDomain.DomainControllers)
+                var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
+                if ((serverInfo.Type & ServerTypes.DomainCtrl) == ServerTypes.DomainCtrl
+                    || (serverInfo.Type & ServerTypes.BackupDomainCtrl) == ServerTypes.BackupDomainCtrl)
                 {
-                    if (fqdn.ToLower() == dc.Name.ToLower())
-                    {
-                        return joinedDomain.Name;
-                    }
+                    // Computer is a DC, default to domain name
+                    var joinedDomain = Domain.GetComputerDomain();
+                    return joinedDomain.Name;
                 }
-                // Computer is not a DC for its domain, default to machine name
+                // Computer is not a DC, default to machine name
             }
             catch (ActiveDirectoryObjectNotFoundException)
             {
@@ -79,6 +78,7 @@ namespace Datadog.CustomActions
                     session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     session.Log($"Found {userName} in {domain} as {nameUse}");
                     NetIsServiceAccount(null, ddAgentUserName, out isServiceAccount);
+                    session.Log($"Is {userName} in {domain} a service account: {isServiceAccount}");
                 }
                 else
                 {

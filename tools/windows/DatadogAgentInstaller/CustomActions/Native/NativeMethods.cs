@@ -255,6 +255,61 @@ namespace Datadog.CustomActions.Native
             throw new Exception($"Could not add user to group {groupName}: {err}");
         }
 
+        [Flags]
+        public enum ServerTypes : uint
+        {
+            DomainCtrl= 0x00000008,
+            BackupDomainCtrl= 0x00000010,
+        };
+
+        public enum ServerPlatform
+        {
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SERVER_INFO_101
+        {
+            public ServerPlatform PlatformId;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string Name;
+            public int VersionMajor;
+            public int VersionMinor;
+            public ServerTypes Type;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string Comment;
+        }
+
+        [DllImport("Netapi32", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int NetServerGetInfo(string serverName, int level, out IntPtr pSERVER_INFO_XXX);
+        [DllImport("Netapi32", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int NetApiBufferFree(IntPtr Buffer);
+
+        // Wrapper function to allow passing of structure and auto-find of level if structure contains it.
+        public static T NetServerGetInfo<T>(string serverName = null, int level = 0) where T : struct
+        {
+            if (level == 0)
+            {
+               level = int.Parse(System.Text.RegularExpressions.Regex.Replace(typeof(T).Name, @"[^\d]", ""));
+            }
+            var ptr = IntPtr.Zero;
+            try
+            {
+                var ret = NetServerGetInfo(serverName, level, out ptr);
+                if (ret != 0)
+                {
+                    throw new System.ComponentModel.Win32Exception(ret);
+                }
+                return (T)Marshal.PtrToStructure(ptr, typeof(T));
+            }
+            finally
+            {
+                if (ptr != IntPtr.Zero)
+                {
+                    NetApiBufferFree(ptr);
+                }
+            }
+        }
+
         #region Add/Remove privileges
         [DllImport("advapi32.dll", PreserveSig = true)]
         private static extern uint LsaOpenPolicy(
@@ -355,7 +410,7 @@ namespace Datadog.CustomActions.Native
             var pSid = Marshal.AllocHGlobal(sid.Length);
             try
             {
-                
+
                 Marshal.Copy(sid, 0, pSid, sid.Length);
                 status = LsaAddAccountRights(policyHandle, pSid, userRights, userRights.Length);
                 winErrorCode = LsaNtStatusToWinError(status);
