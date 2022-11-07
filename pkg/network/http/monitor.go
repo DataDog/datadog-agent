@@ -68,6 +68,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	batchMap, _, err := mgr.GetMap(httpBatchesMap)
 	if err != nil {
+		closeFilterFn()
 		return nil, err
 	}
 
@@ -76,6 +77,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	telemetry, err := newTelemetry()
 	if err != nil {
+		closeFilterFn()
 		return nil, err
 	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
@@ -88,6 +90,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	batchManager, err := newBatchManager(batchMap, numCPUs)
 	if err != nil {
+		closeFilterFn()
 		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
 	}
 

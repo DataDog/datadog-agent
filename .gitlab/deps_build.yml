@@ -127,3 +127,45 @@ build_vcpkg_deps:
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+build_processed_btfhub_archive:
+  rules:
+    !reference [.manual]
+  stage: deps_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    - git clone https://github.com/aquasecurity/btfhub-archive.git
+    - cd btfhub-archive
+    # Flatten btfhub-archive directories & separate arm/x64 btfs into separate directories
+    - dirs=("amzn/2" "centos/7" "centos/8" "debian/9" "debian/10" "fedora/29" "fedora/30" "fedora/31" "oracle-linux/ol7")
+    - |
+      for dir in ${dirs[@]}; do                                         \
+        platform=${dir%%/*}                                           &&\
+        mkdir -p "btfs-amd64/${platform}" "btfs-arm64/${platform}"    &&\
+        eval "mv ${dir}/x86_64/*.btf.tar.xz btfs-amd64/${platform}/"  &&\
+        eval "mv ${dir}/arm64/*.btf.tar.xz btfs-arm64/${platform}/";    \
+      done
+    # Handle the amzn/1 directory separately because it doesn't have an arm64 version
+    - mv amzn/1/x86_64/* btfs-amd64/amzn/
+    # Handle ubuntu separately because we want to keep the btfs separated by ubuntu version
+    - mkdir -p btfs-amd64/ubuntu/18.04 btfs-amd64/ubuntu/20.04 btfs-arm64/ubuntu/18.04 btfs-arm64/ubuntu/20.04
+    - mv ubuntu/18.04/x86_64/*.btf.tar.xz btfs-amd64/ubuntu/18.04/
+    - mv ubuntu/20.04/x86_64/*.btf.tar.xz btfs-amd64/ubuntu/20.04/
+    - mv ubuntu/18.04/arm64/*.btf.tar.xz btfs-arm64/ubuntu/18.04/
+    - mv ubuntu/20.04/arm64/*.btf.tar.xz btfs-arm64/ubuntu/20.04/
+    # Clean up platform names to match the names we get at runtime from gopsutil
+    - mv btfs-amd64/amzn btfs-amd64/amazon
+    - mv btfs-arm64/amzn btfs-arm64/amazon
+    - mv btfs-amd64/oracle-linux btfs-amd64/oracle
+    - mv btfs-arm64/oracle-linux btfs-arm64/oracle
+    # Store results in S3
+    - tar -czf btfs-arm64.tar.gz btfs-arm64
+    - tar -czf btfs-amd64.tar.gz btfs-amd64
+    - $S3_CP_CMD btfs-arm64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-arm64.tar.gz
+    - $S3_CP_CMD btfs-amd64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-amd64.tar.gz
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - btfhub-archive/btfs-arm64.tar.gz
+      - btfhub-archive/btfs-amd64.tar.gz

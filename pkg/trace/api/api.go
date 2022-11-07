@@ -31,7 +31,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -75,7 +74,6 @@ type HTTPReceiver struct {
 	dynConf             *sampler.DynamicConfig
 	server              *http.Server
 	statsProcessor      StatsProcessor
-	appsecHandler       http.Handler
 	containerIDProvider IDProvider
 
 	rateLimiterResponse int // HTTP status code when refusing
@@ -93,10 +91,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.NewIntakeReverseProxy(conf)
-	if err != nil {
-		log.Errorf("Could not instantiate AppSec: %v", err)
-	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
@@ -105,7 +99,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		appsecHandler:       appsecHandler,
 		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
 
 		rateLimiterResponse: rateLimiterResponse,

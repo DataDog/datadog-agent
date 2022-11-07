@@ -226,8 +226,6 @@ func New() *Config {
 		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:            2 * time.Minute,
 
-		ProtocolClassificationEnabled: cfg.GetBool(join(spNS, "enable_protocol_classification")),
-
 		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
 		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),
@@ -235,6 +233,8 @@ func New() *Config {
 		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
+
+		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),

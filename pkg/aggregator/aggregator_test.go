@@ -101,7 +101,11 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -
 
-	agg := getAggregator()
+	opts := demuxTestOptions()
+	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	defer demux.Stop(false)
+
+	agg := demux.Aggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
@@ -109,11 +113,27 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	assert.Len(t, agg.checkSamplers, 2)
 
 	agg.deregisterSender(checkID1)
+
+	for tries := 100; tries > 0; tries-- {
+		agg.mu.Lock()
+		ok := agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
+		agg.mu.Unlock()
+		if !ok && tries > 1 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		require.True(t, ok)
+	}
+
+	agg.Flush(testNewFlushTrigger(time.Now(), false))
+
+	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
 	_, ok := agg.checkSamplers[checkID1]
 	assert.False(t, ok)
 	_, ok = agg.checkSamplers[checkID2]
 	assert.True(t, ok)
+	agg.mu.Unlock()
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {

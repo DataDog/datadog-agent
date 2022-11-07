@@ -12,6 +12,7 @@
     - mkdir -p $NIKOS_EMBEDDED_PATH
     - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
   script:
+    - inv check-go-version
     - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH --strip-object-files
     # fail if references to glibc >= 2.18
     - objdump -p $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
@@ -27,6 +28,7 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $S3_ARTIFACTS_URI/oom-kill-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $S3_ARTIFACTS_URI/tracer.c.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $S3_ARTIFACTS_URI/http.c.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $S3_ARTIFACTS_URI/runtime-security.c.$ARCH
@@ -44,8 +46,6 @@ build_system-probe-x64:
     ARCH: amd64
 
 build_system-probe-arm64:
-  rules:
-    !reference [.on_all_builds]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["go_deps"]
