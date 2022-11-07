@@ -67,17 +67,16 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 	}
 }
 
-// UpdateFromStartLog updates the execution context based on a platform.Start log message
-func (ec *ExecutionContext) UpdateFromStartLog(requestID string, time time.Time) {
+// UpdateStartTime updates the execution context based on a platform.Start log message
+func (ec *ExecutionContext) UpdateStartTime(time time.Time) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
-	ec.lastLogRequestID = requestID
 	ec.startTime = time
 }
 
-// UpdateFromRuntimeDoneLog updates the execution context based on a
+// UpdateEndTime updates the execution context based on a
 // platform.runtimeDone log message
-func (ec *ExecutionContext) UpdateFromRuntimeDoneLog(time time.Time) {
+func (ec *ExecutionContext) UpdateEndTime(time time.Time) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.endTime = time
