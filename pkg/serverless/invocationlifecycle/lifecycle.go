@@ -212,9 +212,10 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	statusCode, err := trigger.GetStatusCodeFromHTTPResponse([]byte(parseLambdaPayload(endDetails.ResponseRawPayload)))
+	responseRawPayload := []byte(parseLambdaPayload(endDetails.ResponseRawPayload))
+	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(responseRawPayload)
 	if err != nil {
-		log.Debugf("[lifecycle] Couldn't parse response payload: %v", err)
+		log.Debugf("[lifecycle] Couldn't parse the response payload status code: %v", err)
 	}
 
 	// This will only add the status code if it comes from an HTTP-like
@@ -246,9 +247,13 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 
 			ctx.ResponseStatus = &statusCode
 
+			respHeaders, err := trigger.GetHeadersFromHTTPResponse(responseRawPayload)
+			if err != nil {
+				log.Debugf("appsec: couldn't parse the response payload headers: %v", err)
+			}
+
 			if events := lp.AppSec.Monitor(ctx.ToAddresses()); len(events) > 0 {
-				// TODO: parse the response headers
-				httpsec.SetSecurityEventsTags(span, events, reqHeaders, nil)
+				httpsec.SetSecurityEventsTags(span, events, reqHeaders, respHeaders)
 			}
 		}
 

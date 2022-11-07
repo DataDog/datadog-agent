@@ -154,7 +154,9 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 // a status code, if it contains one. Returns an empty string if it does not.
 // Ignore parsing errors silentlys
 func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
-	var response map[string]interface{}
+	var response struct {
+		StatusCode interface{} `json:"statusCode"`
+	}
 	err := json.Unmarshal(rawPayload, &response)
 	if err != nil {
 		return "", err
@@ -166,15 +168,45 @@ func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
 		return "", nil
 	}
 
-	statusCode := response["statusCode"]
+	statusCode := response.StatusCode
 	switch statusCode.(type) {
 	case float64:
 		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
 	case string:
 		return statusCode.(string), nil
 	default:
-		return "", fmt.Errorf("Received unknown type for statusCode")
+		return "", fmt.Errorf("Received unknown type %T for statusCode", statusCode)
 	}
+}
+
+// GetHeadersFromHTTPResponse parses a generic HTTP response payload and returns
+// its HTTP headers if any. It merges the single- and multi-value headers it
+// may contain. A single-value header is ignored if it already exists in the
+// map of multi-value headers.
+func GetHeadersFromHTTPResponse(rawPayload []byte) (map[string][]string, error) {
+	var response struct {
+		Headers           map[string]string   `json:"headers"`
+		MultiValueHeaders map[string][]string `json:"multiValueHeaders"`
+	}
+	err := json.Unmarshal(rawPayload, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(response.Headers) == 0 && len(response.MultiValueHeaders) == 0 {
+		return nil, nil
+	}
+
+	headers := response.MultiValueHeaders
+	if headers == nil {
+		headers = make(map[string][]string, len(response.Headers))
+	}
+	for k, v := range response.Headers {
+		if _, exists := response.MultiValueHeaders[k]; !exists {
+			headers[k] = []string{v}
+		}
+	}
+	return headers, nil
 }
 
 // ParseArn parses an AWS ARN and returns the region and account
