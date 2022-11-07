@@ -235,8 +235,11 @@ func shouldProcessLog(ecs *executioncontext.State, message *logMessage) bool {
 	if len(ecs.ARN) == 0 || len(ecs.LastRequestID) == 0 {
 		return false
 	}
+	if message.logType == logTypePlatformInitReport {
+		return true
+	}
 	// Making sure that empty logs are not uselessly sent
-	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 && message.logType != logTypePlatformInitReport {
+	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 {
 		return false
 	}
 
