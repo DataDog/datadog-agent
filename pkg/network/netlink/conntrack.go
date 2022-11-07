@@ -42,12 +42,21 @@ func NewConntrack(netNS netns.NsHandle) (Conntrack, error) {
 		return nil, err
 	}
 
-	return &conntrack{conn: conn}, nil
+	return &conntrack{
+		conn: conn,
+		msg: netlink.Message{
+			Header: netlink.Header{
+				Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
+				Flags: netlink.Request | netlink.Acknowledge,
+			},
+		},
+	}, nil
 }
 
 type conntrack struct {
 	sync.Mutex
 	conn *Socket
+	msg  netlink.Message
 }
 
 func (c *conntrack) Exists(conn *Con) (bool, error) {
@@ -62,21 +71,20 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 		family = unix.AF_INET6
 	}
 
-	msg := netlink.Message{
-		Header: netlink.Header{
-			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
-			Flags: netlink.Request | netlink.Acknowledge,
-		},
-	}
-
-	msg.Data = make([]byte, 0, 4+len(data))
-	msg.Data = append(msg.Data, []byte{family, unix.NFNETLINK_V0, 0, 0}...)
-	msg.Data = append(msg.Data, data...)
-
 	c.Lock()
 	defer c.Unlock()
 
-	if err = c.conn.Send(msg); err != nil {
+	if cap(c.msg.Data) < 4+len(data) {
+		c.msg.Data = make([]byte, 0, 4+len(data))
+	}
+	c.msg.Data = append(c.msg.Data, []byte{family, unix.NFNETLINK_V0, 0, 0}...)
+	c.msg.Data = append(c.msg.Data, data...)
+
+	defer func() {
+		c.msg.Data = c.msg.Data[:0]
+	}()
+
+	if err = c.conn.Send(c.msg); err != nil {
 		return false, fmt.Errorf("error sending conntrack exists query: %w", err)
 	}
 

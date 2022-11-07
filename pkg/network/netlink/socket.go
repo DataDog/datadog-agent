@@ -51,7 +51,7 @@ type Socket struct {
 	oobn    int
 	readErr error
 
-	seq uint32
+	seq *atomic.Uint32
 }
 
 // NewSocket creates a new NETLINK socket
@@ -105,6 +105,7 @@ func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 		conn:    conn,
 		recvbuf: make([]byte, 32*1024),
 		oobbuf:  make([]byte, unix.CmsgSpace(24)),
+		seq:     atomic.NewUint32(0),
 	}
 	return socket, nil
 }
@@ -116,7 +117,7 @@ func (c *Socket) fixMsg(m *netlink.Message, ml int) {
 	}
 
 	if m.Header.Sequence == 0 {
-		m.Header.Sequence = atomic.AddUint32(&c.seq, 1)
+		m.Header.Sequence = c.seq.Add(1)
 	}
 
 	if m.Header.PID == 0 {
