@@ -24,8 +24,8 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
-	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg)
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
@@ -41,10 +41,6 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 		executionContext: ec,
 		traceAgent:       traceAgent,
 	}
-
-	defer cancel()
-
-	go traceAgent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, nil)
 
 	now := time.Now().UnixNano()
 	lambdaSpan := &pb.Span{
@@ -76,8 +72,8 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
-	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg)
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
@@ -92,10 +88,6 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 		executionContext: ec,
 		traceAgent:       traceAgent,
 	}
-
-	defer cancel()
-
-	go traceAgent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, nil)
 
 	lambdaSpan := &pb.Span{
 		Service:  "aws.lambda",
@@ -122,8 +114,8 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{}
 	cfg.Endpoints[0].APIKey = "test"
-	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg)
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
@@ -134,10 +126,6 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 		executionContext: ec,
 		traceAgent:       traceAgent,
 	}
-
-	defer cancel()
-
-	go traceAgent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, nil)
 
 	lambdaSpan := &pb.Span{
 		Service:  "aws.lambda",
