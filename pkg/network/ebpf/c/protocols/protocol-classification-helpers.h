@@ -68,7 +68,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
 static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
-    if (protocol == NULL || (*protocol != PROTOCOL_UNKNOWN && *protocol != PROTOCOL_UNCLASSIFIED)) {
+    if (protocol == NULL || *protocol != PROTOCOL_UNKNOWN) {
         return;
     }
 
@@ -172,14 +172,14 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
     return false;
 }
 
-// Returns the cached protocol for the given connection tuple, or PROTOCOL_UNCLASSIFIED if missing.
+// Returns the cached protocol for the given connection tuple, or PROTOCOL_UNKNOWN if missing.
 static __always_inline protocol_t get_cached_protocol_or_default(conn_tuple_t *tup) {
     protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, tup);
     if (cached_protocol_ptr != NULL) {
         return *cached_protocol_ptr;
     }
 
-    return PROTOCOL_UNCLASSIFIED;
+    return PROTOCOL_UNKNOWN;
 }
 
 // Given protocols for the socket connection tuple, and the inverse skb connection tuple, the function returns
@@ -192,8 +192,7 @@ static __always_inline protocol_t get_cached_protocol_or_default(conn_tuple_t *t
 // then for sure we should choose it.
 // On any other case take sock_tup_protocol.
 static __always_inline protocol_t choose_protocol(protocol_t sock_tup_protocol, protocol_t inverse_skb_tup_protocol) {
-    if ((sock_tup_protocol == PROTOCOL_UNCLASSIFIED) ||
-        (sock_tup_protocol == PROTOCOL_UNKNOWN && inverse_skb_tup_protocol != PROTOCOL_UNCLASSIFIED)) {
+    if (sock_tup_protocol == PROTOCOL_UNKNOWN) {
         return inverse_skb_tup_protocol;
     }
 
@@ -240,13 +239,6 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    protocol_t classified_protocol = PROTOCOL_UNCLASSIFIED;
-    char request_fragment[CLASSIFICATION_MAX_BUFFER];
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-    classify_protocol(&classified_protocol, request_fragment, sizeof(request_fragment));
-    log_debug("[protocol_classifier_entrypoint]: Classifying protocol as: %d\n", classified_protocol);
-
     conn_tuple_t cached_sock_conn_tup = *cached_sock_conn_tup_ptr;
     conn_tuple_t inverse_skb_conn_tup = {0};
     invert_conn_tuple(&skb_tup, &inverse_skb_conn_tup);
@@ -255,19 +247,19 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
 
     protocol_t sock_tup_protocol = get_cached_protocol_or_default(&cached_sock_conn_tup);
     protocol_t inverse_skb_tup_protocol = get_cached_protocol_or_default(&inverse_skb_conn_tup);
-
-    protocol_t cur_fragment_protocol = choose_protocol(inverse_skb_tup_protocol, classified_protocol);
-    cur_fragment_protocol = choose_protocol(sock_tup_protocol, cur_fragment_protocol);
-
-    // If there has been a change in the classification, save the new protocol.
-    if (sock_tup_protocol != cur_fragment_protocol) {
-        log_debug("[protocol_classifier_entrypoint]: Changing sock_tup_protocol (%d) to as: %d\n", sock_tup_protocol, cur_fragment_protocol);
-        bpf_map_update_with_telemetry(connection_protocol, &cached_sock_conn_tup, &cur_fragment_protocol, BPF_ANY);
+    protocol_t cur_fragment_protocol = choose_protocol(sock_tup_protocol, inverse_skb_tup_protocol);
+    if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
+        char request_fragment[CLASSIFICATION_MAX_BUFFER];
+        bpf_memset(request_fragment, 0, sizeof(request_fragment));
+        read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+        classify_protocol(&cur_fragment_protocol, request_fragment, sizeof(request_fragment));
+        log_debug("[protocol_classifier_entrypoint]: Classifying protocol as: %d\n", cur_fragment_protocol);
     }
 
-    if (inverse_skb_tup_protocol != cur_fragment_protocol) {
-        log_debug("[protocol_classifier_entrypoint]: Changing inverse_skb_tup_protocol (%d) to as: %d\n", inverse_skb_tup_protocol, cur_fragment_protocol);
-        bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_ANY);
+    // If there has been a change in the classification, save the new protocol.
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        bpf_map_update_with_telemetry(connection_protocol, &cached_sock_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
     }
 }
 

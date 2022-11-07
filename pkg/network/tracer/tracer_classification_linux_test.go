@@ -52,6 +52,7 @@ func TestProtocolClassification(t *testing.T) {
 		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
 		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
+
 }
 
 func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {

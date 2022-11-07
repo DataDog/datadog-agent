@@ -65,7 +65,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, udpServer.Run(done, clientMessageSize))
 				return udpServer.address
 			},
-			want: network.ProtocolUnclassified,
+			want: network.ProtocolUnknown,
 		},
 		{
 			name: "tcp client without sending data",
@@ -83,7 +83,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, server.Run(done))
 				return server.address
 			},
-			want: network.ProtocolUnclassified,
+			want: network.ProtocolUnknown,
 		},
 		{
 			name: "tcp client with sending random data",

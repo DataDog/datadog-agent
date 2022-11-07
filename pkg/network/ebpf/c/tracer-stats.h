@@ -13,6 +13,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
+    empty.protocol = PROTOCOL_UNKNOWN;
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
@@ -49,7 +50,7 @@ static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
     if (cached_protocol_ptr != NULL) {
        return *cached_protocol_ptr;
     }
-    return PROTOCOL_UNCLASSIFIED;
+    return PROTOCOL_UNKNOWN;
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
@@ -61,7 +62,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    if ((val->protocol == PROTOCOL_UNCLASSIFIED) || (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED)) {
+    if (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNKNOWN) {
         log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
         val->protocol = protocol;
     }

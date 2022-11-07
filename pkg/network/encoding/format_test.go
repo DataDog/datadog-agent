@@ -101,11 +101,7 @@ func TestFormatProtocols(t *testing.T) {
 		{
 			name:     "unknown protocol",
 			protocol: network.ProtocolUnknown,
-			want: &model.ProtocolStack{
-				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolUnknown,
-				},
-			},
+			want:     nil,
 		},
 		{
 			name:     "unclassified protocol",
