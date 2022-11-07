@@ -23,4 +23,6 @@ Package log implements a component to handle logging internal to the agent.
 ### [comp/core/stopper](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/stopper)
 
 Package stopper implements a component that will shutdown a running Fx App
-on receipt of SIGINT or SIGTERM or of an explicit stop signal.
+on receipt of SIGINT or SIGTERM or of an explicit stop signal.  Note that
+this will only work with apps (fxutil.Run) and not with one-shot commands
+(fxutil.OneShot).
