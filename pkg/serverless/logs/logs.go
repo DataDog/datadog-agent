@@ -200,6 +200,14 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				} else {
 					log.Error("LogMessage.UnmarshalJSON: can't read the spans object")
 				}
+				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+					if v, ok := metrics["producedBytes"].(float64); ok {
+						l.objectRecord.runtimeDoneItem.producedBytes = v
+					}
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+				}
+				log.Debugf("Runtime done metrics: %+v\n", l.objectRecord.runtimeDoneItem)
 			case logTypePlatformInitReport:
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
 					if v, ok := metrics["durationMs"].(float64); ok {
