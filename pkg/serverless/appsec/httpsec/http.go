@@ -56,7 +56,10 @@ func (c *Context) ToAddresses() map[string]interface{} {
 
 // FilterHeaders copies the given map and filters out the cookie entry. The
 // resulting map of filtered headers is returned, along with the removed cookie
-// entry if any.
+// entry if any. Note that the keys of the returned map of headers have been
+// lower-cased as expected by Datadog's security monitoring rules - accessing
+// them using http.(Header).Get(), which expects the MIME header canonical
+// format, doesn't work.
 func FilterHeaders(reqHeaders map[string][]string) (headers map[string][]string, rawCookies []string) {
 	if len(reqHeaders) == 0 {
 		return nil, nil
@@ -74,7 +77,7 @@ func FilterHeaders(reqHeaders map[string][]string) (headers map[string][]string,
 	if len(headers) == 0 {
 		headers = nil // avoid returning an empty map
 	}
-	return nil, rawCookies
+	return headers, rawCookies
 }
 
 // ParseCookies returns the parsed cookies as a map of the cookie names to their

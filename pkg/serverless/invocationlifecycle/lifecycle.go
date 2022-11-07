@@ -240,8 +240,10 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			ctx := lp.AppSecContext
 			span := (*spanTagSetter)(lp.requestHandler)
 			httpsec.SetAppSecEnabledTags(span)
+
 			reqHeaders := ctx.RequestHeaders
 			httpsec.SetClientIPTags(span, ctx.RequestClientIP, reqHeaders)
+
 			ctx.ResponseStatus = &statusCode
 
 			if events := lp.AppSec.Monitor(ctx.ToAddresses()); len(events) > 0 {
@@ -250,7 +252,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			}
 		}
 
-		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.ProcessTrace, endDetails)
+		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.requestHandler.triggerMetrics, lp.ProcessTrace, endDetails)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")

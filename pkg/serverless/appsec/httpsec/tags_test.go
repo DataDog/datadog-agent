@@ -7,7 +7,6 @@ package httpsec
 
 import (
 	"math/rand"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -170,7 +169,7 @@ func genIPTestCases() []ipTestCase {
 		},
 		{
 			name:       "header-case",
-			expectedIP: netaddrMustParseIP(ipv4Global),
+			expectedIP: netaddrIP{},
 			headers:    map[string]string{"X-fOrWaRdEd-FoR": ipv4Global},
 		},
 		{
@@ -221,9 +220,9 @@ func TestIPHeaders(t *testing.T) {
 	defer func(s string) { clientIPHeader = s }(clientIPHeader)
 	for _, tc := range genIPTestCases() {
 		t.Run(tc.name, func(t *testing.T) {
-			headers := http.Header{}
+			headers := map[string][]string{}
 			for k, v := range tc.headers {
-				headers.Add(k, v)
+				headers[k] = []string{v}
 			}
 			clientIPHeader = tc.clientIPHeader
 			var span mockspan

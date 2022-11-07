@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -55,8 +54,9 @@ var (
 func init() {
 	// Required by sort.SearchStrings
 	sort.Strings(collectedHTTPHeaders[:])
+
 	// Read the IP-parsing configuration
-	clientIPHeader = os.Getenv(envClientIPHeader)
+	clientIPHeader = strings.ToLower(os.Getenv(envClientIPHeader))
 }
 
 // Span interface expected by this package to set span tags.
@@ -139,9 +139,11 @@ func ippref(s string) *netaddrIPPrefix {
 	return nil
 }
 
-// SetClientIPTags sets the IP related span tags for a given request
-// See https://docs.datadoghq.com/tracing/configure_data_security#configuring-a-client-ip-header for more information.
-func SetClientIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
+// SetClientIPTags sets the http.client_ip, http.request.headers.*, and
+// network.client.ip span tags according to the request headers and remote
+// connection address. Note that the given request headers reqHeaders must be
+// normalized with lower-cased keys for this function to work.
+func SetClientIPTags(span Span, remoteAddr string, reqHeaders map[string][]string) {
 	ipHeaders := defaultIPHeaders
 	if len(clientIPHeader) > 0 {
 		ipHeaders = []string{clientIPHeader}
@@ -152,9 +154,9 @@ func SetClientIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
 		ips     []string
 	)
 	for _, hdr := range ipHeaders {
-		if v := reqHeaders.Get(hdr); v != "" {
+		if v, _ := reqHeaders[hdr]; len(v) > 0 {
 			headers = append(headers, hdr)
-			ips = append(ips, v)
+			ips = append(ips, v...)
 		}
 	}
 
@@ -166,11 +168,13 @@ func SetClientIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
 		}
 	}
 
-	if l := len(ips); l == 0 {
+	switch len(ips) {
+	case 0:
+		ip := remoteIP.String()
 		if remoteIP.IsValid() && isGlobal(remoteIP) {
-			span.SetMeta("http.client_ip", remoteIP.String())
+			span.SetMeta("http.client_ip", ip)
 		}
-	} else if l == 1 {
+	case 1:
 		for _, ipstr := range strings.Split(ips[0], ",") {
 			ip := parseIP(strings.TrimSpace(ipstr))
 			if ip.IsValid() && isGlobal(ip) {
@@ -178,9 +182,9 @@ func SetClientIPTags(span Span, remoteAddr string, reqHeaders http.Header) {
 				break
 			}
 		}
-	} else {
-		for i := range ips {
-			span.SetMeta("http.request.headers."+headers[i], ips[i])
+	default:
+		for _, hdr := range headers {
+			span.SetMeta("http.request.headers."+hdr, strings.Join(reqHeaders[hdr], ","))
 		}
 		span.SetMeta("_dd.multiple-ip-headers", strings.Join(headers, ","))
 	}
