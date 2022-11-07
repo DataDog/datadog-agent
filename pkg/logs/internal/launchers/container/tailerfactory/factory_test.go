@@ -47,8 +47,9 @@ func TestMakeTailerFileFallbackFailsToo(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return true }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh1") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh2") }
+	source := &sources.LogSource{Messages: config.NewMessages()}
 
-	tailer, err := (&factory{}).makeTailer(&sources.LogSource{}, useFile, makeFileTailer, makeSocketTailer)
+	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer)
 	require.ErrorContains(t, err, "uhoh2")
 	require.Nil(t, tailer)
 }
@@ -83,8 +84,9 @@ func TestMakeTailerSocketFallbackFailsToo(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return false }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh2") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh1") }
+	source := &sources.LogSource{Messages: config.NewMessages()}
 
-	tailer, err := (&factory{}).makeTailer(&sources.LogSource{}, useFile, makeFileTailer, makeSocketTailer)
+	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer)
 	require.ErrorContains(t, err, "uhoh2")
 	require.Nil(t, tailer)
 }
