@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"testing"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -231,14 +229,14 @@ func TestIPHeaders(t *testing.T) {
 			var span mockspan
 			SetClientIPTags(&span, tc.remoteAddr, headers)
 			if tc.expectedIP.IsValid() {
-				require.Equal(t, tc.expectedIP.String(), span.Tag(ext.HTTPClientIP))
+				require.Equal(t, tc.expectedIP.String(), span.Tag("http.client_ip"))
 				require.Nil(t, span.Tag("_dd.multiple-ip-headers"))
 			} else {
-				require.Nil(t, span.Tag(ext.HTTPClientIP))
+				require.Nil(t, span.Tag("http.client_ip"))
 				if tc.multiHeaders != "" {
 					require.Equal(t, tc.multiHeaders, span.Tag("_dd.multiple-ip-headers"))
 					for hdr, ip := range tc.headers {
-						require.Equal(t, ip, span.Tag(ext.HTTPRequestHeaders+"."+hdr))
+						require.Equal(t, ip, span.Tag("http.request.headers."+hdr))
 					}
 				}
 			}
