@@ -157,7 +157,18 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   failing_test_suites=$(bundle exec kitchen list --no-log-overwrite --json | jq -cr "[ .[] | select( .last_error != null ) ] | map( .instance ) | .[]")
 
   # Then, destroy the kitchen machines
+  # Do not fail on kitchen destroy, it breaks the infra failures filter
+  set +e
   bundle exec kitchen destroy "$test_suites" --no-log-overwrite
+  destroy_result=$?
+  set -e
+
+  # If the destory operation fails, it is not safe to continue running kitchen
+  # so we just exit with an infrastructure failure message.
+  if [ "$destroy_result" -ne 0 ]; then
+    echo "Failure while destroying kitchen infrastructure, skipping retries"
+    break
+  fi
 
   if [ "$result" -eq 0 ]; then
       # if kitchen test succeeded, exit with 0
@@ -179,4 +190,5 @@ done
 
 # if we ran out of attempts because of infrastructure/networking issues, exit with 1
 echo "Ran out of retry attempts"
+echo "ERROR: The kitchen tests failed due to infrastructure failures."
 exit 1

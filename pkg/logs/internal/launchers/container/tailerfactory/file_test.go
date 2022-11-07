@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -127,6 +129,36 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 	default: // linux, darwin
 		require.Contains(t, err.Error(), p) // error is about the path
 	}
+}
+
+func TestDockerOverride(t *testing.T) {
+	tmp := t.TempDir()
+	mockConfig := coreConfig.Mock(t)
+	customPath := filepath.Join(tmp, "/custom/path")
+	mockConfig.Set("logs_config.docker_path_override", customPath)
+
+	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "docker",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+
+	tf.findDockerLogPath(source.Config.Identifier)
+
+	child, err := tf.makeFileSource(source)
+
+	require.NoError(t, err)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, p, child.Config.Path)
 }
 
 func TestMakeK8sSource(t *testing.T) {

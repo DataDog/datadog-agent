@@ -27,9 +27,11 @@ type ConnStats struct {
 	Timestamp    uint64
 	Flags        uint32
 	Cookie       uint32
-	Direction    uint8
 	Sent_packets uint64
 	Recv_packets uint64
+	Direction    uint8
+	Protocol     uint8
+	Pad_cgo_0    [6]byte
 }
 type Conn struct {
 	Tup        ConnTuple

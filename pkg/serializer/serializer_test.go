@@ -285,6 +285,8 @@ func TestSendV1Series(t *testing.T) {
 	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("enable_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
+	config.Datadog.Set("use_v2_api.series", false)
+	defer config.Datadog.Set("use_v2_api.series", true)
 
 	s := NewSerializer(f, nil, nil)
 
@@ -297,8 +299,7 @@ func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.series", true)
-	defer config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
 	s := NewSerializer(f, nil, nil)
 

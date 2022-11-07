@@ -25,6 +25,7 @@ type CheckSampler struct {
 	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
+	deregistered    bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -140,6 +141,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		serie.Name = context.Name + serie.NameSuffix
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
+		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 
 		cs.series = append(cs.series, serie)

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,6 +53,10 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
+}
+
+func classificationSupported(config *config.Config) bool {
+	return kprobe.ClassificationSupported(config)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -165,6 +170,7 @@ func TestTCPRetransmit(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
+
 	m := conn.MonotonicSum()
 	assert.Equal(t, 100*clientMessageSize, int(m.SentBytes))
 	assert.True(t, int(m.Retransmits) > 0)

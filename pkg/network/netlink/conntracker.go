@@ -243,6 +243,7 @@ func (ctr *realConntracker) IsSampling() bool {
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
+	ctr.cache.Purge()
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
@@ -365,6 +366,11 @@ func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
 
 func (cc *conntrackCache) Remove(k connKey) bool {
 	return cc.cache.Remove(k)
+}
+
+func (cc *conntrackCache) Purge() {
+	cc.cache.Purge()
+	cc.orphans.Init()
 }
 
 func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {

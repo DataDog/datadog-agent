@@ -200,15 +200,13 @@ func hasDomains(stats map[Hostname]map[QueryType]Stats, domains ...string) bool 
 	return true
 }
 
-func countDNSResponses(stats StatsByKeyByNameByType) int {
+func countDNSResponses(statsByDomain map[Hostname]map[QueryType]Stats) int {
 	total := 0
-	for _, statsByDomain := range stats {
-		for _, statsByType := range statsByDomain {
-			for _, s := range statsByType {
-				total += int(s.Timeouts)
-				for _, count := range s.CountByRcode {
-					total += int(count)
-				}
+	for _, statsByType := range statsByDomain {
+		for _, s := range statsByType {
+			total += int(s.Timeouts)
+			for _, count := range s.CountByRcode {
+				total += int(count)
 			}
 		}
 	}
@@ -236,7 +234,7 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 	var allStats StatsByKeyByNameByType
 	require.Eventuallyf(t, func() bool {
 		allStats = statKeeper.Snapshot()
-		return allStats[key] != nil && countDNSResponses(allStats) >= len(domains)
+		return allStats[key] != nil && countDNSResponses(allStats[key]) >= len(domains)
 	}, 3*time.Second, 10*time.Millisecond, "not enough DNS responses")
 
 	// Exactly one rcode (0, success) is expected

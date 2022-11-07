@@ -8,15 +8,16 @@
 #include <net/flow.h>
 #include <uapi/linux/ptrace.h>
 #include <uapi/linux/tcp.h>
+#include <uapi/linux/ip.h>
 
 /* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
  */
 BPF_HASH_MAP(connectsock_ipv6, __u64, void*, 1024)
-    
+
 BPF_HASH_MAP(tracer_status, __u64, tracer_status_t, 1)
-    
+
 static __always_inline bool proc_t_comm_equals(proc_t a, proc_t b) {
     for (int i = 0; i < TASK_COMM_LEN; i++) {
         if (a.comm[i] != b.comm[i]) {
@@ -135,6 +136,28 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         bpf_probe_read_kernel(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), subject + status->offset_sport);
         bpf_probe_read_kernel(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), subject + status->offset_dport);
         break;
+    case GUESS_SK_BUFF_SOCK:
+        // Note that in this line we're essentially dereferencing a pointer
+        // subject initially points to a (struct socket*), and we're trying to guess the offset of
+        // (struct socket*)->sk which points to a (struct sock*) object.
+        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_sk_buff_sock);
+        bpf_probe_read_kernel(&new_status.sport_via_sk_via_sk_buf, sizeof(new_status.sport_via_sk_via_sk_buf), subject + status->offset_sport);
+        bpf_probe_read_kernel(&new_status.dport_via_sk_via_sk_buf, sizeof(new_status.dport_via_sk_via_sk_buf), subject + status->offset_dport);
+        break;
+    case GUESS_SK_BUFF_TRANSPORT_HEADER:
+        bpf_probe_read_kernel(&new_status.transport_header, sizeof(new_status.transport_header), subject + status->offset_sk_buff_transport_header);
+        bpf_probe_read_kernel(&new_status.network_header, sizeof(new_status.network_header), subject + status->offset_sk_buff_transport_header + sizeof(__u16));
+        bpf_probe_read_kernel(&new_status.mac_header, sizeof(new_status.mac_header), subject + status->offset_sk_buff_transport_header + 2*sizeof(__u16));
+        break;
+    case GUESS_SK_BUFF_HEAD:
+        // Loading the head field into `subject`.
+        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_sk_buff_head);
+        // Loading source and dest ports.
+        // The ports are located in the transport section (subject + status->transport_header), if the traffic is udp or tcp
+        // the source port is the first field in the struct (16 bits), and the dest is the second field (16 bits).
+        bpf_probe_read_kernel(&new_status.sport_via_sk_via_sk_buf, sizeof(new_status.sport_via_sk_via_sk_buf), subject + status->transport_header);
+        bpf_probe_read_kernel(&new_status.dport_via_sk_via_sk_buf, sizeof(new_status.dport_via_sk_via_sk_buf), subject + status->transport_header + sizeof(__u16));
+        break;
     default:
         // not for us
         return 0;
@@ -145,12 +168,16 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
     return 0;
 }
 
+static __always_inline bool is_sk_buff_event(__u64 what) {
+    return what == GUESS_SK_BUFF_SOCK || what == GUESS_SK_BUFF_TRANSPORT_HEADER || what == GUESS_SK_BUFF_HEAD;
+}
+
 SEC("kprobe/ip_make_skb")
 int kprobe__ip_make_skb(struct pt_regs* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
 
-    if (status == NULL) {
+    if (status == NULL || is_sk_buff_event(status->what)) {
         return 0;
     }
 
@@ -163,7 +190,7 @@ SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
+    if (status == NULL || is_sk_buff_event(status->what)) {
         return 0;
     }
     struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
@@ -175,7 +202,7 @@ SEC("kprobe/ip6_make_skb/pre_4_7_0")
 int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
+    if (status == NULL || is_sk_buff_event(status->what)) {
         return 0;
     }
     struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
@@ -194,10 +221,9 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
 
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->what == GUESS_SOCKET_SK) {
+    if (status == NULL || status->what == GUESS_SOCKET_SK || is_sk_buff_event(status->what)) {
         return 0;
     }
-
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     status->tcp_info_kprobe_status = 1;
     guess_offsets(status, (char*)sk);
@@ -248,13 +274,32 @@ int kretprobe__tcp_v6_connect(struct pt_regs* __attribute__((unused)) ctx) {
     bpf_map_delete_elem(&connectsock_ipv6, &pid);
 
     status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
+    if (status == NULL || is_sk_buff_event(status->what)) {
         return 0;
     }
-
     // We should figure out offsets if they're not already figured out
     guess_offsets(status, (char*)skp);
 
+    return 0;
+}
+
+struct net_dev_queue_ctx {
+    u64 unused;
+    void* skb;
+};
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    u64 zero = 0;
+    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
+    // If we've triggered the hook and we are not under the context of guess offsets for GUESS_SK_BUFF_SOCK,
+    // GUESS_SK_BUFF_TRANSPORT_HEADER, or GUESS_SK_BUFF_HEAD then we should do nothing in the hook.
+    if (status == NULL || !is_sk_buff_event(status->what)) {
+        return 0;
+    }
+
+    void* skb = (void*)ctx->skb;
+    guess_offsets(status, (char*)skb);
     return 0;
 }
 
