@@ -26,6 +26,13 @@ import (
 
 *
 */
+const (
+	service  = "aws.lambda"
+	spanName = "aws.lambda.cold_start"
+)
+
+var functionName = os.Getenv(functionNameEnvVar)
+
 type ColdStartSpanCreator struct {
 	executionContext *executioncontext.ExecutionContext
 	traceAgent       *ServerlessTraceAgent
@@ -43,12 +50,15 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 		return
 	}
 
-	durationNs := ecs.ColdstartDuration * 1000000
+	// ColdStartDuration is given in milliseconds
+	// APM spans are in nanoseconds
+	// millis = nanos * 1e6
+	durationNs := ecs.ColdstartDuration * 1e6
 
 	coldStartSpan := &pb.Span{
-		Service:  "aws.lambda",
-		Name:     "aws.lambda.cold_start",
-		Resource: os.Getenv(functionNameEnvVar),
+		Service:  service,
+		Name:     spanName,
+		Resource: functionName,
 		SpanID:   random.Random.Uint64(),
 		TraceID:  lambdaSpan.TraceID,
 		ParentID: lambdaSpan.ParentID,
