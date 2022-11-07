@@ -179,7 +179,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         char marker_buf[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE];
         bpf_skb_load_bytes(skb, skb_info.data_off + HTTP2_FRAME_HEADER_SIZE, marker_buf, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE);
         if (http2_marker_suffix(marker_buf)) {
-            log_debug("full magic was found");
+            log_debug("http2 magic was found");
         }
         if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
           return 0;
