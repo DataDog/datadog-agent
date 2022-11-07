@@ -12,9 +12,10 @@ import (
 	"errors"
 	"math"
 	"os"
-	"sync/atomic"
 	"syscall"
 	"unsafe"
+
+	"go.uber.org/atomic"
 
 	"github.com/mdlayher/netlink"
 	"github.com/vishvananda/netns"
@@ -57,7 +58,7 @@ type Socket struct {
 func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 	var fd int
 	var err error
-	util.WithNS(netNS, func() error {
+	err = util.WithNS(netNS, func() error {
 		fd, err = unix.Socket(
 			unix.AF_NETLINK,
 			unix.SOCK_RAW|unix.SOCK_CLOEXEC,
