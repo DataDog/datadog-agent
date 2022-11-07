@@ -66,21 +66,17 @@ static __always_inline bool is_empty_buffer(const char *buf, size_t buf_size) {
 
 static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_size, struct http2_frame *out) {
     if (buf == NULL) {
-        log_debug("[slav] 1");
         return false;
     }
 
     if (buf_size < HTTP2_FRAME_HEADER_SIZE) {
-        log_debug("[slav] 2");
         return false;
     }
 
     if (is_empty_buffer((const char *)buf, HTTP2_FRAME_HEADER_SIZE)) {
-        log_debug("[slav] 3");
         return false;
     }
 
-    log_debug("[slav] 4");
     out->length = as_uint32_t(buf[0])<<16 | as_uint32_t(buf[1])<<8 | as_uint32_t(buf[2]);
     out->type = (enum frame_type_t)buf[3];
     out->flags = (uint8_t)buf[4];
@@ -137,55 +133,23 @@ static __always_inline bool http2_marker_suffix(const char* buf) {
     return match;
 }
 
-SEC("socket/http2_filter")
-int socket__http2_filter(struct __sk_buff *skb) {
-    log_debug("[slav] http2 entry point!\n");
-    skb_info_t skb_info;
-    conn_tuple_t conn_tup;
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &conn_tup)) {
-        return 0;
-    }
-
-    size_t pos = skb_info.data_off;
-    char buf[HTTP2_FRAME_HEADER_SIZE];
-    bpf_skb_load_bytes(skb, skb_info.data_off, buf, HTTP2_FRAME_HEADER_SIZE);
-
-    if (http2_marker_prefix(buf)) {
-        char buf2[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE];
-        bpf_skb_load_bytes(skb, skb_info.data_off + HTTP2_FRAME_HEADER_SIZE, buf2, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE);
-        if (http2_marker_suffix(buf2)) {
-            log_debug("[slav] full magic was found");
-        }
-        if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-          return 0;
-        }
-
-        pos += HTTP2_MARKER_SIZE;
-    }
-
+static __always_inline void perf_submit_http2_frames(size_t pos, struct __sk_buff *skb) {
     struct http2_frame current_frame = {};
+    char buf[HTTP2_FRAME_HEADER_SIZE];
 
-    // frame
 #pragma unroll
     for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; ++i) {
         if (pos + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-          return 0;
+          return;
         }
 
         bpf_skb_load_bytes(skb, pos, buf, HTTP2_FRAME_HEADER_SIZE);
         pos += HTTP2_FRAME_HEADER_SIZE;
 
         if (!read_http2_frame_header(buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
-            log_debug("[slav] unable to read http2 frame header");
+            log_debug("unable to read http2 frame header");
             break;
         }
-
-        log_debug("[slav] -------- current frame buf is: %d", buf);
-        log_debug("[slav] current frame length is: %d", current_frame.length);
-        log_debug("[slav] current frame type is: %d", current_frame.type);
-        log_debug("[slav] current frame stream id is: %d", current_frame.stream_id);
-
 
         if (current_frame.type != kHeadersFrame) {
             pos += (__u32)current_frame.length;
@@ -194,20 +158,37 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
         // TODO: read headers frame
         pos += (__u32)current_frame.length;
-//        for (int i = 0; i < HTTP2_FRAME_HEADER_SIZE; i++) {
-//            log_debug("[slav] bla content %d\n", buf[i]);
-//        }
-
-//        if (pos + current_frame_total_length > data_len) {
-//            break;
-//        }
-
-        log_debug("[slav] bla ----------- bla");
-
-        //pos += current_frame_total_length;
     }
 
+}
 
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    skb_info_t skb_info;
+    conn_tuple_t conn_tup;
+
+    if (!read_conn_tuple_skb(skb, &skb_info, &conn_tup)) {
+        return 0;
+    }
+    size_t pos = skb_info.data_off;
+
+    char buf[HTTP2_FRAME_HEADER_SIZE];
+    bpf_skb_load_bytes(skb, skb_info.data_off, buf, HTTP2_FRAME_HEADER_SIZE);
+
+    if (http2_marker_prefix(buf)) {
+        char marker_buf[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE];
+        bpf_skb_load_bytes(skb, skb_info.data_off + HTTP2_FRAME_HEADER_SIZE, marker_buf, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE);
+        if (http2_marker_suffix(marker_buf)) {
+            log_debug("full magic was found");
+        }
+        if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+          return 0;
+        }
+
+        pos += HTTP2_MARKER_SIZE;
+    }
+
+    perf_submit_http2_frames(pos, skb);
     return 0;
 }
 
