@@ -154,9 +154,9 @@ func BenchmarkConntrackExists(b *testing.B) {
 		for _, te := range tests {
 			switch te.ns {
 			case rootNs:
-				_, err = ctrkRoot.Exists(&te.c)
+				_, _ = ctrkRoot.Exists(&te.c)
 			case testNs:
-				_, err = ctrkTest.Exists(&te.c)
+				_, _ = ctrkTest.Exists(&te.c)
 			}
 		}
 	}
