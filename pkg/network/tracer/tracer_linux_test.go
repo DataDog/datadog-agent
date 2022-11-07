@@ -1767,13 +1767,13 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	_, err = testutil.RunCommand(clientCmd)
 	require.NoError(t, err)
 
-	occurrences := 0
+	occurrences := PrintableInt(0)
 	require.Eventually(t, func() bool {
 		stats, err := tr.GetActiveConnections("1")
 		require.NoError(t, err)
-		occurrences += countRequestOccurrences(t, stats, req)
+		occurrences += PrintableInt(countRequestOccurrences(t, stats, req))
 		return occurrences == ExpectedOccurrences
-	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured", ExpectedOccurrences, occurrences)
+	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured", ExpectedOccurrences, &occurrences)
 }
 
 func buildGoTLSClientBin(t *testing.T) string {
@@ -1812,4 +1812,14 @@ func countRequestOccurrences(t *testing.T, conns *network.Connections, req *neth
 	}
 
 	return
+}
+
+type PrintableInt int
+
+func (i *PrintableInt) String() string {
+	if i == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%d", *i)
 }
