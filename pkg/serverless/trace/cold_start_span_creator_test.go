@@ -32,9 +32,9 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	}
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
 	testColdStartID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	coldStartDuration := 50 // Given in millis
+	coldStartDuration := 50.0 // Given in millis
 	ec := &executioncontext.ExecutionContext{}
-	ec.SetColdStartDuration(int64(coldStartDuration))
+	ec.SetColdStartDuration(coldStartDuration)
 	ec.SetFromInvocation(testArn, testColdStartID)
 
 	coldStartSpanCreator := &ColdStartSpanCreator{

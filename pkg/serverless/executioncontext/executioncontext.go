@@ -23,7 +23,7 @@ type ExecutionContext struct {
 	coldstartRequestID string
 	lastLogRequestID   string
 	coldstart          bool
-	coldstartDuration  int64
+	coldstartDuration  float64
 	startTime          time.Time
 	endTime            time.Time
 }
@@ -35,7 +35,7 @@ type State struct {
 	ColdstartRequestID string
 	LastLogRequestID   string
 	Coldstart          bool
-	ColdstartDuration  int64
+	ColdstartDuration  float64
 	StartTime          time.Time
 	EndTime            time.Time
 }
@@ -56,7 +56,7 @@ func (ec *ExecutionContext) GetCurrentState() State {
 	}
 }
 
-func (ec *ExecutionContext) SetColdStartDuration(duration int64) {
+func (ec *ExecutionContext) SetColdStartDuration(duration float64) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.coldstartDuration = duration

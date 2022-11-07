@@ -52,8 +52,8 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 		SpanID:   random.Random.Uint64(),
 		TraceID:  lambdaSpan.TraceID,
 		ParentID: lambdaSpan.ParentID,
-		Start:    lambdaSpan.Start - durationNs,
-		Duration: durationNs,
+		Start:    lambdaSpan.Start - int64(durationNs),
+		Duration: int64(durationNs),
 	}
 
 	log.Debugf("[ColdStartSpanCreator] Creating cold start span %v", coldStartSpan)

@@ -57,7 +57,7 @@ type reportLogMetrics struct {
 	memorySizeMB          int
 	maxMemoryUsedMB       int
 	initDurationMs        float64
-	initDurationTelemetry int64
+	initDurationTelemetry float64
 }
 
 // runtimeDoneItem contains metrics found in a LogTypePlatformRuntimeDone log
@@ -211,15 +211,12 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 			case logTypePlatformInitReport:
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
 					if v, ok := metrics["durationMs"].(float64); ok {
-						l.objectRecord.reportLogItem.initDurationTelemetry = int64(v)
-					}
-					if v, ok := metrics["producedBytes"].(float64); ok {
-						l.objectRecord.runtimeDoneItem.producedBytes = v
+						l.objectRecord.reportLogItem.initDurationTelemetry = v
 					}
 				} else {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
-				log.Debugf("Runtime done metrics: %+v\n", l.objectRecord.runtimeDoneItem)
+				log.Debugf("InitReport done metrics: %+v\n", l.objectRecord.reportLogItem)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
