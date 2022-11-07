@@ -269,40 +269,11 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 
 	hookedBin := p.hookedBinaries.Get(stat.Ino)
 	if hookedBin == nil {
-		f, err := os.Open(binPath)
+		hookedBin, err = p.hookNewBinary(binPath, stat.Ino)
 		if err != nil {
-			log.Errorf("could not open file %s, %s", binPath, err)
+			log.Errorf("could not hook new binary: %s", err)
 			return
 		}
-		defer f.Close()
-
-		elfFile, err := elf.NewFile(f)
-		if err != nil {
-			log.Errorf("file %s could not be parsed as an ELF file: %s", binPath, err)
-			return
-		}
-
-		inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
-		if err != nil {
-			if !errors.Is(err, binversion.ErrNotGoExe) {
-				log.Errorf("error reading exe: %s", err)
-			}
-			return
-		}
-
-		if err = p.addInspectionResultToMap(inspectionResult, stat.Ino); err != nil {
-			log.Error(err)
-			return
-		}
-
-		probeIDs, err := p.attachHooks(inspectionResult, binPath)
-		if err != nil {
-			log.Errorf("error while attaching hooks: %s", err)
-			p.removeInspectionResultFromMap(stat.Ino)
-			return
-		}
-		log.Debugf("attached hooks on %s (%d)", binPath, stat.Ino)
-		hookedBin = p.hookedBinaries.Set(stat.Ino, &hookedBinary{probeIDs, make(runningProcessesSet)}, ttlcache.NoTTL)
 	} else {
 		log.Debugf("resetting TTL on %s (%d)", binPath, stat.Ino)
 		hookedBin = p.hookedBinaries.Set(stat.Ino, hookedBin.Value(), ttlcache.NoTTL)
@@ -332,6 +303,40 @@ func (p *GoTLSProgram) handleProcessStop(pid pid) {
 	}
 
 	return
+}
+
+func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*ttlcache.Item[inodeNumber, *hookedBinary], error) {
+	f, err := os.Open(binPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not open file %s, %w", binPath, err)
+	}
+	defer f.Close()
+
+	elfFile, err := elf.NewFile(f)
+	if err != nil {
+		return nil, fmt.Errorf("file %s could not be parsed as an ELF file: %w", binPath, err)
+	}
+
+	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
+	if err != nil {
+		if !errors.Is(err, binversion.ErrNotGoExe) {
+			err = fmt.Errorf("error reading exe: %w", err)
+		}
+		return nil, err
+	}
+
+	if err = p.addInspectionResultToMap(inspectionResult, ino); err != nil {
+		return nil, err
+	}
+
+	probeIDs, err := p.attachHooks(inspectionResult, binPath)
+	if err != nil {
+		p.removeInspectionResultFromMap(ino)
+		return nil, fmt.Errorf("error while attaching hooks: %w", err)
+	}
+	log.Debugf("attached hooks on %s (%d)", binPath, ino)
+	return p.hookedBinaries.Set(ino, &hookedBinary{probeIDs, make(runningProcessesSet)}, ttlcache.NoTTL), nil
+
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
