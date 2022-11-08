@@ -217,8 +217,8 @@ var formatsToTry = []*regexp.Regexp{
 	regexp.MustCompile(`^[A-Za-z_]+, \d+ [A-Za-z_]+ \d+ \d+:\d+:\d+ -\d+`),
 	// time.RFC3339Nano,
 	regexp.MustCompile(`^\d+-\d+-\d+[A-Za-z_]+\d+:\d+:\d+\.\d+[A-Za-z_]+\d+:\d+`),
-	// 2021-07-08 05:08:19,214
-	regexp.MustCompile(`^\d+-\d+-\d+ \d+:\d+:\d+(,\d+)?`),
+	// 2021-07-08 05:08:19,214 and 2021/07/08 05:08:19,214
+	regexp.MustCompile(`^\d+(?:/|-)\d+(?:/|-)\d+ \d+:\d+:\d+(,\d+)?`),
 	// Default java logging SimpleFormatter date format
 	regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`),
 	// 2021-01-31 - with stricter matching around the months/days
