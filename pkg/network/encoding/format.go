@@ -284,8 +284,8 @@ func unsafeStringSlice(key string) []byte {
 //		},
 //	}
 func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
-	if protocol == network.ProtocolUnclassified || protocol == network.ProtocolUnknown {
-		return nil
+	if protocol == network.ProtocolUnclassified {
+		protocol = network.ProtocolUnknown
 	}
 
 	return &model.ProtocolStack{
