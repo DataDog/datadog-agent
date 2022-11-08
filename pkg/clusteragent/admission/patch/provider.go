@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v3"
 )
 
 type patchProvider interface {
@@ -112,4 +110,31 @@ func (fpp *filePatchProvider) poll() ([]PatchRequest, error) {
 	var requests []PatchRequest
 	err = yaml.Unmarshal(content, &requests)
 	return requests, err
+}
+
+type remoteConfigProvider struct {
+	client                remote.Client
+	isLeaderFunc          func() bool
+	subscribers           map[string]chan patchRequest
+	lastSuccessfulRefresh time.Time
+}
+
+func newRemoteConfigProvider(isLeaderFunc func() bool) *fileRequestProvider {
+
+	client, err := remote.NewClient(rcClientName, version.AgentVersion, []data.Product{
+		data.ProductAPMTracing,
+	}, rcClientPollInterval)
+	if err != nil {
+		log.Errorf("Error when subscribing to remote config management %v", err)
+	}
+	return &remoteConfigProvider{
+		client,
+		isLeaderFunc: isLeaderFunc,
+		subscribers:  make(map[string]chan patchRequest),
+	}
+}
+
+func (r *remoteConfigProvider) start(stopCh <-chan struct{}) {
+	r.client.RegisterAPMTracingUpdate(r.refresh)
+	r.client.Start()
 }

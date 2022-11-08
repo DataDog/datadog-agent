@@ -37,6 +37,8 @@ const (
 	ProductASMDD = "ASM_DD"
 	// ProductASMData is the ASM product used to configure WAF rules data
 	ProductASMData = "ASM_DATA"
+	// ProductAPMTracing is an APM product used to inject APM libraries into application environments
+	ProductAPMTracing = "APM_TRACING"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
@@ -58,6 +60,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseConfigASMDD(raw, metadata)
 	case ProductASMData:
 		c, err = parseConfigASMData(raw, metadata)
+	case ProductAPMTracing:
+		c, err = parseConfigAPMTracing(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
 	}
@@ -243,6 +247,20 @@ func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
 	}
 
 	return typedConfigs
+}
+
+type ConfigAPMTracing struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigAPMTracing(data []byte, metadata Metadata) (ASMFeaturesConfig, error) {
+	// TODO
+}
+
+// ASMFeaturesConfigs returns the currently active ASMFeatures configs
+func (r *Repository) APMTracingConfigs() map[string]APMTracingConfig {
+	// TODO
 }
 
 // ApplyState represents the status of a configuration application by a remote configuration client

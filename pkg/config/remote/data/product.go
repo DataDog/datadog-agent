@@ -17,6 +17,8 @@ const (
 	ProductCWSCustom Product = "CWS_CUSTOM"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
+
+	ProductAPMTracing Product = "APM_TRACING"
 )
 
 // ProductListToString converts a product list to string list
