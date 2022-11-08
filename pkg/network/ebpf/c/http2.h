@@ -22,6 +22,8 @@ typedef enum {
     kContinuationFrame  = 9,
 } __attribute__ ((packed)) frame_type_t;
 
+// Struct which represent the http2 frame by its fields.
+// Checkout https://datatracker.ietf.org/doc/html/rfc7540#section-4.1 for frame format.
 struct http2_frame {
     uint32_t length;
     frame_type_t type;
@@ -33,6 +35,7 @@ static __always_inline uint32_t as_uint32_t(unsigned char input) {
     return (uint32_t)input;
 }
 
+// This function checks if the http2 frame header is empty.
 static __always_inline bool is_empty_frame_header(const char *frame) {
 #pragma unroll
     for (uint32_t i = 0; i < HTTP2_FRAME_HEADER_SIZE; i++) {
@@ -43,6 +46,7 @@ static __always_inline bool is_empty_frame_header(const char *frame) {
     return true;
 }
 
+// This function reads the http2 frame header and validate the frame.
 static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_size, struct http2_frame *out) {
     if (buf == NULL) {
         return false;
@@ -69,6 +73,7 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
     return true;
 }
 
+// This function filters the needed frames from the http2 session.
 static __always_inline void filter_http2_frames(struct __sk_buff *skb, size_t pos) {
     struct http2_frame current_frame = {};
     char buf[HTTP2_FRAME_HEADER_SIZE];
