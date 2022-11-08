@@ -3,17 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package model
+package events
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/stretchr/testify/assert"
 )
 
 // AssertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
 // due to the embedded time fields
-func AssertProcessEvents(t *testing.T, expected, actual *ProcessEvent) {
+func AssertProcessEvents(t *testing.T, expected, actual *model.ProcessEvent) {
 	t.Helper()
 
 	assert.Equal(t, expected.EventType, actual.EventType)
