@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -52,6 +52,7 @@ type ConnectionsCheck struct {
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID *atomic.Value
 	probe          procutil.Probe
+	dockerFilter   *parser.DockerProxy
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -82,6 +83,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+	c.dockerFilter = parser.NewDockerProxy()
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -115,7 +117,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	if err != nil {
 		log.Warnf("error collecting processes for proxy filter: %s", err)
 	} else {
-		dockerproxy.NewFilter(procs).Filter(conns)
+		for _, p := range procs {
+			c.dockerFilter.Extract(p)
+		}
+		c.dockerFilter.Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dockerproxy
+package parser
 
 import (
 	"testing"
@@ -11,6 +11,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -37,7 +38,10 @@ import (
 // The purpose of this package is to filter flows like (3) and (4) in order to
 // avoid double counting traffic represented similar to flows (1) and (2)
 func TestProxyFiltering(t *testing.T) {
-	filter := NewFilter(processData())
+	proxyFilter := NewDockerProxy()
+	pmp := metadata.NewProcessMetadataProvider()
+	pmp.Register(proxyFilter)
+	pmp.Extract(processData())
 
 	// (1) This represents the *outgoing* connection from redis client to redis rerver (via host IP)
 	// It should be *kept*
@@ -101,7 +105,7 @@ func TestProxyFiltering(t *testing.T) {
 
 	// Filter docker-proxy traffic in place
 	payload := &model.Connections{Conns: []*model.Connection{c1, c2, c3, c4}}
-	filter.Filter(payload)
+	proxyFilter.Filter(payload)
 	assert.Len(t, payload.Conns, 2)
 	assert.Equal(t, c1, payload.Conns[0])
 	assert.Equal(t, c2, payload.Conns[1])

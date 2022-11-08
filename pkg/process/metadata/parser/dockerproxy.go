@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dockerproxy
+package parser
 
 import (
 	"strconv"
@@ -15,8 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Filter keeps track of every docker-proxy instance and filters network traffic going through them
-type Filter struct {
+// DockerProxy keeps track of every docker-proxy instance and filters network traffic going through them
+// TODO: Add a mechanism to clean up the maps
+type DockerProxy struct {
 	proxyByTarget map[model.ContainerAddr]*proxy
 	// This "secondary index" is used only during the proxy IP discovery process
 	proxyByPID map[int32]*proxy
@@ -28,24 +29,24 @@ type proxy struct {
 	target model.ContainerAddr
 }
 
-// NewFilter instantiates a new filter loaded with docker-proxy instance information
-func NewFilter(procs map[int32]*procutil.Process) *Filter {
-	filter := new(Filter)
-	filter.LoadProxies(procs)
-	return filter
+// NewDockerProxy instantiates a new filter loaded with docker-proxy instance information
+func NewDockerProxy() *DockerProxy {
+	return &DockerProxy{
+		proxyByPID:    make(map[int32]*proxy),
+		proxyByTarget: make(map[model.ContainerAddr]*proxy),
+	}
 }
 
-// LoadProxies by inspecting processes information
-func (f *Filter) LoadProxies(procs map[int32]*procutil.Process) {
-	f.proxyByPID = make(map[int32]*proxy)
-	f.proxyByTarget = make(map[model.ContainerAddr]*proxy)
+func (d *DockerProxy) Type() string {
+	return "dockerProxy"
+}
 
-	for _, p := range procs {
-		proxy := extractProxyTarget(p)
-		if proxy == nil {
-			continue
-		}
+func (d *DockerProxy) Extract(p *procutil.Process) {
+	if _, seen := d.proxyByPID[p.Pid]; seen {
+		return
+	}
 
+	if proxy := extractProxyTarget(p); proxy != nil {
 		log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
 			proxy.pid,
 			proxy.target.Ip,
@@ -54,14 +55,16 @@ func (f *Filter) LoadProxies(procs map[int32]*procutil.Process) {
 		)
 
 		// Add proxy to cache
-		f.proxyByPID[proxy.pid] = proxy
-		f.proxyByTarget[proxy.target] = proxy
+		d.proxyByPID[p.Pid] = proxy
+		d.proxyByTarget[proxy.target] = proxy
+	} else {
+		d.proxyByPID[p.Pid] = nil
 	}
 }
 
 // Filter all connections that have a docker-proxy at one end
-func (f *Filter) Filter(payload *model.Connections) {
-	if len(f.proxyByPID) == 0 {
+func (d *DockerProxy) Filter(payload *model.Connections) {
+	if len(d.proxyByPID) == 0 {
 		return
 	}
 
@@ -69,14 +72,14 @@ func (f *Filter) Filter(payload *model.Connections) {
 	// TODO: we can probably discard the whole logic below if we determine that each proxy
 	// instance will be always bound to the docker0 IP
 	for _, c := range payload.Conns {
-		if len(f.proxyByPID) == 0 {
+		if len(d.proxyByPID) == 0 {
 			break
 		}
 
-		if proxy, ok := f.proxyByPID[c.Pid]; ok {
-			if proxyIP := f.discoverProxyIP(proxy, c); proxyIP != "" {
+		if proxy, ok := d.proxyByPID[c.Pid]; ok && proxy != nil {
+			if proxyIP := d.discoverProxyIP(proxy, c); proxyIP != "" {
 				proxy.ip = proxyIP
-				delete(f.proxyByPID, c.Pid)
+				delete(d.proxyByPID, c.Pid)
 			}
 		}
 	}
@@ -85,7 +88,7 @@ func (f *Filter) Filter(payload *model.Connections) {
 	filtered := make([]*model.Connection, 0, len(payload.Conns))
 	for _, c := range payload.Conns {
 		// If either end of the connection is a proxy we can drop it
-		if f.isProxied(c) {
+		if d.isProxied(c) {
 			continue
 		}
 
@@ -95,19 +98,19 @@ func (f *Filter) Filter(payload *model.Connections) {
 	payload.Conns = filtered
 }
 
-func (f *Filter) isProxied(c *model.Connection) bool {
-	if p, ok := f.proxyByTarget[model.ContainerAddr{Ip: c.Laddr.Ip, Port: c.Laddr.Port, Protocol: c.Type}]; ok {
+func (d *DockerProxy) isProxied(c *model.Connection) bool {
+	if p, ok := d.proxyByTarget[model.ContainerAddr{Ip: c.Laddr.Ip, Port: c.Laddr.Port, Protocol: c.Type}]; ok {
 		return p.ip == c.Raddr.Ip
 	}
 
-	if p, ok := f.proxyByTarget[model.ContainerAddr{Ip: c.Raddr.Ip, Port: c.Raddr.Port, Protocol: c.Type}]; ok {
+	if p, ok := d.proxyByTarget[model.ContainerAddr{Ip: c.Raddr.Ip, Port: c.Raddr.Port, Protocol: c.Type}]; ok {
 		return p.ip == c.Laddr.Ip
 	}
 
 	return false
 }
 
-func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) string {
+func (d *DockerProxy) discoverProxyIP(p *proxy, c *model.Connection) string {
 	// The heuristic here goes as follows:
 	// One of the ends of this connections must match p.target;
 	// The proxy IP will be the other end;
