@@ -66,24 +66,24 @@ int socket__http2_filter(struct __sk_buff *skb) {
     }
     size_t pos = skb_info.data_off;
 
-    // load the first HTTP2_FRAME_HEADER_SIZE into a buffer.
+    // Load the first HTTP2_FRAME_HEADER_SIZE into a buffer.
     char buf[HTTP2_FRAME_HEADER_SIZE];
     bpf_skb_load_bytes(skb, skb_info.data_off, buf, HTTP2_FRAME_HEADER_SIZE);
 
-    // check if the current buf is the http2 magic (* HTTP/2.0\r\n\r\nSM\r\n\r\n) prefix
+    // Check if the current buf is the http2 magic (* HTTP/2.0\r\n\r\nSM\r\n\r\n) prefix
     if (http2_marker_prefix(buf)) {
         char marker_buf[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE];
         bpf_skb_load_bytes(skb, skb_info.data_off + HTTP2_FRAME_HEADER_SIZE, marker_buf, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE);
-        // validate that the extra 15 bytes after the prefix is the suffix of the magic.
+        // Validate that the extra 15 bytes after the prefix is the suffix of the magic.
         if (http2_marker_suffix(marker_buf)) {
             log_debug("http2 magic was found");
         }
-        // validate that there are more frames after the magic.
+        // Validate that there are more frames after the magic.
         if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
           return 0;
         }
 
-        // update the position to be after the magic.
+        // Update the position to be after the magic.
         pos += HTTP2_MARKER_SIZE;
     }
 
