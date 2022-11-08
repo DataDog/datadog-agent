@@ -7,6 +7,7 @@ package trace
 
 import (
 	"os"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
@@ -36,6 +37,7 @@ var functionName = os.Getenv(functionNameEnvVar)
 type ColdStartSpanCreator struct {
 	executionContext *executioncontext.ExecutionContext
 	traceAgent       *ServerlessTraceAgent
+	createSpan       *sync.Once
 }
 
 func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
@@ -46,7 +48,7 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 	ecs := c.executionContext.GetCurrentState()
 	if !ecs.Coldstart || ecs.ColdstartDuration == 0 {
 
-		log.Debugf("[ColdStartSpanCreator] Skipping span creation - not cold start")
+		log.Debugf("[ColdStartSpanCreator] Skipping span creation - no duration received")
 		return
 	}
 
@@ -66,11 +68,13 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 		Duration: int64(durationNs),
 	}
 
-	log.Debugf("[ColdStartSpanCreator] Creating cold start span %v", coldStartSpan)
-	c.processSpan(coldStartSpan)
+	log.Debugf("[ColdStartSpanCreator] Lambda span %v", lambdaSpan)
+	c.createSpan.Do(func() { c.processSpan(coldStartSpan) })
 }
 
 func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
+	log.Debugf("[ColdStartSpanCreator] Creating cold start span %v", coldStartSpan)
+
 	traceChunk := &pb.TraceChunk{
 		Origin:   "lambda",
 		Priority: int32(1),

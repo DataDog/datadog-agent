@@ -7,6 +7,7 @@ package trace
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	coldStartSpanCreator := &ColdStartSpanCreator{
 		executionContext: ec,
 		traceAgent:       traceAgent,
+		createSpan:       &sync.Once{},
 	}
 
 	now := time.Now().UnixNano()
@@ -87,6 +89,7 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	coldStartSpanCreator := &ColdStartSpanCreator{
 		executionContext: ec,
 		traceAgent:       traceAgent,
+		createSpan:       &sync.Once{},
 	}
 
 	lambdaSpan := &pb.Span{
@@ -125,6 +128,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	coldStartSpanCreator := &ColdStartSpanCreator{
 		executionContext: ec,
 		traceAgent:       traceAgent,
+		createSpan:       &sync.Once{},
 	}
 
 	lambdaSpan := &pb.Span{

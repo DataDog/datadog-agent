@@ -8,6 +8,7 @@ package trace
 import (
 	"context"
 	"strings"
+	"sync"
 
 	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -75,6 +76,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 				s.spanModifier.coldStartSpanCreator = &ColdStartSpanCreator{
 					executionContext: executionContext,
 					traceAgent:       s,
+					createSpan:       &sync.Once{},
 				}
 			}
 
