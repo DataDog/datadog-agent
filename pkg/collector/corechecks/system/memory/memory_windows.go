@@ -17,8 +17,11 @@ import (
 
 // For testing purpose
 var virtualMemory = winutil.VirtualMemory
-var swapMemory = winutil.SwapMemory
-var pageMemory = winutil.PagefileMemory
+
+var (
+	swapMemory = winutil.SwapMemory
+	pageMemory = winutil.PagefileMemory
+)
 
 // Check doesn't need additional fields
 type Check struct {
@@ -32,12 +35,8 @@ type Check struct {
 const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
-func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(initConfig, data, source); err != nil {
-		return err
-	}
-
-	return err
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	return c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 }
 
 // Run executes the check
