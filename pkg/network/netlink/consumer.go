@@ -568,7 +568,7 @@ ReadLoop:
 // receive netlink messages and discard them immediately
 func (c *Consumer) receiveAndDiscard() {
 	for {
-		done, err := c.socket.ReceiveAndDiscard()
+		done, _, err := c.socket.ReceiveAndDiscard()
 		if err != nil {
 			log.Tracef("consumer netlink socket error: %s", err)
 			switch socketError(err) {

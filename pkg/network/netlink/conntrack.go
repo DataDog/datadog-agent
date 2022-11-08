@@ -88,7 +88,7 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 		return false, fmt.Errorf("error sending conntrack exists query: %w", err)
 	}
 
-	done, err := c.conn.ReceiveAndDiscard()
+	_, replies, err := c.conn.ReceiveAndDiscard()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) {
 			return false, nil
@@ -97,7 +97,7 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 		return false, err
 	}
 
-	if done {
+	if replies > 0 {
 		return true, nil
 	}
 
