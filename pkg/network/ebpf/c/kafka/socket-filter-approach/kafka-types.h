@@ -21,15 +21,16 @@
 // TODO: This is too small, but I cannot enlarge the stack
 #define KAFKA_BUFFER_SIZE (8 * 20)
 
-#define CLIENT_ID_MAX_STRING_SIZE (8 * 8)
+// TODO: Make it bigger
+#define CLIENT_ID_MAX_STRING_SIZE (7 * 8)
 #define TOPIC_NAME_MAX_STRING_SIZE (8 * 8)
 
-//// This controls the number of HTTP transactions read from userspace at a time
-//#define HTTP_BATCH_SIZE 15
-//// HTTP_BATCH_PAGES controls how many `http_batch_t` instances exist for each CPU core
-//// It's desirable to set this >= 1 to allow batch insertion and flushing to happen idependently
-//// without risk of overriding data.
-//#define HTTP_BATCH_PAGES 3
+//// This controls the number of KAFKA transactions read from userspace at a time
+#define KAFKA_BATCH_SIZE 15
+// KAFKA_BATCH_PAGES controls how many `kafka_batch_t` instances exist for each CPU core
+// It's desirable to set this >= 1 to allow batch insertion and flushing to happen independently
+// without risk of overriding data.
+#define KAFKA_BATCH_PAGES 3
 //
 #define KAFKA_PROG 0
 //
@@ -67,12 +68,12 @@ typedef enum
 } kafka_operation_t;
 
 //
-//// This struct is used in the map lookup that returns the active batch for a certain CPU core
-//typedef struct {
-//    __u32 cpu;
-//    // page_num can be obtained from (http_batch_state_t->idx % HTTP_BATCHES_PER_CPU)
-//    __u32 page_num;
-//} http_batch_key_t;
+// This struct is used in the map lookup that returns the active batch for a certain CPU core
+typedef struct {
+    __u32 cpu;
+    // page_num can be obtained from (kafka_batch_state_t->idx % KAFKA_BATCHES_PER_CPU)
+    __u32 page_num;
+} kafka_batch_key_t;
 //
 // HTTP transaction information associated to a certain socket (tuple_t)
 // Kafka transaction information associated to a certain socket (tuple_t)
@@ -83,16 +84,16 @@ typedef struct {
     // the TCP segment containing the beginning of a given HTTP request
     __u16 owned_by_src_port;
     conn_tuple_t tup;
-    uint16_t request_api_key;
-    uint16_t request_api_version;
-    uint32_t correlation_id;
+    __u16 request_api_key;
+    __u16 request_api_version;
+    __u32 correlation_id;
 
 //    __u64 request_started;
 //    __u8  request_method;
 //    __u16 response_status_code;
 //    __u64 response_last_seen;
 
-    uint32_t current_offset_in_request_fragment;
+    __u32 current_offset_in_request_fragment;
     char request_fragment[KAFKA_BUFFER_SIZE] __attribute__ ((aligned (8)));
     char client_id[CLIENT_ID_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
     // TODO: Support UTF8
@@ -106,23 +107,23 @@ typedef struct {
 //} http_transaction_t;
 } kafka_transaction_t;
 //
-//typedef struct {
-//    // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
-//    // this is useful for detecting race conditions that result in a batch being overrriden
-//    // before it gets consumed from userspace
-//    __u64 idx;
-//    // idx_to_flush is used to track which batches were flushed to userspace
-//    // * if idx_to_flush == idx, the current index is still being appended to;
-//    // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
-//    // (note that idx will never be less than idx_to_flush);
-//    __u64 idx_to_flush;
-//} http_batch_state_t;
+typedef struct {
+    // idx is a monotonic counter used for uniquely determining a batch within a CPU core
+    // this is useful for detecting race conditions that result in a batch being overridden
+    // before it gets consumed from userspace
+    __u64 idx;
+    // idx_to_flush is used to track which batches were flushed to userspace
+    // * if idx_to_flush == idx, the current index is still being appended to;
+    // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
+    // (note that idx will never be less than idx_to_flush);
+    __u64 idx_to_flush;
+} kafka_batch_state_t;
 //
-//typedef struct {
-//    __u64 idx;
-//    __u8 pos;
-//    http_transaction_t txs[HTTP_BATCH_SIZE];
-//} http_batch_t;
+typedef struct {
+    __u64 idx;
+    __u8 pos;
+    kafka_transaction_t txs[KAFKA_BATCH_SIZE];
+} kafka_batch_t;
 //
 //// OpenSSL types
 //typedef struct {

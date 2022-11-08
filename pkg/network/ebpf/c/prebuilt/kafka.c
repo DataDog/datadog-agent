@@ -72,21 +72,21 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 //    return 0;
 //}
 
-//SEC("tracepoint/net/netif_receive_skb")
-//int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
 //    log_debug("tracepoint/net/netif_receive_skb\n");
-//    // flush batch to userspace
-//    // because perf events can't be sent from socket filter programs
-////    http_flush_batch(ctx);
-//
-//    kafka_event *event = bpf_map_lookup_elem(&kafka_events, &key);
+    // flush batch to userspace
+    // because perf events can't be sent from socket filter programs
+    kafka_flush_batch(ctx);
+
+//    kafka_events *event = bpf_map_lookup_elem(&kafka_events, &key);
 //    if (batch == NULL) {
 //        return;
 //    }
-//    bpf_perf_event_output(ctx, &kafka_events, key.cpu, batch, sizeof(http_batch_t));
-//    log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
-//    return 0;
-//}
+//    bpf_perf_event_output(ctx, &kafka_events, key.cpu, batch, sizeof(kafka_batch_t));
+//    log_debug("kafka batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
+    return 0;
+}
 
 
 //SEC("uprobe/SSL_do_handshake")

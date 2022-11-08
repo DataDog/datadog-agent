@@ -13,8 +13,10 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 	"math"
+	"os"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -24,15 +26,15 @@ import (
 )
 
 const (
-	//httpInFlightMap   = "http_in_flight"
-	//httpBatchesMap    = "http_batches"
-	//httpBatchStateMap = "http_batch_state"
-	//httpBatchEvents   = "http_batch_events"
+	kafkaInFlightMap   = "kafka_in_flight"
+	kafkaBatchesMap    = "kafka_batches"
+	kafkaBatchStateMap = "kafka_batch_state"
+	kafkaBatchEvents   = "kafka_batch_events"
 
 	kafkaKernelToUserModeMapName = "c"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
-	// to inspect plain HTTP traffic
+	// to inspect plain kafka traffic
 	kafkaSocketFilterStub = "socket/kafka_filter_entry"
 	kafkaSocketFilter     = "socket/kafka_filter"
 	kafkaProgsMap         = "kafka_progs"
@@ -43,10 +45,10 @@ const (
 	// the accept syscall).
 	maxActive = 128
 
-	// size of the channel containing completed http_notification_objects
+	// size of the channel containing completed kafka_notification_objects
 	batchNotificationsChanSize = 100
 
-	probeUID = "http"
+	probeUID = "kafka"
 )
 
 type ebpfProgram struct {
@@ -92,30 +94,29 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
-		//Maps: []*manager.Map{
-		//	{Name: httpInFlightMap},
-		//	{Name: httpBatchesMap},
-		//	{Name: httpBatchStateMap},
-		//	{Name: sslSockByCtxMap},
-		//	{Name: httpProgsMap},
-		//	{Name: "ssl_read_args"},
-		//	{Name: "bio_new_socket_args"},
-		//	{Name: "fd_by_ssl_bio"},
-		//	{Name: "ssl_ctx_by_pid_tgid"},
-		//},
-		//PerfMaps: []*manager.PerfMap{
-		//	{
-		//		//Map: manager.Map{Name: httpBatchEvents},
-		//		Map: manager.Map{Name: "kafka_kernel_to_usermode"},
-		//		PerfMapOptions: manager.PerfMapOptions{
-		//			PerfRingBufferSize: 256 * os.Getpagesize(),
-		//			Watermark:          1,
-		//			RecordHandler:      batchCompletionHandler.RecordHandler,
-		//			LostHandler:        batchCompletionHandler.LostHandler,
-		//			RecordGetter:       batchCompletionHandler.RecordGetter,
-		//		},
-		//	},
-		//},
+		Maps: []*manager.Map{
+			{Name: kafkaInFlightMap},
+			{Name: kafkaBatchesMap},
+			{Name: kafkaBatchStateMap},
+			//	{Name: sslSockByCtxMap},
+			//	{Name: httpProgsMap},
+			//	{Name: "ssl_read_args"},
+			//	{Name: "bio_new_socket_args"},
+			//	{Name: "fd_by_ssl_bio"},
+			//	{Name: "ssl_ctx_by_pid_tgid"},
+		},
+		PerfMaps: []*manager.PerfMap{
+			{
+				Map: manager.Map{Name: kafkaBatchEvents},
+				PerfMapOptions: manager.PerfMapOptions{
+					PerfRingBufferSize: 256 * os.Getpagesize(),
+					Watermark:          1,
+					RecordHandler:      batchCompletionHandler.RecordHandler,
+					LostHandler:        batchCompletionHandler.LostHandler,
+					RecordGetter:       batchCompletionHandler.RecordGetter,
+				},
+			},
+		},
 		Probes: []*manager.Probe{
 			//{
 			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -126,13 +127,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			//	KProbeMaxActive:    maxActive,
 			//	KprobeAttachMethod: kprobeAttachMethod,
 			//},
-			//{
-			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			//		EBPFSection:  "tracepoint/net/netif_receive_skb",
-			//		EBPFFuncName: "tracepoint__net__netif_receive_skb",
-			//		UID:          probeUID,
-			//	},
-			//},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "tracepoint/net/netif_receive_skb",
+					EBPFFuncName: "tracepoint__net__netif_receive_skb",
+					UID:          probeUID,
+				},
+			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  kafkaSocketFilterStub,
@@ -176,11 +177,10 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
-	//onlineCPUs, err := cpupossible.Get()
-	var err error
-	//if err != nil {
-	//	return fmt.Errorf("couldn't determine number of CPUs: %w", err)
-	//}
+	onlineCPUs, err := cpupossible.Get()
+	if err != nil {
+		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
+	}
 
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
@@ -188,16 +188,16 @@ func (e *ebpfProgram) Init() error {
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			//httpInFlightMap: {
-			//	Type:       ebpf.Hash,
-			//	MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-			//	EditorFlag: manager.EditMaxEntries,
-			//},
-			//httpBatchesMap: {
-			//	Type:       ebpf.Hash,
-			//	MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
-			//	EditorFlag: manager.EditMaxEntries,
-			//},
+			kafkaInFlightMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			kafkaBatchesMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(len(onlineCPUs) * KAFKABatchPages),
+				EditorFlag: manager.EditMaxEntries,
+			},
 		},
 		TailCallRouter: tailCalls,
 		ActivatedProbes: []manager.ProbesSelector{
@@ -215,13 +215,13 @@ func (e *ebpfProgram) Init() error {
 			//		UID:          probeUID,
 			//	},
 			//},
-			//&manager.ProbeSelector{
-			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			//		EBPFSection:  "tracepoint/net/netif_receive_skb",
-			//		EBPFFuncName: "tracepoint__net__netif_receive_skb",
-			//		UID:          probeUID,
-			//	},
-			//},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  "tracepoint/net/netif_receive_skb",
+					EBPFFuncName: "tracepoint__net__netif_receive_skb",
+					UID:          probeUID,
+				},
+			},
 		},
 		ConstantEditors: e.offsets,
 		VerifierOptions: ebpf.CollectionOptions{

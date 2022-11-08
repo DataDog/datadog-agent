@@ -10,81 +10,91 @@
 
 #include <uapi/linux/ptrace.h>
 
-//static __always_inline http_batch_key_t http_get_batch_key(u64 batch_idx) {
-//    http_batch_key_t key = { 0 };
-//    key.cpu = bpf_get_smp_processor_id();
-//    key.page_num = batch_idx % HTTP_BATCH_PAGES;
-//    return key;
-//}
+static __always_inline kafka_batch_key_t kafka_get_batch_key(u64 batch_idx) {
+    kafka_batch_key_t key = { 0 };
+    key.cpu = bpf_get_smp_processor_id();
+    key.page_num = batch_idx % KAFKA_BATCH_PAGES;
+    return key;
+}
 //
-//static __always_inline void http_flush_batch(struct pt_regs *ctx) {
-//    u32 zero = 0;
-//    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
-//    if (batch_state == NULL || batch_state->idx_to_flush == batch_state->idx) {
-//        // batch is not ready to be flushed
-//        return;
-//    }
-//
-//    http_batch_key_t key = http_get_batch_key(batch_state->idx_to_flush);
-//    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
-//    if (batch == NULL) {
-//        return;
-//    }
-//
-//    bpf_perf_event_output(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
-//    log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
-//    batch->pos = 0;
-//    batch_state->idx_to_flush++;
-//}
+static __always_inline void kafka_flush_batch(struct pt_regs *ctx) {
+    u32 zero = 0;
+    kafka_batch_state_t *batch_state = bpf_map_lookup_elem(&kafka_batch_state, &zero);
+    if (batch_state == NULL) {
+        log_debug("batch state is NULL");
+        return;
+    }
+    if (batch_state->idx_to_flush == batch_state->idx) {
+        log_debug("kafka_flush_batch: batch is not ready to be flushed: idx = %d, idx_to_flush = %d", batch_state->idx, batch_state->idx_to_flush);
+        // batch is not ready to be flushed
+        return;
+    }
+    log_debug("kafka_flush_batch: batch is ready to be flushed");
+
+    kafka_batch_key_t key = kafka_get_batch_key(batch_state->idx_to_flush);
+    kafka_batch_t *batch = bpf_map_lookup_elem(&kafka_batches, &key);
+    if (batch == NULL) {
+        return;
+    }
+
+    const long status = bpf_perf_event_output(ctx, &kafka_batch_events, key.cpu, batch, sizeof(kafka_batch_t));
+    log_debug("bpf_perf_event_output status: %d\n", status);
+    (void)status;
+    log_debug("kafka batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
+    batch->pos = 0;
+    batch_state->idx_to_flush++;
+}
 //
 //static __always_inline int http_responding(http_transaction_t *http) {
 //    return (http != NULL && http->response_status_code != 0);
 //}
 //
 //
-//static __always_inline bool http_batch_full(http_batch_t *batch) {
-//    return batch && batch->pos == HTTP_BATCH_SIZE;
-//}
+static __always_inline bool kafka_batch_full(kafka_batch_t *batch) {
+    return batch && batch->pos == KAFKA_BATCH_SIZE;
+}
 //
-//static __always_inline void http_enqueue(http_transaction_t *http) {
-//    // Retrieve the active batch number for this CPU
-//    u32 zero = 0;
-//    http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &zero);
-//    if (batch_state == NULL) {
-//        return;
-//    }
-//
-//    // Retrieve the batch object
-//    http_batch_key_t key = http_get_batch_key(batch_state->idx);
-//    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
-//    if (batch == NULL) {
-//        return;
-//    }
-//
-//    if (http_batch_full(batch)) {
-//        // this scenario should never happen and indicates a bug
-//        // TODO: turn this into telemetry for release 7.41
-//        log_debug("http_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
-//        return;
-//    }
-//
-//    // Bounds check to make verifier happy
-//    if (batch->pos < 0 || batch->pos >= HTTP_BATCH_SIZE) {
-//        return;
-//    }
-//
-//    __builtin_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
-//    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
-//    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
-//    batch->pos++;
-//    batch->idx = batch_state->idx;
-//
-//    // If we have filled the batch we move to the next one
-//    // Notice that we don't flush it directly because we can't do so from socket filter programs.
-//    if (http_batch_full(batch)) {
-//        batch_state->idx++;
-//    }
-//}
+static __always_inline void kafka_enqueue(kafka_transaction_t *kafka_transaction) {
+    // Retrieve the active batch number for this CPU
+    u32 zero = 0;
+    kafka_batch_state_t *batch_state = bpf_map_lookup_elem(&kafka_batch_state, &zero);
+    if (batch_state == NULL) {
+        log_debug("batch_state is NULL");
+        return;
+    }
+    log_debug("Found a batch_state!");
+
+    // Retrieve the batch object
+    kafka_batch_key_t key = kafka_get_batch_key(batch_state->idx);
+    kafka_batch_t *batch = bpf_map_lookup_elem(&kafka_batches, &key);
+    if (batch == NULL) {
+        return;
+    }
+
+    if (kafka_batch_full(batch)) {
+        // this scenario should never happen and indicates a bug
+        // TODO: turn this into telemetry for release 7.41
+        log_debug("kafka_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
+        return;
+    }
+
+    // Bounds check to make verifier happy
+    if (batch->pos < 0 || batch->pos >= KAFKA_BATCH_SIZE) {
+        return;
+    }
+
+    bpf_memcpy(&batch->txs[batch->pos], kafka_transaction, sizeof(kafka_transaction_t));
+    log_debug("kafka_enqueue: ktx=%llx path=%s\n", kafka_transaction, kafka_transaction->request_fragment);
+    log_debug("kafka transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
+    batch->pos++;
+    batch->idx = batch_state->idx;
+
+    // If we have filled the batch we move to the next one
+    // Notice that we don't flush it directly because we can't do so from socket filter programs.
+    if (kafka_batch_full(batch)) {
+        batch_state->idx++;
+    }
+}
 //
 //static __always_inline void http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
 //    http->request_method = method;
@@ -214,6 +224,8 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
         return 0;
     }
     log_debug("kafka_transaction->topic_name: %s", kafka_transaction->topic_name);
+
+    kafka_enqueue(kafka_transaction);
 
 //    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
 //    http_method_t method = HTTP_METHOD_UNKNOWN;

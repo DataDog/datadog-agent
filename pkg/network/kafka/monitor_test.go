@@ -10,7 +10,6 @@ package kafka
 
 import (
 	"context"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
@@ -46,11 +45,16 @@ func TestSanity(t *testing.T) {
 	require.NoError(t, err)
 	defer monitor.Stop()
 
+	time.Sleep(time.Hour * 2)
+
 	// to produce/consume messages
 	topic := "my-topic"
 	partition := 0
 
-	conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
+	myDialer := kafka.DefaultDialer
+	myDialer.ClientID = "test-client-id"
+
+	conn, err := myDialer.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
 	require.NoError(t, err)
 
 	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
@@ -58,28 +62,40 @@ func TestSanity(t *testing.T) {
 		kafka.Message{Value: []byte("one!")},
 		kafka.Message{Value: []byte("two!")},
 		kafka.Message{Value: []byte("three!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("4!")},
 	)
 	require.NoError(t, err)
 	require.NoError(t, conn.Close())
 
-	// Now consume the messages
-	conn, err = kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
-	require.NoError(t, err)
-
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	batch := conn.ReadBatch(10e3, 1e6) // fetch 10KB min, 1MB max
-
-	b := make([]byte, 10e3) // 10KB max per message
-	for {
-		n, err := batch.Read(b)
-		if err != nil {
-			break
-		}
-		fmt.Println(string(b[:n]))
-	}
-
-	require.NoError(t, batch.Close())
-	require.NoError(t, conn.Close())
+	//// Now consume the messages
+	//conn, err = kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
+	//require.NoError(t, err)
+	//
+	//conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	//batch := conn.ReadBatch(10e3, 1e6) // fetch 10KB min, 1MB max
+	//
+	//b := make([]byte, 10e3) // 10KB max per message
+	//for {
+	//	n, err := batch.Read(b)
+	//	if err != nil {
+	//		break
+	//	}
+	//	fmt.Println(string(b[:n]))
+	//}
+	//
+	//require.NoError(t, batch.Close())
+	//require.NoError(t, conn.Close())
+	time.Sleep(time.Second * 2)
 }
 
 //// TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel

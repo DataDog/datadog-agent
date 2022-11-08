@@ -3,7 +3,51 @@
 
 package kafka
 
+type kafkaConnTuple struct {
+	Saddr_h  uint64
+	Saddr_l  uint64
+	Daddr_h  uint64
+	Daddr_l  uint64
+	Sport    uint16
+	Dport    uint16
+	Netns    uint32
+	Pid      uint32
+	Metadata uint32
+}
+type kafkaBatchState struct {
+	Idx      uint64
+	To_flush uint64
+}
+
+type ebpfKafkaTx struct {
+	Owned_by_src_port                  uint16
+	Tup                                kafkaConnTuple
+	Request_api_key                    uint16
+	Request_api_version                uint16
+	Correlation_id                     uint32
+	Current_offset_in_request_fragment uint32
+	Pad_cgo_0                          [4]byte
+	Request_fragment                   [160]byte
+	Client_id                          [56]int8
+	Topic_name                         [64]int8
+	Tcp_seq                            uint32
+	Pad_cgo_1                          [4]byte
+}
+type kafkaBatch struct {
+	Idx uint64
+	Pos uint8
+	Txs [15]ebpfKafkaTx
+}
+type kafkaBatchKey struct {
+	Cpu uint32
+	Num uint32
+}
+
 const (
+	KAFKABatchSize  = 0xf
+	KAFKABatchPages = 0x3
+	KAFKABufferSize = 0xa0
+
 	kafkaProg = 0x0
 
 	libPathMaxSize = 0x78
