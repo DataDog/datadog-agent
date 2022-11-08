@@ -607,7 +607,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
-    ctx.run(f"CGO_ENABLED=0 go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json")
+    ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
 
 @task
