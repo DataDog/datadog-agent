@@ -468,7 +468,7 @@ func TestConcurrency(t *testing.T) {
 		require.NotNil(t, wafCtx)
 
 		var (
-			closed uint32
+			closed atomic.Uint32
 			done   sync.WaitGroup
 		)
 		done.Add(1)
@@ -476,16 +476,16 @@ func TestConcurrency(t *testing.T) {
 			defer done.Done()
 			// The implementation currently blocks until the WAF contexts get released
 			waf.Close()
-			atomic.AddUint32(&closed, 1)
+			closed.Inc()
 		}()
 
 		// The WAF context is not released so waf.Close() should block and `closed` still be 0
-		assert.Equal(t, uint32(0), atomic.LoadUint32(&closed))
+		assert.Equal(t, uint32(0), closed.Load())
 		// Release the WAF context, which should unlock the previous waf.Close() call
 		wafCtx.Close()
 		// Now that the WAF context is closed, wait for the goroutine to close the WAF handle.
 		done.Wait()
-		require.Equal(t, uint32(1), atomic.LoadUint32(&closed))
+		require.Equal(t, uint32(1), closed.Load())
 	})
 
 	t.Run("concurrent-waf-context-usage", func(t *testing.T) {
@@ -772,7 +772,7 @@ func TestMetrics(t *testing.T) {
 }
 
 func requireZeroNBLiveCObjects(t testing.TB) {
-	require.Equal(t, uint64(0), atomic.LoadUint64(&nbLiveCObjects))
+	require.Equal(t, uint64(0), nbLiveCObjects.Load())
 }
 
 func TestEncoder(t *testing.T) {
