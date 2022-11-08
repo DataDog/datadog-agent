@@ -458,7 +458,7 @@ func TestConcurrency(t *testing.T) {
 	defer requireZeroNBLiveCObjects(t)
 
 	// Start 800 goroutines that will use the WAF 500 times each
-	nbUsers := 800
+	nbUsers := 50
 	nbRun := 500
 
 	t.Run("concurrent-waf-release", func(t *testing.T) {
