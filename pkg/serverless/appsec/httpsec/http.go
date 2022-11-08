@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package httpsec defines is the HTTP instrumentation API and contract for
 // AppSec. It defines an abstract representation of HTTP handlers, along with
