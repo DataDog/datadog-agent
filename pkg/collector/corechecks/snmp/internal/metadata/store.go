@@ -74,7 +74,7 @@ func (s Store) GetColumnAsByteArray(field string, index string) []byte {
 		return nil
 	}
 	switch value.Value.(type) {
-	case string, []byte:
+	case []byte:
 		return value.Value.([]byte)
 	}
 	return nil
