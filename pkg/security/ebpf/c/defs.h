@@ -161,6 +161,8 @@
 
 #define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
 
+#define SYSCALL_FEXIT(name, ...) SYSCALL_HOOKx(0,fexit,FEXIT,,_##name)
+
 #define SYSCALL_COMPAT_KPROBE0(name, ...) SYSCALL_COMPAT_HOOKx(0,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_KPROBE1(name, ...) SYSCALL_COMPAT_HOOKx(1,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_KPROBE2(name, ...) SYSCALL_COMPAT_HOOKx(2,kprobe,KPROBE,_##name,__VA_ARGS__)

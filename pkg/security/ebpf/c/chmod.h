@@ -45,10 +45,6 @@ SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
-    return trace__sys_chmod(mode);
-}
-
 SYSCALL_FENTRY3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
@@ -99,8 +95,8 @@ SYSCALL_KRETPROBE(fchmod) {
     return kprobe_sys_chmod_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(fchmodat) {
-    return kprobe_sys_chmod_ret(ctx);
+SYSCALL_FEXIT(fchmodat) {
+    return sys_chmod_ret(ctx, 0);
 }
 
 SEC("tracepoint/handle_sys_chmod_exit")

@@ -35,7 +35,7 @@ func getAttrProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "fchmod",
 	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
+	attrProbes = append(attrProbes, ExpandSyscallProbesFentry(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},

@@ -101,6 +101,18 @@ func expandKprobe(hookpoint string, flag int) []string {
 	return sections
 }
 
+func expandFentry(hookpoint string, flag int) []string {
+	var sections []string
+	if flag&Entry == Entry {
+		sections = append(sections, "fentry/"+hookpoint)
+	}
+	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
+		sections = append(sections, "fexit/"+hookpoint)
+	}
+
+	return sections
+}
+
 func expandSyscallSections(syscallName string, flag int, compat ...bool) []string {
 	sections := expandKprobe(getSyscallFnName(syscallName), flag)
 
@@ -110,6 +122,16 @@ func expandSyscallSections(syscallName string, flag int, compat ...bool) []strin
 		} else {
 			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), flag)...)
 		}
+	}
+
+	return sections
+}
+
+func expandSyscallSectionsFentry(syscallName string, flag int) []string {
+	sections := expandFentry(getSyscallFnName(syscallName), flag)
+
+	if RuntimeArch == "x64" {
+		sections = append(sections, expandFentry(getIA32SyscallFnName(syscallName), flag)...)
 	}
 
 	return sections
@@ -166,6 +188,34 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 	}
 
 	for _, section := range expandSyscallSections(syscallName, flag, compat...) {
+		probeCopy := probe.Copy()
+		probeCopy.EBPFSection = section
+		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
+		probes = append(probes, probeCopy)
+	}
+
+	return probes
+}
+
+// ExpandSyscallProbesFentry returns the list of available hook probes for the syscall func name of the provided probe (with fentry)
+func ExpandSyscallProbesFentry(probe *manager.Probe, flag int) []*manager.Probe {
+	var probes []*manager.Probe
+	syscallName := probe.SyscallFuncName
+	probe.SyscallFuncName = ""
+
+	if len(RuntimeArch) == 0 {
+		resolveRuntimeArch()
+	}
+
+	if flag&ExpandTime32 == ExpandTime32 {
+		// check if _time32 should be expanded
+		if getSyscallPrefix() == "sys_" {
+			return probes
+		}
+		syscallName += "_time32"
+	}
+
+	for _, section := range expandSyscallSectionsFentry(syscallName, flag) {
 		probeCopy := probe.Copy()
 		probeCopy.EBPFSection = section
 		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
