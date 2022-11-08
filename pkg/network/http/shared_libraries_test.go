@@ -20,14 +20,15 @@ import (
 
 	"go.uber.org/atomic"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
 func TestSharedLibraryDetection(t *testing.T) {
@@ -112,7 +113,7 @@ func simulateOpenAt(path string) {
 func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 	c := config.New()
 	if !HTTPSSupported(c) {
-		t.Skip("https not supported for this kernel version")
+		t.Skip("https not supported for this setup")
 	}
 
 	probe := "do_sys_open"

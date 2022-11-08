@@ -520,9 +520,13 @@ def test(
     _, _, env = get_build_flags(ctx)
     env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env['DD_TESTS_RUNTIME_COMPILED'] = "1"
-    if co_re:
-        env['DD_TESTS_CO_RE'] = "1"
+        env['DD_ENABLE_RUNTIME_COMPILER'] = "true"
+        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
+        env['DD_ENABLE_CO_RE'] = "false"
+    elif co_re:
+        env['DD_ENABLE_CO_RE'] = "true"
+        env['DD_ALLOW_RUNTIME_COMPILED_FALLBACK'] = "false"
+        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -591,10 +595,19 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
-        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
-    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
-        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    gopath = os.getenv("GOPATH")
+    copy_files = [
+        "/opt/datadog-agent/embedded/bin/clang-bpf",
+        "/opt/datadog-agent/embedded/bin/llc-bpf",
+        f"{gopath}/bin/gotestsum",
+    ]
+
+    files_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "..")
+    for cf in copy_files:
+        if os.path.exists(cf):
+            shutil.copy(cf, files_dir)
+
+    ctx.run(f"CGO_ENABLED=0 go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json")
 
 
 @task

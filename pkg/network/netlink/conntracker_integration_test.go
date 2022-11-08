@@ -151,7 +151,7 @@ func skipUnless(t *testing.T, requiredArg string) {
 
 	t.Skip(
 		fmt.Sprintf(
-			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
+			"skipped %s. you can enable it by using running tests with `-args %s`",
 			t.Name(),
 			requiredArg,
 		),

@@ -25,6 +25,10 @@ platforms:
       customize:
         disk_bus: sata
       <% end %>
+# uncomment below to locally inspect junit tarballs used for CI visibility
+#    verifier:
+#      downloads:
+#        "/tmp/junit.tar.gz": kitchen-junit-<%= platform[0] %>.tar.gz
 <%
     end
 %>
