@@ -7,6 +7,13 @@ functional_test_junit_upload:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   allow_failure: true
+  needs:
+    - job: kitchen_test_system_probe_linux_x64
+      optional: true
+    - job: kitchen_test_system_probe_linux_x64_ec2
+      optional: true
+    - job: kitchen_test_system_probe_linux_arm64
+      optional: true
   variables:
     DD_ENV: ci
   script:
