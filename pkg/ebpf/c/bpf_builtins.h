@@ -637,7 +637,7 @@ __bpf_no_builtin_memcpy(void *d __maybe_unused, const void *s __maybe_unused,
 }
 
 /* Redirect any direct use in our code to throw an error. */
-#define __builtin_memcpy	__bpf_no_builtin_memcpy
+// #define __builtin_memcpy	__bpf_no_builtin_memcpy
 
 static __always_inline __maybe_unused __nobuiltin("memcpy") void bpf_memcpy(void *d, const void *s,
 							 __u64 len)
@@ -959,7 +959,7 @@ __bpf_no_builtin_memcmp(const void *x __maybe_unused,
 }
 
 /* Redirect any direct use in our code to throw an error. */
-#define __builtin_memcmp	__bpf_no_builtin_memcmp
+// #define __builtin_memcmp	__bpf_no_builtin_memcmp
 
 /* Modified for our needs in that we only return either zero (x and y
  * are equal) or non-zero (x and y are non-equal).
