@@ -18,6 +18,9 @@ type AppSec struct {
 	cfg *Config
 	// WAF handle instance of the appsec event rules.
 	handle *waf.Handle
+	// Events rate limiter to limit the max amount of appsec events we can send
+	// per second.
+	eventsRateLimiter *TokenTicker
 }
 
 // Context of security monitoring execution. Usually one per request to monitor.
@@ -53,16 +56,24 @@ func New() (*AppSec, error) {
 	}
 
 	handle, err := waf.NewHandle([]byte(staticRecommendedRule), cfg.obfuscator.KeyRegex, cfg.obfuscator.ValueRegex)
+	if err != nil {
+		return nil, err
+	}
+
+	eventsRateLimiter := NewTokenTicker(int64(cfg.traceRateLimit), int64(cfg.traceRateLimit))
+	eventsRateLimiter.Start()
+
 	return &AppSec{
-		cfg:    cfg,
-		handle: handle,
+		cfg:               cfg,
+		handle:            handle,
+		eventsRateLimiter: eventsRateLimiter,
 	}, nil
 }
 
-// Close the AppSec instance. The underlying WAF instance is free'd only when
-// no more
+// Close the AppSec instance.
 func (a *AppSec) Close() error {
 	a.handle.Close()
+	a.eventsRateLimiter.Stop()
 	return nil
 }
 
@@ -88,6 +99,10 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 	dt, _ := ctx.TotalRuntime()
 	if len(events) > 0 {
 		log.Debugf("appsec: security events found in %s: %s", time.Duration(dt), string(events))
+	}
+	if !a.eventsRateLimiter.Allow() {
+		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.traceRateLimit)
+		return nil
 	}
 	return events
 }
