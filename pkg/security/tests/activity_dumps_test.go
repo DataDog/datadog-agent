@@ -20,11 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
 )
 
 var expectedFormats = []string{"json", "protobuf"}
 
 const testActivityDumpRateLimiter = 20
+const testActivityDumpTracedCgroupsCount = 3
+const testActivityDumpCgroupDumpTimeout = 15 // probe.MinDumpTimeout(10) + 5
+var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
 
 func TestActivityDumps(t *testing.T) {
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -40,9 +44,12 @@ func TestActivityDumps(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -282,6 +289,62 @@ func TestActivityDumps(t *testing.T) {
 		})
 	})
 
+	t.Run("activity-dump-cgroup-timeout", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		// check that the dump is still alive
+		time.Sleep((testActivityDumpCgroupDumpTimeout*60 - 20) * time.Second)
+		assert.Equal(t, true, test.isDumpRunning(dump))
+
+		// check that the dump has timeouted after the cleanup period (30s) + 2s
+		time.Sleep(1 * time.Minute)
+		assert.Equal(t, false, test.isDumpRunning(dump))
+	})
+
+	t.Run("activity-dump-cgroup-counts", func(t *testing.T) {
+		// first, stop all running activity dumps
+		err := test.StopAllActivityDumps()
+		if err != nil {
+			t.Fatal("Can't stop all running activity dumps")
+		}
+
+		// then, launch enough docker instances to reach the testActivityDumpCgroupDumpTimeout
+		var startedDumps []*activityDumpIdentifier
+		for i := 0; i < testActivityDumpTracedCgroupsCount; i++ {
+			dockerInstance, dump, err := test.StartADockerGetDump()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer dockerInstance.stop()
+			startedDumps = append(startedDumps, dump)
+		}
+
+		// verify that we have the corresponding running dumps
+		dumps, err := test.ListActivityDumps()
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, testActivityDumpTracedCgroupsCount, len(dumps))
+		if !isListOfDumpsEqual(startedDumps, dumps) {
+			t.Fatal("List of active dumps don't match the started ones")
+		}
+
+		// then, start an extra one and check that it's not dumping
+		dockerInstance, err := test.StartADocker()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+		dumps, err = test.ListActivityDumps()
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, testActivityDumpTracedCgroupsCount, len(dumps))
+	})
 }
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string, validator func(ad *probe.ActivityDump) bool) {
@@ -309,7 +372,7 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			perExtOK[ext] = true
 
 		case ".protobuf":
-			ad, err := test.DecodeActivityDump(t, f)
+			ad, err := test.DecodeActivityDump(f)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -330,4 +393,266 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 			t.Fatalf("Missing or wrong `%s`, out of: %v", ext, outputFiles)
 		}
 	}
+}
+
+func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	outputDir := t.TempDir()
+	defer os.RemoveAll(outputDir)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// first, stop all running activity dumps
+	err = test.StopAllActivityDumps()
+	if err != nil {
+		t.Fatal("Can't stop all running activity dumps")
+	}
+
+	dockerInstance, dump, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+	timeStart := time.Now()
+	assert.Equal(t, "15m0s", dump.Timeout)
+
+	// trigg reducer (before t > timeout / 4)
+	test.triggerLoadControlerReducer(dockerInstance, dump)
+	// check that we succeed to trigger the reducer
+	timeDiff := time.Now().Sub(timeStart) + time.Second*3
+	if timeDiff > probe.MinDumpTimeout/2 {
+		t.Skipf("Didn't manage to trigger reduceDumpTimeout(), it took %v to trigger the next partial dump", timeDiff)
+	}
+
+	// find the new dump, with timeout *= 3/4, or min timeout
+	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, "10m0s", secondDump.Timeout)
+}
+
+func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	outputDir := t.TempDir()
+	defer os.RemoveAll(outputDir)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// first, stop all running activity dumps
+	err = test.StopAllActivityDumps()
+	if err != nil {
+		t.Fatal("Can't stop all running activity dumps")
+	}
+
+	dockerInstance, dump, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+	timeStart := time.Now()
+	var timeStop time.Time
+
+	for activeEventTypes := probe.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
+		// add all event types to the dump
+		test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
+		// trigg reducer
+		test.triggerLoadControlerReducer(dockerInstance, dump)
+		// check that we succeed to trigger the reducer
+		timeStop = time.Now()
+		timeDiff := timeStop.Sub(timeStart) + time.Second*3
+		if timeDiff > probe.MinDumpTimeout/4 {
+			t.Skipf("Didn't manage to trigger reduceTracedEventTypes(), it took %v to trigger the next partial dump", timeDiff)
+		}
+		// find the new dump
+		nextDump, err := test.findNextPartialDump(dockerInstance, dump)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// extract all present event types present on the first dump
+		presentEventTypes, err := test.extractAllDumpEventTypes(dump)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
+			t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
+		}
+		if len(activeEventTypes) == 0 {
+			break
+		}
+		dump = nextDump
+		timeStart = timeStop
+	}
+}
+
+func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	outputDir := t.TempDir()
+	defer os.RemoveAll(outputDir)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// first, stop all running activity dumps
+	err = test.StopAllActivityDumps()
+	if err != nil {
+		t.Fatal("Can't stop all running activity dumps")
+	}
+
+	dockerInstance, dump, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+	timeStart := time.Now()
+
+	// burst file creation
+	testDir := filepath.Join(test.Root(), "ratelimiter")
+	os.MkdirAll(testDir, os.ModePerm)
+	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
+	// trigg reducer
+	test.triggerLoadControlerReducer(dockerInstance, dump)
+	// check that we succeed to trigger the reducer
+	timeStop := time.Now()
+	timeDiff := timeStop.Sub(timeStart) + time.Second*3
+	if timeDiff > probe.MinDumpTimeout {
+		t.Skipf("Didn't manage to trigger reduceDumpRate(), it took %v to trigger the next partial dump", timeDiff)
+	}
+	timeStart = timeStop
+	// find the new dump, with ratelimiter *= 3/4
+	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// find the number of files creation that were added to the dump
+	numberOfFiles, err := test.findNumberOfExistingDirectoryFiles(dump, testDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if numberOfFiles < testActivityDumpRateLimiter/4 || numberOfFiles > testActivityDumpRateLimiter {
+		t.Fatalf("number of files not expected (%d) with %d ratelimiter\n", numberOfFiles, testActivityDumpRateLimiter)
+	}
+
+	dump = secondDump
+	// burst file creation
+	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
+	// trigg reducer
+	test.triggerLoadControlerReducer(dockerInstance, dump)
+	// check that we succeed to trigger the reducer
+	timeDiff = time.Now().Sub(timeStart) + time.Second*3
+	if timeDiff > probe.MinDumpTimeout {
+		t.Skipf("Didn't manage to trigger reduceDumpRate(), it took %v to trigger the next partial dump", timeDiff)
+	}
+	// find the new dump, with ratelimiter *= 3/4
+	_, err = test.findNextPartialDump(dockerInstance, dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// find the number of files creation that were added to the dump
+	numberOfFiles, err = test.findNumberOfExistingDirectoryFiles(dump, testDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newRateLimiter := testActivityDumpRateLimiter / 4 * 3
+	if numberOfFiles < newRateLimiter/4 || numberOfFiles > newRateLimiter {
+		t.Fatalf("number of files not expected (%d) with %d ratelimiter\n", numberOfFiles, newRateLimiter)
+	}
+}
+
+func isEventTypesStringSlicesEqual(slice1 []model.EventType, slice2 []string) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+firstLoop:
+	for _, s1 := range slice1 {
+		for _, s2 := range slice2 {
+			if s1.String() == s2 {
+				continue firstLoop
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func isListOfDumpsEqual(list1, list2 []*activityDumpIdentifier) bool {
+	if len(list1) != len(list2) {
+		return false
+	}
+firstLoop:
+	for _, l1 := range list1 {
+		for _, l2 := range list2 {
+			if l1.Name == l2.Name {
+				continue firstLoop
+			}
+		}
+		return false
+	}
+	return true
 }
