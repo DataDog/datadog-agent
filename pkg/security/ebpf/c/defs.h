@@ -98,11 +98,6 @@
     if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
   #define SYSCALL_KRETPROBE_PROLOG(...)
-  #define SYSCALL_FENTRY_PROLOG(x,m,syscall,...) \
-    struct pt_regs *rctx = (struct pt_regs *) PT_REGS_PARM1(ctx); \
-    if (!rctx) return 0; \
-    __MAP(x,m,__VA_ARGS__)
-  #define SYSCALL_FEXIT_PROLOG(...)
   #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
     SYSCALL_ABI_HOOKx(x,32,type,TYPE,prefix,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
@@ -130,11 +125,6 @@
     if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
   #define SYSCALL_KRETPROBE_PROLOG(...)
-  #define SYSCALL_FENTRY_PROLOG(x,m,syscall,...) \
-    struct pt_regs *rctx = ctx; \
-    if (!rctx) return 0; \
-    __MAP(x,m,__VA_ARGS__)
-  #define SYSCALL_FEXIT_PROLOG(...)
   #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
@@ -157,11 +147,7 @@
 #define SYSCALL_KPROBE5(name, ...) SYSCALL_HOOKx(5,kprobe,KPROBE,,_##name,__VA_ARGS__)
 #define SYSCALL_KPROBE6(name, ...) SYSCALL_HOOKx(6,kprobe,KPROBE,,_##name,__VA_ARGS__)
 
-#define SYSCALL_FENTRY3(name, ...) SYSCALL_HOOKx(3,fentry,FENTRY,,_##name,__VA_ARGS__)
-
 #define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
-
-#define SYSCALL_FEXIT(name, ...) SYSCALL_HOOKx(0,fexit,FEXIT,,_##name)
 
 #define SYSCALL_COMPAT_KPROBE0(name, ...) SYSCALL_COMPAT_HOOKx(0,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_KPROBE1(name, ...) SYSCALL_COMPAT_HOOKx(1,kprobe,KPROBE,_##name,__VA_ARGS__)

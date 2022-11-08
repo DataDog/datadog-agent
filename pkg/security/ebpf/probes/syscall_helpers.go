@@ -10,6 +10,7 @@ package probes
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -222,6 +223,7 @@ func ExpandSyscallProbesFentry(probe *manager.Probe, flag int) []*manager.Probe 
 		probes = append(probes, probeCopy)
 	}
 
+	fmt.Println(probes)
 	return probes
 }
 
@@ -242,6 +244,30 @@ func ExpandSyscallProbesSelector(id manager.ProbeIdentificationPair, flag int, c
 	}
 
 	for _, section := range expandSyscallSections(id.EBPFSection, flag, compat...) {
+		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: id.UID, EBPFSection: section, EBPFFuncName: getFunctionNameFromSection(section)}}
+		selectors = append(selectors, selector)
+	}
+
+	return selectors
+}
+
+// ExpandSyscallProbesSelectorFentry returns the list of a ProbesSelector required to query all the probes available for a syscall
+func ExpandSyscallProbesSelectorFentry(id manager.ProbeIdentificationPair, flag int) []manager.ProbesSelector {
+	var selectors []manager.ProbesSelector
+
+	if len(RuntimeArch) == 0 {
+		resolveRuntimeArch()
+	}
+
+	if flag&ExpandTime32 == ExpandTime32 {
+		// check if _time32 should be expanded
+		if getSyscallPrefix() == "sys_" {
+			return selectors
+		}
+		id.EBPFSection += "_time32"
+	}
+
+	for _, section := range expandSyscallSectionsFentry(id.EBPFSection, flag) {
 		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: id.UID, EBPFSection: section, EBPFFuncName: getFunctionNameFromSection(section)}}
 		selectors = append(selectors, selector)
 	}

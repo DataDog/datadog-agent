@@ -45,8 +45,10 @@ SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-SYSCALL_FENTRY3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
-    return trace__sys_chmod(mode);
+SEC("fentry/__arm64_sys_fchmodat")
+int BPF_PROG(fentry__64_sys_fchmodat, int dirfd, const char* filename /* umode_t mode, int flags */) {
+    // return trace__sys_chmod(mode);
+    return 0;
 }
 
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
@@ -95,7 +97,8 @@ SYSCALL_KRETPROBE(fchmod) {
     return kprobe_sys_chmod_ret(ctx);
 }
 
-SYSCALL_FEXIT(fchmodat) {
+SEC("fexit/__arm64_sys_fchmodat")
+int BPF_PROG(fexit__64_sys_fchmodat, int dirfd, const char* filename, umode_t mode, int flags, int retval) {
     return sys_chmod_ret(ctx, 0);
 }
 

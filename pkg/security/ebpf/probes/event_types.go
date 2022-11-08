@@ -354,7 +354,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchmod"}, EntryAndExit),
 				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelectorFentry(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchmodat"}, EntryAndExit),
 				},
 			},
