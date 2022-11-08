@@ -20,4 +20,4 @@ functional_test_junit_upload:
     - set +x
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - for f in $DD_AGENT_TESTING_DIR/kitchen-junit-*.tgz; do if [ -f "$f" ]; then inv -e junit-upload --tgz-path "$f"; fi; done
+    - for f in $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz; do inv -e junit-upload --tgz-path $f; done
