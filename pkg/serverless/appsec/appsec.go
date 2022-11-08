@@ -23,15 +23,6 @@ type AppSec struct {
 	eventsRateLimiter *TokenTicker
 }
 
-// Context of security monitoring execution. Usually one per request to monitor.
-type Context struct {
-	// Pointer to the AppSec instance containing the WAF rules instance and the
-	// AppSec configuration.
-	instance *AppSec
-	// Map of security rules' addresses and their values.
-	addresses map[string]interface{}
-}
-
 // New returns a new AppSec instance if it is enabled with the DD_APPSEC_ENABLED
 // env var. An error is returned when AppSec couldn't be started due to
 // compilation or configuration errors. When AppSec is not enabled, the returned
