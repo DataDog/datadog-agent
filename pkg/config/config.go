@@ -281,6 +281,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("fips.enabled", false)
 	config.BindEnvAndSetDefault("fips.port_range_start", 3833)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
+	config.BindEnvAndSetDefault("fips.ssl", false)
+	config.BindEnvAndSetDefault("fips.skip_ssl_validation", true)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
@@ -1538,8 +1540,17 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
-	// HTTP for now, will soon be updated to HTTPS
+	// HTTP is the default for now, will soon be updated to HTTPS
 	protocol := "http://"
+	if config.GetBool("fips.ssl") {
+		protocol = "https://"
+	}
+
+	// For now 'fips.skip_ssl_validation' is an alias to 'skip_ssl_validation'. But as we expend support to more
+	// Datadog products in the Agent this option might cover more ground.
+	if config.GetBool("fips.ssl") {
+		config.Set("skip_ssl_validation", config.GetBool("fips.skip_ssl_validation"))
+	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
@@ -1557,7 +1568,7 @@ func setupFipsEndpoints(config Config) error {
 
 	// Logs
 	config.Set("logs_config.use_http", true)
-	config.Set("logs_config.logs_no_ssl", true)
+	config.Set("logs_config.logs_no_ssl", !config.GetBool("fips.ssl"))
 	config.Set("logs_config.logs_dd_url", urlFor(logs))
 
 	// Database monitoring

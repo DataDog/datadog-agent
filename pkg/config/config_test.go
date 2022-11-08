@@ -1175,18 +1175,19 @@ proxy:
 	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.profiling_dd_url"))
 	assert.Equal(t, expectedHTTPURL, testConfig.GetString("apm_config.telemetry.dd_url"))
 	assert.Equal(t, expectedHTTPURL, testConfig.GetString("process_config.process_dd_url"))
-	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
-	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.False(t, testConfig.GetBool("logs_config.use_http"))
+	assert.False(t, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, expectedURL, testConfig.GetString("logs_config.logs_dd_url"))
 	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.metrics.dd_url"))
 	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.activity.dd_url"))
 	assert.Equal(t, expectedURL, testConfig.GetString("database_monitoring.samples.dd_url"))
 	assert.Equal(t, expectedURL, testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.False(t, testConfig.GetBool("skip_ssl_validation"))
 	assert.NotNil(t, GetProxies())
 	// reseting proxies
 	proxies = nil
 
-	datadogYaml += `
+	datadogYamlFips := datadogYaml + `
 fips:
   enabled: true
   local_address: localhost
@@ -1195,7 +1196,7 @@ fips:
 
 	expectedURL = "localhost:50"
 	expectedHTTPURL = "http://" + expectedURL
-	testConfig = setupConfFromYAML(datadogYaml)
+	testConfig = setupConfFromYAML(datadogYamlFips)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -1205,13 +1206,47 @@ fips:
 	assert.Equal(t, expectedHTTPURL+"03", testConfig.GetString("apm_config.profiling_dd_url"))
 	assert.Equal(t, expectedHTTPURL+"10", testConfig.GetString("apm_config.telemetry.dd_url"))
 	assert.Equal(t, expectedHTTPURL+"04", testConfig.GetString("process_config.process_dd_url"))
-	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
-	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.True(t, testConfig.GetBool("logs_config.use_http"))
+	assert.True(t, testConfig.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, expectedURL+"05", testConfig.GetString("logs_config.logs_dd_url"))
 	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.metrics.dd_url"))
 	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.activity.dd_url"))
 	assert.Equal(t, expectedURL+"07", testConfig.GetString("database_monitoring.samples.dd_url"))
 	assert.Equal(t, expectedURL+"08", testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.False(t, testConfig.GetBool("skip_ssl_validation"))
+	assert.Nil(t, GetProxies())
+	// reseting proxies
+	proxies = nil
+
+	datadogYamlFipsSSL := datadogYaml + `
+fips:
+  enabled: true
+  local_address: localhost
+  port_range_start: 5000
+  ssl: true
+  skip_ssl_validation: true
+`
+
+	expectedURL = "localhost:50"
+	expectedHTTPURL = "https://" + expectedURL
+	testConfig = setupConfFromYAML(datadogYamlFipsSSL)
+	LoadProxyFromEnv(testConfig)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedHTTPURL+"01", testConfig.GetString("dd_url"))
+	assert.Equal(t, expectedHTTPURL+"02", testConfig.GetString("apm_config.apm_dd_url"))
+	assert.Equal(t, expectedHTTPURL+"03", testConfig.GetString("apm_config.profiling_dd_url"))
+	assert.Equal(t, expectedHTTPURL+"10", testConfig.GetString("apm_config.telemetry.dd_url"))
+	assert.Equal(t, expectedHTTPURL+"04", testConfig.GetString("process_config.process_dd_url"))
+	assert.True(t, testConfig.GetBool("logs_config.use_http"))
+	assert.False(t, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, expectedURL+"05", testConfig.GetString("logs_config.logs_dd_url"))
+	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.metrics.dd_url"))
+	assert.Equal(t, expectedURL+"06", testConfig.GetString("database_monitoring.activity.dd_url"))
+	assert.Equal(t, expectedURL+"07", testConfig.GetString("database_monitoring.samples.dd_url"))
+	assert.Equal(t, expectedURL+"08", testConfig.GetString("network_devices.metadata.dd_url"))
+	assert.True(t, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, GetProxies())
 }
 
