@@ -168,6 +168,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
             "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
             "kheaders": kheaders,
         },
+        is_core=True,
     )
     outfiles.append(outfile)
 
@@ -182,6 +183,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
             "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
             "kheaders": kheaders,
         },
+        is_core=True,
     )
     outfiles.append(syscall_wrapper_outfile)
 
