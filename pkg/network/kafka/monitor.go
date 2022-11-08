@@ -10,6 +10,8 @@ package kafka
 
 import (
 	"fmt"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -21,13 +23,13 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
-//// MonitorStats is used for holding two kinds of stats:
-//// * requestsStats which are the http data stats
-//// * telemetry which are telemetry stats
-//type MonitorStats struct {
-//	requestStats map[Key]*RequestStats
-//	telemetry    telemetry
-//}
+// MonitorStats is used for holding two kinds of stats:
+// * requestsStats which are the kafka data stats
+// * telemetry which are telemetry stats
+type MonitorStats struct {
+	requestStats map[Key]*RequestStats
+	telemetry    telemetry
+}
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -35,14 +37,14 @@ import (
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	//handler func([]httpTX)
+	handler func([]kafkaTX)
 
-	ebpfProgram *ebpfProgram
-	//batchManager           *batchManager
-	//batchCompletionHandler *ddebpf.PerfHandler
-	//telemetry              *telemetry
-	//telemetrySnapshot      *telemetry
-	//pollRequests           chan chan MonitorStats
+	ebpfProgram            *ebpfProgram
+	batchManager           *batchManager
+	batchCompletionHandler *ddebpf.PerfHandler
+	telemetry              *telemetry
+	// telemetrySnapshot      *telemetry
+	pollRequests chan chan map[Key]*RequestStats
 	//statkeeper             *httpStatKeeper
 
 	// termination
@@ -73,45 +75,46 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	//batchMap, _, err := mgr.GetMap(httpBatchesMap)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//batchEventsMap, _, _ := mgr.GetMap(httpBatchEvents)
-	//numCPUs := int(batchEventsMap.MaxEntries())
-	//
-	//telemetry, err := newTelemetry()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//statkeeper := newHTTPStatkeeper(c, telemetry)
-	//
-	//handler := func(transactions []httpTX) {
-	//	if statkeeper != nil {
-	//		statkeeper.Process(transactions)
-	//	}
-	//}
-	//
-	//batchManager, err := newBatchManager(batchMap, numCPUs)
-	//if err != nil {
-	//	return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
-	//}
+	batchMap, _, err := mgr.GetMap(kafkaBatchesMap)
+	if err != nil {
+		return nil, err
+	}
+
+	batchEventsMap, _, _ := mgr.GetMap(kafkaBatchEvents)
+	numCPUs := int(batchEventsMap.MaxEntries())
+
+	telemetry, err := newTelemetry()
+	if err != nil {
+		return nil, err
+	}
+	//statkeeper := newKAFKAStatkeeper(c, telemetry)
+
+	handler := func(transactions []kafkaTX) {
+		log.Debug("in handler")
+		//if statkeeper != nil {
+		//	statkeeper.Process(transactions)
+		//}
+	}
+
+	batchManager, err := newBatchManager(batchMap, numCPUs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
+	}
 
 	return &Monitor{
-		//handler:                handler,
-		ebpfProgram: mgr,
-		//batchManager:           batchManager,
-		//batchCompletionHandler: mgr.batchCompletionHandler,
-		//telemetry:              telemetry,
+		handler:                handler,
+		ebpfProgram:            mgr,
+		batchManager:           batchManager,
+		batchCompletionHandler: mgr.batchCompletionHandler,
+		telemetry:              telemetry,
 		//telemetrySnapshot:      nil,
-		//pollRequests:           make(chan chan MonitorStats),
+		pollRequests:  make(chan chan map[Key]*RequestStats),
 		closeFilterFn: closeFilterFn,
 		//statkeeper:             statkeeper,
 	}, nil
 }
 
-// Start consuming HTTP events
+// Start consuming KAFKA events
 func (m *Monitor) Start() error {
 	if m == nil {
 		return nil
@@ -121,70 +124,62 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	//m.eventLoopWG.Add(1)
-	//go func() {
-	//	defer m.eventLoopWG.Done()
-	//	for {
-	//		select {
-	//		case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
-	//			if !ok {
-	//				return
-	//			}
-	//
-	//			transactions, err := m.batchManager.GetTransactionsFrom(dataEvent)
-	//			m.process(transactions, err)
-	//			dataEvent.Done()
-	//		case _, ok := <-m.batchCompletionHandler.LostChannel:
-	//			if !ok {
-	//				return
-	//			}
-	//
-	//			m.process(nil, errLostBatch)
-	//		case reply, ok := <-m.pollRequests:
-	//			if !ok {
-	//				return
-	//			}
-	//
-	//			transactions := m.batchManager.GetPendingTransactions()
-	//			m.process(transactions, nil)
-	//
-	//			delta := m.telemetry.reset()
-	//
-	//			// For now, we still want to report the telemetry as it contains more information than what
-	//			// we're extracting via network tracer.
-	//			delta.report()
-	//
-	//			reply <- MonitorStats{
-	//				requestStats: m.statkeeper.GetAndResetAllStats(),
-	//				telemetry:    delta,
-	//			}
-	//		}
-	//	}
-	//}()
+	m.eventLoopWG.Add(1)
+	go func() {
+		defer m.eventLoopWG.Done()
+		for {
+			select {
+			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
+				if !ok {
+					return
+				}
+
+				transactions, err := m.batchManager.GetTransactionsFrom(dataEvent)
+				m.process(transactions, err)
+				dataEvent.Done()
+			case _, ok := <-m.batchCompletionHandler.LostChannel:
+				if !ok {
+					return
+				}
+
+				m.process(nil, errLostBatch)
+			case reply, ok := <-m.pollRequests:
+				if !ok {
+					return
+				}
+
+				transactions := m.batchManager.GetPendingTransactions()
+				m.process(transactions, nil)
+
+				m.telemetry.log()
+				_ = reply
+				reply <- m.statkeeper.GetAndResetAllStats()
+			}
+		}
+	}()
 
 	return nil
 }
 
-//// GetHTTPStats returns a map of HTTP stats stored in the following format:
-//// [source, dest tuple, request path] -> RequestStats object
-//func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
-//	if m == nil {
-//		return nil
-//	}
-//
-//	m.mux.Lock()
-//	defer m.mux.Unlock()
-//	if m.stopped {
-//		return nil
-//	}
-//
-//	reply := make(chan MonitorStats, 1)
-//	defer close(reply)
-//	m.pollRequests <- reply
-//	stats := <-reply
-//	m.telemetrySnapshot = &stats.telemetry
-//	return stats.requestStats
-//}
+// GetKafkaStats returns a map of Kafka stats stored in the following format:
+// [source, dest tuple, request path] -> RequestStats object
+func (m *Monitor) GetKafkaStats() map[Key]*RequestStats {
+	if m == nil {
+		return nil
+	}
+
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.stopped {
+		return nil
+	}
+
+	reply := make(chan map[Key]*RequestStats, 1)
+	defer close(reply)
+	m.pollRequests <- reply
+	return <-reply
+}
+
 //
 //// GetStats returns the telemetry
 //func (m *Monitor) GetStats() map[string]interface{} {
@@ -220,18 +215,18 @@ func (m *Monitor) Stop() {
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
-	//close(m.pollRequests)
+	close(m.pollRequests)
 	m.eventLoopWG.Wait()
 	m.stopped = true
 }
 
-//func (m *Monitor) process(transactions []httpTX, err error) {
-//	m.telemetry.aggregate(transactions, err)
-//
-//	if m.handler != nil && len(transactions) > 0 {
-//		m.handler(transactions)
-//	}
-//}
+func (m *Monitor) process(transactions []kafkaTX, err error) {
+	m.telemetry.aggregate(transactions, err)
+
+	if m.handler != nil && len(transactions) > 0 {
+		m.handler(transactions)
+	}
+}
 
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
