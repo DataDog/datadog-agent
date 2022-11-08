@@ -110,7 +110,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # read additional tags
         tagsfile = os.path.join(unpack_dir, TAGS_FILE_NAME)
         if os.path.exists(tagsfile):
-            with open() as tf:
+            with open(tagsfile) as tf:
                 tags = tf.read().split()
         # read job url (see comment in produce_junit_tar)
         with open(os.path.join(unpack_dir, JOB_URL_FILE_NAME)) as jf:
