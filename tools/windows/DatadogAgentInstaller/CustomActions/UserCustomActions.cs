@@ -28,7 +28,6 @@ namespace Datadog.CustomActions
             // We still want to default to local accounts for domain clients
             // though, so we must also check if this computer is a domain controller
             // for this domain.
-            string machineName = $"{Environment.MachineName}";
             try
             {
                 var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
@@ -45,7 +44,7 @@ namespace Datadog.CustomActions
             {
                 // not joined to a domain, use the machine name
             }
-            return $"{Environment.MachineName}";
+            return Environment.MachineName;
         }
 
         private static ActionResult ProcessDdAgentUserCredentials(ISession session)
