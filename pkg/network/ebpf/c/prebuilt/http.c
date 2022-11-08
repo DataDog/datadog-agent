@@ -18,75 +18,11 @@
 #include "skb.h"
 
 #include "sock.h"
+#include "http2.h"
+#include "protocol-classification-helpers.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
-#define HTTP2_MARKER_SIZE 24
-// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
-#define HTTP2_FRAME_HEADER_SIZE 9
-// A limit of max frames we will upload from a single connection to the user mode.
-#define HTTP2_MAX_FRAMES 40
-
-
-// All types of http2 frames exist in the protocol.
-// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Type Registry" section.
-enum frame_type_t {
-    kDataFrame          = 0,
-    kHeadersFrame       = 1,
-    kPriorityFrame      = 2,
-    kRSTStreamFrame     = 3,
-    kSettingsFrame      = 4,
-    kPushPromiseFrame   = 5,
-    kPingFrame          = 6,
-    kGoAwayFrame        = 7,
-    kWindowUpdateFrame  = 8,
-    kContinuationFrame  = 9,
-};
-
-struct http2_frame {
-    uint32_t length;
-    enum frame_type_t type;
-    uint8_t flags;
-    uint32_t stream_id;
-};
-
-static __always_inline uint32_t as_uint32_t(unsigned char input) {
-    return (uint32_t)input;
-}
-
-static __always_inline bool is_empty_buffer(const char *buf, size_t buf_size) {
-    for (size_t i = 0; i < buf_size; i++) {
-        if (buf[i] != 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_size, struct http2_frame *out) {
-    if (buf == NULL) {
-        return false;
-    }
-
-    if (buf_size < HTTP2_FRAME_HEADER_SIZE) {
-        return false;
-    }
-
-    if (is_empty_buffer((const char *)buf, HTTP2_FRAME_HEADER_SIZE)) {
-        return false;
-    }
-
-    out->length = as_uint32_t(buf[0])<<16 | as_uint32_t(buf[1])<<8 | as_uint32_t(buf[2]);
-    out->type = (enum frame_type_t)buf[3];
-    out->flags = (uint8_t)buf[4];
-    out->stream_id = (as_uint32_t(buf[5]) << 24 |
-                      as_uint32_t(buf[6]) << 16 |
-                      as_uint32_t(buf[7]) << 8 |
-                      as_uint32_t(buf[8])) & 2147483647;
-
-    return true;
-}
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
@@ -120,37 +56,28 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
-static __always_inline bool http2_marker_prefix(const char* buf) {
-    volatile bool match = buf[0]=='P' && buf[1]=='R' && buf[2]=='I' && buf[3]==' ' && buf[4]=='*' && buf[5]==' ' &&
-        buf[6]=='H' && buf[7]=='T' && buf[8]=='T';
-    return match;
-}
-
-static __always_inline bool http2_marker_suffix(const char* buf) {
-    volatile bool match = buf[0]=='P' && buf[1]=='/' && buf[2]=='2' && buf[3]=='.' &&
-        buf[4]=='0' && buf[5]=='\r' && buf[6]=='\n' && buf[7]=='\r' && buf[8]=='\n' && buf[9]=='S' &&
-        buf[10]=='M' && buf[11]=='\r' && buf[12]=='\n' && buf[13]=='\r' && buf[14]=='\n';
-    return match;
-}
-
-static __always_inline void perf_submit_http2_frames(size_t pos, struct __sk_buff *skb) {
+static __always_inline void filter_http2_frames(struct __sk_buff *skb, size_t pos) {
     struct http2_frame current_frame = {};
     char buf[HTTP2_FRAME_HEADER_SIZE];
 
 #pragma unroll
+    // iterate till max frames to avoid high connection rate.
     for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; ++i) {
         if (pos + HTTP2_FRAME_HEADER_SIZE > skb->len) {
           return;
         }
 
+        // load the current HTTP2_FRAME_HEADER_SIZE into the buffer.
         bpf_skb_load_bytes(skb, pos, buf, HTTP2_FRAME_HEADER_SIZE);
         pos += HTTP2_FRAME_HEADER_SIZE;
 
+        // load the current frame into http2_frame strct in order to filter the needed frames.
         if (!read_http2_frame_header(buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
             log_debug("unable to read http2 frame header");
             break;
         }
 
+        // filter all types of frames except header frame.
         if (current_frame.type != kHeadersFrame) {
             pos += (__u32)current_frame.length;
             continue;
@@ -172,23 +99,28 @@ int socket__http2_filter(struct __sk_buff *skb) {
     }
     size_t pos = skb_info.data_off;
 
+    // load the first HTTP2_FRAME_HEADER_SIZE into a buffer.
     char buf[HTTP2_FRAME_HEADER_SIZE];
     bpf_skb_load_bytes(skb, skb_info.data_off, buf, HTTP2_FRAME_HEADER_SIZE);
 
+    // check if the current buf is the http2 magic (* HTTP/2.0\r\n\r\nSM\r\n\r\n) prefix
     if (http2_marker_prefix(buf)) {
         char marker_buf[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE];
         bpf_skb_load_bytes(skb, skb_info.data_off + HTTP2_FRAME_HEADER_SIZE, marker_buf, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE);
+        // validate that the extra 15 bytes after the prefix is the suffix of the magic.
         if (http2_marker_suffix(marker_buf)) {
             log_debug("http2 magic was found");
         }
+        // validate that there are more frames after the magic.
         if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
           return 0;
         }
 
+        // update the position to be after the magic.
         pos += HTTP2_MARKER_SIZE;
     }
 
-    perf_submit_http2_frames(pos, skb);
+    filter_http2_frames(skb, pos);
     return 0;
 }
 

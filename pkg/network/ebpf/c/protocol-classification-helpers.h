@@ -22,19 +22,36 @@ long bpf_skb_load_bytes(const void *skb, u32 offset, void *to, u32 len) {return 
             return false;                                                   \
         }                                                                   \
 
+// The method checks if the given buffer includes the prefix of the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+static __always_inline bool http2_marker_prefix(const char* buf) {
+    // Unfortunately, the compiler tries to outsmart and causes the verifier on older kernels to think we have more
+    // than a millions possible instructions in the code and thus it fails to verify and load it.
+    // Using volatile parameter to tell the compiler to not optimize the code.
+    volatile bool match = buf[0]=='P' && buf[1]=='R' && buf[2]=='I' && buf[3]==' ' && buf[4]=='*' && buf[5]==' ' &&
+        buf[6]=='H' && buf[7]=='T' && buf[8]=='T';
+    return match;
+}
+
+// The method checks if the given buffer includes the suffix of the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+static __always_inline bool http2_marker_suffix(const char* buf) {
+    // Unfortunately, the compiler tries to outsmart and causes the verifier on older kernels to think we have more
+    // than a millions possible instructions in the code and thus it fails to verify and load it.
+    // Using volatile parameter to tell the compiler to not optimize the code.
+    volatile bool match = buf[0]=='P' && buf[1]=='/' && buf[2]=='2' && buf[3]=='.' &&
+        buf[4]=='0' && buf[5]=='\r' && buf[6]=='\n' && buf[7]=='\r' && buf[8]=='\n' && buf[9]=='S' &&
+        buf[10]=='M' && buf[11]=='\r' && buf[12]=='\n' && buf[13]=='\r' && buf[14]=='\n';
+    return match;
+}
+
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
 
-    // Unfortunately, the compiler tries to outsmart and causes the verifier on older kernels to think we have more
-    // than a millions possible instructions in the code and thus it fails to verify and load it.
-    // Using volatile parameter to tell the compiler to not optimize the code.
-    volatile bool match = buf[0]=='P' && buf[1]=='R' && buf[2]=='I' && buf[3]==' ' && buf[4]=='*' && buf[5]==' ' &&
-        buf[6]=='H' && buf[7]=='T' && buf[8]=='T' && buf[9]=='P' && buf[10]=='/' && buf[11]=='2' && buf[12]=='.' &&
-        buf[13]=='0' && buf[14]=='\r' && buf[15]=='\n' && buf[16]=='\r' && buf[17]=='\n' && buf[18]=='S' &&
-        buf[19]=='M' && buf[20]=='\r' && buf[21]=='\n' && buf[22]=='\r' && buf[23]=='\n';
-    return match;
+    if http2_marker_prefix(buf[HTTP2_FRAME_HEADER_SIZE]){
+        return http2_marker_suffix(buf[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE])
+    }
+    return false;
 }
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
