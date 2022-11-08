@@ -214,6 +214,7 @@ func TestMatching(t *testing.T) {
 	matches, actions, err = wafCtx.Run(map[string]interface{}{}, time.Second)
 	require.NoError(t, err)
 	require.Nil(t, matches)
+	require.Nil(t, actions)
 
 	wafCtx.Close()
 	waf.Close()
@@ -524,7 +525,6 @@ func TestConcurrency(t *testing.T) {
 					matches, _, err := wafCtx.Run(data, time.Minute)
 					if err != nil {
 						panic(err)
-						return
 					}
 					if len(matches) > 0 {
 						panic(fmt.Errorf("c=%d matches=`%v`", c, string(matches)))
@@ -1298,7 +1298,7 @@ func TestEncoder(t *testing.T) {
 				require.Equal(t, len(gobuf), int(wo.nbEntries), "bad waf value length")
 				for i, gobyte := range gobuf {
 					// Go pointer arithmetic for cbyte := cbuf[i]
-					cbyte := *(*uint8)(unsafe.Pointer(cbuf + uintptr(i)))
+					cbyte := *(*uint8)(unsafe.Pointer(cbuf + uintptr(i))) //nolint:govet
 					if cbyte != gobyte {
 						t.Fatalf("bad waf string value content: i=%d cbyte=%d gobyte=%d", i, cbyte, gobyte)
 					}

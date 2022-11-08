@@ -845,7 +845,7 @@ func (v *wafObject) index(i C.uint64_t) *wafObject {
 	}
 	// Go pointer arithmetic equivalent to the C expression `a->value.array[i]`
 	base := uintptr(unsafe.Pointer(*v.arrayValuePtr()))
-	return (*wafObject)(unsafe.Pointer(base + C.sizeof_ddwaf_object*uintptr(i)))
+	return (*wafObject)(unsafe.Pointer(base + C.sizeof_ddwaf_object*uintptr(i))) //nolint:govet
 }
 
 // Helper functions for testing, where direct cgo import is not allowed
@@ -962,7 +962,8 @@ func freeWAFResult(result *C.ddwaf_result) {
 // Helper function to access to i-th element of the given **C.char array.
 func cindexCharPtrArray(array **C.char, i int) *C.char {
 	// Go pointer arithmetic equivalent to the C expression `array[i]`
-	return *(**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(array)) + unsafe.Sizeof((*C.char)(nil))*uintptr(i)))
+	base := uintptr(unsafe.Pointer(array))
+	return *(**C.char)(unsafe.Pointer(base + unsafe.Sizeof((*C.char)(nil))*uintptr(i))) //nolint:govet
 }
 
 // Atomic reference counter helper initialized at 1 so that 0 is the special
