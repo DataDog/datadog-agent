@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adding the date pattern `2021/07/08 05:08:19,214` to the Agent automatic multiline detection feature.
