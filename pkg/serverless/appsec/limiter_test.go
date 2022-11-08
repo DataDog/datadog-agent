@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"math"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestLimiterUnit(t *testing.T) {
@@ -105,7 +105,7 @@ func TestLimiterUnit(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			startTime = startTime.Add(time.Millisecond)
 			l.tick(startTime)
-			require.Equalf(t, int64(100), atomic.LoadInt64(&l.t.tokens), "Bucket should have exactly 100 tokens")
+			require.Equalf(t, int64(100), l.t.tokens.Load(), "Bucket should have exactly 100 tokens")
 		}
 	})
 
@@ -118,7 +118,7 @@ func TestLimiterUnit(t *testing.T) {
 			startTime = startTime.Add(3 * time.Second)
 			l.tick(startTime)
 		}
-		require.Equalf(t, int64(100), atomic.LoadInt64(&l.t.tokens), "Bucket should have exactly 100 tokens")
+		require.Equalf(t, int64(100), l.t.tokens.Load(), "Bucket should have exactly 100 tokens")
 	})
 
 	t.Run("allow-after-stop", func(t *testing.T) {
@@ -160,20 +160,19 @@ func TestLimiter(t *testing.T) {
 				startBarrier.Add(1)
 				// Create a stopBarrier to signal when all user goroutines are done.
 				stopBarrier.Add(nbUsers)
-				skipped := int64(0)
-				kept := int64(0)
+				var skipped, kept atomic.Uint64
 				l := NewTokenTicker(0, 100)
 
 				for n := 0; n < nbUsers; n++ {
-					go func(l Limiter, kept *int64, skipped *int64) {
+					go func(l Limiter, kept, skipped *atomic.Uint64) {
 						startBarrier.Wait()      // Sync the starts of the goroutines
 						defer stopBarrier.Done() // Signal we are done when returning
 
 						for tStart := time.Now(); time.Since(tStart) < 1*time.Second; {
 							if !l.Allow() {
-								atomic.AddInt64(skipped, 1)
+								skipped.Inc()
 							} else {
-								atomic.AddInt64(kept, 1)
+								kept.Inc()
 							}
 						}
 					}(l, &kept, &skipped)
@@ -185,9 +184,9 @@ func TestLimiter(t *testing.T) {
 				startBarrier.Done() // Unblock the user goroutines
 				stopBarrier.Wait()  // Wait for the user goroutines to be done
 				duration := time.Since(start).Seconds()
-				maxExpectedKept := int64(math.Ceil(duration) * 100)
+				maxExpectedKept := uint64(math.Ceil(duration) * 100)
 
-				require.LessOrEqualf(t, kept, maxExpectedKept,
+				require.LessOrEqualf(t, kept.Load(), maxExpectedKept,
 					"Expected at most %d kept tokens for a %fs duration", maxExpectedKept, duration)
 			})
 		}
@@ -233,8 +232,7 @@ func TestLimiter(t *testing.T) {
 func BenchmarkLimiter(b *testing.B) {
 	for nbUsers := 1; nbUsers <= 1000; nbUsers *= 10 {
 		b.Run(fmt.Sprintf("%d-users", nbUsers), func(b *testing.B) {
-			var skipped int64
-			var kept int64
+			var skipped, kept atomic.Uint64
 			limiter := NewTokenTicker(0, 100)
 			limiter.Start()
 			defer limiter.Stop()
@@ -249,15 +247,15 @@ func BenchmarkLimiter(b *testing.B) {
 				stopBarrier.Add(nbUsers)
 
 				for n := 0; n < nbUsers; n++ {
-					go func(l Limiter, kept *int64, skipped *int64) {
+					go func(l Limiter, kept, skipped *atomic.Uint64) {
 						startBarrier.Wait()      // Sync the starts of the goroutines
 						defer stopBarrier.Done() // Signal we are done when returning
 
 						for i := 0; i < 100; i++ {
 							if !l.Allow() {
-								atomic.AddInt64(skipped, 1)
+								skipped.Inc()
 							} else {
-								atomic.AddInt64(kept, 1)
+								kept.Inc()
 							}
 						}
 					}(limiter, &kept, &skipped)

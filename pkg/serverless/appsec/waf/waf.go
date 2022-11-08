@@ -30,10 +30,11 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 	"unsafe"
+
+	"go.uber.org/atomic"
 
 	// Do not remove the following imports which allow supporting package
 	// vendoring by properly copying all the files needed by CGO: the libddwaf
@@ -73,7 +74,7 @@ type Handle struct {
 	// time with their own set of rules. This choice was done to be able to
 	// efficiently update the security rules concurrently, without having to
 	// block the request handlers for the time of the security rules update.
-	refCounter atomicRefCounter
+	refCounter *atomicRefCounter
 
 	// RWMutex protecting the R/W accesses to the internal rules data (stored
 	// in the handle).
@@ -168,7 +169,7 @@ func NewHandle(jsonRule []byte, keyRegex, valueRegex string) (*Handle, error) {
 	}
 	return &Handle{
 		handle:      handle,
-		refCounter:  1,
+		refCounter:  (*atomicRefCounter)(atomic.NewUint32(1)),
 		encoder:     encoder,
 		addresses:   addresses,
 		rulesetInfo: rInfo,
@@ -857,14 +858,14 @@ func toCUint64(v uint) C.uint64_t {
 
 // nbLiveCObjects is a simple monitoring of the number of C allocations.
 // Tests can read the value to check the count is back to 0.
-var nbLiveCObjects uint64
+var nbLiveCObjects atomic.Uint64
 
 func incNbLiveCObjects() {
-	atomic.AddUint64(&nbLiveCObjects, 1)
+	nbLiveCObjects.Inc()
 }
 
 func decNbLiveCObjects() {
-	atomic.AddUint64(&nbLiveCObjects, ^uint64(0))
+	nbLiveCObjects.Dec()
 }
 
 // gostring returns the Go version of the C string `str`, copying at most `len` bytes from the original string.
@@ -961,16 +962,15 @@ func freeWAFResult(result *C.ddwaf_result) {
 // Helper function to access to i-th element of the given **C.char array.
 func cindexCharPtrArray(array **C.char, i int) *C.char {
 	// Go pointer arithmetic equivalent to the C expression `array[i]`
-	base := uintptr(unsafe.Pointer(array))
-	return *(**C.char)(unsafe.Pointer(base + unsafe.Sizeof((*C.char)(nil))*uintptr(i)))
+	return *(**C.char)(unsafe.Pointer(uintptr(unsafe.Pointer(array)) + unsafe.Sizeof((*C.char)(nil))*uintptr(i)))
 }
 
 // Atomic reference counter helper initialized at 1 so that 0 is the special
 // value meaning that the object was released and is no longer usable.
-type atomicRefCounter uint32
+type atomicRefCounter atomic.Uint32
 
-func (c *atomicRefCounter) unwrap() *uint32 {
-	return (*uint32)(c)
+func (c *atomicRefCounter) unwrap() *atomic.Uint32 {
+	return (*atomic.Uint32)(c)
 }
 
 // Add delta to reference counter.
@@ -979,13 +979,13 @@ func (c *atomicRefCounter) unwrap() *uint32 {
 func (c *atomicRefCounter) add(delta uint32) uint32 {
 	addr := c.unwrap()
 	for {
-		current := atomic.LoadUint32(addr)
+		current := addr.Load()
 		if current == 0 {
 			// The object was released
 			return 0
 		}
 		new := current + delta
-		if swapped := atomic.CompareAndSwapUint32(addr, current, new); swapped {
+		if swapped := addr.CompareAndSwap(current, new); swapped {
 			return new
 		}
 	}

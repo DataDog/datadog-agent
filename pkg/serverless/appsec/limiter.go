@@ -6,8 +6,9 @@
 package appsec
 
 import (
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 // Limiter is used to abstract the rate limiter implementation to only expose the needed function for rate limiting.
@@ -24,7 +25,7 @@ type Limiter interface {
 // TokenTicker.Allow() and TokenTicker.Stop() *must* be called once done using. Note that calling TokenTicker.Allow()
 // before TokenTicker.Start() is valid, but it means the bucket won't be refilling until the call to TokenTicker.Start() is made
 type TokenTicker struct {
-	tokens    int64
+	tokens    atomic.Int64
 	maxTokens int64
 	ticker    *time.Ticker
 	stopChan  chan struct{}
@@ -33,7 +34,7 @@ type TokenTicker struct {
 // NewTokenTicker is a utility function that allocates a token ticker, initializes necessary fields and returns it
 func NewTokenTicker(tokens, maxTokens int64) *TokenTicker {
 	return &TokenTicker{
-		tokens:    tokens,
+		tokens:    *atomic.NewInt64(tokens),
 		maxTokens: maxTokens,
 	}
 }
@@ -64,7 +65,7 @@ func (t *TokenTicker) updateBucket(ticksChan <-chan time.Time, startTime time.Ti
 			if elapsedNs >= nsPerToken {
 				// Atomic spin lock to make sure we don't race for `t.tokens`
 				for {
-					tokens := atomic.LoadInt64(&t.tokens)
+					tokens := t.tokens.Load()
 					if tokens == t.maxTokens {
 						break // Bucket is already full, nothing to do
 					}
@@ -73,7 +74,7 @@ func (t *TokenTicker) updateBucket(ticksChan <-chan time.Time, startTime time.Ti
 					if tokens+inc > t.maxTokens {
 						inc -= (tokens + inc) % t.maxTokens
 					}
-					if atomic.CompareAndSwapInt64(&t.tokens, tokens, tokens+inc) {
+					if t.tokens.CompareAndSwap(tokens, tokens+inc) {
 						// Keep track of remaining elapsed ns that were not taken into account for this computation,
 						// so that increment computation remains precise over time
 						elapsedNs = elapsedNs % nsPerToken
@@ -130,10 +131,10 @@ func (t *TokenTicker) Stop() {
 // Thread-safe.
 func (t *TokenTicker) Allow() bool {
 	for {
-		tokens := atomic.LoadInt64(&t.tokens)
+		tokens := t.tokens.Load()
 		if tokens == 0 {
 			return false
-		} else if atomic.CompareAndSwapInt64(&t.tokens, tokens, tokens-1) {
+		} else if t.tokens.CompareAndSwap(tokens, tokens-1) {
 			return true
 		}
 	}
