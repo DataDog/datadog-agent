@@ -110,20 +110,3 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 		PathResolutionError: pathResolutionError.Error(),
 	})
 }
-
-// SelfTestEvent is used to report a self test result
-// easyjson:json
-type SelfTestEvent struct {
-	Timestamp time.Time `json:"date"`
-	Success   []string  `json:"succeeded_tests"`
-	Fails     []string  `json:"failed_tests"`
-}
-
-// NewSelfTestEvent returns the rule and the result of the self test
-func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.SelfTestRuleID), events.NewCustomEvent(model.CustomSelfTestEventType, SelfTestEvent{
-		Timestamp: time.Now(),
-		Success:   success,
-		Fails:     fails,
-	})
-}

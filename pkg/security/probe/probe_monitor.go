@@ -16,10 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -171,29 +167,6 @@ func (m *Monitor) ProcessEvent(event *Event) {
 			m.activityDumpManager.ProcessEvent(event)
 		}
 	}
-}
-
-// SelfTestReport represents the rule and the custom event related to a SelfTest event; ready to be dispatched
-type SelfTestReport struct {
-	Rule  *rules.Rule
-	Event *events.CustomEvent
-}
-
-// ReportSelfTest reports to Datadog that a self test was performed
-func (m *Monitor) ReportSelfTest(success []string, fails []string) {
-	// send metric with number of success and fails
-	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
-	}
-	if err := m.probe.StatsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
-		log.Error(fmt.Errorf("failed to send self_test metric: %w", err))
-	}
-
-	// send the custom event with the list of succeed and failed self tests
-	r, ev := NewSelfTestEvent(success, fails)
-	report := SelfTestReport{Rule: r, Event: ev}
-	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
