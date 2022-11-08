@@ -22,9 +22,11 @@ type spanModifier struct {
 
 // Process applies extra logic to the given span
 func (s *spanModifier) ModifySpan(span *pb.Span) {
-	if span.Service == "aws.lambda" && s.tags["service"] != "" {
+	if span.Service == "aws.lambda" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
-		span.Service = s.tags["service"]
+		if s.tags["service"] != "" {
+			span.Service = s.tags["service"]
+		}
 		if s.coldStartSpanCreator != nil {
 			s.coldStartSpanCreator.create(span)
 		}
