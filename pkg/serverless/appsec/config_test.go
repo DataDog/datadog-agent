@@ -254,7 +254,7 @@ func cleanEnv() func() {
 		obfuscatorKeyEnvVar:   os.Getenv(obfuscatorKeyEnvVar),
 		obfuscatorValueEnvVar: os.Getenv(obfuscatorValueEnvVar),
 	}
-	for k, _ := range env {
+	for k := range env {
 		if err := os.Unsetenv(k); err != nil {
 			panic(err)
 		}
