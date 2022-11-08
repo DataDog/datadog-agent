@@ -106,8 +106,11 @@ type pid = uint32
 type inodeNumber = uint64
 type runningProcessesSet map[pid]struct{}
 
+// hookedBinary represents a binary currently being hooked
 type hookedBinary struct {
-	probeIDs          []manager.ProbeIdentificationPair
+	// IDs of the probes currently attached on the binary
+	probeIDs []manager.ProbeIdentificationPair
+	// Set containing the PIDs of running processes spawned from this binary
 	running_processes runningProcessesSet
 }
 
