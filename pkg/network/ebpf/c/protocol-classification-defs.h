@@ -11,6 +11,9 @@
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
 #define HTTP2_MARKER_SIZE 24
 
+// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
+#define HTTP2_FRAME_HEADER_SIZE 9
+
 // The minimal HTTP response has 17 characters: HTTP/1.1 200 OK\r\n
 // The minimal HTTP request has 16 characters: GET x HTTP/1.1\r\n
 #define HTTP_MIN_SIZE 16

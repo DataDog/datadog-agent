@@ -1,23 +1,5 @@
-#include "kconfig.h"
-#include "tracer.h"
-#include "bpf_telemetry.h"
-#include "bpf_builtins.h"
-#include "ip.h"
-#include "ipv6.h"
-#include "http.h"
-#include "https.h"
-#include "http-buffer.h"
-#include "sockfd.h"
-#include "tags-types.h"
-#include "port_range.h"
-#include "go-tls-types.h"
-#include "go-tls-goid.h"
-#include "go-tls-location.h"
-#include "go-tls-conn.h"
-#include "protocol-dispatcher-helpers.h"
-#include "skb.h"
-
-#include "sock.h"
+#ifndef __HTTP2_H
+#define __HTTP2_H
 
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
 #define HTTP2_FRAME_HEADER_SIZE 9
@@ -86,3 +68,38 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
 
     return true;
 }
+
+static __always_inline void filter_http2_frames(struct __sk_buff *skb, size_t pos) {
+    struct http2_frame current_frame = {};
+    char buf[HTTP2_FRAME_HEADER_SIZE];
+
+#pragma unroll
+    // iterate till max frames to avoid high connection rate.
+    for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; ++i) {
+        if (pos + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+          return;
+        }
+
+        // load the current HTTP2_FRAME_HEADER_SIZE into the buffer.
+        bpf_skb_load_bytes(skb, pos, buf, HTTP2_FRAME_HEADER_SIZE);
+        pos += HTTP2_FRAME_HEADER_SIZE;
+
+        // load the current frame into http2_frame strct in order to filter the needed frames.
+        if (!read_http2_frame_header(buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
+            log_debug("unable to read http2 frame header");
+            break;
+        }
+
+        // filter all types of frames except header frame.
+        if (current_frame.type != kHeadersFrame) {
+            pos += (__u32)current_frame.length;
+            continue;
+        }
+
+        // TODO: read headers frame
+        pos += (__u32)current_frame.length;
+    }
+
+}
+
+#endif

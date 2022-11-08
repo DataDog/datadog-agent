@@ -7,6 +7,7 @@
 #include "protocol-classification-maps.h"
 #include "bpf_builtins.h"
 #include "ip.h"
+#include "http2.h"
 
 // Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
@@ -48,8 +49,8 @@ static __always_inline bool http2_marker_suffix(const char* buf) {
 static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
 
-    if http2_marker_prefix(buf[HTTP2_FRAME_HEADER_SIZE]){
-        return http2_marker_suffix(buf[HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE])
+    if (http2_marker_prefix(buf)){
+        return http2_marker_suffix(buf+HTTP2_FRAME_HEADER_SIZE);
     }
     return false;
 }
