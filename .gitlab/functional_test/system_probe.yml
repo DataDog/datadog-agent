@@ -24,7 +24,7 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - kitchen-junit-*.tar.gz
+      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
 
 
 .retrieve_minimized_btfs:
