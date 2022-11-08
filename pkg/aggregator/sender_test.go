@@ -141,13 +141,8 @@ func TestDestroySender(t *testing.T) {
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
 	aggregatorInstance.mu.Unlock()
 
-	for tries := 100; tries > 0 && !aggregatorInstance.IsInputQueueEmpty(); tries-- {
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
-
 	for tries := 100; tries > 0; tries-- {
+		aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
 		aggregatorInstance.mu.Lock()
 		ok := len(aggregatorInstance.checkSamplers) == 1
 		aggregatorInstance.mu.Unlock()
@@ -156,7 +151,7 @@ func TestDestroySender(t *testing.T) {
 			continue
 		}
 		assert.True(t, ok)
-
+		break
 	}
 }
 
