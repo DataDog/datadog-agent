@@ -58,6 +58,10 @@ func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
 }
 
+func goTLSSupported() bool {
+	return runtime.GOARCH == "amd64"
+}
+
 func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
@@ -1729,7 +1733,7 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 		ExpectedOccurrences = 10
 	)
 
-	if runtime.GOARCH != "amd64" {
+	if !goTLSSupported() {
 		t.Skip("GoTLS support not available on non amd64 architectures")
 	}
 
