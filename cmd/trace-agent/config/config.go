@@ -335,7 +335,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
-	log.Infof("DOING CPU DETECTION NOW")
 	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
 		log.Infof("Found configured CPU value")
 		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
@@ -347,7 +346,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			log.Infof("CPU saw a limit of %f ignoring", cgLim)
 		}
 	} else {
-		log.Infof("No CPU limit set for trace-agent err: %v", err)
+		log.Infof("No auto CPU limit set for trace-agent err: %v", err)
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
