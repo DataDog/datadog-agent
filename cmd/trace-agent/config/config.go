@@ -341,7 +341,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	} else if cgLim, err := getCgroupCPULimit(); err == nil {
 		if cgLim > 0 {
 			c.MaxCPU = cgLim * 0.9
-			log.Infof("Cgroups CPU limit detected, setting max_cpu_percent to 90%% of %f cpu: %f", cgLim, c.MaxCPU)
+			log.Infof("Cgroups CPU limit detected, setting max_cpu_percent to 90%% of %f%% cpu: %f%%", cgLim, c.MaxCPU)
 		} else {
 			log.Infof("CPU saw a limit of %f ignoring", cgLim)
 		}

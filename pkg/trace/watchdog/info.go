@@ -96,10 +96,13 @@ func (pi *CurrentInfo) CPU(now time.Time) (CPUInfo, error) {
 
 	dua := userTime - pi.lastCPUUser
 	pi.lastCPUUser = userTime
+	log.Infof("Calculating CPU usage now. ut %f lcpu %f, pid %d", userTime, pi.lastCPUUser, pi.pid)
 	if dua <= 0 {
+		log.Infof("Time was negative for cpu calc????")
 		pi.lastCPU.UserAvg = 0 // shouldn't happen, but make sure result is always > 0
 	} else {
 		pi.lastCPU.UserAvg = float64(time.Second) * dua / float64(dt)
+		log.Infof("Delete me: Setting UserAvg cpu %f", pi.lastCPU.UserAvg)
 		pi.lastCPUUser = userTime
 	}
 
