@@ -10,10 +10,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/waf"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
+	if err := waf.Health(); err != nil {
+		t.Skip("host not supported by appsec", err)
+	}
+
 	t.Run("appsec disabled", func(t *testing.T) {
 		t.Setenv("DD_APPSEC_ENABLED", "false")
 		asm, _ := appsec.New()
@@ -23,12 +28,16 @@ func TestNew(t *testing.T) {
 	t.Run("appsec enabled", func(t *testing.T) {
 		t.Setenv("DD_APPSEC_ENABLED", "true")
 		asm, err := appsec.New()
-		require.NoError(t, err) // assuming we run on supported targets only
+		require.NoError(t, err)
 		require.NotNil(t, asm)
 	})
 }
 
 func TestMonitor(t *testing.T) {
+	if err := waf.Health(); err != nil {
+		t.Skip("host not supported by appsec", err)
+	}
+
 	t.Setenv("DD_APPSEC_ENABLED", "true")
 	asm, err := appsec.New()
 	require.NoError(t, err)
