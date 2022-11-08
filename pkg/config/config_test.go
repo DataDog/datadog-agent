@@ -1210,6 +1210,7 @@ fips:
 
 	expectedHTTPURL = "https://" + expectedURL
 	testConfig = setupConfFromYAML(datadogYamlFips)
+	testConfig.Set("skip_ssl_validation", false) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -1220,8 +1221,7 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, GetProxies())
 
-	// override to check consistent TLS validation
-	testConfig.Set("skip_ssl_validation", true)
+	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
 	testConfig.Set("fips.tls_verify", true)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
