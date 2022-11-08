@@ -28,6 +28,26 @@ type Context struct {
 	ResponseHeaders map[string][]string
 }
 
+// NewContext creates a new http monitoring context out of the provided
+// arguments.
+func NewContext(path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, body string) *Context {
+	headers, rawCookies := filterHeaders(headers)
+	cookies := parseCookies(rawCookies)
+	var bodyface interface{}
+	if len(body) > 0 {
+		bodyface = body
+	}
+	return &Context{
+		RequestClientIP:   sourceIP,
+		RequestRawURI:     path,
+		RequestHeaders:    headers,
+		RequestCookies:    cookies,
+		RequestQuery:      queryParams,
+		RequestPathParams: pathParams,
+		RequestBody:       bodyface,
+	}
+}
+
 func (c *Context) ToAddresses() map[string]interface{} {
 	addr := make(map[string]interface{})
 	if c.RequestRawURI != nil {
@@ -60,7 +80,7 @@ func (c *Context) ToAddresses() map[string]interface{} {
 // lower-cased as expected by Datadog's security monitoring rules - accessing
 // them using http.(Header).Get(), which expects the MIME header canonical
 // format, doesn't work.
-func FilterHeaders(reqHeaders map[string][]string) (headers map[string][]string, rawCookies []string) {
+func filterHeaders(reqHeaders map[string][]string) (headers map[string][]string, rawCookies []string) {
 	if len(reqHeaders) == 0 {
 		return nil, nil
 	}
@@ -83,7 +103,7 @@ func FilterHeaders(reqHeaders map[string][]string) (headers map[string][]string,
 // ParseCookies returns the parsed cookies as a map of the cookie names to their
 // value. Cookies defined more than once have multiple values in their map
 // entry.
-func ParseCookies(rawCookies []string) map[string][]string {
+func parseCookies(rawCookies []string) map[string][]string {
 	// net.http doesn't expose its cookie-parsing function, so we are using the
 	// http.(*Request).Cookies method instead which reads the request headers.
 	r := http.Request{Header: map[string][]string{"Cookie": rawCookies}}

@@ -92,7 +92,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromAPIGatewayEvent(event, region)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext = makeAppSecContext(
+			lp.AppSecContext = httpsec.NewContext(
 				&event.Path,
 				event.MultiValueHeaders,
 				event.MultiValueQueryStringParameters,
@@ -106,7 +106,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromAPIGatewayV2Event(event, region)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext = makeAppSecContext(
+			lp.AppSecContext = httpsec.NewContext(
 				&event.RawPath,
 				toMultiValueMap(event.Headers),
 				toMultiValueMap(event.QueryStringParameters),
@@ -120,7 +120,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromAPIGatewayWebsocketEvent(event, region)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext = makeAppSecContext(
+			lp.AppSecContext = httpsec.NewContext(
 				&event.Path,
 				event.MultiValueHeaders,
 				event.MultiValueQueryStringParameters,
@@ -134,7 +134,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromALBEvent(event)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext = makeAppSecContext(
+			lp.AppSecContext = httpsec.NewContext(
 				&event.Path,
 				event.MultiValueHeaders,
 				event.MultiValueQueryStringParameters,
@@ -188,7 +188,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 		}
 		if lp.AppSec != nil {
-			lp.AppSecContext = makeAppSecContext(
+			lp.AppSecContext = httpsec.NewContext(
 				&event.RawPath,
 				toMultiValueMap(event.Headers),
 				toMultiValueMap(event.QueryStringParameters),
@@ -355,24 +355,6 @@ func (s *spanTagSetter) SetMeta(tag string, value string) {
 
 func (s *spanTagSetter) SetMetrics(tag string, value float64) {
 	s.triggerMetrics[tag] = value
-}
-
-func makeAppSecContext(path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, body string) *httpsec.Context {
-	headers, rawCookies := httpsec.FilterHeaders(headers)
-	cookies := httpsec.ParseCookies(rawCookies)
-	var bodyface interface{}
-	if len(body) > 0 {
-		bodyface = body
-	}
-	return &httpsec.Context{
-		RequestClientIP:   sourceIP,
-		RequestRawURI:     path,
-		RequestHeaders:    headers,
-		RequestCookies:    cookies,
-		RequestQuery:      queryParams,
-		RequestPathParams: pathParams,
-		RequestBody:       bodyface,
-	}
 }
 
 // Helper function to convert a single-value map of event values into a
