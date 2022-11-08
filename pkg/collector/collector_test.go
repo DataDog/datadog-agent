@@ -322,6 +322,59 @@ func (suite *CollectorTestSuite) TestCancelledCheckDestroysSender() {
 	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
 }
 
+func (suite *CollectorTestSuite) TestRescheduledCheckReusesSampler() {
+	// When a check is cancelled and then scheduled again while the aggregator still holds on to sampler (because it contains unsent metrics)
+
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
+	defer demux.Stop(false)
+
+	flip := make(chan struct{})
+	flop := make(chan struct{})
+
+	ch := &cancelledCheck{
+		flip: flip,
+		flop: flop,
+	}
+
+	sender, err := aggregator.GetSender(ch.ID())
+	assert.NoError(suite.T(), err)
+	sender.DisableDefaultHostname(true)
+
+	suite.c.RunCheck(ch)
+
+	<-flip
+	flop <- struct{}{}
+
+	err = suite.c.StopCheck(ch.ID())
+	assert.NoError(suite.T(), err)
+
+	// Wait for the check to drop the sender
+	require.Eventually(suite.T(), func() bool {
+		// returns error if sender was not found, which is what we are waiting for
+		sender, _ := demux.PeekSender(ch.ID())
+		return sender == nil
+	}, time.Second, 10*time.Millisecond)
+
+	//create new sender and try registering sampler before flush
+	sender, err = aggregator.GetSender(ch.ID())
+	assert.NoError(suite.T(), err)
+
+	// flush
+	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+
+	sender, _ = aggregator.GetSender(ch.ID())
+	sender.DisableDefaultHostname(true)
+
+	// Run the check again
+	suite.c.RunCheck(ch)
+
+	<-flip
+	flop <- struct{}{}
+
+	// flush again, check should contain metrics
+	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+}
+
 func TestCollectorSuite(t *testing.T) {
 	suite.Run(t, new(CollectorTestSuite))
 }
