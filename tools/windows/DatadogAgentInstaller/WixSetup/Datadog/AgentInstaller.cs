@@ -50,12 +50,15 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new Project("Datadog Agent",
-                new User(new Id("ddagentuser"), "[DDAGENTUSER_NAME]")
+                new User(new Id("ddagentuser"),
+                // CreateUser fails with ERROR_BAD_USERNAME if this value is a fully qualified user name
+                "[DDAGENTUSER_NAME]")
                 {
                     Domain = "[DDAGENTUSER_DOMAIN]",
                     Password = "[DDAGENTUSER_PASSWORD]",
                     PasswordNeverExpires = true,
                     RemoveOnUninstall = true,
+                    FailIfExists = false,
                     //ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
                 },
                 _agentCustomActions.ReadConfig,
@@ -102,8 +105,8 @@ namespace WixSetup.Datadog
                 new RegKey(
                     _agentFeatures.MainApplication,
                     RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
-                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", GenericAll = true } } },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", GenericAll = true } } }
+                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_FQ_NAME]", GenericAll = true } } },
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_FQ_NAME]", GenericAll = true } } }
                 )
                 {
                     Win64 = true
@@ -142,7 +145,7 @@ namespace WixSetup.Datadog
                     new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All) { ChangePermission = true },
                     new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All) { ChangePermission = true },
                     new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.None) { ChangePermission = true },
-                    new DirPermission("[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = true },
+                    new DirPermission("[DDAGENTUSER_FQ_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = true },
                     new DirFiles($@"{EtcSource}\*.yaml.example"),
                     new Dir("checks.d"),
                     new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
@@ -252,7 +255,8 @@ namespace WixSetup.Datadog
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
                 PermissionEx = DefaultPermissions(),
-                Account = "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]",
+                // Account must be a fully qualified name.
+                Account = "[DDAGENTUSER_FQ_NAME]",
                 Password = "[DDAGENTUSER_PASSWORD]"
             };
         }
@@ -278,6 +282,7 @@ namespace WixSetup.Datadog
                 PermissionEx = DefaultPermissions(),
                 Interactive = false,
                 Type = SvcType.ownProcess,
+                // Account must be a fully qualified name.
                 Account = account,
                 Password = password,
                 DependsOn = new[]
@@ -291,7 +296,7 @@ namespace WixSetup.Datadog
         {
             var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
             var processAgentService = GenerateDependentServiceInstaller(new Id("ddagentprocessservice"), "datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", "LocalSystem");
-            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_DOMAIN]\\[DDAGENTUSER_NAME]", "[DDAGENTUSER_PASSWORD]");
+            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_FQ_NAME]", "[DDAGENTUSER_PASSWORD]");
             var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
             var targetBinFolder = new Dir("bin",

@@ -101,7 +101,7 @@ namespace WixSetup.Datadog
                 {
                     Execute = Execute.deferred
                 }
-                .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_DOMAIN=[DDAGENTUSER_DOMAIN], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+                .SetProperties("DDAGENTUSER_FQ_NAME=[DDAGENTUSER_FQ_NAME], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
         }
     }
 }
