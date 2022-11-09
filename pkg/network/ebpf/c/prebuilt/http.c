@@ -1,4 +1,4 @@
-#include <linux/kconfig.h>
+#include "kconfig.h"
 
 #include "tracer.h"
 #include "bpf_telemetry.h"
@@ -843,29 +843,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     return 0;
 }
 
+// Dummy implementation until we have offset guessing
 static __always_inline void* get_tls_base(struct task_struct* task) {
-    u32 key = 0;
-    struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
-    if (t == NULL) {
-            return NULL;
-    }
-    if (bpf_probe_read_kernel(t, sizeof(struct thread_struct), &task->thread)) {
-        return NULL;
-    }
-
-#if defined(__x86_64__)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-    return (void*) t->fs;
-#else
-    return (void*) t->fsbase;
-#endif
-#elif defined(__aarch64__)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-    return (void*) t->tp_value;
-#else
-    return (void*) t->uw.tp_value;
-#endif
-#else
-#error "Unsupported platform"
-#endif
+    return NULL;
 }
