@@ -347,16 +347,9 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			"chmod": {
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mnt_want_write", EBPFFuncName: "kprobe_mnt_want_write"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fentry/chmod_common", EBPFFuncName: "fentry_chmod_common"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fexit/chmod_common", EBPFFuncName: "fexit_chmod_common"}},
 				}},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "chmod"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchmod"}, EntryAndExit),
-				},
-				&manager.OneOf{Selectors: ExpandSyscallProbesSelectorFentry(
-					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "fchmodat"}, EntryAndExit),
-				},
 			},
 
 			// List of probes required to capture chown events

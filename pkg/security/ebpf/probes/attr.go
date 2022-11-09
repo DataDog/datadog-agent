@@ -23,24 +23,21 @@ var attrProbes = []*manager.Probe{
 
 func getAttrProbes() []*manager.Probe {
 	// chmod
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
+	attrProbes = append(attrProbes,
+		&manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "fentry/chmod_common",
+				EBPFFuncName: "fentry_chmod_common",
+			},
+		}, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "fexit/chmod_common",
+				EBPFFuncName: "fexit_chmod_common",
+			},
 		},
-		SyscallFuncName: "chmod",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchmod",
-	}, EntryAndExit)...)
-	attrProbes = append(attrProbes, ExpandSyscallProbesFentry(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fchmodat",
-	}, EntryAndExit)...)
+	)
 
 	// chown
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{

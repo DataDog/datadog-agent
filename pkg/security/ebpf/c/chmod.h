@@ -37,18 +37,9 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(chmod, const char*, filename, umode_t, mode) {
+SEC("fentry/chmod_common")
+int BPF_PROG(fentry_chmod_common, const char *path, umode_t mode) {
     return trace__sys_chmod(mode);
-}
-
-SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
-    return trace__sys_chmod(mode);
-}
-
-SEC("fentry/__arm64_sys_fchmodat")
-int BPF_PROG(fentry__64_sys_fchmodat, int dirfd, const char* filename /* umode_t mode, int flags */) {
-    // return trace__sys_chmod(mode);
-    return 0;
 }
 
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
@@ -89,17 +80,9 @@ int __attribute__((always_inline)) kprobe_sys_chmod_ret(struct pt_regs *ctx) {
     return sys_chmod_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chmod) {
-    return kprobe_sys_chmod_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(fchmod) {
-    return kprobe_sys_chmod_ret(ctx);
-}
-
-SEC("fexit/__arm64_sys_fchmodat")
-int BPF_PROG(fexit__64_sys_fchmodat, int dirfd, const char* filename, umode_t mode, int flags, int retval) {
-    return sys_chmod_ret(ctx, 0);
+SEC("fexit/chmod_common")
+int BPF_PROG(fexit_chmod_common, const char *path, umode_t mode, int retval) {
+    return sys_chmod_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_chmod_exit")
