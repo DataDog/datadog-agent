@@ -46,14 +46,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: false,
-					// TODO: when implementing `datadog-cluster-agent health`,
-					// ConfigName must be set to "datadog-cluster", and LogName
-					// should be changed as well.
-
-				}.LogForOneShot("CORE", "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot("CORE", "off", true)),
+				// TODO: when implementing `datadog-cluster-agent health`,
+				// ConfigName must be set to "datadog-cluster", and LogName
+				// should be changed as well.
 				core.Bundle,
 			)
 		},

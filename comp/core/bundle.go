@@ -24,6 +24,13 @@ import (
 // BundleParams defines the parameters for this bundle.
 type BundleParams = internal.BundleParams
 
+func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool) BundleParams {
+	return BundleParams{
+		ConfFilePath:      confFilePath,
+		ConfigLoadSecrets: configLoadSecrets,
+	}
+}
+
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
 	config.Module,
