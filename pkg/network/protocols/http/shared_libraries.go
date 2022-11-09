@@ -183,6 +183,7 @@ func (w *soWatcher) sync() {
 				for _, pidPath := range lib.PidsPath {
 					pid, err := extractPID(pidPath)
 					if err != nil {
+						log.Errorf("extractPID '%s' failed : %s", pidPath, err)
 						continue
 					}
 					w.registry.register(path, pid, r)
