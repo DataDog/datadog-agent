@@ -29,11 +29,9 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 
 #define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
-    u64 match = bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
-    if (match)
-        return false;
+    bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
     
-    return true;
+    return match;
 }
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
@@ -54,7 +52,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     // memcmp returns
     // 0 when s1 == s2,
     // !0 when s1 != s2.
-    u64 http = bpf_memcmp(buf, HTTP, sizeof(HTTP)-1)
+    bool http = !(bpf_memcmp(buf, HTTP, sizeof(HTTP)-1)
         && bpf_memcmp(buf, GET, sizeof(GET)-1)
         && bpf_memcmp(buf, POST, sizeof(POST)-1)
         && bpf_memcmp(buf, PUT, sizeof(PUT)-1)
@@ -62,12 +60,9 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
         && bpf_memcmp(buf, HEAD, sizeof(HEAD)-1)
         && bpf_memcmp(buf, OPTIONS1, sizeof(OPTIONS1)-1)
         && bpf_memcmp(buf, OPTIONS2, sizeof(OPTIONS2)-1)
-        && bpf_memcmp(buf, PATCH, sizeof(PATCH)-1);
+        && bpf_memcmp(buf, PATCH, sizeof(PATCH)-1));
 
-    if (http)
-        return false;
-
-    return true;
+    return http;
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
