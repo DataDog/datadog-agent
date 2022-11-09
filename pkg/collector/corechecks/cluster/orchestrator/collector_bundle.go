@@ -9,6 +9,7 @@
 package orchestrator
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -222,7 +223,10 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 	for _, collector := range cb.collectors {
 		runStartTime := time.Now()
 
+		cb.appendAdditionalCommonTags(collector)
+
 		result, err := collector.Run(cb.runCfg)
+
 		if err != nil {
 			_ = cb.check.Warnf("Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue
@@ -237,4 +241,8 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 			sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 		}
 	}
+}
+
+func (cb *CollectorBundle) appendAdditionalCommonTags(collector collectors.Collector) {
+	cb.runCfg.Config.ExtraTags = append(cb.runCfg.Config.ExtraTags, fmt.Sprintf("%s:%s", "kube_api_version", collector.Metadata().Version))
 }
