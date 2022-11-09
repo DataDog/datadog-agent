@@ -1137,7 +1137,7 @@ def generate_minimized_btfs(
 
 
 @task
-def print_failed_tests(ctx, output_dir):
+def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
