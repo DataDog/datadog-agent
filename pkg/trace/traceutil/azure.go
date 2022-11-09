@@ -44,8 +44,12 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	resourceGroup := getenv("WEBSITE_RESOURCE_GROUP")
 	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID", getenv)
 	computerName := getEnvOrUnknown("COMPUTERNAME", getenv)
-	websiteOS := getEnvOrUnknown("WEBSITE_OS", getenv)
 	runtime := getRuntime(getenv)
+
+	// Windows and linux environments provide the OS differently
+	windowsOS := getEnvOrUnknown("WEBSITE_OS", getenv)
+	linuxOS := getLinuxOrUnknown(ownerName)
+	websiteOS := getOS(windowsOS, linuxOS)
 
 	subscriptionID := parseAzureSubscriptionID(ownerName)
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
@@ -99,4 +103,24 @@ func compileAzureResourceID(subID, resourceGroup, siteName string) (id string) {
 			subID, resourceGroup, siteName)
 	}
 	return
+}
+
+func getLinuxOrUnknown(subID string) string {
+	strippedOS := strings.Split(subID, "-")
+	if len(strippedOS) > 1 {
+		return strippedOS[len(strippedOS)-1]
+	}
+	return unknown
+}
+
+func getOS(windows string, linux string) string {
+
+	if windows != unknown {
+		return windows
+	}
+
+	if strings.ToLower(linux) == "linux" {
+		return linux
+	}
+	return unknown
 }
