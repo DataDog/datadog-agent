@@ -53,8 +53,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 
     // memcmp returns
     // 0 when s1 == s2,
-    // >0 when s1 > s2,
-    // <0 when s1 < s2.
+    // !0 when s1 != s2.
     u64 http = bpf_memcmp(buf, HTTP, sizeof(HTTP)-1)
         && bpf_memcmp(buf, GET, sizeof(GET)-1)
         && bpf_memcmp(buf, POST, sizeof(POST)-1)
