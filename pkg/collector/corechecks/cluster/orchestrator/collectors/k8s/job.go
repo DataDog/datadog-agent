@@ -75,7 +75,7 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

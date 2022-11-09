@@ -76,7 +76,7 @@ func (c *RoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -76,7 +76,7 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -76,7 +76,7 @@ func (c *ServiceAccountCollector) Run(rcfg *collectors.CollectorRunConfig) (*col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

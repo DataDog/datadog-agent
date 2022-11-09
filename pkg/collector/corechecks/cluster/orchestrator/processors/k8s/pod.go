@@ -102,7 +102,7 @@ func (h *PodHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 		GroupSize:   int32(groupSize),
 		HostName:    ctx.HostName,
 		Pods:        models,
-		Tags:        append(ctx.Cfg.ExtraTags, fmt.Sprintf("%s:%s", "kube_api_version", ctx.ApiGroupVersion)),
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

@@ -223,7 +223,6 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		runStartTime := time.Now()
 
 		result, err := collector.Run(cb.runCfg)
-
 		if err != nil {
 			_ = cb.check.Warnf("Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue

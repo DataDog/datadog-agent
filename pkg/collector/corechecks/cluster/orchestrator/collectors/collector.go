@@ -106,14 +106,13 @@ type CollectorRunResult struct {
 	ResourcesProcessed int
 }
 
-func GetProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
-	ctx := &processors.ProcessorContext{
-		APIClient:       rcfg.APIClient,
-		Cfg:             rcfg.Config,
-		ClusterID:       rcfg.ClusterID,
-		MsgGroupID:      rcfg.MsgGroupRef.Inc(),
-		NodeType:        metadata.NodeType,
-		ApiGroupVersion: metadata.Version,
+func NewProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
+	return &processors.ProcessorContext{
+		APIClient:          rcfg.APIClient,
+		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
+		Cfg:                rcfg.Config,
+		ClusterID:          rcfg.ClusterID,
+		MsgGroupID:         rcfg.MsgGroupRef.Inc(),
+		NodeType:           metadata.NodeType,
 	}
-	return ctx
 }
