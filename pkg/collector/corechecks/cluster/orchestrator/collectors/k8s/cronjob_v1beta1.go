@@ -68,7 +68,7 @@ func (c *CronJobV1Beta1Collector) Run(rcfg *collectors.CollectorRunConfig) (*col
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := processors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

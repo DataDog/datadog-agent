@@ -105,3 +105,15 @@ type CollectorRunResult struct {
 	ResourcesListed    int
 	ResourcesProcessed int
 }
+
+func GetProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
+	ctx := &processors.ProcessorContext{
+		APIClient:       rcfg.APIClient,
+		Cfg:             rcfg.Config,
+		ClusterID:       rcfg.ClusterID,
+		MsgGroupID:      rcfg.MsgGroupRef.Inc(),
+		NodeType:        metadata.NodeType,
+		ApiGroupVersion: metadata.Version,
+	}
+	return ctx
+}

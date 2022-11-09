@@ -10,7 +10,6 @@ package k8s
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
@@ -75,7 +74,7 @@ func (c *ClusterCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := processors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
 
 	processResult, processed, err := c.processor.Process(ctx, list)
 

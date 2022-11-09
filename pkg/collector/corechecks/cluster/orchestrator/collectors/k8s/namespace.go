@@ -76,7 +76,7 @@ func (c *NamespaceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := processors.GetProcessorContext(rcfg, c.metadata)
+	ctx := collectors.GetProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

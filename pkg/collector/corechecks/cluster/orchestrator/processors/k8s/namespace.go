@@ -9,6 +9,8 @@
 package k8s
 
 import (
+	"fmt"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	corev1 "k8s.io/api/core/v1"
 
@@ -54,7 +56,7 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Namespaces:  models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.CollectorTags...),
+		Tags:        append(ctx.Cfg.ExtraTags, fmt.Sprintf("%s:%s", "kube_api_version", ctx.ApiGroupVersion)),
 	}
 }
 

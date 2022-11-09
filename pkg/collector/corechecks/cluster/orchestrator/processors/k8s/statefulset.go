@@ -9,6 +9,8 @@
 package k8s
 
 import (
+	"fmt"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -46,8 +48,7 @@ func (h *StatefulSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext,
 		GroupId:      ctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		StatefulSets: models,
-		Tags:         ctx.Cfg.ExtraTags,
-	}
+		Tags:         append(ctx.Cfg.ExtraTags, fmt.Sprintf("%s:%s", "kube_api_version", ctx.ApiGroupVersion))}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
