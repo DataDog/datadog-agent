@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -34,10 +35,12 @@ func getCgroupCPULimit() (float64, error) {
 	// Limit is computed using min(CPUSet, CFS CPU Quota)
 	var limitPct *float64
 
+	log.Infof("calculating cpu limit, hostcpuCount %d cgs stats %d", systemutils.HostCPUCount(), cgs.CPUCount)
 	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
 		limitPct = pointer.UIntToFloatPtr(*cgs.CPUCount * 100)
 	}
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
+		log.Infof("Found scheduler quota %d and period %d", cgs.SchedulerQuota, cgs.SchedulerPeriod)
 		quotaLimitPct := 100 * (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
 		if limitPct == nil || quotaLimitPct < *limitPct {
 			limitPct = &quotaLimitPct
