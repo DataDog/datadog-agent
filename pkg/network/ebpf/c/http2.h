@@ -1,8 +1,6 @@
 #ifndef __HTTP2_H
 #define __HTTP2_H
 
-// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
-#define HTTP2_FRAME_HEADER_SIZE 9
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES 40
@@ -74,7 +72,7 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
 }
 
 // This function filters the needed frames from the http2 session.
-static __always_inline void filter_http2_frames(struct __sk_buff *skb, size_t pos) {
+static __always_inline void process_http2_frames(struct __sk_buff *skb, size_t pos) {
     struct http2_frame current_frame = {};
     char buf[HTTP2_FRAME_HEADER_SIZE];
 

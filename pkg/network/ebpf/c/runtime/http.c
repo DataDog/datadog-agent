@@ -85,7 +85,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         pos += HTTP2_MARKER_SIZE;
     }
 
-    filter_http2_frames(skb, pos);
+    process_http2_frames(skb, pos);
     return 0;
 }
 
