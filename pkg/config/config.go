@@ -1544,7 +1544,6 @@ func setupFipsEndpoints(config Config) error {
 	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
-		// top-level setting override precedence
 		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
 	}
 
