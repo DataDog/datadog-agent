@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"code.cloudfoundry.org/garden"
 
@@ -108,12 +109,26 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 			return fmt.Errorf("error retrieving container %s from the garden API: %v", containerID, err)
 		}
 
-		log.Infof("Updating tags in container %s", containerID)
 		go func() {
-			err = updateTagsInContainer(container, tags)
-			if err != nil {
-				log.Errorf("Error running a process inside container %s: %v", containerID, err)
+			retries := 10
+			for {
+				log.Infof("Updating tags in container %s", containerID)
+				exitCode, err := updateTagsInContainer(container, tags)
+				if err != nil {
+					log.Errorf("Error running a process inside container `%s`: %v", containerID, err)
+				}
+				log.Debugf("Process for container '%s' exited with code: %d", containerID, exitCode)
+				if exitCode == 0 {
+					return
+				}
+				if retries == 0 {
+					log.Debugf("Could not inject tags into container '%s' exit code is: %d", containerID, exitCode)
+					return
+				}
+				retries -= 1
+				time.Sleep(10 * time.Second)
 			}
+
 		}()
 
 	} else if evt.Type == workloadmeta.EventTypeUnset {
@@ -125,7 +140,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 }
 
 // updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
-func updateTagsInContainer(container garden.Container, tags []string) error {
+func updateTagsInContainer(container garden.Container, tags []string) (int, error) {
 	process, err := container.Run(garden.ProcessSpec{
 		Path: "/bin/sh",
 		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},
@@ -133,12 +148,7 @@ func updateTagsInContainer(container garden.Container, tags []string) error {
 		Env:  []string{fmt.Sprintf("DD_NODE_AGENT_TAGS=%s", strings.Join(tags, ","))},
 	}, garden.ProcessIO{})
 	if err != nil {
-		return err
+		return -1, err
 	}
-	exitCode, err := process.Wait()
-	if err != nil {
-		return err
-	}
-	log.Debugf("Process %s exited with code: %d", process.ID(), exitCode)
-	return nil
+	return process.Wait()
 }
