@@ -20,26 +20,28 @@ import (
 
 type CollectorDemuxTestSuite struct {
 	suite.Suite
-	c *Collector
+
+	demux *aggregator.TestAgentDemultiplexer
+	c     *Collector
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.c = NewCollector()
+	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
+
 	suite.c.Start()
 }
 
 func (suite *CollectorDemuxTestSuite) TearDownTest() {
 	suite.c.Stop()
+	suite.demux.Stop(false)
 	suite.c = nil
 }
 
 func (suite *CollectorDemuxTestSuite) TestCancelledCheckCanSendMetrics() {
-	// Test that a long running check can send metrics using
+	// Test that a longqq running check can send metrics using
 	// correct sender after it was cancelled, and destroys a
 	// sender at the end.
-
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
-	defer demux.Stop(false)
 
 	flip := make(chan struct{})
 	flop := make(chan struct{})
@@ -62,14 +64,15 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckCanSendMetrics() {
 
 	flop <- struct{}{}
 
-	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+	suite.waitForCancelledCheckMetrics()
 
 	newSender, err := aggregator.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
 	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
 }
 
-func (suite *CollectorDemuxTestSuite) waitForCancelledCheckMetrics(agg *aggregator.BufferedAggregator) {
+func (suite *CollectorDemuxTestSuite) waitForCancelledCheckMetrics() {
+	agg := suite.demux.Aggregator()
 	require.Eventually(suite.T(), func() bool {
 		series, _ := agg.GetSeriesAndSketches(time.Time{})
 		for _, serie := range series {
@@ -85,9 +88,6 @@ func (suite *CollectorDemuxTestSuite) waitForCancelledCheckMetrics(agg *aggregat
 
 func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 	// Test that a check destroys a sender if it is not running when it is cancelled.
-
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
-	defer demux.Stop(false)
 
 	flip := make(chan struct{})
 	flop := make(chan struct{})
@@ -107,7 +107,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 	err := suite.c.StopCheck(ch.ID())
 	assert.NoError(suite.T(), err)
 
-	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+	suite.waitForCancelledCheckMetrics()
 
 	newSender, err := aggregator.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
@@ -116,9 +116,6 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 
 func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	// When a check is cancelled and then scheduled again while the aggregator still holds on to sampler (because it contains unsent metrics)
-
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
-	defer demux.Stop(false)
 
 	flip := make(chan struct{})
 	flop := make(chan struct{})
@@ -143,7 +140,7 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	// Wait for the check to drop the sender
 	require.Eventually(suite.T(), func() bool {
 		// returns error if sender was not found, which is what we are waiting for
-		sender, _ := demux.PeekSender(ch.ID())
+		sender, _ := suite.demux.PeekSender(ch.ID())
 		return sender == nil
 	}, time.Second, 10*time.Millisecond)
 
@@ -152,7 +149,7 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	assert.NoError(suite.T(), err)
 
 	// flush
-	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+	suite.waitForCancelledCheckMetrics()
 
 	sender, _ = aggregator.GetSender(ch.ID())
 	sender.DisableDefaultHostname(true)
@@ -164,10 +161,10 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	flop <- struct{}{}
 
 	// flush again, check should contain metrics
-	suite.waitForCancelledCheckMetrics(demux.Aggregator())
+	suite.waitForCancelledCheckMetrics()
 }
 
-func TestCollectorSuite(t *testing.T) {
+func TestCollectorDemuxSuite(t *testing.T) {
 	suite.Run(t, new(CollectorDemuxTestSuite))
 }
 
