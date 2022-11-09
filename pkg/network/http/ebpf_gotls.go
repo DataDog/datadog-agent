@@ -137,6 +137,8 @@ type GoTLSProgram struct {
 	// pidToIno keeps track of the inode numbers of the hooked binaries
 	// associated with running processes.
 	pidToIno map[pid]inodeNumber
+
+	binAnalysisMetric *errtelemetry.Metric
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -166,6 +168,8 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	p.procMonitor.done = make(chan struct{})
 	p.procMonitor.events = make(chan netlink.ProcEvent, 10)
 	p.procMonitor.errors = make(chan error, 1)
+
+	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
 
 	return p
 }
@@ -309,6 +313,8 @@ func (p *GoTLSProgram) handleProcessStop(pid pid) {
 }
 
 func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*ttlcache.Item[inodeNumber, *hookedBinary], error) {
+	start := time.Now()
+
 	f, err := os.Open(binPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s, %w", binPath, err)
@@ -337,9 +343,12 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*ttlcache
 		p.removeInspectionResultFromMap(ino)
 		return nil, fmt.Errorf("error while attaching hooks: %w", err)
 	}
-	log.Debugf("attached hooks on %s (%d)", binPath, ino)
-	return p.hookedBinaries.Set(ino, &hookedBinary{probeIDs, make(runningProcessesSet)}, ttlcache.NoTTL), nil
+	elapsed := time.Since(start)
 
+	p.binAnalysisMetric.Set(elapsed.Milliseconds())
+	log.Debugf("attached hooks on %s (%d) in %s", binPath, ino, elapsed)
+
+	return p.hookedBinaries.Set(ino, &hookedBinary{probeIDs, make(runningProcessesSet)}, ttlcache.NoTTL), nil
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
