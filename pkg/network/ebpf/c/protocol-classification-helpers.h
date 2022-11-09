@@ -42,25 +42,23 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 static __always_inline bool is_http(const char *buf, __u32 size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, HTTP_MIN_SIZE)
 
-    if ((buf[0] == 'H') && (buf[1] == 'T') && (buf[2] == 'T') && (buf[3] == 'P')) {
-        return true;
-    } else if ((buf[0] == 'G') && (buf[1] == 'E') && (buf[2] == 'T') && (buf[3]  == ' ') && (buf[4] == '/')) {
-        return true;
-    } else if ((buf[0] == 'P') && (buf[1] == 'O') && (buf[2] == 'S') && (buf[3] == 'T') && (buf[4]  == ' ') && (buf[5] == '/')) {
-        return true;
-    } else if ((buf[0] == 'P') && (buf[1] == 'U') && (buf[2] == 'T') && (buf[3]  == ' ') && (buf[4] == '/')) {
-        return true;
-    } else if ((buf[0] == 'D') && (buf[1] == 'E') && (buf[2] == 'L') && (buf[3] == 'E') && (buf[4] == 'T') && (buf[5] == 'E') && (buf[6]  == ' ') && (buf[7] == '/')) {
-        return true;
-    } else if ((buf[0] == 'H') && (buf[1] == 'E') && (buf[2] == 'A') && (buf[3] == 'D') && (buf[4]  == ' ') && (buf[5] == '/')) {
-        return true;
-    } else if ((buf[0] == 'O') && (buf[1] == 'P') && (buf[2] == 'T') && (buf[3] == 'I') && (buf[4] == 'O') && (buf[5] == 'N') && (buf[6] == 'S') && (buf[7]  == ' ') && ((buf[8] == '/') || (buf[8] == '*'))) {
-        return true;
-    } else if ((buf[0] == 'P') && (buf[1] == 'A') && (buf[2] == 'T') && (buf[3] == 'C') && (buf[4] == 'H') && (buf[5]  == ' ') && (buf[6] == '/')) {
-        return true;
-    }
+#define HTTP "HTTP"
+#define POST "POST /"
+#define PUT "PUT /"
+#define DELETE "DELETE /" 
+#define HEAD "HEAD /"
+#define OPTIONS1 "OPTIONS /"
+#define OPTIONS2 "OPTIONS *"
+#define PATCH "PATCH /"
 
-    return false;
+    return bpf_memcmp(buf, HTTP, sizeof(HTTP)) 
+        || bpf_memcmp(buf, POST, sizeof(POST))
+        || bpf_memcmp(buf, PUT, sizeof(PUT))
+        || bpf_memcmp(buf, DELETE, sizeof(DELETE))
+        || bpf_memcmp(buf, HEAD, sizeof(HEAD))
+        || bpf_memcmp(buf, OPTIONS1, sizeof(OPTIONS1))
+        || bpf_memcmp(buf, OPTIONS2, sizeof(OPTIONS2))
+        || bpf_memcmp(buf, PATCH, sizeof(PATCH));
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
