@@ -10,6 +10,7 @@ package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -33,6 +34,9 @@ type ProcessorContext struct {
 	HostName   string
 	MsgGroupID int32
 	NodeType   orchestrator.NodeType
+	// CollectorTags are tags that are unique per collector Resource.
+	// They differ from Extra Tags as they are unique per resource.
+	CollectorTags []string
 }
 
 // Handlers is the interface that is to be implemented for every resource type
@@ -210,4 +214,15 @@ func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interfa
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 	}
+}
+
+func GetProcessorContext(rcfg *collectors.CollectorRunConfig, metadata *collectors.CollectorMetadata) *ProcessorContext {
+	ctx := &ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   metadata.NodeType,
+	}
+	return ctx
 }
