@@ -213,14 +213,16 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	responseRawPayload := []byte(parseLambdaPayload(endDetails.ResponseRawPayload))
+
+	// Add the status code if it comes from an HTTP-like response struct
 	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(responseRawPayload)
 	if err != nil {
 		log.Debugf("[lifecycle] Couldn't parse the response payload status code: %v", err)
+	} else if statusCode == "" {
+		log.Debug("[lifecycle] No http status code found in the response payload")
+	} else {
+		lp.addTag("http.status_code", statusCode)
 	}
-
-	// This will only add the status code if it comes from an HTTP-like
-	// response struct
-	lp.addTag("http.status_code", statusCode)
 
 	if !lp.DetectLambdaLibrary() {
 		log.Debug("Creating and sending function execution span for invocation")

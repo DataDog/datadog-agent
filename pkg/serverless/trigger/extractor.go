@@ -162,13 +162,11 @@ func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
 		return "", err
 	}
 
-	// datadog-lambda-js checks if 'result' is undefined
-	// so this is presumably the equivalent
-	if len(rawPayload) == 0 {
+	statusCode := response.StatusCode
+	if statusCode == nil {
 		return "", nil
 	}
 
-	statusCode := response.StatusCode
 	switch statusCode.(type) {
 	case float64:
 		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
