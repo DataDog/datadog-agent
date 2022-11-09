@@ -13,7 +13,7 @@ func TestGetAppServiceTags(t *testing.T) {
 
 	assert.Equal(t, "1234abcd", metadata[aasInstanceID])
 	assert.Equal(t, "test-instance", metadata[aasInstanceName])
-	assert.Equal(t, "linux", metadata[aasOperatingSystem])
+	assert.Equal(t, "darwin", metadata[aasOperatingSystem])
 	assert.Equal(t, "Node.js", metadata[aasRuntime])
 	assert.Equal(t, "test-resource-group", metadata[aasResourceGroup])
 	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-resource-group/providers/microsoft.web/sites/site-name-test", metadata[aasResourceID])
@@ -28,31 +28,6 @@ func TestGetEnvOrUnknown(t *testing.T) {
 	assert.Equal(t, "unknown", unknownEnvVar)
 }
 
-func TestLinuxOrUnknown(t *testing.T) {
-	str := "thisisnotlinux"
-	notLinux := getLinuxOrUnknown(str)
-	assert.Equal(t, "unknown", notLinux)
-}
-func TestGetOS(t *testing.T) {
-	windows95 := "unknown"
-	windowsXP := "windows"
-	windowsVista := ""
-	mint := "linux"
-	fedora := "unknown"
-	ubuntu := ""
-
-	a := getOS(windows95, ubuntu)
-	b := getOS(windowsXP, ubuntu)
-	c := getOS(windows95, mint)
-	d := getOS(windows95, fedora)
-	e := getOS(windowsVista, ubuntu)
-	assert.Equal(t, "unknown", a)
-	assert.Equal(t, "windows", b)
-	assert.Equal(t, "linux", c)
-	assert.Equal(t, "unknown", d)
-	assert.Equal(t, "unknown", e)
-
-}
 func TestGetRuntime(t *testing.T) {
 	dotnet := getRuntime(func(s string) string { return "dotnet" })
 	node := getRuntime(func(s string) string { return "node" })

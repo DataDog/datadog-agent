@@ -3,6 +3,7 @@ package traceutil
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -44,12 +45,11 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	resourceGroup := getenv("WEBSITE_RESOURCE_GROUP")
 	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID", getenv)
 	computerName := getEnvOrUnknown("COMPUTERNAME", getenv)
-	runtime := getRuntime(getenv)
+	currentRuntime := getRuntime(getenv)
 
 	// Windows and linux environments provide the OS differently
-	windowsOS := getEnvOrUnknown("WEBSITE_OS", getenv)
-	linuxOS := getLinuxOrUnknown(ownerName)
-	websiteOS := getOS(windowsOS, linuxOS)
+	// We should grab it from GO's builtin runtime pkg
+	websiteOS := runtime.GOOS
 
 	subscriptionID := parseAzureSubscriptionID(ownerName)
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
@@ -58,7 +58,7 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 		aasInstanceID:      instanceID,
 		aasInstanceName:    computerName,
 		aasOperatingSystem: websiteOS,
-		aasRuntime:         runtime,
+		aasRuntime:         currentRuntime,
 		aasResourceGroup:   resourceGroup,
 		aasResourceID:      resourceID,
 		aasSiteKind:        appService,
@@ -103,25 +103,4 @@ func compileAzureResourceID(subID, resourceGroup, siteName string) (id string) {
 			subID, resourceGroup, siteName)
 	}
 	return
-}
-
-func getLinuxOrUnknown(subID string) string {
-	strippedOS := strings.Split(subID, "-")
-	if len(strippedOS) > 1 {
-		return strings.ToLower(strippedOS[len(strippedOS)-1])
-	}
-	return unknown
-}
-
-func getOS(windows string, linux string) string {
-
-	if strings.ToLower(linux) == "linux" {
-		return linux
-	}
-
-	if windows != unknown && windows != "" {
-		return windows
-	}
-
-	return unknown
 }
