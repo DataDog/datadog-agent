@@ -75,9 +75,9 @@ func fixDeprecatedFlags(args []string, w io.Writer) []string {
 		"-pid":             replaceFlagPosix,
 		"-info":            replaceFlagPosix,
 		// Windows flags
-		"-start-service":     replaceFlagPosix,
-		"-stop-service":      replaceFlagPosix,
-		"-foreground":        replaceFlagPosix,
+		"-start-service": replaceFlagPosix,
+		"-stop-service":  replaceFlagPosix,
+		"-foreground":    replaceFlagPosix,
 	}
 
 	var newArgs []string
