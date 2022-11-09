@@ -24,10 +24,12 @@ import (
 var schemaAssetFS embed.FS
 
 // ValidInodeFormatChecker defines the format inode checker
+//
 //nolint:deadcode,unused
 type ValidInodeFormatChecker struct{}
 
 // IsFormat check inode format
+//
 //nolint:deadcode,unused
 func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 
