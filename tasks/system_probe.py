@@ -6,6 +6,7 @@ import platform
 import re
 import shutil
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from subprocess import check_output
@@ -1133,3 +1134,31 @@ def generate_minimized_btfs(
             tar_working_directory = os.path.join(output_dir, path_from_root)
             ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
             ctx.run(f"rm {output_btf_path}")
+
+
+@task
+def print_failed_tests(ctx, output_dir):
+    fail_count = 0
+    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
+        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            with tarfile.open(testjson_tgz) as tgz:
+                tgz.extractall(path=unpack_dir)
+
+            for test_json in glob.glob(f"{unpack_dir}/*.json"):
+                bundle, _ = os.path.splitext(os.path.basename(test_json))
+                with open(test_json) as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        if 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+
+                            if action == "fail":
+                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
+                                fail_count += 1
+
+    if fail_count > 0:
+        raise Exit(code=1)

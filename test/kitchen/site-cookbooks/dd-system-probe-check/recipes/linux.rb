@@ -155,3 +155,11 @@ cookbook_file "/tmp/junit/tags.txt" do
   action :create
   ignore_failure true
 end
+
+directory "/tmp/testjson" do
+  recursive true
+end
+
+directory "/tmp/pkgjson" do
+  recursive true
+end

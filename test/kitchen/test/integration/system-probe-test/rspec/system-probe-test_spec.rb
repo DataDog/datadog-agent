@@ -36,7 +36,11 @@ Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f
   FileUtils.chmod 0644, f, :verbose => true
 end
 
-shared_examples "passes" do |env, filter|
+shared_examples "passes" do |bundle, env, filter|
+  after :context do
+    print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
+  end
+
   Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
     pkg = f.delete_prefix('/tmp/system-probe-tests/').delete_suffix('/testsuite')
     next unless filter.nil? or filter.include? pkg
@@ -49,12 +53,12 @@ shared_examples "passes" do |env, filter|
 
     it "#{pkg} tests" do |ex|
       Dir.chdir(File.dirname(f)) do
-        xmlpath = "/tmp/junit/#{ex.example_group.metadata[:bundle]}/#{junitfile}"
+        xmlpath = "/tmp/junit/#{bundle}/#{junitfile}"
         cmd = ["sudo", "-E",
           "/go/bin/gotestsum",
           "--format", "dots",
           "--junitfile", xmlpath,
-          "--jsonfile", "/tmp/junit/#{ex.example_group.metadata[:bundle]}/#{pkg.gsub("/","-")}.json",
+          "--jsonfile", "/tmp/pkgjson/#{bundle}/#{pkg.gsub("/","-")}.json",
           "--raw-command", "--",
           "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1"
         ]
@@ -68,7 +72,7 @@ shared_examples "passes" do |env, filter|
 
         xmldoc = REXML::Document.new(File.read(xmlpath))
         REXML::XPath.each(xmldoc, "//testsuites/testsuite/properties") do |props|
-          props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => ex.example_group.metadata[:bundle] })
+          props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
           props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
           props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
           props.add_element("property", { "name" => "dd_tags[os.version]", "value" => release })
@@ -84,31 +88,32 @@ end
 describe "system-probe" do
   after :all do
     print KernelOut.format(`tar -C /tmp/junit -czf /tmp/junit.tar.gz .`)
+    print KernelOut.format(`tar -C /tmp/testjson -czf /tmp/testjson.tar.gz .`)
   end
 
-  context "prebuilt", :bundle => "prebuilt" do
+  context "prebuilt" do
     env = {
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ENABLE_CO_RE"=>"false"
     }
-    include_examples "passes", env
+    include_examples "passes", "prebuilt", env
   end
 
-  context "runtime compiled", :bundle => "runtime" do
+  context "runtime compiled" do
     env = {
       "DD_ENABLE_RUNTIME_COMPILER"=>"true",
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false",
       "DD_ENABLE_CO_RE"=>"false"
     }
-    include_examples "passes", env, runtime_compiled_tests
+    include_examples "passes", "runtime", env, runtime_compiled_tests
   end
 
-  context "CO-RE", :bundle => "co-re" do
+  context "CO-RE" do
     env = {
       "DD_ENABLE_CO_RE"=>"true",
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
     }
-    include_examples "passes", env, co_re_tests
+    include_examples "passes", "co-re", env, co_re_tests
   end
 end

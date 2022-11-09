@@ -146,6 +146,7 @@ platforms:
   verifier:
     downloads:
       "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
   transport:
     <% if windows %>
