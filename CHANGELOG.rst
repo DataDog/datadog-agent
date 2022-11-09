@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.40.1:
+
+7.40.1
+======
+
+.. _Release Notes_7.40.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-11-09
+
+- Please refer to the `7.40.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7401>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.40.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go 1.18.8.
+
+
+.. _Release Notes_7.40.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix log collection on Kubernetes distributions using ``cri-o`` like OpenShift, which
+  began failing in 7.40.0.
+
 .. _Release Notes_7.40.0:
 
 7.40.0 / 6.40.0
