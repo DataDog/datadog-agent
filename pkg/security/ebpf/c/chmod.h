@@ -37,15 +37,9 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(chmod, const char*, filename, umode_t, mode) {
-    return trace__sys_chmod(mode);
-}
-
-SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
-    return trace__sys_chmod(mode);
-}
-
-SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
+SEC("kprobe/chmod_common")
+int kprobe_chmod_common(struct pt_regs *ctx) {
+    umode_t mode = PT_REGS_PARM2(ctx);
     return trace__sys_chmod(mode);
 }
 
@@ -85,15 +79,8 @@ int __attribute__((always_inline)) kprobe_sys_chmod_ret(struct pt_regs *ctx) {
     return sys_chmod_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chmod) {
-    return kprobe_sys_chmod_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(fchmod) {
-    return kprobe_sys_chmod_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(fchmodat) {
+SEC("kretprobe/chmod_common")
+int kretprobe_chmod_common(struct pt_regs *ctx) {
     return kprobe_sys_chmod_ret(ctx);
 }
 
