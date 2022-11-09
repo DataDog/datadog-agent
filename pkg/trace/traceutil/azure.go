@@ -108,19 +108,20 @@ func compileAzureResourceID(subID, resourceGroup, siteName string) (id string) {
 func getLinuxOrUnknown(subID string) string {
 	strippedOS := strings.Split(subID, "-")
 	if len(strippedOS) > 1 {
-		return strippedOS[len(strippedOS)-1]
+		return strings.ToLower(strippedOS[len(strippedOS)-1])
 	}
 	return unknown
 }
 
 func getOS(windows string, linux string) string {
 
-	if windows != unknown {
-		return windows
-	}
-
 	if strings.ToLower(linux) == "linux" {
 		return linux
 	}
+
+	if windows != unknown && windows != "" {
+		return windows
+	}
+
 	return unknown
 }
