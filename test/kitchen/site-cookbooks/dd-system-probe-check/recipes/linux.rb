@@ -119,7 +119,6 @@ end
 cookbook_file "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/minimized-btfs.tar.xz" do
   source "minimized-btfs.tar.xz"
   action :create
-  ignore_failure true
 end
 
 directory "/go/bin" do
