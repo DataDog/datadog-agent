@@ -84,17 +84,20 @@ func TestRegisterCheckSampler(t *testing.T) {
 	agg := getAggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
+	lenSenders := func(n int) bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == n
+	}
+
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, agg.checkSamplers, 1)
+
+	require.Eventually(t, func() bool { return lenSenders(1) }, time.Second, 10*time.Millisecond)
 
 	err = agg.registerSender(checkID2)
 	assert.Nil(t, err)
-	assert.Len(t, agg.checkSamplers, 2)
-
-	// Already registered sender => error
-	err = agg.registerSender(checkID2)
-	assert.NotNil(t, err)
+	require.Eventually(t, func() bool { return lenSenders(2) }, time.Second, 10*time.Millisecond)
 }
 
 func TestDeregisterCheckSampler(t *testing.T) {
@@ -110,20 +113,20 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
-	assert.Len(t, agg.checkSamplers, 2)
+
+	require.Eventually(t, func() bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == 2
+	}, time.Second, 10*time.Millisecond)
 
 	agg.deregisterSender(checkID1)
 
-	for tries := 100; tries > 0; tries-- {
+	require.Eventually(t, func() bool {
 		agg.mu.Lock()
-		ok := agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
-		agg.mu.Unlock()
-		if !ok && tries > 1 {
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		require.True(t, ok)
-	}
+		defer agg.mu.Unlock()
+		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
+	}, time.Second, 10*time.Millisecond)
 
 	agg.Flush(testNewFlushTrigger(time.Now(), false))
 
