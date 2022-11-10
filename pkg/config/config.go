@@ -768,6 +768,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
 
+	// Cloud Foundry Container Tagger
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_count", 10)
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_interval", 10*time.Second)
+
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
 
