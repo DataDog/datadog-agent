@@ -45,7 +45,7 @@ type Monitor struct {
 	telemetry              *telemetry
 	// telemetrySnapshot      *telemetry
 	pollRequests chan chan map[Key]*RequestStats
-	//statkeeper             *httpStatKeeper
+	statkeeper   *kafkaStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -87,13 +87,13 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	if err != nil {
 		return nil, err
 	}
-	//statkeeper := newKAFKAStatkeeper(c, telemetry)
+	statkeeper := newKAFKAStatkeeper(c, telemetry)
 
 	handler := func(transactions []kafkaTX) {
 		log.Debug("in handler")
-		//if statkeeper != nil {
-		//	statkeeper.Process(transactions)
-		//}
+		if statkeeper != nil {
+			statkeeper.Process(transactions)
+		}
 	}
 
 	batchManager, err := newBatchManager(batchMap, numCPUs)
@@ -107,10 +107,9 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		//telemetrySnapshot:      nil,
-		pollRequests:  make(chan chan map[Key]*RequestStats),
-		closeFilterFn: closeFilterFn,
-		//statkeeper:             statkeeper,
+		pollRequests:           make(chan chan map[Key]*RequestStats),
+		closeFilterFn:          closeFilterFn,
+		statkeeper:             statkeeper,
 	}, nil
 }
 
@@ -151,9 +150,32 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
+				//m.telemetry.aggregate(transactions, nil)
+				//var requestStatsMap map[Key]*RequestStats
+				//for _, transaction := range transactions {
+				//	key := Key{
+				//		KeyTuple: KeyTuple{
+				//			SrcIPHigh: transaction.SrcIPHigh(),
+				//			SrcIPLow:  transaction.SrcIPLow(),
+				//			SrcPort:   transaction.SrcPort(),
+				//			DstIPHigh: transaction.DstIPHigh(),
+				//			DstIPLow:  transaction.DstIPLow(),
+				//			DstPort:   transaction.DstPort(),
+				//		},
+				//		TopicName: transaction.TopicName(),
+				//	}
+				//	requestStats, ok := requestStatsMap[key]
+				//	if !ok {
+				//		// TODO: Should limit the size of requestStatsMap?
+				//		requestStats = new(RequestStats)
+				//		requestStatsMap[key] = requestStats
+				//	}
+				//	requestStats.data[ProduceAPIKey].Count++
+				//}
+
 				m.telemetry.log()
-				_ = reply
 				reply <- m.statkeeper.GetAndResetAllStats()
+				//reply <- requestStatsMap
 			}
 		}
 	}()
@@ -226,6 +248,32 @@ func (m *Monitor) process(transactions []kafkaTX, err error) {
 	if m.handler != nil && len(transactions) > 0 {
 		m.handler(transactions)
 	}
+
+	//var requestStatsMap map[Key]*RequestStats
+	//for _, transaction := range transactions {
+	//	key := Key{
+	//		KeyTuple: KeyTuple{
+	//			SrcIPHigh: transaction.SrcIPHigh(),
+	//			SrcIPLow:  transaction.SrcIPLow(),
+	//			SrcPort:   transaction.SrcPort(),
+	//			DstIPHigh: transaction.DstIPHigh(),
+	//			DstIPLow:  transaction.DstIPLow(),
+	//			DstPort:   transaction.DstPort(),
+	//		},
+	//		TopicName: transaction.TopicName(),
+	//	}
+	//	requestStats, ok := requestStatsMap[key]
+	//	if !ok {
+	//		// TODO: Should limit the size of requestStatsMap?
+	//		requestStats = new(RequestStats)
+	//		requestStatsMap[key] = requestStats
+	//	}
+	//	requestStats.data[ProduceAPIKey].Count++
+	//}
+
+	//if m.handler != nil && len(transactions) > 0 {
+	//	m.handler(transactions)
+	//}
 }
 
 // DumpMaps dumps the maps associated with the monitor
