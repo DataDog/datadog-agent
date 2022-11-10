@@ -54,7 +54,7 @@ const (
 	// to calls from the client libraries and to logs from the AWS environment.
 	httpServerAddr = ":8124"
 
-	logsAPIRegistrationRoute   = "/2020-08-15/logs"
+	logsAPIRegistrationRoute   = "/2022-07-01/telemetry"
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
@@ -220,25 +220,27 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
-		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, serverlessDaemon.ExecutionContext)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	// enable logs collection
+	// enable telemetry collection
 	go func() {
 		defer wg.Done()
-		log.Debug("Enabling logs collection HTTP route")
+		log.Debug("Enabling telemetry collection HTTP route")
 		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-		logRegistrationError := registration.EnableLogsCollection(
-			serverlessID,
-			logRegistrationURL,
-			logsAPIRegistrationTimeout,
-			os.Getenv(logsLogsTypeSubscribed),
-			logsAPIHttpServerPort,
-			logsAPICollectionRoute,
-			logsAPITimeout,
-			logsAPIMaxBytes,
-			logsAPIMaxItems)
+		logRegistrationError := registration.EnableTelemetryCollection(
+			registration.EnableTelemetryCollectionArgs{
+				ID:                  serverlessID,
+				RegistrationURL:     logRegistrationURL,
+				RegistrationTimeout: logsAPIRegistrationTimeout,
+				LogsType:            os.Getenv(logsLogsTypeSubscribed),
+				Port:                logsAPIHttpServerPort,
+				CollectionRoute:     logsAPICollectionRoute,
+				Timeout:             logsAPITimeout,
+				MaxBytes:            logsAPIMaxBytes,
+				MaxItems:            logsAPIMaxItems,
+			})
 
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
