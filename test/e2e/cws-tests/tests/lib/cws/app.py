@@ -23,7 +23,7 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringRuleMaxSignalDuration,
     SecurityMonitoringRuleOptions,
     SecurityMonitoringRuleQueryAggregation,
-    SecurityMonitoringRuleQueryCreate,
+    SecurityMonitoringRuleQuery,
     SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
     SecurityMonitoringSignalListRequest,
@@ -112,7 +112,7 @@ class App(common.App):
                 max_signal_duration=SecurityMonitoringRuleMaxSignalDuration(0),
             ),
             queries=[
-                SecurityMonitoringRuleQueryCreate(
+                SecurityMonitoringRuleQuery(
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
                     query="@agent.rule_id:" + agent_rule_id,
                     name="a",
