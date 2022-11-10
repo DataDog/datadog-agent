@@ -6,11 +6,11 @@
 //go:build ignore
 // +build ignore
 
-package ebpf
+package gotls
 
 /*
-#include "./c/tracer.h"
-#include "./c/http-types.h"
+#include "../../ebpf/c/tracer.h"
+#include "../../ebpf/c/protocols/http-types.h"
 */
 import "C"
 
