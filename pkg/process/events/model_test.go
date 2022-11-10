@@ -8,8 +8,9 @@ package events
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/stretchr/testify/assert"
+	
+	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 )
 
 // AssertProcessEvents compares two ProcessEvents. Two events can't be compared using directly assert.Equal
