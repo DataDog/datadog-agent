@@ -2,13 +2,13 @@
 #define __HTTPS_H
 
 #include <linux/dcache.h>
-#include <linux/mm_types.h>
 #include <linux/fs.h>
+#include <linux/mm_types.h>
+#include <linux/sched.h>
 
 #include "bpf_builtins.h"
 #include "http-buffer.h"
 #include "http-types.h"
-#include "http-maps.h"
 #include "http-maps.h"
 #include "http.h"
 #include "port_range.h"
