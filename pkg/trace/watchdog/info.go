@@ -9,8 +9,6 @@ import (
 	"runtime"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const (
@@ -61,23 +59,19 @@ type CurrentInfo struct {
 // if only one goroutine is polling for CPU() and Mem()
 var globalCurrentInfo *CurrentInfo
 
-func setGlobalInfo() {
+func ensureGlobalInfo() {
 	if globalCurrentInfo != nil {
 		return
 	}
-	var err error
-	globalCurrentInfo, err = NewCurrentInfo()
-	if err != nil {
-		log.Errorf("Unable to create global Process: %v", err)
-	}
+	globalCurrentInfo = NewCurrentInfo()
 }
 
 // NewCurrentInfo creates a new CurrentInfo referring to the current running program.
-func NewCurrentInfo() (*CurrentInfo, error) {
+func NewCurrentInfo() *CurrentInfo {
 	return &CurrentInfo{
 		pid:        int32(getpid()),
 		cacheDelay: cacheDelay,
-	}, nil
+	}
 }
 
 // CPU returns basic CPU info, or the previous valid CPU info and an error.
@@ -117,16 +111,12 @@ func (pi *CurrentInfo) Mem() MemInfo {
 
 // CPU returns basic CPU info, or the previous valid CPU info and an error.
 func CPU(now time.Time) (CPUInfo, error) {
-	if globalCurrentInfo == nil {
-		setGlobalInfo()
-	}
+	ensureGlobalInfo()
 	return globalCurrentInfo.CPU(now)
 }
 
 // Mem returns basic memory info.
 func Mem() MemInfo {
-	if globalCurrentInfo == nil {
-		setGlobalInfo()
-	}
+	ensureGlobalInfo()
 	return globalCurrentInfo.Mem()
 }
