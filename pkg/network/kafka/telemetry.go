@@ -90,7 +90,7 @@ func (t *telemetry) aggregate(transactions []kafkaTX, err error) {
 			t.topics[topicName][1].Add(1)
 			break
 		default:
-
+			log.Debugf("Unknown API key: %d", transaction.APIKey())
 		}
 		t.totalHits.Add(1)
 	}

@@ -44,8 +44,8 @@ func TestSanity(t *testing.T) {
 	err = monitor.Start()
 	require.NoError(t, err)
 	defer monitor.Stop()
-
-	time.Sleep(time.Hour * 2)
+	time.Sleep(time.Second * 10)
+	monitor.GetKafkaStats()
 
 	// to produce/consume messages
 	topic := "my-topic"
@@ -63,16 +63,17 @@ func TestSanity(t *testing.T) {
 		kafka.Message{Value: []byte("two!")},
 		kafka.Message{Value: []byte("three!")},
 		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("4!")},
+		kafka.Message{Value: []byte("5!")},
+		kafka.Message{Value: []byte("6!")},
+		kafka.Message{Value: []byte("7!")},
+		kafka.Message{Value: []byte("8!")},
+		kafka.Message{Value: []byte("9!")},
+		kafka.Message{Value: []byte("10!")},
+		kafka.Message{Value: []byte("11!")},
+		kafka.Message{Value: []byte("12!")},
+		kafka.Message{Value: []byte("13!")},
+		kafka.Message{Value: []byte("14!")},
+		kafka.Message{Value: []byte("15!")},
 	)
 	require.NoError(t, err)
 	require.NoError(t, conn.Close())

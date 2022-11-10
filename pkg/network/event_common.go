@@ -8,6 +8,7 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"strings"
 	"time"
 
@@ -122,6 +123,7 @@ type Connections struct {
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]*http.RequestStats
+	Kafka                       map[kafka.Key]*kafka.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
