@@ -150,29 +150,6 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				//m.telemetry.aggregate(transactions, nil)
-				//var requestStatsMap map[Key]*RequestStats
-				//for _, transaction := range transactions {
-				//	key := Key{
-				//		KeyTuple: KeyTuple{
-				//			SrcIPHigh: transaction.SrcIPHigh(),
-				//			SrcIPLow:  transaction.SrcIPLow(),
-				//			SrcPort:   transaction.SrcPort(),
-				//			DstIPHigh: transaction.DstIPHigh(),
-				//			DstIPLow:  transaction.DstIPLow(),
-				//			DstPort:   transaction.DstPort(),
-				//		},
-				//		TopicName: transaction.TopicName(),
-				//	}
-				//	requestStats, ok := requestStatsMap[key]
-				//	if !ok {
-				//		// TODO: Should limit the size of requestStatsMap?
-				//		requestStats = new(RequestStats)
-				//		requestStatsMap[key] = requestStats
-				//	}
-				//	requestStats.data[ProduceAPIKey].Count++
-				//}
-
 				m.telemetry.log()
 				reply <- m.statkeeper.GetAndResetAllStats()
 				//reply <- requestStatsMap

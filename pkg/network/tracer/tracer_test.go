@@ -1649,6 +1649,8 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	defer tr.Stop()
 }
 
+// TODO: Add kafka stats test
+
 func TestHTTPStats(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTP monitoring feature not available")

@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"math"
 	"sync"
 	"syscall"
@@ -53,6 +54,7 @@ type Tracer struct {
 	conntracker  netlink.Conntracker
 	reverseDNS   dns.ReverseDNS
 	httpMonitor  *http.Monitor
+	kafkaMonitor *kafka.Monitor
 	ebpfTracer   connection.Tracer
 	bpfTelemetry *telemetry.EBPFTelemetry
 
@@ -120,6 +122,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
 		config.EnableHTTPMonitoring = false
 		config.EnableHTTPSMonitoring = false
+		config.EnableKafkaMonitoring = false
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
@@ -164,6 +167,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
+		config.MaxKafkaStatsBuffered,
 	)
 
 	gwLookup := newGatewayLookup(config)
@@ -176,6 +180,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
+		kafkaMonitor:               newKafkaMonitor(config, ebpfTracer, nil, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -353,7 +358,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats(), t.kafkaMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
@@ -371,6 +376,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNS:                         names,
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
+		Kafka:                       delta.Kafka,
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
@@ -806,5 +812,34 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 	}
 
 	log.Info("http monitoring enabled")
+	return monitor
+}
+
+func newKafkaMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *kafka.Monitor {
+	if !c.EnableKafkaMonitoring {
+		return nil
+	}
+
+	// Shared with the HTTP program
+	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
+
+	monitor, err := kafka.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
+	if err != nil {
+		log.Errorf("could not instantiate kafka monitor: %s", err)
+		return nil
+	}
+
+	err = monitor.Start()
+	if errors.Is(err, syscall.ENOMEM) {
+		log.Error("could not enable kafka monitoring: not enough memory to attach kafka ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+		return nil
+	}
+
+	if err != nil {
+		log.Errorf("could not enable kafka monitoring: %s", err)
+		return nil
+	}
+
+	log.Info("kafka monitoring enabled")
 	return monitor
 }

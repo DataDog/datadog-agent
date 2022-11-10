@@ -115,7 +115,7 @@ const NumOfAPIKeys = 2
 
 // RequestStats stores stats for KAFKA requests to a particular path
 type RequestStats struct {
-	data [NumOfAPIKeys]*RequestStat
+	Data [NumOfAPIKeys]*RequestStat
 }
 
 //
@@ -173,51 +173,52 @@ type RequestStat struct {
 //	}
 //	return r.data[i] != nil && r.data[i].Count > 0
 //}
-//
-//// CombineWith merges the data in 2 RequestStats objects
-//// newStats is kept as it is, while the method receiver gets mutated
-//func (r *RequestStats) CombineWith(newStats *RequestStats) {
-//	for statusClass := 100; statusClass <= 500; statusClass += 100 {
-//		if !newStats.HasStats(statusClass) {
-//			// Nothing to do in this case
-//			continue
-//		}
-//
-//		newStatsData := newStats.Stats(statusClass)
-//		if newStatsData.Count == 1 {
-//			// The other bucket has a single latency sample, so we "manually" add it
-//			r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.StaticTags, newStatsData.DynamicTags)
-//			continue
-//		}
-//
-//		stats := r.Stats(statusClass)
-//		if stats == nil {
-//			r.init(statusClass)
-//			stats = r.Stats(statusClass)
-//		}
-//
-//		// The other bucket (newStats) has multiple samples and therefore a DDSketch object
-//		// We first ensure that the bucket we're merging to has a DDSketch object
-//		if stats.Latencies == nil {
-//			stats.Latencies = newStatsData.Latencies.Copy()
-//
-//			// If we have a latency sample in this bucket we now add it to the DDSketch
-//			if stats.Count == 1 {
-//				err := stats.Latencies.Add(stats.FirstLatencySample)
-//				if err != nil {
-//					log.Debugf("could not add request latency to ddsketch: %v", err)
-//				}
-//			}
-//		} else {
-//			err := stats.Latencies.MergeWith(newStatsData.Latencies)
-//			if err != nil {
-//				log.Debugf("error merging http transactions: %v", err)
-//			}
-//		}
-//		stats.Count += newStatsData.Count
-//	}
-//}
-//
+
+//CombineWith merges the data in 2 RequestStats objects
+//newStats is kept as it is, while the method receiver gets mutated
+func (r *RequestStats) CombineWith(newStats *RequestStats) {
+	//for statusClass := 100; statusClass <= 500; statusClass += 100 {
+	//	if !newStats.HasStats(statusClass) {
+	//		// Nothing to do in this case
+	//		continue
+	//	}
+	//
+	//	newStatsData := newStats.Stats(statusClass)
+	//	if newStatsData.Count == 1 {
+	//		// The other bucket has a single latency sample, so we "manually" add it
+	//		r.AddRequest(statusClass, newStatsData.FirstLatencySample, newStatsData.StaticTags, newStatsData.DynamicTags)
+	//		continue
+	//	}
+	//
+	//	stats := r.Stats(statusClass)
+	//	if stats == nil {
+	//		r.init(statusClass)
+	//		stats = r.Stats(statusClass)
+	//	}
+	//
+	//	// The other bucket (newStats) has multiple samples and therefore a DDSketch object
+	//	// We first ensure that the bucket we're merging to has a DDSketch object
+	//	if stats.Latencies == nil {
+	//		stats.Latencies = newStatsData.Latencies.Copy()
+	//
+	//		// If we have a latency sample in this bucket we now add it to the DDSketch
+	//		if stats.Count == 1 {
+	//			err := stats.Latencies.Add(stats.FirstLatencySample)
+	//			if err != nil {
+	//				log.Debugf("could not add request latency to ddsketch: %v", err)
+	//			}
+	//		}
+	//	} else {
+	//		err := stats.Latencies.MergeWith(newStatsData.Latencies)
+	//		if err != nil {
+	//			log.Debugf("error merging http transactions: %v", err)
+	//		}
+	//	}
+	//	stats.Count += newStatsData.Count
+	//}
+	r.Data[0].Count += newStats.Data[0].Count
+}
+
 //// AddRequest takes information about a HTTP transaction and adds it to the request stats
 //func (r *RequestStats) AddRequest(statusClass int, latency float64, staticTags uint64, dynamicTags []string) {
 //	if !r.isValid(statusClass) {
