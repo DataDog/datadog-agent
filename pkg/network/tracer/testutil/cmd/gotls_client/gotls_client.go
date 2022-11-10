@@ -38,13 +38,12 @@ func main() {
 	// Needed to give time to the tracer to hook GoTLS functions
 	time.Sleep(1 * time.Second)
 
-	// When
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%d/request", serverAddr, http.StatusOK), nil)
-	if err != nil {
-		log.Fatalf("could not generate HTTP request: %s", err)
-	}
-
 	for i := 0; i < reqCount; i++ {
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, http.StatusOK, i), nil)
+		if err != nil {
+			log.Fatalf("could not generate HTTP request: %s", err)
+		}
+
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Fatalf("could not do HTTPS request: %s", err)

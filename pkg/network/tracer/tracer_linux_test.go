@@ -1761,8 +1761,13 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	defer tr.Stop()
 	require.NoError(t, tr.RegisterClient("1"))
 
-	req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request", ServerAddr, nethttp.StatusOK), nil)
-	require.NoError(t, err)
+	// This maps will keep track of whether or not the tracer saw this request already or not
+	reqs := make(requestsMap)
+	for i := 0; i < ExpectedOccurrences; i++ {
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", ServerAddr, nethttp.StatusOK, i), nil)
+		require.NoError(t, err)
+		reqs[req] = false
+	}
 
 	clientBin := buildGoTLSClientBin(t)
 
@@ -1775,9 +1780,9 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	require.Eventually(t, func() bool {
 		stats, err := tr.GetActiveConnections("1")
 		require.NoError(t, err)
-		occurrences += PrintableInt(countRequestOccurrences(t, stats, req))
+		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
 		return occurrences == ExpectedOccurrences
-	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured", ExpectedOccurrences, &occurrences)
+	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", ExpectedOccurrences, &occurrences, reqs)
 }
 
 func buildGoTLSClientBin(t *testing.T) string {
@@ -1805,13 +1810,21 @@ func buildGoTLSClientBin(t *testing.T) string {
 	return clientBinPath
 }
 
-func countRequestOccurrences(t *testing.T, conns *network.Connections, req *nethttp.Request) (occurrences int) {
+func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map[*nethttp.Request]bool) (occurrences int) {
 	t.Helper()
 
-	expectedStatus := httptest.StatusFromPath(req.URL.Path)
 	for key, stats := range conns.HTTP {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
-			occurrences++
+		for req, found := range reqs {
+			if found {
+				continue
+			}
+
+			expectedStatus := httptest.StatusFromPath(req.URL.Path)
+			if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+				occurrences++
+				reqs[req] = true
+				break
+			}
 		}
 	}
 
@@ -1826,4 +1839,19 @@ func (i *PrintableInt) String() string {
 	}
 
 	return fmt.Sprintf("%d", *i)
+}
+
+type requestsMap map[*nethttp.Request]bool
+
+func (m requestsMap) String() string {
+	var result strings.Builder
+
+	for req, found := range m {
+		if found {
+			continue
+		}
+		result.WriteString(fmt.Sprintf("\t- %v\n", req.URL.Path))
+	}
+
+	return result.String()
 }
