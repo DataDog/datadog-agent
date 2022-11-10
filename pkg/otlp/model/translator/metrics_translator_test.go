@@ -1505,8 +1505,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: math.Pi / float64(30),
 					Cnt: 30,
@@ -1523,8 +1523,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1544,8 +1544,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1562,8 +1562,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1580,8 +1580,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1601,8 +1601,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1618,8 +1618,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			withCountSum:                         false,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1639,8 +1639,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1660,8 +1660,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1750,6 +1750,8 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	expDeltaHist.SetCount(30)
 	expDeltaHist.SetZeroCount(10)
 	expDeltaHist.SetSum(math.Pi)
+	expDeltaHist.SetMin(-100_000)
+	expDeltaHist.SetMax(100_000)
 	expDeltaHist.Negative().SetOffset(2)
 
 	expDeltaHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})
