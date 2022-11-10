@@ -102,34 +102,6 @@ func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestScheduleConfigCreatesNewService(t *testing.T) {
-	scheduler, spy := setup()
-	configService := integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ClusterCheck: false,
-	}
-
-	scheduler.Schedule([]integration.Config{configService})
-
-	require.Equal(t, 1, len(spy.Events))
-	require.True(t, spy.Events[0].Add)
-	svc := spy.Events[0].Service
-
-	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
-
-	// shouldn't consider pods
-	configService = integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ClusterCheck: false,
-	}
-	scheduler.Schedule([]integration.Config{configService})
-	require.Equal(t, 1, len(spy.Events)) // no new events
-}
-
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	scheduler, spy := setup()
 	configSource := integration.Config{
@@ -157,33 +129,6 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
-}
-
-func TestUnscheduleConfigRemovesService(t *testing.T) {
-	scheduler, spy := setup()
-	configService := integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ServiceID:    "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ClusterCheck: false,
-	}
-
-	scheduler.Unschedule([]integration.Config{configService})
-	require.Equal(t, 1, len(spy.Events))
-	require.False(t, spy.Events[0].Add)
-	svc := spy.Events[0].Service
-	assert.Equal(t, configService.ServiceID, svc.GetEntityID())
-
-	// shouldn't consider pods
-	configService = integration.Config{
-		LogsConfig:   []byte(""),
-		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ServiceID:    "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
-		ClusterCheck: false,
-	}
-
-	scheduler.Unschedule([]integration.Config{configService})
-	require.Equal(t, 1, len(spy.Events)) // no new events
 }
 
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {

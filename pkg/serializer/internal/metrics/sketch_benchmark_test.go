@@ -47,7 +47,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 		require.NoError(b, err)
 		var pb int
 		for _, p := range payloads {
-			pb += len(*p)
+			pb += p.Len()
 		}
 		b.ReportMetric(float64(pb), "payload-bytes")
 		b.ReportMetric(float64(len(payloads)), "payloads")

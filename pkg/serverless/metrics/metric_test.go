@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -79,8 +78,7 @@ func TestStartWithProxy(t *testing.T) {
 	defer config.Datadog.Set(statsDMetricBlocklistKey, originalValues)
 	config.Datadog.Set(statsDMetricBlocklistKey, []string{})
 
-	os.Setenv(proxyEnabledEnvVar, "true")
-	defer os.Unsetenv(proxyEnabledEnvVar)
+	t.Setenv(proxyEnabledEnvVar, "true")
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
@@ -191,7 +189,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = 10 * time.Millisecond
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, "serverless", time.Second*1000)
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
 	s, err := dogstatsd.NewServer(demux, true)
 	require.NoError(t, err, "cannot start DSD")

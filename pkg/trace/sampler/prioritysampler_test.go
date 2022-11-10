@@ -71,7 +71,7 @@ func TestPrioritySample(t *testing.T) {
 	s := getTestPrioritySampler()
 
 	assert.Equal(float32(0), s.localRates.totalSeen, "checking fresh backend total score is 0")
-	assert.Equal(int64(0), s.localRates.totalKept.Load(), "checkeing fresh backend sampled score is 0")
+	assert.Equal(int64(0), s.localRates.totalKept.Load(), "checking fresh backend sampled score is 0")
 
 	s = getTestPrioritySampler()
 	chunk, root := getTestTraceWithService(t, "my-service", s)

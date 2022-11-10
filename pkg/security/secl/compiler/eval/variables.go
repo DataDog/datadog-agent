@@ -82,6 +82,7 @@ type StringVariable struct {
 // GetEvaluator returns the variable SECL evaluator
 func (s *StringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
+		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			return s.strFnc(ctx)
 		},
@@ -269,6 +270,7 @@ type MutableStringVariable struct {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableStringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
+		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
 			return m.Value
 		},

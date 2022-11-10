@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewPersistentVolumeCollectorVersions builds the group of collector versions.
+func NewPersistentVolumeCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewPersistentVolumeCollector(),
+	)
+}
+
 // PersistentVolumeCollector is a collector for Kubernetes PersistentVolumes.
 type PersistentVolumeCollector struct {
 	informer  corev1Informers.PersistentVolumeInformer
@@ -33,9 +40,11 @@ type PersistentVolumeCollector struct {
 func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "persistentvolumes",
-			NodeType: orchestrator.K8sPersistentVolume,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "persistentvolumes",
+			NodeType:         orchestrator.K8sPersistentVolume,
+			Version:          "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
 	}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dogstatsd implements DogStatsD.
 package dogstatsd
 
 import (
@@ -22,12 +23,13 @@ type batcher struct {
 	// offset while writing into samples entries (i.e.  samples currently stored per pipeline)
 	samplesCount []int
 
-	// MetricSampleBatch used for late metrics
-	// no multi-pipelines for late ones since we don't process them and we directly
+	// MetricSampleBatch used for metrics with timestamp
+	// no multi-pipelines use for metrics with timestamp since we don't process them and we directly
 	// send them to the serializer
-	lateSamples metrics.MetricSampleBatch
-	// offset while writing into the late sample slice (i.e. late samples currently stored)
-	lateSamplesCount int
+	samplesWithTs metrics.MetricSampleBatch
+	// offset while writing into the sample with timestampe slice (i.e. count of samples
+	// with timestamp currently stored)
+	samplesWithTsCount int
 
 	events        []*metrics.Event
 	serviceChecks []*metrics.ServiceCheck
@@ -86,14 +88,14 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 	}
 
 	// prepare the late samples buffer
-	lateSamples := demux.GetMetricSamplePool().GetBatch()
-	lateSamplesCount := 0
+	samplesWithTs := demux.GetMetricSamplePool().GetBatch()
+	samplesWithTsCount := 0
 
 	return &batcher{
 		samples:            samples,
 		samplesCount:       samplesCount,
-		lateSamples:        lateSamples,
-		lateSamplesCount:   lateSamplesCount,
+		samplesWithTs:      samplesWithTs,
+		samplesWithTsCount: samplesWithTsCount,
 		metricSamplePool:   demux.GetMetricSamplePool(),
 		choutEvents:        e,
 		choutServiceChecks: sc,
@@ -112,8 +114,8 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 	samples := make([]metrics.MetricSampleBatch, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
 
-	lateSamples := demux.GetMetricSamplePool().GetBatch()
-	lateSamplesCount := 0
+	samplesWithTs := demux.GetMetricSamplePool().GetBatch()
+	samplesWithTsCount := 0
 
 	for i := range samples {
 		samples[i] = demux.GetMetricSamplePool().GetBatch()
@@ -121,11 +123,11 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 	}
 
 	return &batcher{
-		samples:          samples,
-		samplesCount:     samplesCount,
-		lateSamples:      lateSamples,
-		lateSamplesCount: lateSamplesCount,
-		metricSamplePool: demux.GetMetricSamplePool(),
+		samples:            samples,
+		samplesCount:       samplesCount,
+		samplesWithTs:      samplesWithTs,
+		samplesWithTsCount: samplesWithTsCount,
+		metricSamplePool:   demux.GetMetricSamplePool(),
 
 		demux:         demux,
 		pipelineCount: pipelineCount,
@@ -173,12 +175,12 @@ func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 		return
 	}
 
-	if b.lateSamplesCount == len(b.lateSamples) {
-		b.flushLateSamples()
+	if b.samplesWithTsCount == len(b.samplesWithTs) {
+		b.flushSamplesWithTs()
 	}
 
-	b.lateSamples[b.lateSamplesCount] = sample
-	b.lateSamplesCount++
+	b.samplesWithTs[b.samplesWithTsCount] = sample
+	b.samplesWithTsCount++
 }
 
 // Flushing
@@ -187,7 +189,7 @@ func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 func (b *batcher) flushSamples(shard uint32) {
 	if b.samplesCount[shard] > 0 {
 		t1 := time.Now()
-		b.demux.AddTimeSampleBatch(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
+		b.demux.AggregateSamples(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
 
@@ -196,16 +198,16 @@ func (b *batcher) flushSamples(shard uint32) {
 	}
 }
 
-func (b *batcher) flushLateSamples() {
-	if b.lateSamplesCount > 0 {
+func (b *batcher) flushSamplesWithTs() {
+	if b.samplesWithTsCount > 0 {
 		t1 := time.Now()
-		b.demux.AddLateMetrics(b.lateSamples[:b.lateSamplesCount])
+		b.demux.SendSamplesWithoutAggregation(b.samplesWithTs[:b.samplesWithTsCount])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
 
-		b.lateSamplesCount = 0
-		b.metricSamplePool.PutBatch(b.lateSamples)
-		b.lateSamples = b.metricSamplePool.GetBatch()
+		b.samplesWithTsCount = 0
+		b.metricSamplePool.PutBatch(b.samplesWithTs)
+		b.samplesWithTs = b.metricSamplePool.GetBatch()
 	}
 }
 
@@ -216,8 +218,8 @@ func (b *batcher) flush() {
 		b.flushSamples(uint32(i))
 	}
 
-	// flush all late samples to the serializer
-	b.flushLateSamples()
+	// flush all samples with timestamp to the serializer
+	b.flushSamplesWithTs()
 
 	// flush events
 	if len(b.events) > 0 {

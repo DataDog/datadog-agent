@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package http
 
@@ -37,12 +37,13 @@ type httpStatKeeper struct {
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
+
 	return &httpStatKeeper{
 		stats:             make(map[Key]*RequestStats),
 		incomplete:        newIncompleteBuffer(c, telemetry),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		replaceRules:      c.HTTPReplaceRules,
-		buffer:            make([]byte, HTTPBufferSize),
+		buffer:            make([]byte, getPathBufferSize(c)),
 		interned:          make(map[string]string),
 		telemetry:         telemetry,
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
@@ -51,7 +52,7 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
 	for i := range transactions {
-		tx := &transactions[i]
+		tx := transactions[i]
 		if tx.Incomplete() {
 			h.incomplete.Add(tx)
 			continue
@@ -59,8 +60,6 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 
 		h.add(tx)
 	}
-
-	h.telemetry.aggregations.Store(int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
@@ -74,20 +73,19 @@ func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *httpStatKeeper) add(tx *httpTX) {
+func (h *httpStatKeeper) add(tx httpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		return
 	}
-
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return
 	}
 
-	if Method(tx.request_method) == MethodUnknown {
-		h.telemetry.malformed.Inc()
+	if Method(tx.RequestMethod()) == MethodUnknown {
+		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
 		}
@@ -96,7 +94,7 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
 		}
@@ -107,31 +105,32 @@ func (h *httpStatKeeper) add(tx *httpTX) {
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
-			h.telemetry.dropped.Inc()
+			h.telemetry.dropped.Add(1)
 			return
 		}
+		h.telemetry.aggregations.Add(1)
 		stats = new(RequestStats)
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusClass(), latency, tx.Tags())
+	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *httpStatKeeper) newKey(tx *httpTX, path string, fullPath bool) Key {
+func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
 	return Key{
 		KeyTuple: KeyTuple{
-			SrcIPHigh: uint64(tx.tup.saddr_h),
-			SrcIPLow:  uint64(tx.tup.saddr_l),
-			SrcPort:   uint16(tx.tup.sport),
-			DstIPHigh: uint64(tx.tup.daddr_h),
-			DstIPLow:  uint64(tx.tup.daddr_l),
-			DstPort:   uint16(tx.tup.dport),
+			SrcIPHigh: tx.SrcIPHigh(),
+			SrcIPLow:  tx.SrcIPLow(),
+			SrcPort:   tx.SrcPort(),
+			DstIPHigh: tx.DstIPHigh(),
+			DstIPLow:  tx.DstIPLow(),
+			DstPort:   tx.DstPort(),
 		},
 		Path: Path{
 			Content:  path,
 			FullPath: fullPath,
 		},
-		Method: Method(tx.request_method),
+		Method: tx.Method(),
 	}
 }
 
@@ -144,13 +143,13 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr string, rejected bool) {
+func (h *httpStatKeeper) processHTTPPath(tx httpTX, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
-				h.telemetry.rejected.Inc()
+				h.telemetry.rejected.Add(1)
 				return "", true
 			}
 
@@ -165,10 +164,9 @@ func (h *httpStatKeeper) processHTTPPath(tx *httpTX, path []byte) (pathStr strin
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).KeyTuple, tx.String())
 		}
-		h.telemetry.malformed.Inc()
+		h.telemetry.malformed.Add(1)
 		return "", true
 	}
-
 	return h.intern(path), false
 }
 

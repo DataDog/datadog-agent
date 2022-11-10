@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file/provider"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -47,7 +48,7 @@ type Launcher struct {
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
 	tailingLimit        int
-	fileProvider        *fileProvider
+	fileProvider        *fileprovider.FileProvider
 	tailers             map[string]*tailer.Tailer
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
@@ -60,10 +61,22 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
+
+	var wildcardStrategy fileprovider.WildcardSelectionStrategy
+	switch wildcardMode {
+	case "by_modification_time":
+		wildcardStrategy = fileprovider.WildcardUseFileModTime
+	case "by_name":
+		wildcardStrategy = fileprovider.WildcardUseFileName
+	default:
+		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'by_name' strategy.", wildcardMode)
+		wildcardStrategy = fileprovider.WildcardUseFileName
+	}
+
 	return &Launcher{
 		tailingLimit:           tailingLimit,
-		fileProvider:           newFileProvider(tailingLimit),
+		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                make(map[string]*tailer.Tailer),
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
@@ -122,10 +135,14 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
-	files := s.fileProvider.filesToTail(s.activeSources)
+	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
-	tailersLen := len(s.tailers)
 
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), len(s.tailers))
+
+	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
+	// stop the tailers.
+	// Defer creation of new tailers until second pass.
 	for _, file := range files {
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
@@ -136,43 +153,34 @@ func (s *Launcher) scan() {
 		// It is a hack to let two tailers tail the same file (it's happening
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
-		tailerKey := file.GetScanKey()
-		tailer, isTailed := s.tailers[tailerKey]
+		scanKey := file.GetScanKey()
+		tailer, isTailed := s.tailers[scanKey]
 		if isTailed && tailer.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
 		}
-		if !isTailed && tailersLen >= s.tailingLimit {
-			// can't create new tailer because tailingLimit is reached
-			continue
-		}
 
-		if !isTailed && tailersLen < s.tailingLimit {
-			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, config.Beginning)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
+		// If the file is currently being tailed, check for rotation and handle it appropriately.
+		if isTailed {
+			didRotate, err := tailer.DidRotate()
+			if err != nil {
 				continue
 			}
-			tailersLen++
-			filesTailed[tailerKey] = true
-			continue
-		}
-
-		didRotate, err := tailer.DidRotate()
-		if err != nil {
-			continue
-		}
-		if didRotate {
-			// restart tailer because of file-rotation on file
-			succeeded := s.restartTailerAfterFileRotation(tailer, file)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
-				continue
+			if didRotate {
+				// restart tailer because of file-rotation on file
+				succeeded := s.restartTailerAfterFileRotation(tailer, file)
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
 			}
+		} else {
+			// Defer any files that are not tailed for the 2nd pass
+
+			continue
 		}
 
-		filesTailed[tailerKey] = true
+		filesTailed[scanKey] = true
 	}
 
 	for scanKey, tailer := range s.tailers {
@@ -182,6 +190,26 @@ func (s *Launcher) scan() {
 			s.stopTailer(scanKey, tailer)
 		}
 	}
+
+	tailersLen := len(s.tailers)
+	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
+
+	for _, file := range files {
+		scanKey := file.GetScanKey()
+		_, isTailed := s.tailers[scanKey]
+		if !isTailed && tailersLen < s.tailingLimit {
+			// create a new tailer tailing from the beginning of the file if no offset has been recorded
+			succeeded := s.startNewTailer(file, config.Beginning)
+			if !succeeded {
+				// the setup failed, let's try to tail this file in the next scan
+				continue
+			}
+			tailersLen++
+			filesTailed[scanKey] = true
+			continue
+		}
+	}
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -203,7 +231,11 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
-	files, err := s.fileProvider.collectFiles(source)
+	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
+	if len(s.tailers) >= s.tailingLimit {
+		return
+	}
+	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
 		source.Status.Error(err)
 		log.Warnf("Could not collect files: %v", err)

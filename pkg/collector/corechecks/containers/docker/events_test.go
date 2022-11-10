@@ -233,7 +233,8 @@ func TestAggregateEvents(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			bundles := aggregateEvents(tc.events, tc.filteredActions)
+			transformer := newBundledTransformer("test-host", tc.filteredActions).(*bundledTransformer)
+			bundles := transformer.aggregateEvents(tc.events)
 			for _, b := range bundles {
 				// Strip underlying events to ease testing
 				// countByAction is enough for testing the

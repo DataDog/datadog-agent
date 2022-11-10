@@ -53,6 +53,15 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
+
+    // should we sample this event for activity dumps ?
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
+    if (config) {
+        if (mask_has_event(config->event_mask, EVENT_BIND)) {
+            event.event.is_activity_dump_sample = 1;
+        }
+    }
+
     send_event(ctx, EVENT_BIND, event);
     return 0;
 }
@@ -60,11 +69,6 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
 SYSCALL_KRETPROBE(bind) {
     int retval = PT_REGS_RC(ctx);
     return sys_bind_ret(ctx, retval);
-}
-
-SEC("tracepoint/syscalls/sys_exit_bind")
-int tracepoint_syscalls_sys_exit_bind(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_bind_ret(args, args->ret);
 }
 
 SEC("kprobe/security_socket_bind")
@@ -122,6 +126,11 @@ int kprobe_security_socket_bind(struct pt_regs *ctx) {
 #endif
     }
     return 0;
+}
+
+SEC("tracepoint/handle_sys_bind_exit")
+int tracepoint_handle_sys_bind_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_bind_ret(args, args->ret);
 }
 
 #endif /* _BIND_H_ */

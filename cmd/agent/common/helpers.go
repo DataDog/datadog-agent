@@ -8,6 +8,8 @@ package common
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -70,7 +72,17 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool, fa
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
-		return warnings, fmt.Errorf("unable to load Datadog config file: %w", err)
+		// special-case permission-denied with a clearer error message
+		if errors.Is(err, fs.ErrPermission) {
+			if runtime.GOOS == "windows" {
+				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
+			} else {
+				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
+			}
+		} else {
+			err = fmt.Errorf("unable to load Datadog config file: %w", err)
+		}
+		return warnings, err
 	}
 	return warnings, nil
 }

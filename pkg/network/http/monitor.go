@@ -10,24 +10,17 @@ package http
 
 import (
 	"fmt"
-
 	"sync"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
-
-// HTTPMonitorStats is used for holding two kinds of stats:
-// * requestsStats which are the http data stats
-// * telemetry which are telemetry stats
-type HTTPMonitorStats struct {
-	requestStats map[Key]*RequestStats
-	telemetry    telemetry
-}
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -41,9 +34,9 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
-	telemetrySnapshot      *telemetry
-	pollRequests           chan chan HTTPMonitorStats
-	statkeeper             *httpStatKeeper
+
+	pollRequests chan chan map[Key]*RequestStats
+	statkeeper   *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -53,8 +46,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c, offsets, sockFD)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
@@ -68,26 +61,23 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c.ProcRoot, filter)
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
 	batchMap, _, err := mgr.GetMap(httpBatchesMap)
 	if err != nil {
+		closeFilterFn()
 		return nil, err
 	}
 
-	batchStateMap, _, err := mgr.GetMap(httpBatchStateMap)
-	if err != nil {
-		return nil, err
-	}
-
-	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
-	numCPUs := int(notificationMap.MaxEntries())
+	batchEventsMap, _, _ := mgr.GetMap(httpBatchEvents)
+	numCPUs := int(batchEventsMap.MaxEntries())
 
 	telemetry, err := newTelemetry()
 	if err != nil {
+		closeFilterFn()
 		return nil, err
 	}
 	statkeeper := newHTTPStatkeeper(c, telemetry)
@@ -98,14 +88,19 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		}
 	}
 
+	batchManager, err := newBatchManager(batchMap, numCPUs)
+	if err != nil {
+		closeFilterFn()
+		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
+	}
+
 	return &Monitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
-		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		telemetrySnapshot:      nil,
-		pollRequests:           make(chan chan HTTPMonitorStats),
+		pollRequests:           make(chan chan map[Key]*RequestStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
 	}, nil
@@ -131,9 +126,7 @@ func (m *Monitor) Start() error {
 					return
 				}
 
-				// The notification we read from the perf ring tells us which HTTP batch of transactions is ready to be consumed
-				notification := toHTTPNotification(dataEvent.Data)
-				transactions, err := m.batchManager.GetTransactionsFrom(notification)
+				transactions, err := m.batchManager.GetTransactionsFrom(dataEvent)
 				m.process(transactions, err)
 				dataEvent.Done()
 			case _, ok := <-m.batchCompletionHandler.LostChannel:
@@ -150,16 +143,8 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				delta := m.telemetry.reset()
-
-				// For now, we still want to report the telemetry as it contains more information than what
-				// we're extracting via network tracer.
-				delta.report()
-
-				reply <- HTTPMonitorStats{
-					requestStats: m.statkeeper.GetAndResetAllStats(),
-					telemetry:    delta,
-				}
+				m.telemetry.log()
+				reply <- m.statkeeper.GetAndResetAllStats()
 			}
 		}
 	}()
@@ -180,31 +165,10 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	reply := make(chan HTTPMonitorStats, 1)
+	reply := make(chan map[Key]*RequestStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
-	stats := <-reply
-	m.telemetrySnapshot = &stats.telemetry
-	return stats.requestStats
-}
-
-func (m *Monitor) GetStats() map[string]interface{} {
-	empty := map[string]interface{}{}
-	if m == nil {
-		return empty
-	}
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.stopped {
-		return empty
-	}
-
-	if m.telemetrySnapshot == nil {
-		return empty
-	}
-
-	return m.telemetrySnapshot.report()
+	return <-reply
 }
 
 // Stop HTTP monitoring
@@ -234,6 +198,7 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 	}
 }
 
+// DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
-	return m.ebpfProgram.Manager.DumpMaps(maps...)
+	return m.ebpfProgram.DumpMaps(maps...)
 }

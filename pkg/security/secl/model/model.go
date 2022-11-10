@@ -45,6 +45,8 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 	// do not support regular expression on path, currently unable to support discarder for regex value
 	if fieldValue.Type == eval.RegexpValueType {
 		return fmt.Errorf("regexp not supported on path `%s`", field)
+	} else if fieldValue.Type == eval.VariableValueType {
+		return nil
 	}
 
 	if value, ok := fieldValue.Value.(string); ok {
@@ -137,19 +139,21 @@ type ChownEvent struct {
 // ContainerContext holds the container context of an event
 //msgp:ignore ContainerContext
 type ContainerContext struct {
-	ID   string   `field:"id,handler:ResolveContainerID"`                 // ID of the container
-	Tags []string `field:"tags,handler:ResolveContainerTags,weight:9999"` // Tags of the container
+	ID   string   `field:"id,handler:ResolveContainerID"`                              // ID of the container
+	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
 //msgp:ignore Event
 // genaccessors
 type Event struct {
-	ID           string    `field:"-" json:"-"`
-	Type         uint32    `field:"-"`
-	Async        bool      `field:"async" msg:"async" event:"*"` // True if the syscall was asynchronous
-	TimestampRaw uint64    `field:"-" json:"-"`
-	Timestamp    time.Time `field:"-"` // Timestamp of the event
+	ID                   string    `field:"-" json:"-"`
+	Type                 uint32    `field:"-"`
+	Async                bool      `field:"async" event:"*"` // True if the syscall was asynchronous
+	SavedByActivityDumps bool      `field:"-"`               // True if the event should have been discarded if the AD were disabled
+	IsActivityDumpSample bool      `field:"-"`               // True if the event was sampled for the activity dumps
+	TimestampRaw         uint64    `field:"-" json:"-"`
+	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
@@ -318,11 +322,21 @@ type Credentials struct {
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *Process) GetPathResolutionError() string {
-	if e.FileEvent.PathResolutionError != nil {
-		return e.FileEvent.PathResolutionError.Error()
+func (p *Process) GetPathResolutionError() string {
+	if p.FileEvent.PathResolutionError != nil {
+		return p.FileEvent.PathResolutionError.Error()
 	}
 	return ""
+}
+
+// HasInterpreter returns whether the process uses an interpreter
+func (p *Process) HasInterpreter() bool {
+	return p.LinuxBinprm.FileEvent.Inode != 0 && p.LinuxBinprm.FileEvent.MountID != 0
+}
+
+// LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
+type LinuxBinprm struct {
+	FileEvent FileEvent `field:"file" msg:"file"`
 }
 
 // Process represents a process
@@ -337,8 +351,9 @@ type Process struct {
 	SpanID  uint64 `field:"-" msg:"span_id,omitempty"`
 	TraceID uint64 `field:"-" msg:"trace_id,omitempty"`
 
-	TTYName string `field:"tty_name" msg:"tty,omitempty"` // Name of the TTY associated with the process
-	Comm    string `field:"comm" msg:"comm"`              // Comm attribute of the process
+	TTYName     string      `field:"tty_name" msg:"tty,omitempty"`            // Name of the TTY associated with the process
+	Comm        string      `field:"comm" msg:"comm"`                         // Comm attribute of the process
+	LinuxBinprm LinuxBinprm `field:"interpreter" msg:"interpreter,omitempty"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" msg:"fork_time" json:"-"`
@@ -473,16 +488,14 @@ func (e *FileEvent) GetPathResolutionError() string {
 // InvalidateDentryEvent defines a invalidate dentry event
 //msgp:ignore InvalidateDentryEvent
 type InvalidateDentryEvent struct {
-	Inode             uint64
-	MountID           uint32
-	DiscarderRevision uint32
+	Inode   uint64
+	MountID uint32
 }
 
 // MountReleasedEvent defines a mount released event
 //msgp:ignore MountReleasedEvent
 type MountReleasedEvent struct {
-	MountID           uint32
-	DiscarderRevision uint32
+	MountID uint32
 }
 
 // LinkEvent represents a link event
@@ -680,17 +693,15 @@ type PIDContext struct {
 //msgp:ignore RenameEvent
 type RenameEvent struct {
 	SyscallEvent
-	Old               FileEvent `field:"file"`
-	New               FileEvent `field:"file.destination"`
-	DiscarderRevision uint32    `field:"-" json:"-"`
+	Old FileEvent `field:"file"`
+	New FileEvent `field:"file.destination"`
 }
 
 // RmdirEvent represents a rmdir event
 //msgp:ignore RmdirEvent
 type RmdirEvent struct {
 	SyscallEvent
-	File              FileEvent `field:"file"`
-	DiscarderRevision uint32    `field:"-" json:"-"`
+	File FileEvent `field:"file"`
 }
 
 // SetXAttrEvent represents an extended attributes event
@@ -713,9 +724,8 @@ type SyscallEvent struct {
 //msgp:ignore UnlinkEvent
 type UnlinkEvent struct {
 	SyscallEvent
-	File              FileEvent `field:"file"`
-	Flags             uint32    `field:"flags" constants:"Unlink flags"`
-	DiscarderRevision uint32    `field:"-" json:"-"`
+	File  FileEvent `field:"file"`
+	Flags uint32    `field:"flags" constants:"Unlink flags"`
 }
 
 // UmountEvent represents an umount event
@@ -840,7 +850,26 @@ type SpliceEvent struct {
 //msgp:ignore CgroupTracingEvent
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
-	TimeoutRaw       uint64
+	Config           ActivityDumpLoadConfig
+	ConfigCookie     uint32
+}
+
+// ActivityDumpLoadConfig represents the load configuration of an activity dump
+//msgp:ignore ActivityDumpLoadConfig
+type ActivityDumpLoadConfig struct {
+	TracedEventTypes     []EventType
+	Timeout              time.Duration
+	WaitListTimestampRaw uint64
+	StartTimestampRaw    uint64
+	EndTimestampRaw      uint64
+	Rate                 uint32 // max number of events per sec
+	Paused               uint32
+}
+
+// SetTimeout updates the timeout of an activity dump
+func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
+	adlc.Timeout = duration
+	adlc.EndTimestampRaw = adlc.StartTimestampRaw + uint64(duration)
 }
 
 // NetworkDeviceContext represents the network device context of a network event
@@ -872,7 +901,7 @@ type NetworkContext struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"-" msg:"-" json:"-"`
+	ID    uint16 `field:"id" msg:"-" json:"-"`                                                // [Experimental] the DNS request ID
 	Name  string `field:"question.name,opts:length" msg:"name" op_override:"eval.DNSNameCmp"` // the queried domain name
 	Type  uint16 `field:"question.type" msg:"type" constants:"DNS qtypes"`                    // a two octet code which specifies the DNS question type
 	Class uint16 `field:"question.class" msg:"class" constants:"DNS qclasses"`                // the class looked up by the DNS question

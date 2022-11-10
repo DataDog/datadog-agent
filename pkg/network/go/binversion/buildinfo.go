@@ -23,9 +23,6 @@
 // Build information is available for the currently running binary in
 // runtime/debug.ReadBuildInfo.
 
-//go:build linux_bpf
-// +build linux_bpf
-
 package binversion
 
 import (

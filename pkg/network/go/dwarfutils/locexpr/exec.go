@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
-
 package locexpr
 
 import (
@@ -35,7 +32,7 @@ type LocationPiece struct {
 // for debugging/error reporting purposes
 func Format(expression []byte) string {
 	buf := bytes.NewBufferString("")
-	op.PrettyPrint(buf, expression)
+	op.PrettyPrint(buf, expression, nil)
 	return buf.String()
 }
 

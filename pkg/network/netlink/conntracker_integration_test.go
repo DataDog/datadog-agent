@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
@@ -101,7 +102,16 @@ func TestMessageDump6(t *testing.T) {
 }
 
 func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
-	consumer := NewConsumer("/proc", 500, false)
+	consumer, err := NewConsumer(
+		&config.Config{
+			Config: ebpf.Config{
+				ProcRoot: "/proc",
+			},
+			ConntrackRateLimit:           500,
+			EnableRootNetNs:              true,
+			EnableConntrackAllNamespaces: false,
+		})
+	require.NoError(t, err)
 	events, err := consumer.Events()
 	require.NoError(t, err)
 

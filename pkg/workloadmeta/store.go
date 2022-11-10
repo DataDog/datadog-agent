@@ -156,7 +156,8 @@ func (s *store) Start(ctx context.Context) {
 
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
-// event for each entity present in the store that matches filter.
+// event for each entity present in the store that matches filter, unless the
+// filter type is EventTypeUnset.
 func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
@@ -177,33 +178,35 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
 
-	for kind, entitiesOfKind := range s.store {
-		if !sub.filter.MatchKind(kind) {
-			continue
-		}
+	if filter == nil || (filter != nil && filter.EventType() != EventTypeUnset) {
+		for kind, entitiesOfKind := range s.store {
+			if !sub.filter.MatchKind(kind) {
+				continue
+			}
 
-		for _, cachedEntity := range entitiesOfKind {
-			entity := cachedEntity.get(sub.filter.Source())
-			if entity != nil {
-				events = append(events, Event{
-					Type:   EventTypeSet,
-					Entity: entity,
-				})
+			for _, cachedEntity := range entitiesOfKind {
+				entity := cachedEntity.get(sub.filter.Source())
+				if entity != nil {
+					events = append(events, Event{
+						Type:   EventTypeSet,
+						Entity: entity,
+					})
+				}
 			}
 		}
+
+		// sort events by kind and ID for deterministic ordering
+		sort.Slice(events, func(i, j int) bool {
+			a := events[i].Entity.GetID()
+			b := events[j].Entity.GetID()
+
+			if a.Kind != b.Kind {
+				return a.Kind < b.Kind
+			}
+
+			return a.ID < b.ID
+		})
 	}
-
-	// sort events by kind and ID for deterministic ordering
-	sort.Slice(events, func(i, j int) bool {
-		a := events[i].Entity.GetID()
-		b := events[j].Entity.GetID()
-
-		if a.Kind != b.Kind {
-			return a.Kind < b.Kind
-		}
-
-		return a.ID < b.ID
-	})
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet

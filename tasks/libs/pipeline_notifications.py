@@ -4,80 +4,7 @@ import subprocess
 from collections import defaultdict
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobReason, Test
-
-
-def get_failed_jobs(project_name, pipeline_id):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-
-    # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
-    # go through it twice
-    jobs = list(gitlab.all_jobs(pipeline_id))
-
-    # Get instances of failed jobs
-    failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}
-
-    # Group jobs per name
-    for job in jobs:
-        if job["name"] in failed_jobs:
-            failed_jobs[job["name"]].append(job)
-
-    # There, we now have the following map:
-    # job name -> list of jobs with that name, including at least one failed job
-
-    final_failed_jobs = []
-    for job_name, jobs in failed_jobs.items():
-        # We sort each list per creation date
-        jobs.sort(key=lambda x: x["created_at"])
-        # We truncate the job name to increase readability
-        job_name = truncate_job_name(job_name)
-        # Check the final job in the list: it contains the current status of the job
-        # This excludes jobs that were retried and succeeded
-        final_status = {
-            "name": job_name,
-            "id": jobs[-1]["id"],
-            "stage": jobs[-1]["stage"],
-            "status": jobs[-1]["status"],
-            "allow_failure": jobs[-1]["allow_failure"],
-            "url": jobs[-1]["web_url"],
-            "retry_summary": [job["status"] for job in jobs],
-            "failure_type": get_job_failure_reason(gitlab.job_log(jobs[-1]["id"])),
-        }
-
-        # Also exclude jobs allowed to fail
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
-            final_failed_jobs.append(final_status)
-
-    return final_failed_jobs
-
-
-def get_job_failure_reason(job_log):
-    infra_failure_logs = [
-        # Gitlab errors while pulling image
-        "no basic auth credentials (manager.go:203:0s)",
-        "net/http: TLS handshake timeout (manager.go:203:10s)",
-        "Failed to pull image with policy \"always\": error pulling image configuration",
-        # docker / docker-arm runner init failures
-        "Docker runner job start script failed",
-        "A disposable runner accepted this job, while it shouldn't have. Runners are meant to run just one job and be terminated.",
-        # k8s Gitlab runner init failures
-        "Job failed (system failure): prepare environment: waiting for pod running: timed out waiting for pod to start",
-        # kitchen tests Azure VM allocation failures
-        "Allocation failed. We do not have sufficient capacity for the requested VM size in this region.",
-    ]
-
-    for log in infra_failure_logs:
-        if log in job_log:
-            return FailedJobReason.INFRA_FAILURE
-    return FailedJobReason.JOB_FAILURE
-
-
-def truncate_job_name(job_name, max_char_per_job=48):
-    # Job header should be before the colon, if there is no colon this won't change job_name
-    truncated_job_name = job_name.split(":")[0]
-    # We also want to avoid it being too long
-    truncated_job_name = truncated_job_name[:max_char_per_job]
-    return truncated_job_name
+from .types import FailedJobType, Test
 
 
 def read_owners(owners_file):
@@ -122,7 +49,7 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
 
     for job in failed_jobs:
         # Exclude jobs that failed due to infrastructure failures
-        if job["failure_type"] == FailedJobReason.INFRA_FAILURE:
+        if job["failure_type"] == FailedJobType.INFRA_FAILURE:
             continue
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
@@ -135,8 +62,8 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     return owners_to_notify
 
 
-def base_message(header):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
+def base_message(header, state):
+    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
         header=header,
         pipeline_url=os.getenv("CI_PIPELINE_URL"),
@@ -148,6 +75,7 @@ def base_message(header):
         ),
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
         author=get_git_author(),
+        state=state,
     )
 
 

@@ -15,12 +15,12 @@ void cleanupFolders()
     std::filesystem::remove(installPath / "embedded", ec);
     if (ec)
     {
-        WcaLog(LOGMSG_STANDARD, "Could not remove embedded folder: %s",ec.message().c_str());
+        WcaLog(LOGMSG_STANDARD, "Could not remove embedded folder: %s", ec.message().c_str());
     }
 
     // Nuke the embedded2/3 folders since we don't support patching the Python installation
     // and it's not tracked by the MSI installer anymore
-    for (const auto &folder : {"embedded2","embedded3"})
+    for (const auto &folder : {"embedded2", "embedded3"})
     {
         std::filesystem::path folderPath = installPath / folder;
         if (!exists(folderPath))
@@ -62,7 +62,6 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
 {
 
     DWORD er = ERROR_SUCCESS;
-    CustomActionData data;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
     ddRegKey regkey;
@@ -189,7 +188,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t)
     if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))
     {
         // uninstall the services
-        uninstallServices(data);
+        uninstallServices();
     }
     else
     {

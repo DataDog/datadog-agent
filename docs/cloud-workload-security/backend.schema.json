@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft/2020-12/schema",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/DataDog/datadog-agent/pkg/security/probe/event",
   "$defs": {
     "BPFEvent": {
@@ -675,6 +675,10 @@
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
         },
+        "interpreter": {
+          "$ref": "#/$defs/File",
+          "description": "File information of the interpreter"
+        },
         "container": {
           "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
@@ -786,6 +790,10 @@
         "executable": {
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
+        },
+        "interpreter": {
+          "$ref": "#/$defs/File",
+          "description": "File information of the interpreter"
         },
         "container": {
           "$ref": "#/$defs/ContainerContext",

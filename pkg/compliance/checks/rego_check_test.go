@@ -42,7 +42,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, nil, &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -55,9 +55,6 @@ func (f *regoFixture) run(t *testing.T) {
 
 	cache.Cache.Delete(processCacheKey)
 	processFetcher = func() (processes, error) {
-		for pid, p := range f.processes {
-			p.Pid = pid
-		}
 		return f.processes, nil
 	}
 
@@ -115,10 +112,66 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
+			},
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"process.name":    "proc1",
+						"process.exe":     "",
+						"process.cmdLine": []interface{}{"arg1", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
+					Evaluator: "rego",
 				},
+			},
+		},
+		{
+			name: "status normalization",
+			inputs: []compliance.RegoInput{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
+					},
+					TagName: "processes",
+					Type:    "array",
+				},
+			},
+			module: `
+				package test
+
+				import data.datadog as dd
+
+				process_data(p) = d {
+					d := {
+						"process.name": p.name,
+						"process.exe": p.exe,
+						"process.cmdLine": p.cmdLine,
+					}
+				}
+
+				default valid = false
+
+				findings[f] {
+					p := input.processes[_]
+					p.flags["--path"] == "foo"
+					f := {
+						"status": "pass",
+						"resource_type": "process",
+						"resource_id": "42",
+						"data": process_data(p),
+					}
+				}
+			`,
+			findings: "data.test.findings",
+			processes: processes{
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
@@ -172,10 +225,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
@@ -220,10 +270,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: []*compliance.Report{
 				{
@@ -266,10 +313,7 @@ func TestRegoCheck(t *testing.T) {
 			`,
 			findings: "data.test.findings",
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectReports: nil,
 		},

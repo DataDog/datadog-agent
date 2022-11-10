@@ -53,7 +53,14 @@ type OTLP struct {
 	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
 	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
 
-	// SpanNameAsResourceName uses the OTLP span name as the Datadog resource name.
+	// SpanNameAsResourceName specifies whether the OpenTelemetry span's name should be
+	// used as the Datadog span's operation name. By default (when this is false), the
+	// operation name is deduced from a combination between the instrumentation scope
+	// name and the span kind.
+	//
+	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
+	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
+	// kind comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
@@ -100,18 +107,6 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
-}
-
-// AppSecConfig ...
-type AppSecConfig struct {
-	// Enabled reports whether AppSec is enabled.
-	Enabled bool
-	// MaxPayloadSize ...
-	MaxPayloadSize int64
-	// APIKey ...
-	APIKey string
-	// DDURL ...
-	DDURL string
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -266,6 +261,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string
+	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
+	ApplicationKey string
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -316,8 +313,8 @@ type AgentConfig struct {
 	MaxEPS          float64
 	MaxRemoteTPS    float64
 
-	// Rare Sampler configuation
-	RareSamplerDisabled       bool
+	// Rare Sampler configuration
+	RareSamplerEnabled        bool
 	RareSamplerTPS            int
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
@@ -343,6 +340,7 @@ type AgentConfig struct {
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
+	StatsdEnabled  bool
 	StatsdHost     string
 	StatsdPort     int
 	StatsdPipeName string // for Windows Pipes
@@ -396,9 +394,6 @@ type AgentConfig struct {
 	// Telemetry settings
 	TelemetryConfig *TelemetryConfig
 
-	// AppSec contains AppSec configuration.
-	AppSec AppSecConfig
-
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
 
@@ -418,6 +413,9 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+
+	// ContainerProcRoot is the root dir for `proc` info
+	ContainerProcRoot string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -451,7 +449,7 @@ func New() *AgentConfig {
 		MaxEPS:          200,
 		MaxRemoteTPS:    100,
 
-		RareSamplerDisabled:       false,
+		RareSamplerEnabled:        false,
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
@@ -467,8 +465,9 @@ func New() *AgentConfig {
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
 
-		StatsdHost: "localhost",
-		StatsdPort: 8125,
+		StatsdHost:    "localhost",
+		StatsdPort:    8125,
+		StatsdEnabled: true,
 
 		LogThrottling: true,
 
@@ -488,10 +487,6 @@ func New() *AgentConfig {
 		ContainerTags: noopContainerTagsFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
-		},
-		AppSec: AppSecConfig{
-			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,

@@ -17,8 +17,8 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	tx := httpTX{
-		request_fragment: requestFragment(
+	tx := ebpfHttpTx{
+		Request_fragment: requestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}
@@ -33,8 +33,8 @@ func TestMaximumLengthPath(t *testing.T) {
 	rep := strings.Repeat("a", HTTPBufferSize-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := httpTX{
-		request_fragment: requestFragment(
+	tx := ebpfHttpTx{
+		Request_fragment: requestFragment(
 			[]byte(str),
 		),
 	}
@@ -46,9 +46,25 @@ func TestMaximumLengthPath(t *testing.T) {
 	assert.False(t, fullPath)
 }
 
+func TestFullPath(t *testing.T) {
+	prefix := "GET /"
+	rep := strings.Repeat("a", HTTPBufferSize-len(prefix)-1)
+	str := prefix + rep + " "
+	tx := ebpfHttpTx{
+		Request_fragment: requestFragment(
+			[]byte(str),
+		),
+	}
+	b := make([]byte, HTTPBufferSize)
+	path, fullPath := tx.Path(b)
+	expected := "/" + rep
+	assert.Equal(t, expected, string(path))
+	assert.True(t, fullPath)
+}
+
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := httpTX{
-		request_fragment: requestFragment(
+	tx := ebpfHttpTx{
+		Request_fragment: requestFragment(
 			// This probably isn't a valid HTTP request
 			// (since it's missing a version before the end),
 			// but if the null byte isn't handled
@@ -64,17 +80,17 @@ func TestPathHandlesNullTerminator(t *testing.T) {
 }
 
 func TestLatency(t *testing.T) {
-	tx := httpTX{
-		response_last_seen: 2e6,
-		request_started:    1e6,
+	tx := ebpfHttpTx{
+		Response_last_seen: 2e6,
+		Request_started:    1e6,
 	}
 	// quantization brings it down
 	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := httpTX{
-		request_fragment: requestFragment(
+	tx := ebpfHttpTx{
+		Request_fragment: requestFragment(
 			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
 		),
 	}
@@ -86,12 +102,4 @@ func BenchmarkPath(b *testing.B) {
 		_, _ = tx.Path(buf)
 	}
 	runtime.KeepAlive(buf)
-}
-
-func requestFragment(fragment []byte) [HTTPBufferSize]_Ctype_char {
-	var b [HTTPBufferSize]_Ctype_char
-	for i := 0; i < len(b) && i < len(fragment); i++ {
-		b[i] = _Ctype_char(fragment[i])
-	}
-	return b
 }

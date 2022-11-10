@@ -130,7 +130,8 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
-func ruleToEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
+// NewRuleEvaluator returns a new evaluator for a rule
+func NewRuleEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
@@ -177,7 +178,7 @@ func (r *Rule) GenEvaluator(model Model, replCtx ReplacementContext) error {
 		}
 	}
 
-	evaluator, err := ruleToEvaluator(r.ast, model, replCtx)
+	evaluator, err := NewRuleEvaluator(r.ast, model, replCtx)
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
 			return fmt.Errorf("rule syntax error: %s: %w", err, &ErrRuleParse{pos: err.Pos, expr: r.Expression})

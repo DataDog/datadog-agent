@@ -1,6 +1,10 @@
 import os
+import re
 import subprocess
+import sys
 from contextlib import contextmanager
+
+FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
 
 
 class GoModule:
@@ -65,6 +69,16 @@ class GoModule:
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
+    def codecov_path(self):
+        """Return the path of the Go module, normalized to satisfy Codecov
+        restrictions on flags.
+        https://docs.codecov.com/docs/flags
+        """
+        if self.path == ".":
+            return "main"
+
+        return re.sub(FORBIDDEN_CODECOV_FLAG_CHARS, '_', self.path)
+
     def full_path(self):
         """Return the absolute path of the Go module."""
         return os.path.abspath(self.path)
@@ -117,6 +131,9 @@ DEFAULT_MODULES = {
     "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
+    "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
+    "pkg/util/log": GoModule("pkg/util/log", independent=True),
+    "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
 }
 
 MAIN_TEMPLATE = """package main

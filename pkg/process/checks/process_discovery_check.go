@@ -33,7 +33,7 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	d.info = info
 	d.initCalled = true
-	d.probe = getProcessProbe()
+	d.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize()
 }

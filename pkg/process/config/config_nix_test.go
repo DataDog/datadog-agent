@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 var secretScriptBuilder sync.Once
@@ -92,10 +91,8 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	os.Setenv("DD_API_KEY", "ENC[my_api_key]")
-	os.Setenv("DD_HOSTNAME", "ENC[my-host]") // Valid hostnames do not use underscores
-	defer os.Unsetenv("DD_API_KEY")
-	defer os.Unsetenv("DD_HOSTNAME")
+	t.Setenv("DD_API_KEY", "ENC[my_api_key]")
+	t.Setenv("DD_HOSTNAME", "ENC[my-host]") // Valid hostnames do not use underscores
 
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
 

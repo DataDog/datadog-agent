@@ -7,7 +7,6 @@ package agent
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -15,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -202,26 +201,8 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
-	raw := bytes.NewBuffer(nil)
 
-	// uncompress if needed
-	if msg.GetIsCompressed() {
-		compressedRaw := bytes.NewBuffer(msg.GetData())
-		gzipReader, err := gzip.NewReader(compressedRaw)
-		if err != nil {
-			log.Errorf("couldn't create gzip reader: %v", err)
-			return
-		}
-		defer gzipReader.Close()
-
-		_, err = io.Copy(raw, gzipReader)
-		if err != nil {
-			log.Errorf("couldn't unzip: %v", err)
-			return
-		}
-	} else {
-		raw = bytes.NewBuffer(msg.GetData())
-	}
+	raw := bytes.NewBuffer(msg.GetData())
 
 	for _, requests := range dump.StorageRequests {
 		if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {

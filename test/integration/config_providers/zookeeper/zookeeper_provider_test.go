@@ -20,49 +20,47 @@ import (
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
-var (
-	zkDataTree = [][]string{
-		// create required path (we need to create every node one by one)
-		{"/datadog", ""},
-		{"/datadog/check_configs", ""},
+var zkDataTree = [][]string{
+	// create required path (we need to create every node one by one)
+	{"/datadog", ""},
+	{"/datadog/check_configs", ""},
 
-		//// create 3 valid configuration
-		{"/datadog/check_configs/nginx", ""},
-		{"/datadog/check_configs/nginx/check_names", "[\"nginx_a\", \"nginx_b\"]"},
-		{"/datadog/check_configs/nginx/instances", "[{\"key\":2}, {}]"},
-		{"/datadog/check_configs/nginx/init_configs", "[{}, {\"key\":3}]"},
+	//// create 3 valid configuration
+	{"/datadog/check_configs/nginx", ""},
+	{"/datadog/check_configs/nginx/check_names", "[\"nginx_a\", \"nginx_b\"]"},
+	{"/datadog/check_configs/nginx/instances", "[{\"key\":2}, {}]"},
+	{"/datadog/check_configs/nginx/init_configs", "[{}, {\"key\":3}]"},
 
-		{"/datadog/check_configs/redis", ""},
-		{"/datadog/check_configs/redis/check_names", "[\"redis_a\"]"},
-		{"/datadog/check_configs/redis/instances", "[{}]"},
-		{"/datadog/check_configs/redis/init_configs", "[{}]"},
+	{"/datadog/check_configs/redis", ""},
+	{"/datadog/check_configs/redis/check_names", "[\"redis_a\"]"},
+	{"/datadog/check_configs/redis/instances", "[{}]"},
+	{"/datadog/check_configs/redis/init_configs", "[{}]"},
 
-		//// create non config folder folder
-		{"/datadog/check_configs/other", ""},
-		{"/datadog/check_configs/other/data", "some data"},
+	//// create non config folder folder
+	{"/datadog/check_configs/other", ""},
+	{"/datadog/check_configs/other/data", "some data"},
 
-		//// create config with missing parameter
-		{"/datadog/check_configs/incomplete", ""},
-		{"/datadog/check_configs/incomplete/instances", "[{\"key\":2}, {}]"},
-		{"/datadog/check_configs/incomplete/init_configs", "[{}, {\"key\":3}]"},
+	//// create config with missing parameter
+	{"/datadog/check_configs/incomplete", ""},
+	{"/datadog/check_configs/incomplete/instances", "[{\"key\":2}, {}]"},
+	{"/datadog/check_configs/incomplete/init_configs", "[{}, {\"key\":3}]"},
 
-		//// create config with json error
-		{"/datadog/check_configs/json_error1", ""},
-		{"/datadog/check_configs/json_error1/check_names", "[\"nginx_a\", \"nginx_b\"]"},
-		{"/datadog/check_configs/json_error1/instances", "[{\"key\":2}]"},
-		{"/datadog/check_configs/json_error1/init_configs", "[{}, {\"key\":3}]"},
+	//// create config with json error
+	{"/datadog/check_configs/json_error1", ""},
+	{"/datadog/check_configs/json_error1/check_names", "[\"nginx_a\", \"nginx_b\"]"},
+	{"/datadog/check_configs/json_error1/instances", "[{\"key\":2}]"},
+	{"/datadog/check_configs/json_error1/init_configs", "[{}, {\"key\":3}]"},
 
-		{"/datadog/check_configs/json_error2", ""},
-		{"/datadog/check_configs/json_error2/check_names", "[\"nginx_a\"]"},
-		{"/datadog/check_configs/json_error2/instances", "[{]"},
-		{"/datadog/check_configs/json_error2/init_configs", "[{}]"},
+	{"/datadog/check_configs/json_error2", ""},
+	{"/datadog/check_configs/json_error2/check_names", "[\"nginx_a\"]"},
+	{"/datadog/check_configs/json_error2/instances", "[{]"},
+	{"/datadog/check_configs/json_error2/init_configs", "[{}]"},
 
-		{"/datadog/check_configs/json_error3", ""},
-		{"/datadog/check_configs/json_error3/check_names", "\"nginx_a\""},
-		{"/datadog/check_configs/json_error3/instances", "[{}]"},
-		{"/datadog/check_configs/json_error3/init_configs", "[{}]"},
-	}
-)
+	{"/datadog/check_configs/json_error3", ""},
+	{"/datadog/check_configs/json_error3/check_names", "\"nginx_a\""},
+	{"/datadog/check_configs/json_error3/instances", "[{}]"},
+	{"/datadog/check_configs/json_error3/init_configs", "[{}]"},
+}
 
 type ZkTestSuite struct {
 	suite.Suite
@@ -85,6 +83,8 @@ func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
 
 func (suite *ZkTestSuite) SetupSuite() {
 	var err error
+
+	config.DetectFeatures()
 
 	suite.compose = &utils.ComposeConf{
 		ProjectName: "zk",

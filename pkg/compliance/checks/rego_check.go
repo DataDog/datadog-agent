@@ -17,6 +17,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/metrics"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"gopkg.in/yaml.v3"
@@ -34,10 +35,11 @@ const regoEvalTimeout = 20 * time.Second
 type regoCheck struct {
 	evalLock sync.Mutex
 
-	ruleID            string
-	ruleScope         compliance.RuleScope
-	inputs            []compliance.RegoInput
-	preparedEvalQuery rego.PreparedEvalQuery
+	metrics        metrics.Metrics
+	ruleID         string
+	ruleScope      compliance.RuleScope
+	inputs         []compliance.RegoInput
+	regoModuleArgs []func(*rego.Rego)
 }
 
 func importModule(importPath, parentDir string, required bool) (string, error) {
@@ -119,7 +121,7 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 	return options, query, nil
 }
 
-func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
+func (r *regoCheck) compileRule(rule *compliance.RegoRule, regoOptions []func(r *rego.Rego), meta *compliance.SuiteMeta) error {
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -127,32 +129,13 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	if err != nil {
 		return err
 	}
+	moduleArgs = append(moduleArgs, regoOptions...)
 	moduleArgs = append(moduleArgs, ruleModules...)
 	moduleArgs = append(moduleArgs, rego.Query(query))
 
 	log.Debugf("rego query: %v", query)
 
-	// rego builtins
-	moduleArgs = append(moduleArgs, regoBuiltins...)
-
-	moduleArgs = append(
-		moduleArgs,
-		rego.EnablePrintStatements(true),
-		rego.PrintHook(&regoPrintHook{}),
-	)
-
-	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
-	defer cancel()
-	preparedEvalQuery, err := rego.New(
-		moduleArgs...,
-	).PrepareForEval(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	r.preparedEvalQuery = preparedEvalQuery
-	r.ruleScope = ruleScope
+	r.regoModuleArgs = moduleArgs
 
 	return nil
 }
@@ -398,7 +381,12 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 	defer cancel()
 
-	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
+	args := make([]func(*rego.Rego), len(r.regoModuleArgs), len(r.regoModuleArgs)+2)
+	copy(args, r.regoModuleArgs)
+	args = append(args, rego.Input(input), rego.Metrics(r.metrics))
+
+	regoMod := rego.New(args...)
+	results, err := regoMod.Eval(ctx)
 	if err != nil {
 		return buildRegoErrorReports(err)
 	}
@@ -472,7 +460,7 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 			return nil, err
 		}
 
-		if err := checkFindingStatus(&finding); err != nil {
+		if err := finding.normalizeStatus(); err != nil {
 			return nil, err
 		}
 
@@ -482,13 +470,23 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 	return res, nil
 }
 
-func checkFindingStatus(finding *regoFinding) error {
-	switch finding.Status {
-	case "passed", "failing", "error":
-		return nil
-	default:
+var statusMapping = map[string]string{
+	"passed":  "passed",
+	"pass":    "passed",
+	"failing": "failing",
+	"fail":    "failing",
+	"error":   "error",
+	"err":     "error",
+}
+
+func (finding *regoFinding) normalizeStatus() error {
+	mapped, ok := statusMapping[finding.Status]
+	if !ok {
 		return fmt.Errorf("unknown finding status: %s", finding.Status)
 	}
+
+	finding.Status = mapped
+	return nil
 }
 
 func checkFindingRequiredFields(metadata *mapstructure.Metadata) error {

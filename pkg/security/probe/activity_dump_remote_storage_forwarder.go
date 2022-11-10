@@ -10,16 +10,11 @@ package probe
 
 import (
 	"bytes"
-	"compress/gzip"
-	"fmt"
-	"path"
-	strings "strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
@@ -41,32 +36,13 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() dump.Storage
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
-
-	if request.Compression {
-		var tmpBuf bytes.Buffer
-		zw := gzip.NewWriter(&tmpBuf)
-		zw.Name = strings.TrimSuffix(path.Base(request.GetOutputPath(ad.DumpMetadata.Name)), ".gz")
-		zw.ModTime = time.Now()
-		if _, err := zw.Write(raw.Bytes()); err != nil {
-			return fmt.Errorf("couldn't compress activity dump: %w", err)
-		}
-		if err := zw.Flush(); err != nil {
-			return fmt.Errorf("couldn't compress activity dump: %w", err)
-		}
-		if err := zw.Close(); err != nil {
-			return fmt.Errorf("couldn't compress activity dump: %w", err)
-		}
-		raw = &tmpBuf
-	}
-
 	// set activity dump size for current encoding
-	ad.DumpMetadata.Size = uint64(len(raw.Bytes()))
+	ad.DumpMetadata.Size = uint64(raw.Len())
 
 	// generate stream message
 	msg := &api.ActivityDumpStreamMessage{
-		Dump:         ad.ToSecurityActivityDumpMessage(),
-		IsCompressed: request.Compression,
-		Data:         raw.Bytes(),
+		Dump: ad.ToSecurityActivityDumpMessage(),
+		Data: raw.Bytes(),
 	}
 
 	// override storage request so that it contains only the current persisted data

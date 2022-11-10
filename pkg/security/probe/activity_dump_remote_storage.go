@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -146,9 +146,9 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest,
 	var multipartWriter *multipart.Writer
 
 	if request.Compression {
-		gzipWriter := gzip.NewWriter(body)
-		defer gzipWriter.Close()
-		multipartWriter = multipart.NewWriter(gzipWriter)
+		compressor := gzip.NewWriter(body)
+		defer compressor.Close()
+		multipartWriter = multipart.NewWriter(compressor)
 	} else {
 		multipartWriter = multipart.NewWriter(body)
 	}

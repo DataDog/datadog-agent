@@ -34,19 +34,29 @@ kitchen_test_security_agent_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-77,rhel-85"
+        KITCHEN_OSVERS: "centos-77"
+        KITCHEN_CWS_PLATFORM: [host, docker]
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "rhel-85"
+        KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04-0,ubuntu-18-04,ubuntu-18-04-3"
+        KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-22-04"
+        KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
+        KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "opensuse-15-3"
+        KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
+        KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "oracle"
         KITCHEN_OSVERS: "oracle-7-9"
+        KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_test_security_agent_arm64:
   extends:
@@ -66,6 +76,7 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
+        KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:
@@ -84,7 +95,8 @@ kitchen_test_security_agent_amazonlinux_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
+        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
+        KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_stress_security_agent:
   extends:

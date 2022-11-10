@@ -26,6 +26,7 @@ import (
 // * In case a field name gets modified, the `json:""` struct field tag
 // should be used to ensure the old key is marshalled for this endpoint.
 func TestInfoHandler(t *testing.T) {
+	t.Skip("https://github.com/DataDog/datadog-agent/issues/13569")
 	u, err := url.Parse("http://localhost:8888/proxy")
 	if err != nil {
 		log.Fatal(err)
@@ -128,9 +129,10 @@ func TestInfoHandler(t *testing.T) {
 		"/telemetry/proxy/",
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
-		"/appsec/proxy/",
 		"/evp_proxy/v1/",
+		"/evp_proxy/v2/",
 		"/debugger/v1/input"
+		"/dogstatsd/v1/proxy"
 	],
 	"feature_flags": [
 		"feature_flag"
@@ -187,9 +189,10 @@ func TestInfoHandler(t *testing.T) {
 		"/telemetry/proxy/",
 		"/v0.6/stats",
 		"/v0.1/pipeline_stats",
-		"/appsec/proxy/",
 		"/evp_proxy/v1/",
+		"/evp_proxy/v2/",
 		"/debugger/v1/input"
+		"/dogstatsd/v1/proxy"
 	],
 	"feature_flags": [
 		"feature_flag"

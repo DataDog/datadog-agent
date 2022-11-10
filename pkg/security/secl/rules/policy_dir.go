@@ -37,7 +37,7 @@ func (p *PoliciesDirProvider) SetOnNewPoliciesReadyCb(cb func()) {
 // Start starts the policy dir provider
 func (p *PoliciesDirProvider) Start() {}
 
-func (p *PoliciesDirProvider) loadPolicy(filename string, filters []RuleFilter) (*Policy, error) {
+func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, &ErrPolicyLoad{Name: filename, Err: err}
@@ -46,12 +46,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, filters []RuleFilter) 
 
 	name := filepath.Base(filename)
 
-	policy, err := LoadPolicy(name, "file", f, filters)
-	if err != nil {
-		return nil, &ErrPolicyLoad{Name: name, Err: err}
-	}
-
-	return policy, nil
+	return LoadPolicy(name, "file", f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
@@ -84,7 +79,7 @@ func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
 }
 
 // LoadPolicies implements the policy provider interface
-func (p *PoliciesDirProvider) LoadPolicies(filters []RuleFilter) ([]*Policy, *multierror.Error) {
+func (p *PoliciesDirProvider) LoadPolicies(macroFilters []MacroFilter, ruleFilters []RuleFilter) ([]*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	var policies []*Policy
@@ -104,18 +99,22 @@ func (p *PoliciesDirProvider) LoadPolicies(filters []RuleFilter) ([]*Policy, *mu
 
 	// Load and parse policies
 	for _, filename := range policyFiles {
-		policy, err := p.loadPolicy(filename, filters)
+		policy, err := p.loadPolicy(filename, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
-		} else {
-			policies = append(policies, policy)
+		}
 
-			if p.watcher != nil {
-				if err := p.watcher.Add(filename); err != nil {
-					errs = multierror.Append(errs, err)
-				} else {
-					p.watchedFiles = append(p.watchedFiles, filename)
-				}
+		if policy == nil {
+			continue
+		}
+
+		policies = append(policies, policy)
+
+		if p.watcher != nil {
+			if err := p.watcher.Add(filename); err != nil {
+				errs = multierror.Append(errs, err)
+			} else {
+				p.watchedFiles = append(p.watchedFiles, filename)
 			}
 		}
 	}

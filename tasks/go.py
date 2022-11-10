@@ -19,7 +19,7 @@ from .utils import get_build_flags
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64"):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
@@ -31,7 +31,10 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    if not isinstance(tags, list):
+        tags = [tags]
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
@@ -260,3 +263,19 @@ def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy -compat=1.17")
+
+
+@task
+def check_go_version(ctx):
+    go_version_output = ctx.run('go version')
+    # result is like "go version go1.18.7 linux/amd64"
+    running_go_version = go_version_output.stdout.split(' ')[2]
+
+    with open(".go-version") as f:
+        dot_go_version = f.read()
+        dot_go_version = dot_go_version.strip()
+        if not dot_go_version.startswith("go"):
+            dot_go_version = f"go{dot_go_version}"
+
+    if dot_go_version != running_go_version:
+        raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")

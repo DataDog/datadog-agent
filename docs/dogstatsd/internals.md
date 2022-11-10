@@ -92,3 +92,12 @@ The following calculations determine the number of TimeSamplerWorker and TimeSam
     * If `dogstatsd_pipeline_count` has a value, the number of TimeSampler pipelines equals that value.
     * If neither condition above is true, one TimeSampler pipeline runs.
 
+## NoAggregationStreamWorker
+
+Input: slice of MetricSamples
+
+The NoAggregationStreamWorker runs an infinite loop in a goroutine. It receives metric samples with timestamps, and it batches them to be sent as quickly as possible to the intake. It performs no aggregation nor extra processing, except from adding tags to the metrics.
+
+It runs only when `dogstatsd_no_aggregation_pipeline` is set to `true`.
+
+The payload being sent to the intake (through the normal `Serializer`/`Forwarder` pieces) contains, at maximum, `dogstatsd_no_aggregation_pipeline_batch_size` metrics. This value defaults to `2048`.

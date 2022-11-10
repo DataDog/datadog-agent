@@ -22,7 +22,8 @@ func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutpu
 }
 
 func getCFlags(config *config.Config) []string {
-	var cflags []string
+	cflags := []string{"-g"}
+
 	if config.CollectIPv6Conns {
 		cflags = append(cflags, "-DFEATURE_IPV6_ENABLED")
 	}

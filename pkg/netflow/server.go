@@ -47,6 +47,7 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 	flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostnameDetected)
 	go flowAgg.Start()
 
+	log.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
 	for _, listenerConfig := range mainConfig.Listeners {
 		log.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
 		listener, err := startFlowListener(listenerConfig, flowAgg)

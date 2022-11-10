@@ -7,13 +7,14 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 )
 
 const (
@@ -43,9 +44,13 @@ type labelsFetcher struct {
 	nodeLabels map[string]string
 }
 
-func (f *labelsFetcher) fetch() (err error) {
-	f.nodeLabels, err = hostinfo.GetNodeLabels(context.TODO())
-	return
+func (f *labelsFetcher) fetch() error {
+	nodeInfo, err := hostinfo.NewNodeInfo()
+	if err != nil {
+		return fmt.Errorf("unable to instantiate NodeInfo, err: %w", err)
+	}
+	f.nodeLabels, err = nodeInfo.GetNodeLabels(context.TODO())
+	return err
 }
 
 func notifyFetchNodeLabels() backoff.Notify {

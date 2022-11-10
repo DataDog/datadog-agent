@@ -16,9 +16,9 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +36,7 @@ func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest,
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
-	if err := app.StartAgent(); err != nil {
+	if err := runcmd.StartAgentWithDefaults(); err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())
 		errno = 1 // indicates non-successful return from handler.
@@ -80,7 +80,7 @@ loop:
 	elog.Info(0x4000000d, config.ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	app.StopAgent()
+	runcmd.StopAgentWithDefaults()
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }

@@ -44,6 +44,7 @@ type StructField struct {
 	Event               string
 	Handler             string
 	CachelessResolution bool
+	SkipADResolution    bool
 	OrigType            string
 	IsOrigTypePtr       bool
 	Iterator            *StructField

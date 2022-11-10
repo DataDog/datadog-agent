@@ -175,7 +175,6 @@ message ActivityDumpStreamParams {}
 
 message ActivityDumpStreamMessage {
     ActivityDumpMessage Dump = 1;
-    bool IsCompressed = 2;
     bytes Data = 3;
 }
 

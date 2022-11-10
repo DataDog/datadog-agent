@@ -78,7 +78,7 @@ last-change
 .gradle
 cmd/agent/android/app/src/main/assets/conf.d
 
-# android studio
+# android studio (no longer supported, but files remain in working copies)
 cmd/agent/android/local.properties
 cmd/agent/android/gradlew*
 cmd/agent/android/gradle
@@ -105,6 +105,10 @@ pkg/process/config/logs
 cmd/system-probe/windows_resources/system-probe-msg.rc
 cmd/system-probe/windows_resources/*.bin
 system-probe-msg.h
+**/.ninja_log
+**/.ninja_deps
+*.ninja
+*.d
 
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc

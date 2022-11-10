@@ -20,6 +20,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// Marshal message to JSON.
+// We need to enforce order consistency on underlying maps as
+// the standard library does.
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
 // ProcessorContext holds resource processing attributes
 type ProcessorContext struct {
 	APIClient  *apiserver.APIClient
@@ -141,7 +146,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		p.h.ScrubBeforeMarshalling(ctx, resource)
 
 		// Marshal the resource to generate the YAML field.
-		yaml, err := jsoniter.Marshal(resource)
+		yaml, err := json.Marshal(resource)
 		if err != nil {
 			log.Warnf(newMarshallingError(err).Error())
 			continue
@@ -164,41 +169,34 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 			ContentType:     "json",
 		})
 	}
-	// Split messages in chunks
-	chunkCount := orchestrator.GroupSize(len(resourceMetadataModels), ctx.Cfg.MaxPerMessage)
 
-	// chunk orchestrator metadata and manifest
-	metadataChunks := chunkResources(resourceMetadataModels, chunkCount, ctx.Cfg.MaxPerMessage)
-	manifestChunks := chunkResources(resourceManifestModels, chunkCount, ctx.Cfg.MaxPerMessage)
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk metadata messages and use resourceManifestModels as weight indicator
+	metadataChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, metadataChunker)
+	// Chunk manifest messages and use itself as weight indicator
+	manifestChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, manifestChunker)
 
-	metadataMessages := make([]model.MessageBody, 0, chunkCount)
-	manifestMessages := make([]model.MessageBody, 0, chunkCount)
+	chunkCount := len(metadataChunker.collectorOrchestratorList)
+	metadataMessages := make([]model.MessageBody, 0, len(metadataChunker.collectorOrchestratorList))
+	manifestMessages := make([]model.MessageBody, 0, len(manifestChunker.collectorOrchestratorList))
+
 	for i := 0; i < chunkCount; i++ {
-		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunks[i], chunkCount))
-		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx.Cfg.KubeClusterName, ctx.ClusterID, ctx.MsgGroupID, manifestChunks[i], chunkCount))
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunker.collectorOrchestratorList[i], chunkCount))
+		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
 	}
+
 	processResult = ProcessResult{
 		MetadataMessages: metadataMessages,
 		ManifestMessages: manifestMessages,
 	}
+
 	return processResult, len(resourceMetadataModels)
 }
 
-// chunkResources splits messages into groups of messages called chunks, knowing
-// the expected chunk count and size.
-func chunkResources(resources []interface{}, chunkCount, chunkSize int) [][]interface{} {
-	chunks := make([][]interface{}, 0, chunkCount)
-
-	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.ChunkRange(len(resources), chunkCount, chunkSize, counter)
-		chunks = append(chunks, resources[chunkStart:chunkEnd])
-	}
-
-	return chunks
-}
-
 // build orchestrator manifest message
-func buildManifestMessageBody(kubeClusterName, clusterID string, msgGroupID int32, resourceManifests []interface{}, groupSize int) model.MessageBody {
+func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 
 	for _, m := range resourceManifests {
@@ -206,10 +204,10 @@ func buildManifestMessageBody(kubeClusterName, clusterID string, msgGroupID int3
 	}
 
 	return &model.CollectorManifest{
-		ClusterName: kubeClusterName,
-		ClusterId:   clusterID,
+		ClusterName: ctx.Cfg.KubeClusterName,
+		ClusterId:   ctx.ClusterID,
 		Manifests:   manifests,
-		GroupId:     msgGroupID,
+		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 	}
 }

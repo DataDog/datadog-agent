@@ -12,26 +12,22 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
-	"io"
-	"path/filepath"
 	"sort"
-	"strings"
 	"text/template"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 type rcSymbolPair struct {
-	Id        string
+	ID        string
 	Operation string
 }
 
+// RuntimeCompilationConstantFetcher is a constant fetcher utilizing runtime compilation
 type RuntimeCompilationConstantFetcher struct {
 	config       *ebpf.Config
 	statsdClient statsd.ClientInterface
@@ -40,6 +36,7 @@ type RuntimeCompilationConstantFetcher struct {
 	result       map[string]uint64
 }
 
+// NewRuntimeCompilationConstantFetcher creates a RuntimeCompilationConstantFetcher
 func NewRuntimeCompilationConstantFetcher(config *ebpf.Config, statsdClient statsd.ClientInterface) *RuntimeCompilationConstantFetcher {
 	return &RuntimeCompilationConstantFetcher{
 		config:       config,
@@ -52,28 +49,32 @@ func (cf *RuntimeCompilationConstantFetcher) String() string {
 	return "runtime-compilation"
 }
 
+// AppendSizeofRequest appends a sizeof request
 func (cf *RuntimeCompilationConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
-	if headerName != "" {
-		cf.headers = append(cf.headers, headerName)
+	cf.result[id] = ErrorSentinel
+	if headerName == "" {
+		return
 	}
 
+	cf.headers = append(cf.headers, headerName)
 	cf.symbolPairs = append(cf.symbolPairs, rcSymbolPair{
-		Id:        id,
+		ID:        id,
 		Operation: fmt.Sprintf("sizeof(%s)", typeName),
 	})
-	cf.result[id] = ErrorSentinel
 }
 
+// AppendOffsetofRequest appends an offset request
 func (cf *RuntimeCompilationConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
-	if headerName != "" {
-		cf.headers = append(cf.headers, headerName)
+	cf.result[id] = ErrorSentinel
+	if headerName == "" {
+		return
 	}
 
+	cf.headers = append(cf.headers, headerName)
 	cf.symbolPairs = append(cf.symbolPairs, rcSymbolPair{
-		Id:        id,
+		ID:        id,
 		Operation: fmt.Sprintf("offsetof(%s, %s)", typeName, fieldName),
 	})
-	cf.result[id] = ErrorSentinel
 }
 
 const runtimeCompilationTemplate = `
@@ -86,7 +87,7 @@ const runtimeCompilationTemplate = `
 {{ end }}
 
 {{ range .symbols }}
-size_t {{.Id}} = {{.Operation}};
+size_t {{.ID}} = {{.Operation}};
 {{ end }}
 `
 
@@ -108,30 +109,14 @@ func (cf *RuntimeCompilationConstantFetcher) getCCode() (string, error) {
 	return buffer.String(), nil
 }
 
-func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {
-	provider := &constantFetcherRCProvider{
-		cCode: cCode,
-	}
-	runtimeCompiler := runtime.NewRuntimeCompiler()
-	reader, err := runtimeCompiler.CompileObjectFile(config, nil, "constant_fetcher.c", provider)
-
-	if cf.statsdClient != nil {
-		telemetry := runtimeCompiler.GetRCTelemetry()
-		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-			log.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
-		}
-	}
-
-	return reader, err
-}
-
+// FinishAndGetResults returns the results
 func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	cCode, err := cf.getCCode()
 	if err != nil {
 		return nil, err
 	}
 
-	elfFile, err := cf.compileConstantFetcher(cf.config, cCode)
+	elfFile, err := runtime.ConstantFetcher.Compile(cf.config, cCode, nil, cf.statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +137,9 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 
 		section := f.Sections[sym.Section]
 		buf := make([]byte, sym.Size)
-		section.ReadAt(buf, int64(sym.Value))
+		if _, err := section.ReadAt(buf, int64(sym.Value)); err != nil {
+			return nil, fmt.Errorf("unable to read section at %d: %s", int64(sym.Value), err)
+		}
 
 		var value uint64
 		switch sym.Size {
@@ -167,30 +154,8 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		cf.result[sym.Name] = value
 	}
 
-	log.Infof("runtime compiled constants: %v", cf.result)
+	seclog.Infof("runtime compiled constants: %v", cf.result)
 	return cf.result, nil
-}
-
-type constantFetcherRCProvider struct {
-	cCode string
-}
-
-func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.RuntimeCompilationTelemetry) (io.Reader, error) {
-	return strings.NewReader(p.cCode), nil
-}
-
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
-	cCodeHash, err := runtime.Sha256hex([]byte(a.cCode))
-	if err != nil {
-		return "", err
-	}
-
-	unameHash, err := runtime.UnameHash(uname)
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

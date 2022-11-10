@@ -9,12 +9,14 @@
 package collectors
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"go.uber.org/atomic"
 
+	"go.uber.org/atomic"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -32,6 +34,8 @@ type Collector interface {
 	// A typical use-case is checking whether the targeted apiGroup version
 	// used by the collector is available in the cluster.
 	// Should be called after Init.
+	// FIXME: to be removed after collector discovery has been the default for
+	// some time.
 	IsAvailable() bool
 
 	// Metadata is used to access information describing the collector.
@@ -42,11 +46,45 @@ type Collector interface {
 	Run(*CollectorRunConfig) (*CollectorRunResult, error)
 }
 
+// CollectorVersions represents the list of collector implementations that are
+// supported, each one being tied to a specific kubernetes group and version.
+type CollectorVersions struct {
+	Collectors []Collector
+}
+
+// NewCollectorVersions is used to build the collector version list.
+func NewCollectorVersions(versions ...Collector) CollectorVersions {
+	return CollectorVersions{
+		versions,
+	}
+}
+
+// CollectorForVersion retrieves the collector implementing a given version. If
+// no collector is known for that version, returns (nil, false).
+func (cv *CollectorVersions) CollectorForVersion(version string) (Collector, bool) {
+	for _, collector := range cv.Collectors {
+		if collector.Metadata().Version == version {
+			return collector, true
+		}
+	}
+	return nil, false
+}
+
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsStable bool
-	Name     string
-	NodeType orchestrator.NodeType
+	IsDefaultVersion bool
+	IsStable         bool
+	Name             string
+	NodeType         orchestrator.NodeType
+	Version          string
+}
+
+// FullName returns a string that contains the collector name and version.
+func (cm CollectorMetadata) FullName() string {
+	if cm.Version != "" {
+		return fmt.Sprintf("%s/%s", cm.Version, cm.Name)
+	}
+	return cm.Name
 }
 
 // CollectorRunConfig is the configuration used to initialize or run the

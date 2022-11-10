@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
@@ -31,7 +31,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
 	if err != nil {
-		log.Debugf("failed to create btfhub constant fetcher: %v", err)
+		seclog.Debugf("failed to create btfhub constant fetcher: %v", err)
 	} else {
 		fetchers = append(fetchers, btfhubFetcher)
 	}

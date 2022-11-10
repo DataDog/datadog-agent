@@ -190,6 +190,8 @@ type ProcessSerializer struct {
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
 	// File information of the executable
 	Executable *FileSerializer `json:"executable,omitempty"`
+	// File information of the interpreter
+	Interpreter *FileSerializer `json:"interpreter,omitempty"`
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// First command line argument
@@ -612,6 +614,10 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		EnvsTruncated: EnvsTruncated,
 		IsThread:      ps.IsThread,
 		IsKworker:     ps.IsKworker,
+	}
+
+	if ps.HasInterpreter() {
+		psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
 	}
 
 	credsSerializer := newCredentialsSerializer(&ps.Credentials)

@@ -11,6 +11,7 @@ package probe
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -46,12 +47,12 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 	switch field {
 	case "bpf.map.name":
-		if offset, found := m.probe.constantOffsets["bpf_map_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
 			return fmt.Errorf("%s is not available on this kernel version", field)
 		}
 
 	case "bpf.prog.name":
-		if offset, found := m.probe.constantOffsets["bpf_prog_aux_name_offset"]; !found || offset == constantfetch.ErrorSentinel {
+		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 			return fmt.Errorf("%s is not available on this kernel version", field)
 		}
 	}
@@ -104,7 +105,7 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
 			switch err.(type) {
 			case ErrDentryPathKeyNotFound:
@@ -133,7 +134,10 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
+	if f.Filesystem == "" {
+		f.Filesystem = ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+	}
+	return f.Filesystem
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
@@ -447,12 +451,15 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(record *perf.Record) (uint64, uint64, error) {
+func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	if len(record.RawSample) < 16 {
-		return 0, 0, model.ErrNotEnoughData
+		return QuickInfo{}, model.ErrNotEnoughData
 	}
 
-	return model.ByteOrder.Uint64(record.RawSample[0:8]), model.ByteOrder.Uint64(record.RawSample[8:16]), nil
+	return QuickInfo{
+		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+	}, nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
@@ -479,6 +486,10 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 
 		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+
+		// mark interpreter as resolved too
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
 	return ev.ProcessCacheEntry
@@ -491,10 +502,12 @@ func (ev *Event) GetProcessServiceTag() string {
 		return ""
 	}
 
+	var serviceValues []string
+
 	// first search in the process context itself
 	if entry.EnvsEntry != nil {
 		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
-			return service
+			serviceValues = append(serviceValues, service)
 		}
 	}
 
@@ -508,12 +521,37 @@ func (ev *Event) GetProcessServiceTag() string {
 
 		if ancestor.EnvsEntry != nil {
 			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
-				return service
+				serviceValues = append(serviceValues, service)
 			}
 		}
 	}
 
-	return ""
+	return bestGuessServiceTag(serviceValues)
+}
+
+func bestGuessServiceTag(serviceValues []string) string {
+	if len(serviceValues) == 0 {
+		return ""
+	}
+
+	firstGuess := serviceValues[0]
+
+	// first we sort base on len, biggest len first
+	sort.Slice(serviceValues, func(i, j int) bool {
+		return len(serviceValues[j]) < len(serviceValues[i]) // reverse
+	})
+
+	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]
+	for i := 0; i < len(serviceValues)-1; i++ {
+		if !strings.HasPrefix(serviceValues[i], serviceValues[i+1]) {
+			// if it's not a prefix it means we have multiple disjoints services
+			// we then return the first guess, closest in the process tree
+			return firstGuess
+		}
+	}
+
+	// we have a prefix chain, let's return the biggest one
+	return serviceValues[0]
 }
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context

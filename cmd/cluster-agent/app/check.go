@@ -9,9 +9,9 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/commands/check"
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(commands.Check(loggerName, &confPath, &flagNoColor))
+	ClusterAgentCmd.AddCommand(check.Check(loggerName, &confPath, &flagNoColor))
 }

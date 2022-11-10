@@ -25,11 +25,7 @@ static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_
         return 0;
     }
 
-#pragma unroll
-    for (int i = 0; i < TTY_NAME_LEN; i++)
-    {
-        dst[i] = src[i];
-    }
+    bpf_probe_read(dst, TTY_NAME_LEN, (void*)src);
     return TTY_NAME_LEN;
 }
 
@@ -112,15 +108,13 @@ struct bpf_map_def SEC("maps/pid_ignored") pid_ignored = {
 struct proc_cache_t *get_proc_from_cookie(u32 cookie);
 
 struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
-    struct proc_cache_t *entry = NULL;
-
     struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
-    if (pid_entry) {
-        // Select the cache entry
-        u32 cookie = pid_entry->cookie;
-        entry = get_proc_from_cookie(cookie);
+    if (!pid_entry) {
+        return NULL;
     }
-    return entry;
+
+    // Select the cache entry
+    return get_proc_from_cookie(pid_entry->cookie);
 }
 
 struct bpf_map_def SEC("maps/netns_cache") netns_cache = {
@@ -139,13 +133,15 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     data->pid = tgid;
     data->tid = pid_tgid;
 
-    u32 *netns = bpf_map_lookup_elem(&netns_cache, &data->tid);
+    u32 tid = data->tid; // This looks unnecessary but it actually is to address this issue https://github.com/iovisor/bcc/issues/347 in at least Ubuntu 4.15.
+    u32 *netns = bpf_map_lookup_elem(&netns_cache, &tid);
     if (netns != NULL) {
         data->netns = *netns;
     }
 
+    u32 pid = data->pid;
     // consider kworker a pid which is ignored
-    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &data->pid);
+    u32 *is_ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
     if (is_ignored) {
         data->is_kworker = 1;
     }

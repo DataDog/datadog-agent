@@ -76,10 +76,9 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 		s.agg.registerSender(defaultCheckID) //nolint:errcheck
 		s.defaultSender = newCheckSender(defaultCheckID,
 			s.agg.hostname,
-			s.agg.checkMetricIn,
+			s.agg.checkItems,
 			s.agg.serviceCheckIn,
 			s.agg.eventIn,
-			s.agg.checkHistogramBucketIn,
 			s.agg.orchestratorMetadataIn,
 			s.agg.orchestratorManifestIn,
 			s.agg.eventPlatformIn,

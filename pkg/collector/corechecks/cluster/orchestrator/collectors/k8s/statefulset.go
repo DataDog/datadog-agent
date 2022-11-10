@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewStatefulSetCollectorVersions builds the group of collector versions.
+func NewStatefulSetCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewStatefulSetCollector(),
+	)
+}
+
 // StatefulSetCollector is a collector for Kubernetes StatefulSets.
 type StatefulSetCollector struct {
 	informer  appsv1Informers.StatefulSetInformer
@@ -33,9 +40,11 @@ type StatefulSetCollector struct {
 func NewStatefulSetCollector() *StatefulSetCollector {
 	return &StatefulSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "statefulsets",
-			NodeType: orchestrator.K8sStatefulSet,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "statefulsets",
+			NodeType:         orchestrator.K8sStatefulSet,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StatefulSetHandlers)),
 	}

@@ -19,12 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 )
 
-//go:embed testdata/adv1.msgp
+//go:embed testdata/adv1.protobuf
 var v1testdata []byte
 
 func getTestDataActivityDump(tb testing.TB) *probe.ActivityDump {
 	ad := probe.NewEmptyActivityDump()
-	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), dump.MSGP); err != nil {
+	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), dump.PROTOBUF); err != nil {
 		tb.Fatal(err)
 	}
 	return ad
@@ -46,12 +46,6 @@ func runEncoding(b *testing.B, encode func(ad *probe.ActivityDump) (*bytes.Buffe
 	b.ReportMetric(float64(size), "output_size")
 }
 
-func BenchmarkMsgpackEncoding(b *testing.B) {
-	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeMSGP()
-	})
-}
-
 func BenchmarkProtobufEncoding(b *testing.B) {
 	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
 		return ad.EncodeProtobuf()
@@ -60,7 +54,7 @@ func BenchmarkProtobufEncoding(b *testing.B) {
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
 	runEncoding(b, func(ad *probe.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeProtoJSON()
+		return ad.EncodeJSON()
 	})
 }
 

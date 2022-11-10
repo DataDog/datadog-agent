@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -464,83 +464,156 @@ func TestRuleErrorLoading(t *testing.T) {
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 2)
-	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: internal rule ID conflict")
-	assert.ErrorContains(t, err.Errors[1], "rule `testB` definition error: syntax error: 1:16: unexpected token")
+	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
+	assert.ErrorContains(t, err.Errors[1], "rule `testB` error: syntax error `1:16: unexpected token \"-\" (expected \"~\")`")
 
 	assert.Contains(t, rs.rules, "testA")
 	assert.NotContains(t, rs.rules, "testB")
 }
 
 func TestRuleAgentConstraint(t *testing.T) {
-	testEntries := []struct {
-		name           string
-		agentVersion   string
-		ruleConstraint string
-		expectLoad     bool
-	}{
-		{
-			name:           "basic",
-			agentVersion:   "7.38",
-			ruleConstraint: "< 7.37",
-			expectLoad:     false,
+	testPolicy := &PolicyDef{
+		Macros: []*MacroDefinition{
+			{
+				ID:         "macro1",
+				Expression: `[1, 2]`,
+			},
+			{
+				ID:                     "macro2",
+				Expression:             `[3, 4]`,
+				AgentVersionConstraint: ">= 7.37, < 7.38",
+			},
+			{
+				ID:                     "macro2",
+				Expression:             `[3, 4, 5]`,
+				AgentVersionConstraint: ">= 7.38",
+			},
 		},
-		{
-			name:           "basic2",
-			agentVersion:   "7.35",
-			ruleConstraint: "< 7.37",
-			expectLoad:     true,
-		},
-		{
-			name:           "range",
-			agentVersion:   "7.35",
-			ruleConstraint: ">= 7.30, < 7.37",
-			expectLoad:     true,
-		},
-		{
-			name:           "range_not",
-			agentVersion:   "7.35",
-			ruleConstraint: ">= 7.30, < 7.37, != 7.35",
-			expectLoad:     false,
-		},
-		{
-			name:           "rc_prerelease",
-			agentVersion:   "7.38.0-rc.2",
-			ruleConstraint: ">= 7.38",
-			expectLoad:     true,
+		Rules: []*RuleDefinition{
+			{
+				ID:         "no_constraint",
+				Expression: `open.filename == "/tmp/test"`,
+			},
+			{
+				ID:                     "conflict",
+				Expression:             `open.filename == "/tmp/test1"`,
+				AgentVersionConstraint: "< 7.37",
+			},
+			{
+				ID:                     "conflict",
+				Expression:             `open.filename == "/tmp/test2"`,
+				AgentVersionConstraint: ">= 7.37",
+			},
+			{
+				ID:                     "basic",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: "< 7.37",
+			},
+			{
+				ID:                     "basic2",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: "> 7.37",
+			},
+			{
+				ID:                     "range",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.30, < 7.39",
+			},
+			{
+				ID:                     "range_not",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.30, < 7.39, != 7.38",
+			},
+			{
+				ID:                     "rc_prerelease",
+				Expression:             `open.filename == "/tmp/test"`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+			{
+				ID:                     "with_macro1",
+				Expression:             `open.filename == "/tmp/test" && open.mode in macro1`,
+				AgentVersionConstraint: ">= 7.38",
+			},
+			{
+				ID:                     "with_macro2",
+				Expression:             `open.filename == "/tmp/test" && open.mode in macro2`,
+				AgentVersionConstraint: ">= 7.38",
+			},
 		},
 	}
 
-	for _, entry := range testEntries {
-		t.Run(entry.name, func(t *testing.T) {
-			ruleID := fmt.Sprintf("test_rule_%s", entry.name)
+	expected := []struct {
+		ruleID       string
+		expectedLoad bool
+	}{
+		{
+			ruleID:       "no_constraint",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "conflict",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "basic",
+			expectedLoad: false,
+		},
+		{
+			ruleID:       "basic2",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "range",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "range_not",
+			expectedLoad: false,
+		},
+		{
+			ruleID:       "rc_prerelease",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "with_macro1",
+			expectedLoad: true,
+		},
+		{
+			ruleID:       "with_macro2",
+			expectedLoad: true,
+		},
+	}
 
-			testPolicy := &PolicyDef{
-				Rules: []*RuleDefinition{{
-					ID:                     ruleID,
-					Expression:             `open.filename == "/tmp/test"`,
-					AgentVersionConstraint: entry.ruleConstraint,
-				}},
+	agentVersion, err := semver.NewVersion("7.38")
+	assert.Nil(t, err)
+
+	agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
+	assert.Nil(t, err)
+
+	policyOpts := PolicyLoaderOpts{
+		MacroFilters: []MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []RuleFilter{
+			agentVersionFilter,
+		},
+	}
+
+	rs, err := loadPolicy(t, testPolicy, policyOpts)
+	for _, err := range err.(*multierror.Error).Errors {
+		if rerr, ok := err.(*ErrRuleLoad); ok {
+			if rerr.Definition.ID != "basic" && rerr.Definition.ID != "range_not" {
+				t.Errorf("unexpected error: %v", rerr)
 			}
+		}
+	}
 
-			agentVersion, err := semver.NewVersion(entry.agentVersion)
-			assert.Nil(t, err)
-
-			agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
-			assert.Nil(t, err)
-
-			policyOpts := PolicyLoaderOpts{
-				RuleFilters: []RuleFilter{
-					agentVersionFilter,
-				},
-			}
-
-			rs, err := loadPolicy(t, testPolicy, policyOpts)
-			assert.Nil(t, err)
-
-			if entry.expectLoad {
-				assert.Contains(t, rs.rules, ruleID)
+	for _, exp := range expected {
+		t.Run(exp.ruleID, func(t *testing.T) {
+			if exp.expectedLoad {
+				assert.Contains(t, rs.rules, exp.ruleID)
 			} else {
-				assert.NotContains(t, rs.rules, ruleID)
+				assert.NotContains(t, rs.rules, exp.ruleID)
 			}
 		})
 	}

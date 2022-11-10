@@ -38,7 +38,7 @@ func (f *regoInputFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, nil, &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -51,9 +51,6 @@ func (f *regoInputFixture) run(t *testing.T) {
 
 	cache.Cache.Delete(processCacheKey)
 	processFetcher = func() (processes, error) {
-		for pid, p := range f.processes {
-			p.Pid = pid
-		}
 		return f.processes, nil
 	}
 
@@ -112,10 +109,7 @@ func TestRegoInputCheck(t *testing.T) {
 				},
 			},
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectedInput: `
 				{

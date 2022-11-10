@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewServiceAccountCollectorVersions builds the group of collector versions.
+func NewServiceAccountCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewServiceAccountCollector(),
+	)
+}
+
 // ServiceAccountCollector is a collector for Kubernetes ServiceAccounts.
 type ServiceAccountCollector struct {
 	informer  corev1Informers.ServiceAccountInformer
@@ -33,9 +40,11 @@ type ServiceAccountCollector struct {
 func NewServiceAccountCollector() *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "serviceaccounts",
-			NodeType: orchestrator.K8sServiceAccount,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "serviceaccounts",
+			NodeType:         orchestrator.K8sServiceAccount,
+			Version:          "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
 	}

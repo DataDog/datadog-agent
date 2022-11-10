@@ -136,6 +136,31 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
+	// Tags: -
+	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
+	// MetricProcessResolverArgsSize is the name of the metric used to report the number of args size
+	// Tags: -
+	MetricProcessResolverArgsSize = newRuntimeMetric(".process_resolver.args.size")
+	// MetricProcessResolverEnvsTruncated is the name of the metric used to report the number of envs truncated
+	// Tags: -
+	MetricProcessResolverEnvsTruncated = newRuntimeMetric(".process_resolver.envs.truncated")
+	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
+	// Tags: -
+	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
+
+	// Mount resolver metrics
+
+	// MetricMountResolverCacheSize is the name of the metric used to report the size of the user space
+	// mount cache
+	// Tags: -
+	MetricMountResolverCacheSize = newRuntimeMetric(".mount_resolver.cache_size")
+	// MetricMountResolverHits is the counter of successful mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverHits = newRuntimeMetric(".mount_resolver.hits")
+	// MetricDentryResolverMiss is the counter of unsuccessful mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
 
 	// Activity dump metrics
 
@@ -158,8 +183,11 @@ var (
 	// Tags: -
 	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
-	// Tags: -
+	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
+	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
+	// Tags: dump_index
+	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
 	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
 	// be sent because they are too big
 	// Tags: format, compression
@@ -188,6 +216,9 @@ var (
 	// MetricPolicy is the name of the metric used to report policy versions
 	// Tags: -
 	MetricPolicy = newRuntimeMetric(".policy")
+	// MetricRuleStatus is the name of the metric used to report the rule status
+	// Tags: -
+	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
 	// Others
 
@@ -216,17 +247,6 @@ var (
 
 	// MetricEventMonitoringRunning is reported when the runtime-security module is running with event monitoring enabled
 	MetricEventMonitoringRunning = newAgentMetric(".event_monitoring.running")
-
-	// Runtime Compiled Constants metrics
-
-	// MetricRuntimeCompiledConstantsEnabled is used to report if the runtime compilation has succeeded
-	MetricRuntimeCompiledConstantsEnabled = newRuntimeCompiledConstantsMetric(".enabled")
-	// MetricRuntimeCompiledConstantsCompilationResult is used to report the result of the runtime compilation
-	MetricRuntimeCompiledConstantsCompilationResult = newRuntimeCompiledConstantsMetric(".compilation_result")
-	// MetricRuntimeCompiledConstantsCompilationDuration is used to report the duration of the runtime compilation
-	MetricRuntimeCompiledConstantsCompilationDuration = newRuntimeCompiledConstantsMetric(".compilation_duration")
-	// MetricRuntimeCompiledConstantsHeaderFetchResult is used to report the result of the header fetching
-	MetricRuntimeCompiledConstantsHeaderFetchResult = newRuntimeCompiledConstantsMetric(".header_fetch_result")
 
 	// RuntimeMonitor metrics
 
@@ -398,8 +418,4 @@ func newRuntimeMetric(name string) string {
 
 func newAgentMetric(name string) string {
 	return MetricAgentPrefix + name
-}
-
-func newRuntimeCompiledConstantsMetric(name string) string {
-	return newRuntimeMetric(".runtime_compilation.constants" + name)
 }

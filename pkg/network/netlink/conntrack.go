@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package netlink
 
@@ -48,8 +48,8 @@ type conntrack struct {
 
 func (c *conntrack) Exists(conn *Con) (bool, error) {
 	var family byte = unix.AF_INET
-	if (!conn.Origin.IsZero() && !conn.Origin.Src.IsZero() && conn.Origin.Src.IP().Is6() && !conn.Origin.Src.IP().Is4in6()) ||
-		(!conn.Reply.IsZero() && !conn.Reply.Src.IsZero() && conn.Reply.Src.IP().Is6() && !conn.Reply.Src.IP().Is4in6()) {
+	if (!conn.Origin.IsZero() && !AddrPortIsZero(conn.Origin.Src) && conn.Origin.Src.Addr().Is6() && !conn.Origin.Src.Addr().Is4In6()) ||
+		(!conn.Reply.IsZero() && !AddrPortIsZero(conn.Reply.Src) && conn.Reply.Src.Addr().Is6() && !conn.Reply.Src.Addr().Is4In6()) {
 		family = unix.AF_INET6
 	}
 
