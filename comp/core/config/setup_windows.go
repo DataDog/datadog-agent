@@ -5,7 +5,10 @@
 
 package config
 
-import "github.com/DataDog/datadog-agent/pkg/util/winutil"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
 
 // DefaultConfPath points to the folder containing datadog.yaml
 var DefaultConfPath = "c:\\programdata\\datadog"
