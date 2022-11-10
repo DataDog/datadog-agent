@@ -13,6 +13,12 @@ package httpsec
 import (
 	"net/http"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-lambda-go/events"
 )
 
 type Context struct {
@@ -26,6 +32,148 @@ type Context struct {
 
 	ResponseStatus  *string
 	ResponseHeaders map[string][]string
+}
+
+type InvocationSubProcessor struct {
+	asm *appsec.AppSec
+	lp  *invocationlifecycle.LifecycleProcessor
+	ctx Context
+}
+
+func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.InvocationStartDetails) {
+	p.ctx = Context{} // reset the context
+	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
+}
+
+func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invCtx *invocationlifecycle.RequestHandler) {
+	var ctx *Context
+	switch event := invCtx.Event().(type) {
+	case events.APIGatewayProxyRequest:
+		ctx = NewContext(
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			event.Body)
+		//case trigger.APIGatewayV2Event:
+		//	var event events.APIGatewayV2HTTPRequest
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromAPIGatewayV2Event(event, region)
+		//	}
+		//	if lp.AppSec != nil {
+		//		lp.AppSecContext = httpsec.NewContext(
+		//			&event.RawPath,
+		//			toMultiValueMap(event.Headers),
+		//			toMultiValueMap(event.QueryStringParameters),
+		//			event.PathParameters,
+		//			event.RequestContext.HTTP.SourceIP,
+		//			event.Body)
+		//	}
+		//case trigger.APIGatewayWebsocketEvent:
+		//	var event events.APIGatewayWebsocketProxyRequest
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromAPIGatewayWebsocketEvent(event, region)
+		//	}
+		//	if lp.AppSec != nil {
+		//		lp.AppSecContext = httpsec.NewContext(
+		//			&event.Path,
+		//			event.MultiValueHeaders,
+		//			event.MultiValueQueryStringParameters,
+		//			event.PathParameters,
+		//			event.RequestContext.Identity.SourceIP,
+		//			event.Body)
+		//	}
+		//case trigger.ALBEvent:
+		//	var event events.ALBTargetGroupRequest
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromALBEvent(event)
+		//	}
+		//	if lp.AppSec != nil {
+		//		lp.AppSecContext = httpsec.NewContext(
+		//			&event.Path,
+		//			event.MultiValueHeaders,
+		//			event.MultiValueQueryStringParameters,
+		//			nil,
+		//			"",
+		//			event.Body)
+		//	}
+		//case trigger.CloudWatchEvent:
+		//	var event events.CloudWatchEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromCloudWatchEvent(event)
+		//	}
+		//case trigger.CloudWatchLogsEvent:
+		//	var event events.CloudwatchLogsEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
+		//		lp.initFromCloudWatchLogsEvent(event, region, account)
+		//	}
+		//case trigger.DynamoDBStreamEvent:
+		//	var event events.DynamoDBEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromDynamoDBStreamEvent(event)
+		//	}
+		//case trigger.KinesisStreamEvent:
+		//	var event events.KinesisEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromKinesisStreamEvent(event)
+		//	}
+		//case trigger.EventBridgeEvent:
+		//	var event inferredspan.EventBridgeEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromEventBridgeEvent(event)
+		//	}
+		//case trigger.S3Event:
+		//	var event events.S3Event
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromS3Event(event)
+		//	}
+		//case trigger.SNSEvent:
+		//	var event events.SNSEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromSNSEvent(event)
+		//	}
+		//case trigger.SQSEvent:
+		//	var event events.SQSEvent
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
+		//		lp.initFromSQSEvent(event)
+		//	}
+		//case trigger.LambdaFunctionURLEvent:
+		//	var event events.LambdaFunctionURLRequest
+		//	if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
+		//		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
+		//	}
+		//	if lp.AppSec != nil {
+		//		lp.AppSecContext = httpsec.NewContext(
+		//			&event.RawPath,
+		//			toMultiValueMap(event.Headers),
+		//			toMultiValueMap(event.QueryStringParameters),
+		//			nil,
+		//			event.RequestContext.HTTP.SourceIP,
+		//			event.Body)
+		//	}
+		//default:
+		//	log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
+	}
+
+	span := invCtx
+	SetAppSecEnabledTags(span)
+
+	reqHeaders := ctx.RequestHeaders
+	SetClientIPTags(span, ctx.RequestClientIP, reqHeaders)
+
+	ctx.ResponseStatus = &statusCode
+
+	responseRawPayload := []byte(parseLambdaPayload(endDetails.ResponseRawPayload))
+
+	respHeaders, err := trigger.GetHeadersFromHTTPResponse(responseRawPayload)
+	if err != nil {
+		log.Debugf("appsec: couldn't parse the response payload headers: %v", err)
+	}
+
+	if events := p.asm.Monitor(ctx.ToAddresses()); len(events) > 0 {
+		SetSecurityEventsTags(span, events, reqHeaders, respHeaders)
+	}
 }
 
 // NewContext creates a new http monitoring context out of the provided

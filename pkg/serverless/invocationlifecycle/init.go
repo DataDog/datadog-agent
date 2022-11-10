@@ -7,10 +7,9 @@ package invocationlifecycle
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
-
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
@@ -27,6 +26,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event events.APIGatewayPro
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayRESTEvent(event)
 	}
 
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "api-gateway")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAPIGatewayEventARN(event, region))
 	lp.addTags(trigger.GetTagsFromAPIGatewayEvent(event))
@@ -37,6 +37,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayV2Event(event events.APIGatewayV
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayHTTPEvent(event)
 	}
 
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "api-gateway")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAPIGatewayV2EventARN(event, region))
 	lp.addTags(trigger.GetTagsFromAPIGatewayV2HTTPRequest(event))
@@ -47,17 +48,20 @@ func (lp *LifecycleProcessor) initFromAPIGatewayWebsocketEvent(event events.APIG
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayWebsocketEvent(event)
 	}
 
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "api-gateway")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAPIGatewayWebSocketEventARN(event, region))
 }
 
 func (lp *LifecycleProcessor) initFromALBEvent(event events.ALBTargetGroupRequest) {
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "application-load-balancer")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractAlbEventARN(event))
 	lp.addTags(trigger.GetTagsFromALBTargetGroupRequest(event))
 }
 
 func (lp *LifecycleProcessor) initFromCloudWatchEvent(event events.CloudWatchEvent) {
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "cloudwatch-events")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractCloudwatchEventARN(event))
 }
@@ -68,28 +72,34 @@ func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.Cloudwatc
 		log.Debugf("Error parsing event ARN from cloudwatch logs event: %v", err)
 		return
 	}
+
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "cloudwatch-logs")
 	lp.addTag("function_trigger.event_source_arn", arn)
 }
 
 func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBEvent) {
-
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithDynamoDBEvent(event)
 	}
+
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "dynamodb")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractDynamoDBStreamEventARN(event))
 }
 
 func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventBridgeEvent) {
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "eventbridge")
 	lp.addTag("function_trigger.event_source_arn", event.Source)
 }
-func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
 
+func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithKinesisEvent(event)
 	}
+
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "kinesis")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractKinesisStreamEventARN(event))
 }
@@ -98,6 +108,8 @@ func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
 	}
+
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "s3")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractS3EventArn(event))
 }
@@ -106,15 +118,18 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithSNSEvent(event)
 	}
+
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "sns")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractSNSEventArn(event))
 }
 
 func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
-
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithSQSEvent(event)
 	}
+
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "sqs")
 	lp.addTag("function_trigger.event_source_arn", trigger.ExtractSQSEventARN(event))
 
@@ -149,6 +164,7 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 }
 
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
+	lp.Event = event
 	lp.addTag("function_trigger.event_source", "lambda-function-url")
 	lp.addTag("function_trigger.event_source_arn", fmt.Sprintf("arn:aws:lambda:%v:%v:url:%v", region, accountID, functionName))
 	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
