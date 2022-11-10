@@ -120,6 +120,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 				}
 			}
 			if len(clusterName) > 0 {
+				log.Infof("Using cluster name %s from the node label", clusterName)
 				data.clusterName = clusterName
 			}
 		}

@@ -92,7 +92,7 @@ func TestProcessEventHandling(t *testing.T) {
 			t.Error("should not have received more process events")
 		}
 
-		model.AssertProcessEvents(t, events[i], e)
+		AssertProcessEvents(t, events[i], e)
 		// all message have been consumed
 		if i == len(events)-1 {
 			close(rcvMessage)

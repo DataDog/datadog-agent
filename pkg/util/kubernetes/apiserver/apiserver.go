@@ -605,3 +605,18 @@ func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.Metada
 	}
 	return output
 }
+
+func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
+	nodeList, err := c.Cl.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(nodeList.Items) == 0 {
+		return "", fmt.Errorf("No node found")
+	}
+
+	return nodeList.Items[0].Name, nil
+}

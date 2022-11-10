@@ -500,13 +500,12 @@ func (ad *ActivityDump) debug(w io.Writer) {
 }
 
 func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
-	var traced bool
 	for _, evtType := range ad.LoadConfig.TracedEventTypes {
 		if evtType == event.GetEventType() {
-			traced = true
+			return true
 		}
 	}
-	return traced
+	return false
 }
 
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
@@ -1140,7 +1139,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 		return nil
 	}
 
-	for _, eventType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+	for _, eventType := range ad.LoadConfig.TracedEventTypes {
 		switch eventType {
 		case model.FileOpenEventType:
 			if err = pan.snapshotFiles(p, ad); err != nil {

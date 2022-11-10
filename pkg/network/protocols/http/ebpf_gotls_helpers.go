@@ -11,54 +11,54 @@ package http
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"reflect"
 	"unsafe"
 )
 
-func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsOffsetsData, error) {
+func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsData, error) {
 	closeConnPointer, err := getConnPointer(result, bininspect.CloseGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting close conn pointer from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting close conn pointer from inspection result: %w", err)
 	}
 	readConnPointer, err := getConnPointer(result, bininspect.ReadGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read conn pointer from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read conn pointer from inspection result: %w", err)
 	}
 	readBufferLocation, err := getReadBufferLocation(result)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read buffer location from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read buffer location from inspection result: %w", err)
 	}
 	readReturnBytes, err := getReturnBytes(result, bininspect.ReadGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
 	}
 	writeConnPointer, err := getConnPointer(result, bininspect.WriteGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting write conn pointer from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting write conn pointer from inspection result: %w", err)
 	}
 	writeBufferLocation, err := getWriteBufferLocation(result)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting write buffer location from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting write buffer location from inspection result: %w", err)
 	}
 	writeReturnBytes, err := getReturnBytes(result, bininspect.WriteGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
 	}
 	writeReturnError, err := getReturnError(result, bininspect.WriteGoTLSFunc)
 	if err != nil {
-		return ebpf.TlsOffsetsData{}, fmt.Errorf("failed extracting read return error from inspection result: %w", err)
+		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read return error from inspection result: %w", err)
 	}
 
-	return ebpf.TlsOffsetsData{
-		Goroutine_id: ebpf.GoroutineIDMetadata{
+	return gotls.TlsOffsetsData{
+		Goroutine_id: gotls.GoroutineIDMetadata{
 			Runtime_g_tls_addr_offset: result.GoroutineIDMetadata.RuntimeGTLSAddrOffset,
 			Goroutine_id_offset:       result.GoroutineIDMetadata.GoroutineIDOffset,
 			Runtime_g_register:        int64(result.GoroutineIDMetadata.RuntimeGRegister),
 			Runtime_g_in_register:     boolToBinary(result.GoroutineIDMetadata.RuntimeGInRegister),
 		},
-		Conn_layout: ebpf.TlsConnLayout{
+		Conn_layout: gotls.TlsConnLayout{
 			Tls_conn_inner_conn_offset: result.StructOffsets[bininspect.StructOffsetTLSConn],
 			Tcp_conn_inner_conn_offset: result.StructOffsets[bininspect.StructOffsetTCPConn],
 			Conn_fd_offset:             result.StructOffsets[bininspect.StructOffsetNetConnFd],
@@ -76,33 +76,33 @@ func inspectionResultToProbeData(result *bininspect.Result) (ebpf.TlsOffsetsData
 	}, nil
 }
 
-func getConnPointer(result *bininspect.Result, funcName string) (ebpf.Location, error) {
+func getConnPointer(result *bininspect.Result, funcName string) (gotls.Location, error) {
 	if len(result.Functions[funcName].Parameters) < 1 {
-		return ebpf.Location{}, errors.New("expected at least one parameter")
+		return gotls.Location{}, errors.New("expected at least one parameter")
 	}
 	readConnReceiver := result.Functions[funcName].Parameters[0]
 	return wordLocation(readConnReceiver, result.Arch, "pointer", reflect.Ptr)
 }
 
-func getReadBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error) {
+func getReadBufferLocation(result *bininspect.Result) (gotls.SliceLocation, error) {
 	params := result.Functions[bininspect.ReadGoTLSFunc].Parameters
 	if len(params) < 2 {
-		return ebpf.SliceLocation{}, errors.New("expected at least two parameters for read function")
+		return gotls.SliceLocation{}, errors.New("expected at least two parameters for read function")
 	}
 	bufferParam := params[1]
 	if result.GoVersion.Major == 1 && result.GoVersion.Minor == 16 && len(bufferParam.Pieces) == 0 {
-		return ebpf.SliceLocation{
-			Ptr: ebpf.Location{
+		return gotls.SliceLocation{
+			Ptr: gotls.Location{
 				Exists:       boolToBinary(true),
 				In_register:  boolToBinary(false),
 				Stack_offset: 16,
 			},
-			Len: ebpf.Location{
+			Len: gotls.Location{
 				Exists:       boolToBinary(true),
 				In_register:  boolToBinary(false),
 				Stack_offset: 24,
 			},
-			Cap: ebpf.Location{
+			Cap: gotls.Location{
 				Exists:       boolToBinary(true),
 				In_register:  boolToBinary(false),
 				Stack_offset: 32,
@@ -112,16 +112,16 @@ func getReadBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error
 	return sliceLocation(bufferParam, result.Arch)
 }
 
-func getWriteBufferLocation(result *bininspect.Result) (ebpf.SliceLocation, error) {
+func getWriteBufferLocation(result *bininspect.Result) (gotls.SliceLocation, error) {
 	params := result.Functions[bininspect.WriteGoTLSFunc].Parameters
 	if len(params) < 2 {
-		return ebpf.SliceLocation{}, errors.New("expected at least two parameters in write function")
+		return gotls.SliceLocation{}, errors.New("expected at least two parameters in write function")
 	}
 	bufferParam := params[1]
 	return sliceLocation(bufferParam, result.Arch)
 }
 
-func getReturnBytes(result *bininspect.Result, funcName string) (ebpf.Location, error) {
+func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location, error) {
 	// Manually re-consturct the location of the first return parameter (bytes read).
 	// Unpack the first return parameter (bytes read).
 	// The error return value isn't useful in eBPF
@@ -145,16 +145,16 @@ func getReturnBytes(result *bininspect.Result, funcName string) (ebpf.Location, 
 			// From https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md
 			// RAX, RBX, RCX, RDI, RSI, R8, R9, R10, R11
 			// regOrder = []int{0, 3, 2, 5, 4, 8, 9, 10, 11}
-			return ebpf.Location{
+			return gotls.Location{
 				Exists:      boolToBinary(true),
 				In_register: boolToBinary(true),
 				X_register:  int64(0), // RAX
 			}, nil
 		case bininspect.GoArchARM64:
 			// TODO implement for ARM
-			return ebpf.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
+			return gotls.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
 		default:
-			return ebpf.Location{}, bininspect.ErrUnsupportedArch
+			return gotls.Location{}, bininspect.ErrUnsupportedArch
 		}
 	case bininspect.GoABIStack:
 		// Manually reconstruct the offsets into the stack.
@@ -170,31 +170,31 @@ func getReturnBytes(result *bininspect.Result, funcName string) (ebpf.Location, 
 			endOfParametersOffset += param.TotalSize
 		}
 
-		return ebpf.Location{
+		return gotls.Location{
 			Exists:       boolToBinary(true),
 			In_register:  boolToBinary(false),
 			Stack_offset: endOfParametersOffset,
 		}, nil
 	default:
-		return ebpf.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
+		return gotls.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
 	}
 }
 
-func getReturnError(result *bininspect.Result, funcName string) (ebpf.Location, error) {
+func getReturnError(result *bininspect.Result, funcName string) (gotls.Location, error) {
 	switch result.ABI {
 	case bininspect.GoABIRegister:
 		switch result.Arch {
 		case bininspect.GoArchX86_64:
-			return ebpf.Location{
+			return gotls.Location{
 				Exists:      boolToBinary(true),
 				In_register: boolToBinary(true),
 				X_register:  int64(3), // RBX
 			}, nil
 		case bininspect.GoArchARM64:
 			// TODO implement for ARM
-			return ebpf.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
+			return gotls.Location{}, errors.New("ARM-64 register ABI fallback not implemented")
 		default:
-			return ebpf.Location{}, bininspect.ErrUnsupportedArch
+			return gotls.Location{}, bininspect.ErrUnsupportedArch
 		}
 	case bininspect.GoABIStack:
 		var integer int
@@ -203,7 +203,7 @@ func getReturnError(result *bininspect.Result, funcName string) (ebpf.Location, 
 			// This code assumes pointer alignment of each param
 			endOfParametersOffset += param.TotalSize
 		}
-		return ebpf.Location{
+		return gotls.Location{
 			Exists:      boolToBinary(true),
 			In_register: boolToBinary(false),
 			// Take the offset of the first return value (an int representing the amount of bytes that were
@@ -211,7 +211,7 @@ func getReturnError(result *bininspect.Result, funcName string) (ebpf.Location, 
 			Stack_offset: endOfParametersOffset + int64(unsafe.Sizeof(integer)),
 		}, nil
 	default:
-		return ebpf.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
+		return gotls.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
 	}
 }
 
@@ -231,23 +231,23 @@ func wordLocation(
 	arch bininspect.GoArch,
 	typeName string,
 	expectedKind reflect.Kind,
-) (ebpf.Location, error) {
+) (gotls.Location, error) {
 	if len(param.Pieces) == 0 {
-		return ebpf.Location{Exists: boolToBinary(false)}, nil
+		return gotls.Location{Exists: boolToBinary(false)}, nil
 	}
 
 	if len(param.Pieces) != 1 {
-		return ebpf.Location{}, fmt.Errorf("expected 1 piece for %s parameter, got %d", typeName, len(param.Pieces))
+		return gotls.Location{}, fmt.Errorf("expected 1 piece for %s parameter, got %d", typeName, len(param.Pieces))
 	}
 	if param.Kind != expectedKind {
-		return ebpf.Location{}, fmt.Errorf("expected %#v kind for %s parameter, got %#v", expectedKind, typeName, param.Kind)
+		return gotls.Location{}, fmt.Errorf("expected %#v kind for %s parameter, got %#v", expectedKind, typeName, param.Kind)
 	}
 	if param.TotalSize != int64(arch.PointerSize()) {
-		return ebpf.Location{}, fmt.Errorf("expected total size for %s parameter to be %d, got %d", typeName, arch.PointerSize(), param.TotalSize)
+		return gotls.Location{}, fmt.Errorf("expected total size for %s parameter to be %d, got %d", typeName, arch.PointerSize(), param.TotalSize)
 	}
 
 	piece := param.Pieces[0]
-	return ebpf.Location{
+	return gotls.Location{
 		Exists:       boolToBinary(true),
 		In_register:  boolToBinary(piece.InReg),
 		Stack_offset: piece.StackOffset,
@@ -261,11 +261,11 @@ func compositeLocation(
 	typeName string,
 	expectedKind reflect.Kind,
 	expectedPieces int,
-) ([]ebpf.Location, error) {
+) ([]gotls.Location, error) {
 	if len(param.Pieces) == 0 {
-		locations := make([]ebpf.Location, expectedPieces)
+		locations := make([]gotls.Location, expectedPieces)
 		for i := range locations {
-			locations[i] = ebpf.Location{
+			locations[i] = gotls.Location{
 				Exists: boolToBinary(false),
 			}
 		}
@@ -286,7 +286,7 @@ func compositeLocation(
 	// Translate the parameter pieces to a list of single word locations
 	// TODO handle missing inner parts
 	//      like the length (seems to handle missing cap)
-	locations := make([]ebpf.Location, expectedPieces)
+	locations := make([]gotls.Location, expectedPieces)
 	currentLocation := 0
 	for i, paramPiece := range param.Pieces {
 		if paramPiece.InReg {
@@ -294,7 +294,7 @@ func compositeLocation(
 				return nil, fmt.Errorf("piece %d in %s parameter was in register but longer than %d bytes", i, typeName, arch.PointerSize())
 			}
 
-			locations[currentLocation] = ebpf.Location{
+			locations[currentLocation] = gotls.Location{
 				Exists:      boolToBinary(true),
 				In_register: boolToBinary(true),
 				X_register:  int64(paramPiece.Register),
@@ -306,7 +306,7 @@ func compositeLocation(
 			var currentOffset int64
 			remainingLength := paramPiece.Size
 			for remainingLength > 0 {
-				locations[currentLocation] = ebpf.Location{
+				locations[currentLocation] = gotls.Location{
 					Exists:       boolToBinary(true),
 					In_register:  boolToBinary(false),
 					Stack_offset: paramPiece.StackOffset + currentOffset,
@@ -325,7 +325,7 @@ func compositeLocation(
 	// Handle any trailing locations that don't exist
 	if currentLocation != expectedPieces-1 {
 		for ; currentLocation < expectedPieces; currentLocation++ {
-			locations[expectedPieces] = ebpf.Location{
+			locations[expectedPieces] = gotls.Location{
 				Exists: boolToBinary(false),
 			}
 		}
@@ -334,14 +334,14 @@ func compositeLocation(
 	return locations, nil
 }
 
-func sliceLocation(param bininspect.ParameterMetadata, arch bininspect.GoArch) (ebpf.SliceLocation, error) {
+func sliceLocation(param bininspect.ParameterMetadata, arch bininspect.GoArch) (gotls.SliceLocation, error) {
 	// We expect each slice golang parameter to have 3 parts - the ptr to the data, the length and the capacity.
 	locations, err := compositeLocation(param, arch, "slice", reflect.Slice, 3)
 	if err != nil {
-		return ebpf.SliceLocation{}, err
+		return gotls.SliceLocation{}, err
 	}
 
-	return ebpf.SliceLocation{
+	return gotls.SliceLocation{
 		Ptr: locations[0],
 		Len: locations[1],
 		Cap: locations[2],

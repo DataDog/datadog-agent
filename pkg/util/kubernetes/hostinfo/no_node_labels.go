@@ -24,8 +24,3 @@ func NewNodeInfo() (*NodeInfo, error) {
 func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error) {
 	return nil, nil
 }
-
-// GetNodeClusterNameLabel returns clustername by fetching a node label
-func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, currentClusterName string) (string, error) {
-	return "", nil
-}

@@ -12,29 +12,22 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
-
-func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", config.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
-}
 
 func eventRun(eventArgs *eventCliParams) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContextCompliance()
+	endpoints, dstContext, err := common.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}
@@ -66,7 +59,7 @@ func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 		return nil, nil
 	}
 
-	endpoints, context, err := newLogContextCompliance()
+	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
