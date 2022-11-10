@@ -14,7 +14,8 @@ struct activity_dump_config {
 struct activity_dump_rate_limiter_ctx {
     u64 current_period;
     u32 counter;
-    u32 padding;
+    u8 algo_id;
+    u8 padding[3];
 };
 
 struct bpf_map_def SEC("maps/activity_dump_rate_limiters") activity_dump_rate_limiters = {
@@ -354,12 +355,90 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
     bpf_map_delete_elem(&traced_pids, &pid);
 }
 
+enum rate_limiter_algo_ids {
+    RL_ALGO_BASIC = 0,
+    RL_ALGO_BASIC_HALF,
+    RL_ALGO_DECREASING_DROPRATE,
+    RL_ALGO_INCREASING_DROPRATE,
+    RL_ALGO_TOTAL_NUMBER,
+};
+
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_reset_period(u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p) {
+    rate_ctx_p->current_period = now;
+    rate_ctx_p->counter = 0;
+    rate_ctx_p->algo_id = now % RL_ALGO_TOTAL_NUMBER;
+    return 1;
+}
+
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+    if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
+        return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
+    }
+
+    if (rate_ctx_p->counter >= config->events_rate) { // if we already allowed more than rate
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic_half(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+    if (delta > 1000000000 / 2) { // if more than 0.5 sec ellapsed we reset the period
+        return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
+    }
+
+    if (rate_ctx_p->counter >= config->events_rate / 2) { // if we already allowed more than rate / 2
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_decreasing_droprate(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+    if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
+        return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
+    }
+
+    if (rate_ctx_p->counter >= config->events_rate) { // if we already allowed more than rate
+        return 0;
+    } else if (rate_ctx_p->counter < (config->events_rate / 4)) { // first 1/4 is not rate limited
+        return 1;
+    }
+
+    // if we are between rate / 4 and rate, apply a decreasing rate of:
+    // (counter * 100) / (rate) %
+    else if (now % ((rate_ctx_p->counter * 100) / config->events_rate) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_increasing_droprate(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+    if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
+        return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
+    }
+
+    if (rate_ctx_p->counter >= config->events_rate) { // if we already allowed more than rate
+        return 0;
+    } else if (rate_ctx_p->counter < (config->events_rate / 4)) { // first 1/4 is not rate limited
+        return 1;
+    }
+
+    // if we are between rate / 4 and rate, apply an increasing rate of:
+    // 100 - ((counter * 100) / (rate)) %
+    else if (now % (100 - ((rate_ctx_p->counter * 100) / config->events_rate)) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u32 cookie, u64 now, u8 should_count) {
     struct activity_dump_rate_limiter_ctx* rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
     if (rate_ctx_p == NULL) {
         struct activity_dump_rate_limiter_ctx rate_ctx = {
             .current_period = now,
             .counter = should_count,
+            .algo_id = now % RL_ALGO_TOTAL_NUMBER,
         };
         bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &rate_ctx, BPF_ANY);
         return 1;
@@ -368,20 +447,30 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activi
     if (now < rate_ctx_p->current_period) { // this should never happen, ignore
         return 0;
     }
-
     u64 delta = now - rate_ctx_p->current_period;
-    if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
-        rate_ctx_p->current_period = now;
-        rate_ctx_p->counter = should_count;
-        return 1;
+
+    u8 allow;
+    switch (rate_ctx_p->algo_id) {
+    case RL_ALGO_BASIC:
+        allow = activity_dump_rate_limiter_allow_basic(config, now, rate_ctx_p, delta);
+        break;
+    case RL_ALGO_BASIC_HALF:
+        allow = activity_dump_rate_limiter_allow_basic_half(config, now, rate_ctx_p, delta);
+        break;
+    case RL_ALGO_DECREASING_DROPRATE:
+        allow = activity_dump_rate_limiter_allow_decreasing_droprate(config, now, rate_ctx_p, delta);
+        break;
+    case RL_ALGO_INCREASING_DROPRATE:
+        allow = activity_dump_rate_limiter_allow_increasing_droprate(config, now, rate_ctx_p, delta);
+        break;
+    default: // should never happen, ignore
+        return 0;
     }
 
-    if (rate_ctx_p->counter >= config->events_rate) {
-        return 0;
-    } else if (should_count) {
+    if (allow && should_count) {
         __sync_fetch_and_add(&rate_ctx_p->counter, 1);
     }
-    return 1;
+    return (allow);
 }
 
 #define NO_ACTIVITY_DUMP       0

@@ -180,7 +180,76 @@ func (ccc *CCCache) UpdatedOnce() <-chan struct{} {
 	return ccc.updatedOnce
 }
 
-func (ccc *CCCache) waitForResource(guid string) {
+// getResource looks up the given resourceName/GUID in the CCCache
+// If not found and refreshOnCacheMiss is enabled, it will use the fetchFn function to fetch the resource from the CAPI
+func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
+	ccc.RLock()
+	resource, ok := cache[guid]
+	ccc.RUnlock()
+
+	if !ok {
+		if !ccc.refreshCacheOnMiss {
+			return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
+		}
+
+		ccc.RLock()
+		updatedOnce := !ccc.lastUpdated.IsZero()
+		ccc.RUnlock()
+
+		if !updatedOnce {
+			return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
+		}
+
+		// wait in case the resource is currently being fetched
+		ccc.waitForResource(resourceName, guid)
+
+		// check the cache in case the resource was fetched while we were waiting
+		ccc.RLock()
+		resource, ok = cache[guid]
+		ccc.RUnlock()
+
+		if ok {
+			return resource, nil
+		}
+
+		// set the resource as active to prevent other goroutines from fetching it
+		err := ccc.setResourceActive(resourceName, guid)
+		if err != nil {
+			// wait in case the resource is currently being fetched
+			ccc.waitForResource(resourceName, guid)
+
+			// check the cache in case the resource was fetched while we were waiting
+			ccc.RLock()
+			resource, ok := cache[guid]
+			ccc.RUnlock()
+
+			if ok {
+				return resource, nil
+			}
+			return resource, fmt.Errorf("resource '%s' with guid '%s' doesn't exist", resourceName, guid)
+		}
+
+		// unblock other goroutines, the resource is fetched
+		defer ccc.setResourceInactive(resourceName, guid)
+
+		// fetch the resource from the CAPI
+		res, err := fetchFn(guid)
+		if err != nil {
+			return res, err
+		}
+
+		// update cache
+		ccc.Lock()
+		cache[guid] = res
+		ccc.Unlock()
+
+		return res, nil
+	}
+	return resource, nil
+}
+
+func (ccc *CCCache) waitForResource(resourceName, guid string) {
+	guid = resourceName + "/" + guid
 	ccc.RLock()
 	ch, ok := ccc.activeResources[guid]
 	ccc.RUnlock()
@@ -190,36 +259,32 @@ func (ccc *CCCache) waitForResource(guid string) {
 	}
 }
 
-func (ccc *CCCache) setResourceActive(guid string) error {
-	ccc.RLock()
+func (ccc *CCCache) setResourceActive(resourceName, guid string) error {
+	guid = resourceName + "/" + guid
+	ccc.Lock()
+	defer ccc.Unlock()
 	ch, ok := ccc.activeResources[guid]
-	ccc.RUnlock()
 
 	// resource is already active
 	if ok && ch != nil {
-		return fmt.Errorf("resource with guid %s is already active", guid)
+		return fmt.Errorf("resource '%s' with guid '%s' is already active", resourceName, guid)
 	}
-
-	ccc.Lock()
-	defer ccc.Unlock()
 
 	// creating a channel will make consequent reads blocking
 	ccc.activeResources[guid] = make(chan interface{})
-
 	return nil
 }
 
-func (ccc *CCCache) setResourceInactive(guid string) {
-	ccc.RLock()
+func (ccc *CCCache) setResourceInactive(resourceName, guid string) {
+	guid = resourceName + "/" + guid
+	ccc.Lock()
 	ch, ok := ccc.activeResources[guid]
-	ccc.RUnlock()
+	defer ccc.Unlock()
 
 	if ok && ch != nil {
 		// release the resource
 		close(ch)
-		ccc.Lock()
 		delete(ccc.activeResources, guid)
-		ccc.Unlock()
 	}
 }
 
@@ -262,171 +327,89 @@ func (ccc *CCCache) GetCFApplications() ([]*CFApplication, error) {
 	return cfapps, nil
 }
 
+func (ccc *CCCache) fetchProcessesByAppGUID(appGUID string) ([]*cfclient.Process, error) {
+	query := url.Values{}
+	query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+
+	// fetch processes from the CAPI
+	processes, err := ccc.ccAPIClient.ListProcessByAppGUID(query, appGUID)
+	if err != nil {
+		return nil, err
+	}
+
+	// convert to array of pointers
+	res := make([]*cfclient.Process, 0, len(processes))
+	for _, process := range processes {
+		res = append(res, &process)
+	}
+	return res, nil
+}
+func (ccc *CCCache) fetchCFApplicationByGUID(guid string) (*CFApplication, error) {
+	// fetch app from the CAPI
+	app, err := ccc.GetApp(guid)
+	if err != nil {
+		return nil, err
+	}
+
+	// fill app data
+	cfapp := CFApplication{}
+	cfapp.extractDataFromV3App(*app)
+
+	// extract GUIDs
+	appGUID := cfapp.GUID
+	spaceGUID := cfapp.SpaceGUID
+	orgGUID := cfapp.OrgGUID
+
+	// fill processes data
+	processes, err := ccc.GetProcesses(appGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		cfapp.extractDataFromV3Process(processes)
+	}
+
+	// fill space then org data. Order matters for labels and annotations.
+	space, err := ccc.GetSpace(spaceGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		cfapp.extractDataFromV3Space(space)
+	}
+
+	// fill org data
+	org, err := ccc.GetOrg(orgGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		cfapp.extractDataFromV3Org(org)
+	}
+
+	// fill sidecars data
+	sidecars, err := ccc.GetSidecars(appGUID)
+	if err != nil {
+		log.Info(err)
+	} else {
+		for _, sidecar := range sidecars {
+			cfapp.Sidecars = append(cfapp.Sidecars, *sidecar)
+		}
+	}
+	return &cfapp, nil
+}
+
 // GetProcesses returns all processes for the given app guid in the cache
 func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
-	ccc.RLock()
-	processes, ok := ccc.processesByAppGUID[appGUID]
-	ccc.RUnlock()
-
-	if !ok {
-		if !ccc.refreshCacheOnMiss {
-			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find processes for the app %s in cloud controller cache", appGUID)
-		}
-
-		ccc.RLock()
-		updatedOnce := !ccc.lastUpdated.IsZero()
-		ccc.RUnlock()
-
-		if !updatedOnce {
-			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
-		}
-
-		// wait in case the resource is currently being fetched
-		ccc.waitForResource(appGUID)
-
-		// check the cache in case the resource was fetched while we were waiting
-		ccc.RLock()
-		processes, ok = ccc.processesByAppGUID[appGUID]
-		ccc.RUnlock()
-
-		if ok {
-			return processes, nil
-		}
-
-		// set the resource as active to prevent other goroutines from fetching it
-		err := ccc.setResourceActive(appGUID)
-		if err != nil {
-			return nil, err
-		}
-
-		// unblock other goroutines, the resource is fetched
-		defer ccc.setResourceInactive(appGUID)
-
-		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-
-		// fetch processes from the CAPI
-		processes, err := ccc.ccAPIClient.ListProcessByAppGUID(query, appGUID)
-		if err != nil {
-			return nil, err
-		}
-
-		// convert to array of pointers
-		res := make([]*cfclient.Process, 0, len(processes))
-		for _, process := range processes {
-			res = append(res, &process)
-		}
-
-		// update cache
-		ccc.Lock()
-		ccc.processesByAppGUID[appGUID] = res
-		ccc.Unlock()
-
-		return res, nil
+	processes, err := getResource(ccc, "Processes", appGUID, ccc.processesByAppGUID, ccc.fetchProcessesByAppGUID)
+	if err != nil {
+		return nil, err
 	}
 	return processes, nil
 }
 
 // GetCFApplication looks for a CF application with the given GUID in the cache
 func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
-	var cfapp *CFApplication
-	var ok bool
-
-	ccc.RLock()
-	cfapp, ok = ccc.cfApplicationsByGUID[guid]
-	ccc.RUnlock()
-
-	if !ok {
-		if !ccc.refreshCacheOnMiss {
-			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find CF application %s in cloud controller cache", guid)
-		}
-
-		ccc.RLock()
-		updatedOnce := !ccc.lastUpdated.IsZero()
-		ccc.RUnlock()
-
-		if !updatedOnce {
-			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
-		}
-
-		// cfclient.V3App and CFApplication share the same guid which causes a deadlock in the ccc.activeResources map if not properly handled
-		cfappGUID := "cfapp" + guid
-
-		// wait in case the resource is currently being fetched
-		ccc.waitForResource(cfappGUID)
-
-		// check the cache in case the resource was fetched while we were waiting
-		ccc.RLock()
-		cfapp, ok = ccc.cfApplicationsByGUID[guid]
-		ccc.RUnlock()
-		if ok {
-			return cfapp, nil
-		}
-
-		// set the resource as active to prevent other goroutines from fetching it
-		err := ccc.setResourceActive(cfappGUID)
-		if err != nil {
-			return nil, err
-		}
-
-		// unblock other goroutines, the resource is fetched
-		defer ccc.setResourceInactive(cfappGUID)
-
-		// fetch app from the CAPI
-		app, err := ccc.GetApp(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// fill app data
-		cfapp := CFApplication{}
-		cfapp.extractDataFromV3App(*app)
-
-		// extract GUIDs
-		appGUID := cfapp.GUID
-		spaceGUID := cfapp.SpaceGUID
-		orgGUID := cfapp.OrgGUID
-
-		// fill processes data
-		processes, err := ccc.GetProcesses(appGUID)
-		if err != nil {
-			log.Info(err)
-		} else {
-			cfapp.extractDataFromV3Process(processes)
-		}
-
-		// fill space then org data. Order matters for labels and annotations.
-		space, err := ccc.GetSpace(spaceGUID)
-		if err != nil {
-			log.Info(err)
-		} else {
-			cfapp.extractDataFromV3Space(space)
-		}
-
-		// fill org data
-		org, err := ccc.GetOrg(orgGUID)
-		if err != nil {
-			log.Info(err)
-		} else {
-			cfapp.extractDataFromV3Org(org)
-		}
-
-		// fill sidecars data
-		sidecars, err := ccc.GetSidecars(appGUID)
-		if err != nil {
-			log.Info(err)
-		} else {
-			for _, sidecar := range sidecars {
-				cfapp.Sidecars = append(cfapp.Sidecars, *sidecar)
-			}
-		}
-
-		// update CC cache
-		ccc.Lock()
-		ccc.cfApplicationsByGUID[appGUID] = &cfapp
-		ccc.Unlock()
-
-		return &cfapp, nil
+	cfapp, err := getResource(ccc, "CFApplication", guid, ccc.cfApplicationsByGUID, ccc.fetchCFApplicationByGUID)
+	if err != nil {
+		return nil, err
 	}
 	return cfapp, nil
 }
@@ -445,167 +428,27 @@ func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 
 // GetApp looks for an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
-	ccc.RLock()
-	app, ok := ccc.appsByGUID[guid]
-	ccc.RUnlock()
-
-	if !ok {
-		if !ccc.refreshCacheOnMiss {
-			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find application %s in cloud controller cache", guid)
-		}
-
-		ccc.RLock()
-		updatedOnce := !ccc.lastUpdated.IsZero()
-		ccc.RUnlock()
-
-		if !updatedOnce {
-			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
-		}
-
-		// wait in case the resource is currently being fetched
-		ccc.waitForResource(guid)
-
-		// check the cache in case the resource was fetched while we were waiting
-		ccc.RLock()
-		app, ok = ccc.appsByGUID[guid]
-		ccc.RUnlock()
-
-		if ok {
-			return app, nil
-		}
-
-		// set the resource as active to prevent other goroutines from fetching it
-		err := ccc.setResourceActive(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// unblock other goroutines, the resource is fetched
-		defer ccc.setResourceInactive(guid)
-
-		// fetch app from the CAPI
-		app, err := ccc.ccAPIClient.GetV3AppByGUID(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// update CC cache
-		ccc.Lock()
-		ccc.appsByGUID[guid] = app
-		ccc.Unlock()
-
-		return app, nil
+	app, err := getResource(ccc, "App", guid, ccc.appsByGUID, ccc.ccAPIClient.GetV3AppByGUID)
+	if err != nil {
+		return nil, err
 	}
 	return app, nil
 }
 
 // GetSpace looks for a space with the given GUID in the cache
 func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
-	ccc.RLock()
-	space, ok := ccc.spacesByGUID[guid]
-	ccc.RUnlock()
-
-	if !ok {
-		if !ccc.refreshCacheOnMiss {
-			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find space %s in cloud controller cache", guid)
-		}
-
-		ccc.RLock()
-		updatedOnce := !ccc.lastUpdated.IsZero()
-		ccc.RUnlock()
-
-		if !updatedOnce {
-			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
-		}
-
-		// wait in case the resource is currently being fetched
-		ccc.waitForResource(guid)
-
-		// check the cache in case the resource was fetched while we were waiting
-		ccc.RLock()
-		space, ok = ccc.spacesByGUID[guid]
-		ccc.RUnlock()
-
-		if ok {
-			return space, nil
-		}
-
-		// set the resource as active to prevent other goroutines from fetching it
-		err := ccc.setResourceActive(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// unblock other goroutines, the resource is fetched
-		defer ccc.setResourceInactive(guid)
-
-		// fetch space from the CAPI
-		space, err := ccc.ccAPIClient.GetV3SpaceByGUID(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// update CC cache
-		ccc.Lock()
-		ccc.spacesByGUID[guid] = space
-		ccc.Unlock()
-
-		return space, nil
+	space, err := getResource(ccc, "Space", guid, ccc.spacesByGUID, ccc.ccAPIClient.GetV3SpaceByGUID)
+	if err != nil {
+		return nil, err
 	}
 	return space, nil
 }
 
 // GetOrg looks for an org with the given GUID in the cache
 func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
-	ccc.RLock()
-	org, ok := ccc.orgsByGUID[guid]
-	ccc.RUnlock()
-
-	if !ok {
-		if !ccc.refreshCacheOnMiss {
-			return nil, fmt.Errorf("refreshCacheOnMiss is disabled, could not find org %s in cloud controller cache", guid)
-		}
-
-		ccc.RLock()
-		updatedOnce := !ccc.lastUpdated.IsZero()
-		ccc.RUnlock()
-
-		if !updatedOnce {
-			return nil, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
-		}
-
-		// wait in case the resource is currently being fetched
-		ccc.waitForResource(guid)
-
-		// check the cache in case the resource was fetched while we were waiting
-		ccc.RLock()
-		org, ok = ccc.orgsByGUID[guid]
-		ccc.RUnlock()
-		if ok {
-			return org, nil
-		}
-
-		// set the resource as active to prevent other goroutines from fetching it
-		err := ccc.setResourceActive(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// unblock other goroutines, the resource is fetched
-		defer ccc.setResourceInactive(guid)
-
-		// fetch org from the CAPI
-		org, err := ccc.ccAPIClient.GetV3OrganizationByGUID(guid)
-		if err != nil {
-			return nil, err
-		}
-
-		// update CC cache
-		ccc.Lock()
-		ccc.orgsByGUID[guid] = org
-		ccc.Unlock()
-
-		return org, nil
+	org, err := getResource(ccc, "Org", guid, ccc.orgsByGUID, ccc.ccAPIClient.GetV3OrganizationByGUID)
+	if err != nil {
+		return nil, err
 	}
 	return org, nil
 }
@@ -885,6 +728,7 @@ func (ccc *CCCache) readData() {
 	}
 }
 
+// reset method is only used for testing
 func (ccc *CCCache) reset() {
 	ccc.Lock()
 	defer ccc.Unlock()

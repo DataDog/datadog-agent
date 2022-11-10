@@ -50,8 +50,6 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Version: def.Version,
 	}
 
-	var skipped []*RuleDefinition
-
 MACROS:
 	for _, macroDef := range def.Macros {
 		for _, filter := range macroFilters {
@@ -76,18 +74,35 @@ MACROS:
 		policy.AddMacro(macroDef)
 	}
 
+	var skipped []struct {
+		ruleDefinition *RuleDefinition
+		err            error
+	}
+
 RULES:
 	for _, ruleDef := range def.Rules {
+		// set the policy so that when we parse the errors we can get the policy associated
+		ruleDef.Policy = policy
+
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
-				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleAgentVersion})
+				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
 			}
 			if !isRuleAccepted {
-				// report only agent version filtering
+				// we do not fail directly because one of the rules with the same id can load properly
 				if _, ok := filter.(*AgentVersionFilter); ok {
-					skipped = append(skipped, ruleDef)
+					skipped = append(skipped, struct {
+						ruleDefinition *RuleDefinition
+						err            error
+					}{ruleDefinition: ruleDef, err: ErrRuleAgentVersion})
+				} else if _, ok := filter.(*SECLRuleFilter); ok {
+					skipped = append(skipped, struct {
+						ruleDefinition *RuleDefinition
+						err            error
+					}{ruleDefinition: ruleDef, err: ErrRuleAgentFilter})
 				}
+
 				continue RULES
 			}
 		}
@@ -112,14 +127,12 @@ RULES:
 LOOP:
 	for _, s := range skipped {
 		for _, r := range policy.Rules {
-			if s.ID == r.ID {
+			if s.ruleDefinition.ID == r.ID {
 				continue LOOP
 			}
 		}
-		// set the policy so that when we parse the errors we can get the policy associated
-		s.Policy = policy
 
-		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s, Err: ErrRuleAgentVersion})
+		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
 	}
 
 	return policy, errs.ErrorOrNil()

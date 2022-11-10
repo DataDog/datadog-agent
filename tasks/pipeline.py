@@ -328,7 +328,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/agent-security": "#security-and-compliance-agent-ops",
     "@DataDog/agent-apm": "#apm-agent",
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
-    "@DataDog/processes": "#processes",
+    "@DataDog/processes": "#process-agent-ops",
     "@DataDog/agent-core": "#agent-core",
     "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
     "@DataDog/agent-shared-components": "#agent-shared-components",

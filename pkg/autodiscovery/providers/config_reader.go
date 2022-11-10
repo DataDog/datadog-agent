@@ -72,7 +72,13 @@ func InitConfigFilesReader(paths []string) {
 		// Removing some time (1s) to avoid races with polling interval.
 		// If cache expiration is set to be == ticker interval the cache may be used if t1B (cache read time) - t0B (ticker time) < t1A (cache store time) - t0A (ticker time).
 		// Which is likely to be the case because the code path on a cache write is slower.
-		fileCacheExpiration = time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval")-1) * time.Second
+		configExpSeconds := config.Datadog.GetInt("autoconf_config_files_poll_interval") - 1
+		// If we are below < 1, cache is basically disabled, we cannot put 0 as it's considered no expiration by cache.Cache
+		if configExpSeconds < 1 {
+			fileCacheExpiration = time.Nanosecond
+		} else {
+			fileCacheExpiration = time.Duration(configExpSeconds) * time.Second
+		}
 	}
 
 	doOnce.Do(func() {

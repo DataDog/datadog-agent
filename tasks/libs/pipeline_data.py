@@ -95,6 +95,11 @@ infra_failure_logs = [
         re.compile(r'fatal: unable to access \'.*\': The requested URL returned error: 5..'),
         FailedJobReason.GITLAB,
     ),
+    # kitchen tests general infrastructure issues
+    (
+        re.compile(r'ERROR: The kitchen tests failed due to infrastructure failures\.'),
+        FailedJobReason.KITCHEN,
+    ),
 ]
 
 

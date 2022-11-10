@@ -30,7 +30,7 @@ import (
 
 func TestProfileMetadata_f5(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 

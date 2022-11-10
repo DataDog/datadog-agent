@@ -306,6 +306,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -407,6 +408,7 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -447,6 +449,7 @@ func (c *Consumer) GetStats() map[string]int64 {
 func (c *Consumer) Stop() {
 	if c.conn != nil {
 		c.conn.Close()
+		c.socket = nil
 	}
 	c.breaker.Stop()
 	c.rootNetNs.Close()
@@ -615,6 +618,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	// Close current socket
 	c.conn.Close()
 	c.conn = nil
+	c.socket = nil
 
 	if pre315Kernel {
 		// we cannot recreate the socket and set a bpf filter on

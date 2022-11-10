@@ -41,6 +41,9 @@ var (
 
 	// ErrRuleAgentVersion is returned when there is an agent version error
 	ErrRuleAgentVersion = errors.New("agent version incompatible")
+
+	// ErrRuleAgentFilter is returned when an agent rule was filtered
+	ErrRuleAgentFilter = errors.New("agent rule filtered")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type
@@ -125,6 +128,8 @@ type RuleLoadErrType string
 const (
 	// AgentVersionErrType agent version incompatible
 	AgentVersionErrType RuleLoadErrType = "agent_version_error"
+	// AgentFilterErrType agent filter do not match
+	AgentFilterErrType RuleLoadErrType = "agent_filter_error"
 	// EventTypeNotEnabledErrType event type not enabled
 	EventTypeNotEnabledErrType RuleLoadErrType = "event_type_disabled"
 	// SyntaxErrType syntax error
@@ -138,6 +143,8 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	switch e.Err {
 	case ErrRuleAgentVersion:
 		return AgentVersionErrType
+	case ErrRuleAgentFilter:
+		return AgentVersionErrType
 	case ErrEventTypeNotEnabled:
 		return EventTypeNotEnabledErrType
 	}
@@ -148,7 +155,6 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	}
 
 	return UnknownErrType
-
 }
 
 // ErrRuleSyntax is returned when there is a syntax error

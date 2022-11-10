@@ -9,6 +9,8 @@
 package tracer
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+
 	"testing"
 )
 
@@ -22,4 +24,8 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return false
+}
+
+func classificationSupported(config *config.Config) bool {
+	return true
 }

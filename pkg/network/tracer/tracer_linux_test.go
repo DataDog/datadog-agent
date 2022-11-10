@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,6 +53,10 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
+}
+
+func classificationSupported(config *config.Config) bool {
+	return kprobe.ClassificationSupported(config)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -165,6 +170,7 @@ func TestTCPRetransmit(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
+
 	m := conn.MonotonicSum()
 	assert.Equal(t, 100*clientMessageSize, int(m.SentBytes))
 	assert.True(t, int(m.Retransmits) > 0)
@@ -1668,4 +1674,44 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
 
 	assert.Greater(t, p_tcp_sendmsg, int64(0))
+}
+
+func TestBlockingReadCounts(t *testing.T) {
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	_ = getConnections(t, tr)
+
+	server := NewTCPServer(func(c net.Conn) {
+		c.Write([]byte("foo"))
+		time.Sleep(time.Second)
+		c.Write([]byte("foo"))
+	})
+
+	done := make(chan struct{})
+	server.Run(done)
+	defer func() { close(done) }()
+
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	f, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+
+	buf := make([]byte, 6)
+	n, _, err := syscall.Recvfrom(int(f.Fd()), buf, syscall.MSG_WAITALL)
+	require.NoError(t, err)
+
+	assert.Equal(t, 6, n)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var found bool
+		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), getConnections(t, tr))
+		return found
+	}, 3*time.Second, 500*time.Millisecond)
+
+	assert.Equal(t, uint64(n), conn.MonotonicSum().RecvBytes)
 }

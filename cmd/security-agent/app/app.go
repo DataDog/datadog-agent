@@ -29,14 +29,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -55,7 +53,7 @@ import (
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName coreconfig.LoggerName = "SECURITY"
+	loggerName coreconfig.LoggerName = common.LoggerName
 )
 
 var (
@@ -79,7 +77,9 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 				color.NoColor = true
 			}
 
-			return secagentcommon.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			// TODO(paulcacheux): remove this once all subcommands have been converted to use config component
+			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			return err
 		},
 	}
 
@@ -91,7 +91,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	factories := []common.SubcommandFactory{
-		StatusCommands,
+		status.Commands,
 		FlareCommands,
 		ConfigCommands,
 		ComplianceCommands,
@@ -107,30 +107,6 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	}
 
 	return SecurityAgentCmd
-}
-
-func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin, intakeProtocol config.IntakeProtocol) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
-	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
-	if err != nil {
-		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
-	}
-
-	for _, status := range endpoints.GetStatus() {
-		log.Info(status)
-	}
-
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
-
-	return endpoints, destinationsCtx, nil
 }
 
 var errAllComponentsDisabled = errors.New("all security-agent component are disabled")

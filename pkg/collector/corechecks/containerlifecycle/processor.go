@@ -7,8 +7,10 @@ package containerlifecycle
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/contlcycle"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -129,6 +131,10 @@ func (p *processor) flushContainers() {
 	msgs := p.containersQueue.flush()
 	if len(msgs) > 0 {
 		p.sender.ContainerLifecycleEvent(msgs)
+
+		for eventType, eventCount := range eventCountByType(msgs) {
+			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindContainer)
+		}
 	}
 }
 
@@ -137,5 +143,22 @@ func (p *processor) flushPods() {
 	msgs := p.podsQueue.flush()
 	if len(msgs) > 0 {
 		p.sender.ContainerLifecycleEvent(msgs)
+
+		for eventType, eventCount := range eventCountByType(msgs) {
+			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindPod)
+		}
 	}
+}
+
+func eventCountByType(eventPayloads []contlcycle.EventsPayload) map[string]int {
+	res := make(map[string]int)
+
+	for _, payload := range eventPayloads {
+		for _, ev := range payload.Events {
+			eventType := strings.ToLower(ev.GetEventType().String())
+			res[eventType]++
+		}
+	}
+
+	return res
 }

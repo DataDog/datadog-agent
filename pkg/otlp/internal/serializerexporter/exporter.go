@@ -90,6 +90,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 
 	options := []translator.Option{
 		translator.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
+		translator.WithPreviewHostnameFromAttributes(),
 		translator.WithHistogramMode(histogramMode),
 		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}

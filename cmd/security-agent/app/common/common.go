@@ -12,3 +12,5 @@ type GlobalParams struct {
 }
 
 type SubcommandFactory func(*GlobalParams) []*cobra.Command
+
+const LoggerName = "SECURITY"
