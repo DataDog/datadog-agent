@@ -27,7 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
-	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
+	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/http/debugging"
+	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/kafka/debugging"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -138,7 +140,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -150,7 +152,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps

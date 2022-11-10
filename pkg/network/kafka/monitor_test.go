@@ -44,8 +44,6 @@ func TestSanity(t *testing.T) {
 	err = monitor.Start()
 	require.NoError(t, err)
 	defer monitor.Stop()
-	time.Sleep(time.Second * 10)
-	monitor.GetKafkaStats()
 
 	// to produce/consume messages
 	topic := "my-topic"
@@ -54,29 +52,37 @@ func TestSanity(t *testing.T) {
 	myDialer := kafka.DefaultDialer
 	myDialer.ClientID = "test-client-id"
 
-	conn, err := myDialer.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
+	conn, err := myDialer.DialLeader(context.Background(), "tcp", "127.0.0.1:9092", topic, partition)
 	require.NoError(t, err)
 
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	err = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	require.NoError(t, err)
 	_, err = conn.WriteMessages(
 		kafka.Message{Value: []byte("one!")},
-		kafka.Message{Value: []byte("two!")},
-		kafka.Message{Value: []byte("three!")},
-		kafka.Message{Value: []byte("4!")},
-		kafka.Message{Value: []byte("5!")},
-		kafka.Message{Value: []byte("6!")},
-		kafka.Message{Value: []byte("7!")},
-		kafka.Message{Value: []byte("8!")},
-		kafka.Message{Value: []byte("9!")},
-		kafka.Message{Value: []byte("10!")},
-		kafka.Message{Value: []byte("11!")},
-		kafka.Message{Value: []byte("12!")},
-		kafka.Message{Value: []byte("13!")},
-		kafka.Message{Value: []byte("14!")},
-		kafka.Message{Value: []byte("15!")},
+		//kafka.Message{Value: []byte("two!")},
+		//kafka.Message{Value: []byte("three!")},
+		//kafka.Message{Value: []byte("4!")},
+		//kafka.Message{Value: []byte("5!")},
+		//kafka.Message{Value: []byte("6!")},
+		//kafka.Message{Value: []byte("7!")},
+		//kafka.Message{Value: []byte("8!")},
+		//kafka.Message{Value: []byte("9!")},
+		//kafka.Message{Value: []byte("10!")},
+		//kafka.Message{Value: []byte("11!")},
+		//kafka.Message{Value: []byte("12!")},
+		//kafka.Message{Value: []byte("13!")},
+		//kafka.Message{Value: []byte("14!")},
+		//kafka.Message{Value: []byte("15!")},
 	)
 	require.NoError(t, err)
 	require.NoError(t, conn.Close())
+	kafkaStats := monitor.GetKafkaStats()
+	// We expect 2 occurrences as we are working with a docker for now
+	require.Equal(t, 2, len(kafkaStats))
+	for _, value := range kafkaStats {
+		// TODO: need to add the kafka_seen_before so we won't get too much requests
+		require.Equal(t, 1, value.data[0].Count)
+	}
 
 	//// Now consume the messages
 	//conn, err = kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
@@ -96,7 +102,6 @@ func TestSanity(t *testing.T) {
 	//
 	//require.NoError(t, batch.Close())
 	//require.NoError(t, conn.Close())
-	time.Sleep(time.Second * 2)
 }
 
 //// TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel

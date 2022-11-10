@@ -25,11 +25,11 @@ static __always_inline void kafka_flush_batch(struct pt_regs *ctx) {
         return;
     }
     if (batch_state->idx_to_flush == batch_state->idx) {
-        log_debug("kafka_flush_batch: batch is not ready to be flushed: idx = %d, idx_to_flush = %d", batch_state->idx, batch_state->idx_to_flush);
+//        log_debug("kafka_flush_batch: batch is not ready to be flushed: idx = %d, idx_to_flush = %d", batch_state->idx, batch_state->idx_to_flush);
         // batch is not ready to be flushed
         return;
     }
-    log_debug("kafka_flush_batch: batch is ready to be flushed");
+//    log_debug("kafka_flush_batch: batch is ready to be flushed");
 
     kafka_batch_key_t key = kafka_get_batch_key(batch_state->idx_to_flush);
     kafka_batch_t *batch = bpf_map_lookup_elem(&kafka_batches, &key);
@@ -38,7 +38,7 @@ static __always_inline void kafka_flush_batch(struct pt_regs *ctx) {
     }
 
     const long status = bpf_perf_event_output(ctx, &kafka_batch_events, key.cpu, batch, sizeof(kafka_batch_t));
-    log_debug("bpf_perf_event_output status: %d\n", status);
+//    log_debug("bpf_perf_event_output status: %d\n", status);
     (void)status;
     log_debug("kafka batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
     batch->pos = 0;

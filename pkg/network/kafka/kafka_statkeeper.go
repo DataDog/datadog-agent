@@ -85,10 +85,14 @@ func (statKeeper *kafkaStatKeeper) add(transaction kafkaTX) {
 		requestStats = new(RequestStats)
 		statKeeper.stats[key] = requestStats
 	}
-	if requestStats.data[ProduceAPIKey] == nil {
-		requestStats.data[ProduceAPIKey] = new(RequestStat)
+	// Need to create both stats so either of them will not be nil at the end of the process
+	if requestStats.Data[ProduceAPIKey] == nil {
+		requestStats.Data[ProduceAPIKey] = new(RequestStat)
 	}
-	requestStats.data[ProduceAPIKey].Count++
+	if requestStats.Data[FetchAPIKey] == nil {
+		requestStats.Data[FetchAPIKey] = new(RequestStat)
+	}
+	requestStats.Data[transaction.APIKey()].Count++
 	//	rawPath, fullPath := tx.Path(h.buffer)
 	//	if rawPath == nil {
 	//		h.telemetry.malformed.Add(1)
