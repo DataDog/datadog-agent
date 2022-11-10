@@ -706,7 +706,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	if len(opts) > 0 && opts[0].EventSender != nil {
 		m.eventSender = opts[0].EventSender
 	} else {
-		m.eventSender = m.apiServer
+		m.eventSender = m
 	}
 
 	seclog.SetPatterns(cfg.LogPatterns...)

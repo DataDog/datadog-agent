@@ -386,18 +386,7 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	if _, ok := agg.checkSamplers[id]; ok {
-		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
-	}
-	agg.checkSamplers[id] = newCheckSampler(
-		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
-		config.Datadog.GetBool("check_sampler_expire_metrics"),
-		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
-		agg.tagsStore,
-	)
+	agg.checkItems <- &registerSampler{id}
 	return nil
 }
 
@@ -910,4 +899,39 @@ func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
 	if cs, ok := agg.checkSamplers[id]; ok {
 		cs.deregistered = true
 	}
+}
+
+// registerSampler is an item sent internally by the aggregator to
+// register a new sampler or re-use an existing one.
+//
+// This handles a situation when a check is descheduled and then
+// immediately re-scheduled again, within one Flush interval.
+//
+// We cannot immediately remove `deregistered` flag from the sampler,
+// since the deregisterSampler message may still be in the queue when
+// the check is re-scheduled. If registerSampler is called before
+// the check runs, we will have a sampler for it one way or another.
+type registerSampler struct {
+	id check.ID
+}
+
+func (s *registerSampler) handle(agg *BufferedAggregator) {
+	agg.handleRegisterSampler(s.id)
+}
+
+func (agg *BufferedAggregator) handleRegisterSampler(id check.ID) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	if cs, ok := agg.checkSamplers[id]; ok {
+		cs.deregistered = false
+		log.Debugf("Sampler with ID '%s' has already been registered, will use existing sampler", id)
+		return
+	}
+	agg.checkSamplers[id] = newCheckSampler(
+		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog.GetBool("check_sampler_expire_metrics"),
+		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+		agg.tagsStore,
+	)
 }
