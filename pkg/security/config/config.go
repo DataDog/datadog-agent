@@ -285,6 +285,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		},
 	}
 
+	c.NetworkProcessEventMonitoringEnabled = c.NetworkProcessEventMonitoringEnabled && cfg.ModuleIsEnabled(config.NetworkTracerModule)
+
 	if err := c.sanitize(); err != nil {
 		return nil, fmt.Errorf("invalid CWS configuration: %w", err)
 	}
@@ -328,8 +330,6 @@ func (c *Config) sanitize() error {
 	if !c.RuntimeCompilationEnabled {
 		c.RuntimeCompiledConstantsEnabled = false
 	}
-
-	c.NetworkProcessEventMonitoringEnabled = c.NetworkProcessEventMonitoringEnabled && cfg.ModuleIsEnabled(config.NetworkTracerModule)
 
 	serviceName := utils.GetTagValue("service", coreconfig.GetConfiguredTags(true))
 	if len(serviceName) > 0 {

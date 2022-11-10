@@ -17,6 +17,7 @@ import (
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var defaultFilteredEnvs = []string{
@@ -199,6 +200,8 @@ func (pc *processCache) add(p *process) {
 
 	pc.Lock()
 	defer pc.Unlock()
+
+	log.Tracef("adding process %+v to process cache", p)
 
 	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]

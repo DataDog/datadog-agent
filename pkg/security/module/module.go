@@ -21,7 +21,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
@@ -39,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (

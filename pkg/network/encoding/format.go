@@ -11,9 +11,10 @@ import (
 	"sync"
 	"unsafe"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/twmb/murmur3"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -86,7 +87,7 @@ func FormatConnection(
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
-	conn.Tags |= staticTags
+	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
 	return c
@@ -250,7 +251,7 @@ func routeKey(v *network.Via) string {
 
 func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
 	mm := murmur3.New32()
-	for _, tag := range network.GetStaticTags(c.Tags) {
+	for _, tag := range network.GetStaticTags(c.StaticTags) {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -259,6 +260,14 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamic
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// other tags, e.g., from process env vars like DD_ENV, etc.
+	for tag := range c.Tags {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()

@@ -374,6 +374,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
+	log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
+
 	if c.Tags == nil {
 		c.Tags = make(map[string]struct{})
 	}

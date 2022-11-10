@@ -78,6 +78,10 @@ func newEventMonitor() (*eventMonitor, error) {
 }
 
 func (e *eventMonitor) HandleEvent(ev *sprobe.Event) {
+	if ev.Type == uint32(model.ExitEventType) {
+		return
+	}
+
 	_ = ev.ResolveProcessEnvp(&ev.ProcessContext.Process)
 
 	entry := ev.ResolveProcessCacheEntry()
