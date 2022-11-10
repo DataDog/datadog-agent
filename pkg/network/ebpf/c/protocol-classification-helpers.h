@@ -40,7 +40,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, HTTP_MIN_SIZE)
 
 #define HTTP "HTTP"
-#define GET "GET"
+#define GET "GET /"
 #define POST "POST /"
 #define PUT "PUT /"
 #define DELETE "DELETE /" 
