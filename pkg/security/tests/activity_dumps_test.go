@@ -31,6 +31,9 @@ func TestActivityDumps(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
 
 	outputDir := t.TempDir()
 	defer os.RemoveAll(outputDir)
