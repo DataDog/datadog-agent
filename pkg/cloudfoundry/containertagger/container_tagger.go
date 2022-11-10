@@ -122,7 +122,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 			var exitCode int
 			var err error
 			for retry := 0; retry < c.retryCount; retry++ {
-				log.Infof("Updating tags in container `%s` retry #%d", retry, containerID)
+				log.Infof("Updating tags in container `%s` retry #%d", containerID, retry)
 				exitCode, err = updateTagsInContainer(container, tags)
 				if err != nil {
 					log.Warnf("Error running a process inside container `%s`: %v", containerID, err)
