@@ -22,7 +22,6 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringRuleKeepAlive,
     SecurityMonitoringRuleMaxSignalDuration,
     SecurityMonitoringRuleOptions,
-    SecurityMonitoringStandardRuleQuery,
     SecurityMonitoringRuleQueryAggregation,
     SecurityMonitoringRuleSeverity,
     SecurityMonitoringRuleTypeCreate,
@@ -30,6 +29,7 @@ from datadog_api_client.v2.models import (
     SecurityMonitoringSignalListRequestFilter,
     SecurityMonitoringSignalListRequestPage,
     SecurityMonitoringSignalsSort,
+    SecurityMonitoringStandardRuleQuery,
 )
 from retry.api import retry_call
 
