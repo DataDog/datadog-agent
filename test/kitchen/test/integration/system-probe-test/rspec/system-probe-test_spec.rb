@@ -8,7 +8,7 @@ GOLANG_TEST_FAILURE = /FAIL:/
 
 runtime_compiled_tests = Array.[](
   "pkg/network/tracer",
-  "pkg/network/http"
+  "pkg/network/protocols/http",
 )
 
 co_re_tests = Array.[](
