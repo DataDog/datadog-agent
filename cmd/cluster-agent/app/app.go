@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
@@ -39,6 +40,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -192,6 +196,27 @@ func start(cmd *cobra.Command, args []string) error {
 			return log.Errorf("Error starting health port, exiting: %v", err)
 		}
 		log.Debugf("Health check listening on port %d", healthPort)
+	}
+
+	// Attempt to create and start the core remote config service, creating the local client only if that succeeds
+	var configService *remoteconfig.Service
+	var rcClient *remote.Client
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		configService, err = remoteconfig.NewService()
+		if err == nil {
+			if err := configService.Start(context.Background()); err == nil {
+				rcClient, err = remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductTesting1}, time.Second*5)
+				if err != nil {
+					log.Errorf("Failed to start local config management service client: %s", err)
+				} else {
+					rcClient.Start()
+				}
+			} else {
+				log.Errorf("Failed to start config management service: %s", err)
+			}
+		} else {
+			log.Errorf("Failed to initialize config management service: %s", err)
+		}
 	}
 
 	// Starting server early to ease investigations
@@ -400,6 +425,8 @@ func start(cmd *cobra.Command, args []string) error {
 	if err := metricsServer.Shutdown(context.Background()); err != nil {
 		log.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
 	}
+
+	rcClient.Close()
 
 	log.Info("See ya!")
 	log.Flush()
