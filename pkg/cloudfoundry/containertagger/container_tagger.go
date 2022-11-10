@@ -13,6 +13,7 @@ import (
 
 	"code.cloudfoundry.org/garden"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -33,6 +34,8 @@ type ContainerTagger struct {
 	store                 workloadmeta.Store
 	seen                  map[string]struct{}
 	tagsHashByContainerID map[string]string
+	retryCount            int
+	retryInterval         time.Duration
 }
 
 // NewContainerTagger creates a new container tagger.
@@ -42,11 +45,17 @@ func NewContainerTagger() (*ContainerTagger, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	retryCount := config.Datadog.GetInt("cloud_foundry_container_tagger.retry_count")
+	retryInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_container_tagger.retry_interval"))
+
 	return &ContainerTagger{
 		gardenUtil:            gu,
 		store:                 workloadmeta.GetGlobalStore(),
 		seen:                  make(map[string]struct{}),
 		tagsHashByContainerID: make(map[string]string),
+		retryCount:            retryCount,
+		retryInterval:         retryInterval,
 	}, nil
 }
 
@@ -110,25 +119,21 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		}
 
 		go func() {
-			retries := 10
-			for {
-				log.Infof("Updating tags in container %s", containerID)
-				exitCode, err := updateTagsInContainer(container, tags)
+			var exitCode int
+			var err error
+			for retry := 0; retry < c.retryCount; retry++ {
+				log.Infof("Updating tags in container `%s` retry #%d", retry, containerID)
+				exitCode, err = updateTagsInContainer(container, tags)
 				if err != nil {
-					log.Errorf("Error running a process inside container `%s`: %v", containerID, err)
+					log.Warnf("Error running a process inside container `%s`: %v", containerID, err)
+				} else if exitCode == 0 {
+					log.Debugf("Successfully updated tags in container `%s`", containerID)
+					return
 				}
 				log.Debugf("Process for container '%s' exited with code: %d", containerID, exitCode)
-				if exitCode == 0 {
-					return
-				}
-				if retries == 0 {
-					log.Debugf("Could not inject tags into container '%s' exit code is: %d", containerID, exitCode)
-					return
-				}
-				retries -= 1
-				time.Sleep(10 * time.Second)
+				time.Sleep(c.retryInterval)
 			}
-
+			log.Debugf("Could not inject tags into container '%s' exit code is: %d", containerID, exitCode)
 		}()
 
 	} else if evt.Type == workloadmeta.EventTypeUnset {
