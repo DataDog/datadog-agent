@@ -6,7 +6,6 @@
 package watchdog
 
 import (
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -62,7 +61,10 @@ type CurrentInfo struct {
 // if only one goroutine is polling for CPU() and Mem()
 var globalCurrentInfo *CurrentInfo
 
-func init() {
+func setGlobalInfo() {
+	if globalCurrentInfo != nil {
+		return
+	}
 	var err error
 	globalCurrentInfo, err = NewCurrentInfo()
 	if err != nil {
@@ -73,7 +75,7 @@ func init() {
 // NewCurrentInfo creates a new CurrentInfo referring to the current running program.
 func NewCurrentInfo() (*CurrentInfo, error) {
 	return &CurrentInfo{
-		pid:        int32(os.Getpid()),
+		pid:        int32(getpid()),
 		cacheDelay: cacheDelay,
 	}, nil
 }
@@ -116,7 +118,7 @@ func (pi *CurrentInfo) Mem() MemInfo {
 // CPU returns basic CPU info, or the previous valid CPU info and an error.
 func CPU(now time.Time) (CPUInfo, error) {
 	if globalCurrentInfo == nil {
-		return CPUInfo{}, nil
+		setGlobalInfo()
 	}
 	return globalCurrentInfo.CPU(now)
 }
@@ -124,7 +126,7 @@ func CPU(now time.Time) (CPUInfo, error) {
 // Mem returns basic memory info.
 func Mem() MemInfo {
 	if globalCurrentInfo == nil {
-		return MemInfo{}
+		setGlobalInfo()
 	}
 	return globalCurrentInfo.Mem()
 }
