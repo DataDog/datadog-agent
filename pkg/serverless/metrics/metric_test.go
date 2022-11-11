@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -21,7 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
+
+func TestMain(m *testing.M) {
+	// setting the hostname cache saves about 1s when starting the metric agent
+	cacheKey := cache.BuildAgentKey("hostname")
+	cache.Cache.Set(cacheKey, hostname.Data{}, cache.NoExpiration)
+	os.Exit(m.Run())
+}
 
 func TestStartDoesNotBlock(t *testing.T) {
 	config.DetectFeatures()
