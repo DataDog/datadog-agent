@@ -8,6 +8,7 @@ package daemon
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -18,6 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
+
+func TestMain(m *testing.M) {
+	origShutdownDelay := ShutdownDelay
+	ShutdownDelay = 0
+	defer func() { ShutdownDelay = origShutdownDelay }()
+	os.Exit(m.Run())
+}
 
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
@@ -127,21 +135,8 @@ func TestRaceTellDaemonRuntimeStartedVersusTellDaemonRuntimeDone(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
-	d.TellDaemonRuntimeStarted()
-
-	go func() {
-		for i := 0; i < 1000; i++ {
-			go d.TellDaemonRuntimeStarted()
-		}
-	}()
-
-	go func() {
-		for i := 0; i < 1000; i++ {
-			go d.TellDaemonRuntimeDone()
-		}
-	}()
-
-	time.Sleep(2 * time.Second)
+	go d.TellDaemonRuntimeStarted()
+	go d.TellDaemonRuntimeDone()
 }
 
 func TestSetTraceTagNoop(t *testing.T) {
