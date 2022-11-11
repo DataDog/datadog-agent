@@ -61,6 +61,7 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
     if (!cst && is_udp) {
+        increment_telemetry_count(udp_dropped_conns);
         return; // nothing to report
     }
 
