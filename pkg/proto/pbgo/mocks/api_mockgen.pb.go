@@ -239,6 +239,26 @@ func (mr *MockAgentSecureClientMockRecorder) TaggerStreamEntities(ctx, in interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerStreamEntities), varargs...)
 }
 
+// WorkloadmetaStreamEntities mocks base method.
+func (m *MockAgentSecureClient) WorkloadmetaStreamEntities(ctx context.Context, in *pbgo.WorkloadmetaStreamRequest, opts ...grpc.CallOption) (pbgo.AgentSecure_WorkloadmetaStreamEntitiesClient, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WorkloadmetaStreamEntities", varargs...)
+	ret0, _ := ret[0].(pbgo.AgentSecure_WorkloadmetaStreamEntitiesClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadmetaStreamEntities indicates an expected call of WorkloadmetaStreamEntities.
+func (mr *MockAgentSecureClientMockRecorder) WorkloadmetaStreamEntities(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadmetaStreamEntities", reflect.TypeOf((*MockAgentSecureClient)(nil).WorkloadmetaStreamEntities), varargs...)
+}
+
 // MockAgentSecure_TaggerStreamEntitiesClient is a mock of AgentSecure_TaggerStreamEntitiesClient interface.
 type MockAgentSecure_TaggerStreamEntitiesClient struct {
 	ctrl     *gomock.Controller
@@ -362,6 +382,129 @@ func (mr *MockAgentSecure_TaggerStreamEntitiesClientMockRecorder) Trailer() *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockAgentSecure_TaggerStreamEntitiesClient)(nil).Trailer))
 }
 
+// MockAgentSecure_WorkloadmetaStreamEntitiesClient is a mock of AgentSecure_WorkloadmetaStreamEntitiesClient interface.
+type MockAgentSecure_WorkloadmetaStreamEntitiesClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder
+}
+
+// MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder is the mock recorder for MockAgentSecure_WorkloadmetaStreamEntitiesClient.
+type MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder struct {
+	mock *MockAgentSecure_WorkloadmetaStreamEntitiesClient
+}
+
+// NewMockAgentSecure_WorkloadmetaStreamEntitiesClient creates a new mock instance.
+func NewMockAgentSecure_WorkloadmetaStreamEntitiesClient(ctrl *gomock.Controller) *MockAgentSecure_WorkloadmetaStreamEntitiesClient {
+	mock := &MockAgentSecure_WorkloadmetaStreamEntitiesClient{ctrl: ctrl}
+	mock.recorder = &MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesClient) EXPECT() *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder {
+	return m.recorder
+}
+
+// CloseSend mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesClient) CloseSend() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseSend")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseSend indicates an expected call of CloseSend.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) CloseSend() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).CloseSend))
+}
+
+// Context mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesClient) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).Context))
+}
+
+// Header mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesClient) Header() (metadata.MD, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Header")
+	ret0, _ := ret[0].(metadata.MD)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Header indicates an expected call of Header.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) Header() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).Header))
+}
+
+// Recv mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesClient) Recv() (*pbgo.WorkloadmetaStreamResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Recv")
+	ret0, _ := ret[0].(*pbgo.WorkloadmetaStreamResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Recv indicates an expected call of Recv.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) Recv() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).Recv))
+}
+
+// RecvMsg mocks base method.
+func (m_2 *MockAgentSecure_WorkloadmetaStreamEntitiesClient) RecvMsg(m interface{}) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecvMsg indicates an expected call of RecvMsg.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) RecvMsg(m interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).RecvMsg), m)
+}
+
+// SendMsg mocks base method.
+func (m_2 *MockAgentSecure_WorkloadmetaStreamEntitiesClient) SendMsg(m interface{}) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMsg indicates an expected call of SendMsg.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) SendMsg(m interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).SendMsg), m)
+}
+
+// Trailer mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesClient) Trailer() metadata.MD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Trailer")
+	ret0, _ := ret[0].(metadata.MD)
+	return ret0
+}
+
+// Trailer indicates an expected call of Trailer.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) Trailer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).Trailer))
+}
+
 // MockAgentSecureServer is a mock of AgentSecureServer interface.
 type MockAgentSecureServer struct {
 	ctrl     *gomock.Controller
@@ -472,6 +615,20 @@ func (m *MockAgentSecureServer) TaggerStreamEntities(arg0 *pbgo.StreamTagsReques
 func (mr *MockAgentSecureServerMockRecorder) TaggerStreamEntities(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerStreamEntities), arg0, arg1)
+}
+
+// WorkloadmetaStreamEntities mocks base method.
+func (m *MockAgentSecureServer) WorkloadmetaStreamEntities(arg0 *pbgo.WorkloadmetaStreamRequest, arg1 pbgo.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WorkloadmetaStreamEntities", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WorkloadmetaStreamEntities indicates an expected call of WorkloadmetaStreamEntities.
+func (mr *MockAgentSecureServerMockRecorder) WorkloadmetaStreamEntities(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadmetaStreamEntities", reflect.TypeOf((*MockAgentSecureServer)(nil).WorkloadmetaStreamEntities), arg0, arg1)
 }
 
 // MockAgentSecure_TaggerStreamEntitiesServer is a mock of AgentSecure_TaggerStreamEntitiesServer interface.
@@ -591,4 +748,123 @@ func (m *MockAgentSecure_TaggerStreamEntitiesServer) SetTrailer(arg0 metadata.MD
 func (mr *MockAgentSecure_TaggerStreamEntitiesServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockAgentSecure_TaggerStreamEntitiesServer)(nil).SetTrailer), arg0)
+}
+
+// MockAgentSecure_WorkloadmetaStreamEntitiesServer is a mock of AgentSecure_WorkloadmetaStreamEntitiesServer interface.
+type MockAgentSecure_WorkloadmetaStreamEntitiesServer struct {
+	ctrl     *gomock.Controller
+	recorder *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder
+}
+
+// MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder is the mock recorder for MockAgentSecure_WorkloadmetaStreamEntitiesServer.
+type MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder struct {
+	mock *MockAgentSecure_WorkloadmetaStreamEntitiesServer
+}
+
+// NewMockAgentSecure_WorkloadmetaStreamEntitiesServer creates a new mock instance.
+func NewMockAgentSecure_WorkloadmetaStreamEntitiesServer(ctrl *gomock.Controller) *MockAgentSecure_WorkloadmetaStreamEntitiesServer {
+	mock := &MockAgentSecure_WorkloadmetaStreamEntitiesServer{ctrl: ctrl}
+	mock.recorder = &MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) EXPECT() *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder {
+	return m.recorder
+}
+
+// Context mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).Context))
+}
+
+// RecvMsg mocks base method.
+func (m_2 *MockAgentSecure_WorkloadmetaStreamEntitiesServer) RecvMsg(m interface{}) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecvMsg indicates an expected call of RecvMsg.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) RecvMsg(m interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).RecvMsg), m)
+}
+
+// Send mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) Send(arg0 *pbgo.WorkloadmetaStreamResponse) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Send", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Send indicates an expected call of Send.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) Send(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).Send), arg0)
+}
+
+// SendHeader mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) SendHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendHeader", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendHeader indicates an expected call of SendHeader.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) SendHeader(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).SendHeader), arg0)
+}
+
+// SendMsg mocks base method.
+func (m_2 *MockAgentSecure_WorkloadmetaStreamEntitiesServer) SendMsg(m interface{}) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMsg indicates an expected call of SendMsg.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) SendMsg(m interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).SendMsg), m)
+}
+
+// SetHeader mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) SetHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHeader", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetHeader indicates an expected call of SetHeader.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) SetHeader(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).SetHeader), arg0)
+}
+
+// SetTrailer mocks base method.
+func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) SetTrailer(arg0 metadata.MD) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTrailer", arg0)
+}
+
+// SetTrailer indicates an expected call of SetTrailer.
+func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).SetTrailer), arg0)
 }
