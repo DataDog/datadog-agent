@@ -122,10 +122,12 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
-	if cfg.shouldSetLoggingSection() {
+	if cfg.DebugLogEnabled() {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
-				"logging": cfg.Debug,
+				"logging": map[string]interface{}{
+					"loglevel": cfg.Debug["loglevel"],
+				},
 			},
 		}
 		if cfg.MetricsEnabled {

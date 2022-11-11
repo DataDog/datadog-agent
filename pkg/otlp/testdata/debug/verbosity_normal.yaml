@@ -1,3 +1,0 @@
-otlp_config:
-  debug:
-    verbosity: normal

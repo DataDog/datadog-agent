@@ -83,7 +83,6 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
-	debugConfig := readConfigSection(cfg, config.OTLPDebug)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -91,7 +90,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		Metrics:            metricsConfig.ToStringMap(),
-		Debug:              debugConfig.ToStringMap(),
+		Debug:              map[string]interface{}{"loglevel": cfg.GetString(config.OTLPDebugLogLevel)},
 	}, multierr.Combine(errs...)
 }
 
