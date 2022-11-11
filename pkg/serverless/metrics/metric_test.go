@@ -30,8 +30,6 @@ func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(100 * time.Millisecond)
 }
 
 type ValidMetricConfigMocked struct {
@@ -53,8 +51,6 @@ func TestStartInvalidConfig(t *testing.T) {
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(100 * time.Millisecond)
 }
 
 type MetricDogStatsDMocked struct {
@@ -69,8 +65,6 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(1 * time.Second)
 }
 
 func TestStartWithProxy(t *testing.T) {
