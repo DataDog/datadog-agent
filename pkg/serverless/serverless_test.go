@@ -68,6 +68,10 @@ func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 			assert.Fail(t, "Expected no panic, instead got ", r)
 		}
 	}()
+	origShutdownDelay := daemon.ShutdownDelay
+	daemon.ShutdownDelay = 0
+	defer func() { daemon.ShutdownDelay = origShutdownDelay }()
+
 	for i := 0; i < 10; i++ { // each one of these takes about a second on my laptop
 		fmt.Printf("Running this test the %d time\n", i)
 		d := daemon.StartDaemon("http://localhost:8124")

@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// shutdownDelay is the amount of time we wait before shutting down the HTTP server
+// ShutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 1 * time.Second
+var ShutdownDelay time.Duration = 1 * time.Second
 
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
@@ -281,7 +281,7 @@ func (d *Daemon) Stop() {
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(shutdownDelay)
+	time.Sleep(ShutdownDelay)
 
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
