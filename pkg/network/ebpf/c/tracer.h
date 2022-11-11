@@ -30,6 +30,14 @@ typedef struct {
     __u64 recv_bytes;
     __u64 timestamp;
     __u32 flags;
+    // "cookie" that uniquely identifies
+    // a conn_stas_ts_t. This is used
+    // in user space to distinguish between
+    // stats for two or more connections that
+    // may share the same conn_tuple_t (this can
+    // happen when we're aggregating connections).
+    // This is not the same as a TCP cookie or
+    // the cookie in struct sock in the kernel
     __u32 cookie;
     __u64 sent_packets;
     __u64 recv_packets;
