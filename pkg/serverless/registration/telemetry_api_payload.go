@@ -19,17 +19,18 @@ type buffering struct {
 	TimeoutMs int `json:"timeoutMs"`
 }
 
-// LogSubscriptionPayload is the payload we send while subscribing to the AWS Logs API
-type LogSubscriptionPayload struct {
+// TelemetrySubscriptionPayload is the payload we send while subscribing to the
+// AWS Telemetry API
+type TelemetrySubscriptionPayload struct {
 	Buffering     buffering   `json:"buffering"`
 	Destination   destination `json:"destination"`
 	Types         []string    `json:"types"`
 	SchemaVersion string      `json:"schemaVersion"`
 }
 
-// MarshalJSON marshals the given LogSubscriptionPayload object
-func (p *LogSubscriptionPayload) MarshalJSON() ([]byte, error) {
+// MarshalJSON marshals the given TelemetrySubscriptionPayload object
+func (p *TelemetrySubscriptionPayload) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing
-	type LogSubscriptionPayloadAlias LogSubscriptionPayload
-	return json.Marshal((*LogSubscriptionPayloadAlias)(p))
+	type TelemetrySubscriptionPayloadAlias TelemetrySubscriptionPayload
+	return json.Marshal((*TelemetrySubscriptionPayloadAlias)(p))
 }

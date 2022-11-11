@@ -11,18 +11,27 @@ import (
 
 // platformObjectRecord contains additional information found in Platform log messages
 type platformObjectRecord struct {
-	requestID     string           // uuid; present in LogTypePlatform{Start,End,Report}
-	startLogItem  startLogItem     // present in LogTypePlatformStart only
-	reportLogItem reportLogMetrics // present in LogTypePlatformReport only
+	requestID       string           // uuid; present in LogTypePlatform{Start,End,Report}
+	startLogItem    startLogItem     // present in LogTypePlatformStart only
+	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
+	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
 type reportLogMetrics struct {
-	durationMs       float64
-	billedDurationMs int
-	memorySizeMB     int
-	maxMemoryUsedMB  int
-	initDurationMs   float64
+	durationMs            float64
+	billedDurationMs      int
+	memorySizeMB          int
+	maxMemoryUsedMB       int
+	initDurationMs        float64
+	initDurationTelemetry float64
+}
+
+// runtimeDoneItem contains metrics found in a LogTypePlatformRuntimeDone log
+type runtimeDoneItem struct {
+	responseLatency  float64
+	responseDuration float64
+	producedBytes    float64
 }
 
 type startLogItem struct {
@@ -51,14 +60,14 @@ const (
 
 	// logTypePlatformStart is used for the log message about the platform starting
 	logTypePlatformStart = "platform.start"
-	// logTypePlatformEnd is used for the log message about the platform shutting down
-	logTypePlatformEnd = "platform.end"
 	// logTypePlatformReport is used for the log messages containing a report of the last invocation.
 	logTypePlatformReport = "platform.report"
 	// logTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
 	logTypePlatformLogsDropped = "platform.logsDropped"
 	// logTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
+	// logTypePlatformInitReport is received when init finishes
+	logTypePlatformInitReport = "platform.initReport"
 )
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
@@ -92,7 +101,7 @@ func (l *LambdaLogAPIMessage) UnmarshalJSON(data []byte) error {
 		l.handleDroppedRecord(j)
 	case logTypeFunction, logTypeExtension:
 		l.handleFunctionAndExtensionRecord(j, typ)
-	case logTypePlatformStart, logTypePlatformEnd, logTypePlatformReport, logTypePlatformRuntimeDone:
+	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone:
 		l.handlePlatformRecord(j, typ)
 	default:
 		// we're not parsing this kind of message yet
@@ -117,26 +126,29 @@ func (l *LambdaLogAPIMessage) handleFunctionAndExtensionRecord(data map[string]i
 
 func (l *LambdaLogAPIMessage) handlePlatformRecord(data map[string]interface{}, typ string) {
 	l.logType = typ
-	if objectRecord, ok := data["record"].(map[string]interface{}); ok {
-		// all of these have the requestId
-		if requestID, ok := objectRecord["requestId"].(string); ok {
-			l.objectRecord.requestID = requestID
-		}
-
-		switch typ {
-		case logTypePlatformStart:
-			l.handlePlatormStart(objectRecord)
-		case logTypePlatformEnd:
-			l.handlePlatormEnd(objectRecord)
-		case logTypePlatformReport:
-			l.handlePlatormReport(objectRecord)
-		}
-	} else {
+	objectRecord, ok := data["record"].(map[string]interface{})
+	if !ok {
 		log.Error("LogMessage.UnmarshalJSON: can't read the record object")
+		return
+	}
+	// all of these have the requestId
+	if requestID, ok := objectRecord["requestId"].(string); ok {
+		l.objectRecord.requestID = requestID
+	}
+
+	switch typ {
+	case logTypePlatformStart:
+		l.handlePlatformStart(objectRecord)
+	case logTypePlatformReport:
+		l.handlePlatformReport(objectRecord)
+	case logTypePlatformRuntimeDone:
+		l.handlePlatformRuntimeDone(objectRecord)
+	case logTypePlatformInitReport:
+		l.handlePlatformInitReport(objectRecord)
 	}
 }
 
-func (l *LambdaLogAPIMessage) handlePlatormStart(objectRecord map[string]interface{}) {
+func (l *LambdaLogAPIMessage) handlePlatformStart(objectRecord map[string]interface{}) {
 	if version, ok := objectRecord["version"].(string); ok {
 		l.objectRecord.startLogItem.version = version
 	}
@@ -146,33 +158,84 @@ func (l *LambdaLogAPIMessage) handlePlatormStart(objectRecord map[string]interfa
 	)
 }
 
-func (l *LambdaLogAPIMessage) handlePlatormEnd(objectRecord map[string]interface{}) {
-	l.stringRecord = fmt.Sprintf("END RequestId: %s",
-		l.objectRecord.requestID,
-	)
+func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]interface{}) {
+	metrics, ok := objectRecord["metrics"].(map[string]interface{})
+	if !ok {
+		log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+		return
+	}
+	if v, ok := metrics["durationMs"].(float64); ok {
+		l.objectRecord.reportLogItem.durationMs = v
+	}
+	if v, ok := metrics["billedDurationMs"].(float64); ok {
+		l.objectRecord.reportLogItem.billedDurationMs = int(v)
+	}
+	if v, ok := metrics["memorySizeMB"].(float64); ok {
+		l.objectRecord.reportLogItem.memorySizeMB = int(v)
+	}
+	if v, ok := metrics["maxMemoryUsedMB"].(float64); ok {
+		l.objectRecord.reportLogItem.maxMemoryUsedMB = int(v)
+	}
+	if v, ok := metrics["initDurationMs"].(float64); ok {
+		l.objectRecord.reportLogItem.initDurationMs = v
+	}
+	log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
 }
 
-func (l *LambdaLogAPIMessage) handlePlatormReport(objectRecord map[string]interface{}) {
-	if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
-		if v, ok := metrics["durationMs"].(float64); ok {
-			l.objectRecord.reportLogItem.durationMs = v
-		}
-		if v, ok := metrics["billedDurationMs"].(float64); ok {
-			l.objectRecord.reportLogItem.billedDurationMs = int(v)
-		}
-		if v, ok := metrics["memorySizeMB"].(float64); ok {
-			l.objectRecord.reportLogItem.memorySizeMB = int(v)
-		}
-		if v, ok := metrics["maxMemoryUsedMB"].(float64); ok {
-			l.objectRecord.reportLogItem.maxMemoryUsedMB = int(v)
-		}
-		if v, ok := metrics["initDurationMs"].(float64); ok {
-			l.objectRecord.reportLogItem.initDurationMs = v
-		}
-		log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
-	} else {
-		log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+func (l *LambdaLogAPIMessage) handlePlatformRuntimeDone(objectRecord map[string]interface{}) {
+	l.stringRecord = fmt.Sprintf("END RequestId: %s", l.objectRecord.requestID)
+	l.handlePlatformRuntimeDoneSpans(objectRecord)
+	l.handlePlatformRuntimeDoneMetrics(objectRecord)
+}
+
+func (l *LambdaLogAPIMessage) handlePlatformRuntimeDoneSpans(objectRecord map[string]interface{}) {
+	spans, ok := objectRecord["spans"].([]interface{})
+	if !ok {
+		log.Error("LogMessage.UnmarshalJSON: can't read the spans object")
+		return
 	}
+	for _, span := range spans {
+		spanMap, ok := span.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		durationMs, ok := spanMap["durationMs"].(float64)
+		if !ok {
+			continue
+		}
+		if v, ok := spanMap["name"].(string); ok {
+			switch v {
+			case "responseLatency":
+				l.objectRecord.runtimeDoneItem.responseLatency = durationMs
+			case "responseDuration":
+				l.objectRecord.runtimeDoneItem.responseDuration = durationMs
+			}
+		}
+	}
+}
+
+func (l *LambdaLogAPIMessage) handlePlatformRuntimeDoneMetrics(objectRecord map[string]interface{}) {
+	metrics, ok := objectRecord["metrics"].(map[string]interface{})
+	if !ok {
+		log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+		return
+	}
+	if v, ok := metrics["producedBytes"].(float64); ok {
+		l.objectRecord.runtimeDoneItem.producedBytes = v
+	}
+	log.Debugf("Runtime done metrics: %+v\n", l.objectRecord.runtimeDoneItem)
+}
+
+func (l *LambdaLogAPIMessage) handlePlatformInitReport(objectRecord map[string]interface{}) {
+	metrics, ok := objectRecord["metrics"].(map[string]interface{})
+	if !ok {
+		log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+		return
+	}
+	if v, ok := metrics["durationMs"].(float64); ok {
+		l.objectRecord.reportLogItem.initDurationTelemetry = v
+	}
+	log.Debugf("InitReport done metrics: %+v\n", l.objectRecord.reportLogItem)
 }
 
 // parseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage

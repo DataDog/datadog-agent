@@ -70,7 +70,9 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 
 // Start processing logs. Can be called multiple times, but only the first invocation will be effective.
 func (lc *LambdaLogsCollector) Start() {
-
+	if lc == nil {
+		return
+	}
 	lc.process_once.Do(func() {
 		// After a timeout, there may be queued logs that will be immediately sent to the logs API.
 		// We want to use the restored execution context for those logs.
@@ -164,6 +166,9 @@ func (lc *LambdaLogsCollector) processMessage(
 	if !shouldProcessLog(message) {
 		return
 	}
+	if message.logType == logTypePlatformInitReport {
+		lc.executionContext.SetColdStartDuration(message.objectRecord.reportLogItem.initDurationTelemetry)
+	}
 
 	if message.logType == logTypePlatformStart {
 		if len(lc.coldstartRequestID) == 0 {
@@ -197,7 +202,16 @@ func (lc *LambdaLogsCollector) processMessage(
 			message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(lc.invocationStartTime, message.time, tags, lc.demux)
+			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(
+				serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+					Start:            lc.invocationStartTime,
+					End:              message.time,
+					ResponseLatency:  message.objectRecord.runtimeDoneItem.responseLatency,
+					ResponseDuration: message.objectRecord.runtimeDoneItem.responseDuration,
+					ProducedBytes:    message.objectRecord.runtimeDoneItem.producedBytes,
+					Tags:             tags,
+					Demux:            lc.demux,
+				})
 			lc.invocationEndTime = message.time
 			lc.executionContext.UpdateEndTime(message.time)
 		}
