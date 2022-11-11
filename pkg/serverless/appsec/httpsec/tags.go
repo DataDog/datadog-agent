@@ -59,29 +59,30 @@ func init() {
 	clientIPHeader = strings.ToLower(os.Getenv(envClientIPHeader))
 }
 
-// Span interface expected by this package to set span tags.
-type Span interface {
-	SetMeta(tag string, value string)
-	SetMetrics(tag string, value float64)
+// span interface expected by this package to set span tags.
+type span interface {
+	SetMetaTag(tag string, value string)
+	SetMetricsTag(tag string, value float64)
+	GetMetaTag(tag string) (value string, exists bool)
 }
 
-// SetAppSecEnabledTags sets the AppSec-specific span tags that are expected to
+// setAppSecEnabledTags sets the AppSec-specific span tags that are expected to
 // be in service entry span when AppSec is enabled.
-func SetAppSecEnabledTags(span Span) {
-	span.SetMetrics("_dd.appsec.enabled", 1)
+func setAppSecEnabledTags(span span) {
+	span.SetMetricsTag("_dd.appsec.enabled", 1)
 }
 
 // SetEventSpanTags sets the security event span tags into the service entry span.
-func SetEventSpanTags(span Span, events json.RawMessage) error {
+func SetEventSpanTags(span span, events json.RawMessage) error {
 	// Set the appsec event span tag
 	val, err := makeEventsTagValue(events)
 	if err != nil {
 		return err
 	}
-	span.SetMeta("_dd.appsec.json", string(val))
+	span.SetMetaTag("_dd.appsec.json", string(val))
 	// TODO: can this span be sampled out and should we enforce the priority to avoid it?
 	// Set the appsec.event tag needed by the appsec backend
-	span.SetMeta("appsec.event", "true")
+	span.SetMetaTag("appsec.event", "true")
 	return nil
 }
 
@@ -98,17 +99,17 @@ func makeEventsTagValue(events json.RawMessage) (json.RawMessage, error) {
 	return tag, nil
 }
 
-// SetSecurityEventsTags sets the AppSec-specific span tags when security events were found.
-func SetSecurityEventsTags(span Span, events json.RawMessage, headers, respHeaders map[string][]string) {
+// setSecurityEventsTags sets the AppSec-specific span tags when security events were found.
+func setSecurityEventsTags(span span, events json.RawMessage, headers, respHeaders map[string][]string) {
 	if err := SetEventSpanTags(span, events); err != nil {
 		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
 	}
 	for h, v := range NormalizeHTTPHeaders(headers) {
-		span.SetMeta("http.request.headers."+h, v)
+		span.SetMetaTag("http.request.headers."+h, v)
 	}
 	for h, v := range NormalizeHTTPHeaders(respHeaders) {
-		span.SetMeta("http.response.headers."+h, v)
+		span.SetMetaTag("http.response.headers."+h, v)
 	}
 }
 
@@ -139,11 +140,11 @@ func ippref(s string) *netaddrIPPrefix {
 	return nil
 }
 
-// SetClientIPTags sets the http.client_ip, http.request.headers.*, and
+// setClientIPTags sets the http.client_ip, http.request.headers.*, and
 // network.client.ip span tags according to the request headers and remote
 // connection address. Note that the given request headers reqHeaders must be
 // normalized with lower-cased keys for this function to work.
-func SetClientIPTags(span Span, remoteAddr string, reqHeaders map[string][]string) {
+func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]string) {
 	ipHeaders := defaultIPHeaders
 	if len(clientIPHeader) > 0 {
 		ipHeaders = []string{clientIPHeader}
@@ -164,7 +165,7 @@ func SetClientIPTags(span Span, remoteAddr string, reqHeaders map[string][]strin
 	if remoteAddr != "" {
 		remoteIP = parseIP(remoteAddr)
 		if remoteIP.IsValid() {
-			span.SetMeta("network.client.ip", remoteIP.String())
+			span.SetMetaTag("network.client.ip", remoteIP.String())
 		}
 	}
 
@@ -172,21 +173,21 @@ func SetClientIPTags(span Span, remoteAddr string, reqHeaders map[string][]strin
 	case 0:
 		ip := remoteIP.String()
 		if remoteIP.IsValid() && isGlobal(remoteIP) {
-			span.SetMeta("http.client_ip", ip)
+			span.SetMetaTag("http.client_ip", ip)
 		}
 	case 1:
 		for _, ipstr := range strings.Split(ips[0], ",") {
 			ip := parseIP(strings.TrimSpace(ipstr))
 			if ip.IsValid() && isGlobal(ip) {
-				span.SetMeta("http.client_ip", ip.String())
+				span.SetMetaTag("http.client_ip", ip.String())
 				break
 			}
 		}
 	default:
 		for _, hdr := range headers {
-			span.SetMeta("http.request.headers."+hdr, strings.Join(reqHeaders[hdr], ","))
+			span.SetMetaTag("http.request.headers."+hdr, strings.Join(reqHeaders[hdr], ","))
 		}
-		span.SetMeta("_dd.multiple-ip-headers", strings.Join(headers, ","))
+		span.SetMetaTag("_dd.multiple-ip-headers", strings.Join(headers, ","))
 	}
 }
 

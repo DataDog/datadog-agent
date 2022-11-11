@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	enabledEnvVar         = "DD_APPSEC_ENABLED"
+	enabledEnvVar         = "DD_SERVERLESS_APPSEC_ENABLED"
 	rulesEnvVar           = "DD_APPSEC_RULES"
 	wafTimeoutEnvVar      = "DD_APPSEC_WAF_TIMEOUT"
 	traceRateLimitEnvVar  = "DD_APPSEC_TRACE_RATE_LIMIT"

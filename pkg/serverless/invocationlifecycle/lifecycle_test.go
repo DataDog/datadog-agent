@@ -6,6 +6,7 @@
 package invocationlifecycle
 
 import (
+	"bytes"
 	"os"
 	"testing"
 	"time"
@@ -65,7 +66,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	startInvocationTime := time.Now()
 	startDetails := InvocationStartDetails{
 		StartTime:             startInvocationTime,
-		InvokeEventRawPayload: eventPayload,
+		InvokeEventRawPayload: []byte(eventPayload),
 		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 
@@ -361,7 +362,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		EndTime:            endTime,
 		IsError:            false,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 500}`,
+		ResponseRawPayload: []byte(`{"statusCode": 500}`),
 	})
 
 	// assert http.status_code is 500
@@ -406,7 +407,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 	testProcessor.OnInvokeStart(startDetails)
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 200}`,
+		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
@@ -449,7 +450,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		EndTime:            endTime,
 		IsError:            false,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 500}`,
+		ResponseRawPayload: []byte(`{"statusCode": 500}`),
 	})
 
 	// assert http.status_code is 500
@@ -494,7 +495,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 	testProcessor.OnInvokeStart(startDetails)
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 200}`,
+		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
@@ -534,7 +535,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		EndTime:            endTime,
 		IsError:            false,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 500}`,
+		ResponseRawPayload: []byte(`{"statusCode": 500}`),
 	})
 
 	// assert http.status_code is 500
@@ -576,7 +577,7 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 	testProcessor.OnInvokeStart(startDetails)
 	testProcessor.OnInvokeEnd(&InvocationEndDetails{
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 200}`,
+		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
@@ -618,7 +619,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		EndTime:            endTime,
 		IsError:            false,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"statusCode": 500}`,
+		ResponseRawPayload: []byte(`{"statusCode": 500}`),
 	})
 
 	// assert http.status_code is 500
@@ -864,10 +865,14 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 }
 
 // Helper function for reading test file
-func getEventFromFile(filename string) string {
+func getEventFromFile(filename string) []byte {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
 	if err != nil {
 		panic(err)
 	}
-	return "a5a" + string(event) + "0"
+	var buf bytes.Buffer
+	buf.WriteString("a5a")
+	buf.Write(event)
+	buf.WriteString("0")
+	return buf.Bytes()
 }

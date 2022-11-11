@@ -11,213 +11,180 @@
 package httpsec
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
 )
 
-type Context struct {
-	RequestClientIP   string
-	RequestRawURI     *string
-	RequestHeaders    map[string][]string
-	RequestCookies    map[string][]string
-	RequestQuery      map[string][]string
-	RequestPathParams map[string]string
-	RequestBody       interface{}
-
-	ResponseStatus  *string
-	ResponseHeaders map[string][]string
+// Monitorer is the interface type execpted by the httpsec invocation
+// subprocessor monitoring the given security rules addresses and returning
+// the security events that matched.
+type Monitorer interface {
+	Monitor(addresses map[string]interface{}) (events []byte)
 }
 
+// InvocationSubProcessor type allows to monitor lamdba invocations receiving
+// HTTP-based events.
 type InvocationSubProcessor struct {
-	asm *appsec.AppSec
-	lp  *invocationlifecycle.LifecycleProcessor
-	ctx Context
+	appsec Monitorer
 }
 
-func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.InvocationStartDetails) {
-	p.ctx = Context{} // reset the context
+// NewInvocationSubProcessor returns a new httpsec invocation subprocessor
+// monitored with the given Monitorer.
+func NewInvocationSubProcessor(appsec Monitorer) *InvocationSubProcessor {
+	return &InvocationSubProcessor{
+		appsec: appsec,
+	}
+}
+
+func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.InvocationStartDetails, _ *invocationlifecycle.RequestHandler) {
 	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 }
 
-func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invCtx *invocationlifecycle.RequestHandler) {
-	var ctx *Context
-	switch event := invCtx.Event().(type) {
+func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invocCtx *invocationlifecycle.RequestHandler) {
+	var ctx context
+	switch event := invocCtx.Event().(type) {
 	case events.APIGatewayProxyRequest:
-		ctx = NewContext(
+		makeContext(
+			&ctx,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
-			event.Body)
-		//case trigger.APIGatewayV2Event:
-		//	var event events.APIGatewayV2HTTPRequest
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromAPIGatewayV2Event(event, region)
-		//	}
-		//	if lp.AppSec != nil {
-		//		lp.AppSecContext = httpsec.NewContext(
-		//			&event.RawPath,
-		//			toMultiValueMap(event.Headers),
-		//			toMultiValueMap(event.QueryStringParameters),
-		//			event.PathParameters,
-		//			event.RequestContext.HTTP.SourceIP,
-		//			event.Body)
-		//	}
-		//case trigger.APIGatewayWebsocketEvent:
-		//	var event events.APIGatewayWebsocketProxyRequest
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromAPIGatewayWebsocketEvent(event, region)
-		//	}
-		//	if lp.AppSec != nil {
-		//		lp.AppSecContext = httpsec.NewContext(
-		//			&event.Path,
-		//			event.MultiValueHeaders,
-		//			event.MultiValueQueryStringParameters,
-		//			event.PathParameters,
-		//			event.RequestContext.Identity.SourceIP,
-		//			event.Body)
-		//	}
-		//case trigger.ALBEvent:
-		//	var event events.ALBTargetGroupRequest
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromALBEvent(event)
-		//	}
-		//	if lp.AppSec != nil {
-		//		lp.AppSecContext = httpsec.NewContext(
-		//			&event.Path,
-		//			event.MultiValueHeaders,
-		//			event.MultiValueQueryStringParameters,
-		//			nil,
-		//			"",
-		//			event.Body)
-		//	}
-		//case trigger.CloudWatchEvent:
-		//	var event events.CloudWatchEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromCloudWatchEvent(event)
-		//	}
-		//case trigger.CloudWatchLogsEvent:
-		//	var event events.CloudwatchLogsEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
-		//		lp.initFromCloudWatchLogsEvent(event, region, account)
-		//	}
-		//case trigger.DynamoDBStreamEvent:
-		//	var event events.DynamoDBEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromDynamoDBStreamEvent(event)
-		//	}
-		//case trigger.KinesisStreamEvent:
-		//	var event events.KinesisEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromKinesisStreamEvent(event)
-		//	}
-		//case trigger.EventBridgeEvent:
-		//	var event inferredspan.EventBridgeEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromEventBridgeEvent(event)
-		//	}
-		//case trigger.S3Event:
-		//	var event events.S3Event
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromS3Event(event)
-		//	}
-		//case trigger.SNSEvent:
-		//	var event events.SNSEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromSNSEvent(event)
-		//	}
-		//case trigger.SQSEvent:
-		//	var event events.SQSEvent
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil {
-		//		lp.initFromSQSEvent(event)
-		//	}
-		//case trigger.LambdaFunctionURLEvent:
-		//	var event events.LambdaFunctionURLRequest
-		//	if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
-		//		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
-		//	}
-		//	if lp.AppSec != nil {
-		//		lp.AppSecContext = httpsec.NewContext(
-		//			&event.RawPath,
-		//			toMultiValueMap(event.Headers),
-		//			toMultiValueMap(event.QueryStringParameters),
-		//			nil,
-		//			event.RequestContext.HTTP.SourceIP,
-		//			event.Body)
-		//	}
-		//default:
-		//	log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
+			&event.Body,
+		)
+
+	case events.APIGatewayV2HTTPRequest:
+		makeContext(
+			&ctx,
+			&event.RawPath,
+			toMultiValueMap(event.Headers),
+			toMultiValueMap(event.QueryStringParameters),
+			event.PathParameters,
+			event.RequestContext.HTTP.SourceIP,
+			&event.Body,
+		)
+
+	case events.APIGatewayWebsocketProxyRequest:
+		makeContext(
+			&ctx,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			&event.Body,
+		)
+
+	case events.ALBTargetGroupRequest:
+		makeContext(
+			&ctx,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			nil,
+			"",
+			&event.Body,
+		)
+
+	case events.LambdaFunctionURLRequest:
+		makeContext(
+			&ctx,
+			&event.RawPath,
+			toMultiValueMap(event.Headers),
+			toMultiValueMap(event.QueryStringParameters),
+			nil,
+			event.RequestContext.HTTP.SourceIP,
+			&event.Body,
+		)
+
+	default:
+		log.Debugf("appsec: ignoring the unsupported lamdba event type %T", event)
+		return
 	}
 
-	span := invCtx
-	SetAppSecEnabledTags(span)
+	span := invocCtx
+	setAppSecEnabledTags(span)
+	reqHeaders := ctx.requestHeaders
+	setClientIPTags(span, ctx.requestSourceIP, reqHeaders)
 
-	reqHeaders := ctx.RequestHeaders
-	SetClientIPTags(span, ctx.RequestClientIP, reqHeaders)
-
-	ctx.ResponseStatus = &statusCode
-
-	responseRawPayload := []byte(parseLambdaPayload(endDetails.ResponseRawPayload))
-
-	respHeaders, err := trigger.GetHeadersFromHTTPResponse(responseRawPayload)
+	respHeaders, err := parseResponseHeaders(endDetails.ResponseRawPayload)
 	if err != nil {
 		log.Debugf("appsec: couldn't parse the response payload headers: %v", err)
 	}
 
-	if events := p.asm.Monitor(ctx.ToAddresses()); len(events) > 0 {
-		SetSecurityEventsTags(span, events, reqHeaders, respHeaders)
+	if status, ok := span.GetMetaTag("http.status_code"); ok {
+		ctx.responseStatus = &status
+	}
+	if ip, ok := span.GetMetaTag("http.client_ip"); ok {
+		ctx.requestClientIP = &ip
+	}
+
+	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
+		setSecurityEventsTags(span, events, reqHeaders, respHeaders)
 	}
 }
 
-// NewContext creates a new http monitoring context out of the provided
-// arguments.
-func NewContext(path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, body string) *Context {
+// AppSec monitoring context including the full list of monitored HTTP values
+// (which must be nullable to know when they were set or not), along with the
+// required context to report appsec-related span tags.
+type context struct {
+	requestSourceIP   string
+	requestClientIP   *string             // http.client_ip
+	requestRawURI     *string             // server.request.uri.raw
+	requestHeaders    map[string][]string // server.request.headers.no_cookies
+	requestCookies    map[string][]string // server.request.cookies
+	requestQuery      map[string][]string // server.request.query
+	requestPathParams map[string]string   // server.request.path_params
+	requestBody       *string             // server.request.body
+	responseStatus    *string             // server.response.status
+}
+
+// makeContext creates a http monitoring context out of the provided arguments.
+func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
-	var bodyface interface{}
-	if len(body) > 0 {
-		bodyface = body
-	}
-	return &Context{
-		RequestClientIP:   sourceIP,
-		RequestRawURI:     path,
-		RequestHeaders:    headers,
-		RequestCookies:    cookies,
-		RequestQuery:      queryParams,
-		RequestPathParams: pathParams,
-		RequestBody:       bodyface,
+	*ctx = context{
+		requestSourceIP:   sourceIP,
+		requestRawURI:     path,
+		requestHeaders:    headers,
+		requestCookies:    cookies,
+		requestQuery:      queryParams,
+		requestPathParams: pathParams,
+		requestBody:       rawBody, // TODO: parse it according to the content-type
 	}
 }
 
-func (c *Context) ToAddresses() map[string]interface{} {
+func (c *context) toAddresses() map[string]interface{} {
 	addr := make(map[string]interface{})
-	if c.RequestRawURI != nil {
-		addr["server.request.uri.raw"] = *c.RequestRawURI
+	if c.requestRawURI != nil {
+		addr["http.client_ip"] = *c.requestClientIP
 	}
-	if c.RequestHeaders != nil {
-		addr["server.request.headers.no_cookies"] = c.RequestHeaders
+	if c.requestRawURI != nil {
+		addr["server.request.uri.raw"] = *c.requestRawURI
 	}
-	if c.RequestCookies != nil {
-		addr["server.request.cookies"] = c.RequestCookies
+	if c.requestHeaders != nil {
+		addr["server.request.headers.no_cookies"] = c.requestHeaders
 	}
-	if c.RequestQuery != nil {
-		addr["server.request.query"] = c.RequestQuery
+	if c.requestCookies != nil {
+		addr["server.request.cookies"] = c.requestCookies
 	}
-	if c.RequestPathParams != nil {
-		addr["server.request.path_params"] = c.RequestPathParams
+	if c.requestQuery != nil {
+		addr["server.request.query"] = c.requestQuery
 	}
-	if c.RequestBody != nil {
-		addr["server.request.body"] = c.RequestBody
+	if c.requestPathParams != nil {
+		addr["server.request.path_params"] = c.requestPathParams
 	}
-	if c.ResponseStatus != nil {
-		addr["server.response.status"] = c.ResponseStatus
+	if c.requestBody != nil {
+		addr["server.request.body"] = c.requestBody
+	}
+	if c.responseStatus != nil {
+		addr["server.response.status"] = c.responseStatus
 	}
 	return addr
 }
@@ -264,4 +231,50 @@ func parseCookies(rawCookies []string) map[string][]string {
 		cookies[c.Name] = append(cookies[c.Name], c.Value)
 	}
 	return cookies
+}
+
+// Parses the given raw response payload as an HTTP response payload in order
+// to retrieve its status code and response headers if any.
+// This function merges the single- and multi-value headers the response may
+// contain into a multi-value map of headers. A single-value header is ignored
+// if it already exists in the map of multi-value headers.
+// TODO: write unit-tests
+func parseResponseHeaders(rawPayload []byte) (headers map[string][]string, err error) {
+	var res struct {
+		Headers           map[string]string   `json:"headers"`
+		MultiValueHeaders map[string][]string `json:"multiValueHeaders"`
+	}
+
+	if err := json.Unmarshal(rawPayload, &res); err != nil {
+		return nil, err
+	}
+
+	if len(res.Headers) == 0 && len(res.MultiValueHeaders) == 0 {
+		return nil, nil
+	}
+
+	headers = res.MultiValueHeaders
+	if headers == nil {
+		headers = make(map[string][]string, len(res.Headers))
+	}
+	for k, v := range res.Headers {
+		if _, exists := res.MultiValueHeaders[k]; !exists {
+			headers[k] = []string{v}
+		}
+	}
+	return headers, nil
+}
+
+// Helper function to convert a single-value map of event values into a
+// multi-value one.
+func toMultiValueMap(m map[string]string) map[string][]string {
+	l := len(m)
+	if l == 0 {
+		return nil
+	}
+	res := make(map[string][]string, l)
+	for k, v := range m {
+		res[k] = []string{v}
+	}
+	return res
 }

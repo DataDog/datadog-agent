@@ -17,6 +17,7 @@ import (
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -250,16 +251,16 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
-	var asm *appsec.AppSec
+	var httpsecSubProcessor *httpsec.InvocationSubProcessor
 	go func() {
 		defer wg.Done()
-		var err error
-		asm, err = appsec.New() // note that the asm variable is in the parent scope
+		appsec, err := appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-		} else if asm != nil {
+		} else if appsec != nil {
 			log.Info("appsec: started successfully")
 		}
+		httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
 	}()
 
 	wg.Wait()
@@ -271,7 +272,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
-		AppSec:               asm,
+		SubProcessor:         httpsecSubProcessor,
 	}
 
 	// start the experimental proxy if enabled

@@ -6,6 +6,7 @@
 package invocationlifecycle
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"time"
@@ -30,8 +31,7 @@ type LifecycleProcessor struct {
 	Demux                aggregator.Demultiplexer
 	DetectLambdaLibrary  func() bool
 	InferredSpansEnabled bool
-	// Event that was detected and parsed by this processor. nil when the lambda invocation event is not supported.
-	SubProcessor InvocationSubProcessor
+	SubProcessor         InvocationSubProcessor
 
 	requestHandler *RequestHandler
 }
@@ -47,12 +47,27 @@ type RequestHandler struct {
 	triggerMetrics map[string]float64
 }
 
-func (r *RequestHandler) SetMeta(tag string, value string) {
+// SetMetaTag sets a meta span tag. A meta tag is a tag whose value type is string.
+func (r *RequestHandler) SetMetaTag(tag string, value string) {
 	r.triggerTags[tag] = value
 }
 
-func (r *RequestHandler) SetMetrics(tag string, value float64) {
+// GetMetaTag returns the meta span tag value if it exists.
+func (r *RequestHandler) GetMetaTag(tag string) (value string, exists bool) {
+	value, exists = r.triggerTags[tag]
+	return
+}
+
+// SetMetricsTag sets a metrics span tag. A metrics tag is a tag whose value type is float64.
+func (r *RequestHandler) SetMetricsTag(tag string, value float64) {
 	r.triggerMetrics[tag] = value
+}
+
+// Event returns the invocation event parsed by the LifecycleProcessor. It is nil if the event type is not supported
+// yet. The actual event type can be figured out thanks to a Go type switch on the event types of the pacakge
+// github.com/aws/aws-lambda-go/events
+func (r *RequestHandler) Event() interface{} {
+	return r.event
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
@@ -62,11 +77,11 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	lambdaPayloadString := parseLambdaPayload(startDetails.InvokeEventRawPayload)
+	payloadBytes := parseLambdaPayload(startDetails.InvokeEventRawPayload)
+	// TODO: avoid the unnecessary copy of payloadBytes when the logger isn't in debug level thanks to a []byte stringer
+	log.Debugf("Parsed payload string: %s", string(payloadBytes))
 
-	log.Debugf("Parsed payload string: %v", lambdaPayloadString)
-
-	lowercaseEventPayload, err := trigger.Unmarshal(strings.ToLower(lambdaPayloadString))
+	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload: %v", err)
 	}
@@ -79,7 +94,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	// Initialize basic values in the request handler
 	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
 
-	payloadBytes := []byte(lambdaPayloadString)
 	region, account, resource, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
 	if arnParseErr != nil {
 		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
@@ -160,7 +174,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), lambdaPayloadString, startDetails, lp.InferredSpansEnabled)
+		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), payloadBytes, startDetails, lp.InferredSpansEnabled)
 	}
 }
 
@@ -171,10 +185,10 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
 	log.Debug("[lifecycle] ---------------------------------------")
 
-	responseRawPayload := []byte(parseLambdaPayload(endDetails.ResponseRawPayload))
+	endDetails.ResponseRawPayload = parseLambdaPayload(endDetails.ResponseRawPayload)
 
 	// Add the status code if it comes from an HTTP-like response struct
-	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(responseRawPayload)
+	statusCode, err := trigger.GetStatusCodeFromHTTPResponse(endDetails.ResponseRawPayload)
 	if err != nil {
 		log.Debugf("[lifecycle] Couldn't parse the response payload status code: %v", err)
 	} else if statusCode == "" {
@@ -248,7 +262,7 @@ func (lp *LifecycleProcessor) getInferredSpanStart() time.Time {
 
 // NewRequest initializes basic information about the current request
 // on the LifecycleProcessor
-func (lp *LifecycleProcessor) newRequest(lambdaPayloadString string, startTime time.Time) {
+func (lp *LifecycleProcessor) newRequest(lambdaPayloadString []byte, startTime time.Time) {
 	if lp.requestHandler == nil {
 		lp.requestHandler = &RequestHandler{}
 	}
@@ -285,18 +299,4 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
-}
-
-// Helper function to convert a single-value map of event values into a
-// multi-value one.
-func toMultiValueMap(m map[string]string) map[string][]string {
-	l := len(m)
-	if l == 0 {
-		return nil
-	}
-	res := make(map[string][]string, l)
-	for k, v := range m {
-		res[k] = []string{v}
-	}
-	return res
 }

@@ -200,11 +200,16 @@ func (m *mockspan) SetTag(tag string, value interface{}) {
 	m.tags[tag] = value
 }
 
-func (m *mockspan) SetMeta(tag string, value string) {
+func (m *mockspan) SetMetaTag(tag string, value string) {
 	m.SetTag(tag, value)
 }
 
-func (m *mockspan) SetMetrics(tag string, value float64) {
+func (m *mockspan) GetMetaTag(tag string) (value string, exists bool) {
+	value, exists = m.tags[tag].(string)
+	return
+}
+
+func (m *mockspan) SetMetricsTag(tag string, value float64) {
 	m.SetTag(tag, value)
 }
 
@@ -226,7 +231,7 @@ func TestIPHeaders(t *testing.T) {
 			}
 			clientIPHeader = tc.clientIPHeader
 			var span mockspan
-			SetClientIPTags(&span, tc.remoteAddr, headers)
+			setClientIPTags(&span, tc.remoteAddr, headers)
 			if tc.expectedIP.IsValid() {
 				require.Equal(t, tc.expectedIP.String(), span.Tag("http.client_ip"))
 				require.Nil(t, span.Tag("_dd.multiple-ip-headers"))
