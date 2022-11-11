@@ -27,13 +27,10 @@ long bpf_skb_load_bytes(const void *skb, u32 offset, void *to, u32 len) {return 
 static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
 
-    // Unfortunately, the compiler tries to outsmart and causes the verifier on older kernels to think we have more
-    // than a millions possible instructions in the code and thus it fails to verify and load it.
-    // Using volatile parameter to tell the compiler to not optimize the code.
-    volatile bool match = buf[0]=='P' && buf[1]=='R' && buf[2]=='I' && buf[3]==' ' && buf[4]=='*' && buf[5]==' ' &&
-        buf[6]=='H' && buf[7]=='T' && buf[8]=='T' && buf[9]=='P' && buf[10]=='/' && buf[11]=='2' && buf[12]=='.' &&
-        buf[13]=='0' && buf[14]=='\r' && buf[15]=='\n' && buf[16]=='\r' && buf[17]=='\n' && buf[18]=='S' &&
-        buf[19]=='M' && buf[20]=='\r' && buf[21]=='\n' && buf[22]=='\r' && buf[23]=='\n';
+#define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+
+    bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
+    
     return match;
 }
 
@@ -42,25 +39,30 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 static __always_inline bool is_http(const char *buf, __u32 size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, HTTP_MIN_SIZE)
 
-    if ((buf[0] == 'H') && (buf[1] == 'T') && (buf[2] == 'T') && (buf[3] == 'P')) {
-        return true;
-    } else if ((buf[0] == 'G') && (buf[1] == 'E') && (buf[2] == 'T') && (buf[3]  == ' ') && (buf[4] == '/')) {
-        return true;
-    } else if ((buf[0] == 'P') && (buf[1] == 'O') && (buf[2] == 'S') && (buf[3] == 'T') && (buf[4]  == ' ') && (buf[5] == '/')) {
-        return true;
-    } else if ((buf[0] == 'P') && (buf[1] == 'U') && (buf[2] == 'T') && (buf[3]  == ' ') && (buf[4] == '/')) {
-        return true;
-    } else if ((buf[0] == 'D') && (buf[1] == 'E') && (buf[2] == 'L') && (buf[3] == 'E') && (buf[4] == 'T') && (buf[5] == 'E') && (buf[6]  == ' ') && (buf[7] == '/')) {
-        return true;
-    } else if ((buf[0] == 'H') && (buf[1] == 'E') && (buf[2] == 'A') && (buf[3] == 'D') && (buf[4]  == ' ') && (buf[5] == '/')) {
-        return true;
-    } else if ((buf[0] == 'O') && (buf[1] == 'P') && (buf[2] == 'T') && (buf[3] == 'I') && (buf[4] == 'O') && (buf[5] == 'N') && (buf[6] == 'S') && (buf[7]  == ' ') && ((buf[8] == '/') || (buf[8] == '*'))) {
-        return true;
-    } else if ((buf[0] == 'P') && (buf[1] == 'A') && (buf[2] == 'T') && (buf[3] == 'C') && (buf[4] == 'H') && (buf[5]  == ' ') && (buf[6] == '/')) {
-        return true;
-    }
+#define HTTP "HTTP"
+#define GET "GET /"
+#define POST "POST /"
+#define PUT "PUT /"
+#define DELETE "DELETE /" 
+#define HEAD "HEAD /"
+#define OPTIONS1 "OPTIONS /"
+#define OPTIONS2 "OPTIONS *"
+#define PATCH "PATCH /"
 
-    return false;
+    // memcmp returns
+    // 0 when s1 == s2,
+    // !0 when s1 != s2.
+    bool http = !(bpf_memcmp(buf, HTTP, sizeof(HTTP)-1)
+        && bpf_memcmp(buf, GET, sizeof(GET)-1)
+        && bpf_memcmp(buf, POST, sizeof(POST)-1)
+        && bpf_memcmp(buf, PUT, sizeof(PUT)-1)
+        && bpf_memcmp(buf, DELETE, sizeof(DELETE)-1)
+        && bpf_memcmp(buf, HEAD, sizeof(HEAD)-1)
+        && bpf_memcmp(buf, OPTIONS1, sizeof(OPTIONS1)-1)
+        && bpf_memcmp(buf, OPTIONS2, sizeof(OPTIONS2)-1)
+        && bpf_memcmp(buf, PATCH, sizeof(PATCH)-1));
+
+    return http;
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param

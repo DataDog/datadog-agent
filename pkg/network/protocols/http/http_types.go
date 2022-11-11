@@ -9,9 +9,9 @@
 package http
 
 /*
-#include "../ebpf/c/tracer.h"
-#include "../ebpf/c/tags-types.h"
-#include "../ebpf/c/http-types.h"
+#include "../../ebpf/c/tracer.h"
+#include "../../ebpf/c/protocols/tags-types.h"
+#include "../../ebpf/c/protocols/http-types.h"
 */
 import "C"
 

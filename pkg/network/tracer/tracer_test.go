@@ -39,8 +39,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -45,8 +45,6 @@ import (
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
-	// *command.GlobalParams
-
 	// cmd is the running cobra.Command
 	cmd *cobra.Command
 
@@ -89,7 +87,7 @@ type GlobalParams struct {
 	LoggerName   string
 }
 
-// MakeCommand returns a `check` to be used by agent binaries.
+// MakeCommand returns a `check` command to be used by agent binaries.
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 	cmd := &cobra.Command{

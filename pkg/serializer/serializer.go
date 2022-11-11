@@ -314,7 +314,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return nil
 	}
 
-	seriesSerializer := metricsserializer.IterableSeries{SerieSource: serieSource}
+	seriesSerializer := metricsserializer.CreateIterableSeries(serieSource)
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	var seriesBytesPayloads transaction.BytesPayloads

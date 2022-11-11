@@ -25,8 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 

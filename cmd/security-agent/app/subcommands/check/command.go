@@ -6,34 +6,32 @@
 //go:build !windows && kubeapiserver
 // +build !windows,kubeapiserver
 
-package app
+package check
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 type checkCliParams struct {
-	*common.GlobalParams
-
 	args []string
 
 	framework         string
@@ -46,16 +44,18 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
-// TODO: fix this, this is currently a stub for the cluster-agent
-func CheckCmd() *cobra.Command {
-	return CheckCommands(&common.GlobalParams{})[0]
+func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	bp := core.BundleParams{
+		SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+		ConfigLoadSecurityAgent:      true,
+	}.LogForOneShot(common.LoggerName, "info", true)
+
+	return Commands(bp)
 }
 
-// CheckCommands returns a cobra command to run security agent checks
-func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	checkArgs := checkCliParams{
-		GlobalParams: globalParams,
-	}
+// Commands returns a cobra command to run security agent checks
+func Commands(bundleParams core.BundleParams) []*cobra.Command {
+	checkArgs := &checkCliParams{}
 
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -63,7 +63,11 @@ func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
-			return runCheck(&checkArgs)
+			return fxutil.OneShot(runCheck,
+				fx.Supply(checkArgs),
+				fx.Supply(bundleParams),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -79,12 +83,7 @@ func CheckCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func runCheck(checkArgs *checkCliParams) error {
-	err := configureLogger(checkArgs)
-	if err != nil {
-		return err
-	}
-
+func runCheck(log log.Component, config config.Component, checkArgs *checkCliParams) error {
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
@@ -108,7 +107,7 @@ func runCheck(checkArgs *checkCliParams) error {
 			checks.MayFail(checks.WithAudit()),
 		}...)
 
-		if config.IsKubernetes() {
+		if pkgconfig.IsKubernetes() {
 			nodeLabels, err := agent.WaitGetNodeLabels()
 			if err != nil {
 				log.Error(err)
@@ -130,7 +129,7 @@ func runCheck(checkArgs *checkCliParams) error {
 
 	options = append(options, checks.WithHostname(hname))
 
-	stopper = startstop.NewSerialStopper()
+	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
 	reporter, err := NewCheckReporter(stopper, checkArgs.report, checkArgs.dumpReports)
@@ -162,7 +161,7 @@ func runCheck(checkArgs *checkCliParams) error {
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
 	} else {
-		configDir := config.Datadog.GetString("compliance_config.dir")
+		configDir := config.GetString("compliance_config.dir")
 		err = agent.RunChecks(reporter, configDir, options...)
 	}
 
@@ -176,90 +175,5 @@ func runCheck(checkArgs *checkCliParams) error {
 		return err
 	}
 
-	return nil
-}
-
-func configureLogger(checkArgs *checkCliParams) error {
-	var (
-		logFormat = "%LEVEL | %Msg%n"
-		logLevel  = "info"
-	)
-	if checkArgs.verbose {
-		const logDateFormat = "2006-01-02 15:04:05 MST"
-		logFormat = fmt.Sprintf("%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat)
-		logLevel = "trace"
-	}
-	logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.DebugLvl, logFormat)
-	if err != nil {
-		return err
-	}
-
-	log.SetupLogger(logger, logLevel)
-	return nil
-}
-
-// RunCheckReporter represents a reporter used for reporting RunChecks
-type RunCheckReporter struct {
-	reporter        event.Reporter
-	events          map[string][]*event.Event
-	dumpReportsPath string
-}
-
-// NewCheckReporter creates a new RunCheckReporter
-func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
-	r := &RunCheckReporter{}
-
-	if report {
-		endpoints, dstContext, err := newLogContextCompliance()
-		if err != nil {
-			return nil, err
-		}
-
-		runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-		reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, dstContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to set up compliance log reporter: %w", err)
-		}
-
-		r.reporter = reporter
-	}
-
-	r.events = make(map[string][]*event.Event)
-	r.dumpReportsPath = dumpReportsPath
-
-	return r, nil
-}
-
-// Report reports the event
-func (r *RunCheckReporter) Report(event *event.Event) {
-	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
-
-	eventJSON, err := checks.PrettyPrintJSON(event, "  ")
-	if err != nil {
-		log.Errorf("Failed to marshal rule event: %v", err)
-		return
-	}
-
-	r.ReportRaw(eventJSON, "")
-
-	if r.reporter != nil {
-		r.reporter.Report(event)
-	}
-}
-
-// ReportRaw reports the raw content
-func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
-	fmt.Println(string(content))
-}
-
-func (r *RunCheckReporter) dumpReports() error {
-	if r.dumpReportsPath != "" {
-		reportsJSON, err := checks.PrettyPrintJSON(r.events, "\t")
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(r.dumpReportsPath, reportsJSON, 0644)
-	}
 	return nil
 }
