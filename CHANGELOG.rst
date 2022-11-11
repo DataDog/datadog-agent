@@ -41,9 +41,7 @@ New Features
 - Add a username and password dialog window to the Windows Installer
 
 - APM: DogStatsD data can now be proxied through the "/dogstatsd/v1/proxy" endpoint
-  over UDS or UDP. If a socket is provided with dogstatsd_socket, the proxy will
-  default to proxying over UDS. Otherwise, UDP will be used. See
-  https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
+  over UDP. See https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
 
 - Cloud Workload Security now has Agent version constraints for Macros in SECL expressions.
 
@@ -136,6 +134,8 @@ Known Issues
 ------------
 
 - APM: OTLP Ingest: resource attributes such as service.name are correctly picked up by spans.
+- APM: The "/dogstatsd/v1/proxy" endpoint can only accept a single payload at a time. This will
+  be fixed in the v2 endpoint which will split payloads by newline.
 
 
 .. _Release Notes_7.40.0_Deprecation Notes:
