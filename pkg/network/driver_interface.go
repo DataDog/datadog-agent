@@ -213,6 +213,7 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	}, nil
 }
 
+//nolint:deadcode,unused // debugging helper normally commented out
 func printClassification(fd *driver.PerFlowData) {
 	if fd.ClassificationStatus != driver.ClassificationUnclassified {
 		if fd.ClassifyRequest == driver.ClassificationRequestTLS || fd.ClassifyResponse == driver.ClassificationResponseTLS {
