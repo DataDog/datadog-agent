@@ -21,13 +21,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/etw"
 )
-
-type etwHttpTX struct {
-	//	httpTX
-	*etw.Http
-}
 
 // errLostBatch isn't a valid error in windows
 var errLostBatch = errors.New("invalid error")
@@ -84,65 +78,73 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 //
 
 // ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
-func (tx *FullHttpTransaction) ReqFragment() []byte {
+func (tx *WinHttpTransaction) ReqFragment() []byte {
 	return tx.RequestFragment[:]
 }
 
-func (tx *FullHttpTransaction) StatusClass() int {
+func (tx *WinHttpTransaction) StatusClass() int {
 	return statusClass(tx.Txn.ResponseStatusCode)
 }
 
-func (tx *FullHttpTransaction) RequestLatency() float64 {
+func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *FullHttpTransaction) isIPV4() bool {
+func (tx *WinHttpTransaction) isIPV4() bool {
 	return isIPV4(&tx.Txn.Tup)
 }
 
-func (tx *FullHttpTransaction) SrcIPLow() uint64 {
+func (tx *WinHttpTransaction) SrcIPLow() uint64 {
 	return srcIPLow(&tx.Txn.Tup)
 }
 
-func (tx *FullHttpTransaction) SrcIPHigh() uint64 {
+func (tx *WinHttpTransaction) SrcIPHigh() uint64 {
 	return srcIPHigh(&tx.Txn.Tup)
 }
 
-func (tx *FullHttpTransaction) SrcPort() uint16 {
+func (tx *WinHttpTransaction) SrcPort() uint16 {
 	return tx.Txn.Tup.CliPort
 }
 
-func (tx *FullHttpTransaction) DstIPLow() uint64 {
+func (tx *WinHttpTransaction) DstIPLow() uint64 {
 	return dstIPLow(&tx.Txn.Tup)
 }
 
-func (tx *FullHttpTransaction) DstIPHigh() uint64 {
+func (tx *WinHttpTransaction) DstIPHigh() uint64 {
 	return dstIPHigh(&tx.Txn.Tup)
 }
 
-func (tx *FullHttpTransaction) DstPort() uint16 {
+func (tx *WinHttpTransaction) DstPort() uint16 {
 	return tx.Txn.Tup.SrvPort
 }
 
-func (tx *FullHttpTransaction) Method() Method {
+func (tx *WinHttpTransaction) Method() Method {
 	return Method(tx.Txn.RequestMethod)
 }
 
-func (tx *FullHttpTransaction) StatusCode() uint16 {
+func (tx *WinHttpTransaction) StatusCode() uint16 {
 	return tx.Txn.ResponseStatusCode
 }
 
 // Static Tags are not part of windows driver http transactions
-func (tx *FullHttpTransaction) StaticTags() uint64 {
+func (tx *WinHttpTransaction) StaticTags() uint64 {
 	return 0
 }
 
 // Dynamic Tags are not part of windows driver http transactions
-func (tx *FullHttpTransaction) DynamicTags() []string {
+func (tx *WinHttpTransaction) DynamicTags() []string {
+	if len(tx.AppPool) != 0 || len(tx.SiteName) != 0 {
+		return []string{
+			fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
+			fmt.Sprintf("http.iis.site:%v", tx.SiteID),
+			fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
+			fmt.Sprintf("service:%v", tx.AppPool),
+		}
+	}
 	return nil
 }
 
-func (tx *FullHttpTransaction) String() string {
+func (tx *WinHttpTransaction) String() string {
 	var output strings.Builder
 	output.WriteString("httpTX{")
 	output.WriteString("\n  Method: '" + tx.Method().String() + "', ")
@@ -155,11 +157,11 @@ func (tx *FullHttpTransaction) String() string {
 
 // Windows does not have incomplete http transactions because flows in the windows driver
 // see both directions of traffic
-func (tx *FullHttpTransaction) Incomplete() bool {
+func (tx *WinHttpTransaction) Incomplete() bool {
 	return false
 }
 
-func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
+func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	bLen := bytes.IndexByte(tx.RequestFragment, 0)
 	if bLen == -1 {
 		bLen = len(tx.RequestFragment)
@@ -185,162 +187,28 @@ func (tx *FullHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	return buffer[:n], fullPath
 
 }
-func (tx *FullHttpTransaction) SetStatusCode(code uint16) {
+func (tx *WinHttpTransaction) SetStatusCode(code uint16) {
 	tx.Txn.ResponseStatusCode = code
 }
 
-func (tx *FullHttpTransaction) ResponseLastSeen() uint64 {
+func (tx *WinHttpTransaction) ResponseLastSeen() uint64 {
 	return tx.Txn.ResponseLastSeen
 }
 
-func (tx *FullHttpTransaction) SetResponseLastSeen(ls uint64) {
+func (tx *WinHttpTransaction) SetResponseLastSeen(ls uint64) {
 	tx.Txn.ResponseLastSeen = ls
 }
 
-func (tx *FullHttpTransaction) RequestStarted() uint64 {
+func (tx *WinHttpTransaction) RequestStarted() uint64 {
 	return tx.Txn.RequestStarted
 }
 
-func (tx *FullHttpTransaction) RequestMethod() uint32 {
+func (tx *WinHttpTransaction) RequestMethod() uint32 {
 	return tx.Txn.RequestMethod
 }
 
-func (tx *FullHttpTransaction) SetRequestMethod(m uint32) {
+func (tx *WinHttpTransaction) SetRequestMethod(m uint32) {
 	tx.Txn.RequestMethod = m
-}
-
-// --------------------------
-//
-// etwHttpTX interface
-//
-
-// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
-func (tx *etwHttpTX) ReqFragment() []byte {
-	return tx.RequestFragment[:]
-}
-
-func (tx *etwHttpTX) StatusClass() int {
-	return statusClass(tx.Txn.ResponseStatusCode)
-}
-
-func (tx *etwHttpTX) RequestLatency() float64 {
-	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
-}
-
-func (tx *etwHttpTX) isIPV4() bool {
-	return isIPV4(&tx.Txn.Tup)
-}
-
-func (tx *etwHttpTX) SrcIPLow() uint64 {
-	return srcIPLow(&tx.Txn.Tup)
-}
-
-func (tx *etwHttpTX) SrcIPHigh() uint64 {
-	return srcIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *etwHttpTX) SrcPort() uint16 {
-	return tx.Txn.Tup.CliPort
-}
-
-func (tx *etwHttpTX) DstIPLow() uint64 {
-	return dstIPLow(&tx.Txn.Tup)
-}
-
-func (tx *etwHttpTX) DstIPHigh() uint64 {
-	return dstIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *etwHttpTX) DstPort() uint16 {
-	return tx.Txn.Tup.SrvPort
-}
-
-func (tx *etwHttpTX) Method() Method {
-	return Method(tx.Txn.RequestMethod)
-}
-
-func (tx *etwHttpTX) SetRequestMethod(m uint32) {
-	tx.Txn.RequestMethod = m
-}
-
-func (tx *etwHttpTX) StatusCode() uint16 {
-	return tx.Txn.ResponseStatusCode
-}
-
-// Static Tags are not part of windows http transactions
-func (tx *etwHttpTX) StaticTags() uint64 {
-	return 0
-}
-
-// Dynamic Tags are  part of windows http transactions
-func (tx *etwHttpTX) DynamicTags() []string {
-	return []string{
-		fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
-		fmt.Sprintf("http.iis.site:%v", tx.SiteID),
-		fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
-		fmt.Sprintf("service:%v", tx.AppPool),
-	}
-}
-
-func (tx *etwHttpTX) String() string {
-	var output strings.Builder
-	output.WriteString("httpTX{")
-	output.WriteString("Method: '" + tx.Method().String() + "', ")
-	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
-	output.WriteString("\n  Fragment: '" + string(tx.RequestFragment[:]) + "', ")
-	output.WriteString("}")
-	return output.String()
-}
-
-// Incomplete transactions does not apply to windows
-func (tx *etwHttpTX) Incomplete() bool {
-	return false
-}
-
-func (tx *etwHttpTX) Path(buffer []byte) ([]byte, bool) {
-	bLen := bytes.IndexByte(tx.RequestFragment, 0)
-	if bLen == -1 {
-		bLen = len(tx.RequestFragment)
-	}
-	// trim null byte + after
-	b := tx.RequestFragment[:bLen]
-	// find first space after request method
-	i := bytes.IndexByte(b, ' ')
-	i++
-	// ensure we found a space, it isn't at the end, and the next chars are '/' or '*'
-	if i == 0 || i == len(b) || (b[i] != '/' && b[i] != '*') {
-		return nil, false
-	}
-	// trim to start of path
-	b = b[i:]
-	// capture until we find the slice end, a space, or a question mark (we ignore the query parameters)
-	var j int
-	for j = 0; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
-	}
-	n := copy(buffer, b[:j])
-	// indicate if we knowingly captured the entire path
-	fullPath := n < len(b)
-	return buffer[:n], fullPath
-}
-
-func (tx *etwHttpTX) SetStatusCode(code uint16) {
-	tx.Txn.ResponseStatusCode = code
-}
-
-func (tx *etwHttpTX) ResponseLastSeen() uint64 {
-	return tx.Txn.ResponseLastSeen
-}
-
-func (tx *etwHttpTX) SetResponseLastSeen(ls uint64) {
-	tx.Txn.ResponseLastSeen = ls
-}
-
-func (tx *etwHttpTX) RequestStarted() uint64 {
-	return tx.Txn.RequestStarted
-}
-
-func (tx *etwHttpTX) RequestMethod() uint32 {
-	return tx.Txn.RequestMethod
 }
 
 // below is copied from pkg/trace/stats/statsraw.go
