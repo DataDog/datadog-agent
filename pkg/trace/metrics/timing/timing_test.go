@@ -8,6 +8,7 @@ package timing
 import (
 	"fmt"
 	"math/rand"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,9 @@ import (
 )
 
 func TestTiming(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test flakey on windows")
+	}
 	assert := assert.New(t)
 	stats := &teststatsd.Client{}
 
