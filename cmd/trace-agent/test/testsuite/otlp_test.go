@@ -57,7 +57,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := ptraceotlp.NewGRPCClient(conn)
+		client := ptraceotlp.NewClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -111,7 +111,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := ptraceotlp.NewGRPCClient(conn)
+		client := ptraceotlp.NewClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
