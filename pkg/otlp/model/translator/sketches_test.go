@@ -56,7 +56,7 @@ func newHistogramMetric(p pmetric.HistogramDataPoint) pmetric.Metrics {
 	m.SetName("test")
 
 	// Copy Histogram point
-	m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 	dps := m.Histogram().DataPoints()
 	np := dps.AppendEmpty()
 	np.SetCount(p.Count())
@@ -207,7 +207,7 @@ func TestExactSumCount(t *testing.T) {
 				m := metricsArray.AppendEmpty()
 				m.SetEmptyHistogram()
 				m.SetName("test")
-				m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
 				dp := m.Histogram().DataPoints()
 				p := dp.AppendEmpty()
 				p.ExplicitBounds().FromRaw([]float64{0, 5_000, 10_000, 15_000, 20_000})
@@ -238,7 +238,7 @@ func TestExactSumCount(t *testing.T) {
 				m := metricsArray.AppendEmpty()
 				m.SetEmptyHistogram()
 				m.SetName("test")
-				m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 				dp := m.Histogram().DataPoints()
 				// Points from contrib issue 6129: 0, 5_000, 10_000, 15_000, 20_000 repeated.
 				bounds := []float64{0, 5_000, 10_000, 15_000, 20_000}
@@ -278,7 +278,7 @@ func TestExactSumCount(t *testing.T) {
 				m.SetEmptyHistogram()
 				m.SetName("test")
 
-				m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+				m.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 				bounds := []float64{1_000, 10_000, 100_000}
 
 				dp := m.Histogram().DataPoints()

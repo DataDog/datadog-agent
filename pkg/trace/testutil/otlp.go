@@ -125,7 +125,7 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 		case string:
 			_, ok := attr.Get(k)
 			if !ok {
-				attr.PutStr(k, v)
+				attr.PutString(k, v)
 			}
 		case bool:
 			_, ok := attr.Get(k)
@@ -150,7 +150,7 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 		default:
 			_, ok := attr.Get(k)
 			if !ok {
-				attr.PutStr(k, fmt.Sprint(v))
+				attr.PutString(k, fmt.Sprint(v))
 			}
 		}
 	}

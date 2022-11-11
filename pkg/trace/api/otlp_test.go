@@ -632,7 +632,7 @@ func TestOTLPHelpers(t *testing.T) {
 		} {
 			assert := assert.New(t)
 			span := pb.Span{Meta: make(map[string]string)}
-			status := ptrace.NewStatus()
+			status := ptrace.NewSpanStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
 			status2Error(status, tt.events, &span)
@@ -1098,7 +1098,7 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	for _, k := range keys {
 		_, ok := e.Attributes().Get(k)
 		if !ok {
-			e.Attributes().PutStr(k, attrs[k])
+			e.Attributes().PutString(k, attrs[k])
 		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
