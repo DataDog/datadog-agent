@@ -1124,19 +1124,19 @@ func etwHttpServiceSummary() {
 	lastSummaryTime = time.Now()
 	summaryCount++
 
-	log.Infof("=====================\n")
-	log.Infof("  SUMMARY #%v\n", summaryCount)
-	log.Infof("=====================\n")
-	log.Infof("  Pid:                      %v\n", os.Getpid())
-	log.Infof("  Conn map:                 %v\n", len(connOpened))
-	log.Infof("  Req/Resp map:             %v\n", len(http2openConn))
-	log.Infof("  Cache map:                %v\n", len(httpCache))
-	log.Infof("  All Events(not handled):  %v(%v)\n", formatUInt(eventCount), formatUInt(notHandledEventsCount))
-	log.Infof("  Requests(cached):         %v(%v)\n", formatUInt(completedRequestCount), formatUInt(servedFromCache))
-	log.Infof("  Missed Conn:              %v\n", formatUInt(missedConnectionCount))
-	log.Infof("  Parsing Error:            %v\n", formatUInt(parsingErrorCount))
-	log.Infof("  ETW Bytes Total(Payload): %v(%v)\n", bytesFormat(transferedETWBytesTotal), bytesFormat(transferedETWBytesPayload))
-	log.Infof("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
+	log.Debugf("=====================\n")
+	log.Debugf("  SUMMARY #%v\n", summaryCount)
+	log.Debugf("=====================\n")
+	log.Debugf("  Pid:                      %v\n", os.Getpid())
+	log.Debugf("  Conn map:                 %v\n", len(connOpened))
+	log.Debugf("  Req/Resp map:             %v\n", len(http2openConn))
+	log.Debugf("  Cache map:                %v\n", len(httpCache))
+	log.Debugf("  All Events(not handled):  %v(%v)\n", formatUInt(eventCount), formatUInt(notHandledEventsCount))
+	log.Debugf("  Requests(cached):         %v(%v)\n", formatUInt(completedRequestCount), formatUInt(servedFromCache))
+	log.Debugf("  Missed Conn:              %v\n", formatUInt(missedConnectionCount))
+	log.Debugf("  Parsing Error:            %v\n", formatUInt(parsingErrorCount))
+	log.Debugf("  ETW Bytes Total(Payload): %v(%v)\n", bytesFormat(transferedETWBytesTotal), bytesFormat(transferedETWBytesPayload))
+	log.Debugf("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
 
 	/*
 		* dbtodo

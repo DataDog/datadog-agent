@@ -9,7 +9,7 @@
 package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
