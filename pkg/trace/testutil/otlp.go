@@ -99,7 +99,7 @@ func NewOTLPSpan(s *OTLPSpan) ptrace.Span {
 }
 
 // NewOTLPTracesRequest creates a new TracesRequest based on the given definitions.
-func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.ExportRequest {
+func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.Request {
 	td := ptrace.NewTraces()
 	rspans := td.ResourceSpans()
 
@@ -115,7 +115,7 @@ func NewOTLPTracesRequest(defs []OTLPResourceSpan) ptraceotlp.ExportRequest {
 		}
 	}
 
-	tr := ptraceotlp.NewExportRequestFromTraces(td)
+	tr := ptraceotlp.NewRequestFromTraces(td)
 	return tr
 }
 
