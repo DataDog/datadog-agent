@@ -41,7 +41,7 @@ func TestSerialization(t *testing.T) {
 
 			result, err := unmarshaler.Unmarshal(blob)
 			require.NoError(t, err)
-			proto.Equal(tc.exp, result)
+			assert.True(t, proto.Equal(tc.exp, result))
 		}
 	})
 
@@ -57,7 +57,7 @@ func TestSerialization(t *testing.T) {
 
 			result, err := unmarshaler.Unmarshal(blob)
 			require.NoError(t, err)
-			proto.Equal(tc.exp, result)
+			assert.True(t, proto.Equal(tc.exp, result))
 		}
 	})
 
@@ -72,7 +72,7 @@ func TestSerialization(t *testing.T) {
 
 			result, err := unmarshaler.Unmarshal(blob)
 			require.NoError(t, err)
-			proto.Equal(tc.exp, result)
+			assert.True(t, proto.Equal(tc.exp, result))
 		}
 
 	})
@@ -87,7 +87,7 @@ func TestSerialization(t *testing.T) {
 
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		proto.Equal(&pbgo.ProcessStatRequest{}, result)
+		assert.True(t, proto.Equal(&pbgo.ProcessStatRequest{}, result))
 	})
 
 	t.Run("json serializing empty input", func(t *testing.T) {
@@ -100,6 +100,6 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		proto.Equal(&pbgo.ProcessStatRequest{Pids: []int32{}}, result)
+		assert.True(t, proto.Equal(&pbgo.ProcessStatRequest{Pids: []int32{}}, result))
 	})
 }
