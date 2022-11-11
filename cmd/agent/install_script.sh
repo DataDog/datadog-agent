@@ -262,7 +262,7 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
     exit 1;
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
-elif [ "true" == "true" ]; then
+else
   if [ "$agent_flavor" == "datadog-agent" ] ; then
     echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing $nice_flavor version 6 by default.\033[0m"
   else
