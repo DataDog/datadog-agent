@@ -101,7 +101,7 @@ func (l *LambdaLogAPIMessage) UnmarshalJSON(data []byte) error {
 		l.handleDroppedRecord(j)
 	case logTypeFunction, logTypeExtension:
 		l.handleFunctionAndExtensionRecord(j, typ)
-	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone:
+	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone, logTypePlatformInitReport:
 		l.handlePlatformRecord(j, typ)
 	default:
 		// we're not parsing this kind of message yet

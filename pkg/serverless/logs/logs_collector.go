@@ -102,6 +102,9 @@ func (lc *LambdaLogsCollector) Shutdown() {
 
 // shouldProcessLog returns whether or not the log should be further processed.
 func shouldProcessLog(message *LambdaLogAPIMessage) bool {
+	if message.logType == logTypePlatformInitReport {
+		return true
+	}
 	// Making sure that empty logs are not uselessly sent
 	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 {
 		return false
