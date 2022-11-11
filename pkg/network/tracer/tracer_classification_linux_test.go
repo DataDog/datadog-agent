@@ -17,16 +17,18 @@ import (
 	"testing"
 	"time"
 
-	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
+	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
 func TestProtocolClassification(t *testing.T) {
+	t.Skip("skipping temporarily")
+
 	cfg := testConfig()
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
