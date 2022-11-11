@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"time"
 
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
@@ -45,7 +46,8 @@ type server struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	configService *remoteconfig.Service
+	workloadmetaServer *workloadmetaServer.Server
+	configService      *remoteconfig.Service
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -230,6 +232,11 @@ func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*p
 		return nil, errors.New("remote configuration service not initialized")
 	}
 	return s.configService.ConfigGetState()
+}
+
+// WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
+func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
+	return s.workloadmetaServer.StreamEntities(in, out)
 }
 
 func init() {

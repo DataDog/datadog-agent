@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"github.com/cihub/seelog"
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -91,7 +93,10 @@ func StartServer(configService *remoteconfig.Service) error {
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{configService: configService})
+	pb.RegisterAgentSecureServer(s, &serverSecure{
+		configService:      configService,
+		workloadmetaServer: workloadmetaServer.NewServer(workloadmeta.GetGlobalStore()),
+	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,
