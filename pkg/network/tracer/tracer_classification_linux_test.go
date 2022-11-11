@@ -27,12 +27,12 @@ import (
 )
 
 func TestProtocolClassification(t *testing.T) {
-	t.Skip("skipping temporarily")
-
 	cfg := testConfig()
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
 	}
+
+	t.Skip("skipping temporarily")
 
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
