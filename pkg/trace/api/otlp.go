@@ -124,7 +124,7 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptrac
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
 	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
-	return ptraceotlp.NewExportResponse(), nil
+	return ptraceotlp.NewResponse(), nil
 }
 
 // ServeHTTP implements http.Handler
@@ -151,7 +151,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	in := ptraceotlp.NewExportRequest()
+	in := ptraceotlp.NewRequest()
 	switch getMediaType(req) {
 	case "application/x-protobuf":
 		if err := in.UnmarshalProto(slurp); err != nil {
