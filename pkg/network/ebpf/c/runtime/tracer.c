@@ -520,7 +520,7 @@ int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup, sk);
+        cleanup_conn(&tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
