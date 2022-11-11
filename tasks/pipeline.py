@@ -23,7 +23,7 @@ from .libs.pipeline_tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from .libs.types import FailedJobType, SlackMessage, TeamMessage
+from .libs.types import SlackMessage, TeamMessage
 from .utils import (
     DEFAULT_BRANCH,
     get_all_allowed_repo_branches,
@@ -506,7 +506,7 @@ def send_stats(_, print_to_stdout=False):
     project_name = "DataDog/datadog-agent"
 
     try:
-        job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
+        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
     except Exception as e:
         print("Found exception when generating statistics:")
         print(e)
@@ -520,32 +520,21 @@ def send_stats(_, print_to_stdout=False):
     timestamp = int(datetime.now().timestamp())
     series = []
 
-    # This stores the reason why a pipeline ultimately failed.
-    # The goal is to have a statistic of the number of pipelines that fail
-    # only due to infrastructure failures.
-    global_failure_reason = None
-    for failure_type, failure_reasons in job_failure_stats.items():
-        if failure_type == FailedJobType.JOB_FAILURE:
-            global_failure_reason = FailedJobType.JOB_FAILURE.name
-        elif failure_type == FailedJobType.INFRA_FAILURE and not global_failure_reason:
-            global_failure_reason = FailedJobType.INFRA_FAILURE.name
-
-        for failure_reason, count in failure_reasons.items():
-            # This allows getting stats on the number of jobs that fail due to infrastructure
-            # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
-            series.append(
-                create_count(
-                    metric_name="datadog.ci.job_failures",
-                    timestamp=timestamp,
-                    value=count,
-                    tags=[
-                        "repository:datadog-agent",
-                        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                        f"type:{failure_type.name}",
-                        f"reason:{failure_reason.name}",
-                    ],
-                )
+    for failure_tags, count in job_failure_stats.items():
+        # This allows getting stats on the number of jobs that fail due to infrastructure
+        # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
+        series.append(
+            create_count(
+                metric_name="datadog.ci.job_failures",
+                timestamp=timestamp,
+                value=count,
+                tags=list(failure_tags)
+                + [
+                    "repository:datadog-agent",
+                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
+                ],
             )
+        )
 
     if job_failure_stats:  # At least one job failed
         pipeline_state = "failed"
