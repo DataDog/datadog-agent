@@ -278,7 +278,7 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/util/winutil/etw/types.go": [
                 "pkg/util/winutil/etw/etw-provider.h",
             ],
-            }
+        }
         nw.rule(
             name="godefs",
             pool="cgo_pool",

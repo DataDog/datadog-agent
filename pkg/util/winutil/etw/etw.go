@@ -27,9 +27,6 @@ type Subscriber interface {
 }
 
 var (
-	//curEtwProviders uint64 = 0
-	//curEtwFlags     uint64 = 0
-
 	subscribers = make(map[EtwProviderType]Subscriber)
 )
 
