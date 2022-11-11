@@ -44,20 +44,20 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/DataDog/agent-payload/v5 v5.0.39
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
-	github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52
+	github.com/DataDog/ebpf-manager v0.1.0
 	github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda
-	github.com/DataDog/gopsutil v1.2.1
+	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.9.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/DataDog/viper v1.12.0
@@ -125,7 +125,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20220511091803-99712053f7ec
 	github.com/imdario/mergo v0.3.12
-	github.com/invopop/jsonschema v0.4.0
+	github.com/invopop/jsonschema v0.7.0
 	github.com/iovisor/gobpf v0.2.0
 	github.com/itchyny/gojq v0.12.9
 	github.com/json-iterator/go v1.1.12
@@ -186,7 +186,7 @@ require (
 	golang.org/x/exp v0.0.0-20221004215720-b9f4876ce741
 	golang.org/x/net v0.1.1-0.20221020164045-430a433969d0
 	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
-	golang.org/x/sys v0.1.0
+	golang.org/x/sys v0.2.0
 	golang.org/x/text v0.4.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	golang.org/x/tools v0.2.0

@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -794,7 +794,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	// run tcp server in test1 net namespace
 	done := make(chan struct{})
 	var server *TCPServer
-	err = util.WithNS("/proc", test1Ns, func() error {
+	err = util.WithNS(test1Ns, func() error {
 		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
 		return server.Run(done)
 	})
@@ -827,7 +827,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		err = util.WithNS("/proc", test2Ns, func() error {
+		err = util.WithNS(test2Ns, func() error {
 			var err error
 			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
 			return err
@@ -851,7 +851,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 		// try connecting to something outside
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
-		util.WithNS("/proc", test2Ns, func() error {
+		util.WithNS(test2Ns, func() error {
 			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
 			return nil
 		})

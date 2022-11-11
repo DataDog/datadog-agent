@@ -37,8 +37,6 @@ var defaultConfdPath = flags.DefaultConfdPath
 var defaultLogFilePath = flags.DefaultLogFilePath
 
 var winopts struct {
-	installService   bool
-	uninstallService bool
 	startService     bool
 	stopService      bool
 	foreground       bool
@@ -126,9 +124,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
 	rootCmd.PersistentFlags().String("check", "", "[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
 
-	// windows-specific options for installing the service, uninstalling the service, etc.
-	rootCmd.PersistentFlags().BoolVar(&winopts.installService, "install-service", false, "Install the process agent to the Service Control Manager")
-	rootCmd.PersistentFlags().BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
+	// windows-specific options for controlling the service
 	rootCmd.PersistentFlags().BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
 	rootCmd.PersistentFlags().BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
 	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
@@ -154,15 +150,6 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 		// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
 		// make sure more than one wasn't specified
 		optcount := 0
-		if winopts.installService {
-			fmt.Println("Installservice")
-			optcount++
-		} else {
-			fmt.Println("no Installservice")
-		}
-		if winopts.uninstallService {
-			optcount++
-		}
 		if winopts.startService {
 			optcount++
 		}
@@ -171,18 +158,6 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 		}
 		if optcount > 1 {
 			fmt.Println("Incompatible options chosen")
-			return
-		}
-		if winopts.installService {
-			if err = installService(); err != nil {
-				fmt.Printf("Error installing service %v\n", err)
-			}
-			return
-		}
-		if winopts.uninstallService {
-			if err = removeService(); err != nil {
-				fmt.Printf("Error removing service %v\n", err)
-			}
 			return
 		}
 		if winopts.startService {
@@ -263,80 +238,3 @@ func controlService(c svc.Cmd, to svc.State) error {
 	return nil
 }
 
-func installService() error {
-	exepath, err := exePath()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("exepath: %s\n", exepath)
-
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
-	if err == nil {
-		s.Close()
-		return fmt.Errorf("service %s already exists", ServiceName)
-	}
-	s, err = m.CreateService(ServiceName, exepath, mgr.Config{DisplayName: "Datadog Agent Service"})
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	err = eventlog.InstallAsEventCreate(ServiceName, eventlog.Error|eventlog.Warning|eventlog.Info)
-	if err != nil {
-		s.Delete()
-		return fmt.Errorf("SetupEventLogSource() failed: %s", err)
-	}
-	return nil
-}
-
-func exePath() (string, error) {
-	prog := os.Args[0]
-	p, err := filepath.Abs(prog)
-	if err != nil {
-		return "", err
-	}
-	fi, err := os.Stat(p)
-	if err == nil {
-		if !fi.Mode().IsDir() {
-			return p, nil
-		}
-		err = fmt.Errorf("%s is directory", p)
-	}
-	if filepath.Ext(p) == "" {
-		p += ".exe"
-		fi, err := os.Stat(p)
-		if err == nil {
-			if !fi.Mode().IsDir() {
-				return p, nil
-			}
-			return "", fmt.Errorf("%s is directory", p)
-		}
-	}
-	return "", err
-}
-
-func removeService() error {
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
-	if err != nil {
-		return fmt.Errorf("service %s is not installed", ServiceName)
-	}
-	defer s.Close()
-	err = s.Delete()
-	if err != nil {
-		return err
-	}
-	err = eventlog.Remove(ServiceName)
-	if err != nil {
-		return fmt.Errorf("RemoveEventLogSource() failed: %s", err)
-	}
-	return nil
-}

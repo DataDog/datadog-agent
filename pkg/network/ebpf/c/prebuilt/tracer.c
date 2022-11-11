@@ -3,7 +3,7 @@
 #include "bpf_builtins.h"
 #include "tracer.h"
 
-#include "protocol-classification-helpers.h"
+#include "protocols/protocol-classification-helpers.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
