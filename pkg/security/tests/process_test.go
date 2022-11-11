@@ -2046,8 +2046,6 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
-				assertFieldEqual(t, event, "open.file.name", "", "open.file.name not matching")
-				assertFieldEqual(t, event, "open.file.path", "", "open.file.path not matching")
 			},
 		},
 		{
@@ -2060,8 +2058,16 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
-				assertFieldEqual(t, event, "open.file.name", "", "open.file.name not matching")
-				assertFieldEqual(t, event, "open.file.path", "", "open.file.path not matching")
+			},
+		},
+		{
+			name: "non-fileless with fileless prefix",
+			rule: &rules.RuleDefinition{
+				ID:         "test_non_fileless",
+				Expression: `exec.file.name =~ ~"memfd:*" && exec.file.path != "" && exec.interpreter.file.name == "bash"`,
+			},
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
 			},
 		},
 	}
@@ -2084,9 +2090,27 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			testModule.WaitSignal(t, func() error {
-				return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+				if strings.Contains(test.name, "non-fileless") {
+					fileMode := 0o477
+					testFile, _, err := testModule.CreateWithOptions(model.FilelessExecutionFilenamePrefix, 98, 99, fileMode)
+					if err != nil {
+						return err
+					}
+					defer os.Remove(testFile)
+
+					f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
+					if err != nil {
+						t.Fatal(err)
+					}
+					f.WriteString("#!/bin/bash")
+					f.Close()
+
+					cmd := exec.Command(testFile)
+					return cmd.Run()
+				} else {
+					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+				}
 			}, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
 				if test.check != nil {
