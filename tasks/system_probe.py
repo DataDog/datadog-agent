@@ -241,7 +241,7 @@ def ninja_runtime_compilation_files(nw):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/http/compile.go": "http",
+        "pkg/network/protocols/http/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/security/ebpf/compile.go": "runtime-security",
@@ -288,19 +288,18 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
-                "pkg/network/ebpf/c/tags-types.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
-            "pkg/network/http/http_types.go": [
+            "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
-                "pkg/network/ebpf/c/http-types.h",
+                "pkg/network/ebpf/c/protocols/http-types.h",
             ],
         }
         nw.rule(
             name="godefs",
             pool="cgo_pool",
             command="cd $in_dir && "
-            + "CC=clang go tool cgo -godefs -- -fsigned-char $in_file | "
+            + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
             + "go run $script_path > $out_file",
         )
 
@@ -309,6 +308,7 @@ def ninja_cgo_type_files(nw, windows):
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
+        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)}"
         nw.build(
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
@@ -319,6 +319,7 @@ def ninja_cgo_type_files(nw, windows):
                 "in_file": in_file,
                 "out_file": out_file,
                 "script_path": script_path,
+                "rel_import": rel_import,
             },
         )
 
@@ -1049,7 +1050,7 @@ def generate_lookup_tables(ctx, windows=is_windows):
 
     lookup_table_generate_files = [
         "./pkg/network/go/goid/main.go",
-        "./pkg/network/http/gotls/lookup/main.go",
+        "./pkg/network/protocols/http/gotls/lookup/main.go",
     ]
     for file in lookup_table_generate_files:
         ctx.run(f"go generate {file}")

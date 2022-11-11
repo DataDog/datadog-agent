@@ -108,6 +108,7 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 				ProcRoot: "/proc",
 			},
 			ConntrackRateLimit:           500,
+			ConntrackRateLimitInterval:   time.Second,
 			EnableRootNetNs:              true,
 			EnableConntrackAllNamespaces: false,
 		})
