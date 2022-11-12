@@ -53,18 +53,21 @@ func main() {
 	}
 	fmt.Printf("btfhub-archive: commit %s\n", archiveCommit)
 
+	preAllocHint := 0
+
 	if !forceRefresh {
 		// skip if commit is already the most recent
-		currentCommit, err := getCurrentConstantsCommit(constantOutputPath)
-		if err == nil && currentCommit != "" {
-			if currentCommit == archiveCommit {
+		currentConstants, err := getCurrentConstants(constantOutputPath)
+		if err == nil && currentConstants.Commit != "" {
+			if currentConstants.Commit == archiveCommit {
 				fmt.Printf("already at most archive commit")
 				return
 			}
+			preAllocHint = len(currentConstants.Kernels)
 		}
 	}
 
-	twCollector := newTreeWalkCollector()
+	twCollector := newTreeWalkCollector(preAllocHint)
 
 	if err := filepath.WalkDir(archiveRootPath, twCollector.treeWalkerBuilder(archiveRootPath)); err != nil {
 		panic(err)
@@ -87,18 +90,18 @@ func main() {
 	}
 }
 
-func getCurrentConstantsCommit(path string) (string, error) {
+func getCurrentConstants(path string) (*constantfetch.BTFHubConstants, error) {
 	cjson, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var currentConstants constantfetch.BTFHubConstants
 	if err := json.Unmarshal(cjson, &currentConstants); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return currentConstants.Commit, nil
+	return &currentConstants, nil
 }
 
 func getCommitSha(cwd string) (string, error) {
@@ -122,10 +125,11 @@ type treeWalkCollector struct {
 	results   []extractionResult
 }
 
-func newTreeWalkCollector() *treeWalkCollector {
+func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
 	return &treeWalkCollector{
 		counter: 0,
 		sem:     semaphore.NewWeighted(int64(runtime.NumCPU() * 2)),
+		results: make([]extractionResult, 0, preAllocHint),
 	}
 }
 
