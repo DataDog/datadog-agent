@@ -137,14 +137,10 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         bpf_probe_read_kernel(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), subject + status->offset_dport);
         break;
     case GUESS_MSGHDR_BUFFER_HEADER:
-        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_msghdr_buffer_head + status->offset_msgiter_buffer_head);
+        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_msghdr_buffer_head);
         bpf_probe_read_kernel(&subject, sizeof(subject), subject);
         bpf_probe_read_user(&new_status.msghdr_buffer, sizeof(new_status.msghdr_buffer), subject);
-        break;
-    case GUESS_MSGITER_BUFFER_HEADER:
-        bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_msgiter_buffer_head);
-        bpf_probe_read_kernel(&subject, sizeof(subject), subject);
-        bpf_probe_read_user(&new_status.msghdr_buffer, sizeof(new_status.msghdr_buffer), subject);
+        log_debug("guy %s", new_status.msghdr_buffer);
         break;
     default:
         // not for us
@@ -280,16 +276,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/sock_write_iter")
-int kprobe__sock_write_iter(struct pt_regs *ctx) {
+SEC("kprobe/tcp_sendmsg/pre_4_1_0")
+int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs *ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->what != GUESS_MSGITER_BUFFER_HEADER) {
+    if (status == NULL || status->what != GUESS_MSGHDR_BUFFER_HEADER) {
         return 0;
     }
 
-    void *ptr = (void*)PT_REGS_PARM2(ctx);
-    guess_offsets(status, (char*)ptr);
+    void *msghdr_param = (void*)PT_REGS_PARM3(ctx);
+    guess_offsets(status, (char*)msghdr_param);
     return 0;
 }
 

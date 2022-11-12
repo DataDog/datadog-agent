@@ -80,9 +80,8 @@ var whatString = map[netebpf.GuessWhat]string{
 	netebpf.GuessSPortFl6: "source port flowi6",
 	netebpf.GuessDPortFl6: "destination port flowi6",
 
-	netebpf.GuessSocketSK:            "sk field on struct socket",
-	netebpf.GuessMsghdrBufferHeader:  "buffer pointer for the msghdr struct",
-	netebpf.GuessMsgIterBufferHeader: "buffer pointer for the msgiter struct",
+	netebpf.GuessSocketSK:           "sk field on struct socket",
+	netebpf.GuessMsghdrBufferHeader: "buffer pointer for the msghdr struct",
 }
 
 const (
@@ -133,7 +132,7 @@ var offsetProbes = map[probes.ProbeName]string{
 	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
 	probes.TCPSendMsg:         "kprobe__tcp_sendmsg",
-	probes.SockWriteIter:      "kprobe__sock_write_iter",
+	probes.TCPSendMsgPre410:   "kprobe__tcp_sendmsg__pre_4_1_0",
 }
 
 func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
@@ -160,7 +159,7 @@ func newOffsetManager() *manager.Manager {
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
 			{ProbeIdentificationPair: idPair(probes.TCPSendMsg)},
-			{ProbeIdentificationPair: idPair(probes.SockWriteIter)},
+			{ProbeIdentificationPair: idPair(probes.TCPSendMsgPre410)},
 		},
 	}
 }
@@ -272,19 +271,23 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
+
 	if kprobe.ClassificationSupported(c) {
-		enableProbe(p, probes.TCPSendMsg)
-		enableProbe(p, probes.SockWriteIter)
+		if kv < kernel.VersionCode(4, 1, 0) {
+			enableProbe(p, probes.TCPSendMsgPre410)
+		} else {
+			enableProbe(p, probes.TCPSendMsg)
+		}
 	}
 
 	if c.CollectIPv6Conns {
 		enableProbe(p, probes.TCPv6Connect)
 		enableProbe(p, probes.TCPv6ConnectReturn)
-
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
 
 		if kv < kernel.VersionCode(4, 7, 0) {
 			enableProbe(p, probes.IP6MakeSkbPre470)
@@ -554,7 +557,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
 			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
 			// where `struct sk_buff` have changed, and it does not match our current guessing.
-			next := netebpf.GuessMsgIterBufferHeader
+			next := netebpf.GuessMsghdrBufferHeader
 			if !protocolClassificationSupported {
 				next = netebpf.GuessDAddrIPv6
 			}
@@ -562,19 +565,6 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_socket_sk++
-	case netebpf.GuessMsgIterBufferHeader:
-		strSize := 0
-		for i, c := range status.Msghdr_buffer {
-			if c == 0 {
-				strSize = i
-				break
-			}
-		}
-		if string(status.Msghdr_buffer[:strSize]) == "this is a test string" {
-			logAndAdvance(status, status.Offset_msgiter_buffer_head, netebpf.GuessMsghdrBufferHeader)
-			break
-		}
-		status.Offset_msgiter_buffer_head++
 	case netebpf.GuessMsghdrBufferHeader:
 		strSize := 0
 		for i, c := range status.Msghdr_buffer {
@@ -727,8 +717,7 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 			status.Offset_sport >= thresholdInetSock || status.Offset_dport >= threshold ||
 			status.Offset_netns >= threshold || status.Offset_family >= threshold ||
 			status.Offset_daddr_ipv6 >= threshold || status.Offset_rtt >= thresholdInetSock ||
-			status.Offset_socket_sk >= threshold || status.Offset_msghdr_buffer_head >= 100 ||
-			status.Offset_msgiter_buffer_head >= 30 {
+			status.Offset_socket_sk >= threshold || status.Offset_msghdr_buffer_head >= 100 {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(status.What)])
 		}
 	}
@@ -761,23 +750,17 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 		{Name: "fl6_offsets", Value: uint64(status.Fl6_offsets)},
 		{Name: "offset_socket_sk", Value: status.Offset_socket_sk},
 		{Name: "offset_msghdr_buffer_head", Value: status.Offset_msghdr_buffer_head},
-		{Name: "offset_msgiter_buffer_head", Value: status.Offset_msgiter_buffer_head},
 	}
 }
 
 type eventGenerator struct {
-	listener           net.Listener
-	tcpListener        net.Listener
-	unixSocketListener net.Listener
-	conn               net.Conn
-	udpConn            net.Conn
-	udp6Conn           *net.UDPConn
-	udpDone            func()
+	listener    net.Listener
+	tcpListener net.Listener
+	conn        net.Conn
+	udpConn     net.Conn
+	udp6Conn    *net.UDPConn
+	udpDone     func()
 }
-
-const (
-	protocol = "unix"
-)
 
 func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 	eg := &eventGenerator{}
@@ -798,14 +781,6 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 	}
 
 	go acceptHandler(eg.tcpListener)
-
-	_ = os.RemoveAll("/tmp/unix.sock")
-	eg.unixSocketListener, err = net.Listen(protocol, "/tmp/unix.sock")
-	if err != nil {
-		return nil, err
-	}
-
-	go acceptHandler(eg.unixSocketListener)
 
 	// Spin up UDP server
 	var udpAddr string
@@ -909,14 +884,6 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 		defer conn.Close()
 		_, err = conn.Write([]byte("this is a test string"))
 		return err
-	} else if e.unixSocketListener != nil && netebpf.GuessWhat(status.What) == netebpf.GuessMsgIterBufferHeader {
-		conn, err := net.DialTimeout(e.unixSocketListener.Addr().Network(), e.unixSocketListener.Addr().String(), 500*time.Millisecond)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-		_, err = conn.Write([]byte("this is a test string"))
-		return err
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
@@ -957,12 +924,6 @@ func (e *eventGenerator) Close() {
 
 	if e.tcpListener != nil {
 		_ = e.tcpListener.Close()
-	}
-
-	if e.unixSocketListener != nil {
-		unixSocket := e.unixSocketListener.Addr().String()
-		_ = e.unixSocketListener.Close()
-		_ = os.RemoveAll(unixSocket)
 	}
 
 	if e.udpConn != nil {

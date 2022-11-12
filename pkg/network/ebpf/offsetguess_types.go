@@ -53,8 +53,7 @@ const (
 	GuessDPortFl6 GuessWhat = C.GUESS_DPORT_FL6
 	GuessSocketSK GuessWhat = C.GUESS_SOCKET_SK
 
-	GuessMsghdrBufferHeader  GuessWhat = C.GUESS_MSGHDR_BUFFER_HEADER
-	GuessMsgIterBufferHeader GuessWhat = C.GUESS_MSGITER_BUFFER_HEADER
+	GuessMsghdrBufferHeader GuessWhat = C.GUESS_MSGHDR_BUFFER_HEADER
 
 	GuessNotApplicable GuessWhat = 99999
 )

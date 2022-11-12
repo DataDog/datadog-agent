@@ -36,8 +36,9 @@ static __always_inline __u64 offset_msghdr_buffer_head() {
 
 // Given msghdr pointer, extracts the buffer pointer from the struct and its size.
 static __always_inline void* get_msghdr_buffer_ptr(char *ptr) {
-    __u64 buffer_ptr = 0;
+    void *buffer_ptr = NULL;
     bpf_probe_read_kernel(&buffer_ptr, sizeof(buffer_ptr), ptr + offset_msghdr_buffer_head());
+    bpf_probe_read_kernel(&buffer_ptr, sizeof(buffer_ptr), buffer_ptr);
     return (void*)buffer_ptr;
 }
 
