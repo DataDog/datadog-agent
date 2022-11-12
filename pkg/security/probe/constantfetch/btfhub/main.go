@@ -228,11 +228,13 @@ func createBTFReaderFromTarball(archivePath string) (io.ReaderAt, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer archiveFile.Close()
 
 	xzReader, err := xz.NewReader(archiveFile)
 	if err != nil {
 		return nil, err
 	}
+	defer xzReader.Close()
 
 	tarReader := tar.NewReader(xzReader)
 
