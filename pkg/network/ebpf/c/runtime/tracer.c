@@ -45,9 +45,9 @@ static __always_inline void* get_msghdr_buffer_ptr(struct msghdr *ptr) {
 
     void *iov = NULL;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-    iov = local_msghdr.iov;
+    iov = (void*)local_msghdr.iov;
 #else
-    iov = local_msghdr.msg_iter.iov;
+    iov = (void*) local_msghdr.msg_iter.iov;
 #endif
 
     if (iov == NULL) {
