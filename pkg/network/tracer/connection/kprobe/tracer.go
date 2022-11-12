@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -61,11 +60,6 @@ type kprobeTracer struct {
 	removeTuple   *netebpf.ConnTuple
 
 	telemetry telemetry
-
-	// A method to run during the "Stop" action of the tracer to close the socket filter we've created for the protocol
-	// classification feature.
-	// If classification feature is disabled, then the value will be nil.
-	closeProtocolClassifierSocketFilterFn func()
 }
 
 type telemetry struct {
@@ -166,23 +160,6 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	m := newManager(config, perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
-	var closeProtocolClassifierSocketFilterFn func()
-	if ClassificationSupported(config) {
-		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
-			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
-			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
-			UID:          probeUID,
-		})
-		if socketFilerProbe == nil {
-			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
-		}
-
-		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
-		if err != nil {
-			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
-		}
-	}
-
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, errors.New("failed to detect kernel version")
@@ -224,13 +201,12 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	}
 
 	tr := &kprobeTracer{
-		m:                                     m,
-		config:                                config,
-		closeConsumer:                         closeConsumer,
-		pidCollisions:                         atomic.NewInt64(0),
-		removeTuple:                           &netebpf.ConnTuple{},
-		telemetry:                             newTelemetry(),
-		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,
+		m:             m,
+		config:        config,
+		closeConsumer: closeConsumer,
+		pidCollisions: atomic.NewInt64(0),
+		removeTuple:   &netebpf.ConnTuple{},
+		telemetry:     newTelemetry(),
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -284,12 +260,6 @@ func (t *kprobeTracer) FlushPending() {
 func (t *kprobeTracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	t.closeConsumer.Stop()
-	if t.closeProtocolClassifierSocketFilterFn != nil {
-		t.closeProtocolClassifierSocketFilterFn()
-		// The stop can be called multiple times, by setting the field to nil we ensure it won't close the socket filter
-		// twice (which will lead to a panic).
-		t.closeProtocolClassifierSocketFilterFn = nil
-	}
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {

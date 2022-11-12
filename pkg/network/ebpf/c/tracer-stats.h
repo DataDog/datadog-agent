@@ -40,12 +40,12 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 }
 
 static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
-    conn_tuple_t conn_tuple_copy = *t;
+//    conn_tuple_t conn_tuple_copy = *t;
     // The classifier is a socket filter and there we are not accessible for pid and netns.
     // The key is based of the source & dest addresses and ports, and the metadata.
-    conn_tuple_copy.netns = 0;
-    conn_tuple_copy.pid = 0;
-    protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+//    conn_tuple_copy.netns = 0;
+//    conn_tuple_copy.pid = 0;
+    protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, t);
 
     if (cached_protocol_ptr != NULL) {
        return *cached_protocol_ptr;

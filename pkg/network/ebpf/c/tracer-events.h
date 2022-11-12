@@ -7,6 +7,7 @@
 #include "tracer-telemetry.h"
 #include "tcp_states.h"
 #include "cookie.h"
+#include "protocols/protocol-classification-helpers.h"
 
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
@@ -131,6 +132,65 @@ static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
         batch_ptr->id++;
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
     }
+}
+
+// Forward declaration.
+static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
+
+static __always_inline void read_into_buffer1(char *buffer, char *data, size_t data_size) {
+    // we read CLASSIFICATION_MAX_BUFFER-1 bytes to ensure that the string is always null terminated
+    if (bpf_probe_read_user_with_telemetry(buffer, CLASSIFICATION_MAX_BUFFER - 1, data) < 0) {
+// note: arm64 bpf_probe_read_user() could page fault if the CLASSIFICATION_MAX_BUFFER overlap a page
+#pragma unroll(CLASSIFICATION_MAX_BUFFER - 1)
+        for (int i = 0; i < CLASSIFICATION_MAX_BUFFER - 1; i++) {
+            bpf_probe_read_user(&buffer[i], 1, &data[i]);
+            if (buffer[i] == 0) {
+                return;
+            }
+        }
+    }
+}
+
+// Common implementation for tcp_sendmsg different hooks among prebuilt/runtime binaries.
+static __always_inline void tcp_sendmsg_helper(struct sock *sk, void *buffer_ptr, size_t buffer_size) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d\n", pid_tgid);
+
+    tcp_sendmsg_args_t args = {0};
+    args.sk = sk;
+    if (!read_conn_tuple(&args.conn_tuple, args.sk, pid_tgid, CONN_TYPE_TCP)) {
+        return;
+    }
+
+    protocol_t protocol = get_cached_protocol_or_default(&args.conn_tuple);
+    if (protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
+        goto final;
+    }
+
+    if (buffer_ptr == NULL) {
+        goto final;
+    }
+
+    size_t buffer_final_size = buffer_size > CLASSIFICATION_MAX_BUFFER ? (CLASSIFICATION_MAX_BUFFER - 1):buffer_size;
+    if (buffer_final_size == 0) {
+        goto final;
+    }
+
+    char local_buffer_copy[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(local_buffer_copy, 0, CLASSIFICATION_MAX_BUFFER);
+    read_into_buffer1(local_buffer_copy, buffer_ptr, buffer_final_size);
+    log_debug("[guy2221]: %d %s\n", buffer_final_size, local_buffer_copy);
+
+    // detect protocol
+    classify_protocol(&protocol, local_buffer_copy, buffer_final_size);
+    if (protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
+        log_debug("classified protocol %d", protocol);
+        bpf_map_update_with_telemetry(connection_protocol, &args.conn_tuple, &protocol, BPF_NOEXIST);
+    }
+
+final:
+    bpf_map_update_with_telemetry(tcp_sendmsg_args, &pid_tgid, &args, BPF_ANY);
 }
 
 #endif // __TRACER_EVENTS_H

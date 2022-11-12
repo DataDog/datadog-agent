@@ -170,4 +170,14 @@ typedef struct {
     };
 } ip_make_skb_args_t;
 
+typedef struct {
+    struct sock *sk;
+    conn_tuple_t conn_tuple;
+} tcp_sendmsg_args_t;
+
+typedef struct {
+    struct sock *sk;
+    void *msghdr;
+} tcp_recvmsg_args_t;
+
 #endif

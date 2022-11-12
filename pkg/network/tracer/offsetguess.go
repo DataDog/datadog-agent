@@ -80,10 +80,8 @@ var whatString = map[netebpf.GuessWhat]string{
 	netebpf.GuessSPortFl6: "source port flowi6",
 	netebpf.GuessDPortFl6: "destination port flowi6",
 
-	netebpf.GuessSocketSK:              "sk field on struct socket",
-	netebpf.GuessSKBuffSock:            "sk field on struct sk_buff",
-	netebpf.GuessSKBuffTransportHeader: "transport header field on struct sk_buff",
-	netebpf.GuessSKBuffHead:            "head field on struct sk_buff",
+	netebpf.GuessSocketSK:           "sk field on struct socket",
+	netebpf.GuessMsghdrBufferHeader: "buffer pointer for the msghdr struct",
 }
 
 const (
@@ -133,7 +131,7 @@ var offsetProbes = map[probes.ProbeName]string{
 	probes.IP6MakeSkb:         "kprobe__ip6_make_skb",
 	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
-	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
+	probes.TCPSendMsg:         "kprobe__tcp_sendmsg",
 }
 
 func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
@@ -159,7 +157,7 @@ func newOffsetManager() *manager.Manager {
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
-			{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
+			{ProbeIdentificationPair: idPair(probes.TCPSendMsg)},
 		},
 	}
 }
@@ -272,7 +270,7 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
 	if kprobe.ClassificationSupported(c) {
-		enableProbe(p, probes.NetDevQueue)
+		enableProbe(p, probes.TCPSendMsg)
 	}
 
 	if c.CollectIPv6Conns {
@@ -552,7 +550,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
 			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
 			// where `struct sk_buff` have changed, and it does not match our current guessing.
-			next := netebpf.GuessSKBuffSock
+			next := netebpf.GuessMsghdrBufferHeader
 			if !protocolClassificationSupported {
 				next = netebpf.GuessDAddrIPv6
 			}
@@ -560,26 +558,19 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_socket_sk++
-	case netebpf.GuessSKBuffSock:
-		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
-			logAndAdvance(status, status.Offset_sk_buff_sock, netebpf.GuessSKBuffTransportHeader)
+	case netebpf.GuessMsghdrBufferHeader:
+		strSize := 0
+		for i, c := range status.Msghdr_buffer {
+			if c == 0 {
+				strSize = i
+				break
+			}
+		}
+		if string(status.Msghdr_buffer[:strSize]) == "this is a test string" {
+			logAndAdvance(status, status.Offset_msghdr_buffer_head, netebpf.GuessDAddrIPv6)
 			break
 		}
-		status.Offset_sk_buff_sock++
-	case netebpf.GuessSKBuffTransportHeader:
-		networkDiffFromMac := status.Network_header - status.Mac_header
-		transportDiffFromNetwork := status.Transport_header - status.Network_header
-		if networkDiffFromMac == 14 && transportDiffFromNetwork == 20 {
-			logAndAdvance(status, status.Offset_sk_buff_transport_header, netebpf.GuessSKBuffHead)
-			break
-		}
-		status.Offset_sk_buff_transport_header++
-	case netebpf.GuessSKBuffHead:
-		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
-			logAndAdvance(status, status.Offset_sk_buff_head, netebpf.GuessDAddrIPv6)
-			break
-		}
-		status.Offset_sk_buff_head++
+		status.Offset_msghdr_buffer_head++
 	case netebpf.GuessDAddrIPv6:
 		if compareIPv6(status.Daddr_ipv6, expected.daddrIPv6) {
 			logAndAdvance(status, status.Offset_rtt, netebpf.GuessNotApplicable)
@@ -719,8 +710,7 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 			status.Offset_sport >= thresholdInetSock || status.Offset_dport >= threshold ||
 			status.Offset_netns >= threshold || status.Offset_family >= threshold ||
 			status.Offset_daddr_ipv6 >= threshold || status.Offset_rtt >= thresholdInetSock ||
-			status.Offset_socket_sk >= threshold || status.Offset_sk_buff_sock >= threshold ||
-			status.Offset_sk_buff_transport_header >= threshold || status.Offset_sk_buff_head >= threshold {
+			status.Offset_socket_sk >= threshold || status.Offset_msghdr_buffer_head >= threshold {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(status.What)])
 		}
 	}
@@ -752,18 +742,17 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 		{Name: "offset_dport_fl6", Value: status.Offset_dport_fl6},
 		{Name: "fl6_offsets", Value: uint64(status.Fl6_offsets)},
 		{Name: "offset_socket_sk", Value: status.Offset_socket_sk},
-		{Name: "offset_sk_buff_sock", Value: status.Offset_sk_buff_sock},
-		{Name: "offset_sk_buff_transport_header", Value: status.Offset_sk_buff_transport_header},
-		{Name: "offset_sk_buff_head", Value: status.Offset_sk_buff_head},
+		{Name: "offset_msghdr_buffer_head", Value: status.Offset_msghdr_buffer_head},
 	}
 }
 
 type eventGenerator struct {
-	listener net.Listener
-	conn     net.Conn
-	udpConn  net.Conn
-	udp6Conn *net.UDPConn
-	udpDone  func()
+	listener    net.Listener
+	tcpListener net.Listener
+	conn        net.Conn
+	udpConn     net.Conn
+	udp6Conn    *net.UDPConn
+	udpDone     func()
 }
 
 func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
@@ -778,6 +767,13 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 	}
 
 	go acceptHandler(eg.listener)
+
+	eg.tcpListener, err = net.Listen("tcp4", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	go acceptHandler(eg.tcpListener)
 
 	// Spin up UDP server
 	var udpAddr string
@@ -849,10 +845,7 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessDAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSPortFl4 ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffTransportHeader ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffHead {
+		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 {
 		payload := []byte("test")
 		_, err := e.udpConn.Write(payload)
 
@@ -876,6 +869,14 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 		expected.dportFl6 = uint16(remoteAddr.Port)
 
 		return nil
+	} else if e.tcpListener != nil && netebpf.GuessWhat(status.What) == netebpf.GuessMsghdrBufferHeader {
+		conn, err := net.DialTimeout(e.tcpListener.Addr().Network(), e.tcpListener.Addr().String(), 500*time.Millisecond)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		_, err = conn.Write([]byte("this is a test string"))
+		return err
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
@@ -912,6 +913,10 @@ func (e *eventGenerator) Close() {
 
 	if e.listener != nil {
 		_ = e.listener.Close()
+	}
+
+	if e.tcpListener != nil {
+		_ = e.tcpListener.Close()
 	}
 
 	if e.udpConn != nil {
