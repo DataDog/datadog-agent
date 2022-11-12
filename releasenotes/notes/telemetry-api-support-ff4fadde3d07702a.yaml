@@ -14,7 +14,7 @@ features:
 
     `aws.lambda.enhanced.response_latency`: Measures the elapsed time in milliseconds from when the invocation request is received to when the first byte of response is sent to the client.
 
-    `aws.lambda.enhanced.response_duration`: Measures the elapsed time in milliseconds from when the first byte of response to the last byte of response is sent to the client.
+    `aws.lambda.enhanced.response_duration`: Measures the elapsed time in milliseconds between sending the first byte of the response to the client and sending the last byte of the response to the client.
 
     `aws.lambda.enhancdd.produced_bytes`: Measures the number of bytes returned by a function.
   - |
