@@ -43,12 +43,19 @@ static __always_inline void* get_msghdr_buffer_ptr(struct msghdr *ptr) {
     struct msghdr local_msghdr = {0};
     bpf_probe_read_kernel_with_telemetry(&local_msghdr, sizeof(local_msghdr), ptr);
 
-    if (local_msghdr.msg_iter.iov == NULL) {
+    void *iov = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+    iov = local_msghdr.iov;
+#else
+    iov = local_msghdr.msg_iter.iov;
+#endif
+
+    if (iov == NULL) {
         return NULL;
     }
 
     struct iovec vec = {0};
-    bpf_probe_read_kernel_with_telemetry(&vec, sizeof(vec), (void*)local_msghdr.msg_iter.iov);
+    bpf_probe_read_kernel_with_telemetry(&vec, sizeof(vec), iov);
     return vec.iov_base;
 }
 
@@ -63,14 +70,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM2(ctx);
     msghdr_param = (struct msghdr*)PT_REGS_PARM3(ctx);
     buffer_size = (size_t)PT_REGS_PARM4(ctx);
-    buffer_ptr = get_msghdr_buffer_ptr(msghdr_param);
 #else
     sk = (struct sock *)PT_REGS_PARM1(ctx);
     msghdr_param = (struct msghdr*)PT_REGS_PARM2(ctx);
-    buffer_size = (size_t)PT_REGS_PARM4(ctx);
-    buffer_ptr = get_msghdr_buffer_ptr(msghdr_param);
+    buffer_size = (size_t)PT_REGS_PARM3(ctx);
 #endif
-
+    buffer_ptr = get_msghdr_buffer_ptr(msghdr_param);
     tcp_sendmsg_helper(sk, buffer_ptr, buffer_size);
     return 0;
 }
@@ -80,7 +85,7 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tcp_sendmsg_args_t *args = (tcp_sendmsg_args_t*)bpf_map_lookup_elem(&tcp_sendmsg_args, &pid_tgid);
     if (!args) {
-        log_debug("kretprobe/tcp_sendmsg: sock not found\n");
+        log_debug("kretprobe/tcp_sendmsg: args not found\n");
         return 0;
     }
 
