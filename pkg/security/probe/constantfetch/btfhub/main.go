@@ -113,8 +113,10 @@ func getCommitSha(cwd string) (string, error) {
 }
 
 type treeWalkCollector struct {
-	counter   int
-	wg        sync.WaitGroup
+	counter int
+	// wg is used so that the finish waits on all kernels
+	wg sync.WaitGroup
+	// sem is used to limit the amount of parallel extractions
 	sem       *semaphore.Weighted
 	resultsMu sync.Mutex
 	results   []extractionResult
