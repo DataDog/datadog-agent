@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -51,6 +52,14 @@ func main() {
 	}
 
 	export := twCollector.finish()
+
+	commit, err := getCommitSha(archiveRootPath)
+	if err != nil {
+		fmt.Printf("error fetching btfhub-archive commit: %v\n", err)
+	}
+	export.Commit = commit
+
+	fmt.Printf("btfhub-archive: commit %s\n", commit)
 	fmt.Printf("%d kernels\n", len(export.Kernels))
 	fmt.Printf("%d unique constants\n", len(export.Constants))
 
@@ -62,6 +71,17 @@ func main() {
 	if err := os.WriteFile(constantOutputPath, output, 0644); err != nil {
 		panic(err)
 	}
+}
+
+func getCommitSha(cwd string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = cwd
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 type treeWalkCollector struct {

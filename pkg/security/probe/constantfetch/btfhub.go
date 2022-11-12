@@ -135,6 +135,7 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 // BTFHubConstants represents all the information required for identifying
 // a unique btf file from BTFHub
 type BTFHubConstants struct {
+	Commit    string              `json:"commit"`
 	Constants []map[string]uint64 `json:"constants"`
 	Kernels   []BTFHubKernel      `json:"kernels"`
 }
