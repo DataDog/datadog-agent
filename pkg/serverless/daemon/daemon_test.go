@@ -31,14 +31,13 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
 
 	complete := false
 	go func() {
-		<-time.After(100 * time.Millisecond)
+		<-time.After(10 * time.Millisecond)
 		complete = true
 		d.TellDaemonRuntimeDone()
 	}()
@@ -54,7 +53,6 @@ func TestTellDaemonRuntimeDoneOnceStartOnly(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -65,7 +63,6 @@ func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -79,7 +76,6 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
 	client := &http.Client{Timeout: 1 * time.Second}
@@ -109,7 +105,6 @@ func TestTellDaemonRuntimeNotDoneIf(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
 	assert.Equal(uint64(0), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
@@ -119,7 +114,6 @@ func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -132,7 +126,6 @@ func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 func TestRaceTellDaemonRuntimeStartedVersusTellDaemonRuntimeDone(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	go d.TellDaemonRuntimeStarted()
@@ -176,7 +169,6 @@ func TestSetTraceTagOk(t *testing.T) {
 func TestOutOfOrderInvocations(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
-	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	assert.NotPanics(t, d.TellDaemonRuntimeDone)
