@@ -40,10 +40,29 @@ import (
 func main() {
 	var archiveRootPath string
 	var constantOutputPath string
+	var forceRefresh bool
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
+	flag.BoolVar(&forceRefresh, "force-refresh", false, "Force refresh of the constants")
 	flag.Parse()
+
+	archiveCommit, err := getCommitSha(archiveRootPath)
+	if err != nil {
+		fmt.Printf("error fetching btfhub-archive commit: %v\n", err)
+	}
+	fmt.Printf("btfhub-archive: commit %s\n", archiveCommit)
+
+	if !forceRefresh {
+		// skip if commit is already the most recent
+		currentCommit, err := getCurrentConstantsCommit(constantOutputPath)
+		if err == nil && currentCommit != "" {
+			if currentCommit == archiveCommit {
+				fmt.Printf("already at most archive commit")
+				return
+			}
+		}
+	}
 
 	twCollector := newTreeWalkCollector()
 
@@ -53,13 +72,8 @@ func main() {
 
 	export := twCollector.finish()
 
-	commit, err := getCommitSha(archiveRootPath)
-	if err != nil {
-		fmt.Printf("error fetching btfhub-archive commit: %v\n", err)
-	}
-	export.Commit = commit
+	export.Commit = archiveCommit
 
-	fmt.Printf("btfhub-archive: commit %s\n", commit)
 	fmt.Printf("%d kernels\n", len(export.Kernels))
 	fmt.Printf("%d unique constants\n", len(export.Constants))
 
@@ -71,6 +85,20 @@ func main() {
 	if err := os.WriteFile(constantOutputPath, output, 0644); err != nil {
 		panic(err)
 	}
+}
+
+func getCurrentConstantsCommit(path string) (string, error) {
+	cjson, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	var currentConstants constantfetch.BTFHubConstants
+	if err := json.Unmarshal(cjson, &currentConstants); err != nil {
+		return "", err
+	}
+
+	return currentConstants.Commit, nil
 }
 
 func getCommitSha(cwd string) (string, error) {
