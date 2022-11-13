@@ -50,6 +50,7 @@ func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
 	httpEncoder *httpEncoder,
+	kafkaEncoder *kafkaEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
 	tagsSet *network.TagsSet,
@@ -84,6 +85,10 @@ func FormatConnection(
 		c.HttpAggregations, _ = proto.Marshal(httpStats)
 	}
 
+	kafkaStats := kafkaEncoder.GetKafkaAggregations(conn)
+	if kafkaStats != nil {
+		c.DataStreamsAggregations, _ = proto.Marshal(kafkaStats)
+	}
 	conn.Tags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
