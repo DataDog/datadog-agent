@@ -33,6 +33,7 @@ type TracerStatus struct {
 	Offset_sport_fl6          uint64
 	Offset_dport_fl6          uint64
 	Offset_socket_sk          uint64
+	Offset_sk_buff_sock       uint64
 	Offset_msghdr_buffer_head uint64
 	Err                       uint64
 	Daddr_ipv6                [4]uint32
@@ -45,6 +46,8 @@ type TracerStatus struct {
 	Dport                     uint16
 	Sport_via_sk              uint16
 	Dport_via_sk              uint16
+	Sport_via_sk_via_sk_buf   uint16
+	Dport_via_sk_via_sk_buf   uint16
 	Family                    uint16
 	Saddr_fl4                 uint32
 	Daddr_fl4                 uint32
@@ -58,7 +61,7 @@ type TracerStatus struct {
 	Ipv6_enabled              uint8
 	Fl4_offsets               uint8
 	Fl6_offsets               uint8
-	Pad_cgo_0                 [7]byte
+	Pad_cgo_0                 [3]byte
 }
 
 type TracerState uint8
@@ -93,7 +96,8 @@ const (
 	GuessDPortFl6 GuessWhat = 0xf
 	GuessSocketSK GuessWhat = 0x10
 
-	GuessMsghdrBufferHeader GuessWhat = 0x11
+	GuessSKBuffSock         GuessWhat = 0x11
+	GuessMsghdrBufferHeader GuessWhat = 0x12
 
 	GuessNotApplicable GuessWhat = 99999
 )

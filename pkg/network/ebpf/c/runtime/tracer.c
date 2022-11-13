@@ -804,6 +804,47 @@ cleanup:
     return 0;
 }
 
+// Represents the parameters being passed to the tracepoint net/net_dev_queue
+struct net_dev_queue_ctx {
+    u64 unused;
+    struct sk_buff* skb;
+};
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+    struct sock* sk;
+    bpf_probe_read(&sk, sizeof(struct sock*), &skb->sk);
+    if (!sk) {
+        return 0;
+    }
+
+    conn_tuple_t skb_tup;
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return 0;
+    }
+
+    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+
+    bpf_map_update_with_telemetry(skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
+    bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
+
+    return 0;
+}
+
 //endregion
 
 // This number will be interpreted by elf-loader to set the current running kernel version

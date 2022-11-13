@@ -62,8 +62,6 @@ int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, void *buffer
 
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    log_debug("guy in tcp_recvmsg");
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     void *sk = (void*)PT_REGS_PARM2(ctx);
@@ -87,7 +85,6 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_read_sock")
 int kprobe__tcp_read_sock(struct pt_regs *ctx) {
-    log_debug("guy in read sock");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void *parm1 = (void*)PT_REGS_PARM1(ctx);
     struct sock* skp = parm1;

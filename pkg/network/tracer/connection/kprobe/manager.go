@@ -26,6 +26,7 @@ const (
 )
 
 var mainProbes = map[probes.ProbeName]string{
+	probes.NetDevQueue:          "tracepoint__net__net_dev_queue",
 	probes.TCPSendMsg:           "kprobe__tcp_sendmsg",
 	probes.TCPSendMsgReturn:     "kretprobe__tcp_sendmsg",
 	probes.TCPRecvMsg:           "kprobe__tcp_recvmsg",

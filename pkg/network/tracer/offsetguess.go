@@ -81,6 +81,7 @@ var whatString = map[netebpf.GuessWhat]string{
 	netebpf.GuessDPortFl6: "destination port flowi6",
 
 	netebpf.GuessSocketSK:           "sk field on struct socket",
+	netebpf.GuessSKBuffSock:         "sk field on struct sk_buff",
 	netebpf.GuessMsghdrBufferHeader: "buffer pointer for the msghdr struct",
 }
 
@@ -133,6 +134,7 @@ var offsetProbes = map[probes.ProbeName]string{
 	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
 	probes.TCPSendMsg:         "kprobe__tcp_sendmsg",
 	probes.TCPSendMsgPre410:   "kprobe__tcp_sendmsg__pre_4_1_0",
+	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
 }
 
 func idPair(name probes.ProbeName) manager.ProbeIdentificationPair {
@@ -160,6 +162,7 @@ func newOffsetManager() *manager.Manager {
 			{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
 			{ProbeIdentificationPair: idPair(probes.TCPSendMsg)},
 			{ProbeIdentificationPair: idPair(probes.TCPSendMsgPre410)},
+			{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 		},
 	}
 }
@@ -278,6 +281,7 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	}
 
 	if kprobe.ClassificationSupported(c) {
+		enableProbe(p, probes.NetDevQueue)
 		if kv < kernel.VersionCode(4, 1, 0) {
 			enableProbe(p, probes.TCPSendMsgPre410)
 		} else {
@@ -557,7 +561,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			// if protocol classification is disabled, its hooks will not be activated, and thus we should skip
 			// the guessing of their relevant offsets. The problem is with compatibility with older kernel versions
 			// where `struct sk_buff` have changed, and it does not match our current guessing.
-			next := netebpf.GuessMsghdrBufferHeader
+			next := netebpf.GuessSKBuffSock
 			if !protocolClassificationSupported {
 				next = netebpf.GuessDAddrIPv6
 			}
@@ -565,6 +569,12 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 			break
 		}
 		status.Offset_socket_sk++
+	case netebpf.GuessSKBuffSock:
+		if status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
+			logAndAdvance(status, status.Offset_sk_buff_sock, netebpf.GuessMsghdrBufferHeader)
+			break
+		}
+		status.Offset_sk_buff_sock++
 	case netebpf.GuessMsghdrBufferHeader:
 		strSize := 0
 		for i, c := range status.Msghdr_buffer {
@@ -717,7 +727,8 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 			status.Offset_sport >= thresholdInetSock || status.Offset_dport >= threshold ||
 			status.Offset_netns >= threshold || status.Offset_family >= threshold ||
 			status.Offset_daddr_ipv6 >= threshold || status.Offset_rtt >= thresholdInetSock ||
-			status.Offset_socket_sk >= threshold || status.Offset_msghdr_buffer_head >= 100 {
+			status.Offset_socket_sk >= threshold || status.Offset_sk_buff_sock >= threshold ||
+			status.Offset_msghdr_buffer_head >= 100 {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(status.What)])
 		}
 	}
@@ -749,6 +760,7 @@ func getConstantEditors(status *netebpf.TracerStatus) []manager.ConstantEditor {
 		{Name: "offset_dport_fl6", Value: status.Offset_dport_fl6},
 		{Name: "fl6_offsets", Value: uint64(status.Fl6_offsets)},
 		{Name: "offset_socket_sk", Value: status.Offset_socket_sk},
+		{Name: "offset_sk_buff_sock", Value: status.Offset_sk_buff_sock},
 		{Name: "offset_msghdr_buffer_head", Value: status.Offset_msghdr_buffer_head},
 	}
 }
