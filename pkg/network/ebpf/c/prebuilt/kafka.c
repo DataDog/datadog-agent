@@ -31,23 +31,19 @@ int socket__kafka_filter_entry(struct __sk_buff *skb) {
 SEC("socket/kafka_filter")
 //int socket__http_filter(struct __sk_buff* skb) {
 int socket__kafka_filter(struct __sk_buff* skb) {
-//    log_debug("In Kafka filter!");
     skb_info_t skb_info;
-//    http_transaction_t http;
     kafka_transaction_t kafka;
     bpf_memset(&kafka, 0, sizeof(kafka));
 
     if (!read_conn_tuple_skb(skb, &skb_info, &kafka.tup)) {
         return 0;
     }
-//    if (kafka.tup.dport == 9092) {
-//        log_debug("Kafka port!");
-//    }
-//
-//    if (!http_allow_packet(&http, skb, &skb_info)) {
+
+// Solve the max stack problem
+//    if (!kafka_allow_packet(&kafka, skb, &skb_info)) {
 //        return 0;
 //    }
-//
+
 //    // src_port represents the source port number *before* normalization
 //    // for more context please refer to http-types.h comment on `owned_by_src_port` field
 //    http.owned_by_src_port = http.tup.sport;
