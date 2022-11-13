@@ -81,7 +81,7 @@ func TestSanity(t *testing.T) {
 	require.Equal(t, 2, len(kafkaStats))
 	for _, value := range kafkaStats {
 		// TODO: need to add the kafka_seen_before so we won't get too much requests
-		require.Equal(t, 1, value.data[0].Count)
+		require.Equal(t, 1, value.Data[0].Count)
 	}
 
 	//// Now consume the messages
