@@ -287,19 +287,6 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_sendmsg/pre_4_1_0")
-int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs *ctx) {
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL || status->what != GUESS_MSGHDR_BUFFER_HEADER) {
-        return 0;
-    }
-
-    void *msghdr_param = (void*)PT_REGS_PARM3(ctx);
-    guess_offsets(status, (char*)msghdr_param);
-    return 0;
-}
-
 struct net_dev_queue_ctx {
     u64 unused;
     void* skb;

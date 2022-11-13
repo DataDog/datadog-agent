@@ -133,7 +133,6 @@ var offsetProbes = map[probes.ProbeName]string{
 	probes.IP6MakeSkbPre470:   "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.TCPv6ConnectReturn: "kretprobe__tcp_v6_connect",
 	probes.TCPSendMsg:         "kprobe__tcp_sendmsg",
-	probes.TCPSendMsgPre410:   "kprobe__tcp_sendmsg__pre_4_1_0",
 	probes.NetDevQueue:        "tracepoint__net__net_dev_queue",
 }
 
@@ -161,7 +160,6 @@ func newOffsetManager() *manager.Manager {
 			{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
 			{ProbeIdentificationPair: idPair(probes.TCPSendMsg)},
-			{ProbeIdentificationPair: idPair(probes.TCPSendMsgPre410)},
 			{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
 		},
 	}
@@ -282,11 +280,7 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 
 	if kprobe.ClassificationSupported(c) {
 		enableProbe(p, probes.NetDevQueue)
-		if kv < kernel.VersionCode(4, 1, 0) {
-			enableProbe(p, probes.TCPSendMsgPre410)
-		} else {
-			enableProbe(p, probes.TCPSendMsg)
-		}
+		enableProbe(p, probes.TCPSendMsg)
 	}
 
 	if c.CollectIPv6Conns {
