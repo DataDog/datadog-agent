@@ -268,20 +268,20 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
 //// this function is called by the socket-filter program to decide whether or not we should inspect
 //// the contents of a certain packet, in order to avoid the cost of processing packets that are not
 //// of interest such as empty ACKs, UDP data or encrypted traffic.
-//static __always_inline bool http_allow_packet(http_transaction_t *http, struct __sk_buff* skb, skb_info_t *skb_info) {
-//    // we're only interested in TCP traffic
-//    if (!(http->tup.metadata&CONN_TYPE_TCP)) {
-//        return false;
-//    }
-//
-//    // if payload data is empty or if this is an encrypted packet, we only
-//    // process it if the packet represents a TCP termination
-//    bool empty_payload = skb_info->data_off == skb->len;
-//    if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
-//        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
-//    }
-//
-//    return true;
-//}
+static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
+    // we're only interested in TCP traffic
+    if (!(kafka->tup.metadata&CONN_TYPE_TCP)) {
+        return false;
+    }
+
+    // if payload data is empty or if this is an encrypted packet, we only
+    // process it if the packet represents a TCP termination
+    bool empty_payload = skb_info->data_off == skb->len;
+    if (empty_payload) {
+        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+    }
+
+    return true;
+}
 
 #endif
