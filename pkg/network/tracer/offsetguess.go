@@ -858,7 +858,8 @@ func (e *eventGenerator) Generate(status *netebpf.TracerStatus, expected *fieldV
 	} else if netebpf.GuessWhat(status.What) == netebpf.GuessSAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessDAddrFl4 ||
 		netebpf.GuessWhat(status.What) == netebpf.GuessSPortFl4 ||
-		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 {
+		netebpf.GuessWhat(status.What) == netebpf.GuessDPortFl4 ||
+		netebpf.GuessWhat(status.What) == netebpf.GuessSKBuffSock {
 		payload := []byte("test")
 		_, err := e.udpConn.Write(payload)
 
