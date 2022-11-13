@@ -20,18 +20,17 @@ type kafkaBatchState struct {
 }
 
 type ebpfKafkaTx struct {
-	Owned_by_src_port                  uint16
 	Tup                                kafkaConnTuple
 	Request_api_key                    uint16
 	Request_api_version                uint16
 	Correlation_id                     uint32
+	Tcp_seq                            uint32
 	Current_offset_in_request_fragment uint32
-	Pad_cgo_0                          [4]byte
 	Request_fragment                   [160]byte
 	Client_id                          [56]int8
 	Topic_name                         [64]int8
-	Tcp_seq                            uint32
-	Pad_cgo_1                          [4]byte
+	Owned_by_src_port                  uint16
+	Pad_cgo_0                          [6]byte
 }
 type kafkaBatch struct {
 	Idx uint64

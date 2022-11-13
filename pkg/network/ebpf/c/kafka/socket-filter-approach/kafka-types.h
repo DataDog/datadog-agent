@@ -78,20 +78,15 @@ typedef struct {
 // HTTP transaction information associated to a certain socket (tuple_t)
 // Kafka transaction information associated to a certain socket (tuple_t)
 typedef struct {
-    // this field is used exclusively in the kernel side to prevent a TCP segment
-    // to be processed twice in the context of localhost traffic. The field will
-    // be populated with the "original" (pre-normalization) source port number of
-    // the TCP segment containing the beginning of a given HTTP request
-    __u16 owned_by_src_port;
     conn_tuple_t tup;
+
     __u16 request_api_key;
     __u16 request_api_version;
     __u32 correlation_id;
 
-//    __u64 request_started;
-//    __u8  request_method;
-//    __u16 response_status_code;
-//    __u64 response_last_seen;
+    // this field is used to disambiguate segments in the context of keep-alives
+    // we populate it with the TCP seq number of the request and then the response segments
+    __u32 tcp_seq;
 
     __u32 current_offset_in_request_fragment;
     char request_fragment[KAFKA_BUFFER_SIZE] __attribute__ ((aligned (8)));
@@ -99,9 +94,12 @@ typedef struct {
     // TODO: Support UTF8
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
 
-    // this field is used to disambiguate segments in the context of keep-alives
-    // we populate it with the TCP seq number of the request and then the response segments
-    __u32 tcp_seq;
+    // this field is used exclusively in the kernel side to prevent a TCP segment
+    // to be processed twice in the context of localhost traffic. The field will
+    // be populated with the "original" (pre-normalization) source port number of
+    // the TCP segment containing the beginning of a given HTTP request
+    __u16 owned_by_src_port;
+
 //
 //    __u64 tags;
 //} http_transaction_t;
