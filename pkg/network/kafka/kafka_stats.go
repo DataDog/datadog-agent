@@ -5,6 +5,8 @@
 
 package kafka
 
+import "github.com/DataDog/datadog-agent/pkg/process/util"
+
 //// Method is the type used to represent HTTP request methods
 //type Method uint8
 //
@@ -83,31 +85,27 @@ type Key struct {
 	//ApiKey uint16
 }
 
-//// NewKey generates a new Key
-//func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
-//	return Key{
-//		KeyTuple: NewKeyTuple(saddr, daddr, sport, dport),
-//		Path: Path{
-//			Content:  path,
-//			FullPath: fullPath,
-//		},
-//		Method: method,
-//	}
-//}
-//
-//// NewKeyTuple generates a new KeyTuple
-//func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
-//	saddrl, saddrh := util.ToLowHigh(saddr)
-//	daddrl, daddrh := util.ToLowHigh(daddr)
-//	return KeyTuple{
-//		SrcIPHigh: saddrh,
-//		SrcIPLow:  saddrl,
-//		SrcPort:   sport,
-//		DstIPHigh: daddrh,
-//		DstIPLow:  daddrl,
-//		DstPort:   dport,
-//	}
-//}
+// NewKey generates a new Key
+func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string) Key {
+	return Key{
+		KeyTuple:  NewKeyTuple(saddr, daddr, sport, dport),
+		TopicName: topicName,
+	}
+}
+
+// NewKeyTuple generates a new KeyTuple
+func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
+	saddrl, saddrh := util.ToLowHigh(saddr)
+	daddrl, daddrh := util.ToLowHigh(daddr)
+	return KeyTuple{
+		SrcIPHigh: saddrh,
+		SrcIPLow:  saddrl,
+		SrcPort:   sport,
+		DstIPHigh: daddrh,
+		DstIPLow:  daddrl,
+		DstPort:   dport,
+	}
+}
 
 //// NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
 //const NumStatusClasses = 5
