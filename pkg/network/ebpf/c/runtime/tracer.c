@@ -43,8 +43,6 @@ static __always_inline void* get_msghdr_buffer_ptr(struct msghdr *ptr) {
     struct msghdr local_msghdr = {0};
     bpf_probe_read_kernel_with_telemetry(&local_msghdr, sizeof(local_msghdr), ptr);
 
-    log_debug("guy777 %d %d %d", offsetof(struct msghdr, msg_iter), offsetof(struct iov_iter, iov), offsetof(struct iovec, iov_base));
-    log_debug("guy778 %d", offsetof(struct iovec, iov_len));
     void *iov = NULL;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
     iov = (void*)local_msghdr.iov;
@@ -118,8 +116,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_recvmsg")
 int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
-    log_debug("guya111 %d", sizeof(struct iov_iter));
-    log_debug("guya112 %d", sizeof(struct msghdr));
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tcp_recvmsg_args_t *args = (tcp_recvmsg_args_t*) bpf_map_lookup_elem(&tcp_recvmsg_args, &pid_tgid);
     if (!args) {

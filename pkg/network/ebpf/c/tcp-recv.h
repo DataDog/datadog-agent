@@ -7,6 +7,12 @@
 #include "tracer-events.h"
 
 static __always_inline protocol_t classify_wrapper(conn_tuple_t *t, void *buffer_ptr, size_t buffer_size) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (pid_tgid) {
+        log_debug("%d guy recv addr %llu %llu\n", pid_tgid >> 32, t->saddr_l, t->daddr_l);
+        log_debug("%d guy recv port %d %d\n", pid_tgid >> 32, t->sport, t->dport);
+    }
+
     protocol_t protocol = get_cached_protocol_or_default(t);
     if (protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
         log_debug("[guy]: abort1 - %d\n", protocol);
@@ -27,7 +33,6 @@ static __always_inline protocol_t classify_wrapper(conn_tuple_t *t, void *buffer
     char local_buffer_copy[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(local_buffer_copy, 0, CLASSIFICATION_MAX_BUFFER);
     read_into_buffer1(local_buffer_copy, buffer_ptr, buffer_final_size);
-    log_debug("[guy2223]: %s\n", local_buffer_copy);
 
     // detect protocol
     classify_protocol(&protocol, local_buffer_copy, buffer_final_size);

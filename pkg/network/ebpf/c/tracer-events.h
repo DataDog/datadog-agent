@@ -163,6 +163,8 @@ static __always_inline void tcp_sendmsg_helper(struct sock *sk, void *buffer_ptr
         return;
     }
 
+    log_debug("%d guy send addr %llu %llu\n", pid_tgid >> 32, args.conn_tuple.saddr_l, args.conn_tuple.daddr_l);
+    log_debug("%d guy send port %d %d\n", pid_tgid >> 32, args.conn_tuple.sport, args.conn_tuple.dport);
     protocol_t protocol = get_cached_protocol_or_default(&args.conn_tuple);
     if (protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
         goto final;
@@ -180,7 +182,6 @@ static __always_inline void tcp_sendmsg_helper(struct sock *sk, void *buffer_ptr
     char local_buffer_copy[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(local_buffer_copy, 0, CLASSIFICATION_MAX_BUFFER);
     read_into_buffer1(local_buffer_copy, buffer_ptr, buffer_final_size);
-    log_debug("[guy2221]: %d %s\n", buffer_final_size, local_buffer_copy);
 
     // detect protocol
     classify_protocol(&protocol, local_buffer_copy, buffer_final_size);

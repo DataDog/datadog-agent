@@ -140,7 +140,6 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         bpf_probe_read_kernel(&subject, sizeof(subject), subject + status->offset_msghdr_buffer_head);
         bpf_probe_read_kernel(&subject, sizeof(subject), subject);
         bpf_probe_read_user(&new_status.msghdr_buffer, sizeof(new_status.msghdr_buffer), subject);
-        log_debug("guy %s", new_status.msghdr_buffer);
         break;
     default:
         // not for us
