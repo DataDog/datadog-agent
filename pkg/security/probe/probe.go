@@ -548,7 +548,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		mount := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
+		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
+		mount, _ := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {

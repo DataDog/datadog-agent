@@ -1249,7 +1249,7 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
 func (tm *testModule) Close() {
