@@ -173,7 +173,7 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			log.Tracef("Collector metric `%s`: type=`%v` value=`%v`, label=`%v`", metricFamily.GetName(), metricFamily.GetType().String(), metric.GetCounter().GetValue(), metric.GetLabel())
 			metricType, name, value, tags, err := goflowlib.ConvertMetric(metric, metricFamily)
 			if err != nil {
-				log.Debugf("Error converting prometheus metric: %s", err)
+				log.Tracef("Error converting prometheus metric: %s", err)
 				continue
 			}
 			switch metricType {
