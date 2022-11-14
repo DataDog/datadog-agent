@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
@@ -156,7 +155,6 @@ func TestDemuxSerializerCreated(t *testing.T) {
 
 func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require := require.New(t)
-	var defaultCheckID check.ID // empty check.ID is the default sender ID
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment
@@ -188,9 +186,8 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	}()
 	demux.aggregator.run()
 
-	series, sketches := demux.aggregator.checkSamplers[defaultCheckID].flush()
-	require.Len(series, 3)
-	require.Len(sketches, 0)
+	require.Len(demux.aggregator.seriesBuffer, 3)
+	require.Len(demux.aggregator.sketchesBuffer, 0)
 }
 
 func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {

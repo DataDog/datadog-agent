@@ -20,12 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -217,7 +215,8 @@ type BufferedAggregator struct {
 	MetricSamplePool *metrics.MetricSamplePool
 
 	tagsStore              *tags.Store
-	checkSamplers          map[check.ID]*CheckSampler
+	seriesBuffer           []*metrics.Serie
+	sketchesBuffer         metrics.SketchSeriesList
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
 	manifests              []*senderOrchestratorManifest
@@ -291,7 +290,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleStopper: make(chan struct{}),
 
 		tagsStore:                   tagsStore,
-		checkSamplers:               make(map[check.ID]*CheckSampler),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -376,51 +374,6 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, cha
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
-func (agg *BufferedAggregator) registerSender(id check.ID) error {
-	agg.checkItems <- &registerSampler{id}
-	return nil
-}
-
-func (agg *BufferedAggregator) deregisterSender(id check.ID) {
-	// Use the same channel as metrics, so that the drop happens only
-	// after we handle all the metrics sent so far.
-	agg.checkItems <- &deregisterSampler{id}
-}
-
-func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	aggregatorChecksMetricSample.Add(1)
-	tlmProcessed.Inc("metrics")
-
-	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
-		if ss.commit {
-			checkSampler.commit(timeNowNano())
-		} else {
-			ss.metricSample.Tags = util.SortUniqInPlace(ss.metricSample.Tags)
-			checkSampler.addSample(ss.metricSample)
-		}
-	} else {
-		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
-	}
-}
-
-func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBucket) {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	aggregatorCheckHistogramBucketMetricSample.Add(1)
-	tlmProcessed.Inc("histogram_bucket")
-
-	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
-		checkBucket.bucket.Tags = util.SortUniqInPlace(checkBucket.bucket.Tags)
-		checkSampler.addBucket(checkBucket.bucket)
-	} else {
-		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
-	}
-}
-
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
 	if agg.eventPlatformForwarder == nil {
 		return errors.New("event platform forwarder not initialized")
@@ -478,21 +431,15 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	for checkId, checkSampler := range agg.checkSamplers {
-		checkSeries, sketches := checkSampler.flush()
-		for _, s := range checkSeries {
-			seriesSink.Append(s)
-		}
-
-		for _, sk := range sketches {
-			sketchesSink.Append(sk)
-		}
-
-		if checkSampler.deregistered {
-			checkSampler.release()
-			delete(agg.checkSamplers, checkId)
-		}
+	for _, s := range agg.seriesBuffer {
+		seriesSink.Append(s)
 	}
+	for _, sk := range agg.sketchesBuffer {
+		sketchesSink.Append(sk)
+	}
+
+	agg.seriesBuffer = []*metrics.Serie{}
+	agg.sketchesBuffer = metrics.SketchSeriesList{}
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
@@ -833,90 +780,26 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	return tags
 }
 
+// FIXME(vf): move to Collector
 func (agg *BufferedAggregator) updateChecksTelemetry() {
+	// agg.mu.Lock()
+	// defer agg.mu.Unlock()
+
+	// t := metrics.CheckMetricsTelemetryAccumulator{}
+	// for _, sampler := range agg.checkSamplers {
+	// 	t.VisitCheckMetrics(&sampler.metrics)
+	// }
+	// t.Flush()
+}
+
+type checkBundle struct {
+	series   []*metrics.Serie
+	sketches metrics.SketchSeriesList
+}
+
+func (b *checkBundle) handle(agg *BufferedAggregator) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
-
-	t := metrics.CheckMetricsTelemetryAccumulator{}
-	for _, sampler := range agg.checkSamplers {
-		t.VisitCheckMetrics(&sampler.metrics)
-	}
-	t.Flush()
-}
-
-// deregisterSampler is an item sent internally by the aggregator to
-// signal that the sender will no longer will be used for a given
-// check.ID.
-//
-// 1. A check is unscheduled while running.
-//
-// 2. Check sends metrics, sketches and eventually a commit, using the
-// sender to the senderItems channel.
-//
-// 3. Check collector calls deregisterSampler() immediately as check's
-// Run() completes.
-//
-// 4. Metrics are still in the channel, we can't drop the
-// sampler. Instead we add another message to the channel (this type)
-// to indicate that the sampler will no longer be in use once all the
-// metrics are handled.
-//
-// 5. Aggregator handles metrics and the commit message. Sampler now
-// contains metrics from the check.
-//
-// 6. Aggragator handles this message. We can't drop the sender now
-// since it still contains metrics from the last run. Instead, we set
-// a flag that the sampler can be dropped after the next flush.
-//
-// 7. Aggregator flushes metrics from the sampler and can now remove
-// it: we know for sure that no more metrics will arrive.
-type deregisterSampler struct {
-	id check.ID
-}
-
-func (s *deregisterSampler) handle(agg *BufferedAggregator) {
-	agg.handleDeregisterSampler(s.id)
-}
-
-func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-	if cs, ok := agg.checkSamplers[id]; ok {
-		cs.deregistered = true
-	}
-}
-
-// registerSampler is an item sent internally by the aggregator to
-// register a new sampler or re-use an existing one.
-//
-// This handles a situation when a check is descheduled and then
-// immediately re-scheduled again, within one Flush interval.
-//
-// We cannot immediately remove `deregistered` flag from the sampler,
-// since the deregisterSampler message may still be in the queue when
-// the check is re-scheduled. If registerSampler is called before
-// the check runs, we will have a sampler for it one way or another.
-type registerSampler struct {
-	id check.ID
-}
-
-func (s *registerSampler) handle(agg *BufferedAggregator) {
-	agg.handleRegisterSampler(s.id)
-}
-
-func (agg *BufferedAggregator) handleRegisterSampler(id check.ID) {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	if cs, ok := agg.checkSamplers[id]; ok {
-		cs.deregistered = false
-		log.Debugf("Sampler with ID '%s' has already been registered, will use existing sampler", id)
-		return
-	}
-	agg.checkSamplers[id] = newCheckSampler(
-		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
-		config.Datadog.GetBool("check_sampler_expire_metrics"),
-		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
-		agg.tagsStore,
-	)
+	agg.seriesBuffer = append(agg.seriesBuffer, b.series...)
+	agg.sketchesBuffer = append(agg.sketchesBuffer, b.sketches...)
 }

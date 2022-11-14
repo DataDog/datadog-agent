@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,30 +69,12 @@ type checkSender struct {
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
+	sampler                 *CheckSampler
 }
 
 // senderItem knows how the aggregator should handle it
 type senderItem interface {
 	handle(agg *BufferedAggregator)
-}
-
-type senderMetricSample struct {
-	id           check.ID
-	metricSample *metrics.MetricSample
-	commit       bool
-}
-
-func (s *senderMetricSample) handle(agg *BufferedAggregator) {
-	agg.handleSenderSample(*s)
-}
-
-type senderHistogramBucket struct {
-	id     check.ID
-	bucket *metrics.HistogramBucket
-}
-
-func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
-	agg.handleSenderBucket(*s)
 }
 
 type senderEventPlatformEvent struct {
@@ -130,6 +114,7 @@ func newCheckSender(
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
 	contlcycleOut chan<- senderContainerLifecycleEvent,
+	tagsStore *tags.Store,
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
@@ -143,6 +128,13 @@ func newCheckSender(
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
 		contlcycleOut:           contlcycleOut,
+
+		sampler: newCheckSampler(
+			config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+			config.Datadog.GetBool("check_sampler_expire_metrics"),
+			config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+			tagsStore,
+		),
 	}
 }
 
@@ -211,8 +203,8 @@ func (s *checkSender) FinalizeCheckServiceTag() {
 // Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
-	// we use a metric sample to commit both for metrics & sketches
-	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	series, sketches := s.sampler.commit(timeNowNano())
+	s.itemsOut <- &checkBundle{series, sketches}
 	s.cyclemetricStats()
 }
 
@@ -227,12 +219,6 @@ func (s *checkSender) cyclemetricStats() {
 	defer s.statsLock.Unlock()
 	s.priormetricStats = s.metricStats.Copy()
 	s.metricStats = check.NewSenderStats()
-}
-
-// SendRawMetricSample sends the raw sample
-// Useful for testing - submitting precomputed samples.
-func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.itemsOut <- &senderMetricSample{s.id, sample, false}
 }
 
 func (s *checkSender) sendMetricSample(
@@ -263,7 +249,7 @@ func (s *checkSender) sendMetricSample(
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
+	s.sampler.addSample(metricSample)
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -346,7 +332,7 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
+	s.sampler.addBucket(histogramBucket)
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++
@@ -452,7 +438,6 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
-	err := sp.agg.registerSender(id)
 	sender := newCheckSender(
 		id,
 		sp.agg.hostname,
@@ -463,22 +448,19 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 		sp.agg.contLcycleIn,
+		sp.agg.tagsStore,
 	)
 	sp.senders[id] = sender
-	return sender, err
+	return sender, nil
 }
 
 func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
-	if _, ok := sp.senders[id]; ok {
-		sp.agg.deregisterSender(id)
-	}
-	err := sp.agg.registerSender(id)
 	sp.senders[id] = sender
 
-	return err
+	return nil
 }
 
 func (sp *checkSenderPool) removeSender(id check.ID) {
@@ -486,5 +468,4 @@ func (sp *checkSenderPool) removeSender(id check.ID) {
 	defer sp.m.Unlock()
 
 	delete(sp.senders, id)
-	sp.agg.deregisterSender(id)
 }

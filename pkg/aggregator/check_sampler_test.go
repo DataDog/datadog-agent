@@ -65,8 +65,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349.0)
-	series, _ := checkSampler.flush()
+	series, _ := checkSampler.commit(12349.0)
 
 	expectedSerie1 := &metrics.Serie{
 		Name:           "my.metric.name",
@@ -127,8 +126,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349.0)
-	series, _ := checkSampler.flush()
+	series, _ := checkSampler.commit(12349.0)
 
 	expectedSerie := &metrics.Serie{
 		Name:           "my.metric.name",
@@ -179,9 +177,8 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349.0)
+	series, _ := checkSampler.commit(12349.0)
 	require.Len(t, checkSampler.contextResolver.expireCountByKey, 1)
-	series, _ := checkSampler.flush()
 
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
 	expectedCountSerie := &metrics.Serie{
@@ -227,8 +224,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12349.0)
-	_, flushed := checkSampler.flush()
+	_, flushed := checkSampler.commit(12349.0)
 	assert.Equal(t, 1, len(flushed))
 
 	expSketch := &quantile.Sketch{}
@@ -257,11 +253,10 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12401.0)
+	_, flushed = checkSampler.commit(12401.0)
 	assert.Len(t, checkSampler.lastBucketValue, 1)
 	checkSampler.commit(12401.0)
 	assert.Len(t, checkSampler.lastBucketValue, 0)
-	_, flushed = checkSampler.flush()
 
 	expSketch = &quantile.Sketch{}
 	// linear interpolated values (only 2 since we stored the delta)
@@ -280,7 +275,6 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 
 	// garbage collection
 	time.Sleep(11 * time.Millisecond)
-	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 }
 func TestCheckHistogramBucketSampling(t *testing.T) {
@@ -303,8 +297,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12349.0)
-	_, flushed := checkSampler.flush()
+	_, flushed := checkSampler.commit(12349.0)
 	assert.Equal(t, 0, len(flushed))
 
 	bucket2 := &metrics.HistogramBucket{
@@ -319,8 +312,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12401.0)
-	_, flushed = checkSampler.flush()
+	_, flushed = checkSampler.commit(12401.0)
 
 	expSketch := &quantile.Sketch{}
 	// linear interpolated values (only 2 since we stored the delta)
@@ -355,8 +347,7 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	}
 	checkSampler.addBucket(bucket1)
 
-	checkSampler.commit(12349.0)
-	_, flushed := checkSampler.flush()
+	_, flushed := checkSampler.commit(12349.0)
 	assert.Equal(t, 1, len(flushed))
 
 	expSketch := &quantile.Sketch{}

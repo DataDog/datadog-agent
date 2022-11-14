@@ -63,8 +63,7 @@ func (s *senders) DestroySender(id check.ID) {
 // getDefaultSender returns a default sender.
 func (s *senders) GetDefaultSender() (Sender, error) {
 	s.senderInit.Do(func() {
-		var defaultCheckID check.ID          // the default value is the zero value
-		s.agg.registerSender(defaultCheckID) //nolint:errcheck
+		var defaultCheckID check.ID // the default value is the zero value
 		s.defaultSender = newCheckSender(defaultCheckID,
 			s.agg.hostname,
 			s.agg.checkItems,
@@ -74,6 +73,7 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 			s.agg.orchestratorManifestIn,
 			s.agg.eventPlatformIn,
 			s.agg.contLcycleIn,
+			s.agg.tagsStore,
 		)
 	})
 	return s.defaultSender, nil

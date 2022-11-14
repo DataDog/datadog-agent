@@ -133,6 +133,11 @@ func (t *CompositeTags) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &t.tags1)
 }
 
+// ToSlice returns a combined slice of the tags.
+func (t *CompositeTags) ToSlice() []string {
+	return append(append([]string{}, t.tags1...), t.tags2...)
+}
+
 // UnsafeToReadOnlySliceString creates a new slice containing all tags.
 // The caller of this method must ensure that the slice is never mutated.
 // Should be used only for performance reasons.

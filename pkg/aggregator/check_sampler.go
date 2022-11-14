@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"math"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -19,25 +20,22 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
-	series          []*metrics.Serie
-	sketches        metrics.SketchSeriesList
 	contextResolver *countBasedContextResolver
 	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
-	deregistered    bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
 func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
-	return &CheckSampler{
-		series:          make([]*metrics.Serie, 0),
-		sketches:        make(metrics.SketchSeriesList, 0),
+	s := &CheckSampler{
 		contextResolver: newCountBasedContextResolver(expirationCount, cache),
 		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
 	}
+	runtime.SetFinalizer(s, finalizeSampler)
+	return s
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
@@ -120,7 +118,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64) {
+func (cs *CheckSampler) commitSeries(timestamp float64) []*metrics.Serie {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
@@ -131,6 +129,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
 		}
 	}
+	buffer := []*metrics.Serie{}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
 		context, ok := cs.contextResolver.get(serie.ContextKey)
@@ -144,11 +143,12 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 
-		cs.series = append(cs.series, serie)
+		buffer = append(buffer, serie)
 	}
+	return buffer
 }
 
-func (cs *CheckSampler) commitSketches(timestamp float64) {
+func (cs *CheckSampler) commitSketches(timestamp float64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
 	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
@@ -157,14 +157,16 @@ func (cs *CheckSampler) commitSketches(timestamp float64) {
 		}
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
+	sketches := metrics.SketchSeriesList{}
 	for ck, points := range pointsByCtx {
-		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points))
+		sketches = append(sketches, cs.newSketchSeries(ck, points))
 	}
+	return sketches
 }
 
-func (cs *CheckSampler) commit(timestamp float64) {
-	cs.commitSeries(timestamp)
-	cs.commitSketches(timestamp)
+func (cs *CheckSampler) commit(timestamp float64) ([]*metrics.Serie, metrics.SketchSeriesList) {
+	series := cs.commitSeries(timestamp)
+	sketches := cs.commitSketches(timestamp)
 
 	cs.metrics.RemoveExpired(timestamp)
 
@@ -176,20 +178,10 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
-}
-
-func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
-	// series
-	series := cs.series
-	cs.series = make([]*metrics.Serie, 0)
-
-	// sketches
-	sketches := cs.sketches
-	cs.sketches = make(metrics.SketchSeriesList, 0)
 
 	return series, sketches
 }
 
-func (cs *CheckSampler) release() {
+func finalizeSampler(cs *CheckSampler) {
 	cs.contextResolver.release()
 }

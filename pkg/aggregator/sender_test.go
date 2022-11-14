@@ -9,13 +9,14 @@
 package aggregator
 
 import (
-	"fmt"
+	// "fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -39,7 +40,7 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
 	s.contlcycleOut = make(chan senderContainerLifecycleEvent, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut)
+	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut, tags.NewStore(false, "test"))
 	return s
 }
 
@@ -48,19 +49,6 @@ func testDemux() *AgentDemultiplexer {
 	opts.DontStartForwarders = true
 	demux := initAgentDemultiplexer(opts, defaultHostname)
 	return demux
-}
-
-func assertAggSamplersLen(t *testing.T, agg *BufferedAggregator, n int) {
-	assert.Eventually(t, func() bool {
-		agg.mu.Lock()
-		defer agg.mu.Unlock()
-		return len(agg.checkSamplers) == n
-	}, time.Second, 10*time.Millisecond)
-
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-	// This provides a nicer error message than Eventually if the test fails
-	assert.Len(t, agg.checkSamplers, n)
 }
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
@@ -75,7 +63,6 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	s, err := demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender1 := s.(*checkSender)
-	assertAggSamplersLen(t, aggregatorInstance, 1)
 
 	s, err = demux.GetDefaultSender()
 	assert.Nil(t, err)
@@ -95,18 +82,15 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	s, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
 	sender1 := s.(*checkSender)
-	assertAggSamplersLen(t, aggregatorInstance, 1)
 
 	s, err = demux.GetSender(checkID2)
 	assert.Nil(t, err)
 	sender2 := s.(*checkSender)
-	assertAggSamplersLen(t, aggregatorInstance, 2)
 	assert.NotEqual(t, sender1.id, sender2.id)
 
 	s, err = demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender := s.(*checkSender)
-	assertAggSamplersLen(t, aggregatorInstance, 3)
 	assert.NotEqual(t, sender1.id, defaultSender.id)
 	assert.NotEqual(t, sender2.id, defaultSender.id)
 }
@@ -116,13 +100,9 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// -
 
 	demux := testDemux()
-	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
-	defer aggregatorInstance.Stop()
 
 	sender1, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
-	assertAggSamplersLen(t, aggregatorInstance, 1)
 
 	assert.Len(t, demux.senderPool.senders, 1)
 
@@ -138,28 +118,17 @@ func TestDestroySender(t *testing.T) {
 	// -
 
 	demux := testDemux()
-	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
-	defer aggregatorInstance.Stop()
 
 	_, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
-	assertAggSamplersLen(t, aggregatorInstance, 1)
+	assert.Len(t, demux.senderPool.senders, 1)
 
 	_, err = demux.GetSender(checkID2)
 	assert.Nil(t, err)
-	assertAggSamplersLen(t, aggregatorInstance, 2)
+	assert.Len(t, demux.senderPool.senders, 2)
 
 	demux.DestroySender(checkID1)
-
-	assert.Eventually(t, func() bool {
-		aggregatorInstance.mu.Lock()
-		defer aggregatorInstance.mu.Unlock()
-		return aggregatorInstance.checkSamplers[checkID1].deregistered
-	}, time.Second, 10*time.Millisecond)
-
-	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
-	assertAggSamplersLen(t, aggregatorInstance, 1)
+	assert.Len(t, demux.senderPool.senders, 1)
 }
 
 func TestGetAndSetSender(t *testing.T) {
@@ -175,7 +144,7 @@ func TestGetAndSetSender(t *testing.T) {
 	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
 	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan)
+	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan, tags.NewStore(false, "test"))
 
 	err := demux.SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)
@@ -217,16 +186,16 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	s.sender.FinalizeCheckServiceTag()
 
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
-	sms := (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, checkTags, sms.metricSample.Tags)
+	m, _ := s.sender.sampler.commit(0)
+	assert.Equal(t, checkTags, m[0].Tags.ToSlice())
 
 	// only last call is added as a tag
 	s.sender.SetCheckService("service1")
 	s.sender.SetCheckService("service2")
 	s.sender.FinalizeCheckServiceTag()
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
-	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, append(checkTags, "service:service2"), sms.metricSample.Tags)
+	m, _ = s.sender.sampler.commit(0)
+	assert.Equal(t, append(checkTags, "service:service2"), m[0].Tags.ToSlice())
 }
 
 func TestGetSenderServiceTagServiceCheck(t *testing.T) {
@@ -291,14 +260,14 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	// no custom tags
 
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
-	sms := (<-s.itemChan).(*senderMetricSample)
-	assert.Nil(t, sms.metricSample.Tags)
+	m, _ := s.sender.sampler.commit(0)
+	assert.Empty(t, m[0].Tags.ToSlice())
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
-	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, checkTags, sms.metricSample.Tags)
+	m, _ = s.sender.sampler.commit(0)
+	assert.Equal(t, checkTags, m[0].Tags.ToSlice())
 
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
@@ -307,13 +276,13 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 
 	// only tags coming from the configuration file
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
-	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, customTags, sms.metricSample.Tags)
+	m, _ = s.sender.sampler.commit(0)
+	assert.Equal(t, customTags, m[0].Tags.ToSlice())
 
 	// tags added by the check + tags coming from the configuration file
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
-	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
+	m, _ = s.sender.sampler.commit(0)
+	assert.Equal(t, append(checkTags, customTags...), m[0].Tags.ToSlice())
 }
 
 func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
@@ -400,15 +369,15 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	s := initSender(checkID1, "")
 
 	// no custom tags
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
-	bucketSample := (<-s.itemChan).(*senderHistogramBucket)
-	assert.Nil(t, bucketSample.bucket.Tags)
+	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, false, "my-hostname", nil, false)
+	_, b := s.sender.sampler.commit(timeNowNano() + 1)
+	assert.Empty(t, b[0].Tags.ToSlice())
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
-	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
-	assert.Equal(t, checkTags, bucketSample.bucket.Tags)
+	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, false, "my-hostname", checkTags, false)
+	_, b = s.sender.sampler.commit(timeNowNano() + 1)
+	assert.Equal(t, checkTags, b[0].Tags.ToSlice())
 
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
@@ -416,16 +385,17 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)
-	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
-	assert.Equal(t, customTags, bucketSample.bucket.Tags)
+	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, false, "my-hostname", nil, false)
+	_, b = s.sender.sampler.commit(timeNowNano() + 1)
+	assert.Equal(t, customTags, b[0].Tags.ToSlice())
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
-	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
-	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
+	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, false, "my-hostname", checkTags, false)
+	_, b = s.sender.sampler.commit(timeNowNano() + 1)
+	assert.Equal(t, append(checkTags, customTags...), b[0].Tags.ToSlice())
 }
 
+/* FIXME(vf)
 func TestCheckSenderInterface(t *testing.T) {
 	// this test not using anything global
 	// -
@@ -595,3 +565,4 @@ func TestCheckSenderHostname(t *testing.T) {
 		})
 	}
 }
+*/

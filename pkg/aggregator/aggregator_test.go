@@ -77,68 +77,6 @@ func getAggregator() *BufferedAggregator {
 	return demultiplexerInstance.(*AgentDemultiplexer).Aggregator()
 }
 
-func TestRegisterCheckSampler(t *testing.T) {
-	// this test IS USING globals
-	// -
-
-	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
-
-	lenSenders := func(n int) bool {
-		agg.mu.Lock()
-		defer agg.mu.Unlock()
-		return len(agg.checkSamplers) == n
-	}
-
-	err := agg.registerSender(checkID1)
-	assert.Nil(t, err)
-
-	require.Eventually(t, func() bool { return lenSenders(1) }, time.Second, 10*time.Millisecond)
-
-	err = agg.registerSender(checkID2)
-	assert.Nil(t, err)
-	require.Eventually(t, func() bool { return lenSenders(2) }, time.Second, 10*time.Millisecond)
-}
-
-func TestDeregisterCheckSampler(t *testing.T) {
-	// this test IS USING globals
-	// -
-
-	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
-	defer demux.Stop(false)
-
-	agg := demux.Aggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
-
-	agg.registerSender(checkID1)
-	agg.registerSender(checkID2)
-
-	require.Eventually(t, func() bool {
-		agg.mu.Lock()
-		defer agg.mu.Unlock()
-		return len(agg.checkSamplers) == 2
-	}, time.Second, 10*time.Millisecond)
-
-	agg.deregisterSender(checkID1)
-
-	require.Eventually(t, func() bool {
-		agg.mu.Lock()
-		defer agg.mu.Unlock()
-		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
-	}, time.Second, 10*time.Millisecond)
-
-	agg.Flush(testNewFlushTrigger(time.Now(), false))
-
-	agg.mu.Lock()
-	require.Len(t, agg.checkSamplers, 1)
-	_, ok := agg.checkSamplers[checkID1]
-	assert.False(t, ok)
-	_, ok = agg.checkSamplers[checkID2]
-	assert.True(t, ok)
-	agg.mu.Unlock()
-}
-
 func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// this test is not using anything global
 	// -
