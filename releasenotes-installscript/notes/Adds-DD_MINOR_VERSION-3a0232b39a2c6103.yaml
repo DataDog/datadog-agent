@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Adds capability to specify a minor (and optional patch) version by setting
-    the `DD_AGENT_MINOR_VERSION` variable.
