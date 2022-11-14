@@ -146,6 +146,7 @@ core,github.com/alecthomas/participle/lexer/ebnf/internal,MIT,Copyright (C) 2017
 core,github.com/alecthomas/repr,MIT,Copyright (c) 2016 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
+core,github.com/antlr/antlr4/runtime/Go/antlr,BSD-3-Clause,Copyright 2021 The ANTLR Project
 core,github.com/arduino/go-apt-client,Apache-2.0,Copyright (C) 2017  Arduino AG (http://www.arduino.cc/)
 core,github.com/armon/go-metrics,MIT,Copyright (c) 2013 Armon Dadgar
 core,github.com/avast/retry-go/v4,MIT,Copyright (c) 2017 Avast
@@ -427,6 +428,24 @@ core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 Th
 core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
+core,github.com/google/cel-go/cel,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/checker,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/checker/decls,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/containers,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/debug,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/operators,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/overloads,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/runes,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/types,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/types/pb,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/types/ref,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/types/traits,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/ext,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/interpreter,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/interpreter/functions,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/parser,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/parser/gen,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/gnostic/compiler,Apache-2.0,Copyright 2017 Google LLC. All Rights Reserved.
 core,github.com/google/gnostic/extensions,Apache-2.0,Copyright 2017 Google LLC. All Rights Reserved.
 core,github.com/google/gnostic/jsonschema,Apache-2.0,Copyright 2017 Google LLC. All Rights Reserved.
@@ -487,6 +506,9 @@ core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-
 core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/v2/runtime,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/v2/utilities,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/h2non/filetype,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Copyright (c) Tomas Aparicio
@@ -746,6 +768,7 @@ core,github.com/spf13/cast,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/cobra,Apache-2.0,Copyright © 2013 Steve Francia <spf@spf13.com>.
 core,github.com/spf13/jwalterweatherman,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/pflag,BSD-3-Clause,Copyright (c) 2012 Alex Ogier. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved
+core,github.com/stoewer/go-strcase,MIT,"Copyright (c) 2017, Adrian Stoewer <adrian.stoewer@rz.ifi.lmu.de>"
 core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
@@ -983,6 +1006,13 @@ core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/internal/envconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/otlpconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1011,6 +1041,10 @@ core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Copyright The OpenTelemetry A
 core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.12.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/collector/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/common/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/resource/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/proto/otlp/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.uber.org/atomic,MIT,"Copyright (c) 2016 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
@@ -1113,6 +1147,7 @@ core,golang.org/x/text/secure/bidirule,BSD-3-Clause,Copyright (c) 2009 The Go Au
 core,golang.org/x/text/transform,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/unicode/bidi,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/text/width,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/time/rate,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang/go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,gomodules.xyz/jsonpatch/v2,Apache-2.0,Copyright (c) 2015 The Authors
@@ -1148,6 +1183,7 @@ core,google.golang.org/appengine/internal/urlfetch,Apache-2.0,Copyright 2011 Goo
 core,google.golang.org/appengine/socket,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/appengine/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2015 Google LLC
+core,google.golang.org/genproto/googleapis/api/expr/v1alpha1,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/iam/v1,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2015 Google LLC
@@ -1251,6 +1287,7 @@ core,google.golang.org/protobuf/reflect/protoregistry,BSD-3-Clause,Copyright (c)
 core,google.golang.org/protobuf/runtime/protoiface,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/runtime/protoimpl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/descriptorpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/types/dynamicpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/anypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/durationpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/emptypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -1276,12 +1313,15 @@ core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by autho
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/api/admissionregistration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admissionregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/api/apidiscovery/v2beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/apiserverinternal/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/apps/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/apps/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/apps/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/authentication/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/api/authentication/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/authentication/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/authorization/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/authorization/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1304,6 +1344,7 @@ core,k8s.io/api/extensions/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/api/flowcontrol/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/flowcontrol/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/flowcontrol/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/api/flowcontrol/v1beta3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/networking/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/networking/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/networking/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1388,10 +1429,14 @@ core,k8s.io/apimachinery/pkg/watch,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/apimachinery/third_party/forked/golang/json,BSD-3-Clause,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apimachinery/third_party/forked/golang/reflect,BSD-3-Clause,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/cel,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/configuration,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/initializer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy/internal/generic,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy/matching,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/config,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1400,10 +1445,10 @@ core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/errors,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/generic,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/mutating,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/namespace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/object,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/namespace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/object,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/rules,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/request,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/rules,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/admission/plugin/webhook/validating,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/apiserver,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/apiserver/install,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1413,8 +1458,6 @@ core,k8s.io/apiserver/pkg/apis/apiserver/v1beta1,Apache-2.0,Copyright 2014 The K
 core,k8s.io/apiserver/pkg/apis/audit,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/audit/install,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/audit/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/apiserver/pkg/apis/audit/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/apiserver/pkg/apis/audit/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/audit/validation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/config,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/apis/config/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1439,15 +1482,19 @@ core,k8s.io/apiserver/pkg/authorization/authorizer,Apache-2.0,Copyright 2014 The
 core,k8s.io/apiserver/pkg/authorization/authorizerfactory,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/authorization/path,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/authorization/union,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/cel,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/cel/library,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/deprecation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/discovery,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/endpoints/discovery/aggregated,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/filterlatency,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/filters,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/finisher,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/endpoints/handlers/metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/negotiation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/responsewriters,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1470,6 +1517,7 @@ core,k8s.io/apiserver/pkg/server/httplog,Apache-2.0,Copyright 2014 The Kubernete
 core,k8s.io/apiserver/pkg/server/mux,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/options,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/options/encryptionconfig,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/options/encryptionconfig/controller,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/resourceconfig,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/routes,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/storage,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1485,7 +1533,10 @@ core,k8s.io/apiserver/pkg/storage/storagebackend/factory,Apache-2.0,Copyright 20
 core,k8s.io/apiserver/pkg/storage/value,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storage/value/encrypt/aes,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/kmsv2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/kmsv2/v2alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storage/value/encrypt/identity,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storage/value/encrypt/secretbox,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storageversion,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1537,6 +1588,7 @@ core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/listers/autoscaling.k8
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/listers/autoscaling.k8s.io/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/listers/poc.autoscaling.k8s.io/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/applyconfigurations/admissionregistration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/admissionregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/apiserverinternal/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/apps/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1561,6 +1613,7 @@ core,k8s.io/client-go/applyconfigurations/extensions/v1beta1,Apache-2.0,Copyrigh
 core,k8s.io/client-go/applyconfigurations/flowcontrol/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/flowcontrol/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/flowcontrol/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/applyconfigurations/flowcontrol/v1beta3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/meta/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/networking/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1588,6 +1641,7 @@ core,k8s.io/client-go/dynamic/dynamiclister,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/client-go/informers,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/admissionregistration,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/informers/admissionregistration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/admissionregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/apiserverinternal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/apiserverinternal/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1623,6 +1677,7 @@ core,k8s.io/client-go/informers/flowcontrol,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/client-go/informers/flowcontrol/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/flowcontrol/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/flowcontrol/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/informers/flowcontrol/v1beta3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/internalinterfaces,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/networking,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/networking/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1652,6 +1707,8 @@ core,k8s.io/client-go/kubernetes/fake,Apache-2.0,Copyright 2014 The Kubernetes A
 core,k8s.io/client-go/kubernetes/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/apiserverinternal/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1664,6 +1721,8 @@ core,k8s.io/client-go/kubernetes/typed/apps/v1beta2,Apache-2.0,Copyright 2014 Th
 core,k8s.io/client-go/kubernetes/typed/apps/v1beta2/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/authentication/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/authentication/v1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/authentication/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/authentication/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/authentication/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/authentication/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/authorization/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1708,6 +1767,8 @@ core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1,Apache-2.0,Copyright 
 core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta2/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta3/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/networking/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/networking/v1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/networking/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1743,6 +1804,7 @@ core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake,Apache-2.0,Copyrigh
 core,k8s.io/client-go/kubernetes/typed/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/listers/admissionregistration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/admissionregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/apiserverinternal/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/apps/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1767,6 +1829,7 @@ core,k8s.io/client-go/listers/extensions/v1beta1,Apache-2.0,Copyright 2014 The K
 core,k8s.io/client-go/listers/flowcontrol/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/flowcontrol/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/flowcontrol/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/listers/flowcontrol/v1beta3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/networking/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/networking/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/networking/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1824,11 +1887,17 @@ core,k8s.io/component-base/config/v1alpha1,Apache-2.0,Copyright 2014 The Kuberne
 core,k8s.io/component-base/featuregate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/logs,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/logs/api/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-base/logs/klogflags,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-base/metrics/features,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/metrics/legacyregistry,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-base/metrics/prometheus/feature,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-base/metrics/prometheus/slis,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/metrics/prometheus/workqueue,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/metrics/prometheusextension,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/metrics/testutil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-base/tracing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-base/tracing/api/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1846,6 +1915,8 @@ core,k8s.io/klog/v2/internal/clock,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/klog/v2/internal/dbg,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/serialize,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/severity,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kms/apis/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kms/apis/v2alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -1857,7 +1928,9 @@ core,k8s.io/kube-openapi/pkg/generators,Apache-2.0,Copyright 2014 The Kubernetes
 core,k8s.io/kube-openapi/pkg/generators/rules,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-openapi/pkg/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/internal/handler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json,BSD-3-Clause,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/openapiconv,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/schemaconv,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/schemamutation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
