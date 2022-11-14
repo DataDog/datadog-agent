@@ -52,10 +52,6 @@ func TestCompileAzureResourceID(t *testing.T) {
 	assert.Equal(t, "/subscriptions/00000000/resourcegroups/resource/providers/microsoft.web/sites/site-name", resourceID)
 }
 
-// func TestGetLinuxOrUnknown(t *testing.T) {
-// 	os := getLinuxOrUnknown()
-// }
-
 func mockAzureAppServiceMetadata() map[string]string {
 	aasMetadata = make(map[string]string)
 	aasMetadata["WEBSITE_SITE_NAME"] = "site-name-test"
