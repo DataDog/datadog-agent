@@ -46,6 +46,7 @@ google.golang.org/genproto/*: Copyright 2015 Google LLC
 google.golang.org/grpc: Copyright 2014 gRPC authors.
 google.golang.org/grpc/*: Copyright 2014 gRPC authors.
 github.com/skydive-project/go-debouncer: Copyright (C) 2018 Red Hat, Inc.
+github.com/google/gnostic/*: Copyright 2017 Google LLC. All Rights Reserved.
 
 # NOTE: We cannot use
 #   github.com/DataDog/*: Datadog, Inc.
