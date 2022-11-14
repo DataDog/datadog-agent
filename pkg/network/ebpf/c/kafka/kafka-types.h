@@ -1,8 +1,6 @@
 #ifndef __KAFKA_TYPES_H
 #define __KAFKA_TYPES_H
 
-#include "../../tracer.h"
-
 // Every kafka message encodes starts with:
 //  * 4 bytes for the size of the payload
 //  * 2 bytes for api key
@@ -21,9 +19,9 @@
 // TODO: This is too small, but I cannot enlarge the stack
 #define KAFKA_BUFFER_SIZE (8 * 20)
 
-// TODO: Make it bigger
-#define CLIENT_ID_MAX_STRING_SIZE (7 * 8)
-#define TOPIC_NAME_MAX_STRING_SIZE (8 * 8)
+// TODO: Decide the specific size
+#define CLIENT_ID_MAX_STRING_SIZE (10 * 8)
+#define TOPIC_NAME_MAX_STRING_SIZE (10 * 8)
 
 //// This controls the number of KAFKA transactions read from userspace at a time
 #define KAFKA_BATCH_SIZE 15

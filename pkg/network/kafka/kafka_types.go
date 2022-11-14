@@ -10,7 +10,7 @@ package kafka
 
 /*
 #include "../ebpf/c/tracer.h"
-#include "../ebpf/c/kafka/socket-filter-approach/kafka-types.h"
+#include "../ebpf/c/kafka/kafka-types.h"
 */
 import "C"
 

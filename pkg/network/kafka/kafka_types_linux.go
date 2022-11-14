@@ -27,8 +27,8 @@ type ebpfKafkaTx struct {
 	Tcp_seq                            uint32
 	Current_offset_in_request_fragment uint32
 	Request_fragment                   [160]byte
-	Client_id                          [56]int8
-	Topic_name                         [64]int8
+	Client_id                          [80]int8
+	Topic_name                         [80]int8
 	Owned_by_src_port                  uint16
 	Pad_cgo_0                          [6]byte
 }
