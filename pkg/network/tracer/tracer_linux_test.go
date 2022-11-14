@@ -1786,12 +1786,21 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 }
 
 func buildGoTLSClientBin(t *testing.T) string {
-	const ClientSrcPath = "testutil/cmd/gotls_client"
+	const ClientSrcPath = "testutil/gotls_client"
+	const ClientBinaryPath = "testutil/gotls_client/gotls_client"
 
 	t.Helper()
 
 	cur, err := httptest.CurDir()
 	require.NoError(t, err)
+
+	clientBinary := fmt.Sprintf("%s/%s", cur, ClientBinaryPath)
+
+	// If there is a compiled binary already, skip the compilation.
+	// Meant for the CI.
+	if _, err = os.Stat(clientBinary); err == nil {
+		return clientBinary
+	}
 
 	clientSrcDir := fmt.Sprintf("%s/%s", cur, ClientSrcPath)
 	clientBuildDir, err := ioutil.TempDir("/tmp", "gotls_client_build-")
@@ -1803,9 +1812,9 @@ func buildGoTLSClientBin(t *testing.T) string {
 
 	clientBinPath := fmt.Sprintf("%s/gotls_client", clientBuildDir)
 
-	clientBuildCmd := fmt.Sprintf("go build -o %s %s", clientBinPath, clientSrcDir)
-	_, err = testutil.RunCommand(clientBuildCmd)
-	require.NoError(t, err, "could not build client test binary: %s", err)
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", clientBinPath, clientSrcDir)
+	out, err := c.CombinedOutput()
+	require.NoError(t, err, "could not build client test binary: %s\noutput: %s", err, string(out))
 
 	return clientBinPath
 }

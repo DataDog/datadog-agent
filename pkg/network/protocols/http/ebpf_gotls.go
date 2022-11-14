@@ -166,7 +166,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	}
 
 	p.procMonitor.done = make(chan struct{})
-	p.procMonitor.events = make(chan netlink.ProcEvent, 10)
+	p.procMonitor.events = make(chan netlink.ProcEvent, 1000)
 	p.procMonitor.errors = make(chan error, 1)
 
 	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
@@ -286,7 +286,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	if hookedBin == nil {
 		hookedBin, err = p.hookNewBinary(binPath, stat.Ino)
 		if err != nil {
-			log.Debugf("could not hook new binary: %s", err)
+			log.Debugf("could not hook new binary (%d): %s", pid, err)
 			return
 		}
 		hookedBin.mTime = stat.Mtim
