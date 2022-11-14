@@ -6,6 +6,7 @@
 package traceutil
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,10 +16,11 @@ var aasMetadata map[string]string
 
 func TestGetAppServiceTags(t *testing.T) {
 	metadata := getAppServicesTags(mockGetEnvVar)
+	os := runtime.GOOS
 
 	assert.Equal(t, "1234abcd", metadata[aasInstanceID])
 	assert.Equal(t, "test-instance", metadata[aasInstanceName])
-	assert.Equal(t, "darwin", metadata[aasOperatingSystem])
+	assert.Equal(t, os, metadata[aasOperatingSystem])
 	assert.Equal(t, "Node.js", metadata[aasRuntime])
 	assert.Equal(t, "test-resource-group", metadata[aasResourceGroup])
 	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-resource-group/providers/microsoft.web/sites/site-name-test", metadata[aasResourceID])
