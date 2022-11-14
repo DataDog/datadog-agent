@@ -107,13 +107,8 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
-			switch err.(type) {
-			case ErrDentryPathKeyNotFound:
-				// this error is the only one we don't care about
-			default:
-				f.PathResolutionError = err
-				ev.SetPathResolutionError(err)
-			}
+			f.PathResolutionError = err
+			ev.SetPathResolutionError(err)
 		}
 		f.SetPathnameStr(path)
 	}
@@ -135,7 +130,11 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	if f.Filesystem == "" {
-		f.Filesystem = ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+		fs, err := ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+		if err != nil {
+			ev.SetPathResolutionError(err)
+		}
+		f.Filesystem = fs
 	}
 	return f.Filesystem
 }
