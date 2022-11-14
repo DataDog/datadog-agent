@@ -32,31 +32,35 @@ SEC("socket/kafka_filter")
 //int socket__http_filter(struct __sk_buff* skb) {
 int socket__kafka_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
-    kafka_transaction_t kafka;
-    bpf_memset(&kafka, 0, sizeof(kafka));
+    u32 zero = 0;
+    kafka_transaction_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        log_debug("socket__kafka_filter: kafka_transaction state is NULL");
+        return 0;
+    }
+    bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
-    if (!read_conn_tuple_skb(skb, &skb_info, &kafka.tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info, &kafka->tup)) {
         return 0;
     }
 
-// Solve the max stack problem
-//    if (!kafka_allow_packet(&kafka, skb, &skb_info)) {
-//        return 0;
-//    }
+    if (!kafka_allow_packet(kafka, skb, &skb_info)) {
+        return 0;
+    }
 
 //    // src_port represents the source port number *before* normalization
 //    // for more context please refer to http-types.h comment on `owned_by_src_port` field
 //    http.owned_by_src_port = http.tup.sport;
 //    normalize_tuple(&http.tup);
-    kafka.owned_by_src_port = kafka.tup.sport;
-    normalize_tuple(&kafka.tup);
+    kafka->owned_by_src_port = kafka->tup.sport;
+    normalize_tuple(&kafka->tup);
 //
 //    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    read_into_buffer_skb((char *)kafka.request_fragment, skb, &skb_info);
+    read_into_buffer_skb((char *)kafka->request_fragment, skb, &skb_info);
 //    log_debug("skb->len: %d, info->data_off: %d", skb->len, skb_info.data_off);
 //    log_debug("kafka.request_fragment: %d %d %d", kafka.request_fragment[6], kafka.request_fragment[7], kafka.request_fragment[8]);
 //    http_process(&http, &skb_info, NO_TAGS);
-    kafka_process(&kafka, &skb_info, NO_TAGS);
+    kafka_process(kafka, &skb_info, NO_TAGS);
     return 0;
 }
 //
