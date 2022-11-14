@@ -524,18 +524,16 @@ type ArgsEnvsEvent struct {
 //msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent
-	MountID                       uint32
-	GroupID                       uint32
-	Device                        uint32
-	ParentMountID                 uint32
-	ParentInode                   uint64
-	FSType                        string
-	MountPointStr                 string
-	MountPointPathResolutionError error
-	RootMountID                   uint32
-	RootInode                     uint64
-	RootStr                       string
-	RootPathResolutionError       error
+	MountID       uint32
+	GroupID       uint32
+	Device        uint32
+	ParentMountID uint32
+	ParentInode   uint64
+	FSType        string
+	MountPointStr string
+	RootMountID   uint32
+	RootInode     uint64
+	RootStr       string
 
 	FSTypeRaw [16]byte
 }
@@ -548,22 +546,6 @@ func (m *MountEvent) GetFSType() string {
 // IsOverlayFS returns whether it is an overlay fs
 func (m *MountEvent) IsOverlayFS() bool {
 	return m.GetFSType() == "overlay"
-}
-
-// GetRootPathResolutionError returns the root path resolution error as a string if there is one
-func (m *MountEvent) GetRootPathResolutionError() string {
-	if m.RootPathResolutionError != nil {
-		return m.RootPathResolutionError.Error()
-	}
-	return ""
-}
-
-// GetMountPointPathResolutionError returns the mount point path resolution error as a string if there is one
-func (m *MountEvent) GetMountPointPathResolutionError() string {
-	if m.MountPointPathResolutionError != nil {
-		return m.MountPointPathResolutionError.Error()
-	}
-	return ""
 }
 
 // OpenEvent represents an open event

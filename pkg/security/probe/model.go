@@ -169,29 +169,37 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 }
 
 // SetMountPoint set the mount point information
-func (ev *Event) SetMountPoint(e *model.MountEvent) {
-	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+func (ev *Event) SetMountPoint(e *model.MountEvent) error {
+	var err error
+	e.MountPointStr, err = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
+func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
 	if len(e.MountPointStr) == 0 {
-		ev.SetMountPoint(e)
+		if err := ev.SetMountPoint(e); err != nil {
+			return "", err
+		}
 	}
-	return e.MountPointStr
+	return e.MountPointStr, nil
 }
 
 // SetMountRoot set the mount point information
-func (ev *Event) SetMountRoot(e *model.MountEvent) {
-	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+func (ev *Event) SetMountRoot(e *model.MountEvent) error {
+	var err error
+	e.RootStr, err = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
+func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 	if len(e.RootStr) == 0 {
-		ev.SetMountRoot(e)
+		if err := ev.SetMountRoot(e); err != nil {
+			return "", err
+		}
 	}
-	return e.RootStr
+	return e.RootStr, nil
 }
 
 // ResolveContainerID resolves the container ID of the event

@@ -527,20 +527,31 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
 
 		// Resolve mount point
-		event.SetMountPoint(&event.Mount)
+		if err := event.SetMountPoint(&event.Mount); err != nil {
+			seclog.Debugf("failed to set mount point: %v", err)
+			return
+		}
 		// Resolve root
-		event.SetMountRoot(&event.Mount)
+		if err := event.SetMountRoot(&event.Mount); err != nil {
+			seclog.Debugf("failed to set mount root: %v", err)
+			return
+		}
+
 		// Insert new mount point in cache
-		err = p.resolvers.MountResolver.Insert(event.Mount)
-		if err != nil {
+		if err = p.resolvers.MountResolver.Insert(event.Mount); err != nil {
 			seclog.Errorf("failed to insert mount event: %v", err)
+			return
 		}
 
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			_, mountPath, _, _ := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID, event.PIDContext.Pid)
-			mountNetNSPath := utils.NetNSPathFromPath(mountPath)
-			_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
+			_, mountPath, _, err := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID, event.PIDContext.Pid)
+			if err != nil {
+				seclog.Debugf("failed to get mount path: %v", err)
+			} else {
+				mountNetNSPath := utils.NetNSPathFromPath(mountPath)
+				_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
+			}
 		}
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
